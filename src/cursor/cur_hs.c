@@ -524,10 +524,14 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
+    WT_DECL_ITEM(datastore_key);
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    int exact;
+    wt_timestamp_t start_ts;
+    uint64_t counter;
+    uint32_t btree_id;
+    int exact, cmp;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -535,6 +539,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, search_near, CUR2BT(file_cursor));
 
+    WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
     WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
     /* At least we have the btree id set. */
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET));
@@ -550,7 +555,30 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     if (!F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET)) {
         WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
-            WT_ERR(__wt_hs_cursor_prev(session, file_cursor));
+            /* Walk backward to the specified btree or key space. */
+            while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
+                WT_ERR(
+                  file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
+                if (btree_id == hs_cursor->btree_id) {
+                    if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
+                        WT_ERR(__wt_compare(
+                          session, NULL, &hs_cursor->datastore_key, datastore_key, &cmp));
+                        if (cmp == 0) {
+                            break;
+                        }
+
+                        if (cmp < 0) {
+                            ret = WT_NOTFOUND;
+                            goto err;
+                        }
+                    }
+                }
+                if (btree_id < hs_cursor->btree_id) {
+                    ret = WT_NOTFOUND;
+                    goto err;
+                }
+            }
+            WT_ERR(ret);
             WT_ERR(__curhs_prev_visible(session, hs_cursor));
         } else
             WT_ERR(ret);
@@ -562,7 +590,30 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     else {
         WT_ERR_NOTFOUND_OK(__curhs_prev_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
-            WT_ERR(__wt_hs_cursor_next(session, file_cursor));
+            /* Walk forward to the specified btree or key space. */
+            while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
+                WT_ERR(
+                  file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
+                if (btree_id == hs_cursor->btree_id) {
+                    if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
+                        WT_ERR(__wt_compare(
+                          session, NULL, &hs_cursor->datastore_key, datastore_key, &cmp));
+                        if (cmp == 0) {
+                            break;
+                        }
+
+                        if (cmp > 0) {
+                            ret = WT_NOTFOUND;
+                            goto err;
+                        }
+                    }
+                }
+                if (btree_id > hs_cursor->btree_id) {
+                    ret = WT_NOTFOUND;
+                    goto err;
+                }
+            }
+            WT_ERR(ret);
             WT_ERR(__curhs_next_visible(session, hs_cursor));
         } else
             WT_ERR(ret);
@@ -575,6 +626,7 @@ err:
         WT_TRET(cursor->reset(cursor));
     }
 
+    __wt_scr_free(session, &datastore_key);
     __wt_scr_free(session, &srch_key);
     API_END_RET(session, ret);
 }
