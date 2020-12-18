@@ -1,5 +1,6 @@
-#include <iostream>
-#include <cstdlib>
+/* Include guard. */
+#ifndef TEST_HARNESS_H
+#define TEST_HARNESS_H
 
 extern "C" {
     #include "wiredtiger.h"
@@ -15,3 +16,5 @@ namespace TestHarness {
         virtual int Run() = 0;
     };
 }
+
+#endif

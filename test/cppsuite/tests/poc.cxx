@@ -1,4 +1,6 @@
-#include "../test_harness/test_harness.hpp"
+#include <iostream>
+#include <cstdlib>
+#include "test_harness/test_harness.h"
 
 class POCTest : public TestHarness::Test {
     public:
