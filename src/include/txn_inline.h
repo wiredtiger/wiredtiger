@@ -1049,7 +1049,7 @@ retry:
  *     Begin a transaction.
  */
 static inline int
-__wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[], bool autocommit)
+__wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_TXN *txn;
 
@@ -1066,7 +1066,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[], bool autocommit)
      * transaction. As there is no need of updating snapshot for autocommit transactions as they are
      * committed at the end of the operation.
      */
-    if (txn->isolation == WT_ISO_SNAPSHOT && (!autocommit || !F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
+    if (txn->isolation == WT_ISO_SNAPSHOT &&
+      !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (session->ncursors > 0)
             WT_RET(__wt_session_copy_values(session));
 
@@ -1094,14 +1095,15 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[], bool autocommit)
 static inline int
 __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
 {
+    WT_DECL_RET;
     WT_TXN *txn;
 
     txn = session->txn;
     if (F_ISSET(txn, WT_TXN_AUTOCOMMIT)) {
+        ret = __wt_txn_begin(session, NULL);
         F_CLR(txn, WT_TXN_AUTOCOMMIT);
-        return (__wt_txn_begin(session, NULL, true));
     }
-    return (0);
+    return (ret);
 }
 
 /*

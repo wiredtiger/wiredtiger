@@ -113,7 +113,7 @@ __wt_meta_track_on(WT_SESSION_IMPL *session)
     if (session->meta_track_nest++ == 0) {
         if (!F_ISSET(session->txn, WT_TXN_RUNNING)) {
 #ifdef WT_ENABLE_SCHEMA_TXN
-            WT_RET(__wt_txn_begin(session, NULL, false));
+            WT_RET(__wt_txn_begin(session, NULL));
             __wt_errx(session, "TRACK: Using internal schema txn");
 #endif
             F_SET(session, WT_SESSION_SCHEMA_TXN);
