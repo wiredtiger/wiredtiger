@@ -528,7 +528,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 if (btree_id == hs_cursor->btree_id) {
                     if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                         WT_ERR(__wt_compare(
-                          session, NULL, &hs_cursor->datastore_key, datastore_key, &cmp));
+                          session, NULL, hs_cursor->datastore_key, datastore_key, &cmp));
                         if (cmp == 0) {
                             break;
                         }
@@ -563,7 +563,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 if (btree_id == hs_cursor->btree_id) {
                     if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                         WT_ERR(__wt_compare(
-                          session, NULL, &hs_cursor->datastore_key, datastore_key, &cmp));
+                          session, NULL, hs_cursor->datastore_key, datastore_key, &cmp));
                         if (cmp == 0) {
                             break;
                         }
