@@ -2,9 +2,9 @@
 #include <cstdlib>
 #include "test_harness/test_harness.h"
 
-class POCTest : public TestHarness::Test {
+class poc_test : public test_harness::test {
     public:
-    int Run() {
+    int run() {
         WT_CONNECTION *conn;
         int ret = 0;
         /* Setup basic test directory. */
@@ -26,5 +26,5 @@ class POCTest : public TestHarness::Test {
 };
 
 int main(int argc, char *argv[]) {
-    return POCTest().Run();
+    return poc_test().run();
 }

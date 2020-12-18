@@ -3,18 +3,18 @@
 #define TEST_HARNESS_H
 
 extern "C" {
-    #include "wiredtiger.h"
+#include "wiredtiger.h"
 }
 
-namespace TestHarness {
-    class Test {
-        public:
-        /*
-         * All tests will implement this initially, the return value from it will indicate whether
-         * the test was successful or not.
-         */
-        virtual int Run() = 0;
-    };
-}
+namespace test_harness {
+class test {
+    public:
+    /*
+     * All tests will implement this initially, the return value from it will indicate whether the
+     * test was successful or not.
+     */
+    virtual int run() = 0;
+};
+} // namespace test_harness
 
 #endif
