@@ -51,14 +51,15 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
 
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
+    def large_updates(self, uri, value, ds, nrows):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
         for i in range(0, nrows):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            session.commit_transaction()
+            #session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows):
@@ -82,10 +83,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
-
         cursor = self.session.open_cursor(self.uri)
-        self.large_updates(self.uri, valuea, ds, self.nrows, 20)
+        self.large_updates(self.uri, valuea, ds, self.nrows)
 
         self.session.begin_transaction()
 
@@ -104,14 +103,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor.insert(), 0)
             self.session.commit_transaction()
 
-            self.large_updates(self.uri, valuec, ds, self.nrows, 30)
-            self.large_updates(self.uri, valued, ds, self.nrows, 40)
+            self.large_updates(self.uri, valuec, ds, self.nrows)
+            self.large_updates(self.uri, valued, ds, self.nrows)
 
         finally:
             done.set()
             ckpt.join()
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+        #self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
 
         #Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(".", "RESTART")

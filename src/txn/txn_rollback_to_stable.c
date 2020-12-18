@@ -10,6 +10,7 @@
 
 #define WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, txnid) \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
+
 /*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
@@ -166,6 +167,11 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
      */
     if (conn->recovery_ckpt_snapshot_count == 0)
         return false;
+    
+    if (txnid < conn->recovery_ckpt_snap_min)
+        return false;
+    else if (txnid > conn->recovery_ckpt_snap_max)
+        return true;
 
     WT_BINARY_SEARCH(
       txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
