@@ -2024,7 +2024,7 @@ static inline int __wt_txn_activity_check(WT_SESSION_IMPL *session, bool *txn_ac
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
+static inline int __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[], bool autocommit)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_context_check(WT_SESSION_IMPL *session, bool requires_txn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

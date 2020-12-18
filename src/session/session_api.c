@@ -1501,7 +1501,7 @@ __session_begin_transaction(WT_SESSION *wt_session, const char *config)
 
     WT_ERR(__wt_txn_context_check(session, false));
 
-    ret = __wt_txn_begin(session, cfg);
+    ret = __wt_txn_begin(session, cfg, false);
 
 err:
     API_END_RET(session, ret);
