@@ -59,10 +59,10 @@ class test_isolation01(wttest.WiredTigerTestCase):
 
         if self.isolation == 'snapshot':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation performed write operation/")
+            lambda: self.session.reset_snapshot(), "/sessions with read-committed or read-uncommitted isolation performed write operation/")
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation cannot reset snapshot/")
+            lambda: self.session.reset_snapshot(), "/not supported in read-committed or read-uncommitted transactions/")
         self.session.commit_transaction()
 
         cursor2 = self.session.open_cursor(self.uri, None)
@@ -73,7 +73,7 @@ class test_isolation01(wttest.WiredTigerTestCase):
             self.session.reset_snapshot()
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.reset_snapshot(), "/read committed/uncommitted isolation cannot reset snapshot/")
+            lambda: self.session.reset_snapshot(), "/not supported in read-committed or read-uncommitted transactions/")
 
 if __name__ == '__main__':
     wttest.run()
