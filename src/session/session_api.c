@@ -1694,8 +1694,8 @@ __session_reset_snapshot(WT_SESSION *wt_session)
     session = (WT_SESSION_IMPL *)wt_session;
     /* Return error if the isolation mode is read committed. */
     if (session->txn->isolation != WT_ISO_SNAPSHOT)
-        WT_RET_MSG(session, ENOTSUP,
-          "not supported in read-committed or read-uncommitted transactions.");
+        WT_RET_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions.");
 
     /* Return error if the session has performed any write operations. */
     if (F_ISSET(session->txn, WT_TXN_HAS_ID))
