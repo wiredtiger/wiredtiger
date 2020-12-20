@@ -1699,8 +1699,7 @@ __session_reset_snapshot(WT_SESSION *wt_session)
 
     /* Return error if the session has performed any write operations. */
     if (F_ISSET(session->txn, WT_TXN_HAS_ID))
-        WT_RET_MSG(session, ENOTSUP,
-          "sessions with read-committed or read-uncommitted isolation performed write operation.");
+        WT_RET_MSG(session, ENOTSUP, "not supported in write transactions.");
 
     __wt_txn_release_snapshot(session);
     __wt_txn_get_snapshot(session);

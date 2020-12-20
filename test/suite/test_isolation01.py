@@ -59,7 +59,7 @@ class test_isolation01(wttest.WiredTigerTestCase):
 
         if self.isolation == 'snapshot':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.reset_snapshot(), "/sessions with read-committed or read-uncommitted isolation performed write operation/")
+            lambda: self.session.reset_snapshot(), "/not supported in write transactions/")
         else:
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.reset_snapshot(), "/not supported in read-committed or read-uncommitted transactions/")
