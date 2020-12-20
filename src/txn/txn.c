@@ -860,7 +860,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * have to be refreshed.
      */
     if (!readonly)
-        (void)__wt_gen_next(session, WT_GEN_COMMIT);
+        __wt_gen_next(session, WT_GEN_COMMIT, NULL);
 
     /* First check if we've already committed something in the future. */
     if (update_timestamp) {
