@@ -39,7 +39,6 @@ from wtscenario import make_scenarios
 # because the session was created with snapshot isolation.
 class test_backup20(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
-    session_config='isolation=snapshot'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
     uri="table:test"
@@ -47,6 +46,16 @@ class test_backup20(wttest.WiredTigerTestCase, suite_subprocess):
     mult=0
 
     pfx = 'test_backup'
+
+    scenarios = make_scenarios([
+        ('default', dict(sess_cfg='')),
+        ('read-committed', dict(sess_cfg='isolation=read_committed')),
+        ('read-uncommitted', dict(sess_cfg='isolation=read_uncommitted')),
+        ('snapshot', dict(sess_cfg='isolation=snapshot')),
+    ])
+
+    def session_config(self):
+        return self.sess_cfg
 
     def test_backup20(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
