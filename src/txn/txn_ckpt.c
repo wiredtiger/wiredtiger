@@ -343,7 +343,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     double current_dirty, prev_dirty;
-    uint64_t bytes_written_start, bytes_written_total;
+    uint64_t bytesWritten_start, bytes_written_total;
     uint64_t cache_size, max_write;
     uint64_t time_start, time_stop;
     uint64_t total_ms;
@@ -359,7 +359,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
         return;
 
     time_start = __wt_clock(session);
-    bytes_written_start = cache->bytes_written;
+    bytesWritten_start = cache->bytes_written;
 
     /*
      * If the cache size is zero or very small, we're done. The cache size can briefly become zero
@@ -395,7 +395,7 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
          * Don't wait indefinitely: there might be dirty pages that can't be evicted. If we can't
          * meet the target, give up and start the checkpoint for real.
          */
-        bytes_written_total = cache->bytes_written - bytes_written_start;
+        bytes_written_total = cache->bytes_written - bytesWritten_start;
         if (bytes_written_total > max_write)
             break;
     }
