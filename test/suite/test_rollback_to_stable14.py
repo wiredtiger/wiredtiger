@@ -81,5 +81,4 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
                 # Put the timestamp backwards so we can rollback the updates we just did.
                 stable_ts = (i - 1) * 10
                 self.conn.set_timestamp('stable_timestamp=' + timestamp_str(stable_ts))
-                with self.expectedStdoutPattern('.*'):
-                    self.conn.rollback_to_stable()
+                self.conn.rollback_to_stable()
