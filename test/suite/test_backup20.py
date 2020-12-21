@@ -49,8 +49,8 @@ class test_backup20(wttest.WiredTigerTestCase, suite_subprocess):
 
     scenarios = make_scenarios([
         ('default', dict(sess_cfg='')),
-        ('read-committed', dict(sess_cfg='isolation=read_committed')),
-        ('read-uncommitted', dict(sess_cfg='isolation=read_uncommitted')),
+        ('read-committed', dict(sess_cfg='isolation=read-committed')),
+        ('read-uncommitted', dict(sess_cfg='isolation=read-uncommitted')),
         ('snapshot', dict(sess_cfg='isolation=snapshot')),
     ])
 
