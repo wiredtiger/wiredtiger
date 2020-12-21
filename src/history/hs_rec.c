@@ -8,16 +8,6 @@
 
 #include "wt_internal.h"
 
-/*
- * WT_HS_TIME_PAIR --
- * 	A pair containing a timestamp and transaction id.
- */
-typedef struct {
-    wt_timestamp_t ts;
-    wt_timestamp_t durable_ts;
-    uint64_t txnid;
-} WT_HS_TIME_POINT;
-
 #define WT_HS_CBT(std_cur) ((WT_CURSOR_BTREE *)(((WT_CURSOR_HS *)std_cur)->file_cursor))
 #define WT_HS_BT(std_cur) (CUR2BT(((WT_CURSOR_HS *)std_cur)->file_cursor))
 
@@ -78,14 +68,12 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
-  const uint8_t type, const WT_ITEM *hs_value, WT_HS_TIME_POINT *start_time_point,
-  WT_HS_TIME_POINT *stop_time_point)
+  const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw)
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR_BTREE *hs_cbt;
 #endif
     WT_DECL_ITEM(hs_key);
-    WT_TIME_WINDOW hs_insert_tw;
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_ITEM(existing_val);
 #endif
@@ -125,7 +113,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
-    cursor->set_key(cursor, 4, btree->id, key, start_time_point->ts, UINT64_MAX);
+    cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(cursor->search_near(cursor, &cmp), true);
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -135,7 +123,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
          * Verify simple checks first to confirm whether the retrieved update same or not before
          * performing the expensive key comparison.
          */
-        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts) {
+        if (hs_btree_id == btree->id && tw->start_ts == hs_start_ts) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
 
 #ifdef HAVE_DIAGNOSTIC
@@ -145,9 +133,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
                 if (cmp == 0)
                     WT_ASSERT(session,
-                      start_time_point->txnid == WT_TXN_NONE ||
-                        start_time_point->txnid != hs_cbt->upd_value->tw.start_txn ||
-                        start_time_point->ts != hs_cbt->upd_value->tw.start_ts);
+                      tw->start_txn == WT_TXN_NONE ||
+                        tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
+                        tw->start_ts != hs_cbt->upd_value->tw.start_ts);
                 counter = hs_counter + 1;
             }
 #else
@@ -161,7 +149,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * If we're inserting a non-zero timestamp, look ahead for any higher timestamps. If we find
      * updates, we should remove them and reinsert them at the current timestamp.
      */
-    if (start_time_point->ts != WT_TS_NONE) {
+    if (tw->start_ts != WT_TS_NONE) {
         /*
          * If there were no keys equal to or less than our target key, we would have received
          * WT_NOT_FOUND. In that case we need to search again with a higher timestamp.
@@ -169,12 +157,12 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         if (ret == 0)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         else {
-            cursor->set_key(cursor, 3, btree->id, key, start_time_point->ts + 1);
+            cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
             WT_ERR_NOTFOUND_OK(cursor->search_near(cursor, &cmp), true);
         }
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
-              session, cursor, btree, key, start_time_point->ts, &counter));
+              session, cursor, btree, key, tw->start_ts, &counter));
     }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -184,8 +172,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     if (F_ISSET(cursor, WT_CURSTD_KEY_SET)) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-        if (hs_btree_id == btree->id && start_time_point->ts == hs_start_ts &&
-          hs_counter == counter) {
+        if (hs_btree_id == btree->id && tw->start_ts == hs_start_ts && hs_counter == counter) {
             WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
             WT_ASSERT(session, cmp != 0);
         }
@@ -193,17 +180,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 #endif
 
     /* Insert the new record now. */
-    hs_insert_tw.start_ts = start_time_point->ts;
-    hs_insert_tw.start_txn = start_time_point->txnid;
-    hs_insert_tw.durable_start_ts = start_time_point->durable_ts;
-
-    hs_insert_tw.stop_ts = stop_time_point->ts;
-    hs_insert_tw.stop_txn = stop_time_point->txnid;
-    hs_insert_tw.durable_stop_ts = stop_time_point->durable_ts;
-
-    cursor->set_key(cursor, 4, btree->id, key, start_time_point->ts, counter);
-    cursor->set_value(cursor, &hs_insert_tw, stop_time_point->durable_ts,
-      start_time_point->durable_ts, (uint64_t)type, hs_value);
+    cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, counter);
+    cursor->set_value(
+      cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
     WT_STAT_CONN_INCR(session, cache_hs_insert);
     WT_STAT_DATA_INCR(session, cache_hs_insert);
@@ -213,9 +192,6 @@ err:
     __wt_scr_free(session, &existing_val);
 #endif
     __wt_scr_free(session, &hs_key);
-    /* We did a row search, release the cursor so that the page doesn't continue being held. */
-    cursor->reset(cursor);
-
     return (ret);
 }
 
@@ -277,7 +253,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *first_non_ts_upd;
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
-    WT_HS_TIME_POINT start_time_point, stop_time_point;
+    WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     wt_timestamp_t min_insert_ts;
     uint64_t insert_cnt, max_hs_size;
@@ -291,6 +267,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     cursor = session->hs_cursor;
     prev_upd = NULL;
     insert_cnt = 0;
+    WT_TIME_WINDOW_INIT(&tw);
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
@@ -504,9 +481,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              upd = prev_upd) {
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
-            start_time_point.durable_ts = upd->durable_ts;
-            start_time_point.ts = upd->start_ts;
-            start_time_point.txnid = upd->txnid;
+            tw.durable_start_ts = upd->durable_ts;
+            tw.start_ts = upd->start_ts;
+            tw.start_txn = upd->txnid;
             tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
@@ -519,8 +496,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                 WT_ASSERT(session,
                   list->onpage_upd->txnid == prev_upd->txnid &&
                     list->onpage_upd->start_ts == prev_upd->start_ts);
-                stop_time_point.durable_ts = stop_time_point.ts = WT_TS_MAX;
-                stop_time_point.txnid = WT_TXN_MAX;
+                tw.durable_stop_ts = tw.stop_ts = WT_TS_MAX;
+                tw.stop_txn = WT_TXN_MAX;
             } else {
                 /*
                  * Set the stop timestamp from durable timestamp instead of commit timestamp. The
@@ -528,9 +505,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  * timestamp is globally visible. i.e. durable timestamp of data store version.
                  */
                 WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
-                stop_time_point.durable_ts = prev_upd->durable_ts;
-                stop_time_point.ts = prev_upd->start_ts;
-                stop_time_point.txnid = prev_upd->txnid;
+                tw.durable_stop_ts = prev_upd->durable_ts;
+                tw.stop_ts = prev_upd->start_ts;
+                tw.stop_txn = prev_upd->txnid;
 
                 if (prev_upd->type == WT_UPDATE_TOMBSTONE)
                     tombstone = prev_upd;
@@ -560,8 +537,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * rules. As such older readers should still be able to see it.
              */
             if (F_ISSET(upd, WT_UPDATE_BEHIND_MIXED_MODE)) {
-                start_time_point.ts = start_time_point.durable_ts = WT_TS_NONE;
-                stop_time_point.ts = stop_time_point.durable_ts = WT_TS_NONE;
+                tw.start_ts = tw.durable_start_ts = WT_TS_NONE;
+                tw.stop_ts = tw.durable_stop_ts = WT_TS_NONE;
             }
 
             /*
@@ -573,11 +550,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * FIXME-WT-6443: We should be able to replace this with an assertion.
              */
             if (!F_ISSET(upd, WT_UPDATE_BEHIND_MIXED_MODE) &&
-              (stop_time_point.ts < upd->start_ts ||
-                (stop_time_point.ts == upd->start_ts && stop_time_point.txnid <= upd->txnid))) {
+              (tw.stop_ts < upd->start_ts ||
+                (tw.stop_ts == upd->start_ts && tw.stop_txn <= upd->txnid))) {
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "Warning: fixing out-of-order timestamps %s earlier than previous update %s",
-                  __wt_timestamp_to_string(stop_time_point.ts, ts_string[0]),
+                  __wt_timestamp_to_string(tw.stop_ts, ts_string[0]),
                   __wt_timestamp_to_string(upd->start_ts, ts_string[1]));
                 continue;
             }
@@ -616,12 +593,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
-                WT_ERR(__hs_insert_record(session, cursor, btree, key, WT_UPDATE_MODIFY,
-                  modify_value, &start_time_point, &stop_time_point));
+                WT_ERR(__hs_insert_record(
+                  session, cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
             } else
-                WT_ERR(__hs_insert_record(session, cursor, btree, key, WT_UPDATE_STANDARD,
-                  full_value, &start_time_point, &stop_time_point));
+                WT_ERR(__hs_insert_record(
+                  session, cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
@@ -891,8 +868,8 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     hs_insert_counter = 0;
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
-    insert_cursor = NULL;
 
+    insert_cursor = NULL;
     if (reinsert) {
         /*
          * Determine the starting value of our counter, i.e. highest counter value of the timestamp

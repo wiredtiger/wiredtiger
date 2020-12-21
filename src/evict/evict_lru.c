@@ -277,6 +277,9 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
     conn = S2C(session);
     cache = conn->cache;
 
+    /* Mark the session as an eviction thread session. */
+    F_SET(session, WT_SESSION_EVICTION);
+
     /*
      * Cache a history store cursor to avoid deadlock: if an eviction thread thread marks a file
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
@@ -350,6 +353,9 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * or when the connection is closing.
      */
     WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING));
+
+    /* Clear the eviction thread session flag. */
+    F_CLR(session, WT_SESSION_EVICTION);
 
     __wt_verbose(session, WT_VERB_EVICTSERVER, "%s", "cache eviction thread exiting");
 
@@ -1126,6 +1132,9 @@ __evict_lru_pages(WT_SESSION_IMPL *session, bool is_server)
     while (F_ISSET(conn, WT_CONN_EVICTION_RUN) && ret == 0)
         if ((ret = __evict_page(session, is_server)) == EBUSY)
             ret = 0;
+
+    /* If any resources are pinned, release them now. */
+    WT_TRET(__wt_session_release_resources(session));
 
     /* If a worker thread found the queue empty, pause. */
     if (ret == WT_NOTFOUND && !is_server && F_ISSET(conn, WT_CONN_EVICTION_RUN))
@@ -2258,10 +2267,6 @@ __evict_page(WT_SESSION_IMPL *session, bool is_server)
             time_start = __wt_clock(session);
         }
     }
-
-    /* Set a flag to indicate that either eviction server or worker thread is evicting the page. */
-    if (F_ISSET(session, WT_SESSION_INTERNAL))
-        LF_SET(WT_REC_EVICTION_THREAD);
 
     /*
      * In case something goes wrong, don't pick the same set of pages every time.
