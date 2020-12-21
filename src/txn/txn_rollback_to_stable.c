@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, txnid) \
+#define WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, txnid) \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
 
 /*
@@ -166,15 +166,22 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
      */
     if (conn->recovery_ckpt_snapshot_count == 0)
         return false;
-    
-    if (txnid < conn->recovery_ckpt_snap_min)
-        return false;
-    else if (txnid > conn->recovery_ckpt_snap_max)
-        return true;
 
     WT_BINARY_SEARCH(
       txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
 
+    if (!found) {
+        /*
+         * Snapshot data:
+         *	ids < recovery_ckpt_snap_min are committed,
+         *	ids > recovery_ckpt_snap_max are non committed,
+         *	everything else is committed unless it is in the recovery_ckpt_snapshot array.
+         */
+        if (txnid < conn->recovery_ckpt_snap_min)
+            return false;
+        else if (txnid > conn->recovery_ckpt_snap_max)
+            return true;
+    }
     return found;
 }
 
@@ -311,8 +318,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
-          (hs_stop_durable_ts <= rollback_timestamp)) {
+          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn) &&
+            (hs_stop_durable_ts <= rollback_timestamp))) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
               ": %" PRIu64,
@@ -848,13 +855,13 @@ __rollback_page_needs_abort(
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, vpack.ta.newest_txn);
+          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, vpack.ta.newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, addr->ta.newest_txn);
+          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, addr->ta.newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -1299,7 +1306,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
         has_txn_updates_gt_than_ckpt_snap =
-          WT_ROLLBACK_CHECK_RECOVERYFLAG_TXNID(session, rollback_txnid);
+          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap) {
