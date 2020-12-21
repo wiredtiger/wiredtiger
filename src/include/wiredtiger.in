@@ -1666,11 +1666,10 @@ struct __wt_session {
 	 * update their existing snapshot. It raises an error when this API
 	 * is used for isolation other than snapshot isolation mode or when the session
 	 * has performed any write operations.
-	 * This API internally releases the current snapshot and gets the new
-	 * running transactions snapshot.
-	 * It avoids pinning the content in the database that is no longer needed.
-	 * The only drawback of using this API is that the older transaction snapshots
-	 * will be replaced with the current running transaction snapshots.
+	 * This API internally releases the current snapshot and gets the new running
+	 * transactions snapshot to avoid pinning the content in the database that is no
+	 * longer needed. Applications that don't use read_timestamp for the search may
+	 * see different results compared to earlier with the updated snapshot.
 	 *
 	 * @requires_transaction
 	 *
