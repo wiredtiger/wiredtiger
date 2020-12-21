@@ -1062,9 +1062,8 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_txn_config(session, cfg));
 
     /*
-     * Allocate a snapshot if required or update the existing snapshot for non autocommit
-     * transaction. As there is no need of updating snapshot for autocommit transactions as they are
-     * committed at the end of the operation.
+     * Allocate a snapshot if required or update the existing snapshot. Do not update the existing
+     * snapshot of autocommit transactions because they are committed at the end of the operation.
      */
     if (txn->isolation == WT_ISO_SNAPSHOT &&
       !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
