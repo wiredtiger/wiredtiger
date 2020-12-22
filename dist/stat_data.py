@@ -207,6 +207,8 @@ connection_stats = [
     BlockStat('block_cache_blocks_update', 'block cache cached blocks updated'),
     BlockStat('block_cache_blocks_insert_read', 'block cache total blocks inserted on read path'),
     BlockStat('block_cache_blocks_insert_write', 'block cache total blocks inserted on write path'),
+    BlockStat('block_cache_bypass_get', 'block cache number of bypasses on get'),
+    BlockStat('block_cache_bypass_filesize', 'block cache file size causing bypass'),
     BlockStat('block_cache_bytes', 'block cache total bytes'),
     BlockStat('block_cache_bytes_update', 'block cache cached bytes updated'),
     BlockStat('block_cache_bytes_insert_read', 'block cache total bytes inserted on read path'),

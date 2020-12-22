@@ -363,7 +363,8 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);
 #endif
-    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, align_size, checksum, buf->mem, true), WT_CACHE_FULL);
+    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, align_size, checksum,
+				       buf->mem, true, block->size), WT_CACHE_FULL);
 #if BLKCACHE_TRACE == 1
     time_stop = __wt_clock(session);
     __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "

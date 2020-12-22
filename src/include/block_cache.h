@@ -53,13 +53,15 @@ struct __wt_blkcache {
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
     WT_SPINLOCK * hash_locks;
 
+    char *nvram_device_path;
+    float fraction_in_dram;
+    int type;
     size_t bytes_used;
     size_t hash_size;
     size_t num_data_blocks;
     size_t max_bytes;
+    size_t system_ram;
 
-    char *nvram_device_path;
-    int type;
 #ifdef HAVE_LIBMEMKIND
     struct memkind *pmem_kind;
 #endif /* HAVE_LIBMEMKIND */
@@ -68,3 +70,5 @@ struct __wt_blkcache {
 #define BLKCACHE_UNCONFIGURED 0
 #define BLKCACHE_DRAM 1
 #define BLKCACHE_NVRAM 2
+
+#define BLKCACHE_PERCENT_FILE_IN_DRAM 50

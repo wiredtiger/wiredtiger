@@ -66,7 +66,8 @@ __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
  */
 int
 __wt_blkcache_get_or_check(
-    WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum, void *data_ptr)
+    WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum,
+    void *data_ptr, wt_off_t filesize)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -88,6 +89,15 @@ __wt_blkcache_get_or_check(
         return -1;
     if (data_ptr != NULL)
         WT_STAT_CONN_INCR(session, block_cache_data_refs);
+
+    /* If more than half the file is likely to be in the buffer cache,
+     * don't use the cache.
+     */
+    if (blkcache->system_ram >= filesize * blkcache->fraction_in_dram) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_get);
+	WT_STAT_CONN_SET(session, block_cache_bypass_filesize, filesize);
+	return -1;
+    }
 
     id.checksum = (uint64_t)checksum;
     id.offset = (uint64_t)offset;
@@ -141,7 +151,7 @@ __wt_blkcache_get_or_check(
  */
 int
 __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
-		  uint32_t checksum, void *data, bool write)
+		  uint32_t checksum, void *data, bool write, wt_off_t filesize)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -163,6 +173,14 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
+
+    /*
+     * If DRAM is large enough to cache the desired fraction of the file, don't
+     * populate the cache on the read path.
+     */
+    if (write == false &&
+	(blkcache->system_ram >= filesize * blkcache->fraction_in_dram))
+	return -1;
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
@@ -302,7 +320,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  */
 static int
 __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
-		   int type, char *nvram_device_path)
+		   int type, char *nvram_device_path, size_t system_ram,
+		   int percent_file_in_dram)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -312,6 +331,8 @@ __wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
     conn = S2C(session);
     blkcache = &conn->blkcache;
     blkcache->hash_size = hash_size;
+    blkcache->system_ram = system_ram;
+    blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -422,8 +443,8 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONNECTION_IMPL *conn;
 
     char *nvram_device_path = NULL;
-    int cache_type = BLKCACHE_UNCONFIGURED;
-    size_t cache_size, hash_size;
+    int cache_type = BLKCACHE_UNCONFIGURED, percent_file_in_dram;
+    size_t cache_size, hash_size, system_ram;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -465,5 +486,13 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     } else
         WT_RET_MSG(session, EINVAL, "Invalid block cache type.");
 
-    return __wt_blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path);
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.system_ram", &cval));
+    system_ram = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.percent_file_in_dram", &cval));
+    if ((percent_file_in_dram = (int)cval.val) == 0)
+	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
+
+    return __wt_blkcache_init(session, cache_size, hash_size, cache_type,
+			      nvram_device_path, system_ram, percent_file_in_dram);
 }

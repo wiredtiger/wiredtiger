@@ -454,11 +454,17 @@ connection_runtime_config = [
                Config('hashsize', '0', r'''
                    size of the hashtable that keeps track of blocks.''',
                    min='512', max='1073741824'),
-               Config('type', '', r'''
-                   cache location: DRAM or NVRAM.'''),
                Config('path', '', r'''
                    the file path for the NVRAM that will be used as a cache
                    if cache type NVRAM is chosen.'''),
+               Config('percent_file_in_dram', '0', r'''
+                   bypass cache if that percent of file fits in DRAM.''',
+                   min='0', max='100'),
+               Config('system_ram', '0', r'''
+                      amount of DRAM expected to be available on the system.''',
+                      min='0', max='1024GB'),
+               Config('type', '', r'''
+                   cache location: DRAM or NVRAM.'''),
            ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should

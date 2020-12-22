@@ -339,7 +339,9 @@ struct __wt_connection_stats {
     int64_t async_op_update;
     int64_t block_cache_blocks_update;
     int64_t block_cache_bytes_update;
+    int64_t block_cache_bypass_filesize;
     int64_t block_cache_data_refs;
+    int64_t block_cache_bypass_get;
     int64_t block_cache_hits;
     int64_t block_cache_misses;
     int64_t block_cache_blocks_removed;
