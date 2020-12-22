@@ -57,7 +57,7 @@ struct __wt_cursor_backup {
     uint64_t bit_offset;  /* Current offset */
     uint64_t granularity; /* Length, transfer size */
 
-    /* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
 #define WT_CURBACKUP_CONSOLIDATE 0x002u /* Consolidate returned info on this object */
 #define WT_CURBACKUP_DUP 0x004u         /* Duplicated backup cursor */
