@@ -1408,7 +1408,7 @@ execute_populate(WTPERF *wtperf)
 
     wtperf->popthreads = dcalloc(opts->populate_threads, sizeof(WTPERF_THREAD));
     start_threads(wtperf, NULL, wtperf->popthreads, opts->populate_threads, populate_thread);
-    
+
     start = __wt_clock(NULL);
     for (elapsed = 0, interval = 0, last_ops = 0; wtperf->insert_key < max_key && !wtperf->error;) {
         /*
