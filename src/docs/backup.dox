@@ -180,9 +180,8 @@ strings. It operates like a backup cursor but will return the identifier strings
 as the keys of the cursor. There are no values. As with all backup cursors, there
 can only be one backup cursor of any type open at a time.
 
-An example of opening the backup data source to query incremental identifiers:
-
 @m_if{c}
+An example of opening the backup data source to query incremental identifiers:
 @snippet ex_backup_block.c Query existing IDs
 @m_endif
 @section backup_incremental Log-based Incremental backup
