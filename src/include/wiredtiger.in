@@ -5081,12 +5081,9 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_BLOCK_CACHE_DATA_REFS		1026
 /*! block-manager: block cache number of bypasses on get */
 #define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET		1027
-/*! block-manager: block cache number of hits, including existence checks */
+/*! block-manager: block cache number of hits including existence checks */
 #define	WT_STAT_CONN_BLOCK_CACHE_HITS			1028
-/*!
- * block-manager: block cache number of misses, including existence
- * checks
- */
+/*! block-manager: block cache number of misses including existence checks */
 #define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1029
 /*! block-manager: block cache removed blocks */
 #define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED		1030

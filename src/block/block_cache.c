@@ -87,8 +87,8 @@ __wt_blkcache_get_or_check(
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
-    if (data_ptr != NULL)
-        WT_STAT_CONN_INCR(session, block_cache_data_refs);
+
+    WT_STAT_CONN_INCR(session, block_cache_data_refs);
 
     /* If more than half the file is likely to be in the buffer cache,
      * don't use the cache.
@@ -403,18 +403,6 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     }
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
-    WT_STAT_CONN_SET(session, block_cache_blocks, 0);
-    WT_STAT_CONN_SET(session, block_cache_blocks_removed, 0);
-    WT_STAT_CONN_SET(session, block_cache_blocks_update, 0);
-    WT_STAT_CONN_SET(session, block_cache_blocks_insert_read, 0);
-    WT_STAT_CONN_SET(session, block_cache_blocks_insert_write, 0);
-    WT_STAT_CONN_SET(session, block_cache_bytes, 0);
-    WT_STAT_CONN_SET(session, block_cache_bytes_update, 0);
-    WT_STAT_CONN_SET(session, block_cache_bytes_insert_read, 0);
-    WT_STAT_CONN_SET(session, block_cache_bytes_insert_write, 0);
-    WT_STAT_CONN_SET(session, block_cache_data_refs, 0);
-    WT_STAT_CONN_SET(session, block_cache_hits, 0);
-    WT_STAT_CONN_SET(session, block_cache_misses, 0);
 
 done:
 #ifdef HAVE_LIBMEMKIND
