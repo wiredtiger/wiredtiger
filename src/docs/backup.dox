@@ -182,8 +182,9 @@ can only be one backup cursor of any type open at a time.
 
 An example of opening the backup data source to query incremental identifiers:
 
+@m_if{c}
 @snippet ex_backup_block.c Query existing IDs
-
+@m_endif
 @section backup_incremental Log-based Incremental backup
 
 Once a backup has been done, it can be rolled forward incrementally by
