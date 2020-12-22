@@ -234,7 +234,8 @@ __stat_page_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
             if (__wt_cell_type(unpack.cell) == WT_CELL_KEY_OVFL)
                 ++ovfl_cnt;
         }
-        WT_CELL_FOREACH_END;
+        WT_CELL_FOREACH_END
+            ;
     }
 
     WT_STAT_INCRV(session, stats, btree_overflow, ovfl_cnt);
@@ -309,7 +310,8 @@ __stat_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **st
                 break;
             }
         }
-        WT_CELL_FOREACH_END;
+        WT_CELL_FOREACH_END
+            ;
         if (key)
             ++empty_values;
     }

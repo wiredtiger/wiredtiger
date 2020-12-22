@@ -509,7 +509,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
     }
-    WT_INTL_FOREACH_END;
+    WT_INTL_FOREACH_END
+        ;
 
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));

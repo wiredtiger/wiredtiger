@@ -770,7 +770,8 @@ __btree_preload(WT_SESSION_IMPL *session)
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr))
             WT_RET(bm->preload(bm, session, addr.addr, addr.size));
-    WT_INTL_FOREACH_END;
+    WT_INTL_FOREACH_END
+        ;
     return (0);
 }
 

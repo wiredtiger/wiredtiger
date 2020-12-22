@@ -578,7 +578,8 @@ __debug_dsk_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
     WT_CELL_FOREACH_ADDR (ds->session, dsk, unpack) {
         WT_RET(__debug_cell_int(ds, dsk, &unpack));
     }
-    WT_CELL_FOREACH_END;
+    WT_CELL_FOREACH_END
+        ;
     return (0);
 }
 
@@ -685,7 +686,8 @@ __debug_dsk_kv(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
     WT_CELL_FOREACH_KV (ds->session, dsk, unpack) {
         WT_RET(__debug_cell_kv(ds, NULL, dsk->type, NULL, &unpack));
     }
-    WT_CELL_FOREACH_END;
+    WT_CELL_FOREACH_END
+        ;
     return (0);
 }
 
@@ -833,7 +835,8 @@ __debug_tree_shape_worker(WT_DBG *ds, WT_REF *ref, int level)
             if (walk->state == WT_REF_MEM)
                 WT_RET(__debug_tree_shape_worker(ds, walk, level + 1));
         }
-        WT_INTL_FOREACH_END;
+        WT_INTL_FOREACH_END
+            ;
     } else
         WT_RET(ds->f(ds,
           "%*s"
@@ -1232,7 +1235,8 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
         WT_RET(ds->f(ds, "\trecno %" PRIu64 "\n", ref->ref_recno));
         WT_RET(__debug_ref(ds, ref));
     }
-    WT_INTL_FOREACH_END;
+    WT_INTL_FOREACH_END
+        ;
 
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -1241,7 +1245,8 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
                 WT_RET(__debug_page(ds, ref, flags));
             }
         }
-        WT_INTL_FOREACH_END;
+        WT_INTL_FOREACH_END
+            ;
     }
 
     return (0);
@@ -1316,7 +1321,8 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
         WT_RET(__debug_item_key(ds, "K", p, len));
         WT_RET(__debug_ref(ds, ref));
     }
-    WT_INTL_FOREACH_END;
+    WT_INTL_FOREACH_END
+        ;
 
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -1325,7 +1331,8 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
                 WT_RET(__debug_page(ds, ref, flags));
             }
         }
-        WT_INTL_FOREACH_END;
+        WT_INTL_FOREACH_END
+            ;
     }
     return (0);
 }
