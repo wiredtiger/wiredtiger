@@ -1726,10 +1726,6 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
-    /* If we don't want any pages from this tree, move on. */
-    if (target_pages == 0)
-        return (0);
-
     /*
      * Reduce the number of pages to be selected from btrees other than the history store (HS) if
      * the cache pressure is high and HS content dominates the cache. Evicting unclean non-HS pages
@@ -1738,6 +1734,10 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     if (!WT_IS_HS(btree) && __wt_cache_hs_dirty(session))
         target_pages = target_pages / 10;
+    
+    /* If we don't want any pages from this tree, move on. */
+    if (target_pages == 0)
+        return (0);
 
     /*
      * These statistics generate a histogram of the number of pages targeted for eviction each
