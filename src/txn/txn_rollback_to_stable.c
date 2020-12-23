@@ -918,8 +918,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
             WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
                 WT_RET(__rollback_abort_fast_truncate(session, child_ref, rollback_timestamp));
             }
-            WT_INTL_FOREACH_END
-                ;
+            WT_INTL_FOREACH_END;
         } else
             WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
 

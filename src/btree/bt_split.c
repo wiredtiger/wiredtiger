@@ -78,8 +78,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
             WT_ASSERT(session, ref->ref_recno > recno);
             recno = ref->ref_recno;
         }
-        WT_INTL_FOREACH_END
-            ;
+        WT_INTL_FOREACH_END;
         break;
     case WT_PAGE_ROW_INT:
         next = &_next;
@@ -104,8 +103,7 @@ __split_verify_intl_key_order(WT_SESSION_IMPL *session, WT_PAGE *page)
             last = next;
             next = tmp;
         }
-        WT_INTL_FOREACH_END
-            ;
+        WT_INTL_FOREACH_END;
         break;
     }
 }
@@ -143,8 +141,7 @@ __split_verify_root(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         WT_ERR(__wt_page_release(session, ref, read_flags));
     }
-    WT_INTL_FOREACH_END
-        ;
+    WT_INTL_FOREACH_END;
 
     return (0);
 
@@ -360,8 +357,7 @@ __split_ref_prepare(
             child_ref->home = child;
             child_ref->pindex_hint = j++;
         }
-        WT_INTL_FOREACH_END
-            ;
+        WT_INTL_FOREACH_END;
 
 #ifdef HAVE_DIAGNOSTIC
         WT_WITH_PAGE_INDEX(session, __split_verify_intl_key_order(session, child));

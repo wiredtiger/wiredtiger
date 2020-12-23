@@ -63,8 +63,7 @@ __wt_modify_idempotent(const void *modify)
         if (mod.size != mod.data.size)
             return (false);
     }
-    WT_MODIFY_FOREACH_END
-        ;
+    WT_MODIFY_FOREACH_END;
 
     return (true);
 }
@@ -301,8 +300,7 @@ __modify_fast_path(WT_ITEM *value, const size_t *p, int nentries, int *nappliedp
         prev = current;
         first = false;
     }
-    WT_MODIFY_FOREACH_END
-        ;
+    WT_MODIFY_FOREACH_END;
 
     /* Step over the final unmodified block. */
     destoff += value->size - (current.offset + current.size);
@@ -344,8 +342,7 @@ __modify_apply_no_overlap(WT_SESSION_IMPL *session, WT_ITEM *value, const size_t
         to -= current.data.size;
         memcpy(to, current.data.data, current.data.size);
     }
-    WT_MODIFY_FOREACH_END
-        ;
+    WT_MODIFY_FOREACH_END;
 
     value->size = destsz;
 }
@@ -413,8 +410,7 @@ __wt_modify_apply_item(
     WT_MODIFY_FOREACH_BEGIN (mod, p, nentries, napplied) {
         WT_RET(__modify_apply_one(session, value, &mod, sformat));
     }
-    WT_MODIFY_FOREACH_END
-        ;
+    WT_MODIFY_FOREACH_END;
 
 done: /* Restore the trailing nul. */
     if (sformat)

@@ -566,8 +566,7 @@ celltype_err:
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
         }
-        WT_INTL_FOREACH_END
-            ;
+        WT_INTL_FOREACH_END;
         break;
     case WT_PAGE_ROW_INT:
         /* For each entry in an internal page, verify the subtree. */
@@ -597,8 +596,7 @@ celltype_err:
 
             WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
         }
-        WT_INTL_FOREACH_END
-            ;
+        WT_INTL_FOREACH_END;
         break;
     }
     return (0);
@@ -914,8 +912,7 @@ __verify_page_content_int(
             break;
         }
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     return (0);
 }
@@ -1016,8 +1013,7 @@ __verify_page_content_leaf(
             vs->records_so_far += rle;
         }
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     /*
      * Object if a leaf-no-overflow address cell references a page with overflow keys, but don't

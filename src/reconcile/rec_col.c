@@ -295,8 +295,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
     }
-    WT_INTL_FOREACH_END
-        ;
+    WT_INTL_FOREACH_END;
 
     /* Write the remnant page. */
     return (__wt_rec_split_finish(session, r));

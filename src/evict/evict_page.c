@@ -446,8 +446,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             return (__wt_set_return(session, EBUSY));
         }
     }
-    WT_INTL_FOREACH_END
-        ;
+    WT_INTL_FOREACH_END;
     WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
@@ -457,8 +456,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             return (__wt_set_return(session, EBUSY));
         }
     }
-    WT_INTL_FOREACH_END
-        ;
+    WT_INTL_FOREACH_END;
 
     /*
      * The fast check is done and there are no cursors in the child pages. Make sure the child
@@ -492,8 +490,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
             return (__wt_set_return(session, EBUSY));
         }
     }
-    WT_INTL_FOREACH_END
-        ;
+    WT_INTL_FOREACH_END;
 
     return (0);
 }

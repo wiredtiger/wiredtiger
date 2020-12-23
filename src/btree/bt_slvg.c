@@ -607,8 +607,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
             WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
         }
-        WT_CELL_FOREACH_END
-            ;
+        WT_CELL_FOREACH_END;
 
         trk->col_start = dsk->recno;
         trk->col_stop = stop_recno - 1;
@@ -625,8 +624,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
             WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
         }
-        WT_CELL_FOREACH_END
-            ;
+        WT_CELL_FOREACH_END;
 
         /*
          * Row-store format: copy the first and last keys on the page. Keys are prefix-compressed,
@@ -701,8 +699,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
         if (FLD_ISSET(unpack.flags, WT_CELL_UNPACK_OVERFLOW))
             ++ovfl_cnt;
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
     if (ovfl_cnt == 0)
         return (0);
 
@@ -727,8 +724,7 @@ __slvg_trk_leaf_ovfl(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_TRA
                 break;
         }
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     return (0);
 }

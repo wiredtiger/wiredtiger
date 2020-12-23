@@ -287,8 +287,7 @@ __inmem_col_int(WT_SESSION_IMPL *session, WT_PAGE *page)
 
         F_SET(ref, unpack.type == WT_CELL_ADDR_INT ? WT_REF_FLAG_INTERNAL : WT_REF_FLAG_LEAF);
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 }
 
 /*
@@ -307,8 +306,7 @@ __inmem_col_var_repeats(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t *np)
         if (__wt_cell_rle(&unpack) > 1)
             ++*np;
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 }
 
 /*
@@ -364,8 +362,7 @@ __inmem_col_var(WT_SESSION_IMPL *session, WT_PAGE *page, uint64_t recno, size_t 
         indx++;
         recno += rle;
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     return (0);
 }
@@ -473,8 +470,7 @@ __inmem_row_int(WT_SESSION_IMPL *session, WT_PAGE *page, size_t *sizep)
             WT_ERR(__wt_illegal_value(session, unpack.type));
         }
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     /*
      * We track if an internal page has backing overflow keys, as overflow keys limit the eviction
@@ -522,8 +518,7 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
             return (__wt_illegal_value(session, unpack.type));
         }
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     *nindxp = nindx;
     return (0);
@@ -663,8 +658,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         page->modify->mod_row_update[WT_ROW_SLOT(page, rip - 1)] = tombstone;
         tombstone = upd = NULL;
     }
-    WT_CELL_FOREACH_END
-        ;
+    WT_CELL_FOREACH_END;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 
