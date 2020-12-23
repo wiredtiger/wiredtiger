@@ -146,6 +146,30 @@ __wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 }
 
 /*
+ * __curhs_key_return --
+ *     return hs key
+ */
+static inline void
+__curhs_key_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+{
+    hs_cursor->key.data = file_cursor->key.data;
+    hs_cursor->key.size = file_cursor->key.size;
+    F_SET(hs_cursor, F_MASK(file_cursor, WT_CURSTD_KEY_SET));
+}
+
+/*
+ * __curhs_value_return --
+ *     return hs value
+ */
+static inline void
+__curhs_value_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+{
+    hs_cursor->value.data = file_cursor->value.data;
+    hs_cursor->value.size = file_cursor->value.size;
+    F_SET(hs_cursor, F_MASK(file_cursor, WT_CURSTD_VALUE_SET));
+}
+
+/*
  * __curhs_next --
  *     WT_CURSOR->next method for the hs cursor type.
  */
@@ -168,6 +192,9 @@ __curhs_next(WT_CURSOR *cursor)
      * visible record or bail out if records stop satisfying the fields set in cursor.
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
+
+    __curhs_key_return(cursor, file_cursor);
+    __curhs_value_return(cursor, file_cursor);
 
     if (0) {
 err:
@@ -199,6 +226,9 @@ __curhs_prev(WT_CURSOR *cursor)
      * a visible record or bail out if records stop satisfying the fields set in cursor.
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
+
+    __curhs_key_return(cursor, file_cursor);
+    __curhs_value_return(cursor, file_cursor);
 
     if (0) {
 err:
@@ -256,6 +286,12 @@ __curhs_reset(WT_CURSOR *cursor)
     hs_cursor->datastore_key.data = NULL;
     hs_cursor->datastore_key.size = 0;
     hs_cursor->flags = 0;
+    cursor->key.data = cursor->key.mem;
+    cursor->key.size = cursor->key.memsize;
+    cursor->value.data = cursor->value.mem;
+    cursor->value.size = cursor->value.memsize;
+    F_CLR(cursor, WT_CURSTD_KEY_SET);
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
 err:
     API_END_RET(session, ret);
@@ -317,6 +353,8 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
 
     file_cursor->set_key(
       file_cursor, hs_cursor->btree_id, &hs_cursor->datastore_key, start_ts, counter);
+
+    __curhs_key_return(cursor, file_cursor);
 }
 
 /*
@@ -593,6 +631,9 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 
     WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, exactp));
 
+    __curhs_key_return(cursor, file_cursor);
+    __curhs_value_return(cursor, file_cursor);
+
     if (0) {
 err:
         WT_TRET(cursor->reset(cursor));
@@ -601,52 +642,6 @@ err:
     __wt_scr_free(session, &datastore_key);
     __wt_scr_free(session, &srch_key);
     API_END_RET(session, ret);
-}
-
-/*
- * __curhs_get_key --
- *     WT_CURSOR->get_key method for the hs cursor type.
- */
-static int
-__curhs_get_key(WT_CURSOR *cursor, ...)
-{
-    WT_CURSOR *file_cursor;
-    WT_CURSOR_HS *hs_cursor;
-    WT_DECL_RET;
-    va_list ap;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-    file_cursor = hs_cursor->file_cursor;
-
-    va_start(ap, cursor);
-    ret = file_cursor->get_key(file_cursor, va_arg(ap, uint32_t *), va_arg(ap, WT_ITEM **),
-      va_arg(ap, wt_timestamp_t *), va_arg(ap, uint64_t *));
-    va_end(ap);
-
-    return (ret);
-}
-
-/*
- * __curhs_get_value --
- *     WT_CURSOR->get_value method for the hs cursor type.
- */
-static int
-__curhs_get_value(WT_CURSOR *cursor, ...)
-{
-    WT_CURSOR *file_cursor;
-    WT_CURSOR_HS *hs_cursor;
-    WT_DECL_RET;
-    va_list ap;
-
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-    file_cursor = hs_cursor->file_cursor;
-
-    va_start(ap, cursor);
-    ret = file_cursor->get_value(file_cursor, va_arg(ap, wt_timestamp_t *),
-      va_arg(ap, wt_timestamp_t *), va_arg(ap, uint64_t *), va_arg(ap, WT_ITEM **));
-    va_end(ap);
-
-    return (ret);
 }
 
 /*
@@ -668,6 +663,8 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
     file_cursor->set_value(file_cursor, va_arg(ap, wt_timestamp_t), va_arg(ap, wt_timestamp_t),
       va_arg(ap, uint64_t), va_arg(ap, WT_ITEM *));
     va_end(ap);
+
+    __curhs_value_return(cursor, file_cursor);
 }
 
 /*
@@ -780,6 +777,7 @@ __curhs_remove(WT_CURSOR *cursor)
 
     /* Invalidate the previous value but we will hold on to the position of the key. */
     F_CLR(file_cursor, WT_CURSTD_VALUE_SET);
+    F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
     if (0) {
 err:
@@ -878,6 +876,9 @@ __curhs_update(WT_CURSOR *cursor)
         WT_TRET(ret);
     }
 
+    __curhs_key_return(cursor, file_cursor);
+    __curhs_value_return(cursor, file_cursor);
+
     if (0) {
 err:
         __wt_free(session, hs_tombstone);
@@ -895,26 +896,26 @@ err:
 int
 __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 {
-    WT_CURSOR_STATIC_INIT(iface, __curhs_get_key, /* get-key */
-      __curhs_get_value,                          /* get-value */
-      __curhs_set_key,                            /* set-key */
-      __curhs_set_value,                          /* set-value */
-      __wt_cursor_compare_notsup,                 /* compare */
-      __wt_cursor_equals_notsup,                  /* equals */
-      __curhs_next,                               /* next */
-      __curhs_prev,                               /* prev */
-      __curhs_reset,                              /* reset */
-      __wt_cursor_notsup,                         /* search */
-      __curhs_search_near,                        /* search-near */
-      __curhs_insert,                             /* insert */
-      __wt_cursor_modify_value_format_notsup,     /* modify */
-      __curhs_update,                             /* update */
-      __curhs_remove,                             /* remove */
-      __wt_cursor_notsup,                         /* reserve */
-      __wt_cursor_reconfigure_notsup,             /* reconfigure */
-      __wt_cursor_notsup,                         /* cache */
-      __wt_cursor_reopen_notsup,                  /* reopen */
-      __curhs_close);                             /* close */
+    WT_CURSOR_STATIC_INIT(iface, __wt_cursor_get_key, /* get-key */
+      __wt_cursor_get_value,                          /* get-value */
+      __curhs_set_key,                                /* set-key */
+      __curhs_set_value,                              /* set-value */
+      __wt_cursor_compare_notsup,                     /* compare */
+      __wt_cursor_equals_notsup,                      /* equals */
+      __curhs_next,                                   /* next */
+      __curhs_prev,                                   /* prev */
+      __curhs_reset,                                  /* reset */
+      __wt_cursor_notsup,                             /* search */
+      __curhs_search_near,                            /* search-near */
+      __curhs_insert,                                 /* insert */
+      __wt_cursor_modify_value_format_notsup,         /* modify */
+      __curhs_update,                                 /* update */
+      __curhs_remove,                                 /* remove */
+      __wt_cursor_notsup,                             /* reserve */
+      __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_notsup,                             /* cache */
+      __wt_cursor_reopen_notsup,                      /* reopen */
+      __curhs_close);                                 /* close */
     WT_CURSOR *cursor;
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
