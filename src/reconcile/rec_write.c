@@ -2297,7 +2297,8 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    WT_RET(__wt_hs_cursor_open(session));
+    WT_RET(__wt_cursor_hs_open(session));
+    F_SET(session->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
@@ -2310,7 +2311,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(__wt_cursor_hs_close(session));
     return (ret);
 }
 
