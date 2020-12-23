@@ -158,7 +158,20 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
     WT_CONNECTION_IMPL *conn;
     bool found;
 
+    found = true;
+
     conn = S2C(session);
+
+    /*
+     * Snapshot data:
+     *	ids < recovery_ckpt_snap_min are committed,
+     *	ids > recovery_ckpt_snap_max are non committed,
+     *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
+     */
+    if (txnid < conn->recovery_ckpt_snap_min)
+        return false;
+    else if (txnid > conn->recovery_ckpt_snap_max)
+        return true;
 
     /*
      * Return false when the recovery snapshot count is 0, which means there is no uncommitted
@@ -170,18 +183,6 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
     WT_BINARY_SEARCH(
       txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
 
-    if (!found) {
-        /*
-         * Snapshot data:
-         *	ids < recovery_ckpt_snap_min are committed,
-         *	ids > recovery_ckpt_snap_max are non committed,
-         *	everything else is committed unless it is in the recovery_ckpt_snapshot array.
-         */
-        if (txnid < conn->recovery_ckpt_snap_min)
-            return false;
-        else if (txnid > conn->recovery_ckpt_snap_max)
-            return true;
-    }
     return found;
 }
 
@@ -209,7 +210,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
-    bool valid_update_found;
+    bool valid_update_found, txn_non_committed;;
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;
 #endif
@@ -318,8 +319,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn) &&
-            (hs_stop_durable_ts <= rollback_timestamp))) {
+          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
+            (hs_stop_durable_ts <= rollback_timestamp)) {
+
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
               ": %" PRIu64,
@@ -329,12 +331,15 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
+        txn_non_committed = __rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn);
+
         /*
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn) &&
+        if (!txn_non_committed &&
           (hs_durable_ts <= rollback_timestamp)) {
+
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
               "timestamp: %s, stable timestamp: %s and txnid : %" PRIu64,
@@ -446,6 +451,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
             WT_STAT_DATA_INCR(session, txn_rts_keys_removed);
+            printf ("Key removed\n");
             __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
 

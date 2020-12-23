@@ -45,7 +45,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot02"
-    nrows = 1000
+    nrows = 500
 
     def conn_config(self):
         config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
@@ -85,6 +85,9 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri)
         self.large_updates(self.uri, valuea, ds, self.nrows)
+        #self.session.checkpoint()
+
+        self.check(valuea, self.uri, self.nrows)
 
         self.session.begin_transaction()
 
@@ -95,6 +98,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             self.pr("start checkpoint thread")
             ckpt.start()
 
+            # Check for the value to wait for checkpoint to start.
+            cursor = self.session.open_cursor(self.uri)
+            count = 0
+            for k, v in cursor:
+                self.assertEqual(v, valuea)
+                count += 1
+            self.assertEqual(count, self.nrows)
+
             # Insert some data from the transaction which is running before
             # checkpoint started
             for i in range(0, self.nrows):
@@ -104,13 +115,11 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             self.session.commit_transaction()
 
             self.large_updates(self.uri, valuec, ds, self.nrows)
-            self.large_updates(self.uri, valued, ds, self.nrows)
+            #self.large_updates(self.uri, valued, ds, self.nrows)
 
         finally:
             done.set()
             ckpt.join()
-
-        #self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
 
         #Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(".", "RESTART")
