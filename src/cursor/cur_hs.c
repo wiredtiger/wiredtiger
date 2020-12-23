@@ -807,7 +807,7 @@ __curhs_remove(WT_CURSOR *cursor)
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, insert, CUR2BT(file_cursor));
 
     /* Remove must be called with cursor positioned. */
-    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
+    WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_KEY_INT));
 
     /*
      * Since we're using internal functions to modify the row structure, we need to manually set the
