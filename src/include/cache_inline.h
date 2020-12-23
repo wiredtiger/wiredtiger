@@ -463,7 +463,7 @@ __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
         return false;
     return (__wt_cache_bytes_plus_overhead(
               cache, hs_btree->bytes_dirty_intl + hs_btree->bytes_dirty_leaf) >=
-      ((conn->cache_size / 100) * 25));
+      ((conn->cache_size / 100) * 20));
 }
 
 /*
