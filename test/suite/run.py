@@ -303,6 +303,7 @@ if __name__ == '__main__':
     parallel = 0
     random_sample = 0
     batchtotal = batchnum = 0
+    randomSeed = 0
     configfile = None
     configwrite = False
     dirarg = None
@@ -415,6 +416,15 @@ if __name__ == '__main__':
                 configfile = args.pop(0)
                 configwrite = True
                 continue
+            if option == '-randomseed' or option == 'R':
+                randomSeed = random.randint(1, 0xffffffff)
+                continue
+            if option == '-seed' or option == 'S':
+                if randomSeed != 0 or len(args) == 0:
+                    usage()
+                    sys.exit(2)
+                randomSeed = args.pop(0)
+                continue
             print('unknown arg: ' + arg)
             usage()
             sys.exit(2)
@@ -501,7 +511,7 @@ if __name__ == '__main__':
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, timestamp, gdbSub, lldbSub,
                                           verbose, wt_builddir, dirarg,
-                                          longtest, ignoreStdout)
+                                          longtest, ignoreStdout, randomSeed)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
@@ -561,6 +571,8 @@ if __name__ == '__main__':
         for line in tests:
             print(line)
     else:
+        if randomSeed != 0:
+            print("Starting test suite with " + str(randomSeed))
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)
 

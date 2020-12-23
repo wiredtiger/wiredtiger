@@ -198,7 +198,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, ignoreStdout = False):
+                    longtest = False, ignoreStdout = False, randomSeed = False):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -221,6 +221,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._ttyDescriptor = None
+        WiredTigerTestCase._randomSeed = randomSeed
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -756,6 +757,9 @@ def longtest(description):
 
 def islongtest():
     return WiredTigerTestCase._longtest
+
+def getRandomSeed():
+    return WiredTigerTestCase._randomSeed
 
 def runsuite(suite, parallel):
     suite_to_run = suite
