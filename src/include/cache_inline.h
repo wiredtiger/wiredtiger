@@ -459,7 +459,7 @@ __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
     conn = S2C(session);
     cache = conn->cache;
 
-    if (__wt_hs_get_btree(session, &hs_btree) != 0)
+    if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) || __wt_hs_get_btree(session, &hs_btree) != 0)
         return false;
     return (__wt_cache_bytes_plus_overhead(
               cache, hs_btree->bytes_dirty_intl + hs_btree->bytes_dirty_leaf) >=
