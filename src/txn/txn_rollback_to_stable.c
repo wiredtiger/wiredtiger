@@ -162,6 +162,9 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
 
     conn = S2C(session);
 
+    /* If not recovery then assume all the data as committed. */
+    if (!F_ISSET(conn, WT_CONN_RECOVERING))
+        return false;
     /*
      * Snapshot data:
      *	ids < recovery_ckpt_snap_min are committed,
@@ -210,7 +213,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
-    bool valid_update_found, txn_non_committed;;
+    bool valid_update_found;
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;
 #endif
@@ -319,8 +322,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
-            (hs_stop_durable_ts <= rollback_timestamp)) {
+          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn) &&
+            (hs_stop_durable_ts <= rollback_timestamp))) {
 
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
@@ -331,13 +334,11 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
-        txn_non_committed = __rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn);
-
         /*
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!txn_non_committed &&
+        if (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn) &&
           (hs_durable_ts <= rollback_timestamp)) {
 
             __wt_verbose(session, WT_VERB_RTS,
@@ -451,7 +452,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_INCR(session, txn_rts_keys_removed);
             WT_STAT_DATA_INCR(session, txn_rts_keys_removed);
-            printf ("Key removed\n");
             __wt_verbose(session, WT_VERB_RTS, "%p: key removed", (void *)key);
         }
 
