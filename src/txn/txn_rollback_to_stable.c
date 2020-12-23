@@ -158,8 +158,6 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
     WT_CONNECTION_IMPL *conn;
     bool found;
 
-    found = true;
-
     conn = S2C(session);
 
     /* If not recovery then assume all the data as committed. */
