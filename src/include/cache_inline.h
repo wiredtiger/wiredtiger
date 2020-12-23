@@ -446,19 +446,24 @@ __wt_cache_full(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_cache_almost_full --
- *     Return if the cache is almost reaching capacity.
+ * __wt_cache_hs_dirty --
+ *     Return if a major portion of the cache is dirty due to history store content.
  */
 static inline bool
-__wt_cache_almost_full(WT_SESSION_IMPL *session)
+__wt_cache_hs_dirty(WT_SESSION_IMPL *session)
 {
+    WT_BTREE *hs_btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
     cache = conn->cache;
 
-    return (__wt_cache_bytes_inuse(cache) >= ((conn->cache_size / 100) * 90));
+    if (__wt_hs_get_btree(session, &hs_btree) != 0)
+        return false;
+    return (__wt_cache_bytes_plus_overhead(
+              cache, hs_btree->bytes_dirty_intl + hs_btree->bytes_dirty_leaf) >=
+      ((conn->cache_size / 100) * 25));
 }
 
 /*
