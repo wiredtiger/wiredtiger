@@ -83,10 +83,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     wt_timestamp_t durable_timestamp_diag;
     wt_timestamp_t hs_stop_durable_ts_diag;
     uint64_t upd_type_full_diag;
+    int cmp;
 #endif
     uint64_t counter, hs_counter;
     uint32_t hs_btree_id;
-    int cmp;
 
     counter = 0;
 
