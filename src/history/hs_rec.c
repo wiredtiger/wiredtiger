@@ -256,10 +256,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     bool enable_reverse_modify, hs_inserted, squashed, ts_updates_in_hs;
 
     btree = S2BT(session);
-    cursor = session->hs_cursor;
     prev_upd = NULL;
     insert_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
+
+    WT_RET(__wt_curhs_open(session, NULL, &cursor));
+    F_SET(cursor, WT_CURSTD_HS_READ_COMMITTED);
+
     __wt_modify_vector_init(session, &modifies);
 
     if (!btree->hs_entries)
@@ -630,6 +633,8 @@ err:
     __wt_modify_vector_free(&modifies);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
+
+    WT_TRET(cursor->close(cursor));
     return (ret);
 }
 
@@ -644,7 +649,8 @@ __wt_hs_delete_key_from_ts(
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
 
-    hs_cursor = session->hs_cursor;
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
     WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_helper(session, hs_cursor), true);
@@ -657,6 +663,7 @@ __wt_hs_delete_key_from_ts(
     WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key, reinsert));
 done:
 err:
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -761,10 +768,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * Don't incur the overhead of opening this new cursor unless we need it. In the regular
          * case, we'll never get here.
          */
-        if (insert_cursor == NULL) {
-            WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
-            WT_ERR(ret);
-        }
+        if (insert_cursor == NULL)
+            WT_ERR(__wt_curhs_open(session, NULL, &insert_cursor));
 
         /*
          * If these history store records are resolved prepared updates, their durable timestamps

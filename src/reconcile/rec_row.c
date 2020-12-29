@@ -914,11 +914,8 @@ __wt_rec_row_leaf(
                      * ever need to blow away history store content, so we can skip this.
                      */
                     if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
-                        WT_ERR(__wt_cursor_hs_open(session));
-                        F_SET(session->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
                         WT_ERR(__wt_hs_delete_key_from_ts(
                           session, btree->id, tmpkey, WT_TS_NONE, false));
-                        WT_ERR(__wt_cursor_hs_close(session));
                         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
                         WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                     }

@@ -103,33 +103,7 @@ __wt_hs_cursor_close(WT_SESSION_IMPL *session)
     session->hs_cursor = NULL;
     return (0);
 }
-/*
- * __wt_cursor_hs_open --
- *     Open a new history store table cursor with the new interface.
- */
-int
-__wt_cursor_hs_open(WT_SESSION_IMPL *session)
-{
-    /* Not allowed to open a cursor if you already have one */
-    WT_ASSERT(session, session->hs_cursor == NULL);
 
-    return (__wt_curhs_open(session, NULL, &session->hs_cursor));
-}
-
-/*
- * __wt_cursor_hs_close --
- *     Discard history store cursor with the new interface.
- */
-int
-__wt_cursor_hs_close(WT_SESSION_IMPL *session)
-{
-    /* Should only be called when session has an open history store cursor */
-    WT_ASSERT(session, session->hs_cursor != NULL);
-
-    WT_RET(session->hs_cursor->close(session->hs_cursor));
-    session->hs_cursor = NULL;
-    return (0);
-}
 /*
  * __wt_hs_cursor_next --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
