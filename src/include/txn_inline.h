@@ -1194,6 +1194,15 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_HAS_ID))
         return (0);
 
+    /*
+     * Return error when the transactions with read committed or uncommitted isolation tries to
+     * perform any write operation.
+     */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
+      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED))
+        WT_RET_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions.");
+
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
 
