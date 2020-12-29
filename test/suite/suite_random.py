@@ -39,19 +39,16 @@ class suite_random:
     """
     def __init__(self, *args):
         arglen = len(args)
-        randomSeed = wttest.getRandomSeed()
+        seedw, seedz = wttest.getseed()
         if arglen == 1:
             self.seedw = int(args[0]) & 0xffffffff
             self.seedz = int(args[0]) & 0xffffffff
         elif arglen == 2:
             self.seedw = int(args[0]) & 0xffffffff
             self.seedz = int(args[1]) & 0xffffffff
-        elif randomSeed != 0:
-            self.seedw = int(randomSeed) & 0xffffffff
-            self.seedz = int(randomSeed) & 0xffffffff
         else:
-            self.seedw = 521288629
-            self.seedz = 362436069
+            self.seedw = int(seedw) & 0xffffffff
+            self.seedz = int(seedz) & 0xffffffff
 
     def rand32(self):
         """
@@ -60,13 +57,9 @@ class suite_random:
         w = self.seedw
         z = self.seedz
         if w == 0 or z == 0:
-            randomSeed = wttest.getRandomSeed()
-            if randomSeed != 0:
-                self.seedw = int(randomSeed) & 0xffffffff
-                self.seedz = int(randomSeed) & 0xffffffff
-            else:
-                self.seedw = 521288629
-                self.seedz = 362436069
+            seedw, seedz = wttest.getRandomSeed()
+            self.seedw = int(seedw) & 0xffffffff
+            self.seedz = int(seedz) & 0xffffffff
 
         self.seedz = (36969 * (z & 65535) + (z >> 16)) & 0xffffffff
         self.seedw = (18000 * (w & 65535) + (w >> 16)) & 0xffffffff

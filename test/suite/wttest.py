@@ -198,7 +198,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, ignoreStdout = False, randomSeed = False):
+                    longtest = False, ignoreStdout = False, seedw = 0, seedz = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -221,8 +221,13 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._ttyDescriptor = None
-        WiredTigerTestCase._randomSeed = randomSeed
-
+        WiredTigerTestCase._seeds = [521288629, 362436069]
+        if seedw != 0 and seedz != 0:
+            WiredTigerTestCase._randomseed = True
+            WiredTigerTestCase._randomseeds = [seedw, seedz]
+        else:
+            WiredTigerTestCase._randomseed = False
+        
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
@@ -471,7 +476,6 @@ class WiredTigerTestCase(unittest.TestCase):
             except:
                 pass
         self._connections = []
-
         try:
             self.fdTearDown()
             self.captureout.check(self)
@@ -755,11 +759,28 @@ def longtest(description):
     else:
         return runit_decorator
 
+def randomseed():
+    """
+    Used as a function decorator, for example, @wttest.randomseed("description").
+    The decorator uses the generated random seed which is used for number generation in suite_random
+    """
+    def runit_decorator(func):
+        def wrapper(self, *args, **kwargs):
+            if WiredTigerTestCase._randomseed:
+                WiredTigerTestCase._seeds[0] = WiredTigerTestCase._randomseeds[0]
+                WiredTigerTestCase._seeds[1] = WiredTigerTestCase._randomseeds[1]
+            retVal = func(self, *args, **kwargs)
+            WiredTigerTestCase._seeds[0] = 521288629
+            WiredTigerTestCase._seeds[1] = 362436069
+            return retVal
+        return wrapper
+    return runit_decorator
+
 def islongtest():
     return WiredTigerTestCase._longtest
 
-def getRandomSeed():
-    return WiredTigerTestCase._randomSeed
+def getseed():
+    return WiredTigerTestCase._seeds
 
 def runsuite(suite, parallel):
     suite_to_run = suite
@@ -770,6 +791,8 @@ def runsuite(suite, parallel):
         WiredTigerTestCase._concurrent = True
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
     try:
+        if WiredTigerTestCase._randomseed:
+            WiredTigerTestCase.prout("Starting test suite with seedw=" + str(WiredTigerTestCase._randomseeds[0]) + " and seedz=" + str(WiredTigerTestCase._randomseeds[1]))
         return unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
     except BaseException as e:

@@ -124,6 +124,8 @@ Options:\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
   -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
+  -R      | --randomseed         run with random seeds for generating random numbers\n\
+  -S      | --seed               run with specified two specified seeds for generating random numbers\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -303,7 +305,7 @@ if __name__ == '__main__':
     parallel = 0
     random_sample = 0
     batchtotal = batchnum = 0
-    randomSeed = 0
+    seedw = seedz = 0
     configfile = None
     configwrite = False
     dirarg = None
@@ -417,13 +419,15 @@ if __name__ == '__main__':
                 configwrite = True
                 continue
             if option == '-randomseed' or option == 'R':
-                randomSeed = random.randint(1, 0xffffffff)
+                seedw = random.randint(1, 0xffffffff)
+                seedz = random.randint(1, 0xffffffff)
                 continue
             if option == '-seed' or option == 'S':
-                if randomSeed != 0 or len(args) == 0:
+                if seedw != 0 or seedz != 0 or len(args) < 2:
                     usage()
                     sys.exit(2)
-                randomSeed = args.pop(0)
+                seedw = args.pop(0)
+                seedz = args.pop(0)
                 continue
             print('unknown arg: ' + arg)
             usage()
@@ -511,7 +515,7 @@ if __name__ == '__main__':
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, timestamp, gdbSub, lldbSub,
                                           verbose, wt_builddir, dirarg,
-                                          longtest, ignoreStdout, randomSeed)
+                                          longtest, ignoreStdout, seedw, seedz)
 
     # Without any tests listed as arguments, do discovery
     if len(testargs) == 0:
@@ -571,8 +575,6 @@ if __name__ == '__main__':
         for line in tests:
             print(line)
     else:
-        if randomSeed != 0:
-            print("Starting test suite with " + str(randomSeed))
         result = wttest.runsuite(tests, parallel)
         sys.exit(0 if result.wasSuccessful() else 1)
 
