@@ -479,10 +479,10 @@ static void
 subtest_main(int argc, char *argv[], bool close_test)
 {
     struct rlimit rlim;
+    FILE *fp;
     TEST_OPTS *opts, _opts;
     WT_SESSION *session;
     char config[1024], filename[1024], buf[1024];
-    FILE *fp;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -506,7 +506,7 @@ subtest_main(int argc, char *argv[], bool close_test)
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
     /* Get the git top level directory and append build_posix. */
     fp = popen("git rev-parse --show-toplevel", "r");
-    fscanf(fp, "%s", buf);
+    testutil_check(fscanf(fp, "%s", buf));
     pclose(fp);
     strcat(buf, "/build_posix");
 
