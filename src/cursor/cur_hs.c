@@ -154,7 +154,7 @@ __curhs_key_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->key.data = file_cursor->key.data;
     hs_cursor->key.size = file_cursor->key.size;
-    WT_ASSERT(CUR2S(hs_cursor), F_ISSET(file_cursor, WT_CURSTD_KEY_SET));
+    WT_ASSERT(CUR2S(file_cursor), F_ISSET(file_cursor, WT_CURSTD_KEY_SET));
     F_SET(hs_cursor, F_MASK(file_cursor, WT_CURSTD_KEY_SET));
 }
 
@@ -167,7 +167,7 @@ __curhs_value_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->value.data = file_cursor->value.data;
     hs_cursor->value.size = file_cursor->value.size;
-    WT_ASSERT(CUR2S(hs_cursor), F_ISSET(file_cursor, WT_CURSTD_VALUE_SET));
+    WT_ASSERT(CUR2S(file_cursor), F_ISSET(file_cursor, WT_CURSTD_VALUE_SET));
     F_SET(hs_cursor, F_MASK(file_cursor, WT_CURSTD_VALUE_SET));
 }
 
