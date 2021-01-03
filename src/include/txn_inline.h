@@ -1196,12 +1196,16 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
 
     /*
      * Return error when the transactions with read committed or uncommitted isolation tries to
-     * perform any write operation.
+     * perform any write operation. Skip metadata because metadata searches (like schema operations)
+     * rely on WT_ISO_READ_UNCOMMITTED and metadata checkpoints rely on WT_ISO_READ_COMMITTED
+     * isolation.
      */
     if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
-      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED))
+      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
         WT_RET_MSG(
           session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions.");
+    }
 
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
