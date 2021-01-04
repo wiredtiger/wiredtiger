@@ -188,13 +188,15 @@
     SESSION_API_PREPARE_CHECK(s, WT_SESSION, n);          \
     API_CALL_NOCONF(s, WT_SESSION, n, NULL)
 
-#define SESSION_API_PREPARE_CHECK(s, h, n)                 \
-    do {                                                   \
-        int __prepare_ret;                                 \
-        API_SESSION_PUSH(s, WT_SESSION, n, NULL);          \
-        __prepare_ret = __wt_txn_context_prepare_check(s); \
-        API_SESSION_POP(s);                                \
-        WT_RET(__prepare_ret);                             \
+#define SESSION_API_PREPARE_CHECK(s, h, n)                     \
+    do {                                                       \
+        if (s->api_call_counter == 0) {                        \
+            int __prepare_ret;                                 \
+            API_SESSION_PUSH(s, WT_SESSION, n, NULL);          \
+            __prepare_ret = __wt_txn_context_prepare_check(s); \
+            API_SESSION_POP(s);                                \
+            WT_RET(__prepare_ret);                             \
+        }                                                      \
     } while (0)
 
 #define SESSION_API_CALL(s, n, config, cfg)      \
@@ -209,8 +211,7 @@
 
 #define CURSOR_API_CALL(cur, s, n, bt)                                                     \
     (s) = (WT_SESSION_IMPL *)(cur)->session;                                               \
-    if (s->api_call_counter == 1)                                                          \
-        SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                        \
+    SESSION_API_PREPARE_CHECK(s, WT_CURSOR, n);                                            \
     API_CALL_NOCONF(s, WT_CURSOR, n, ((bt) == NULL) ? NULL : ((WT_BTREE *)(bt))->dhandle); \
     if (F_ISSET(cur, WT_CURSTD_CACHED))                                                    \
     WT_ERR(__wt_cursor_cached(cur))
