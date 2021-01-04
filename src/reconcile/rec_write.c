@@ -545,7 +545,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
+    WT_ASSERT(session, !F_ISSET(btree, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
      * History store table eviction is configured when eviction gets aggressive, adjust the flags

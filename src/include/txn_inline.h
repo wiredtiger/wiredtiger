@@ -371,10 +371,12 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 static inline int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    WT_BTREE *btree;
     WT_TXN *txn;
     WT_TXN_OP *op;
 
     txn = session->txn;
+    btree = S2BT(session);
 
     if (F_ISSET(txn, WT_TXN_READONLY)) {
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
@@ -398,7 +400,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* History store bypasses transactions, transaction modify should never be called on it. */
-    WT_ASSERT(session, !WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, !WT_IS_HS(btree->dhandle));
 
     upd->txnid = session->txn->id;
     __wt_txn_op_set_timestamp(session, op);
@@ -733,8 +735,10 @@ __wt_txn_visible(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t timestamp
 static inline WT_VISIBLE_TYPE
 __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
+    WT_BTREE *btree;
     uint8_t prepare_state, previous_state;
     bool upd_visible;
+    btree = S2BT(session);
 
     for (;; __wt_yield()) {
         /* Prepare state change is in progress, yield and try again. */
@@ -742,7 +746,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (WT_IS_HS(S2BT(session)) && upd->txnid != WT_TXN_ABORTED &&
+        if (WT_IS_HS(btree->dhandle) && upd->txnid != WT_TXN_ABORTED &&
           upd->type == WT_UPDATE_STANDARD)
             /* Entries in the history store are always visible. */
             return (WT_VISIBLE_TRUE);
@@ -926,12 +930,15 @@ static inline int
 __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
   WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
+    WT_BTREE *btree;
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd;
     bool have_stop_tw, retry;
 
     prepare_upd = NULL;
     retry = true;
+
+    btree = S2BT(session);
 
 retry:
     WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
@@ -981,7 +988,7 @@ retry:
     }
 
     /* Store the stop time pair of the history store record that is returning. */
-    if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(S2BT(session))) {
+    if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(btree->dhandle)) {
         cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
         cbt->upd_value->tw.stop_ts = tw.stop_ts;
         cbt->upd_value->tw.stop_txn = tw.stop_txn;
@@ -989,7 +996,7 @@ retry:
     }
 
     /* If the start time point is visible then we need to return the ondisk value. */
-    if (WT_IS_HS(S2BT(session)) || __wt_txn_tw_start_visible(session, &tw)) {
+    if (WT_IS_HS(btree->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
         if (cbt->upd_value->skip_buf) {
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
@@ -1003,7 +1010,7 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS)) {
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(btree->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
           &cbt->upd_value->buf, &tw));
