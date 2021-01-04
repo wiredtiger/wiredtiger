@@ -53,6 +53,7 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
+    /* This is a deliberate race condition */
     if (blkcache->refs_since_filesize_estimated++ < BLKCACHE_FILESIZE_EST_FREQ)
 	return blkcache->estimated_file_size;
 
@@ -65,10 +66,10 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 	    size += (size_t)block->size;
 	}
     }
+    blkcache->estimated_file_size = size;
     __wt_spin_unlock(session, &conn->block_lock);
 
-    blkcache->estimated_file_size = size;
-    return size;
+    return blkcache->estimated_file_size ;
 }
 
 /*
