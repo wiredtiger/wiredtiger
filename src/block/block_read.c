@@ -258,10 +258,10 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 	WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
     else {
 	if(__wt_blkcache_get_or_check(session, offset, size, checksum,
-				      buf->mem, block->size) != 0) {
+				      buf->mem) != 0) {
 	    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum,
-					       buf->mem, false, block->size), WT_CACHE_FULL);
+					       buf->mem, false), WT_CACHE_FULL);
 	}
     }
 #else

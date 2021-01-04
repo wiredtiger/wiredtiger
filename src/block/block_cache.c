@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __wt_blkcache_alloc --
+ * __blkcache_alloc --
  *     Allocate a block of memory in the cache.
  */
 static int
-__wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
+__blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -36,11 +36,47 @@ __wt_blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 }
 
 /*
- * __wt_blkcache_free --
+ * Every so often, compute the total size of the files open
+ * in the block manager.
+ */
+#define BLKCACHE_FILESIZE_EST_FREQ 1000
+
+static size_t
+__blkcache_estimate_filesize(WT_SESSION_IMPL *session)
+{
+    WT_BLOCK *block;
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+    size_t size;
+    uint64_t bucket;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (blkcache->refs_since_filesize_estimated++ < BLKCACHE_FILESIZE_EST_FREQ)
+	return blkcache->estimated_file_size;
+
+    blkcache->refs_since_filesize_estimated = 0;
+
+    size = 0;
+    __wt_spin_lock(session, &conn->block_lock);
+    for (bucket = 0; bucket < conn->hash_size; bucket++) {
+	TAILQ_FOREACH (block, &conn->blockhash[bucket], hashq) {
+	    size += (size_t)block->size;
+	}
+    }
+    __wt_spin_unlock(session, &conn->block_lock);
+
+    blkcache->estimated_file_size = size;
+    return size;
+}
+
+/*
+ * __blkcache_free --
  *     Free a chunk of memory.
  */
 static void
-__wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
+__blkcache_free(WT_SESSION_IMPL *session, void *ptr)
 {
 
     WT_BLKCACHE *blkcache;
@@ -67,13 +103,14 @@ __wt_blkcache_free(WT_SESSION_IMPL *session, void *ptr)
 int
 __wt_blkcache_get_or_check(
     WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum,
-    void *data_ptr, wt_off_t filesize)
+    void *data_ptr)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    size_t filesize;
     uint64_t bucket, hash;
 #if BLKCACHE_TRACE == 1
     uint64_t time_start, time_stop;
@@ -93,6 +130,7 @@ __wt_blkcache_get_or_check(
     /* If more than half the file is likely to be in the buffer cache,
      * don't use the cache.
      */
+    filesize = 	__blkcache_estimate_filesize(session);
     if (blkcache->system_ram >= filesize * blkcache->fraction_in_dram) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_get);
 	WT_STAT_CONN_SET(session, block_cache_bypass_filesize, filesize);
@@ -151,13 +189,14 @@ __wt_blkcache_get_or_check(
  */
 int
 __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
-		  uint32_t checksum, void *data, bool write, wt_off_t filesize)
+		  uint32_t checksum, void *data, bool write)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    size_t filesize;
     uint64_t bucket, hash;
     void *data_ptr;
 #if BLKCACHE_TRACE == 1
@@ -178,9 +217,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
      * If DRAM is large enough to cache the desired fraction of the file, don't
      * populate the cache on the read path.
      */
-    if (write == false &&
-	(blkcache->system_ram >= filesize * blkcache->fraction_in_dram))
-	return -1;
+    if (write == false) {
+	filesize = __blkcache_estimate_filesize(session);
+	if (blkcache->system_ram >= filesize * blkcache->fraction_in_dram)
+	    return -1;
+    }
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
@@ -191,7 +232,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
      * fail to allocate metadata, or if the item exists and the caller did not check for that prior
      * to calling this function, we will free the space.
      */
-    WT_RET(__wt_blkcache_alloc(session, size, &data_ptr));
+    WT_RET(__blkcache_alloc(session, size, &data_ptr));
 
     id.checksum = (uint64_t)checksum;
     id.offset = (uint64_t)offset;
@@ -260,7 +301,7 @@ item_exists:
 		 (uintmax_t)offset, (uint32_t)size, checksum, hash);
 
 err:
-    __wt_blkcache_free(session, data_ptr);
+    __blkcache_free(session, data_ptr);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     return (ret);
 }
@@ -299,7 +340,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= size;
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-            __wt_blkcache_free(session, blkcache_item->data);
+            __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
             WT_STAT_CONN_DECRV(session, block_cache_bytes, size);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
@@ -319,7 +360,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  *     Initialize the block cache.
  */
 static int
-__wt_blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
+__blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
 		   int type, char *nvram_device_path, size_t system_ram,
 		   int percent_file_in_dram)
 {
@@ -394,7 +435,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
             TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
-            __wt_blkcache_free(session, blkcache_item->data);
+            __blkcache_free(session, blkcache_item->data);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= blkcache_item->id.size;
             __wt_free(session, blkcache_item);
@@ -481,6 +522,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     if ((percent_file_in_dram = (int)cval.val) == 0)
 	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
 
-    return __wt_blkcache_init(session, cache_size, hash_size, cache_type,
+    return __blkcache_init(session, cache_size, hash_size, cache_type,
 			      nvram_device_path, system_ram, percent_file_in_dram);
 }

@@ -95,11 +95,9 @@ extern int __wt_backup_open(WT_SESSION_IMPL *session)
 extern int __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri)
   WT_GCC_FUNC_DECL_ATTRIBUTE((cold)) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_get_or_check(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
-  uint32_t checksum, void *data_ptr, wt_off_t filesize)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint32_t checksum, void *data_ptr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
-  uint32_t checksum, void *data, bool write, wt_off_t filesize)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint32_t checksum, void *data, bool write) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_invalid(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr,
   size_t addr_size, bool live) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_addr_string(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,

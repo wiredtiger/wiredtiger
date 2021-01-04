@@ -55,8 +55,10 @@ struct __wt_blkcache {
 
     char *nvram_device_path;
     float fraction_in_dram;
+    int refs_since_filesize_estimated;
     int type;
     size_t bytes_used;
+    size_t estimated_file_size;
     size_t hash_size;
     size_t num_data_blocks;
     size_t max_bytes;
