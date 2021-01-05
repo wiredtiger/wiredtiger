@@ -4,6 +4,7 @@
 
 extern "C" {
 #include "wiredtiger.h"
+#include "wt_internal.h"
 }
 
 namespace test_harness {
