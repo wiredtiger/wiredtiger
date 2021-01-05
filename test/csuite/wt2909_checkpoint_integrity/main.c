@@ -479,11 +479,9 @@ static void
 subtest_main(int argc, char *argv[], bool close_test)
 {
     struct rlimit rlim;
-    FILE *fp;
     TEST_OPTS *opts, _opts;
     WT_SESSION *session;
-    int ret;
-    char config[1024], filename[1024], buf[1024];
+    char config[BUFSIZE], filename[BUFSIZE], buf[BUFSIZE];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -505,14 +503,8 @@ subtest_main(int argc, char *argv[], bool close_test)
  * in the test/csuite directory.
  */
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
-    /* Get the git top level directory and append build_posix. */
-    fp = popen("git rev-parse --show-toplevel", "r");
-    ret = fscanf(fp, "%s", buf);
-    if (ret != 1)
-        testutil_die(errno, "fscanf");
-    pclose(fp);
-    strcat(buf, "/build_posix");
 
+    testutil_build_dir(buf);
     testutil_check(__wt_snprintf(config, sizeof(config),
       "create,cache_size=250M,log=(enabled),transaction_sync=(enabled,method=none),extensions=(%s/"
       "%s=(early_load,config={environment=true,verbose=true}))",

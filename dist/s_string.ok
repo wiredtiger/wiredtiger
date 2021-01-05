@@ -769,6 +769,7 @@ fflush
 ffs
 fgetc
 fgetln
+fgets
 fh
 fhandle
 filefrag
