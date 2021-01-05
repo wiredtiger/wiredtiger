@@ -102,7 +102,7 @@
     __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
 #define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
     static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
-    {                                                                  \
+    {                                                                   \
         return (WT_ATOMIC_CAS(vp, &old, newv));                         \
     }
 WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)

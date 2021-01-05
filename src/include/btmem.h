@@ -243,46 +243,44 @@ struct __wt_ovfl_reuse {
     ",prefix_compression=false"
 
 struct __wt_save_upd {
-        WT_INSERT *ins; /* Insert list reference */
-        WT_ROW *ripcip; /* Original on-page reference */
-        WT_UPDATE *onpage_upd;
-        bool restore; /* Whether to restore this saved update chain */
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *ripcip; /* Original on-page reference */
+    WT_UPDATE *onpage_upd;
+    bool restore; /* Whether to restore this saved update chain */
 };
 
 struct __wt_multi {
     /*
-        * Block's key: either a column-store record number or a row-store variable length
-        * byte string.
-        */
+     * Block's key: either a column-store record number or a row-store variable length byte string.
+     */
     union {
         uint64_t recno;
         WT_IKEY *ikey;
     } key;
 
     /*
-        * A disk image that may or may not have been written, used to re-instantiate the
-        * page in memory.
-        */
+     * A disk image that may or may not have been written, used to re-instantiate the page in
+     * memory.
+     */
     void *disk_image;
 
     /*
-        * List of unresolved updates. Updates are either a row-store insert or update list,
-        * or column-store insert list. When creating history store records, there is an
-        * additional value, the committed item's transaction information.
-        *
-        * If there are unresolved updates, the block wasn't written and there will always
-        * be a disk image.
-        */
+     * List of unresolved updates. Updates are either a row-store insert or update list, or
+     * column-store insert list. When creating history store records, there is an additional value,
+     * the committed item's transaction information.
+     *
+     * If there are unresolved updates, the block wasn't written and there will always be a disk
+     * image.
+     */
     WT_SAVE_UPD *supd;
     uint32_t supd_entries;
     bool supd_restore; /* Whether to restore saved update chains to this page */
 
     /*
-        * Disk image was written: address, size and checksum. On subsequent reconciliations
-        * of this page, we avoid writing the block if it's unchanged by comparing size and
-        * checksum; the reuse flag is set when the block is unchanged and we're reusing a
-        * previous address.
-        */
+     * Disk image was written: address, size and checksum. On subsequent reconciliations of this
+     * page, we avoid writing the block if it's unchanged by comparing size and checksum; the reuse
+     * flag is set when the block is unchanged and we're reusing a previous address.
+     */
     WT_ADDR addr;
     uint32_t size;
     uint32_t checksum;
@@ -290,15 +288,15 @@ struct __wt_multi {
 
 struct __wt_ovfl_track {
     /*
-        * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile
-        * the page.
-        */
+     * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile the
+     * page.
+     */
     WT_OVFL_REUSE *ovfl_reuse[WT_SKIP_MAXDEPTH];
 
     /*
-        * Overflow key/value addresses to be discarded from the block manager after reconciliation
-        * completes successfully.
-        */
+     * Overflow key/value addresses to be discarded from the block manager after reconciliation
+     * completes successfully.
+     */
     WT_CELL **discard;
     size_t discard_entries;
     size_t discard_allocated;
@@ -365,7 +363,7 @@ struct __wt_page_modify {
 #define mod_disk_image u1.r.disk_image
 
         struct { /* Multiple replacement blocks */
-            WT_MULTI * multi;
+            WT_MULTI *multi;
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
 #undef mod_multi
@@ -439,7 +437,7 @@ struct __wt_page_modify {
      * Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
      * so we don't allocate the structures to track them until we actually see them in the data.
      */
-    WT_OVFL_TRACK * ovfl_track;
+    WT_OVFL_TRACK *ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
 #define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock((s), &(p)->modify->page_lock)
@@ -530,7 +528,7 @@ struct __wt_page {
             WT_REF *parent_ref; /* Parent reference */
             uint64_t split_gen; /* Generation of last split */
 
-            WT_PAGE_INDEX * volatile __index; /* Collated children */
+            WT_PAGE_INDEX *volatile __index; /* Collated children */
         } intl;
 #undef pg_intl_parent_ref
 #define pg_intl_parent_ref u.intl.parent_ref
@@ -605,7 +603,7 @@ struct __wt_page {
              *
              * It's a separate structure to keep the page structure as small as possible.
              */
-            WT_COL_VAR_REPEAT * repeats;
+            WT_COL_VAR_REPEAT *repeats;
 #define WT_COL_VAR_REPEAT_SET(page) ((page)->u.col_var.repeats != NULL)
         } col_var;
 #undef pg_var

@@ -242,12 +242,7 @@ struct __wt_txn_op {
         /* WT_TXN_OP_TRUNCATE_ROW */
         struct {
             WT_ITEM start, stop;
-            enum {
-                WT_TXN_TRUNC_ALL,
-                WT_TXN_TRUNC_BOTH,
-                WT_TXN_TRUNC_START,
-                WT_TXN_TRUNC_STOP
-            } mode;
+            WT_TXN_TRUNC_MODE mode;
         } truncate_row;
     } u;
 

@@ -98,7 +98,7 @@ struct __wt_btree {
 
     WT_CKPT *ckpt; /* Checkpoint information */
 
-    WT_BTREE_TYPE type;                /* Type */
+    WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
     const char *value_format; /* Value format */
@@ -123,7 +123,7 @@ struct __wt_btree {
 
     void *huffman_value; /* Value huffman encoding */
 
-    WT_BTREE_CHECKSUM checksum;                /* Checksum configuration */
+    WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
     /*
      * Reconciliation...
@@ -178,7 +178,7 @@ struct __wt_btree {
 
     uint64_t checkpoint_gen;       /* Checkpoint generation */
     WT_SESSION_IMPL *sync_session; /* Syncing session */
-    WT_BTREE_SYNC syncing; /* Sync status */
+    WT_BTREE_SYNC syncing;         /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already

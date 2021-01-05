@@ -22,12 +22,12 @@ struct __wt_rec_dictionary {
 
 struct __wt_rec_chunk {
     /*
-    * The recno and entries fields are the starting record number of the split chunk (for
-    * column-store splits), and the number of entries in the split chunk.
-    *
-    * The key for a row-store page; no column-store key is needed because the page's recno,
-    * stored in the recno field, is the column-store key.
-    */
+     * The recno and entries fields are the starting record number of the split chunk (for
+     * column-store splits), and the number of entries in the split chunk.
+     *
+     * The key for a row-store page; no column-store key is needed because the page's recno, stored
+     * in the recno field, is the column-store key.
+     */
     uint32_t entries;
     uint64_t recno;
     WT_ITEM key;
@@ -232,7 +232,7 @@ struct __wt_reconcile {
      * and subsequent copies point to the original cell. The dictionary is
      * fixed size, but organized in a skip-list to make searches faster.
      */
-    WT_REC_DICTIONARY **dictionary;                         /* Dictionary */
+    WT_REC_DICTIONARY **dictionary;          /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
                                              /* Skiplist head. */
     WT_REC_DICTIONARY *dictionary_head[WT_SKIP_MAXDEPTH];
@@ -241,7 +241,7 @@ struct __wt_reconcile {
      * WT_REC_KV--
      *	An on-page key/value item we're building.
      */
-    WT_REC_KV k, v;         /* Key/Value being built */
+    WT_REC_KV k, v; /* Key/Value being built */
 
     WT_ITEM *cur, _cur;   /* Key/Value being built */
     WT_ITEM *last, _last; /* Last key/value built */
