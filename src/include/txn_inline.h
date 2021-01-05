@@ -1025,8 +1025,7 @@ retry:
             retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
-            WT_STAT_CONN_INCR(session, txn_read_race_prepare_update);
-            WT_STAT_DATA_INCR(session, txn_read_race_prepare_update);
+            WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);
 
             /*
              * When a prepared update/insert is rollback or committed, retrying it again should fix
@@ -1292,8 +1291,8 @@ __wt_txn_update_check(
     }
 
     if (rollback) {
-        WT_STAT_CONN_INCR(session, txn_update_conflict);
-        WT_STAT_DATA_INCR(session, txn_update_conflict);
+
+        WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 

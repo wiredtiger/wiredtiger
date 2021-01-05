@@ -162,8 +162,7 @@ __sync_ref_list_pop(WT_SESSION_IMPL *session, WT_REF_LIST *rlp, uint32_t flags)
 
         /* Accumulate errors but continue till all the refs are processed. */
         WT_TRET(__wt_page_release(session, rlp->list[i], flags));
-        WT_STAT_CONN_INCR(session, cc_pages_evict);
-        WT_STAT_DATA_INCR(session, cc_pages_evict);
+        WT_STAT_CONN_DATA_INCR(session, cc_pages_evict);
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP,
           "%p: is an in-memory obsolete page, added to urgent eviction queue.",
           (void *)rlp->list[i]);
@@ -247,8 +246,7 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
 
         if (obsolete) {
             WT_REF_UNLOCK(ref, WT_REF_DELETED);
-            WT_STAT_CONN_INCR(session, cc_pages_removed);
-            WT_STAT_DATA_INCR(session, cc_pages_removed);
+            WT_STAT_CONN_DATA_INCR(session, cc_pages_removed);
 
             WT_RET(__wt_page_parent_modify_set(session, ref, true));
         } else
@@ -365,8 +363,7 @@ __sync_ref_int_obsolete_cleanup(WT_SESSION_IMPL *session, WT_REF *parent, WT_REF
         WT_RET(__sync_ref_obsolete_check(session, ref, rlp));
     }
 
-    WT_STAT_CONN_INCRV(session, cc_pages_visited, pindex->entries);
-    WT_STAT_DATA_INCRV(session, cc_pages_visited, pindex->entries);
+    WT_STAT_CONN_DATA_INCRV(session, cc_pages_visited, pindex->entries);
 
     return (0);
 }
@@ -407,8 +404,7 @@ __sync_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *ski
      */
     if (addr.type == WT_ADDR_LEAF_NO || addr.ta.newest_stop_durable_ts == WT_TS_NONE) {
         __wt_verbose(session, WT_VERB_CHECKPOINT_CLEANUP, "%p: page walk skipped", (void *)ref);
-        WT_STAT_CONN_INCR(session, cc_pages_walk_skipped);
-        WT_STAT_DATA_INCR(session, cc_pages_walk_skipped);
+        WT_STAT_CONN_DATA_INCR(session, cc_pages_walk_skipped);
         *skipp = true;
     }
     return (0);
