@@ -232,7 +232,6 @@ __curbulk_insert_row(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-
     WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
@@ -278,7 +277,6 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-
     WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
