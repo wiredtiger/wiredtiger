@@ -141,13 +141,23 @@ testutil_build_dir(char *buf)
     char *p;
 
     /* Get the git top level directory. */
+#ifdef _WIN32
+    fp = _popen("git rev-parse --show-toplevel", "r");
+#else
     fp = popen("git rev-parse --show-toplevel", "r");
+#endif
+
     if (fp == NULL)
         testutil_die(errno, "popen");
     p = fgets(buf, BUFSIZE, fp);
     if (p == NULL)
         testutil_die(errno, "fgets");
+
+#ifdef _WIN32
+    _pclose(fp);
+#else
     pclose(fp);
+#endif
 
     /* Remove the trailing newline character added by fgets. */
     buf[strlen(buf) - 1] = '\0';
