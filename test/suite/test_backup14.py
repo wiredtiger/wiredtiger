@@ -313,9 +313,9 @@ class test_backup14(test_backup_base):
         incr_backup_out = self.incr_out + '.' + str(self.counter)
         home_incr_dir = self.home_incr + '.' + str(self.counter)
         return {
-            'home_full_dir': home_full_dir, 
-            'full_backup_out': full_backup_out, 
-            'home_incr_dir': home_incr_dir, 
+            'home_full_dir': home_full_dir,
+            'full_backup_out': full_backup_out,
+            'home_incr_dir': home_incr_dir,
             'incr_backup_out': incr_backup_out
         }
 
