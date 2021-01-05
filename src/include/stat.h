@@ -242,7 +242,6 @@ __wt_stats_clear(void *stats_arg, int slot)
  * statistics concurrently and is useful to avoid the duplicated calls that happen in a lot of
  * places.
  */
-
 #define WT_STAT_CONN_DATA_DECRV(session, fld, value) \
     WT_STAT_CONN_DECRV(session, value)               \
     WT_STAT_DATA_DECRV(session, value)
@@ -252,7 +251,6 @@ __wt_stats_clear(void *stats_arg, int slot)
     WT_STAT_CONN_INCRV(session, fld, value)          \
     WT_STAT_DATA_INCRV(session, fld, value)
 #define WT_STAT_CONN_DATA_INCR(session, fld) WT_STAT_CONN_DATA_INCRV(session, fld, 1)
-
 /*
  * Update per session statistics.
  */
