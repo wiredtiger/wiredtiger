@@ -44,6 +44,7 @@ int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, WT_UPDATE *upd_arg,
   u_int modify_type, bool exclusive)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_INSERT *ins;
     WT_INSERT_HEAD *ins_head, **ins_headp;
@@ -60,6 +61,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    btree = S2BT(session);
     last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
@@ -125,7 +127,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
              * store is committed.
              */
             WT_ASSERT(session,
-              !WT_IS_HS(S2BT(session)) ||
+              !WT_IS_HS(btree->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->start_ts == WT_TS_NONE &&
                   upd_arg->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
@@ -199,7 +201,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
              * history store if we write a prepared update to the data store.
              */
             WT_ASSERT(session,
-              !WT_IS_HS(S2BT(session)) ||
+              !WT_IS_HS(btree->dhandle) ||
                 (upd_arg->type == WT_UPDATE_TOMBSTONE && upd_arg->next != NULL &&
                   upd_arg->next->type == WT_UPDATE_STANDARD && upd_arg->next->next == NULL) ||
                 (upd_arg->type == WT_UPDATE_STANDARD && upd_arg->next == NULL));

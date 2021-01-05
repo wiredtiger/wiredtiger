@@ -24,11 +24,13 @@ typedef struct {
 static inline bool
 __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
+    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
     u_int i;
 
+    btree = S2BT(session);
     mod = ref->page->modify;
     txn = session->txn;
 
@@ -47,7 +49,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      *     skip them,
      * 5. there's already an address for every disk block involved.
      */
-    if (WT_IS_HS(S2BT(session)))
+    if (WT_IS_HS(btree->dhandle))
         return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);
@@ -542,7 +544,7 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
         btree->syncing = WT_BTREE_SYNC_WAIT;
         __wt_gen_next_drain(session, WT_GEN_EVICT);
         btree->syncing = WT_BTREE_SYNC_RUNNING;
-        is_hs = WT_IS_HS(btree);
+        is_hs = WT_IS_HS(btree->dhandle);
 
         /* Add in history store reconciliation for standard files. */
         rec_flags = WT_REC_CHECKPOINT;

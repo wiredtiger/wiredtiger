@@ -416,6 +416,7 @@ static int
 __rollback_abort_row_ondisk_kv(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, wt_timestamp_t rollback_timestamp)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_RET;
     WT_ITEM buf;
@@ -423,13 +424,14 @@ __rollback_abort_row_ondisk_kv(
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
 
+    btree = S2BT(session);
     vpack = &_vpack;
     WT_CLEAR(buf);
     upd = NULL;
 
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     prepared = vpack->tw.prepare;
-    if (WT_IS_HS(S2BT(session))) {
+    if (WT_IS_HS(btree->dhandle)) {
         /*
          * Abort the history store update with stop durable timestamp greater than the stable
          * timestamp or the updates with max stop timestamp which implies that they are associated
@@ -602,10 +604,12 @@ static int
 __rollback_abort_row_reconciled_page(
   WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
+    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     uint32_t multi_entry;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
+    btree = S2BT(session);
 
     if ((mod = page->modify) == NULL)
         return (0);
@@ -622,7 +626,7 @@ __rollback_abort_row_reconciled_page(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
         /* Remove the history store newer updates. */
-        if (!WT_IS_HS(S2BT(session)))
+        if (!WT_IS_HS(btree->dhandle))
             WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
               mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
@@ -646,7 +650,7 @@ __rollback_abort_row_reconciled_page(
                   __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
                 /* Remove the history store newer updates. */
-                if (!WT_IS_HS(S2BT(session)))
+                if (!WT_IS_HS(btree->dhandle))
                     WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
                       multi->addr.addr, multi->addr.size, rollback_timestamp));
 
@@ -723,7 +727,10 @@ __rollback_abort_newer_row_leaf(
 static wt_timestamp_t
 __rollback_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
-    if (WT_IS_HS(S2BT(session)))
+    WT_BTREE *btree;
+    btree = S2BT(session);
+
+    if (WT_IS_HS(btree->dhandle))
         return WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts);
     else
         return WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);

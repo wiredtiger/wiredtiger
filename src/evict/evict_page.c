@@ -92,12 +92,14 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 int
 __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
 {
+    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
 
+    btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
@@ -132,7 +134,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
-        if (session->hs_cursor != NULL && WT_IS_HS(S2BT(session))) {
+        if (session->hs_cursor != NULL && WT_IS_HS(btree->dhandle)) {
             force_evict_hs = true;
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
@@ -627,7 +629,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree))
+    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
     else if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(btree->dhandle))
         LF_SET(WT_REC_HS);
@@ -667,7 +669,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree) &&
+    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree->dhandle) &&
       (use_snapshot_for_app_thread || is_eviction_thread)) {
         if (is_eviction_thread) {
             /*

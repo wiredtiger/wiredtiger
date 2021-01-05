@@ -228,6 +228,7 @@ int
 __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, void *ripcip,
   WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
 {
+    WT_BTREE *btree;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
@@ -238,6 +239,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     uint64_t max_txn, session_txnid, txnid;
     char time_string[WT_TIME_STRING_SIZE];
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
+    btree = S2BT(session);
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -254,7 +256,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
     has_newer_updates = upd_saved = false;
-    is_hs_page = F_ISSET(S2BT(session), WT_DHANDLE_HS);
+    is_hs_page = F_ISSET(btree->dhandle, WT_DHANDLE_HS);
     session_txnid = WT_SESSION_TXN_SHARED(session)->id;
 
     /*
