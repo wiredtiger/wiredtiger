@@ -315,7 +315,6 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
         __wt_page_modify_set(session, page);
 
     if (ref->page_del != NULL && ref->page_del->prepare_state != WT_PREPARE_INIT) {
-
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
     }
 
