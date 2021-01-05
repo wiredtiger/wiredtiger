@@ -251,7 +251,6 @@ __curlog_search(WT_CURSOR *cursor)
         ret = WT_NOTFOUND;
     WT_ERR(ret);
     WT_ERR(__curlog_kv(session, cursor));
-
     WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
 err:
