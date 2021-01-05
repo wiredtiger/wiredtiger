@@ -29,14 +29,14 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from test_backup_base import test_backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup14.py
 # Test cursor backup with a block-based incremental cursor.
-class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup14(test_backup_base):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
@@ -61,28 +61,6 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
     # Set the key and value big enough that we modify a few blocks.
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
-
-    #
-    # Set up all the directories needed for the test. We have a full backup directory for each
-    # iteration and an incremental backup for each iteration. That way we can compare the full and
-    # incremental each time through.
-    #
-    def setup_directories(self):
-        for i in range(0, self.max_iteration):
-            remove_dir = self.home_incr + '.' + str(i)
-
-            create_dir = self.home_incr + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
-
-            if i == 0:
-                continue
-            remove_dir = self.home_full + '.' + str(i)
-            create_dir = self.home_full + '.' + str(i) + '/' + self.logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
 
     def take_full_backup(self):
         if self.counter != 0:
@@ -201,26 +179,6 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
 
-    def compare_backups(self, t_uri):
-        #
-        # Run wt dump on full backup directory
-        #
-        full_backup_out = self.full_out + '.' + str(self.counter)
-        home_dir = self.home_full + '.' + str(self.counter)
-        if self.counter == 0:
-            home_dir = self.home
-
-        self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=full_backup_out)
-        #
-        # Run wt dump on incremental backup directory
-        #
-        incr_backup_out = self.incr_out + '.' + str(self.counter)
-        home_dir = self.home_incr + '.' + str(self.counter)
-        self.runWt(['-R', '-h', home_dir, 'dump', t_uri], outfilename=incr_backup_out)
-
-        self.assertEqual(True,
-            compare_files(self, full_backup_out, incr_backup_out))
-
     #
     # Add data to the given uri.
     #
@@ -273,7 +231,8 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri)
+        paths = self.setup_compare_backup_paths()
+        self.compare_backups(self.uri, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -283,7 +242,8 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.remove_data()
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri)
+        paths = self.setup_compare_backup_paths()
+        self.compare_backups(self.uri, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -316,7 +276,8 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri)
+        paths = self.setup_compare_backup_paths()
+        self.compare_backups(self.uri, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -330,8 +291,9 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data(self.uri_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri_logged)
-
+        paths = self.setup_compare_backup_paths()
+        self.compare_backups(self.uri_logged, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
@@ -339,14 +301,30 @@ class test_backup14(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data(self.uri_not_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri_not_logged)
+        paths = self.setup_compare_backup_paths()
+        self.compare_backups(self.uri_not_logged, paths['home_full_dir'], paths['full_backup_out'], paths['home_incr_dir'], paths['incr_backup_out'])
+
+    def setup_compare_backup_paths(self):
+        full_backup_out = self.full_out + '.' + str(self.counter)
+        home_full_dir = self.home_full + '.' + str(self.counter)
+        if self.counter == 0:
+            home_full_dir = self.home
+
+        incr_backup_out = self.incr_out + '.' + str(self.counter)
+        home_incr_dir = self.home_incr + '.' + str(self.counter)
+        return {
+            'home_full_dir': home_full_dir, 
+            'full_backup_out': full_backup_out, 
+            'home_incr_dir': home_incr_dir, 
+            'incr_backup_out': incr_backup_out
+        }
 
     def test_backup14(self):
         os.mkdir(self.bkp_home)
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.setup_directories()
+        self.setup_directories(self.max_iteration, self.home_incr, self.home_full, self.logpath)
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.add_data_validate_backups()
