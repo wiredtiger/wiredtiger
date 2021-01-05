@@ -211,7 +211,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
-    bool valid_update_found;
+    bool valid_update_found, txn_non_committed;
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;
 #endif
@@ -320,9 +320,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn) &&
-            (hs_stop_durable_ts <= rollback_timestamp))) {
-
+          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
+          (hs_stop_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
               ": %" PRIu64,
@@ -332,13 +331,14 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
+        txn_non_committed =
+          __rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn);
+
         /*
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn) &&
-          (hs_durable_ts <= rollback_timestamp)) {
-
+        if (!txn_non_committed && (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
               "timestamp: %s, stable timestamp: %s and txnid : %" PRIu64,
@@ -818,6 +818,7 @@ __rollback_page_needs_abort(
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     wt_timestamp_t durable_ts;
+    uint64_t newest_txn;
     uint32_t i;
     char ts_string[WT_TS_INT_STRING_SIZE];
     const char *tag;
@@ -826,6 +827,7 @@ __rollback_page_needs_abort(
     addr = ref->addr;
     mod = ref->page == NULL ? NULL : ref->page->modify;
     durable_ts = WT_TS_NONE;
+    newest_txn = WT_TXN_NONE;
     tag = "undefined state";
     prepared = result = false;
 
@@ -858,19 +860,22 @@ __rollback_page_needs_abort(
         __wt_cell_unpack_addr(session, ref->home->dsk, (WT_CELL *)addr, &vpack);
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &vpack.ta);
         prepared = vpack.ta.prepare;
+        newest_txn = vpack.ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, vpack.ta.newest_txn);
+          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
+        newest_txn = addr->ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, addr->ta.newest_txn);
+          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
-      "%p: page with %s durable timestamp: %s and prepared updates: %s", (void *)ref, tag,
-      __wt_timestamp_to_string(durable_ts, ts_string), prepared ? "true" : "false");
+      "%p: page with %s durable timestamp: %s, newest txn: %" PRIu64 " and prepared updates: %s",
+      (void *)ref, tag, __wt_timestamp_to_string(durable_ts, ts_string), newest_txn,
+      prepared ? "true" : "false");
 
     return (result);
 }
