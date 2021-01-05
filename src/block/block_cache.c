@@ -27,7 +27,7 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 #ifdef HAVE_LIBMEMKIND
         *retp = memkind_malloc(blkcache->pmem_kind, size);
         if (*retp == NULL)
-            return WT_CACHE_FULL;
+            return WT_BLKCACHE_FULL;
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
@@ -39,7 +39,7 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
  * Every so often, compute the total size of the files open
  * in the block manager.
  */
-#define BLKCACHE_FILESIZE_EST_FREQ 1000
+#define BLKCACHE_FILESIZE_EST_FREQ 5000
 
 static size_t
 __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
@@ -69,7 +69,10 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     blkcache->estimated_file_size = size;
     __wt_spin_unlock(session, &conn->block_lock);
 
-    return blkcache->estimated_file_size ;
+    WT_STAT_CONN_SET(session, block_cache_bypass_filesize,
+		     blkcache->estimated_file_size);
+
+    return blkcache->estimated_file_size;
 }
 
 /*
@@ -111,7 +114,6 @@ __wt_blkcache_get_or_check(
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    size_t filesize;
     uint64_t bucket, hash;
 #if BLKCACHE_TRACE == 1
     uint64_t time_start, time_stop;
@@ -131,11 +133,10 @@ __wt_blkcache_get_or_check(
     /* If more than half the file is likely to be in the buffer cache,
      * don't use the cache.
      */
-    filesize = 	__blkcache_estimate_filesize(session);
-    if (blkcache->system_ram >= filesize * blkcache->fraction_in_dram) {
+    if (blkcache->system_ram >=
+	__blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_get);
-	WT_STAT_CONN_SET(session, block_cache_bypass_filesize, filesize);
-	return -1;
+	return WT_BLKCACHE_BYPASS;
     }
 
     id.checksum = (uint64_t)checksum;
@@ -197,7 +198,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    size_t filesize;
     uint64_t bucket, hash;
     void *data_ptr;
 #if BLKCACHE_TRACE == 1
@@ -214,19 +214,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
 
-    /*
-     * If DRAM is large enough to cache the desired fraction of the file, don't
-     * populate the cache on the read path.
-     */
-    if (write == false) {
-	filesize = __blkcache_estimate_filesize(session);
-	if (blkcache->system_ram >= filesize * blkcache->fraction_in_dram)
-	    return -1;
-    }
-
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
-        return WT_CACHE_FULL;
+        return WT_BLKCACHE_FULL;
 
     /*
      * Allocate space in the cache outside of the critical section. In the unlikely event that we

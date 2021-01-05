@@ -21,6 +21,9 @@
 
 #define BLKCACHE_TRACE 0
 
+#define WT_BLKCACHE_FULL   -2
+#define WT_BLKCACHE_BYPASS -3
+
 /*
  * WT_BLKCACHE_ID --
  *    Checksum, offset and size uniquely identify a block.
