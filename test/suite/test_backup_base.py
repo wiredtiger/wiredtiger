@@ -51,5 +51,4 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.runWt(['-R', '-h', home_full_dir, 'dump', uri], outfilename=full_backup_out)
         # Run wt dump on incremental backup directory.
         self.runWt(['-R', '-h', home_incr_dir, 'dump', uri], outfilename=incr_backup_out)
-        self.assertEqual(True,
-            compare_files(self, full_backup_out, incr_backup_out))
+        self.assertEqual(True, compare_files(self, full_backup_out, incr_backup_out))
