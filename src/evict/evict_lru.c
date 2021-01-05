@@ -2045,7 +2045,6 @@ fast:
     }
 
     WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
-
     WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen, pages_seen);
 
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_already_queued, pages_already_queued);
@@ -2053,9 +2052,7 @@ fast:
     WT_STAT_CONN_INCRV(
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
-
     WT_STAT_CONN_DATA_INCRV(session, cache_eviction_walk_passes, 1);
-
     return (0);
 }
 
