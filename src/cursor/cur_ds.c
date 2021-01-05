@@ -176,7 +176,7 @@ __curds_prev(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, prev, NULL);
 
-    WT_STAT_DATA_INCR(session, cursor_prev);
+    WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     ret = __curds_cursor_resolve(cursor, source->prev(source));
