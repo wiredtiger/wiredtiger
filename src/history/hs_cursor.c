@@ -95,12 +95,14 @@ static int
 __hs_cursor_position_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t timestamp, WT_ITEM *user_srch_key)
 {
+    WT_BTREE *btree;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp, exact;
+    btree = S2BT(session);
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, WT_IS_HS(btree->dhandle));
 
     if (user_srch_key == NULL)
         WT_RET(__wt_scr_alloc(session, 0, &srch_key));
