@@ -523,6 +523,7 @@ err:
          */
         if (!dead)
             WT_TRET(__wt_session_release_dhandle(session));
+        session->dhandle = NULL;
     }
 
 done:
@@ -576,7 +577,11 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
         return (can_reopen ? 0 : WT_NOTFOUND);
     }
 
-    session->dhandle = dhandle;
+    /*
+     * As this function can be called internally, we must save and restore the session's
+     * active data handle.
+     */
+    API_SESSION_PUSH(session, WT_CURSOR, reopen, dhandle);
 
     /*
      * Lock the handle: we're only interested in open handles, any other state disqualifies the
@@ -612,6 +617,8 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
         cursor->key_format = btree->key_format;
         cursor->value_format = btree->value_format;
     }
+
+    API_SESSION_POP(session);
     return (ret);
 }
 
