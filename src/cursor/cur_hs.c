@@ -614,7 +614,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
         WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
             /*
-             * Keep walk backward to the specified btree or key space as there may be contents
+             * Keep walking backwards to the specified btree or key space as there may be content
              * inserted concurrently.
              */
             while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
@@ -648,7 +648,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
         WT_ERR_NOTFOUND_OK(__curhs_prev_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
             /*
-             * Keep walk backward to the specified btree or key space as there may be contents
+             * Keep walking forward to the specified btree or key space as there may be content
              * inserted concurrently.
              */
             while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
