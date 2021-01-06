@@ -1126,7 +1126,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      */
     if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) && upd->type != WT_UPDATE_TOMBSTONE) {
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
-        hs_btree_id = S2BT(session)->id;
+        hs_btree_id = CUR2BT(cbt)->id;
         /* Open a history store table cursor. */
         WT_ERR(__wt_hs_cursor_open(session));
         hs_cursor = session->hs_cursor;
