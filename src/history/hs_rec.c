@@ -70,17 +70,15 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
   const WT_ITEM *key, const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw,
   uint64_t counter)
 {
-    WT_BTREE *btree;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_UPDATE *hs_upd, *upd_local;
 
-    btree = S2BT(session);
     cbt = (WT_CURSOR_BTREE *)cursor;
     hs_upd = upd_local = NULL;
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(btree->dhandle));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
@@ -755,7 +753,6 @@ static int
 __hs_delete_key_from_ts_int(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
-    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
@@ -764,10 +761,9 @@ __hs_delete_key_from_ts_int(
     uint64_t hs_counter;
     uint32_t hs_btree_id;
     int cmp, exact;
-    btree = S2BT(session);
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(btree->dhandle));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     hs_cursor = session->hs_cursor;
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
