@@ -570,16 +570,16 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
     if (check_only) {
         can_reopen = WT_DHANDLE_CAN_REOPEN(dhandle);
         /*
-         * If the data handle can't be reopened, it is a candidate for sweep, and that
-         * should never happen if any session (including ours) is actively using it.
+         * If the data handle can't be reopened, it is a candidate for sweep, and that should never
+         * happen if any session (including ours) is actively using it.
          */
         WT_ASSERT(session, can_reopen || dhandle != session->dhandle);
         return (can_reopen ? 0 : WT_NOTFOUND);
     }
 
     /*
-     * As this function can be called internally, we must save and restore the session's
-     * active data handle.
+     * As this function can be called internally, we must save and restore the session's active data
+     * handle.
      */
     API_SESSION_PUSH(session, WT_CURSOR, reopen, dhandle);
 

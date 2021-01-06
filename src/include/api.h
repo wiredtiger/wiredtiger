@@ -32,14 +32,17 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
-#define API_SESSION_PUSH(s, h, n, dh)       \
-    WT_DATA_HANDLE *__olddh = (s)->dhandle; \
-    const char *__oldname = (s)->name;      \
-    (s)->dhandle = (dh);                    \
-    (s)->name = (s)->lastop = #h "." #n
+/* Each use of API_SESSION_PUSH must be matched by a use of API_SESSION_POP. */
+#define API_SESSION_PUSH(s, h, n, dh)           \
+    {                                           \
+        WT_DATA_HANDLE *__olddh = (s)->dhandle; \
+        const char *__oldname = (s)->name;      \
+        (s)->dhandle = (dh);                    \
+        (s)->name = (s)->lastop = #h "." #n
 #define API_SESSION_POP(s)  \
     (s)->dhandle = __olddh; \
-    (s)->name = __oldname
+    (s)->name = __oldname;  \
+    }
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, h, n, dh)                              \
