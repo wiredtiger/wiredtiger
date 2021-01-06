@@ -621,19 +621,15 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
-                if (btree_id == hs_cursor->btree_id) {
+                if (btree_id == hs_cursor->btree_id && F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                     WT_ERR(
                       __wt_compare(session, NULL, hs_cursor->datastore_key, datastore_key, &cmp));
+                    if (cmp == 0)
+                        break;
 
-                    if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
-                        if (cmp == 0) {
-                            break;
-                        }
-
-                        if (cmp < 0) {
-                            ret = WT_NOTFOUND;
-                            goto err;
-                        }
+                    if (cmp < 0) {
+                        ret = WT_NOTFOUND;
+                        goto err;
                     }
                 }
                 if (btree_id < hs_cursor->btree_id) {
@@ -659,19 +655,15 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
-                if (btree_id == hs_cursor->btree_id) {
+                if (btree_id == hs_cursor->btree_id && F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                     WT_ERR(
                       __wt_compare(session, NULL, hs_cursor->datastore_key, datastore_key, &cmp));
+                    if (cmp == 0)
+                        break;
 
-                    if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
-                        if (cmp == 0) {
-                            break;
-                        }
-
-                        if (cmp > 0) {
-                            ret = WT_NOTFOUND;
-                            goto err;
-                        }
+                    if (cmp > 0) {
+                        ret = WT_NOTFOUND;
+                        goto err;
                     }
                 }
                 if (btree_id > hs_cursor->btree_id) {
