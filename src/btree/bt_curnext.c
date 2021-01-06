@@ -736,7 +736,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     }
 
 err:
-    if (total_skipped < 100) 
+    if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
     else
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
