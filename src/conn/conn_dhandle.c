@@ -925,8 +925,7 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
          * rollback to stable so that the transaction ids of the pages will be reset when loaded
          * from disk to memory.
          */
-        btree->write_gen = btree->base_write_gen = btree->run_write_gen =
-          WT_MAX(btree->write_gen, conn->base_write_gen);
+        btree->write_gen = btree->base_write_gen = WT_MAX(btree->write_gen, conn->base_write_gen);
     }
 }
 

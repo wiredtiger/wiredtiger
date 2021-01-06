@@ -742,15 +742,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RECOVERY_FILE *metafile;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup, rts_executed,
-      recovery_file_scanned;
+    bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
+    bool rts_executed, log_recovery;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
     do_checkpoint = hs_exists = true;
-    rts_executed = recovery_file_scanned = false;
+    rts_executed = log_recovery = false;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -786,7 +786,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          * earlier time.
          */
         WT_ERR(__recovery_file_scan(&r));
-        recovery_file_scanned = true;
+        log_recovery = true;
         /*
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
          * the files.
@@ -919,7 +919,7 @@ rollback_to_stable:
         WT_ERR(__wt_rollback_to_stable(session, NULL, true));
     }
 
-    if (recovery_file_scanned)
+    if (log_recovery)
         goto done;
 
     /*
@@ -959,7 +959,8 @@ rollback_to_stable:
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
-     * paging. Start eviction threads for recovery without history store cursors.
+     * paging. Start eviction threads if not already started for recovery without history store
+     * cursors.
      */
     if (!eviction_started) {
         WT_ERR(__wt_evict_create(session));
@@ -995,7 +996,7 @@ done:
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
-     * base write generation. The write generations of the pages which are in disk will be
+     * base write generation. The write generations of the pages which are on disk will be
      * initialized when loaded to cache.
      */
     __wt_dhandle_update_write_gens(session);

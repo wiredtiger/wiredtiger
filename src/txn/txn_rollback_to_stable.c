@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, txnid) \
+#define WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, txnid) \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
 
 /*
@@ -862,14 +862,14 @@ __rollback_page_needs_abort(
         prepared = vpack.ta.prepare;
         newest_txn = vpack.ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         newest_txn = addr->ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RTS,
@@ -1315,7 +1315,14 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
         has_txn_updates_gt_than_ckpt_snap =
-          WT_CHECK_RECOVERYFLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
+          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
+
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            __wt_verbose(session, WT_VERB_RTS,
+              "Recovered checkpoint snapshot min  %" PRIu64 ", snapshot max : %" PRIu64
+              ", snapshot count : %" PRIu32,
+              S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
+              S2C(session)->recovery_ckpt_snapshot_count);
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap) {

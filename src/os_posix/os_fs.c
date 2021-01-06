@@ -749,7 +749,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
 #endif
         WT_SYSCALL_RETRY(((pfh->fd = open(name, f, 0444)) == -1 ? -1 : 0), ret);
         /* Return error if the file not found during rollback to stable. */
-        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE) && ret != 0)
+        if (ret != 0 && F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
             WT_ERR(ENOENT);
         else if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: handle-open: open-directory", name);
