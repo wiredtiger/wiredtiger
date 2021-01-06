@@ -871,7 +871,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     tombstone = NULL;
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(btree->dhandle));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     /*
      * Position ourselves at the beginning of the key range that we may have to fixup. Prior to
