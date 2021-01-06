@@ -703,18 +703,14 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
      * ourselves with.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        /*
-         * Prior to getting here, we've done a "search near" on our key for the timestamp we're
-         * inserting and then a "next". In the regular case, our cursor will be positioned on the
-         * next key and we'll break out of the first iteration in one of the conditions below.
-         */
+        /* We shouldn't have crossed the btree and user key search space. */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
-        if (hs_btree_id != btree->id)
-            break;
-        if (hs_ts > ts)
-            break;
+        WT_ASSERT(session, hs_btree_id == btree->id);
+#ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
-        if (cmp != 0)
+        WT_ASSERT(session, cmp == 0);
+#endif
+        if (hs_ts > ts)
             break;
     }
     if (ret == WT_NOTFOUND)
@@ -742,19 +738,13 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
      * 2     foo 3  3       ddd
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        /*
-         * Prior to getting here, we've done a "search near" on our key for the timestamp we're
-         * inserting and then a "next". In the regular case, our cursor will be positioned on the
-         * next key and we'll break out of the first iteration in one of the conditions below.
-         */
+        /* We shouldn't have crossed the btree and user key search space. */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
-        if (hs_btree_id != btree->id)
-            break;
-
+        WT_ASSERT(session, hs_btree_id == btree->id);
+#ifdef HAVE_DIAGNOSTIC
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
-        if (cmp != 0)
-            break;
-
+        WT_ASSERT(session, cmp == 0);
+#endif
         /*
          * If we got here, we've got out-of-order updates in the history store.
          *
