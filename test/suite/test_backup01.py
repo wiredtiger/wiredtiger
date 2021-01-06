@@ -31,7 +31,7 @@ import os
 import shutil
 import string
 import time
-from suite_subprocess import suite_subprocess
+from test_backup_base import test_backup_base
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import compare_files
@@ -39,7 +39,7 @@ from helper import compare_files
 # test_backup.py
 #    Utilities: wt backup
 # Test backup (both backup cursors and the wt backup command).
-class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup(test_backup_base):
     dir='backup.dir'            # Backup directory name
 
     pfx = 'test_backup'
@@ -61,12 +61,6 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
                 if skiplsm:
                         continue
             i[1](self, i[0], 100).populate()
-
-    # Compare the original and backed-up files using the wt dump command.
-    def compare(self, uri):
-        self.runWt(['dump', uri], outfilename='orig')
-        self.runWt(['-h', self.dir, 'dump', uri], outfilename='backup')
-        self.assertEqual(True, compare_files(self, 'orig', 'backup'))
 
     # Test simple backup cursor open/close.
     def test_cursor_simple(self):
@@ -95,7 +89,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
 
         # And that the contents are the same.
         for i in self.objs:
-            self.compare(i[0])
+            self.compare_backups(i[0], self.dir, 'backup')
 
     # Check that a URI doesn't exist, both the meta-data and the file names.
     def confirmPathDoesNotExist(self, uri):
@@ -127,7 +121,7 @@ class test_backup(wttest.WiredTigerTestCase, suite_subprocess):
         # Confirm the objects we backed up exist, with correct contents.
         for i in range(0, len(self.objs)):
             if i in l:
-                self.compare(self.objs[i][0])
+                self.compare_backups(self.objs[i][0], self.dir, 'backup')
 
         # Confirm the other objects don't exist.
         for i in range(0, len(self.objs)):

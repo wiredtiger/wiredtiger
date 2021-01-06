@@ -29,7 +29,7 @@
 import threading, time, wiredtiger, wttest
 import glob, os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from test_backup_base import test_backup_base
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from wtthread import op_thread
@@ -37,7 +37,7 @@ from wtthread import op_thread
 # test_backup04.py
 #    Utilities: wt backup
 # Test incremental cursor backup.
-class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup_target(test_backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
 
@@ -76,30 +76,6 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(1, rows + 1):
             cursor[simple_key(cursor, i)] = str(i) + ':' + upd * dsize
         cursor.close()
-
-    # Compare the original and backed-up files using the wt dump command.
-    def compare(self, uri, dir_full, dir_incr):
-        # print "Compare: full URI: " + uri + " with incremental URI "
-        if dir_full == None:
-            full_name='original'
-        else:
-            full_name='backup_full'
-        incr_name='backup_incr'
-        if os.path.exists(full_name):
-            os.remove(full_name)
-        if os.path.exists(incr_name):
-            os.remove(incr_name)
-        #
-        # We have been copying the logs only, so we need to force 'wt' to
-        # run recovery in order to apply all the logs and check the data.
-        #
-        if dir_full == None:
-            self.runWt(['-R', 'dump', uri], outfilename=full_name)
-        else:
-            self.runWt(['-R', '-h', dir_full, 'dump', uri], outfilename=full_name)
-        self.runWt(['-R', '-h', dir_incr, 'dump', uri], outfilename=incr_name)
-        self.assertEqual(True,
-            compare_files(self, full_name, incr_name))
 
     def take_full_backup(self, dir):
         # Open up the backup cursor, and copy the files.  Do a full backup.
@@ -168,8 +144,8 @@ class test_backup_target(wttest.WiredTigerTestCase, suite_subprocess):
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
         self.take_full_backup(full_dir)
-        self.compare(self.uri, full_dir, self.dir)
-        self.compare(self.uri, None, self.dir)
+        self.compare_backups(self.uri, full_dir, 'original', self.dir, 'backup_incr')
+        self.compare_backups(self.uri, self.dir, 'backup_incr')
 
 if __name__ == '__main__':
     wttest.run()

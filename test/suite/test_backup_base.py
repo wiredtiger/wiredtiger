@@ -32,23 +32,40 @@ from helper import compare_files
 
 # Shared base class used by import tests.
 class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
+    #
     # Set up all the directories needed for the test. We have a full backup directory for each
     # iteration and an incremental backup for each iteration. That way we can compare the full and
     # incremental each time through.
-    def setup_directories(self, max_iteration, home_incr_dir, home_full_dir, logpath):
-        # We're only coming through once so just set up the 0 and 1 directories.
+    #
+    def setup_directories(self, max_iteration, home_incr, home_full, logpath):
         for i in range(0, max_iteration):
             # The log directory is a subdirectory of the home directory,
             # creating that will make the home directory also.
-            log_dir = home_incr_dir + '.' + str(i) + '/' + logpath
-            os.makedirs(log_dir)
-            if i != 0:
-                log_dir = home_full_dir + '.' + str(i) + '/' + logpath
-                os.makedirs(log_dir)
+            remove_dir = home_incr + '.' + str(i)
+            create_dir = home_incr + '.' + str(i) + '/' + logpath
+            if os.path.exists(remove_dir):
+                os.remove(remove_dir)
+            os.makedirs(create_dir)
 
-    def compare_backups(self, uri, home_full_dir, full_backup_out, home_incr_dir, incr_backup_out):
-        # Run wt dump on full backup directory.
-        self.runWt(['-R', '-h', home_full_dir, 'dump', uri], outfilename=full_backup_out)
-        # Run wt dump on incremental backup directory.
-        self.runWt(['-R', '-h', home_incr_dir, 'dump', uri], outfilename=incr_backup_out)
-        self.assertEqual(True, compare_files(self, full_backup_out, incr_backup_out))
+            if i == 0:
+                continue
+            remove_dir = home_full + '.' + str(i)
+            create_dir = home_full + '.' + str(i) + '/' + logpath
+            if os.path.exists(remove_dir):
+                os.remove(remove_dir)
+            os.makedirs(create_dir)
+
+    def compare_backups(self, uri, backup_dir1, file1, backup_dir2 = None, file2 = None):
+        if os.path.exists(file1):
+            os.remove(file1)
+        # Run wt dump on first backup directory.
+        self.runWt(['-R', '-h', backup_dir1, 'dump', uri], outfilename=file1)
+        # Run wt dump on second backup directory if provided.
+        if backup_dir2 == None:
+            file2 = 'orig'
+            if os.path.exists(file2):
+                os.remove(file2)
+            self.runWt(['-R', 'dump', uri], outfilename=file2)
+        else:
+            self.runWt(['-R', '-h', backup_dir2, 'dump', uri], outfilename=file2)
+        self.assertEqual(True, compare_files(self, file1, file2))

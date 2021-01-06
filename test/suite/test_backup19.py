@@ -254,13 +254,13 @@ class test_backup19(test_backup_base):
         self.take_incr_backup()
 
         full_backup_out = self.full_out + '.' + str(self.counter)
-        home_full_dir = self.home_full + '.' + str(self.counter)
+        full_backup_dir = self.home_full + '.' + str(self.counter)
         if self.counter == 0:
-            home_full_dir = self.home
+            full_backup_dir = self.home
 
         incr_backup_out = self.incr_out + '.' + str(self.counter)
-        home_incr_dir = self.home_incr + '.' + str(self.counter)
-        self.compare_backups(self.uri, home_full_dir, full_backup_out, home_incr_dir, incr_backup_out)
+        incr_backup_dir = self.home_incr + '.' + str(self.counter)
+        self.compare_backups(self.uri, full_backup_dir, full_backup_out, incr_backup_dir, incr_backup_out)
 
 if __name__ == '__main__':
     wttest.run()
