@@ -428,9 +428,9 @@ err:
     __wt_modify_vector_free(&modifies);
 
     if (ret == 0) {
-        if (upd_found) {
+        if (upd_found)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_read);
-        } else {
+        else {
             upd_value->type = WT_UPDATE_INVALID;
             WT_STAT_CONN_DATA_INCR(session, cache_hs_read_miss);
         }
