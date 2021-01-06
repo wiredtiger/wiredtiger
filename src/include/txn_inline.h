@@ -371,12 +371,10 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 static inline int
 __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
-    WT_BTREE *btree;
     WT_TXN *txn;
     WT_TXN_OP *op;
 
     txn = session->txn;
-    btree = S2BT(session);
 
     if (F_ISSET(txn, WT_TXN_READONLY)) {
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
@@ -400,7 +398,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* History store bypasses transactions, transaction modify should never be called on it. */
-    WT_ASSERT(session, !WT_IS_HS(btree->dhandle));
+    WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
     __wt_txn_op_set_timestamp(session, op);
