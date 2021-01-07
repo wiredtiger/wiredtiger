@@ -523,7 +523,6 @@ err:
          */
         if (!dead)
             WT_TRET(__wt_session_release_dhandle(session));
-        session->dhandle = NULL;
     }
 
 done:
