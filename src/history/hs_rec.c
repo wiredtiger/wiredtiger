@@ -685,7 +685,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     wt_timestamp_t hs_ts;
     uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
+#ifdef HAVE_DIAGNOSTIC
     int cmp;
+#endif
     char ts_string[5][WT_TS_INT_STRING_SIZE];
 
     insert_cursor = NULL;
@@ -693,6 +695,9 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(key);
+#endif
     /*
      * Position ourselves at the beginning of the key range that we may have to fixup. Prior to
      * getting here, we've positioned our cursor at the end of a key/timestamp range and then done a
