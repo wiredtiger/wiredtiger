@@ -703,6 +703,7 @@ __wt_rec_row_leaf(
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;
+    WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(tmpkey);
     WT_DECL_RET;
@@ -914,8 +915,10 @@ __wt_rec_row_leaf(
                      * ever need to blow away history store content, so we can skip this.
                      */
                     if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
+                        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
                         WT_ERR(__wt_hs_delete_key_from_ts(
-                          session, btree->id, tmpkey, WT_TS_NONE, false));
+                          session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
+                        WT_ERR(hs_cursor->close(hs_cursor));
                         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
                         WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                     }

@@ -449,13 +449,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd &&
           !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS)) {
             /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1, true));
+            WT_ERR(__wt_hs_delete_key_from_ts(session, cursor, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
             WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         } else if (first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS) &&
           (list->ins == NULL || ts_updates_in_hs)) {
-            WT_ERR(__wt_hs_delete_key_from_ts(session, btree->id, key, 1, true));
+            WT_ERR(__wt_hs_delete_key_from_ts(session, cursor, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
             WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
@@ -643,14 +643,15 @@ err:
  *     Delete history store content of a given key from a timestamp.
  */
 int
-__wt_hs_delete_key_from_ts(
-  WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
+__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
-    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
+    bool hs_read_committed;
 
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    if (!hs_read_committed)
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
     WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_after(session, hs_cursor), true);
@@ -663,7 +664,8 @@ __wt_hs_delete_key_from_ts(
     WT_ERR(__hs_delete_key_from_pos(session, hs_cursor, btree_id, key, reinsert));
 done:
 err:
-    WT_TRET(hs_cursor->close(hs_cursor));
+    if (!hs_read_committed)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     return (ret);
 }
 
