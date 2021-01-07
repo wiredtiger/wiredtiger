@@ -24,13 +24,11 @@ typedef struct {
 static inline bool
 __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_TXN *txn;
     u_int i;
 
-    btree = S2BT(session);
     mod = ref->page->modify;
     txn = session->txn;
 
@@ -49,7 +47,7 @@ __sync_checkpoint_can_skip(WT_SESSION_IMPL *session, WT_REF *ref)
      *     skip them,
      * 5. there's already an address for every disk block involved.
      */
-    if (WT_IS_HS(btree->dhandle))
+    if (WT_IS_HS(session->dhandle))
         return (false);
     if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         return (false);

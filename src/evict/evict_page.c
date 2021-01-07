@@ -92,14 +92,12 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 int
 __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
 {
-    WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
 
-    btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
@@ -134,7 +132,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
-        if (session->hs_cursor != NULL && WT_IS_HS(btree->dhandle)) {
+        if (session->hs_cursor != NULL && WT_IS_HS(session->dhandle)) {
             force_evict_hs = true;
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
