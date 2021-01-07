@@ -203,7 +203,7 @@ class test_backup15(backup_base):
     #
     # Add data to the given uri.
     #
-    def add_data(self, uri):
+    def add_complex_data(self, uri):
         c = self.session.open_cursor(uri, None, None)
         # The first time we want to add in a lot of data. Then after that we want to
         # rapidly change a single key to create a hotspot in one block.
@@ -240,7 +240,7 @@ class test_backup15(backup_base):
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.pr('Adding initial data')
         self.initial_backup = True
-        self.add_data(self.uri)
+        self.add_complex_data(self.uri)
         self.take_full_backup()
         self.initial_backup = False
         self.session.checkpoint()
@@ -248,7 +248,7 @@ class test_backup15(backup_base):
         # Each call now to take a full backup will make a copy into a full directory. Then
         # each incremental will take an incremental backup and we can compare them.
         for i in range(1, self.max_iteration):
-            self.add_data(self.uri)
+            self.add_complex_data(self.uri)
             self.session.checkpoint()
             # Swap the order of the full and incremental backups. It should not matter. They
             # should not interfere with each other.

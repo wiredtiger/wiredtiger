@@ -33,6 +33,36 @@ from helper import compare_files
 # Shared base class used by backup tests.
 class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
+    # Add data to the given uri.
+    # options:
+    #   cursor_options: a config string for cursors
+    #   num_ops: number of operations added to uri
+    #   mult: counter to have variance in data
+    #   counter: a counter to used to produce unique backup ids
+    #   session_checkpoint: boolean in which enables session checkpoints after adding data
+    #   initial_backup: To determine whether to increase/decrease counter, which determines
+    #           the backup id, and is generally used only for using add_data() first time.
+    #
+    def add_data(self, uri, key, val, options):
+        c = self.session.open_cursor(uri, None, options.get('cursor_options'))
+        nops = options.get('num_ops', 100)
+        mult = options.get('mult', 0)
+        for i in range(0, nops):
+            num = i + (mult * nops)
+            k = key + str(num)
+            v = val + str(num)
+            c[k] = v
+        c.close()
+        # Increase the counter so that later backups have unique ids.
+        counter = options.get('counter', 0)
+        if options.get('session_checkpoint'):
+            self.session.checkpoint()
+        if options.get('initial_backup') == False:
+            counter += 1
+        # Increase the multiplier so that later calls insert unique items.
+        return {'mult': mult + 1, 'counter': counter}
+
+    #
     # Set up all the directories needed for the test. We have a full backup directory for each
     # iteration and an incremental backup for each iteration. That way we can compare the full and
     # incremental each time through.

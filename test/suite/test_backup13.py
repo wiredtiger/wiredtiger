@@ -29,18 +29,16 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup13.py
 # Test cursor backup with a block-based incremental cursor and force_stop.
-class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup13(backup_base):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
-    mult=0
-    nops=1000
     uri="table:test"
 
     scenarios = make_scenarios([
@@ -54,6 +52,12 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
     # Set the key and value big enough that we modify a few blocks.
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
+
+    data_options = {
+        'mult': 0,
+        'nops': 1000,
+        'session_checkpoint': True
+    }
 
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
@@ -73,32 +77,13 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-    def add_data(self, uri):
-        c = self.session.open_cursor(uri)
-        for i in range(0, self.nops):
-            num = i + (self.mult * self.nops)
-            key = self.bigkey + str(num)
-            val = self.bigval + str(num)
-            c.set_key(key)
-            c.set_value(val)
-            # read committed and read uncommitted transactions are readonly, any write operations with
-            # these isolation levels should throw an error.
-            if self.sess_cfg == 'isolation=read-committed' or self.sess_cfg == 'isolation=read-uncommitted':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: c.insert(), "/not supported in read-committed or read-uncommitted transactions/")
-            else:
-                c.insert()
-        self.session.checkpoint()
-        c.close()
-        # Increase the multiplier so that later calls insert unique items.
-        self.mult += 1
-
     def session_config(self):
         return self.sess_cfg
 
     def test_backup13(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
-        self.add_data(self.uri)
+        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
@@ -108,7 +93,8 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add more data while the backup cursor is open.
-        self.add_data(self.uri)
+        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Now copy the files returned by the backup cursor.
         all_files = []
@@ -129,7 +115,8 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c.close()
 
         # Add more data.
-        self.add_data(self.uri)
+        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Now do an incremental backup.
         config = 'incremental=(src_id="ID1",this_id="ID2")'

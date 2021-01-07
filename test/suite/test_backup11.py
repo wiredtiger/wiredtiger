@@ -29,34 +29,28 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup11.py
 # Test cursor backup with a duplicate backup cursor.
-class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup11(backup_base):
     conn_config= 'cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
-    mult=0
-    nops=100
     pfx = 'test_backup'
     uri="table:test"
 
-    def add_data(self):
-        c = self.session.open_cursor(self.uri)
-        for i in range(0, self.nops):
-            num = i + (self.mult * self.nops)
-            key = 'key' + str(num)
-            val = 'value' + str(num)
-            c[key] = val
-        self.mult += 1
-        self.session.checkpoint()
-        c.close()
+    data_options = {
+        'mult': 0,
+        'nops': 100,
+        'session_checkpoint': True
+    }
 
     def test_backup11(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
-        self.add_data()
+        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
@@ -66,7 +60,8 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add data while the backup cursor is open.
-        self.add_data()
+        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Now copy the files returned by the backup cursor.
         orig_logs = []
@@ -106,7 +101,8 @@ class test_backup11(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c.close()
 
         # Add more data
-        self.add_data()
+        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
+        self.data_options['mult'] = ret['mult']
 
         # Test error cases now.
 
