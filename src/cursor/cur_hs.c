@@ -605,11 +605,6 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     /* Reset cursor if we get WT_NOTFOUND. */
     WT_ERR(__wt_hs_cursor_search_near(session, file_cursor, &exact));
 
-    /*
-     * If we have some missing fields in the key, try to walk forward first to increase the chance
-     * of placing the cursor at the key that is larger or equal to the search key. If nothing is
-     * found, walk backward.
-     */
     if (exact >= 0) {
         WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
