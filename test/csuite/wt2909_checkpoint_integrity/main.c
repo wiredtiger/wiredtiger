@@ -481,7 +481,7 @@ subtest_main(int argc, char *argv[], bool close_test)
     struct rlimit rlim;
     TEST_OPTS *opts, _opts;
     WT_SESSION *session;
-    char config[BUFSIZE], filename[BUFSIZE], buf[BUFSIZE];
+    char config[1024], filename[1024], buf[1024];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -500,7 +500,7 @@ subtest_main(int argc, char *argv[], bool close_test)
 
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
 
-    testutil_build_dir(buf);
+    testutil_build_dir(buf, 1024);
     testutil_check(__wt_snprintf(config, sizeof(config),
       "create,cache_size=250M,log=(enabled),transaction_sync=(enabled,method=none),extensions=(%s/"
       "%s=(early_load,config={environment=true,verbose=true}))",

@@ -135,7 +135,7 @@ testutil_clean_work_dir(const char *dir)
  *     Get the git top level directory and concatenate the build directory.
  */
 void
-testutil_build_dir(char *buf)
+testutil_build_dir(char *buf, int size)
 {
     FILE *fp;
     char *p;
@@ -149,7 +149,7 @@ testutil_build_dir(char *buf)
 
     if (fp == NULL)
         testutil_die(errno, "popen");
-    p = fgets(buf, BUFSIZE, fp);
+    p = fgets(buf, size, fp);
     if (p == NULL)
         testutil_die(errno, "fgets");
 

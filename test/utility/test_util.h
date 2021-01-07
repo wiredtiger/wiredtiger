@@ -26,7 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 #include "wt_internal.h"
-#define BUFSIZE 1024
 
 #ifdef _WIN32
 #define DIR_DELIM '\\'
@@ -266,7 +265,7 @@ void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);
 bool testutil_is_flag_set(const char *);
-void testutil_build_dir(char *);
+void testutil_build_dir(char *, int);
 void testutil_make_work_dir(const char *);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);

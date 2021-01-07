@@ -39,7 +39,7 @@ main(int argc, char *argv[])
     TEST_OPTS *opts, _opts;
     WT_CURSOR *cursor;
     WT_SESSION *session;
-    char *kstr, *vstr, buf[BUFSIZE], config[BUFSIZE];
+    char *kstr, *vstr, buf[1024], config[1024];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -47,7 +47,7 @@ main(int argc, char *argv[])
     testutil_make_work_dir(opts->home);
 
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
-    testutil_build_dir(buf);
+    testutil_build_dir(buf, 1024);
     testutil_check(__wt_snprintf(
       config, sizeof(config), "create,extensions=(%s/%s=(early_load=true))", buf, WT_FAIL_FS_LIB));
     testutil_check(wiredtiger_open(opts->home, NULL, config, &opts->conn));
