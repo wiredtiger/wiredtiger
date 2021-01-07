@@ -218,11 +218,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
               session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
     }
-    if (clean_page) {
+    if (clean_page)
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
-    } else {
+    else
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
-    }
 
     /* Count page evictions in parallel with checkpoint. */
     if (conn->txn_global.checkpoint_running)

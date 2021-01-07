@@ -265,7 +265,7 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 #endif
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(
-              session, cursor, btree->id, key, type, hs_value, tw, counter)) == WT_RESTART) 
+              session, cursor, btree->id, key, type, hs_value, tw, counter)) == WT_RESTART)
         WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_restart);
 err:
 #ifdef HAVE_DIAGNOSTIC

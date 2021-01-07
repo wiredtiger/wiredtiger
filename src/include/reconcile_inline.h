@@ -135,33 +135,27 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         r->rec_page_cell_with_txn_id = true;
     }
 
-    if (r->count_prepare != 0)
+    if (r->count_prepare != 0){
         WT_STAT_CONN_DATA_INCRV(session, rec_time_window_prepared, r->count_prepare);
         WT_STAT_CONN_DATA_INCR(session, rec_time_window_pages_prepared);
         r->rec_page_cell_with_prepared_txn = true;
+    }
 
     /* Time aggregate statistics */
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_START_DURABLE_TS)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_START_DURABLE_TS))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_newest_start_durable_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_DURABLE_TS)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_DURABLE_TS))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_newest_stop_durable_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TS)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_OLDEST_START_TS))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_oldest_start_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_TXN)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_TXN))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_newest_txn);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TS)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TS))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_newest_stop_ts);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TXN)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_NEWEST_STOP_TXN))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_newest_stop_txn);
-    }
-    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_PREPARE)) {
+    if (FLD_ISSET(r->ts_usage_flags, WT_REC_TIME_PREPARE))
         WT_STAT_CONN_DATA_INCR(session, rec_time_aggr_prepared);
-    }
 }
 
 /*

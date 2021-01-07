@@ -266,9 +266,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
             first_record);
 
-        if (hs_stop_durable_ts < newer_hs_durable_ts) {
+        if (hs_stop_durable_ts < newer_hs_durable_ts)
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
-        }
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
