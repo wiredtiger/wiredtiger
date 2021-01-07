@@ -135,7 +135,7 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         r->rec_page_cell_with_txn_id = true;
     }
 
-    if (r->count_prepare != 0){
+    if (r->count_prepare != 0) {
         WT_STAT_CONN_DATA_INCRV(session, rec_time_window_prepared, r->count_prepare);
         WT_STAT_CONN_DATA_INCR(session, rec_time_window_pages_prepared);
         r->rec_page_cell_with_prepared_txn = true;

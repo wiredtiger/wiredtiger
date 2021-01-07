@@ -170,7 +170,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
-    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) 
+    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_internal);
 
     /*
