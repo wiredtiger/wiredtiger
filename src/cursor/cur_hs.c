@@ -11,7 +11,7 @@
 
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
-
+static int __hs_cursor_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
 /*
  * __hs_cursor_open_int --
  *     Open a new history store table cursor, internal function.
@@ -531,22 +531,40 @@ err:
 }
 
 /*
- * __wt_hs_cursor_search_near_helper --
- *     Helper function to set the cursor position based on search criteria.
+ * __wt_hs_cursor_search_near_before --
+ *     Set the cursor position at the requested position or before it.
  */
 int
-__wt_hs_cursor_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__wt_hs_cursor_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    WT_CURSOR_HS *hs_cursor;
+    return __hs_cursor_search_near_helper(session, cursor, true);
+}
+
+/*
+ * __wt_hs_cursor_search_near_after --
+ *     Set the cursor position at the requested position or after it.
+ */
+int
+__wt_hs_cursor_search_near_after(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+{
+    return __hs_cursor_search_near_helper(session, cursor, false);
+}
+
+/*
+ * __hs_cursor_search_near_helper --
+ *     Helper function to set the cursor position based on search criteria.
+ */
+static int
+__hs_cursor_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool before)
+{
     WT_DECL_ITEM(srch_key);
     WT_DECL_RET;
     int cmp;
 
-    hs_cursor = (WT_CURSOR_HS *)cursor;
     WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &cmp));
-    if (F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET)) {
+    if (before) {
         if (cmp > 0) {
             while ((ret = cursor->prev(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
