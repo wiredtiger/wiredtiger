@@ -27,8 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import glob, os, shutil, string
-import wiredtiger, wttest
-from helper import compare_files
+import wiredtiger
 from test_backup_base import test_backup_base
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios

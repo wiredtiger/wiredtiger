@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading, time, wiredtiger, wttest
+import threading, time, wiredtiger
 import glob, os, shutil
-from helper import compare_files
 from test_backup_base import test_backup_base
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
@@ -144,8 +143,8 @@ class test_backup_target(test_backup_base):
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
         self.take_full_backup(full_dir)
-        self.compare_backups(self.uri, full_dir, 'original', self.dir, 'backup_incr')
-        self.compare_backups(self.uri, self.dir, 'backup_incr')
+        self.compare_backups(self.uri, full_dir, 'original', True, self.dir, 'backup_incr')
+        self.compare_backups(self.uri, self.dir, 'backup_incr', True)
 
 if __name__ == '__main__':
     wttest.run()

@@ -32,7 +32,7 @@ import shutil
 import string
 import time
 from test_backup_base import test_backup_base
-import wiredtiger, wttest
+import wiredtiger
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import compare_files
 
