@@ -165,7 +165,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     WT_UPDATE *hs_upd, *tombstone, *upd;
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
     uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id;
+    uint32_t hs_btree_id, this_hs_btree_id;
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
@@ -212,10 +212,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      */
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
     for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &this_hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
-        if (hs_btree_id != S2BT(session)->id)
+        if (this_hs_btree_id != hs_btree_id)
             break;
 
         /*

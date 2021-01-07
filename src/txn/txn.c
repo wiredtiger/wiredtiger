@@ -721,8 +721,9 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  *     Append the update older than the prepared update to the update chain
  */
 static int
-__txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *key, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended)
+__txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t hs_btree_id,
+  WT_ITEM *key, WT_PAGE *page, WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp,
+  bool *upd_appended)
 {
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_key);
@@ -732,7 +733,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     wt_timestamp_t durable_ts, hs_start_ts, hs_stop_durable_ts;
     size_t size, total_size;
     uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id;
+    uint32_t this_hs_btree_id;
     int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -749,10 +750,10 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_ITEM *
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+        WT_ERR(hs_cursor->get_key(hs_cursor, &this_hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
         /* Stop before crossing over to the next btree */
-        if (hs_btree_id != S2BT(session)->id) {
+        if (this_hs_btree_id != hs_btree_id) {
             ret = WT_NOTFOUND;
             goto done;
         }
@@ -1141,8 +1142,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         if (ret == 0)
             /* Not found if we cross the tree or key boundary. */
-            WT_ERR_NOTFOUND_OK(__txn_append_hs_record(session, hs_cursor, &op->u.op_row.key,
-                                 cbt->ref->page, upd, commit, &fix_upd, &upd_appended),
+            WT_ERR_NOTFOUND_OK(
+              __txn_append_hs_record(session, hs_cursor, hs_btree_id, &op->u.op_row.key,
+                cbt->ref->page, upd, commit, &fix_upd, &upd_appended),
               true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
