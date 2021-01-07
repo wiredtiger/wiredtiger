@@ -63,7 +63,7 @@ class test_backup_target(test_backup_base):
         return 'cache_size=1G,log=(archive=false,enabled,file_max=%s)' % \
             self.logmax
 
-    def populate(self, uri, dsize, rows):
+    def populate_with_string(self, uri, dsize, rows):
         self.pr('populate: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
@@ -116,7 +116,7 @@ class test_backup_target(test_backup_base):
         # Create the backup directory.
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.populate(self.uri, self.dsize, self.nops)
+        self.populate_with_string(self.uri, self.dsize, self.nops)
 
         # We need to start the directory for the incremental backup with
         # a full backup.  The full backup function creates the directory.

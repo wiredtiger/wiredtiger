@@ -92,19 +92,6 @@ class test_backup_target(test_backup_base):
         # Backup needs a checkpoint
         self.session.checkpoint(None)
 
-    # Check that a URI doesn't exist, both the meta-data and the file names.
-    def confirmPathDoesNotExist(self, uri):
-        conn = self.wiredtiger_open(self.dir)
-        session = conn.open_session()
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.open_cursor(uri, None, None))
-        conn.close()
-
-        self.assertEqual(
-            glob.glob(self.dir + '*' + uri.split(":")[1] + '*'), [],
-            'confirmPathDoesNotExist: URI exists, file name matching \"' +
-            uri.split(":")[1] + '\" found')
-
     # Backup a set of target tables using a backup cursor.
     def backup_table_cursor(self, l):
         # Create the backup directory.
@@ -139,7 +126,7 @@ class test_backup_target(test_backup_base):
         if l:
             for i in range(0, len(self.objs)):
                 if i not in l:
-                    self.confirmPathDoesNotExist(self.objs[i][0])
+                    self.confirmPathDoesNotExist(self.objs[i][0], self.dir)
 
     # Test backup with targets.
     def test_backup_target(self):

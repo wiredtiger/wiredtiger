@@ -25,6 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+import glob
 import os, random, re, shutil, string
 import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
@@ -54,6 +55,33 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if os.path.exists(remove_dir):
                 os.remove(remove_dir)
             os.makedirs(create_dir)
+
+    # Check that a URI doesn't exist, both the meta-data and the file names.
+    def confirmPathDoesNotExist(self, uri, dir):
+        conn = self.wiredtiger_open(dir)
+        session = conn.open_session()
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: session.open_cursor(uri, None, None))
+        conn.close()
+
+        self.assertEqual(
+            glob.glob(dir + '*' + uri.split(":")[1] + '*'), [],
+            'confirmPathDoesNotExist: URI exists, file name matching \"' +
+            uri.split(":")[1] + '\" found')
+
+    # Populate a set of objects.
+    def populate(self, objs, options):
+        for i in objs:
+            if i[2] and options.get('skiplsm'):
+                continue
+            if i[2] and options.get('big') == i[2]:
+                rows = 50000           # Big object
+            else:
+                rows = options.get('rows', 100)
+            i[1](self, i[0], rows, cgconfig = i[3]).populate()
+        # Backup needs a checkpoint
+        if options.get('session_checkpoint'):
+            self.session.checkpoint(None)
 
     def compare_backups(self, uri, backup_dir1, file1, backup_dir2 = None, file2 = None):
         if os.path.exists(file1):

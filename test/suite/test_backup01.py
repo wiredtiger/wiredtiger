@@ -54,6 +54,10 @@ class test_backup(test_backup_base):
         ('table:' + pfx + '.8', ComplexLSMDataSet, 1),
     ]
 
+    populate_options = {
+        'rows': 100
+    }
+
     # Populate a set of objects.
     def populate(self, skiplsm):
         for i in self.objs:
@@ -91,19 +95,6 @@ class test_backup(test_backup_base):
         for i in self.objs:
             self.compare_backups(i[0], self.dir, 'backup')
 
-    # Check that a URI doesn't exist, both the meta-data and the file names.
-    def confirmPathDoesNotExist(self, uri):
-        conn = self.wiredtiger_open(self.dir)
-        session = conn.open_session()
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.open_cursor(uri, None, None))
-        conn.close()
-
-        self.assertEqual(
-            glob.glob(self.dir + '*' + uri.split(":")[1] + '*'), [],
-            'confirmPathDoesNotExist: URI exists, file name matching \"' +
-            uri.split(":")[1] + '\" found')
-
     # Backup a set of chosen tables/files using the wt backup command.
     def backup_table(self, l):
         # Remove any previous backup directories.
@@ -126,7 +117,7 @@ class test_backup(test_backup_base):
         # Confirm the other objects don't exist.
         for i in range(0, len(self.objs)):
             if i not in l:
-                self.confirmPathDoesNotExist(self.objs[i][0])
+                self.confirmPathDoesNotExist(self.objs[i][0], self.dir)
 
     # Test backup of database subsets.
     def test_backup_table(self):
@@ -161,6 +152,7 @@ class test_backup(test_backup_base):
     # Test interaction between checkpoints and a backup cursor.
     def test_checkpoint_delete(self):
         # You cannot name checkpoints including LSM tables, skip those.
+        self.populate_options['skiplsm'] = True
         self.populate(1)
 
         # Confirm checkpoints are being deleted.
