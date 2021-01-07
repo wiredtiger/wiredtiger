@@ -404,6 +404,8 @@ struct __wt_txn_printlog_args {
 #define WT_TXN_PRINTLOG_MSG 0x2u /* Messages only */
                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
+    int start_lsn;
+    int end_lsn;
 };
 
 /*

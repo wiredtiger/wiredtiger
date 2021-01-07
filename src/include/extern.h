@@ -1497,7 +1497,7 @@ extern int __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *na
   wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags)
+extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags, int start_lsn, int end_lsn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_query_timestamp(WT_SESSION_IMPL *session, char *hex_timestamp,

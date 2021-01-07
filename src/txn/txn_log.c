@@ -652,6 +652,10 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
     WT_UNUSED(next_lsnp);
     args = cookie;
 
+    if (lsnp->l.offset < (uint32_t) args->start_lsn || lsnp->l.offset > (uint32_t) args->end_lsn){
+        return(0);
+    }
+
     p = WT_LOG_SKIP_HEADER(rawrec->data);
     end = (const uint8_t *)rawrec->data + rawrec->size;
     logrec = (WT_LOG_RECORD *)rawrec->data;
@@ -730,13 +734,14 @@ __txn_printlog(WT_SESSION_IMPL *session, WT_ITEM *rawrec, WT_LSN *lsnp, WT_LSN *
  *     Print the log in a human-readable format.
  */
 int
-__wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags)
+__wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags, int start_lsn, int end_lsn)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
     WT_FSTREAM *fs;
     WT_SESSION_IMPL *session;
     WT_TXN_PRINTLOG_ARGS args;
+    // printf("start_lsn = %d", start_lsn);
 
     session = (WT_SESSION_IMPL *)wt_session;
     if (ofile == NULL)
@@ -749,6 +754,8 @@ __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags)
         WT_ERR(__wt_fprintf(session, fs, "[\n"));
     args.fs = fs;
     args.flags = flags;
+    args.start_lsn = start_lsn;
+    args.end_lsn = end_lsn;
     WT_ERR(__wt_log_scan(session, NULL, WT_LOGSCAN_FIRST, __txn_printlog, &args));
     if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
         ret = __wt_fprintf(session, fs, "\n]\n");
