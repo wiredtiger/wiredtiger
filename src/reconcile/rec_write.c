@@ -229,15 +229,12 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Update statistics. */
     WT_STAT_CONN_INCR(session, rec_pages);
     WT_STAT_DATA_INCR(session, rec_pages);
-    if (LF_ISSET(WT_REC_EVICT)) {
+    if (LF_ISSET(WT_REC_EVICT))
         WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
-    }
-    if (r->cache_write_hs) {
+    if (r->cache_write_hs)
         WT_STAT_CONN_DATA_INCR(session, cache_write_hs);
-    }
-    if (r->cache_write_restore) {
+    if (r->cache_write_restore)
         WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
-    }
     if (!WT_IS_HS(btree)) {
         if (r->rec_page_cell_with_txn_id)
             WT_STAT_CONN_INCR(session, rec_pages_with_txn);

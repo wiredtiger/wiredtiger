@@ -265,9 +265,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
 #endif
     /* The tree structure can change while we try to insert the mod list, retry if that happens. */
     while ((ret = __hs_insert_record_with_btree_int(
-              session, cursor, btree->id, key, type, hs_value, tw, counter)) == WT_RESTART) {
+              session, cursor, btree->id, key, type, hs_value, tw, counter)) == WT_RESTART) 
         WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_restart);
-    }
 err:
 #ifdef HAVE_DIAGNOSTIC
     __wt_scr_free(session, &existing_val);
@@ -710,9 +709,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
         }
 
-        if (modifies.size > 0) {
+        if (modifies.size > 0)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
-        }
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -819,9 +817,8 @@ __wt_hs_delete_key_from_ts(
     do {
         WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
           (ret = __hs_delete_key_from_ts_int(session, btree_id, key, ts, reinsert)));
-        if (ret == WT_RESTART) {
+        if (ret == WT_RESTART)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_restart);
-        }
     } while (ret == WT_RESTART);
 
     return (ret);
@@ -949,9 +946,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * will be clobbered by our fix-up process. Keep track of how often this is happening.
          */
         if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
-          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts) {
+          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_order_lose_durable_timestamp);
-        }
 
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "fixing existing out-of-order updates by moving them; start_ts=%s, durable_start_ts=%s, "
