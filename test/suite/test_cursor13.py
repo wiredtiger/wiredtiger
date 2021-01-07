@@ -456,7 +456,14 @@ class test_cursor13_big(test_cursor13_big_base):
 
     nopens = 500000
 
+    # Check the the two values are with some percentage of each other
+    def assert_within_percent(self, percentage, left, right):
+        allowable = (left * percentage) // 100
+        self.assertGreaterEqual(left + allowable, right)
+        self.assertLessEqual(left - allowable, right)
+
     def test_cursor_big(self):
+
         rand = suite_random()
         uri_map = self.create_uri_map(self.uri)
         self.cursor_stats_init()
@@ -472,12 +479,14 @@ class test_cursor13_big(test_cursor13_big_base):
 
         end_stats = self.caching_stats()
 
-        #self.tty('opens = ' + str(self.opencount) + \
-        #         ', closes = ' + str(self.closecount))
-        #self.tty('stats after = ' + str(end_stats))
-
-        self.assertEquals(end_stats[0] - begin_stats[0], self.closecount)
-        self.assertEquals(end_stats[1] - begin_stats[1], self.opencount)
+        # We've observed the actual count of reopen statistics to be slightly higher than the
+        # number of opens we do.  This is probably due to the fact that multiple background
+        # threads are doing open/closes of history store cursor, and probably competing to
+        # increment both the connection-wide and per-data source stat counters.  The statistics
+        # collection is known to be imperfect with multiple threads, so we'll allow a little
+        # variance in the calculations.
+        self.assert_within_percent(1, end_stats[0] - begin_stats[0], self.closecount)
+        self.assert_within_percent(1, end_stats[1] - begin_stats[1], self.opencount)
 
 class test_cursor13_sweep(test_cursor13_big_base):
     # Set dhandle sweep configuration so that dhandles should be closed within
