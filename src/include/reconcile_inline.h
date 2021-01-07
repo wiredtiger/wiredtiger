@@ -92,11 +92,11 @@ __rec_page_time_stats(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
     /* Time window statistics */
     if (r->count_durable_start_ts != 0) {
+        WT_STAT_CONN_DATA_INCR(session, rec_time_window_pages_durable_start_ts);
         WT_STAT_CONN_DATA_INCRV(
           session, rec_time_window_bytes_ts, r->count_durable_start_ts * sizeof(wt_timestamp_t));
         WT_STAT_CONN_DATA_INCRV(
           session, rec_time_window_durable_start_ts, r->count_durable_start_ts);
-        WT_STAT_CONN_DATA_INCR(session, rec_time_window_pages_durable_start_ts);
         r->rec_page_cell_with_ts = true;
     }
     if (r->count_start_ts != 0) {

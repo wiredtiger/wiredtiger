@@ -2051,7 +2051,7 @@ fast:
     WT_STAT_CONN_INCRV(
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
-    WT_STAT_CONN_DATA_INCRV(session, cache_eviction_walk_passes, 1);
+    WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
     return (0);
 }
 
