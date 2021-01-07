@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wiredtiger
 import os, shutil
-from helper import compare_files
 from test_backup_base import test_backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
@@ -268,7 +267,7 @@ class test_backup15(test_backup_base):
 
             incr_backup_out = self.incr_out + '.' + str(self.counter)
             incr_backup_dir = self.home_incr + '.' + str(self.counter)
-            self.compare_backups(self.uri, full_backup_dir, full_backup_out, incr_backup_dir, incr_backup_out)
+            self.compare_backups(self.uri, full_backup_dir, full_backup_out, True, incr_backup_dir, incr_backup_out)
 
 if __name__ == '__main__':
     wttest.run()

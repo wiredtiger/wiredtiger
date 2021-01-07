@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wttest
+import wiredtiger
 import os, shutil
-from helper import compare_files
 from test_backup_base import test_backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
@@ -232,7 +231,7 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -243,7 +242,7 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -277,7 +276,7 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -292,8 +291,8 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_logged, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri_logged, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
@@ -302,7 +301,7 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_not_logged, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri_not_logged, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
 
     def setup_compare_backup_paths(self):
         full_backup_out = self.full_out + '.' + str(self.counter)

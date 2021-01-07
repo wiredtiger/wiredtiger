@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-2021 MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -25,12 +25,12 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os, random, re, shutil, string
-import wiredtiger, wttest
+import os
+import wttest
 from suite_subprocess import suite_subprocess
 from helper import compare_files
 
-# Shared base class used by import tests.
+# Shared base class used by backup tests.
 class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Set up all the directories needed for the test. We have a full backup directory for each
@@ -41,31 +41,37 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         for i in range(0, max_iteration):
             # The log directory is a subdirectory of the home directory,
             # creating that will make the home directory also.
-            remove_dir = home_incr + '.' + str(i)
-            create_dir = home_incr + '.' + str(i) + '/' + logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
+
+            home_incr_dir = home_incr + '.' + str(i)
+            if os.path.exists(home_incr_dir):
+                os.remove(home_incr_dir)
+            os.makedirs(home_incr_dir + '/' + logpath)
 
             if i == 0:
                 continue
-            remove_dir = home_full + '.' + str(i)
-            create_dir = home_full + '.' + str(i) + '/' + logpath
-            if os.path.exists(remove_dir):
-                os.remove(remove_dir)
-            os.makedirs(create_dir)
-
-    def compare_backups(self, uri, backup_dir1, file1, backup_dir2 = None, file2 = None):
+            home_full_dir = home_full + '.' + str(i)
+            if os.path.exists(home_full_dir):
+                os.remove(home_full_dir)
+            os.makedirs(home_full_dir + '/' + logpath)
+    #
+    # Compare against two directory paths using the wt dump command. If the second directory path is not provided
+    # it checks if the compare
+    #
+    def compare_backups(self, uri, dir1, file1, run_recovery = False, dir2 = None, file2 = None):
         if os.path.exists(file1):
             os.remove(file1)
         # Run wt dump on first backup directory.
-        self.runWt(['-R', '-h', backup_dir1, 'dump', uri], outfilename=file1)
+        self.runWt(['-R', '-h', dir1, 'dump', uri], outfilename=file1)
         # Run wt dump on second backup directory if provided.
-        if backup_dir2 == None:
+        # If not provided, run dump on original directory, and check if we run recovery or not
+        if dir2 == None:
             file2 = 'orig'
             if os.path.exists(file2):
                 os.remove(file2)
-            self.runWt(['-R', 'dump', uri], outfilename=file2)
+            if run_recovery:
+                self.runWt(['-R', 'dump', uri], outfilename=file2)
+            else:
+                self.runWt(['dump', uri], outfilename=file2)
         else:
-            self.runWt(['-R', '-h', backup_dir2, 'dump', uri], outfilename=file2)
+            self.runWt(['-R', '-h', dir2, 'dump', uri], outfilename=file2)
         self.assertEqual(True, compare_files(self, file1, file2))
