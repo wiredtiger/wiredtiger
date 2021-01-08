@@ -32,22 +32,19 @@
 #define WT_SINGLE_THREAD_CHECK_STOP(s)
 #endif
 
-/* Each use of API_SESSION_PUSH must be matched by a use of API_SESSION_POP. */
-#define API_SESSION_PUSH(s, h, n, dh)                                                            \
-    {                                                                                            \
-        WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
-        const char *__oldname;                                                                   \
-        /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
-        WT_ASSERT(session, (s)->name != NULL || s->api_call_counter == 0);                       \
-        __oldname = (s)->name;                                                                   \
-        ++s->api_call_counter;                                                                   \
-        (s)->dhandle = (dh);                                                                     \
-        (s)->name = (s)->lastop = #h "." #n
+#define API_SESSION_PUSH(s, h, n, dh)                                                        \
+    WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
+    const char *__oldname;                                                                   \
+    /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
+    WT_ASSERT(session, (s)->name != NULL || s->api_call_counter == 0);                       \
+    __oldname = (s)->name;                                                                   \
+    ++s->api_call_counter;                                                                   \
+    (s)->dhandle = (dh);                                                                     \
+    (s)->name = (s)->lastop = #h "." #n
 #define API_SESSION_POP(s)  \
     (s)->dhandle = __olddh; \
     (s)->name = __oldname;  \
-    --s->api_call_counter;  \
-    }
+    --s->api_call_counter
 
 /* Standard entry points to the API: declares/initializes local variables. */
 #define API_SESSION_INIT(s, h, n, dh)                                 \
