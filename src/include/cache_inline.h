@@ -455,15 +455,16 @@ __wt_cache_hs_dirty(WT_SESSION_IMPL *session)
     WT_BTREE *hs_btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-
+    uint64_t bytes_max;
     conn = S2C(session);
     cache = conn->cache;
+    bytes_max = S2C(session)->cache_size;
 
     if (F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) || __wt_hs_get_btree(session, &hs_btree) != 0)
         return false;
     return (__wt_cache_bytes_plus_overhead(
               cache, hs_btree->bytes_dirty_intl + hs_btree->bytes_dirty_leaf) >=
-      ((conn->cache_size / 100) * 20));
+      ((uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100));
 }
 
 /*
