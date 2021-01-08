@@ -421,7 +421,7 @@ __rollback_abort_row_ondisk_kv(
 
     __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     prepared = vpack->tw.prepare;
-    if (WT_IS_HS(S2BT(session))) {
+    if (WT_IS_HS(session->dhandle)) {
         /*
          * Abort the history store update with stop durable timestamp greater than the stable
          * timestamp or the updates with max stop timestamp which implies that they are associated
@@ -611,7 +611,7 @@ __rollback_abort_row_reconciled_page(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
         /* Remove the history store newer updates. */
-        if (!WT_IS_HS(S2BT(session)))
+        if (!WT_IS_HS(session->dhandle))
             WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
               mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
 
@@ -635,7 +635,7 @@ __rollback_abort_row_reconciled_page(
                   __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
 
                 /* Remove the history store newer updates. */
-                if (!WT_IS_HS(S2BT(session)))
+                if (!WT_IS_HS(session->dhandle))
                     WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
                       multi->addr.addr, multi->addr.size, rollback_timestamp));
 
@@ -712,7 +712,7 @@ __rollback_abort_newer_row_leaf(
 static wt_timestamp_t
 __rollback_get_ref_max_durable_timestamp(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
 {
-    if (WT_IS_HS(S2BT(session)))
+    if (WT_IS_HS(session->dhandle))
         return WT_MAX(ta->newest_stop_durable_ts, ta->newest_stop_ts);
     else
         return WT_MAX(ta->newest_start_durable_ts, ta->newest_stop_durable_ts);

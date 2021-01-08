@@ -78,7 +78,7 @@ __hs_insert_record_with_btree_int(WT_SESSION_IMPL *session, WT_CURSOR *cursor, u
     hs_upd = upd_local = NULL;
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     /*
      * Use WT_CURSOR.set_key and WT_CURSOR.set_value to create key and value items, then use them to
@@ -187,8 +187,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
      * history store content is associated with (this is where the btree id part of the history
      * store key comes from).
      */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
-    WT_ASSERT(session, !WT_IS_HS(btree));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
+    WT_ASSERT(session, !WT_IS_HS(btree->dhandle));
 
     /*
      * Disable bulk loads into history store. This would normally occur when updating a record with
@@ -753,7 +753,7 @@ __hs_delete_key_from_ts_int(
     int cmp, exact;
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     hs_cursor = session->hs_cursor;
     WT_RET(__wt_scr_alloc(session, 0, &srch_key));
@@ -855,7 +855,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     tombstone = NULL;
 
     /* The session should be pointing at the history store btree. */
-    WT_ASSERT(session, WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, WT_IS_HS((S2BT(session))->dhandle));
 
     /*
      * Position ourselves at the beginning of the key range that we may have to fixup. Prior to
