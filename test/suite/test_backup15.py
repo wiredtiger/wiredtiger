@@ -40,7 +40,6 @@ class test_backup15(test_backup_base):
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     logmax="100K"
-    max_iteration=5
     mult=0
     nops=100000
     savefirst=0
@@ -53,14 +52,18 @@ class test_backup15(test_backup_base):
 
     full_out = "./backup_block_full"
     incr_out = "./backup_block_incr"
-    logpath = "logpath"
     new_table=False
-    initial_backup=False
 
     pfx = 'test_backup'
     # Set the key and value big enough that we modify a few blocks.
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
+
+    options = {
+        'initial_backup': False,
+        'max_iteration': 5,
+        'logpath': "logpath"
+    }
 
     def range_copy(self, filename, offset, size):
         read_from = filename
@@ -83,52 +86,6 @@ class test_backup15(test_backup_base):
         rfp2.close()
         wfp.close()
 
-    def take_full_backup(self):
-        if self.counter != 0:
-            hdir = self.home_full + '.' + str(self.counter)
-        else:
-            hdir = self.home_incr
-
-        #
-        # First time through we take a full backup into the incremental directories. Otherwise only
-        # into the appropriate full directory.
-        #
-        buf = None
-        if self.initial_backup == True:
-            buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
-
-        bkup_c = self.session.open_cursor('backup:', None, buf)
-        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
-        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
-        # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-
-            if self.counter == 0:
-                # Take a full backup into each incremental directory
-                for i in range(0, self.max_iteration):
-                    copy_from = newfile
-                    # If it is a log file, prepend the path.
-                    if ("WiredTigerLog" in newfile):
-                        copy_to = self.home_incr + '.' + str(i) + '/' + self.logpath
-                    else:
-                        copy_to = self.home_incr + '.' + str(i)
-                    shutil.copy(copy_from, copy_to)
-            else:
-                copy_from = newfile
-                # If it is log file, prepend the path.
-                if ("WiredTigerLog" in newfile):
-                    copy_to = hdir + '/' + self.logpath
-                else:
-                    copy_to = hdir
-
-                shutil.copy(copy_from, copy_to)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
-
     def take_incr_backup(self):
         self.assertTrue(self.counter > 0)
         # Open the backup data source for incremental backup.
@@ -148,7 +105,7 @@ class test_backup15(test_backup_base):
             copy_from = newfile
             # If it is log file, prepend the path.
             if ("WiredTigerLog" in newfile):
-                copy_to = h + '/' + self.logpath
+                copy_to = h + '/' + self.options['logpath']
             else:
                 copy_to = h
 
@@ -179,7 +136,7 @@ class test_backup15(test_backup_base):
 
                     copy_from = newfile
                     if ("WiredTigerLog" in newfile):
-                        copy_to = h + '/' + self.logpath
+                        copy_to = h + '/' + self.options['logpath']
                     else:
                         copy_to = h
                     shutil.copy(copy_from, copy_to)
@@ -192,11 +149,11 @@ class test_backup15(test_backup_base):
             incr_c.close()
 
             # For each file, we want to copy it into each of the later incremental directories.
-            for i in range(self.counter, self.max_iteration):
+            for i in range(self.counter, self.options['max_iteration']):
                 h = self.home_incr + '.' + str(i)
                 copy_from = newfile
                 if ("WiredTigerLog" in newfile):
-                    copy_to = h + '/' + self.logpath
+                    copy_to = h + '/' + self.options['logpath']
                 else:
                     copy_to = h
                 shutil.copy(copy_from, copy_to)
@@ -229,7 +186,7 @@ class test_backup15(test_backup_base):
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
         # Increase the counter so that later backups have unique ids.
-        if self.initial_backup == False:
+        if self.options['initial_backup'] == False:
             self.counter += 1
 
     def test_backup15(self):
@@ -237,29 +194,30 @@ class test_backup15(test_backup_base):
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.setup_directories(self.max_iteration, self.home_incr, self.home_full, self.logpath)
+        self.setup_directories(self.options['max_iteration'], self.home_incr, self.home_full, self.options['logpath'])
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.pr('Adding initial data')
-        self.initial_backup = True
+        self.options['initial_backup'] = True
         self.add_data(self.uri)
-        self.take_full_backup()
-        self.initial_backup = False
+
+        self.take_full_backup(self.home_incr, self.options)
+        self.options['initial_backup'] = False
         self.session.checkpoint()
 
         # Each call now to take a full backup will make a copy into a full directory. Then
         # each incremental will take an incremental backup and we can compare them.
-        for i in range(1, self.max_iteration):
+        for i in range(1, self.options['max_iteration']):
             self.add_data(self.uri)
             self.session.checkpoint()
             # Swap the order of the full and incremental backups. It should not matter. They
             # should not interfere with each other.
             if i % 2 == 0:
-                self.take_full_backup()
+                self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
                 self.take_incr_backup()
             else:
                 self.take_incr_backup()
-                self.take_full_backup()
+                self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
             full_backup_out = self.full_out + '.' + str(self.counter)
             full_backup_dir = self.home_full + '.' + str(self.counter)
             if self.counter == 0:

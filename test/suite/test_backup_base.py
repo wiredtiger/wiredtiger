@@ -25,13 +25,52 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os
-import wttest
+import os, shutil
+import wiredtiger, wttest
 from suite_subprocess import suite_subprocess
 from helper import compare_files
 
 # Shared base class used by backup tests.
 class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
+    def copy_file(self, file, dir, logpath):
+        copy_from = file
+        # If it is log file, prepend the path.
+        if logpath and "WiredTigerLog" in file:
+            copy_to = dir + '/' + logpath
+        else:
+            copy_to = dir
+        shutil.copy(copy_from, copy_to)
+
+    #options: initial_backup, max_iteration, logpath
+    #so if counter == 0, do full backup on each incremental directory (for setting up the test)
+    #if counter != 0 do full backup on the full backup dir
+    def take_full_backup(self, backup_dir, options):
+        #
+        # First time through we take a full backup into the incremental directories. Otherwise only
+        # into the appropriate full directory.
+        #
+        buf = None
+        if options.get('initial_backup'):
+            buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
+        bkup_c = self.session.open_cursor('backup:', None, buf)
+
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
+            newfile = bkup_c.get_key()
+            if options.get('initial_backup'):
+                # Take a full backup into each incremental directory
+                for i in range(0, options.get('max_iteration', 0)):
+                    self.copy_file(newfile, backup_dir  + '.' + str(i), options.get('logpath'))
+            else:
+                self.copy_file(newfile, backup_dir, options.get('logpath'))
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        bkup_c.close()
+
     #
     # Set up all the directories needed for the test. We have a full backup directory for each
     # iteration and an incremental backup for each iteration. That way we can compare the full and

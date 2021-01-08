@@ -76,22 +76,6 @@ class test_backup_target(test_backup_base):
             cursor[simple_key(cursor, i)] = str(i) + ':' + upd * dsize
         cursor.close()
 
-    def take_full_backup(self, dir):
-        # Open up the backup cursor, and copy the files.  Do a full backup.
-        cursor = self.session.open_cursor('backup:', None, None)
-        self.pr('Full backup to ' + dir + ': ')
-        os.mkdir(dir)
-        while True:
-            ret = cursor.next()
-            if ret != 0:
-                break
-            newfile = cursor.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
-            shutil.copy(newfile, dir)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        cursor.close()
-
     # Take an incremental backup and then truncate/archive the logs.
     def take_incr_backup(self, dir):
             config = 'target=("log:")'
@@ -120,7 +104,8 @@ class test_backup_target(test_backup_base):
         # We need to start the directory for the incremental backup with
         # a full backup.  The full backup function creates the directory.
         dir = self.dir
-        self.take_full_backup(dir)
+        os.mkdir(dir)
+        self.take_full_backup(dir, {})
         self.session.checkpoint(None)
 
         #
@@ -142,7 +127,8 @@ class test_backup_target(test_backup_base):
 
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
-        self.take_full_backup(full_dir)
+        os.mkdir(full_dir)
+        self.take_full_backup(full_dir, {})
         self.compare_backups(self.uri, full_dir, 'original', True, self.dir, 'backup_incr')
         self.compare_backups(self.uri, self.dir, 'backup_incr', True)
 
