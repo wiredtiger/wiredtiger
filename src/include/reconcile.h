@@ -5,6 +5,11 @@
  *
  * See the file LICENSE for redistribution information.
  */
+
+/*
+ * WT_REC_KV--
+ *	An on-page key/value item we're building.
+ */
 struct __wt_rec_kv {
     WT_ITEM buf;  /* Data */
     WT_CELL cell; /* Cell and cell's length */
@@ -12,6 +17,13 @@ struct __wt_rec_kv {
     size_t len; /* Total length of cell + data */
 };
 
+/*
+ * WT_REC_DICTIONARY --
+ *  We optionally build a dictionary of values for leaf pages. Where
+ * two value cells are identical, only write the value once, the second
+ * and subsequent copies point to the original cell. The dictionary is
+ * fixed size, but organized in a skip-list to make searches faster.
+ */
 struct __wt_rec_dictionary {
     uint64_t hash;   /* Hash value */
     uint32_t offset; /* Matching cell */
@@ -20,6 +32,10 @@ struct __wt_rec_dictionary {
     WT_REC_DICTIONARY *next[0];
 };
 
+/*
+ * WT_REC_CHUNK --
+ *	Reconciliation split chunk.
+ */
 struct __wt_rec_chunk {
     /*
      * The recno and entries fields are the starting record number of the split chunk (for
@@ -226,22 +242,11 @@ struct __wt_reconcile {
      */
     bool evict_matching_checksum_failed;
 
-    /*
-     * WT_REC_DICTIONARY --
-     *	We optionally build a dictionary of values for leaf pages. Where
-     * two value cells are identical, only write the value once, the second
-     * and subsequent copies point to the original cell. The dictionary is
-     * fixed size, but organized in a skip-list to make searches faster.
-     */
     WT_REC_DICTIONARY **dictionary;          /* Dictionary */
     u_int dictionary_next, dictionary_slots; /* Next, max entries */
                                              /* Skiplist head. */
     WT_REC_DICTIONARY *dictionary_head[WT_SKIP_MAXDEPTH];
 
-    /*
-     * WT_REC_KV--
-     *	An on-page key/value item we're building.
-     */
     WT_REC_KV k, v; /* Key/Value being built */
 
     WT_ITEM *cur, _cur;   /* Key/Value being built */

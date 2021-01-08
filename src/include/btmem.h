@@ -242,6 +242,10 @@ struct __wt_ovfl_reuse {
     ",leaf_value_max=64MB"                                             \
     ",prefix_compression=false"
 
+/*
+ * WT_SAVE_UPD --
+ *	Unresolved updates found during reconciliation.
+ */
 struct __wt_save_upd {
     WT_INSERT *ins; /* Insert list reference */
     WT_ROW *ripcip; /* Original on-page reference */
@@ -249,6 +253,10 @@ struct __wt_save_upd {
     bool restore; /* Whether to restore this saved update chain */
 };
 
+/*
+ * WT_MULTI --
+ *	Replacement block information used during reconciliation.
+ */
 struct __wt_multi {
     /*
      * Block's key: either a column-store record number or a row-store variable length byte string.
@@ -286,6 +294,11 @@ struct __wt_multi {
     uint32_t checksum;
 };
 
+/*
+ * WT_OVFL_TRACK --
+ *  Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
+ * so we don't allocate the structures to track them until we actually see them in the data.
+ */
 struct __wt_ovfl_track {
     /*
      * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile the
@@ -301,6 +314,7 @@ struct __wt_ovfl_track {
     size_t discard_entries;
     size_t discard_allocated;
 };
+
 /*
  * WT_PAGE_MODIFY --
  *	When a page is modified, there's additional information to maintain.
@@ -362,8 +376,8 @@ struct __wt_page_modify {
 #undef mod_disk_image
 #define mod_disk_image u1.r.disk_image
 
-        struct { /* Multiple replacement blocks */
-            WT_MULTI *multi;
+        struct {
+            WT_MULTI *multi;        /* Multiple replacement blocks */
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
 #undef mod_multi
@@ -433,10 +447,7 @@ struct __wt_page_modify {
 #define mod_row_update u2.row_leaf.update
     } u2;
 
-    /*
-     * Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
-     * so we don't allocate the structures to track them until we actually see them in the data.
-     */
+    /* Overflow record tracking for reconciliation. */
     WT_OVFL_TRACK *ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
@@ -484,16 +495,30 @@ WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
     uint32_t indx;  /* Slot of entry in col_var. */
 WT_PACKED_STRUCT_END
 
+/*
+ * WT_PAGE_INDEX --
+ *	The page index held by each internal page.
+ */
 struct __wt_page_index {
     uint32_t entries;
     uint32_t deleted_entries;
     WT_REF **index;
 };
 
+/*
+ * WT_COL_VAR_REPEAT --
+ *  Variable-length column-store pages have an array of page entries with RLE counts
+ * greater than 1 when reading the page, so it's not necessary to walk the page counting
+ * records to find a specific entry. We can do a binary search in this array, then an
+ * offset calculation to find the cell.
+ *
+ * It's a separate structure to keep the page structure as small as possible.
+ */
 struct __wt_col_var_repeat {
     uint32_t nrepeats;     /* repeat slots */
     WT_COL_RLE repeats[0]; /* lookup RLE array */
 };
+
 /*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
@@ -593,17 +618,8 @@ struct __wt_page {
 
         /* Variable-length column-store leaf page. */
         struct {
-            WT_COL *col_var; /* Values */
-
-            /*
-             * Variable-length column-store pages have an array of page entries with RLE counts
-             * greater than 1 when reading the page, so it's not necessary to walk the page counting
-             * records to find a specific entry. We can do a binary search in this array, then an
-             * offset calculation to find the cell.
-             *
-             * It's a separate structure to keep the page structure as small as possible.
-             */
-            WT_COL_VAR_REPEAT *repeats;
+            WT_COL *col_var;            /* Values */
+            WT_COL_VAR_REPEAT *repeats; /* Repeats array */
 #define WT_COL_VAR_REPEAT_SET(page) ((page)->u.col_var.repeats != NULL)
         } col_var;
 #undef pg_var
@@ -812,6 +828,10 @@ struct __wt_page_deleted {
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
+/*
+ * WT_REF_HIST --
+ *	State information of a ref at a single point in time.
+ */
 struct __wt_ref_hist {
     WT_SESSION_IMPL *session;
     const char *name;
@@ -820,6 +840,7 @@ struct __wt_ref_hist {
     uint16_t line;
     uint16_t state;
 };
+
 /*
  * WT_REF --
  *	A single in-memory page and state information.
