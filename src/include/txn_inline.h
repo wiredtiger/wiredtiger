@@ -1025,8 +1025,7 @@ retry:
             retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
-            WT_STAT_CONN_INCR(session, txn_read_race_prepare_update);
-            WT_STAT_DATA_INCR(session, txn_read_race_prepare_update);
+            WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);
 
             /*
              * When a prepared update/insert is rollback or committed, retrying it again should fix
@@ -1194,6 +1193,19 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_HAS_ID))
         return (0);
 
+    /*
+     * Return error when the transactions with read committed or uncommitted isolation tries to
+     * perform any write operation. Don't return an error for any update on metadata because it uses
+     * special transaction visibility rules, search and updates on metadata happens in
+     * read-uncommitted and read-committed isolation.
+     */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
+      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+        WT_RET_MSG(session, ENOTSUP,
+          "write operations are not supported in read-committed or read-uncommitted transactions.");
+    }
+
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
 
@@ -1292,8 +1304,7 @@ __wt_txn_update_check(
     }
 
     if (rollback) {
-        WT_STAT_CONN_INCR(session, txn_update_conflict);
-        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 

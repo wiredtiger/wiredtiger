@@ -40,8 +40,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_check(session, ref, NULL) == NULL)
         return (0);
 
-    WT_STAT_DATA_INCR(session, cache_eviction_hazard);
-    WT_STAT_CONN_INCR(session, cache_eviction_hazard);
+    WT_STAT_CONN_DATA_INCR(session, cache_eviction_hazard);
     return (__wt_set_return(session, EBUSY));
 }
 
@@ -171,10 +170,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
-    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_internal);
-        WT_STAT_DATA_INCR(session, cache_eviction_internal);
-    }
+    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_internal);
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -221,13 +218,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
               session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
     }
-    if (clean_page) {
-        WT_STAT_CONN_INCR(session, cache_eviction_clean);
-        WT_STAT_DATA_INCR(session, cache_eviction_clean);
-    } else {
-        WT_STAT_CONN_INCR(session, cache_eviction_dirty);
-        WT_STAT_DATA_INCR(session, cache_eviction_dirty);
-    }
+    if (clean_page)
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
     /* Count page evictions in parallel with checkpoint. */
     if (conn->txn_global.checkpoint_running)
@@ -247,8 +241,7 @@ err:
               session, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
 
-        WT_STAT_CONN_INCR(session, cache_eviction_fail);
-        WT_STAT_DATA_INCR(session, cache_eviction_fail);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
     }
 
 done:
