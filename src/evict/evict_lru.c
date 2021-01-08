@@ -1732,8 +1732,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      * can generate even more HS content and will not help with the cache pressure, and will
      * probably just amplify it further.
      */
-    if (!WT_IS_HS(btree) && __wt_cache_hs_dirty(session))
+    if (!WT_IS_HS(btree) && __wt_cache_hs_dirty(session)) {
         target_pages = target_pages / 10;
+        WT_STAT_CONN_INCR(session, cache_eviction_target_page_reduced);
+        WT_STAT_DATA_INCR(session, cache_eviction_target_page_reduced);
+    }
 
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
