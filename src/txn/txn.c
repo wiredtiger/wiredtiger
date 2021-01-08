@@ -1140,12 +1140,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                              session, hs_cursor, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, NULL),
           true);
 
-        if (ret == 0)
+        if (ret == 0) {
             /* Not found if we cross the tree or key boundary. */
-            WT_ERR_NOTFOUND_OK(
-              __txn_append_hs_record(session, hs_cursor, hs_btree_id, &op->u.op_row.key,
-                cbt->ref->page, upd, commit, &fix_upd, &upd_appended),
-              true);
+            WT_WITH_BTREE(session, op->btree,
+              ret = __txn_append_hs_record(session, hs_cursor, hs_btree_id, &op->u.op_row.key,
+                cbt->ref->page, upd, commit, &fix_upd, &upd_appended));
+            WT_ERR_NOTFOUND_OK(ret, true);
+        }
         if (ret == WT_NOTFOUND && !commit) {
             /*
              * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
