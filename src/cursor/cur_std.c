@@ -887,9 +887,6 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
                 }
             }
 
-            WT_STAT_CONN_INCR(session, cursor_reopen);
-            WT_STAT_DATA_INCR(session, cursor_reopen);
-
             *cursorp = cursor;
             return (0);
         }
