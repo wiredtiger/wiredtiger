@@ -79,14 +79,12 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     position = session->cursor_sweep_position;
     productive = true;
     nbuckets = nexamined = nclosed = 0;
-
-    /* Turn off caching so that cursor close doesn't try to cache. */
-    F_CLR(session, WT_SESSION_CACHE_CURSORS);
-
 #ifdef HAVE_DIAGNOSTIC
     saved_dhandle = session->dhandle;
 #endif
 
+    /* Turn off caching so that cursor close doesn't try to cache. */
+    F_CLR(session, WT_SESSION_CACHE_CURSORS);
     for (i = 0; i < WT_SESSION_CURSOR_SWEEP_MAX && productive; i++) {
         ++nbuckets;
         cached_list = &session->cursor_cache[position];

@@ -616,8 +616,7 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
         cursor->key_format = btree->key_format;
         cursor->value_format = btree->value_format;
 
-        WT_STAT_CONN_INCR(session, cursor_reopen);
-        WT_STAT_DATA_INCR(session, cursor_reopen);
+        WT_STAT_CONN_DATA_INCR(session, cursor_reopen);
     }
 
     API_SESSION_POP(session);
