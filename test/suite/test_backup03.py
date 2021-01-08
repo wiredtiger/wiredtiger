@@ -81,16 +81,11 @@ class test_backup_target(test_backup_base):
     # Create a large cache, otherwise this test runs quite slowly.
     conn_config = 'cache_size=1G'
 
-    # Populate a set of objects.
-    def populate(self):
-        for i in self.objs:
-            if self.big == i[2]:
-                rows = 50000           # Big object
-            else:
-                rows = 1000             # Small object
-            i[1](self, i[0], rows, cgconfig = i[3]).populate()
-        # Backup needs a checkpoint
-        self.session.checkpoint(None)
+    #self.big is missing?!
+    populate_options = {
+        'rows': 1000,
+        'session_checkpoint': True
+    }
 
     # Backup a set of target tables using a backup cursor.
     def backup_table_cursor(self, l):
@@ -130,7 +125,8 @@ class test_backup_target(test_backup_base):
 
     # Test backup with targets.
     def test_backup_target(self):
-        self.populate()
+        self.populate_options['big'] = self.big
+        self.populate(self.objs, self.populate_options)
         self.backup_table_cursor(self.list)
 
 if __name__ == '__main__':

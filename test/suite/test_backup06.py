@@ -30,7 +30,7 @@ import glob
 import os
 import shutil
 import string
-from suite_subprocess import suite_subprocess
+from test_backup_base import test_backup_base
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -43,7 +43,7 @@ except:
 
 # test_backup06.py
 #    Test that opening a backup cursor does not open file handles.
-class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup06(test_backup_base):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.
     num_table_sets = 10
@@ -68,6 +68,10 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         ('table:' + pfx + '.8', ComplexLSMDataSet),
     ]
 
+    populate_options = {
+        'rows': 100
+    }
+
     # Populate a set of objects.
     def populate_many(self):
         for t in range(0, self.num_table_sets):
@@ -77,12 +81,6 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
             for i in self.tobjs:
                 uri = i[0] + "." + str(t)
                 i[1](self, uri, 10).populate()
-
-    def populate(self):
-        for i in self.fobjs:
-            i[1](self, i[0], 100).populate()
-        for i in self.tobjs:
-            i[1](self, i[0], 100).populate()
 
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
@@ -130,7 +128,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         # We also want to make sure we detect and get an error when set to
         # false.  When set to true the open handles protect against schema
         # operations.
-        self.populate()
+        self.populate(self.fobjs, self.populate_options)
+        self.populate(self.tobjs, self.populate_options)
         cursor = self.session.open_cursor('backup:', None, None)
         # Check that we can create.
         self.session.create(schema_uri, None)
@@ -148,7 +147,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test cursor reset runs through the list twice.
     def test_cursor_reset(self):
-        self.populate()
+        self.populate(self.fobjs, self.populate_options)
+        self.populate(self.tobjs, self.populate_options)
         cursor = self.session.open_cursor('backup:', None, None)
         i = 0
         while True:

@@ -72,13 +72,18 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Populate a set of objects.
     def populate(self, objs, options):
         for i in objs:
-            if i[2] and options.get('skiplsm'):
+            if len(i) > 2 and i[2] and options.get('skiplsm'):
                 continue
-            if i[2] and options.get('big') == i[2]:
+            if len(i) > 2 and i[2] and options.get('big') == i[2]:
                 rows = 50000           # Big object
             else:
                 rows = options.get('rows', 100)
-            i[1](self, i[0], rows, cgconfig = i[3]).populate()
+
+            if len(i) > 3:
+                i[1](self, i[0], rows, cgconfig = i[3]).populate()  
+            else:
+                i[1](self, i[0], rows).populate()  
+
         # Backup needs a checkpoint
         if options.get('session_checkpoint'):
             self.session.checkpoint(None)

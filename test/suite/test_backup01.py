@@ -58,14 +58,6 @@ class test_backup(test_backup_base):
         'rows': 100
     }
 
-    # Populate a set of objects.
-    def populate(self, skiplsm):
-        for i in self.objs:
-            if i[2]:
-                if skiplsm:
-                        continue
-            i[1](self, i[0], 100).populate()
-
     # Test simple backup cursor open/close.
     def test_cursor_simple(self):
         cursor = self.session.open_cursor('backup:', None, None)
@@ -81,7 +73,7 @@ class test_backup(test_backup_base):
 
     # Test backup of a database using the wt backup command.
     def test_backup_database(self):
-        self.populate(0)
+        self.populate(self.objs, self.populate_options)
         os.mkdir(self.dir)
         self.runWt(['backup', self.dir])
 
@@ -121,7 +113,7 @@ class test_backup(test_backup_base):
 
     # Test backup of database subsets.
     def test_backup_table(self):
-        self.populate(0)
+        self.populate(self.objs, self.populate_options)
         self.backup_table([0,2,4,6])
         self.backup_table([1,3,5,7])
         self.backup_table([0,1,2])
@@ -130,7 +122,7 @@ class test_backup(test_backup_base):
 
     # Test cursor reset runs through the list twice.
     def test_cursor_reset(self):
-        self.populate(0)
+        self.populate(self.objs, self.populate_options)
         cursor = self.session.open_cursor('backup:', None, None)
         i = 0
         while True:
@@ -153,7 +145,7 @@ class test_backup(test_backup_base):
     def test_checkpoint_delete(self):
         # You cannot name checkpoints including LSM tables, skip those.
         self.populate_options['skiplsm'] = True
-        self.populate(1)
+        self.populate(self.objs, self.populate_options)
 
         # Confirm checkpoints are being deleted.
         self.session.checkpoint("name=one")
