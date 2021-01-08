@@ -886,8 +886,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
             }
 
             /*
-             * A side effect of a cursor open is to leave the session's data handle set.
-             * Honor that for a "reopen".
+             * A side effect of a cursor open is to leave the session's data handle set. Honor that
+             * for a "reopen".
              */
             if (cbt != NULL)
                 session->dhandle = cbt->dhandle;
