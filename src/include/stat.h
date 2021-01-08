@@ -427,6 +427,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
     int64_t cache_eviction_pages_queued_oldest;
+    int64_t cache_eviction_pages_queued_urgent_hs_dirty;
     int64_t cache_read;
     int64_t cache_read_deleted;
     int64_t cache_read_deleted_prepared;

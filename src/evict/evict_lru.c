@@ -1933,11 +1933,22 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
             __wt_cache_read_gen_new(session, page);
 
         /* Pages being forcibly evicted go on the urgent queue. */
-        if ((modified &&
-              (page->read_gen == WT_READGEN_OLDEST ||
-                page->memory_footprint >= btree->splitmempage)) ||
-          (WT_IS_HS(btree) && __wt_cache_hs_dirty(session))) {
+        if (modified &&
+          (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
+            if (__wt_page_evict_urgent(session, ref))
+                urgent_queued = true;
+            continue;
+        }
+
+        /*
+         * If history store dirty content is dominating the cache, we want to prioritize evicting
+         * history store pages over other btree pages. This helps in keeping cache contents below
+         * the configured cache size during checkpoints where reconciling non-HS pages can generate
+         * significant amount of HS dirty content very quickly.
+         */
+        if (WT_IS_HS(btree) && __wt_cache_hs_dirty(session)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
             continue;

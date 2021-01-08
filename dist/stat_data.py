@@ -242,6 +242,7 @@ connection_stats = [
     CacheStat('cache_eviction_pages_queued_oldest', 'pages queued for urgent eviction during walk'),
     CacheStat('cache_eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     CacheStat('cache_eviction_pages_queued_urgent', 'pages queued for urgent eviction'),
+    CacheStat('cache_eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     CacheStat('cache_eviction_pages_seen', 'pages seen by eviction walk'),
     CacheStat('cache_eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
     CacheStat('cache_eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),

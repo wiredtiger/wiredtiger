@@ -1073,6 +1073,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages queued for eviction post lru sorting",
   "cache: pages queued for urgent eviction",
   "cache: pages queued for urgent eviction during walk",
+  "cache: pages queued for urgent eviction from history store due to high dirty content",
   "cache: pages read into cache",
   "cache: pages read into cache after truncate",
   "cache: pages read into cache after truncate in prepare state",
@@ -1590,6 +1591,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_pages_queued_post_lru = 0;
     stats->cache_eviction_pages_queued_urgent = 0;
     stats->cache_eviction_pages_queued_oldest = 0;
+    stats->cache_eviction_pages_queued_urgent_hs_dirty = 0;
     stats->cache_read = 0;
     stats->cache_read_deleted = 0;
     stats->cache_read_deleted_prepared = 0;
@@ -2096,6 +2098,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_pages_queued_urgent);
     to->cache_eviction_pages_queued_oldest +=
       WT_STAT_READ(from, cache_eviction_pages_queued_oldest);
+    to->cache_eviction_pages_queued_urgent_hs_dirty +=
+      WT_STAT_READ(from, cache_eviction_pages_queued_urgent_hs_dirty);
     to->cache_read += WT_STAT_READ(from, cache_read);
     to->cache_read_deleted += WT_STAT_READ(from, cache_read_deleted);
     to->cache_read_deleted_prepared += WT_STAT_READ(from, cache_read_deleted_prepared);
