@@ -43,6 +43,7 @@ struct __wt_rec_chunk {
 
     WT_ITEM image; /* disk-image */
 };
+
 /*
  * Reconciliation is the process of taking an in-memory page, walking each entry
  * in the page, building a backing disk image in a temporary buffer representing

@@ -3240,7 +3240,7 @@ int wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
  * @{
  */
 
-/*! Permitted values of the \c type field. */
+/*! Permitted values of the \c type field in WT_CONFIG_ITEM. */
 typedef enum {
 	/*! A string value with quotes stripped. */
 	WT_CONFIG_ITEM_STRING,

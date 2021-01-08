@@ -42,7 +42,7 @@
  * single 64-bit write, that is, there needs to be a single load/store of the 32
  * bits, not a load/store of 64 bits, where the 64 bits is comprised of two
  * adjacent 32-bit locations.  The problem is when two threads are cooperating
- * (thread X finds 32-bits set to 0, writes in a newv value, flushes memory;
+ * (thread X finds 32-bits set to 0, writes in a new value, flushes memory;
  * thread Y reads 32-bits that are non-zero, does some operation, resets the
  * memory location to 0 and flushes). If thread X were to read the 32 bits
  * adjacent to a different 32 bits, and write them both, the two threads could
