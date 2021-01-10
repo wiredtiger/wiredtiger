@@ -937,7 +937,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     btree = S2BT(session);
     conn = S2C(session);
 
-    __wt_verbose(session, WT_VERB_RECOVERY_RTS_FLAG(S2C(session)),
+    __wt_verbose(session, WT_VERB_RECOVERY_RTS_FLAG(conn),
       "rollback to stable connection logging enabled: %s and btree logging enabled: %s",
       FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ? "true" : "false",
       !F_ISSET(btree, WT_BTREE_NO_LOGGING) ? "true" : "false");
