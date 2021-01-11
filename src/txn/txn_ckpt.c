@@ -263,7 +263,7 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
      * Skip files that are never involved in a checkpoint. Skip the history store file as it is,
      * checkpointed manually later.
      */
-    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || WT_IS_HS(btree))
+    if (F_ISSET(btree, WT_BTREE_NO_CHECKPOINT) || WT_IS_HS(btree->dhandle))
         return (0);
 
     /*
@@ -523,6 +523,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
     uint64_t original_snap_min;
+    const char *txn_cfg[] = {
+      WT_CONFIG_BASE(session, WT_SESSION_begin_transaction), "isolation=snapshot", NULL};
     bool use_timestamp;
 
     conn = S2C(session);
@@ -542,7 +544,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
 
-    WT_RET(__wt_txn_begin(session, NULL));
+    WT_RET(__wt_txn_begin(session, txn_cfg));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = WT_MILLION;
@@ -832,7 +834,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * We do need to update it before clearing the checkpoint's entry out of the transaction table,
      * or a thread evicting in a tree could ignore the checkpoint's transaction.
      */
-    generation = __wt_gen_next(session, WT_GEN_CHECKPOINT);
+    __wt_gen_next(session, WT_GEN_CHECKPOINT, &generation);
     WT_STAT_CONN_SET(session, txn_checkpoint_generation, generation);
 
     /*

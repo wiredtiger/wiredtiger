@@ -1289,7 +1289,7 @@ extern int __wt_schema_open_index(WT_SESSION_IMPL *session, WT_TABLE *table, con
   size_t len, WT_INDEX **indexp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_schema_open_table(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_project_in(WT_SESSION_IMPL *session, WT_CURSOR **cp, const char *proj_arg,
   va_list ap) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1590,8 +1590,6 @@ extern uint64_t __wt_ext_transaction_oldest(WT_EXTENSION_API *wt_api)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_gen(WT_SESSION_IMPL *session, int which)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern uint64_t __wt_gen_next(WT_SESSION_IMPL *session, int which)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_hash_city64(const void *s, size_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern uint64_t __wt_hash_fnv64(const void *string, size_t len)
@@ -1678,6 +1676,7 @@ extern void __wt_free_ref_index(
 extern void __wt_free_update_list(WT_SESSION_IMPL *session, WT_UPDATE **updp);
 extern void __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation);
 extern void __wt_gen_init(WT_SESSION_IMPL *session);
+extern void __wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp);
 extern void __wt_gen_next_drain(WT_SESSION_IMPL *session, int which);
 extern void __wt_hazard_close(WT_SESSION_IMPL *session);
 extern void __wt_hs_close(WT_SESSION_IMPL *session);
@@ -2048,7 +2047,7 @@ static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTR
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-  WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_UPDATE *upd, wt_timestamp_t *prev_tsp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_upd_alloc(WT_SESSION_IMPL *session, const WT_ITEM *value, u_int modify_type,
   WT_UPDATE **updp, size_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp,

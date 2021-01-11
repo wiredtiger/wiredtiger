@@ -40,8 +40,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_check(session, ref, NULL) == NULL)
         return (0);
 
-    WT_STAT_DATA_INCR(session, cache_eviction_hazard);
-    WT_STAT_CONN_INCR(session, cache_eviction_hazard);
+    WT_STAT_CONN_DATA_INCR(session, cache_eviction_hazard);
     return (__wt_set_return(session, EBUSY));
 }
 
@@ -132,7 +131,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
-        if (session->hs_cursor != NULL && WT_IS_HS(S2BT(session))) {
+        if (session->hs_cursor != NULL && WT_IS_HS(session->dhandle)) {
             force_evict_hs = true;
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
@@ -166,11 +165,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (inmem_split)
         goto done;
 
+    /* Check that we are not about to evict an internal page with an active split generation. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing)
+        WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
+
     /* Count evictions of internal pages during normal operation. */
-    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_internal);
-        WT_STAT_DATA_INCR(session, cache_eviction_internal);
-    }
+    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_internal);
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -217,13 +218,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
               session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
     }
-    if (clean_page) {
-        WT_STAT_CONN_INCR(session, cache_eviction_clean);
-        WT_STAT_DATA_INCR(session, cache_eviction_clean);
-    } else {
-        WT_STAT_CONN_INCR(session, cache_eviction_dirty);
-        WT_STAT_DATA_INCR(session, cache_eviction_dirty);
-    }
+    if (clean_page)
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
     /* Count page evictions in parallel with checkpoint. */
     if (conn->txn_global.checkpoint_running)
@@ -243,8 +241,7 @@ err:
               session, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
 
-        WT_STAT_CONN_INCR(session, cache_eviction_fail);
-        WT_STAT_DATA_INCR(session, cache_eviction_fail);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
     }
 
 done:
@@ -447,8 +444,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         }
     }
     WT_INTL_FOREACH_END;
-    WT_INTL_FOREACH_REVERSE_BEGIN(session, parent->page, child)
-    {
+    WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
@@ -504,6 +500,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
 static int
 __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool *inmem_splitp)
 {
+    WT_BTREE *btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -514,6 +511,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     *inmem_splitp = false;
 
+    btree = S2BT(session);
     conn = S2C(session);
     page = ref->page;
     flags = WT_REC_EVICT;
@@ -622,13 +620,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(S2BT(session)))
+    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
-    else if (WT_SESSION_BTREE_SYNC(session))
+    else if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(btree->dhandle))
         LF_SET(WT_REC_HS);
     else if (F_ISSET(conn, WT_CONN_IN_MEMORY))
         LF_SET(WT_REC_IN_MEMORY | WT_REC_SCRUB);
-    else {
+    else if (!WT_IS_METADATA(btree->dhandle)) {
         LF_SET(WT_REC_HS);
 
         /*
@@ -657,12 +655,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     use_snapshot_for_app_thread = !F_ISSET(session, WT_SESSION_INTERNAL) &&
       !WT_IS_METADATA(session->dhandle) && WT_SESSION_TXN_SHARED(session)->id != WT_TXN_NONE &&
       F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
-    is_eviction_thread = FLD_ISSET(evict_flags, WT_REC_EVICTION_THREAD);
+    is_eviction_thread = F_ISSET(session, WT_SESSION_EVICTION);
 
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(S2BT(session)) &&
+    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree->dhandle) &&
       (use_snapshot_for_app_thread || is_eviction_thread)) {
         if (is_eviction_thread) {
             /*
@@ -712,20 +710,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_RET(ret);
 
     /*
-     * Give up on eviction during a checkpoint if the page splits.
-     *
-     * We get here if checkpoint reads a page with history store entries: if more of those entries
-     * are visible now than when the original eviction happened, the page could split. In most
-     * workloads, this is very unlikely. However, since checkpoint is partway through reconciling
-     * the parent page, a split can corrupt the checkpoint.
-     */
-    if (WT_SESSION_BTREE_SYNC(session) && page->modify->rec_result == WT_PM_REC_MULTIBLOCK)
-        return (__wt_set_return(session, EBUSY));
-
-    /*
      * Success: assert that the page is clean or reconciliation was configured to save updates.
      */
-    WT_ASSERT(session, !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY));
+    WT_ASSERT(session,
+      !__wt_page_is_modified(page) || LF_ISSET(WT_REC_HS | WT_REC_IN_MEMORY) ||
+        WT_IS_METADATA(btree->dhandle));
 
     return (0);
 }

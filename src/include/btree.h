@@ -100,18 +100,6 @@ struct __wt_btree {
     uint32_t maxmempage_image; /* In-memory page image max size */
     uint64_t splitmempage;     /* In-memory split trigger size */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_ASSERT_COMMIT_TS_ALWAYS 0x01u
-#define WT_ASSERT_COMMIT_TS_KEYS 0x02u
-#define WT_ASSERT_COMMIT_TS_NEVER 0x04u
-#define WT_ASSERT_DURABLE_TS_ALWAYS 0x08u
-#define WT_ASSERT_DURABLE_TS_KEYS 0x10u
-#define WT_ASSERT_DURABLE_TS_NEVER 0x20u
-#define WT_ASSERT_READ_TS_ALWAYS 0x40u
-#define WT_ASSERT_READ_TS_NEVER 0x80u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t assert_flags; /* Debugging assertion information */
-
     void *huffman_value; /* Value huffman encoding */
 
     enum {
@@ -261,14 +249,13 @@ struct __wt_btree {
 #define WT_BTREE_CLOSED 0x000400u        /* Handle closed */
 #define WT_BTREE_IGNORE_CACHE 0x000800u  /* Cache-resident object */
 #define WT_BTREE_IN_MEMORY 0x001000u     /* Cache-resident object */
-#define WT_BTREE_HS 0x002000u            /* History store table */
-#define WT_BTREE_NO_CHECKPOINT 0x004000u /* Disable checkpoints */
-#define WT_BTREE_NO_LOGGING 0x008000u    /* Disable logging */
-#define WT_BTREE_READONLY 0x010000u      /* Handle is readonly */
-#define WT_BTREE_SALVAGE 0x020000u       /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x040000u     /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x080000u       /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x100000u        /* Handle is for verify */
+#define WT_BTREE_NO_CHECKPOINT 0x002000u /* Disable checkpoints */
+#define WT_BTREE_NO_LOGGING 0x004000u    /* Disable logging */
+#define WT_BTREE_READONLY 0x008000u      /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x010000u       /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x020000u     /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x040000u       /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x080000u        /* Handle is for verify */
     uint32_t flags;
 };
 

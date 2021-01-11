@@ -29,13 +29,16 @@ static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_
 int
 __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, uint32_t flags)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t start, now;
     bool no_reconcile_set, page_locked;
 
-    __wt_seconds(session, &start);
+    btree = S2BT(session);
     page = ref->page;
+
+    __wt_seconds(session, &start);
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconcile %s (%s%s)", (void *)ref,
       __wt_page_type_string(page->type), LF_ISSET(WT_REC_EVICT) ? "evict" : "checkpoint",
@@ -51,6 +54,12 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     WT_ASSERT(session,
       !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
+
+    /* Can't do history store eviction for history store itself or for metadata. */
+    WT_ASSERT(session,
+      !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)));
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(btree);
 
     /* It's an error to be called with a clean page. */
     WT_ASSERT(session, __wt_page_is_modified(page));
@@ -191,7 +200,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Update the global history store score. Only use observations during eviction, not checkpoints
      * and don't count eviction of the history store table itself.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
+    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree->dhandle))
         __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
     /*
@@ -220,19 +229,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Update statistics. */
     WT_STAT_CONN_INCR(session, rec_pages);
     WT_STAT_DATA_INCR(session, rec_pages);
-    if (LF_ISSET(WT_REC_EVICT)) {
-        WT_STAT_CONN_INCR(session, rec_pages_eviction);
-        WT_STAT_DATA_INCR(session, rec_pages_eviction);
-    }
-    if (r->cache_write_hs) {
-        WT_STAT_CONN_INCR(session, cache_write_hs);
-        WT_STAT_DATA_INCR(session, cache_write_hs);
-    }
-    if (r->cache_write_restore) {
-        WT_STAT_CONN_INCR(session, cache_write_restore);
-        WT_STAT_DATA_INCR(session, cache_write_restore);
-    }
-    if (!WT_IS_HS(btree)) {
+    if (LF_ISSET(WT_REC_EVICT))
+        WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
+    if (r->cache_write_hs)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_hs);
+    if (r->cache_write_restore)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
+    if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
             WT_STAT_CONN_INCR(session, rec_pages_with_txn);
         if (r->rec_page_cell_with_ts)
@@ -316,12 +319,13 @@ __rec_write_page_status(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
         /*
          * Eviction should only be here if allowing writes to history store or in the in-memory
-         * eviction case. Otherwise, we must be reconciling a fixed length column store page (which
-         * does not allow history store content).
+         * eviction case. Otherwise, we must be reconciling a fixed length column store page or the
+         * metadata (which does not allow history store content).
          */
         WT_ASSERT(session,
           !F_ISSET(r, WT_REC_EVICT) ||
-            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX));
+            (F_ISSET(r, WT_REC_HS | WT_REC_IN_MEMORY) || page->type == WT_PAGE_COL_FIX ||
+              WT_IS_METADATA(btree->dhandle)));
     } else {
         /*
          * Track the page's maximum transaction ID (used to decide if we can evict a clean page and
@@ -483,8 +487,8 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
         r->last = &r->_last;
 
         /* Disk buffers need to be aligned for writing. */
-        F_SET(&r->chunkA.image, WT_ITEM_ALIGNED);
-        F_SET(&r->chunkB.image, WT_ITEM_ALIGNED);
+        F_SET(&r->chunk_A.image, WT_ITEM_ALIGNED);
+        F_SET(&r->chunk_B.image, WT_ITEM_ALIGNED);
     }
 
     /* Remember the configuration. */
@@ -535,7 +539,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
+    WT_ASSERT(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
      * History store table eviction is configured when eviction gets aggressive, adjust the flags
@@ -696,12 +700,12 @@ __rec_destroy(WT_SESSION_IMPL *session, void *reconcilep)
         return;
     *(WT_RECONCILE **)reconcilep = NULL;
 
-    __wt_buf_free(session, &r->chunkA.key);
-    __wt_buf_free(session, &r->chunkA.min_key);
-    __wt_buf_free(session, &r->chunkA.image);
-    __wt_buf_free(session, &r->chunkB.key);
-    __wt_buf_free(session, &r->chunkB.min_key);
-    __wt_buf_free(session, &r->chunkB.image);
+    __wt_buf_free(session, &r->chunk_A.key);
+    __wt_buf_free(session, &r->chunk_A.min_key);
+    __wt_buf_free(session, &r->chunk_A.image);
+    __wt_buf_free(session, &r->chunk_B.key);
+    __wt_buf_free(session, &r->chunk_B.min_key);
+    __wt_buf_free(session, &r->chunk_B.image);
 
     __wt_free(session, r->supd);
 
@@ -945,8 +949,8 @@ __wt_rec_split_init(
     r->disk_img_buf_size = WT_ALIGN(WT_MAX(corrected_page_size, r->split_size), btree->allocsize);
 
     /* Initialize the first split chunk. */
-    WT_RET(__rec_split_chunk_init(session, r, &r->chunkA));
-    r->cur_ptr = &r->chunkA;
+    WT_RET(__rec_split_chunk_init(session, r, &r->chunk_A));
+    r->cur_ptr = &r->chunk_A;
     r->prev_ptr = NULL;
 
     /* Starting record number, entries, first free byte. */
@@ -1184,11 +1188,11 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
         if (forced) {
             WT_RET(__rec_split_write(session, r, r->cur_ptr, NULL, false));
             r->prev_ptr = NULL;
-            r->cur_ptr = &r->chunkA;
+            r->cur_ptr = &r->chunk_A;
         } else {
             if (r->prev_ptr == NULL) {
-                WT_RET(__rec_split_chunk_init(session, r, &r->chunkB));
-                r->prev_ptr = &r->chunkB;
+                WT_RET(__rec_split_chunk_init(session, r, &r->chunk_B));
+                r->prev_ptr = &r->chunk_B;
             }
             tmp = r->prev_ptr;
             r->prev_ptr = r->cur_ptr;
@@ -2129,8 +2133,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     switch (r->multi_next) {
     case 0: /* Page delete */
-        WT_STAT_CONN_INCR(session, rec_page_delete);
-        WT_STAT_DATA_INCR(session, rec_page_delete);
+        WT_STAT_CONN_DATA_INCR(session, rec_page_delete);
 
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
@@ -2265,9 +2268,20 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 static int
 __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     WT_MULTI *multi;
     uint32_t i;
+
+    btree = S2BT(session);
+
+    /*
+     * Sanity check: Can't insert updates into history store from the history store itself or from
+     * the metadata file.
+     */
+    WT_ASSERT(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle));
+    /* Flag as unused for non diagnostic builds. */
+    WT_UNUSED(btree);
 
     /* Check if there's work to do. */
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)

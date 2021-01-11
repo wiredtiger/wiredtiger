@@ -71,24 +71,32 @@ static inline void
 __wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
+    WT_DATA_HANDLE *dhandle;
 
-    if (session->dhandle == NULL)
+    dhandle = session->dhandle;
+    if (dhandle == NULL)
         return;
     btree = S2BT(session);
     if (btree == NULL)
         return;
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_ALWAYS))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_KEYS))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_KEYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_COMMIT_TS_NEVER))
-        F_SET(session->txn, WT_TXN_TS_COMMIT_NEVER);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_ALWAYS))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_ALWAYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_KEYS))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_KEYS);
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_DURABLE_TS_NEVER))
-        F_SET(session->txn, WT_TXN_TS_DURABLE_NEVER);
+
+    if (!FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE))
+        return;
+
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))
+        F_SET(session->txn, WT_TXN_TS_WRITE_ALWAYS);
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT))
+        F_SET(session->txn, WT_TXN_TS_WRITE_KEY_CONSISTENT);
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE))
+        F_SET(session->txn, WT_TXN_TS_WRITE_MIXED_MODE);
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER))
+        F_SET(session->txn, WT_TXN_TS_WRITE_NEVER);
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED))
+        F_SET(session->txn, WT_TXN_TS_WRITE_ORDERED);
+
+    /* Remember if any type of verbose tracking is encountered by the transaction. */
+    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE))
+        F_SET(session->txn, WT_TXN_VERB_TS_WRITE);
 }
 
 /*
@@ -106,7 +114,7 @@ __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recno)
     WT_ASSERT(session, txn->mod_count > 0 && recno != WT_RECNO_OOB);
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
       WT_IS_METADATA(op->btree->dhandle))
         return;
 
@@ -138,7 +146,7 @@ __wt_txn_op_set_key(WT_SESSION_IMPL *session, const WT_ITEM *key)
 
     op = txn->mod + txn->mod_count - 1;
 
-    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree) ||
+    if (WT_SESSION_IS_CHECKPOINT(session) || WT_IS_HS(op->btree->dhandle) ||
       WT_IS_METADATA(op->btree->dhandle))
         return (0);
 
@@ -390,7 +398,7 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     op->u.op_upd = upd;
 
     /* History store bypasses transactions, transaction modify should never be called on it. */
-    WT_ASSERT(session, !WT_IS_HS(S2BT(session)));
+    WT_ASSERT(session, !WT_IS_HS((S2BT(session))->dhandle));
 
     upd->txnid = session->txn->id;
     __wt_txn_op_set_timestamp(session, op);
@@ -734,7 +742,7 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (WT_IS_HS(S2BT(session)) && upd->txnid != WT_TXN_ABORTED &&
+        if (WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
           upd->type == WT_UPDATE_STANDARD)
             /* Entries in the history store are always visible. */
             return (WT_VISIBLE_TRUE);
@@ -836,7 +844,7 @@ __wt_txn_read_upd_list(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
-    uint8_t type;
+    uint8_t prepare_state, type;
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
@@ -848,6 +856,7 @@ __wt_txn_read_upd_list(
         if (type == WT_UPDATE_RESERVE)
             continue;
 
+        WT_ORDERED_READ(prepare_state, upd->prepare_state);
         /*
          * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
          * to the stop time window of the update value being returned to the caller. Caller can
@@ -860,8 +869,8 @@ __wt_txn_read_upd_list(
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
             cbt->upd_value->tw.stop_txn = upd->txnid;
-            cbt->upd_value->tw.prepare = upd->prepare_state == WT_PREPARE_INPROGRESS ||
-              upd->prepare_state == WT_PREPARE_LOCKED;
+            cbt->upd_value->tw.prepare =
+              prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED;
             continue;
         }
 
@@ -870,18 +879,20 @@ __wt_txn_read_upd_list(
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
 
+        /*
+         * Save the prepared update to help us detect if we race with prepared commit or rollback
+         * irrespective of update visibility.
+         */
+        if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
+          prepare_updp != NULL && *prepare_updp == NULL &&
+          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+            *prepare_updp = upd;
+
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
-            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE)) {
-                /*
-                 * Save the prepared update to help us detect if we race with prepared commit or
-                 * rollback.
-                 */
-                if (prepare_updp != NULL && *prepare_updp == NULL &&
-                  F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
-                    *prepare_updp = upd;
+            if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 continue;
-            }
+
             return (WT_PREPARE_CONFLICT);
         }
     }
@@ -970,7 +981,7 @@ retry:
     }
 
     /* Store the stop time pair of the history store record that is returning. */
-    if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(S2BT(session))) {
+    if (!have_stop_tw && WT_TIME_WINDOW_HAS_STOP(&tw) && WT_IS_HS(session->dhandle)) {
         cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;
         cbt->upd_value->tw.stop_ts = tw.stop_ts;
         cbt->upd_value->tw.stop_txn = tw.stop_txn;
@@ -978,7 +989,7 @@ retry:
     }
 
     /* If the start time point is visible then we need to return the ondisk value. */
-    if (WT_IS_HS(S2BT(session)) || __wt_txn_tw_start_visible(session, &tw)) {
+    if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
         if (cbt->upd_value->skip_buf) {
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
@@ -992,9 +1003,11 @@ retry:
     }
 
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
-    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(S2BT(session), WT_BTREE_HS))
+    if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
+        __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
         WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
           &cbt->upd_value->buf, &tw));
+    }
 
     /*
      * Retry if we race with prepared commit or rollback. If we race with prepared rollback, the
@@ -1012,8 +1025,7 @@ retry:
             retry = false;
             /* Clean out any stale value before performing the retry. */
             __wt_upd_value_clear(cbt->upd_value);
-            WT_STAT_CONN_INCR(session, txn_read_race_prepare_update);
-            WT_STAT_DATA_INCR(session, txn_read_race_prepare_update);
+            WT_STAT_CONN_DATA_INCR(session, txn_read_race_prepare_update);
 
             /*
              * When a prepared update/insert is rollback or committed, retrying it again should fix
@@ -1048,8 +1060,12 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_txn_config(session, cfg));
 
-    /* Allocate a snapshot if required. */
-    if (txn->isolation == WT_ISO_SNAPSHOT) {
+    /*
+     * Allocate a snapshot if required or update the existing snapshot. Do not update the existing
+     * snapshot of autocommit transactions because they are committed at the end of the operation.
+     */
+    if (txn->isolation == WT_ISO_SNAPSHOT &&
+      !(F_ISSET(txn, WT_TXN_AUTOCOMMIT) && F_ISSET(txn, WT_TXN_HAS_SNAPSHOT))) {
         if (session->ncursors > 0)
             WT_RET(__wt_session_copy_values(session));
 
@@ -1077,14 +1093,15 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
 static inline int
 __wt_txn_autocommit_check(WT_SESSION_IMPL *session)
 {
+    WT_DECL_RET;
     WT_TXN *txn;
 
     txn = session->txn;
     if (F_ISSET(txn, WT_TXN_AUTOCOMMIT)) {
+        ret = __wt_txn_begin(session, NULL);
         F_CLR(txn, WT_TXN_AUTOCOMMIT);
-        return (__wt_txn_begin(session, NULL));
     }
-    return (0);
+    return (ret);
 }
 
 /*
@@ -1176,6 +1193,19 @@ __wt_txn_id_check(WT_SESSION_IMPL *session)
     if (F_ISSET(txn, WT_TXN_HAS_ID))
         return (0);
 
+    /*
+     * Return error when the transactions with read committed or uncommitted isolation tries to
+     * perform any write operation. Don't return an error for any update on metadata because it uses
+     * special transaction visibility rules, search and updates on metadata happens in
+     * read-uncommitted and read-committed isolation.
+     */
+    if (session->dhandle != NULL && !WT_IS_METADATA(session->dhandle) &&
+      (txn->isolation == WT_ISO_READ_COMMITTED || txn->isolation == WT_ISO_READ_UNCOMMITTED)) {
+        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_INTERNAL));
+        WT_RET_MSG(session, ENOTSUP,
+          "write operations are not supported in read-committed or read-uncommitted transactions.");
+    }
+
     /* If the transaction is idle, check that the cache isn't full. */
     WT_RET(__wt_txn_idle_cache_check(session));
 
@@ -1209,10 +1239,10 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
      * Same if it should never have a read timestamp.
      */
     if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) &&
-      FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_ALWAYS) &&
+      FLD_ISSET(btree->dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_ALWAYS) &&
       !F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(session, EINVAL, "read_timestamp required and none set on this transaction");
-    if (FLD_ISSET(btree->assert_flags, WT_ASSERT_READ_TS_NEVER) &&
+    if (FLD_ISSET(btree->dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_READ_NEVER) &&
       F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_RET_MSG(
           session, EINVAL, "no read_timestamp required and timestamp set on this transaction");
@@ -1224,7 +1254,8 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+__wt_txn_update_check(
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
@@ -1237,7 +1268,7 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     txn_global = &S2C(session)->txn_global;
 
     /* Don't check if transaction isolation is not snapshot or the table is metadata. */
-    if (txn->isolation != WT_ISO_SNAPSHOT || WT_IS_METADATA(cbt->dhandle))
+    if (txn->isolation != WT_ISO_SNAPSHOT || (cbt != NULL && WT_IS_METADATA(cbt->dhandle)))
         return (0);
 
     if (txn_global->debug_rollback != 0 &&
@@ -1273,11 +1304,20 @@ __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE 
     }
 
     if (rollback) {
-        WT_STAT_CONN_INCR(session, txn_update_conflict);
-        WT_STAT_DATA_INCR(session, txn_update_conflict);
+        WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
+    if (prev_tsp != NULL && upd != NULL) {
+        /*
+         * The durable timestamp must be greater than or equal to the commit timestamp unless it is
+         * an in-progress prepared update.
+         *
+         * FIXME-WT-7020: We should be able to assert this but we're seeing some fallout in format.
+         * We should investigate why and assert the above statement.
+         */
+        *prev_tsp = upd->durable_ts;
+    }
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
     return (ret);
