@@ -837,7 +837,7 @@ extern int __wt_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
 extern int __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
-  void *cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  void *cookie, WT_LSN *start_range_lsnp, WT_LSN *end_range_lsnp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_set_version(WT_SESSION_IMPL *session, uint16_t version, uint32_t first_rec,
   bool downgrade, bool live_chg, uint32_t *lognump)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1497,7 +1497,7 @@ extern int __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *na
   wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags, int start_lsn, int end_lsn)
+extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags, WT_LSN start_lsn, WT_LSN end_lsn)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_query_timestamp(WT_SESSION_IMPL *session, char *hex_timestamp,

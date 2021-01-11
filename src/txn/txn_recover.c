@@ -817,7 +817,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
                 WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
         }
         if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
-            ret = __wt_log_scan(session, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
+            ret = __wt_log_scan(session, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r, NULL, NULL);
         else {
             /*
              * Start at the last checkpoint LSN referenced in the metadata. If we see the end of a
@@ -825,7 +825,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
              */
             WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
             ret = __wt_log_scan(
-              session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r);
+              session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r, NULL, NULL);
         }
         if (F_ISSET(conn, WT_CONN_SALVAGE))
             ret = 0;
@@ -917,9 +917,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
     if (WT_IS_INIT_LSN(&r.ckpt_lsn))
         ret = __wt_log_scan(
-          session, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
+          session, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r, NULL, NULL);
     else
-        ret = __wt_log_scan(session, &r.ckpt_lsn, WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
+        ret = __wt_log_scan(session, &r.ckpt_lsn, WT_LOGSCAN_RECOVER, __txn_log_recover, &r, NULL, NULL);
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         ret = 0;
     WT_ERR(ret);

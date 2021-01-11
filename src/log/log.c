@@ -2045,7 +2045,7 @@ int
 __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
-  void *cookie)
+  void *cookie, WT_LSN *start_range_lsnp, WT_LSN *end_range_lsnp)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
@@ -2089,8 +2089,25 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     lastlog = 0;
     if (log != NULL) {
         allocsize = log->allocsize;
-        WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-        WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
+        if (end_range_lsnp != NULL){
+            WT_ASSIGN_LSN(&end_lsn, end_range_lsnp);
+        } else {
+            WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
+        }
+        if (start_range_lsnp != NULL){
+            /* 
+             * Check to see if the user set offset is in allignment,
+             * if not correct to the next alligned log entry.
+             */
+            if (start_range_lsnp->l.offset % allocsize != 0){
+                WT_SET_LSN(&start_lsn, start_range_lsnp->l.file, 
+                    start_range_lsnp->l.offset + (allocsize - start_range_lsnp->l.offset % allocsize));
+            } else {
+                WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
+            }
+        } else {
+            WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
+        }
         if (lsnp == NULL) {
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
                 WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
@@ -2117,8 +2134,24 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
             lastlog = WT_MAX(lastlog, lognum);
             firstlog = WT_MIN(firstlog, lognum);
         }
-        WT_SET_LSN(&start_lsn, firstlog, 0);
-        WT_SET_LSN(&end_lsn, lastlog, 0);
+        if (start_range_lsnp != NULL){
+            /* Check to see if the user set offset is in allignment,
+             * if not correct to the next alligned log entry.
+             */
+            if (start_range_lsnp->l.offset % allocsize != 0){
+                WT_SET_LSN(&start_lsn, start_range_lsnp->l.file, 
+                    start_range_lsnp->l.offset + (allocsize - start_range_lsnp->l.offset % allocsize));
+            } else {
+                WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
+            }
+        } else {
+            WT_SET_LSN(&start_lsn, firstlog, 0);
+        }
+        if (end_range_lsnp != NULL){
+            WT_ASSIGN_LSN(&end_lsn, end_range_lsnp);
+        } else {
+            WT_SET_LSN(&end_lsn, lastlog, 0);
+        }
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
     if (lsnp != NULL) {
@@ -2387,6 +2420,7 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_ONE))
                 break;
         }
+        // If next > end break
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 
