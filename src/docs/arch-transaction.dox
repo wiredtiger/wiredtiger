@@ -102,7 +102,7 @@ In the above example, reading with timestamp 15 doesn't guarantee to return the 
 
 @subsection Durability
 
-WiredTiger transactions support commit level durability and checkpoint level durability. An operation is commit level durable if logging is enabled on the table. After it has been successfully commit, the operation is guaranteed to survive restart. An operation will only survive across restart under checkpoint durability if it is included in the last successful checkpoint.
+WiredTiger transactions support commit level durability and checkpoint level durability. An operation is commit level durable if logging is enabled on the table (@ref arch-logging). After it has been successfully commit, the operation is guaranteed to survive restart. An operation will only survive across restart under checkpoint durability if it is included in the last successful checkpoint.
 
 @section Prepared Transaction
 
