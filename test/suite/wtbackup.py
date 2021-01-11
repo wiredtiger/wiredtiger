@@ -57,28 +57,25 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Compare against two directory paths using the wt dump command. If the second directory path is not provided
     # it checks if the compare
     #
-    def compare_backups(self, uri, backup_home, is_incremental = False, suffix = "", run_recovery):
+    def compare_backups(self, uri, backup_home, is_incremental = False, suffix = ""):
         full_dir = backup_home
         full_out = "./backup"
-        if suffix == "0":
+        if suffix != "":
             full_out = "./backup_block_full" + "." + suffix
-        elif suffix != "":
+        if suffix != "" and suffix != "0":
             full_dir = backup_home + "_LOG_FULL" + "." + suffix
-            full_out = "./backup_block_full" + "." + suffix
-            
+    
         if os.path.exists(full_out):
             os.remove(full_out)
-        #
+        
         # Run wt dump on full backup directory
-        #
         self.runWt(['-R', '-h', full_dir, 'dump', uri], outfilename=full_out)
         other_out = "./orig"
         if os.path.exists(other_out):
             os.remove(other_out)
+
         if is_incremental:
-            #
             # Run wt dump on incremental backup
-            #
             if suffix != "":
                 other_dir = backup_home + "_LOG_INCR" + "." + suffix
                 other_out = "./backup_block_incr" + "." + suffix

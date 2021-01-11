@@ -132,7 +132,7 @@ class test_backup_target(test_backup_base):
         #   Close the backup cursor
         updstr="bcdefghi"
         for increment in range(0, 5):
-            full_dir = self.dir + str(increment)
+            full_dir = self.dir + "_LOG_INCR" + str(increment)
             # Add more work to move the logs forward.
             self.update(self.uri, self.dsize, updstr[increment], self.nops)
             self.session.checkpoint(None)
@@ -143,7 +143,8 @@ class test_backup_target(test_backup_base):
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
         self.take_full_backup(full_dir)
-        self.compare_backups(self.uri, full_dir, 'original', True, self.dir, 'backup_incr')
+        print(full_dir, str(increment))
+        self.compare_backups(self.uri, self.dir, True, str(increment))
         self.compare_backups(self.uri, self.dir, True)
 
 if __name__ == '__main__':
