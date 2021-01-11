@@ -230,7 +230,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -240,7 +240,7 @@ class test_backup14(test_backup_base):
         self.remove_data()
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -273,7 +273,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -287,8 +287,8 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri_logged, self.bkp_home, True, str(self.counter))
-        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
@@ -296,7 +296,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri_not_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        self.compare_backups(self.uri_not_logged, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.counter))
 
     def test_backup14(self):
         os.mkdir(self.bkp_home)

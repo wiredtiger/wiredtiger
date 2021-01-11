@@ -251,7 +251,6 @@ class test_backup19(test_backup_base):
         self.session.checkpoint()
         self.take_full_backup()
         self.take_incr_backup()
-
-        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 if __name__ == '__main__':
     wttest.run()

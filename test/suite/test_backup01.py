@@ -89,7 +89,7 @@ class test_backup(test_backup_base):
 
         # And that the contents are the same.
         for i in self.objs:
-            self.compare_backups(i[0], self.dir)
+            self.compare_backups(i[0], self.dir, './')
 
     # Check that a URI doesn't exist, both the meta-data and the file names.
     def confirmPathDoesNotExist(self, uri):
@@ -121,7 +121,7 @@ class test_backup(test_backup_base):
         # Confirm the objects we backed up exist, with correct contents.
         for i in range(0, len(self.objs)):
             if i in l:
-                self.compare_backups(self.objs[i][0], self.dir)
+                self.compare_backups(self.objs[i][0], self.dir, './')
 
         # Confirm the other objects don't exist.
         for i in range(0, len(self.objs)):

@@ -57,31 +57,22 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Compare against two directory paths using the wt dump command. If the second directory path is not provided
     # it checks if the compare
     #
-    def compare_backups(self, uri, backup_home, is_incremental = False, suffix = ""):
-        full_dir = backup_home
-        full_out = "./backup"
-        if suffix != "":
-            full_out = "./backup_block_full" + "." + suffix
-        if suffix != "" and suffix != "0":
-            full_dir = backup_home + "_LOG_FULL" + "." + suffix
+    def compare_backups(self, uri, base_dir_home, other_dir_home, suffix = None):
+        sfx = ""
+        if suffix != None:
+            sfx = "." + suffix 
+        base_out = "./backup_base" + sfx
+        base_dir = base_dir_home + sfx
     
-        if os.path.exists(full_out):
-            os.remove(full_out)
+        if os.path.exists(base_out):
+            os.remove(base_out)
         
-        # Run wt dump on full backup directory
-        self.runWt(['-R', '-h', full_dir, 'dump', uri], outfilename=full_out)
-        other_out = "./orig"
+        # Run wt dump on base backup directory
+        self.runWt(['-R', '-h', base_dir, 'dump', uri], outfilename=base_out)
+        other_out = "./backup_other" + sfx
         if os.path.exists(other_out):
             os.remove(other_out)
-
-        if is_incremental:
-            # Run wt dump on incremental backup
-            if suffix != "":
-                other_dir = backup_home + "_LOG_INCR" + "." + suffix
-                other_out = "./backup_block_incr" + "." + suffix
-                self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
-            else:
-                self.runWt(['-R', 'dump', uri], outfilename=other_out)
-        else:
-            self.runWt(['dump', uri], outfilename=other_out)
-        self.assertEqual(True, compare_files(self, full_out, other_out))
+        # Run wt dump on incremental backup
+        other_dir = other_dir_home + sfx
+        self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
+        self.assertEqual(True, compare_files(self, base_out, other_out))

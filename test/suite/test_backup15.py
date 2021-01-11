@@ -51,8 +51,6 @@ class test_backup15(test_backup_base):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
 
-    full_out = "./backup_block_full"
-    incr_out = "./backup_block_incr"
     logpath = "logpath"
     new_table=False
     initial_backup=False
@@ -260,7 +258,8 @@ class test_backup15(test_backup_base):
             else:
                 self.take_incr_backup()
                 self.take_full_backup()
-            self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
+
+            self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
 if __name__ == '__main__':
     wttest.run()
