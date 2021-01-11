@@ -8,7 +8,7 @@ Internally, the current transaction state is represented by the WT_TXN structure
 
 WiredTiger performs all the operations in transactions. If the user doesn't explicitly declare a transaction, WiredTiger will automatically create a transaction for the user's operation.
 
-@subsection Transaction Lifecycle
+@section Lifecycle
 
 A WiredTiger session creates and managers the transactions' whole lifecycle. A session is only able to manage one transaction at any given time and it cannot run another transaction until the current one completes. Since every session are executed on a single thread, all the operations in the transaction are executed sequentially on the same thread as well.
 
@@ -19,7 +19,7 @@ it or automatically when the user performs an operation if there is no active tr
 
 If the transaction is committed successfully, any write operation it performs is accepted by the database and will be durable to some extent based on the durability setting. Otherwise, all the write operations it has done will be reverted and will not be available any more.
 
-@section Transaction Properties
+@section ACID Properties
 
 Like other databases, transactions in WiredTiger enforces the ACID properties (atomicity, consistency, isolation, and durability).
 
@@ -27,9 +27,11 @@ Like other databases, transactions in WiredTiger enforces the ACID properties (a
 
 All write operations initially happens in memory in WiredTiger and it cannot write them to disk until the entire transaction is committed. Therefore, the size of the transaction must fit in memory.
 
-To rollback the transaction, WiredTiger only needs to mark all the write operations of that transaction as aborted in memory. To ensure no partial transaction is persisted to disk, the eviction threads and the checkpoint threads will do proper visibility checks to make sure each persisted operations are actually visible in regards to their snapshot. For details, please check @ref arch-reconciliation.
+To rollback the transaction, WiredTiger only needs to mark all the write operations of that transaction as aborted in memory. To ensure no partial transaction is persisted to disk, the eviction threads and the checkpoint threads will do proper visibility checks to make sure each persisted operations are actually visible in regards to their snapshot.
 
-There is one exception case that atomicity of transactions is not honored using timestamps in WiredTiger. If the operations in the same transaction are conducted at different timestamps and the checkpoint happens in between the timestamps, only the operations happens before or at the checkpoint timestamp will be persisted in the checkpoint and the operations happen after the checkpoint timestamp in the transaction will be discarded.
+There is one case that atomicity of transactions is not honored using timestamps in WiredTiger. If the operations in the same transaction are conducted at different timestamps and the checkpoint happens in between the timestamps, only the operations happens before or at the checkpoint timestamp will be persisted in the checkpoint and the operations happen after the checkpoint timestamp in the transaction will be discarded.
+
+There is another case that atomicity may be violated if a transaction operates both on tables with logging enabled and disabled after restart. The operations on the tables with logging enabled will survive the restart, while the operations on the non-logged tables may be lost if it is not included in the latest checkpoint.
 
 @subsection Isolation
 
@@ -43,7 +45,7 @@ Each transaction in WiredTiger is given a globally unique transaction id before 
 
 If the transaction has a snapshot, each read will check whether the update's transaction id is in its snapshot. The updates with transaction ids in the snapshot or larger than the largest transaction id in the snapshot is not visible to the reading transaction.
 
-When operating in read committed or read uncommitted isolation levels, it is possible to read different values of the same key, seeing records not seen before, or finding records disappear in the same transaction. This is called phantom read. Under snapshot, WiredTiger guarantees repeated reads returning the same result except one case using timestamp (@ref timestamps).
+When operating in read committed or read uncommitted isolation levels, it is possible to read different values of the same key, seeing records not seen before, or finding records disappear in the same transaction. This is called phantom read. Under snapshot, WiredTiger guarantees repeated reads returning the same result except one case using timestamps.
 
 @subsection Timestamps
 
@@ -62,6 +64,10 @@ The operation is visible only when both its transaction id and its timestamp are
 To read a key, WiredTiger first traverses all the updates of that key still in memory until a visible update is found. The in-memory updates in WiredTiger are organized as a singly linked list with the newest update at the head, called the update chain. If no value is visible on the update chain, it checks the version on the disk image, which is the version that was chosen to be written to disk in the last reconciliation. If it is still invisible, WiredTiger will search the history store to check if there is a version visible to the reader there.
 
 However, the repeated read guarantee under snapshot isolation may break in one case if the timestamps committed are out of order, e.g, U@20 -> U@30 -> U@15. In the above example, reading with timestamp 15 doesn't guarantee to return the third update. In some cases, users may read the second update U@30 if it is moved to the history store.
+
+@subsection Durability
+
+WiredTiger transactions support commit level durability and checkpoint level durability. An operation is commit level durable if logging is enabled on the table. After commit, the operation is guaranteed to survive restart. An operation will only survive across restart under checkpoint durability if it is included in the last complete checkpoint.
 
 @section Prepared Transaction
 
