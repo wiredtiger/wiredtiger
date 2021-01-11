@@ -211,7 +211,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
     uint8_t type;
     int cmp;
     char ts_string[4][WT_TS_INT_STRING_SIZE];
-    bool valid_update_found, txn_non_committed;
+    bool valid_update_found;
 #ifdef HAVE_DIAGNOSTIC
     bool first_record;
 #endif
@@ -331,14 +331,12 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             break;
         }
 
-        txn_non_committed =
-          __rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn);
-
         /*
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!txn_non_committed && (hs_durable_ts <= rollback_timestamp)) {
+        if (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn) &&
+          (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RTS,
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
               "timestamp: %s, stable timestamp: %s and txnid : %" PRIu64,
@@ -833,10 +831,11 @@ __rollback_page_needs_abort(
 
     /*
      * The rollback operation should be performed on this page when any one of the following is
-     * greater than the given timestamp:
+     * greater than the given timestamp or during recovery if the newest transaction id on the page
+     * is greater than or equal to recovered checkpoint snapshot min:
      * 1. The reconciled replace page max durable timestamp.
      * 2. The reconciled multi page max durable timestamp.
-     * 3. The on page address max durable timestamp and transaction id.
+     * 3. The on page address max durable timestamp.
      * 4. The off page address max durable timestamp.
      */
     if (mod != NULL && mod->rec_result == WT_PM_REC_REPLACE) {
