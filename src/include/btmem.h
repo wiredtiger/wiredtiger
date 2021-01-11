@@ -296,7 +296,7 @@ struct __wt_multi {
 
 /*
  * WT_OVFL_TRACK --
- *  Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
+ *	Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
  * so we don't allocate the structures to track them until we actually see them in the data.
  */
 struct __wt_ovfl_track {
@@ -507,7 +507,7 @@ struct __wt_page_index {
 
 /*
  * WT_COL_VAR_REPEAT --
- *  Variable-length column-store pages have an array of page entries with RLE counts
+ *	Variable-length column-store pages have an array of page entries with RLE counts
  * greater than 1 when reading the page, so it's not necessary to walk the page counting
  * records to find a specific entry. We can do a binary search in this array, then an
  * offset calculation to find the cell.
@@ -832,6 +832,7 @@ struct __wt_page_deleted {
  * WT_REF_HIST --
  *	State information of a ref at a single point in time.
  */
+#ifdef HAVE_DIAGNOSTIC
 struct __wt_ref_hist {
     WT_SESSION_IMPL *session;
     const char *name;
@@ -840,6 +841,7 @@ struct __wt_ref_hist {
     uint16_t line;
     uint16_t state;
 };
+#endif
 
 /*
  * WT_REF --

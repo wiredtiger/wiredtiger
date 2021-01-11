@@ -19,7 +19,7 @@ struct __wt_rec_kv {
 
 /*
  * WT_REC_DICTIONARY --
- *  We optionally build a dictionary of values for leaf pages. Where
+ *	We optionally build a dictionary of values for leaf pages. Where
  * two value cells are identical, only write the value once, the second
  * and subsequent copies point to the original cell. The dictionary is
  * fixed size, but organized in a skip-list to make searches faster.
