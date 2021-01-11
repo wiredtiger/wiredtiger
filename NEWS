@@ -15,6 +15,7 @@ Significant changes:
 * WT-5225	Create persistent file for History store
 * WT-5500	Implement new history store format
 * WT-6528	Remove offensive terminology in WiredTiger API and source code
+* WT-6677	Map read committed/uncommitted isolation to read-only transaction
 * WT-6710	Change default transaction isolation to snapshot
 * WT-4833	Drop support for Python2
 * WT-6410	Remove WT_SESSION.rebalance
