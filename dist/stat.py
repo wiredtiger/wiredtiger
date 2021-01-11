@@ -5,7 +5,7 @@ import re, string, sys, textwrap
 from dist import compare_srcfile, format_srcfile
 
 # Read the source files.
-from stat_data import groups, dsrc_stats, connection_stats, join_stats, \
+from stat_data import groups, dsrc_stats, connection_stats, conn_dsrc_stats, join_stats, \
     session_stats
 
 def print_struct(title, name, base, stats):
@@ -33,6 +33,8 @@ for line in open('../src/include/stat.h', 'r'):
     elif line.count('Statistics section: BEGIN'):
         f.write('\n')
         skip = 1
+        connection_stats.extend(conn_dsrc_stats)
+        dsrc_stats.extend(conn_dsrc_stats)
         print_struct(
             'connections', 'connection', 1000, connection_stats)
         print_struct('data sources', 'dsrc', 2000, dsrc_stats)
@@ -251,6 +253,9 @@ __wt_stat_''' + name + '''_aggregate(
 f = open(tmp_file, 'w')
 f.write('/* DO NOT EDIT: automatically built by dist/stat.py. */\n\n')
 f.write('#include "wt_internal.h"\n')
+
+dsrc_stats.extend(conn_dsrc_stats)
+connection_stats.extend(conn_dsrc_stats)
 
 print_func('dsrc', 'WT_DATA_HANDLE', dsrc_stats)
 print_func('connection', 'WT_CONNECTION_IMPL', connection_stats)
