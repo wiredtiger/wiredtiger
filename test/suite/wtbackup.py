@@ -54,19 +54,19 @@ class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 os.remove(home_full_dir)
             os.makedirs(home_full_dir + '/' + logpath)
     #
-    # Compare against two directory paths using the wt dump command. If the second directory path is not provided
-    # it checks if the compare
+    # Compare against two directory paths using the wt dump command. The suffix allows the option
+    # of create output files to distinct.
     #
     def compare_backups(self, uri, base_dir_home, other_dir_home, suffix = None):
         sfx = ""
         if suffix != None:
-            sfx = "." + suffix 
+            sfx = "." + suffix
         base_out = "./backup_base" + sfx
         base_dir = base_dir_home + sfx
-    
+
         if os.path.exists(base_out):
             os.remove(base_out)
-        
+
         # Run wt dump on base backup directory
         self.runWt(['-R', '-h', base_dir, 'dump', uri], outfilename=base_out)
         other_out = "./backup_other" + sfx
