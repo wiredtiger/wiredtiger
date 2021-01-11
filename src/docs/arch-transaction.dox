@@ -70,11 +70,11 @@ There is another case that atomicity may be violated if a transaction operates b
 
 Isolation is one of the important feature of database to decide whether one transaction can read updates done by the other concurrent transactions. WiredTiger supports three isolation levels, read uncommitted, read committed, and snapshot. However, only snapshot is supported for write operations. By default, WiredTiger runs in snapshot isolation.
 
-1. Under snapshot isolation, a transaction is able to see updates done by other transactions committed before it starts.
+1. Under snapshot isolation, a transaction is able to see updates done by other transactions that are committed before it starts.
 2. Under read committed isolation, a transaction is able to see updates done by other transactions that have been committed when the reading happens.
 3. Under read uncommitted isolation, a transaction is able to see updates done by all the existing transactions, including the concurrent ones.
 
-Each transaction in WiredTiger is given a globally unique transaction id before doing the first write operation and this id is written to each operation done by the same transaction. If the transaction is running under snapshot isolation or read committed isolation, it will obtain a transaction snapshot which includes a list of uncommitted concurrent transactions' ids at the appropriate time to check the visibility of updates. For snapshot transaction, it is at the start time and it will use the same snapshot across its whole life cycle. For read committed transaction, it will refresh its transaction every time it does a search before reading. Due to the overhead of refreshing the snapshot, it uses the same snapshot for all the reads before calling another search. Read committed transaction doesn't have a snapshot.
+Each transaction in WiredTiger is given a globally unique transaction id before doing the first write operation and this id is written to each operation done by the same transaction. If the transaction is running under snapshot isolation or read committed isolation, it will obtain a transaction snapshot which includes a list of uncommitted concurrent transactions' ids at the appropriate time to check the visibility of updates. For snapshot transaction, it is at the beginning of the transaction and it will use the same snapshot across its whole life cycle. For read committed transaction, it will obtain a new snapshot every time it does a search before reading. Due to the overhead of obtaining snapshot, it uses the same snapshot for all the reads before calling another search. Read uncommitted transactions don't have a snapshot.
 
 If the transaction has a snapshot, each read will check whether the update's transaction id is in its snapshot. The updates with transaction ids in the snapshot or larger than the largest transaction id in the snapshot is not visible to the reading transaction.
 
@@ -82,7 +82,7 @@ When operating in read committed or read uncommitted isolation levels, it is pos
 
 @subsection Timestamps
 
-WiredTiger provides a mechanism for the user to control when his operations should be visible, called timestamps. Timestamps are user specified sequence numbers that are associated with each operation that is used later for visibility check. User can assign an immutable read timestamp to a transaction at beginning. A transaction can only see updates with timestamps smaller or equal to its read timestamp. Note that read timestamp 0 means no read timestamp and the transaction can see the updates regardless of timestamps. Also note that the timestamps don't have to be correspond to physical times. The users can use any 64 bit unsigned integer as logical timestamps. For a single operation, the timestamps associated with the operations don't have to be the same as long as they are monotonically increasing.
+WiredTiger provides a mechanism for the user to control when his operations should be visible, called timestamps. Timestamps are user specified sequence numbers that are associated with each operation. In addition, user can assign an immutable read timestamp to a transaction at the beginning. A transaction can only see updates with timestamps smaller or equal to its read timestamp. Note that read timestamp 0 means no read timestamp and the transaction can see the updates regardless of timestamps. Also note that timestamps don't have to be derived from physical times. User can use any 64 bit unsigned integer as logical timestamps. For a single operation, the timestamps associated with the operations in the same transaction don't have to be the same as long as they are monotonically increasing.
 
 Apart from the operation level timestamps, the users are also responsible for managing the global level timestamps, i.e, the oldest timestamp, and the stable timestamp. The oldest timestamp is the timestamp that should be visible by all concurrent transactions. The stable timestamp is the minimum timestamp that a new operation can commit at.
 
@@ -90,27 +90,29 @@ Only transactions running in snapshot isolation can run with timestamps.
 
 @subsection Visibility
 
-The visibility of the transactions in WiredTiger considers both the transaction snapshot and timestamp.
-
-The operation is visible only when both its transaction id and its timestamp are visible to the reading transaction.
+The visibility of the transactions in WiredTiger considers both the opertions' transaction ids and timestamps. The operation is visible only when both its transaction id and its timestamp are visible to the reading transaction.
 
 To read a key, WiredTiger first traverses all the updates of that key still in memory until a visible update is found. The in-memory updates in WiredTiger are organized as a singly linked list with the newest update at the head, called the update chain. If no value is visible on the update chain, it checks the version on the disk image, which is the version that was chosen to be written to disk in the last reconciliation. If it is still invisible, WiredTiger will search the history store to check if there is a version visible to the reader there.
 
-However, the repeated read guarantee under snapshot isolation may break in one case if the timestamps committed are out of order, e.g, U@20 -> U@30 -> U@15. In the above example, reading with timestamp 15 doesn't guarantee to return the third update. In some cases, users may read the second update U@30 if it is moved to the history store.
+The repeated read guarantee under snapshot isolation may break in one case if the timestamps committed to the updates are out of order, e.g,
+
+U@20 -> U@30 -> U@15.
+
+In the above example, reading with timestamp 15 doesn't guarantee to return the third update. In some cases, users may read the second update U@30 if it is moved to the history store.
 
 @subsection Durability
 
-WiredTiger transactions support commit level durability and checkpoint level durability. An operation is commit level durable if logging is enabled on the table. After commit, the operation is guaranteed to survive restart. An operation will only survive across restart under checkpoint durability if it is included in the last complete checkpoint.
+WiredTiger transactions support commit level durability and checkpoint level durability. An operation is commit level durable if logging is enabled on the table. After it has been successfully commit, the operation is guaranteed to survive restart. An operation will only survive across restart under checkpoint durability if it is included in the last successful checkpoint.
 
 @section Prepared Transaction
 
 WiredTiger introduces prepared transaction to meet the needs of implementing distributed transactions through two-phase commit. Prepared transactions only work under snapshot isolation.
 
-Instead of just having a starting, operating, and then rollback or commit phase, it has a prepared phase before the rollback or commit phase. After prepare is called, WiredTiger releases the transaction snapshot and prohibit any more read or write operations.
+Instead of just having the beginning, operating, and rollback or commit phase, it has a prepared phase before the rollback or commit phase. After prepare is called, WiredTiger releases the transaction's snapshot and prohibit any more read or write operations on the transaction.
 
-By introducing the prepared stage, a two-phase distributed transaction algorithm can relay on the prepared state to reach consensus among all the nodes for committing.
+By introducing the prepared stage, a two-phase distributed transaction algorithm can rely on the prepared state to reach consensus among all the nodes for committing.
 
-Along with the prepared phase, WiredTiger introduces the prepared timestamp and durable timestamp. They are to prevent the slow prepared transactions blocking the movement of the global stable timestamp. The stable timestamp is allowed to move beyond the prepared timestamp and at the commit time, the prepared transaction can then be committed after the current stable timestamp with a larger durable timestamp.
+Along with the prepared phase, WiredTiger introduces the prepared timestamp and durable timestamp. They are to prevent the slow prepared transactions blocking the movement of the global stable timestamp, which may cause excessive amount of data being pinned in memory. The stable timestamp is allowed to move beyond the prepared timestamp and at the commit time, the prepared transaction can then be committed after the current stable timestamp with a larger durable timestamp.
 
-The visibility of the prepared transaction is also special when in the prepared state. Since in the prepared state, the transaction has released its snapshot, it should be visible to the transactions starting after that based on the normal visibility rule. However, the transaction has not been committed and cannot be visible yet. In this situation, WiredTiger either ignores the prepared update and try to read the older updates if it is configured to do so or returns the WT_PREPARE_CONFLICT error code for the caller to retry later.  
+The visibility of the prepared transaction is also special when in the prepared state. Since in the prepared state, the transaction has released its snapshot, it should be visible to the transactions starting after that based on the normal visibility rule. However, the prepared transaction has not been committed and cannot be visible yet. In this situation, WiredTiger either ignores the prepared update and tries to read the older updates if it is configured to do so, or returns the WT_PREPARE_CONFLICT error code for the caller to retry later.  
 */
