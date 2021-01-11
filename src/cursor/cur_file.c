@@ -629,9 +629,10 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
     }
 
     /*
-     * Temporarily set the session's data handle. Reopen may be called either as part of an open API
-     * call, or during cursor sweep as part of a different API call, so we need to restore the data
-     * handle.
+     * Temporarily set the session's data handle to the data handle in the cursor. Reopen may be
+     * called either as part of an open API call, or during cursor sweep as part of a different API
+     * call, so we need to restore the original data handle that was in our session after the reopen
+     * completes.
      */
     WT_WITH_DHANDLE(session, dhandle, ret = __curfile_reopen_int(cursor));
     return (ret);
