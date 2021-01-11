@@ -27,6 +27,8 @@ tree - it describes terms internal to the storage engine.
 <tr><td>transaction<td>A unit of work performed in WiredTiger that is atomic and consistent with the specified isolation levels, and durability levels.
 <tr><td>session<td>The container that managers transactions and performs the transactional operations on behalf of the users in a single thread.
 <tr><td>atomicity<td>The operations in a single transaction either all occur or nothing occurs after the transaction finishes.
+<tr><td>isolation<td>Isolation determines whether a transaction should see the operations done by other concurrent transactions.
+<tr><td>durability<td>Durability is the property that guarantees that transactions that have been committed will survive permanently.
 </table>
 
 */
