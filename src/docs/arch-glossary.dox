@@ -24,7 +24,7 @@ tree - it describes terms internal to the storage engine.
 <table>
 <caption id="transaction_terms">Transaction Term Table</caption>
 <tr><th>Term <th>Definition
-<tr><td>transaction<td>A unit of work perfomed in WiredTiger that is atomic and consistent with the specified isolation levels, and durablity levels.
+<tr><td>transaction<td>A unit of work performed in WiredTiger that is atomic and consistent with the specified isolation levels, and durability levels.
 <tr><td>session<td>The container that managers transactions and performs the transactional operations on behalf of the users in a single thread.
 <tr><td>atomicity<td>The operations in a single transaction either all occur or nothing occurs after the transaction finishes.
 </table>
