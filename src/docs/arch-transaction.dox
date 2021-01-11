@@ -12,7 +12,40 @@ WiredTiger performs all the operations in transactions. If the user doesn't expl
 
 A WiredTiger session creates and managers the transactions' whole lifecycle. A session is only able to manage one transaction at any given time and it cannot run another transaction until the current one completes. Since every session are executed on a single thread, all the operations in the transaction are executed sequentially on the same thread as well.
 
-A diagram
+@plantuml_start{transaction_lifecycle.png}
+@startuml{transaction_lifecycle.png}
+:Transaction Lifecycle;
+
+split
+    :perform a read operation
+    (Create an auto transaction);
+split again
+    :perform a write operation
+    (Create an auto transaction with a transaction id);
+split again
+    :declare the beginning of a transaction;
+    :perform read operations;
+    :perform a write operation
+    (Assign a transaction id);
+    :perform read write operations;
+split again
+    :declare the beginning of a transaction;
+    :perform read operations;
+    :perform a write operation
+    (Assign a transaction id);
+    :perform read write operations;
+    :prepare the transaction;
+end split
+    
+split
+    :rollback;
+split again
+    :commit;
+end split
+
+Stop
+@enduml
+@plantuml_end
 
 A transaction starts when the user explicitly declares
 it or automatically when the user performs an operation if there is no active transaction in the session that the user is operating on. If it is declared explicitly, it will continue to be active until it is committed or rolled back. If it is created automatically, it will cease to be active after the user operation either successfully completes or fails.
