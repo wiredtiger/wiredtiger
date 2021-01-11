@@ -28,7 +28,7 @@
 
 import wiredtiger
 import os, shutil
-from test_backup_base import test_backup_base
+from wtbackup import test_backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
@@ -43,7 +43,7 @@ class test_backup14(test_backup_base):
     uri2="table:extra"
     uri_logged="table:logged_table"
     uri_not_logged="table:not_logged_table"
-    full_out = "./backup_block_full"
+
     incr_out = "./backup_block_incr"
     bkp_home = "WT_BLOCK"
     home_full = "WT_BLOCK_LOG_FULL"
@@ -230,8 +230,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -241,8 +240,7 @@ class test_backup14(test_backup_base):
         self.remove_data()
         self.take_full_backup()
         self.take_incr_backup()
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -275,8 +273,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri, None)
         self.take_full_backup()
         self.take_incr_backup()
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -290,9 +287,8 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_logged, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
+        self.compare_backups(self.uri_logged, self.bkp_home, True, str(self.counter))
+        self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
@@ -300,23 +296,7 @@ class test_backup14(test_backup_base):
         self.add_data(self.uri_not_logged, 'bulk')
         self.take_full_backup()
         self.take_incr_backup()
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_not_logged, paths['full_backup_dir'], paths['full_backup_out'], True, paths['incr_backup_dir'], paths['incr_backup_out'])
-
-    def setup_compare_backup_paths(self):
-        full_backup_out = self.full_out + '.' + str(self.counter)
-        full_backup_dir = self.home_full + '.' + str(self.counter)
-        if self.counter == 0:
-            full_backup_dir = self.home
-
-        incr_backup_out = self.incr_out + '.' + str(self.counter)
-        incr_backup_dir = self.home_incr + '.' + str(self.counter)
-        return {
-            'full_backup_dir': full_backup_dir,
-            'full_backup_out': full_backup_out,
-            'incr_backup_dir': incr_backup_dir,
-            'incr_backup_out': incr_backup_out
-        }
+        self.compare_backups(self.uri_not_logged, self.bkp_home, True, str(self.counter))
 
     def test_backup14(self):
         os.mkdir(self.bkp_home)

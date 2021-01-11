@@ -28,7 +28,7 @@
 
 import glob, os, shutil, string
 import wiredtiger
-from test_backup_base import test_backup_base
+from wtbackup import test_backup_base
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
@@ -132,7 +132,7 @@ class test_backup_target(test_backup_base):
         # Confirm the objects we backed up exist, with correct contents.
         for i in range(0, len(self.objs)):
             if not l or i in l:
-                self.compare_backups(self.objs[i][0], self.dir, 'backup')
+                self.compare_backups(self.objs[i][0], self.dir)
 
         # Confirm the other objects don't exist.
         if l:

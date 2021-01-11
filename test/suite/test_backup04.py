@@ -28,7 +28,7 @@
 
 import threading, time, wiredtiger
 import glob, os, shutil
-from test_backup_base import test_backup_base
+from wtbackup import test_backup_base
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from wtthread import op_thread
@@ -144,7 +144,7 @@ class test_backup_target(test_backup_base):
         # backup to the original database and the full backup database.
         self.take_full_backup(full_dir)
         self.compare_backups(self.uri, full_dir, 'original', True, self.dir, 'backup_incr')
-        self.compare_backups(self.uri, self.dir, 'backup_incr', True)
+        self.compare_backups(self.uri, self.dir, True)
 
 if __name__ == '__main__':
     wttest.run()

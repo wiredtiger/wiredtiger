@@ -28,7 +28,7 @@
 
 import wiredtiger
 import os, shutil
-from test_backup_base import test_backup_base
+from wtbackup import test_backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
@@ -260,14 +260,7 @@ class test_backup15(test_backup_base):
             else:
                 self.take_incr_backup()
                 self.take_full_backup()
-            full_backup_out = self.full_out + '.' + str(self.counter)
-            full_backup_dir = self.home_full + '.' + str(self.counter)
-            if self.counter == 0:
-                full_backup_dir = self.home
-
-            incr_backup_out = self.incr_out + '.' + str(self.counter)
-            incr_backup_dir = self.home_incr + '.' + str(self.counter)
-            self.compare_backups(self.uri, full_backup_dir, full_backup_out, True, incr_backup_dir, incr_backup_out)
+            self.compare_backups(self.uri, self.bkp_home, True, str(self.counter))
 
 if __name__ == '__main__':
     wttest.run()
