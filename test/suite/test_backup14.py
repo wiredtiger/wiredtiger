@@ -44,7 +44,6 @@ class test_backup14(test_backup_base):
     uri_logged="table:logged_table"
     uri_not_logged="table:not_logged_table"
 
-    incr_out = "./backup_block_incr"
     bkp_home = "WT_BLOCK"
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"

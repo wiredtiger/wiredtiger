@@ -50,8 +50,6 @@ class test_backup19(test_backup_base):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
 
-    full_out = "./backup_block_full"
-    incr_out = "./backup_block_incr"
     logpath = "logpath"
     new_table=False
     initial_backup=False
