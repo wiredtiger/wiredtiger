@@ -18,7 +18,7 @@ The default transaction isolation level has been changed from "read-committed" t
 in WiredTiger.
 </dd>
 
-<dt>Read committed/uncommitted isolations</dt>
+<dt>Read committed/uncommitted isolation level</dt>
 <dd>
 If the user provides a read committed/uncommitted isolation, WiredTiger will perform only
 read operations under this isolation. Any write operations will get an error.
