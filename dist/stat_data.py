@@ -566,6 +566,7 @@ connection_stats = [
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
     TxnStat('txn_sync', 'transaction sync calls'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
+
     ##########################################
     # Yield statistics
     ##########################################
@@ -633,7 +634,6 @@ dsrc_stats = [
     ##########################################
     # Cache and eviction statistics
     ##########################################
-
     CacheStat('cache_eviction_fail', 'data source pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_walk_passes', 'eviction walk passes of a file'),
 
@@ -734,7 +734,6 @@ dsrc_stats = [
     # Session operations
     ##########################################
     SessionOpStat('session_compact', 'object compaction'),
-
 ]
 
 dsrc_stats = sorted(dsrc_stats, key=attrgetter('desc'))
@@ -797,9 +796,9 @@ conn_dsrc_stats = [
     CacheStat('cache_write', 'pages written from cache'),
     CacheStat('cache_write_hs', 'page written requiring history store records'),
     CacheStat('cache_write_restore', 'pages written requiring in-memory restoration'),
-  ##########################################
+    ##########################################
     # Cursor operations
-  ##########################################
+    ##########################################
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
