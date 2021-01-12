@@ -180,3 +180,87 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         other_dir = other_dir_home + sfx
         self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
         self.assertEqual(True, compare_files(self, base_out, other_out))
+
+    def range_copy(self, filename, offset, size, id, backup_incr_dir):
+        read_from = filename
+        old_to = backup_incr_dir + '.' + str(id - 1) + '/' + filename
+        write_to = backup_incr_dir + '.' + str(id) + '/' + filename
+        rfp = open(read_from, "r+b")
+        self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
+        rfp2 = open(old_to, "r+b")
+        rfp.seek(offset, 0)
+        rfp2.seek(offset, 0)
+        buf = rfp.read(size)
+        buf2 = rfp2.read(size)
+        # This assertion tests that the offset range we're given actually changed
+        # from the previous backup.
+        self.assertNotEqual(buf, buf2)
+        wfp = open(write_to, "w+b")
+        wfp.seek(offset, 0)
+        wfp.write(buf)
+        rfp.close()
+        rfp2.close()
+        wfp.close()
+
+    def copy_file(self, newfile, dir, logpath):
+        copy_from = newfile
+        if ("WiredTigerLog" in newfile):
+            copy_to = dir + '/' + logpath
+        else:
+            copy_to = dir
+        shutil.copy(copy_from, copy_to)
+
+    def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir, id, logpath):
+        config = 'incremental=(file=' + newfile + ')'
+        # For each file listed, open a duplicate backup cursor and copy the blocks.
+        incr_c = self.session.open_cursor(None, bkup_c, config)
+
+        # We cannot use 'for newfile in incr_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
+        while True:
+            ret = incr_c.next()
+            if ret != 0:
+                break
+            incrlist = incr_c.get_keys()
+            offset = incrlist[0]
+            size = incrlist[1]
+            curtype = incrlist[2]
+            self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
+            if curtype == wiredtiger.WT_BACKUP_FILE:
+                # Copy the whole file.
+                h = backup_incr_dir + '.' + str(id)
+                self.copy_file(newfile, h, logpath)
+            else:
+                # Copy the block range.
+                self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
+                self.range_copy(newfile, offset, size, id, backup_incr_dir)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        incr_c.close()
+
+    #backup_incr_dir
+    #options: [id, max_iteration]
+    def take_incr_backup(self, backup_incr_dir, id, max_iteration, logpath):
+        self.assertTrue(id > 0)
+
+        # Open the backup data source for incremental backup.
+        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '")'
+        self.pr(buf)
+        bkup_c = self.session.open_cursor('backup:', None, buf)
+
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
+            newfile = bkup_c.get_key()
+            self.copy_file(newfile, backup_incr_dir + '.0', logpath)
+            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, logpath)
+            # For each file, we want to copy it into each of the later incremental directories.
+            for i in range(id, max_iteration):
+                h = backup_incr_dir + '.' + str(i)
+                self.copy_file(newfile, h, logpath)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        bkup_c.close()
