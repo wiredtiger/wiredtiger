@@ -31,7 +31,7 @@ from suite_subprocess import suite_subprocess
 from helper import compare_files
 
 # Shared base class used by backup tests.
-class test_backup_base(wttest.WiredTigerTestCase, suite_subprocess):
+class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Set up all the directories needed for the test. We have a full backup directory for each
     # iteration and an incremental backup for each iteration. That way we can compare the full and

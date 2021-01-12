@@ -28,14 +28,14 @@
 
 import wiredtiger
 import os, shutil
-from wtbackup import test_backup_base
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup15.py
 # Test cursor backup with a block-based incremental cursor.
-class test_backup15(test_backup_base):
+class test_backup15(backup_base):
     bkp_home = "WT_BLOCK"
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
@@ -258,7 +258,6 @@ class test_backup15(test_backup_base):
             else:
                 self.take_incr_backup()
                 self.take_full_backup()
-
             self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
 if __name__ == '__main__':

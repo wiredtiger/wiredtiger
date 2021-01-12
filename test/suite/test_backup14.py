@@ -28,14 +28,14 @@
 
 import wiredtiger
 import os, shutil
-from wtbackup import test_backup_base
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup14.py
 # Test cursor backup with a block-based incremental cursor.
-class test_backup14(test_backup_base):
+class test_backup14(backup_base):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
@@ -287,7 +287,6 @@ class test_backup14(test_backup_base):
         self.take_full_backup()
         self.take_incr_backup()
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
-        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #

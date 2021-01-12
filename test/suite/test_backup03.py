@@ -28,14 +28,14 @@
 
 import glob, os, shutil, string
 import wiredtiger
-from wtbackup import test_backup_base
+from wtbackup import backup_base
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
 # test_backup03.py
 #    Utilities: wt backup
 # Test cursor backup with target URIs
-class test_backup_target(test_backup_base):
+class test_backup_target(backup_base):
     dir='backup.dir'                    # Backup directory name
 
     # This test is written to test LSM hot backups: we test a simple LSM object

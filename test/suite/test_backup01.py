@@ -31,7 +31,7 @@ import os
 import shutil
 import string
 import time
-from wtbackup import test_backup_base
+from wtbackup import backup_base
 import wiredtiger
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from helper import compare_files
@@ -39,7 +39,7 @@ from helper import compare_files
 # test_backup.py
 #    Utilities: wt backup
 # Test backup (both backup cursors and the wt backup command).
-class test_backup(test_backup_base):
+class test_backup(backup_base):
     dir='backup.dir'            # Backup directory name
 
     pfx = 'test_backup'

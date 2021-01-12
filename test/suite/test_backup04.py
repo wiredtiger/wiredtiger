@@ -28,7 +28,7 @@
 
 import threading, time, wiredtiger
 import glob, os, shutil
-from wtbackup import test_backup_base
+from wtbackup import backup_base
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from wtthread import op_thread
@@ -36,7 +36,7 @@ from wtthread import op_thread
 # test_backup04.py
 #    Utilities: wt backup
 # Test incremental cursor backup.
-class test_backup_target(test_backup_base):
+class test_backup_target(backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
 
