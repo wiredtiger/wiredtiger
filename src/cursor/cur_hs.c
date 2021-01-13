@@ -408,8 +408,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_prev_hs_tombstone);
+            WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
 
@@ -497,8 +496,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * we can skip it.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone);
-            WT_STAT_DATA_INCR(session, cursor_next_hs_tombstone);
+            WT_STAT_CONN_DATA_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
 

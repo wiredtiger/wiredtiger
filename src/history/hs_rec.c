@@ -365,8 +365,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  */
                 if (upd->start_ts != upd->durable_ts) {
                     WT_ASSERT(session, min_insert_ts < upd->durable_ts);
-                    WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
-                    WT_STAT_DATA_INCR(session, cache_hs_order_lose_durable_timestamp);
+                    WT_STAT_CONN_DATA_INCR(session, cache_hs_order_lose_durable_timestamp);
                 }
                 __wt_verbose(session, WT_VERB_TIMESTAMP,
                   "fixing out-of-order updates during insertion; start_ts=%s, durable_start_ts=%s, "
@@ -375,8 +374,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                   __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
                   __wt_timestamp_to_string(min_insert_ts, ts_string[2]));
                 upd->start_ts = upd->durable_ts = min_insert_ts;
-                WT_STAT_CONN_INCR(session, cache_hs_order_fixup_insert);
-                WT_STAT_DATA_INCR(session, cache_hs_order_fixup_insert);
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_order_fixup_insert);
             } else if (upd->start_ts != WT_TS_NONE)
                 /*
                  * Don't reset to WT_TS_NONE as we don't want to clear the timestamps for updates
@@ -602,16 +600,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
-                WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-                WT_STAT_DATA_INCR(session, cache_hs_write_squash);
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
                 squashed = false;
             }
         }
 
-        if (modifies.size > 0) {
-            WT_STAT_CONN_INCR(session, cache_hs_write_squash);
-            WT_STAT_DATA_INCR(session, cache_hs_write_squash);
-        }
+        if (modifies.size > 0)
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -773,10 +768,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * will be clobbered by our fix-up process. Keep track of how often this is happening.
          */
         if (hs_cbt->upd_value->tw.start_ts != hs_cbt->upd_value->tw.durable_start_ts ||
-          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts) {
-            WT_STAT_CONN_INCR(session, cache_hs_order_lose_durable_timestamp);
-            WT_STAT_DATA_INCR(session, cache_hs_order_lose_durable_timestamp);
-        }
+          hs_cbt->upd_value->tw.stop_ts != hs_cbt->upd_value->tw.durable_stop_ts)
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_order_lose_durable_timestamp);
 
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "fixing existing out-of-order updates by moving them; start_ts=%s, durable_start_ts=%s, "
