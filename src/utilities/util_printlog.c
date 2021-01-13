@@ -34,11 +34,13 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
     char *end_str;
     char *ofile;
     char *start_str;
+    int n_args;
 
     flags = 0;
     ofile = NULL;
     WT_INIT_LSN(&start_lsn);
     WT_INIT_LSN(&end_lsn);
+    WT_ZERO_LSN(&end_lsn);
     while ((ch = __wt_getopt(progname, argc, argv, "f:e:s:mx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
@@ -52,19 +54,29 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
             LF_SET(WT_TXN_PRINTLOG_HEX);
             break;
         case 's':
+            // start_str = __wt_optarg;
+            // // start_lsn = atoi(start_str);
+            // if (sscanf(start_str, "%" SCNu32 ",%" SCNu32, &start_lsnfile, &start_lsnoffset) == 2)
+            //     WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
+            //     printf("sscanf succeed\n");
+            //     printf("sscanf read in %" PRIu32 ", %" PRIu32 "\n",start_lsnfile, start_lsnoffset);
+            // printf("Start option file: %" PRIu32 ", offset: %" PRIu32 "\n", start_lsn.l.file, start_lsn.l.offset);
+
             start_str = __wt_optarg;
-            // start_lsn = atoi(start_str);
-            if (sscanf(start_str, "%" SCNu32 ",%" SCNu32, &start_lsnfile, &start_lsnoffset) == 2)
+            n_args = sscanf(start_str, "%" SCNu32 ",%" SCNu32 ",%" SCNu32 ",%" SCNu32, &start_lsnfile, &start_lsnoffset, &end_lsnfile, &end_lsnoffset);
+            if (n_args == 2){
                 WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
-                printf("sscanf succeed\n");
-                printf("sscanf read in %" PRIu32 ", %" PRIu32 "\n",start_lsnfile, start_lsnoffset);
-            printf("Start option file: %" PRIu32 ", offset: %" PRIu32 "\n", start_lsn.l.file, start_lsn.l.offset);
+            } else if (n_args == 4){
+                WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
+                WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
+            } else {
+                printf("Invalid start/end\n");
+            }
             break;
         case 'e':
             end_str = __wt_optarg;
             if (sscanf(end_str, "%" SCNu32 ",%" SCNu32, &end_lsnfile, &end_lsnoffset) == 2)
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
-            printf("Start option file: %" PRIu32 "offset: %" PRIu32 "\n", end_lsn.l.file, end_lsn.l.offset);
             break;
         case '?':
         default:

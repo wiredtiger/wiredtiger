@@ -2089,11 +2089,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     lastlog = 0;
     if (log != NULL) {
         allocsize = log->allocsize;
-        if (end_range_lsnp != NULL){
-            WT_ASSIGN_LSN(&end_lsn, end_range_lsnp);
-        } else {
-            WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-        }
+        WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
         if (start_range_lsnp != NULL){
             /* 
              * Check to see if the user set offset is in allignment,
@@ -2147,11 +2143,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
         } else {
             WT_SET_LSN(&start_lsn, firstlog, 0);
         }
-        if (end_range_lsnp != NULL){
-            WT_ASSIGN_LSN(&end_lsn, end_range_lsnp);
-        } else {
-            WT_SET_LSN(&end_lsn, lastlog, 0);
-        }
+        WT_SET_LSN(&end_lsn, lastlog, 0);
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
     if (lsnp != NULL) {
@@ -2241,6 +2233,16 @@ advance:
              */
             prev_eof = rd_lsn;
             WT_SET_LSN(&rd_lsn, rd_lsn.l.file + 1, 0);
+            /*
+             * Check the user define end lsn offset and file here
+             */
+            // printf("Checking user defined end lsn:\nl.file = %" PRIu32 "\nl.offset = %" PRIu32 "\n",
+            //     end_range_lsnp->l.file, end_range_lsnp->l.offset);
+            // if (!WT_IS_ZERO_LSN(end_range_lsnp)){
+            //     if (rd_lsn.l.file > end_range_lsnp->l.file || rd_lsn.l.offset > end_range_lsnp->l.offset){
+            //         break;
+            //     }
+            // }
             if (rd_lsn.l.file > end_lsn.l.file)
                 break;
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
@@ -2420,7 +2422,13 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_ONE))
                 break;
         }
-        // If next > end break
+        if (!WT_IS_ZERO_LSN(end_range_lsnp)){
+            if (next_lsn.l.file > end_range_lsnp->l.file){
+                break;
+            } else if (next_lsn.l.file == end_range_lsnp->l.file && next_lsn.l.offset > end_range_lsnp->l.offset){
+                break;
+            }
+        }
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 
