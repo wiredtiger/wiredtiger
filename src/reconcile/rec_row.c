@@ -915,6 +915,12 @@ __wt_rec_row_leaf(
                      * ever need to blow away history store content, so we can skip this.
                      */
                     if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
+                        /*
+                         * FIXME-WT-7053: we will hit the dhandle deadlock if we open multiple
+                         * history store cursors in reconciliation. Once it is fixed, we can move
+                         * the open and close of the history store cursor inside the delete key
+                         * function.
+                         */
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
                         WT_ERR(__wt_hs_delete_key_from_ts(
                           session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
