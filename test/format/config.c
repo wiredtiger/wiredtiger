@@ -55,7 +55,6 @@ static void config_pct(void);
 static void config_reset(void);
 static void config_transaction(void);
 
-
 /*
  * config_final --
  *     Final run initialization.
