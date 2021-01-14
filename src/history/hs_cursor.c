@@ -197,6 +197,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     uint8_t *p, recno_key_buf[WT_INTPACK64_MAXSIZE], upd_type;
     bool upd_found;
 
+    hs_cursor = NULL;
     mod_upd = NULL;
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
