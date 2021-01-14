@@ -222,12 +222,11 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._ttyDescriptor = None
         WiredTigerTestCase._seeds = [521288629, 362436069]
+        WiredTigerTestCase._randomseed = False
         if seedw != 0 and seedz != 0:
             WiredTigerTestCase._randomseed = True
-            WiredTigerTestCase._randomseeds = [seedw, seedz]
-        else:
-            WiredTigerTestCase._randomseed = False
-
+            WiredTigerTestCase._seeds = [seedw, seedz]
+           
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
@@ -759,23 +758,6 @@ def longtest(description):
     else:
         return runit_decorator
 
-def randomseed():
-    """
-    Used as a function decorator, for example, @wttest.randomseed("description").
-    The decorator uses the generated random seed which is used for number generation in suite_random
-    """
-    def runit_decorator(func):
-        def wrapper(self, *args, **kwargs):
-            if WiredTigerTestCase._randomseed:
-                WiredTigerTestCase._seeds[0] = WiredTigerTestCase._randomseeds[0]
-                WiredTigerTestCase._seeds[1] = WiredTigerTestCase._randomseeds[1]
-            retVal = func(self, *args, **kwargs)
-            WiredTigerTestCase._seeds[0] = 521288629
-            WiredTigerTestCase._seeds[1] = 362436069
-            return retVal
-        return wrapper
-    return runit_decorator
-
 def islongtest():
     return WiredTigerTestCase._longtest
 
@@ -792,7 +774,7 @@ def runsuite(suite, parallel):
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
     try:
         if WiredTigerTestCase._randomseed:
-            WiredTigerTestCase.prout("Starting test suite with seedw=" + str(WiredTigerTestCase._randomseeds[0]) + " and seedz=" + str(WiredTigerTestCase._randomseeds[1]))
+            WiredTigerTestCase.prout("Starting test suite with seedw=" + str(WiredTigerTestCase._seeds[0]) + " and seedz=" + str(WiredTigerTestCase._seeds[1]))
         return unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
     except BaseException as e:

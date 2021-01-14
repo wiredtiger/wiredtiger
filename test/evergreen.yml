@@ -1559,6 +1559,16 @@ tasks:
       - func: "unit test"
         vars:
           unit_test_args: -v 2 -b 10/11
+
+  - name: unit-test-bucket-random-seed
+    tags: ["unit_test"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 -R cursor13 join02 join07 schema03 timestamp22
   # End of Python unit test tasks
 
   - name: s-all

@@ -456,7 +456,6 @@ class test_cursor13_big(test_cursor13_big_base):
 
     nopens = 500000
 
-    @wttest.randomseed()
     def test_cursor_big(self):
         rand = suite_random()
         uri_map = self.create_uri_map(self.uri)
