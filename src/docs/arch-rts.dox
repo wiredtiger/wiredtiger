@@ -26,13 +26,13 @@ Rollback to stable is performed in three phases
 Rollback to stable doesn't operate on logged tables as the updates on these are stable
 when the transaction gets committed.
 
-@section rts-stable-update stable update of rollback to stable
+@section rts-stable-update Stable update of rollback to stable
 
 According to rollback to stable, the stable version of update is an update that
 has durable timestamp of less than or equal to the stable timestamp and it's
 transaction id must be committed according to the checkpoint snapshot.
 
-@section rts-preconditions Pre conditions required for rollback to stable
+@section rts-preconditions Pre-conditions required for rollback to stable
 
 To perform rollback to stable, there shouldn't be any transaction activity happening
 in the WiredTiger.
@@ -106,14 +106,14 @@ reconciliation.
 
 Note: As of now, rollback to stable don't work on removing on-disk columnar updates.
 
-@section rts-hs-search rollback to stable history store search
+@section rts-hs-search Rollback to stable history store search
 
 Rollback to stable searches the history store to find a stable update to replace an
 unstable update in the data store. It searches the history store with the given data
 store key with a maximum timestamp and traverse back till a stable update found. If
 no valid update is found the data store key is removed.
 
-@section rts-page-skip skipping reading unnecessary pages into memory
+@section rts-page-skip Skipping reading unnecessary pages into memory
 
 Rollback to stable doesn't load the pages that don't have any unstable updates to be
 removed to improve the performance of rollback to stable by verifying the time aggregated
