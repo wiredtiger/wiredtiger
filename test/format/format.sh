@@ -327,7 +327,6 @@ resolve()
 
 			# Remove jobs we killed, they count as neither success or failure.
 			rm -rf $dir $log
-
 			verbose "$name: job in $dir killed"
 			continue
 		}
