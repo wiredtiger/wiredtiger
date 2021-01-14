@@ -56,7 +56,7 @@ smoke_list=(
 
 	# LSM
     # Temporarily disabled
-	# "$smoke_base_1 file_type=row data_source=lsm"
+	"$smoke_base_1 file_type=row data_source=lsm"
 
 	# Force the statistics server.
 	"$smoke_base_1 file_type=row statistics_server=1"
@@ -328,6 +328,7 @@ resolve()
 
 			# Remove jobs we killed, they count as neither success or failure.
 			rm -rf $dir $log
+
 			verbose "$name: job in $dir killed"
 			continue
 		}
