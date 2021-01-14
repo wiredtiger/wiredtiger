@@ -47,11 +47,6 @@ class test_backup10(backup_base):
         ('not-archiving', dict(archive='false')),
     ])
 
-    data_options = {
-        'mult': 0,
-        'nops': 100
-    }
-
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
         return 'cache_size=1G,log=(archive=%s,' % self.archive + \
@@ -67,8 +62,7 @@ class test_backup10(backup_base):
         # Insert small amounts of data at a time stopping after we
         # cross into log file 2.
         while not os.path.exists(log2):
-            ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-            self.data_options['mult'] = ret['mult']
+            self.add_data(self.uri, 'key', 'value')
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned.
@@ -76,8 +70,7 @@ class test_backup10(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, None)
 
         # Add some data that will appear in log file 3.
-        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, 'key', 'value')
         self.session.log_flush('sync=on')
 
         # Now copy the files returned by the backup cursor.

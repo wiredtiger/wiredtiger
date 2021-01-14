@@ -39,11 +39,6 @@ class test_backup18(backup_base):
     conn_config= 'cache_size=1G,log=(enabled,file_max=100K)'
     pfx = 'test_backup'
     uri="table:test"
-    data_options = {
-        'mult': 0,
-        'nops': 100,
-        'session_checkpoint': True
-    }
 
     def id_check(self, expect):
         got = []
@@ -65,8 +60,7 @@ class test_backup18(backup_base):
         # We're not taking actual backups in this test, but we do want a table to
         # exist for the backup cursor to generate something.
         self.session.create(self.uri, "key_format=S,value_format=S")
-        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, 'key', 'value', True)
 
         msg = "/is not configured/"
         self.pr("Query IDs before any backup")

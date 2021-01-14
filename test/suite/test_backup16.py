@@ -60,19 +60,15 @@ class test_backup16(backup_base):
     bigkey = 'Key' * 10
     bigval = 'Value' * 10
 
-    data_options = {
-        'mult': 1,
-        'counter': 1,
-        'nops': 10,
-        'session_checkpoint': True
-    }
+    mult = 1
+    counter = 1
+    nops = 10
 
     def verify_incr_backup(self, expected_file_list):
-        backup_id = self.data_options['counter']
-        bkup_config = ('incremental=(src_id="ID' +  str(backup_id - 1) +
-                       '",this_id="ID' + str(backup_id) + '")')
+        bkup_config = ('incremental=(src_id="ID' +  str(self.counter - 1) +
+                       '",this_id="ID' + str(self.counter) + '")')
         bkup_cur = self.session.open_cursor('backup:', None, bkup_config)
-        self.data_options['counter'] += 1
+        self.counter += 1
         num_files = 0
 
         # Verify the files included in the incremental backup are the ones we expect.
@@ -122,11 +118,8 @@ class test_backup16(backup_base):
         self.session.create(self.uri2, 'key_format=S,value_format=S')
         self.session.create(self.uri3, 'key_format=S,value_format=S')
         self.session.create(self.uri6, 'key_format=S,value_format=S')
-        ret = self.add_data(self.uri1, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-
-        ret = self.add_data(self.uri2, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri1, self.bigkey, self.bigval, True)
+        self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
         # Checkpoint and simulate full backup.
         self.session.checkpoint()
@@ -150,12 +143,8 @@ class test_backup16(backup_base):
         #
         self.session.create(self.uri4, "key_format=S,value_format=S")
         self.session.create(self.uri5, "key_format=S,value_format=S")
-        self.add_data(self.uri1, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-
-        self.add_data(self.uri5, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-
+        self.add_data(self.uri1, self.bigkey, self.bigval, True)
+        self.add_data(self.uri5, self.bigkey, self.bigval, True)
         self.session.checkpoint()
 
         # Validate these three files are included in the incremental.
@@ -167,11 +156,8 @@ class test_backup16(backup_base):
         # Add more data and checkpoint. Earlier old tables without new data should not
         # appear in the list. The table with no data at all continues to appear in the
         # list.
-        self.add_data(self.uri3, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-
-        self.add_data(self.uri5, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri3, self.bigkey, self.bigval, True)
+        self.add_data(self.uri5, self.bigkey, self.bigval, True)
 
         self.session.checkpoint()
         # Validate these three files are included in the incremental.

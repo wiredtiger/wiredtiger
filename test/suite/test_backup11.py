@@ -41,17 +41,9 @@ class test_backup11(backup_base):
     pfx = 'test_backup'
     uri="table:test"
 
-    data_options = {
-        'mult': 0,
-        'nops': 100,
-        'session_checkpoint': True
-    }
-
     def test_backup11(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
-        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
-
+        self.add_data(self.uri, 'key', 'value', True)
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
@@ -60,8 +52,7 @@ class test_backup11(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add data while the backup cursor is open.
-        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, 'key', 'value', True)
 
         # Now copy the files returned by the backup cursor.
         orig_logs = []
@@ -101,8 +92,7 @@ class test_backup11(backup_base):
         bkup_c.close()
 
         # Add more data
-        ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, 'key', 'value', True)
 
         # Test error cases now.
 

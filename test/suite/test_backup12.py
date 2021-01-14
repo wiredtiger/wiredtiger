@@ -48,23 +48,15 @@ class test_backup12(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-    data_options = {
-        'mult': 0,
-        'nops': 1000,
-        'session_checkpoint': True
-    }
-
+    nops = 1000
     def test_backup12(self):
 
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.session.create(self.uri2, "key_format=S,value_format=S")
         self.session.create(self.uri_rem, "key_format=S,value_format=S")
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-        ret = self.add_data(self.uri2, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-        ret = self.add_data(self.uri_rem, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, self.bigkey, self.bigval, True)
+        self.add_data(self.uri2, self.bigkey, self.bigval, True)
+        self.add_data(self.uri_rem, self.bigkey, self.bigval, True)
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
@@ -77,8 +69,7 @@ class test_backup12(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add more data while the backup cursor is open.
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, self.bigkey, self.bigval, True)
 
         # Now copy the files returned by the backup cursor.
         all_files = []
@@ -118,10 +109,8 @@ class test_backup12(backup_base):
         bkup_c.close()
 
         # Add more data.
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-        ret = self.add_data(self.uri2, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.uri, self.bigkey, self.bigval, True)
+        self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
         # Drop a table.
         self.session.drop(self.uri_rem)

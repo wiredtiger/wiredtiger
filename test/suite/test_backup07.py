@@ -43,17 +43,7 @@ class test_backup07(backup_base):
 
     pfx = 'test_backup'
     scenarios = make_scenarios([
-        ('table',
-            dict(
-                uri='table:test',
-                dsize=100,
-                nthreads=1,
-                data_options = {
-                    'mult': 0,
-                    'nops': 100
-                }
-            )
-        ),
+        ('table', dict(uri='table:test',dsize=100,nthreads=1))
     ])
 
     # Create a large cache, otherwise this test runs quite slowly.
@@ -70,8 +60,7 @@ class test_backup07(backup_base):
         # Insert small amounts of data at a time stopping just after we
         # cross into log file 2.
         while not os.path.exists(log2):
-            ret = self.add_data(self.uri, 'key', 'value', self.data_options)
-            self.data_options['mult'] = ret['mult']
+            self.add_data(self.uri, 'key', 'value')
 
         # Test a potential bug in full backups and creates.
         # We allow creates during backup because the file doesn't exist
@@ -86,8 +75,7 @@ class test_backup07(backup_base):
         # Now create and populate the new table. Make sure the log records
         # are on disk and will be copied to the backup.
         self.session.create(self.newuri, "key_format=S,value_format=S")
-        ret = self.add_data(self.newuri, 'key', 'value', self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data(self.newuri, 'key', 'value')
         self.session.log_flush('sync=on')
 
         # Now copy the files returned by the backup cursor. This should not

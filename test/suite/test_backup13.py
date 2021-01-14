@@ -53,11 +53,7 @@ class test_backup13(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-    data_options = {
-        'mult': 0,
-        'nops': 1000,
-        'session_checkpoint': True
-    }
+    nops = 1000
 
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
@@ -80,11 +76,17 @@ class test_backup13(backup_base):
     def session_config(self):
         return self.sess_cfg
 
+    def add_data_and_check(self):
+        if self.sess_cfg == 'isolation=read-committed' or self.sess_cfg == 'isolation=read-uncommitted':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.add_data(self.uri, self.bigkey, self.bigval, True),
+                "/not supported in read-committed or read-uncommitted transactions/")
+        else:
+            self.add_data(self.uri, self.bigkey, self.bigval, True)
+
     def test_backup13(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
-
+        self.add_data_and_check()
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
@@ -93,8 +95,7 @@ class test_backup13(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Add more data while the backup cursor is open.
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data_and_check()
 
         # Now copy the files returned by the backup cursor.
         all_files = []
@@ -115,8 +116,7 @@ class test_backup13(backup_base):
         bkup_c.close()
 
         # Add more data.
-        ret = self.add_data(self.uri, self.bigkey, self.bigval, self.data_options)
-        self.data_options['mult'] = ret['mult']
+        self.add_data_and_check()
 
         # Now do an incremental backup.
         config = 'incremental=(src_id="ID1",this_id="ID2")'
