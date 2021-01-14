@@ -173,9 +173,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 /*
  * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
- *     for the record and return to the caller. The caller may choose to optionally allow prepared
- *     updates to be returned regardless of whether prepare is being ignored globally. Otherwise, a
- *     prepare conflict will be returned upon reading a prepared update.
+ *     for the record and return to the caller.
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
