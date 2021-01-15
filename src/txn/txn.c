@@ -1098,9 +1098,6 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         hs_cursor->set_key(hs_cursor, 4, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_before(session, hs_cursor), true);
-        WT_ERR_NOTFOUND_OK(__txn_append_hs_record(session, hs_cursor, cbt->ref->page, upd, commit,
-                             &fix_upd, &upd_appended),
-          true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
              * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
@@ -1113,7 +1110,10 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                 __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
             WT_ERR(ret);
             tombstone = NULL;
-        } else
+        } else if (ret == 0)
+            WT_ERR(__txn_append_hs_record(
+              session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd, &upd_appended));
+        else
             ret = 0;
     }
 
