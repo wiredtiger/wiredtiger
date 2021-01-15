@@ -724,20 +724,18 @@ static int
 __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
   WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended)
 {
-    WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
+    WT_TIME_WINDOW *tw;
     WT_UPDATE *tombstone, *upd;
-    wt_timestamp_t durable_ts, hs_start_ts, hs_stop_durable_ts;
+    wt_timestamp_t durable_ts, hs_stop_durable_ts;
     size_t size, total_size;
-    uint64_t hs_counter, type_full;
-    uint32_t hs_btree_id;
+    uint64_t type_full;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     WT_ASSERT(session, chain != NULL);
 
-    hs_cbt = (WT_CURSOR_BTREE *)hs_cursor;
     *fix_updp = NULL;
     *upd_appended = false;
     size = total_size = 0;
@@ -746,17 +744,6 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
-    WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
-
-    /*
-     * As part of the history store search, we never get an exact match based on our search criteria
-     * as we always search for a maximum record for that key. Make sure that we set the comparison
-     * result as an exact match to remove this key as part of rollback to stable. In case if we
-     * don't mark the comparison result as same, later the __wt_row_modify function will not
-     * properly remove the update from history store.
-     */
-    hs_cbt->compare = 0;
 
     /* Get current value. */
     WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts, &durable_ts, &type_full, hs_value));
@@ -771,10 +758,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
 
+    __wt_curhs_time_window(hs_cursor, &tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-    upd->txnid = hs_cbt->upd_value->tw.start_txn;
-    upd->durable_ts = hs_cbt->upd_value->tw.durable_start_ts;
-    upd->start_ts = hs_cbt->upd_value->tw.start_ts;
+    upd->txnid = tw->start_txn;
+    upd->durable_ts = tw->durable_start_ts;
+    upd->start_ts = tw->start_ts;
     *fix_updp = upd;
 
     /*
@@ -798,11 +786,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
-        WT_ASSERT(session, hs_cbt->upd_value->tw.stop_ts != WT_TS_MAX);
+        WT_ASSERT(session, tw->stop_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = hs_cbt->upd_value->tw.durable_stop_ts;
-        tombstone->start_ts = hs_cbt->upd_value->tw.stop_ts;
-        tombstone->txnid = hs_cbt->upd_value->tw.stop_txn;
+        tombstone->durable_ts = tw->durable_stop_ts;
+        tombstone->start_ts = tw->stop_ts;
+        tombstone->txnid = tw->stop_txn;
         tombstone->next = upd;
         /*
          * Set the flag to indicate that this update has been restored from history store for the
@@ -930,6 +918,10 @@ __txn_fixup_prepared_update(
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     uint32_t txn_flags;
+#ifdef HAVE_DIAGNOSTIC
+    uint64_t hs_upd_type;
+    wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
+#endif
 
     txn = session->txn;
 
@@ -948,13 +940,21 @@ __txn_fixup_prepared_update(
      * there is no work to do.
      */
     if (commit) {
-        tw.stop_txn = txn->commit_timestamp;
+        tw.stop_ts = txn->commit_timestamp;
         tw.durable_stop_ts = txn->durable_timestamp;
         tw.stop_txn = txn->id;
-        tw.start_txn = fix_upd->start_ts;
+        tw.start_ts = fix_upd->start_ts;
         tw.durable_start_ts = fix_upd->durable_ts;
         tw.start_txn = fix_upd->txnid;
         tw.prepare = 0;
+
+#ifdef HAVE_DIAGNOSTIC
+        /* Retrieve the existing update value and stop timestamp. */
+        WT_ERR(hs_cursor->get_value(
+          hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, &hs_value));
+        WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
+        WT_ASSERT(session, (uint8_t)hs_upd_type == WT_UPDATE_STANDARD);
+#endif
         /*
          * We need to update the stop durable timestamp stored in the history store value.
          *
