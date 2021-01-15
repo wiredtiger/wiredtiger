@@ -954,6 +954,7 @@ __txn_fixup_prepared_update(
         tw.start_txn = fix_upd->start_ts;
         tw.durable_start_ts = fix_upd->durable_ts;
         tw.start_txn = fix_upd->txnid;
+        tw.prepare = 0;
         /*
          * We need to update the stop durable timestamp stored in the history store value.
          *
