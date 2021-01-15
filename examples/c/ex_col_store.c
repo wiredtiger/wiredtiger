@@ -4,13 +4,14 @@
 
 static const char *home;
 
-typedef struct {
-    uint16_t longitude; 
-    uint16_t latitude; 
-    char country[5];
-} LOCATION;
+// typedef struct {
+//     uint16_t longitude; 
+//     uint16_t latitude; 
+//     char country[5];
+// } LOCATION;
 
-typedef struct weather_data {
+
+typedef struct {
     char day[5]; 
     uint16_t hour;
     uint8_t temp; 
@@ -18,7 +19,9 @@ typedef struct weather_data {
     uint16_t pressure; 
     uint8_t wind;
     uint8_t feels_like_temp; 
-    LOCATION location;
+    uint8_t loc_lat;
+    uint16_t loc_long;
+    char country[5];
 } WEATHER;
 
 // int celcius_to_farenheit(int temp_in_celcius) {
@@ -45,7 +48,7 @@ typedef struct weather_data {
 void chance_of_rain(WT_SESSION* session);
 void generate_data(WEATHER *w_array);
 void search_temperature(WT_SESSION *session);
-
+int average_data(WT_SESSION *session);
 
 void chance_of_rain(WT_SESSION* session){
     WT_CURSOR *cursor;
@@ -128,30 +131,30 @@ void generate_data(WEATHER *w_array){
         w.humidity = rand() % (100 + 1 - 0) + 0;
         w.pressure = rand() % (1100 + 1 - 900) + 900;
         w.wind = rand() % (200 + 1 - 0) + 0;
-        w.location.latitude = rand() % (180 + 1 - 0) + 0;
-        w.location.longitude = rand() % (90 + 1 - 0) + 0;
+        w.loc_lat = rand() % (180 + 1 - 0) + 0;
+        w.loc_long = rand() % (90 + 1 - 0) + 0;
         country = rand() % (6 + 1 - 0) + 0;
         switch(country){
             case 0:
-                strcpy(w.location.country, "AUS");
+                strcpy(w.country, "AUS");
                 break;
             case 1:
-                strcpy(w.location.country, "UK");
+                strcpy(w.country, "UK");
                 break;
             case 2:
-                strcpy(w.location.country, "US");
+                strcpy(w.country, "US");
                 break;
             case 3:
-                strcpy(w.location.country, "NZ");
+                strcpy(w.country, "NZ");
                 break;
             case 4:
-                strcpy(w.location.country, "IND");
+                strcpy(w.country, "IND");
                 break;
             case 5:
-                strcpy(w.location.country, "CHI");
+                strcpy(w.country, "CHI");
                 break;
             case 6:
-                strcpy(w.location.country, "RUS");
+                strcpy(w.country, "RUS");
                 break;
         }
 
@@ -214,7 +217,59 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time) {
 
     return min_so_far;
 }
+int 
+average_data(WT_SESSION *session) 
+{
+    WT_CURSOR *loc_cursor;
+    unsigned int count=0;
+    uint64_t recno;
+    const char* country; 
+    unsigned int ret_arr[5] = {0,0,0,0,0};
+    int ret;
+    uint16_t hour, pressure;
+    uint8_t temp, humidity, wind, feels_like_temp,loc_lat; 
+    uint16_t start, end,loc_long;
 
+    /* Create an index to search for country*/
+    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
+
+    /* Open a cursor to search for the location */
+    error_check(session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
+    loc_cursor->set_key(loc_cursor, "AU\0\0\0");
+    error_check(loc_cursor->search(loc_cursor));
+
+    /* Populate the array with the totals of each of the columns*/
+    while ((ret = loc_cursor->next(loc_cursor)) == 0) {
+        error_check(loc_cursor->get_key(loc_cursor,&recno));
+        error_check(loc_cursor->get_value(loc_cursor, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
+        count++;
+        ret_arr[0] += temp;
+        ret_arr[1] += humidity;
+        ret_arr[2] += pressure;
+        ret_arr[3] += wind;
+        ret_arr[4] += feels_like_temp;
+        printf("%d",ret_arr[0]);
+    }
+
+    /* Get the average values by dividing with the total number of records*/
+    for(int i=0; i < 5; i++){
+        ret_arr[i] = ret_arr[i] / count;
+    }
+    
+    // printf("Average records for location: \n Longitude: %" PRIu16 ", Latitude: %" PRIu16 ", Country: %s", search_loc.longitude, search_loc.latitude, search_loc.country);
+    /* List the average records */
+    for(int i=0; i< 5; i++) {
+        printf(
+            "Average data : temp: %" PRIu8 ", humidity: %" PRIu8 ", pressure: %" PRIu16 ", wind: %" PRIu8 ", feels like: %" PRIu8, ret_arr[0], ret_arr[1],ret_arr[2]
+            ,ret_arr[3],ret_arr[4]
+        );
+    }
+    scan_end_check(ret == WT_NOTFOUND);
+    error_check(loc_cursor->close(loc_cursor));
+
+    return 0;
+
+}
 int
 find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time) {
     WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
@@ -284,10 +339,11 @@ main(int argc, char* argv[])
     WEATHER weather_data[N_DATA];
 
     const char* day; 
+    const char* country; 
     uint16_t hour, pressure;
-    uint8_t temp, humidity, wind, feels_like_temp; 
-    uint16_t start, end;
-    LOCATION *location;
+    uint8_t temp, humidity, wind, feels_like_temp,loc_lat; 
+    uint16_t start, end,loc_long;
+    // LOCATION *location;
 
     generate_data(weather_data);
 
@@ -302,7 +358,7 @@ main(int argc, char* argv[])
     /* create a table, with coloumns and colgroup */ 
     /*===Problem: placeholders if we use double, and not sure with the Location as a struct to use 'u'===*/
     error_check(session->create(session, "table:weathertable",
-    "key_format=r,value_format=5sHBBHBBu,columns=(id,day,hour,temp,humidity,pressure,wind,feels_like_temp,location),colgroups=(day_time,temperature,humidity_pressure,"
+    "key_format=r,value_format=5sHBBHBBBH5s,columns=(id,day,hour,temp,humidity,pressure,wind,feels_like_temp,loc_lat,loc_long,country),colgroups=(day_time,temperature,humidity_pressure,"
     "wind,feels_like_temp,location)"));
     
 
@@ -312,18 +368,18 @@ main(int argc, char* argv[])
     error_check(session->create(session, "colgroup:weathertable:humidity_pressure", "columns=(humidity,pressure)"));
     error_check(session->create(session, "colgroup:weathertable:wind", "columns=(wind)"));
     error_check(session->create(session, "colgroup:weathertable:feels_like_temp", "columns=(feels_like_temp)"));
-    error_check(session->create(session, "colgroup:weathertable:location", "columns=(location)"));
+    error_check(session->create(session, "colgroup:weathertable:location", "columns=(loc_lat,loc_long,country)"));
 
 
     /* open a cursor on the table to insert the data ---[[[[ INSERT ]]]]--- */  
     error_check(session->open_cursor(session, "table:weathertable", NULL, "append", &cursor));
     w = weather_data;
     for (int i = 0; i < N_DATA; i++) {
-        WT_ITEM loc;
-        loc.data = &w->location;
-        loc.size = sizeof(w->location);
+        // WT_ITEM loc;
+        // loc.data = &w->location;
+        // loc.size = sizeof(w->location);
 
-        cursor->set_value(cursor, w->day, w->hour, w->temp, w->humidity, w->pressure,w->wind,w->feels_like_temp, &loc);
+        cursor->set_value(cursor, w->day, w->hour, w->temp, w->humidity, w->pressure,w->wind,w->feels_like_temp, w->loc_lat, w->loc_long, w->country);
         error_check(cursor->insert(cursor));
         w++;
     }
@@ -333,7 +389,7 @@ main(int argc, char* argv[])
     error_check(session->open_cursor(session, "table:weathertable", NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &recno));
-        error_check(cursor->get_value(cursor, &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &location));
+        error_check(cursor->get_value(cursor, &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
         printf("{\n"
                "    ID: %" PRIu64 "\n"
                "    day: %s\n"
@@ -344,12 +400,12 @@ main(int argc, char* argv[])
                "    wind: %" PRIu8  "\n"
                "    feels like: %" PRIu8 "\n" 
                "    location:  {\n"
-               "                  lat: %" PRIu16 "\n"
+               "                  lat: %" PRIu8 "\n"
                "                  long: %" PRIu16 "\n"
                "                  country: %s\n"
                "                }\n"
                "}\n\n",recno, day, hour,temp, humidity, pressure, wind, feels_like_temp, 
-               location->latitude, location-> longitude, location->country);
+               loc_lat, loc_long, country);
     }
     scan_end_check(ret == WT_NOTFOUND);
     error_check(cursor->close(cursor));
@@ -370,6 +426,7 @@ main(int argc, char* argv[])
     /* difficult one (Probability of rain) ASSIGNED TO:  Sean*/
     chance_of_rain(session);
     // search_temperature(session);
+    average_data(session);
 
     return (EXIT_SUCCESS);
 }
