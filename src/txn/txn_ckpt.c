@@ -1528,9 +1528,10 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
              * checkpoint cleanup.
              */
-            if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn,
-                  (ckpt->ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
-                                                          ckpt->ta.newest_stop_durable_ts))) {
+            if (ckpt->size != 0 &&
+              __wt_txn_visible_all(session, ckpt->ta.newest_stop_txn,
+                (ckpt->ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
+                                                        ckpt->ta.newest_stop_durable_ts))) {
                 WT_STAT_CONN_DATA_INCR(session, txn_checkpoint_not_skipped_due_to_obsolete_pages);
                 return (0);
             }
