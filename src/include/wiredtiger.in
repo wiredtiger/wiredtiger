@@ -5852,8 +5852,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1468
 /*! transaction: rollback to stable updates removed from history store */
 #define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1469
+/*! transaction: transaction checkpoints not skipped due to obsolete pages */
+#define	WT_STAT_CONN_TXN_CHECKPOINT_NOT_SKIPPED_DUE_TO_OBSOLETE_PAGES	1470
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1470
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1471
 
 /*!
  * @}
@@ -6456,8 +6458,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2202
 /*! transaction: rollback to stable updates removed from history store */
 #define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2203
+/*! transaction: transaction checkpoints not skipped due to obsolete pages */
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_NOT_SKIPPED_DUE_TO_OBSOLETE_PAGES	2204
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2204
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2205
 
 /*!
  * @}

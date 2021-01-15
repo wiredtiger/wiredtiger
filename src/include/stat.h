@@ -783,6 +783,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_hs_removed;
+    int64_t txn_checkpoint_not_skipped_due_to_obsolete_pages;
     int64_t txn_update_conflict;
 };
 
@@ -995,6 +996,7 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_hs_removed;
+    int64_t txn_checkpoint_not_skipped_due_to_obsolete_pages;
     int64_t txn_update_conflict;
 };
 
