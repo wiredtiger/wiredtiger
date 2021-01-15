@@ -72,6 +72,7 @@ struct __wt_cache {
     uint64_t bytes_dirty_total;
     uint64_t bytes_evict;      /* Bytes/pages discarded by eviction */
     uint64_t bytes_hs;         /* History store bytes inmem */
+    uint64_t bytes_hs_dirty;   /* History store bytes inmem dirty */
     uint64_t bytes_image_intl; /* Bytes of disk images (internal) */
     uint64_t bytes_image_leaf; /* Bytes of disk images (leaf) */
     uint64_t bytes_inmem;      /* Bytes/pages in memory */
