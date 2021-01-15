@@ -68,13 +68,11 @@ find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time);
 int
 find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time) {
     WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
+    int min_so_far;
     int ret;
     uint64_t recno;
     uint16_t hour;
     uint8_t temp;
-
-    // Assumes temperatures do not exceed 100.
-    int min_so_far = 1000;
 
     /* Open cursors needed by the join. */
     error_check(
@@ -92,6 +90,12 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time) {
     end_time_cursor->set_key(end_time_cursor, end_time);
     error_check(end_time_cursor->search(end_time_cursor));
     error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
+
+    /* Initialize minimum temperature to temperature of the first record. */
+    join_cursor->next(join_cursor);
+    error_check(join_cursor->get_key(join_cursor, &recno));
+    error_check(join_cursor->get_value(join_cursor, &hour, &temp));
+    min_so_far = temp;
 
     /* List records that match criteria */
     while ((ret = join_cursor->next(join_cursor)) == 0) {
@@ -142,6 +146,12 @@ find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time) {
     error_check(
         session->join(session, join_cursor, country_cursor, "compare=eq,count=10,strategy=bloom"));
     */
+
+    /* Initialize maximum temperature to temperature of the first record. */
+    join_cursor->next(join_cursor);
+    error_check(join_cursor->get_key(join_cursor, &recno));
+    error_check(join_cursor->get_value(join_cursor, &hour, &temp));
+    max_so_far = temp;
 
     /* List records that match criteria */
     while ((ret = join_cursor->next(join_cursor)) == 0) {
