@@ -1,5 +1,7 @@
 #include <test_util.h>
 
+#define N_DATA 100
+
 static const char *home;
 
 typedef struct {
@@ -8,7 +10,7 @@ typedef struct {
     char country[5];
 } LOCATION;
 
-typedef struct {
+typedef struct weather_data {
     char day[5]; 
     uint16_t hour;
     uint8_t temp; 
@@ -19,23 +21,23 @@ typedef struct {
     LOCATION location;
 } WEATHER;
 
-static WEATHER weather_data[] = {                               
-                                { "WED", 600, 20, 60, 1000, 20, 21, { 36, 174, "NZ" }},
-                                { "WED", 1200, 25, 65, 1001, 23, 21, { 36, 174, "NZ" }},
-                                { "WED", 1800, 18, 53, 1002, 18, 21, { 36, 174, "NZ" }},
-                                { "WED", 2400, 15, 50, 1002, 15, 21, { 36, 174, "NZ" }},
-                                { "FRI", 1700, 18, 15, 1050, 10, 16, {34, 151, "AU"}},
-                                { "SAT", 1000, 5, 30, 1040, 45, 3, {36, 140, "JPN"}},
-                                { "MON", 1300, 10, 50, 1050, 65, 9, {37, 96, "US"}},
-                                { "TUE", 2000, 10, 20, 1030, 15, 12, {38, 127, "KOR"}},
-                                { "THU", 1100, 5, 28, 1050, 40, 7, {36, 140, "JPN"}},
-                                { "TUE", 1540, 25, 80, 800, 15, 21, {3, 31, "AU"} }, 
-                                { "FRI", 2110, 16, 40, 600, 30, 14, {36, 311, "CAN"}}, 
-                                { "MON", 625, 30, 100, 1000, 5, 32, {42,3, "USA"}},
-                                { "THU", 2231, 19, 100, 1100, 12, 20, {3,31, "AU"}},  
-                                { "WED", 2215, 22, 120, 950, 21, 34,{50,150, "NZ"}}, 
-                                { "", 0, 0, 0, 0, 0, 0, {0,0,""}}                                
-                                };  
+// static WEATHER weather_data[] = {                               
+//                                 { "WED", 600, 20, 60, 1000, 20, 21, { 36, 174, "NZ" }},
+//                                 { "WED", 1200, 25, 65, 1001, 23, 21, { 36, 174, "NZ" }},
+//                                 { "WED", 1800, 18, 53, 1002, 18, 21, { 36, 174, "NZ" }},
+//                                 { "WED", 2400, 15, 50, 1002, 15, 21, { 36, 174, "NZ" }},
+//                                 { "FRI", 1700, 18, 15, 1050, 10, 16, {34, 151, "AU"}},
+//                                 { "SAT", 1000, 5, 30, 1040, 45, 3, {36, 140, "JPN"}},
+//                                 { "MON", 1300, 10, 50, 1050, 65, 9, {37, 96, "US"}},
+//                                 { "TUE", 2000, 10, 20, 1030, 15, 12, {38, 127, "KOR"}},
+//                                 { "THU", 1100, 5, 28, 1050, 40, 7, {36, 140, "JPN"}},
+//                                 { "TUE", 1540, 25, 80, 800, 15, 21, {3, 31, "AU"} }, 
+//                                 { "FRI", 2110, 16, 40, 600, 30, 14, {36, 311, "CAN"}}, 
+//                                 { "MON", 625, 30, 100, 1000, 5, 32, {42,3, "USA"}},
+//                                 { "THU", 2231, 19, 100, 1100, 12, 20, {3,31, "AU"}},  
+//                                 { "WED", 2215, 22, 120, 950, 21, 34,{50,150, "NZ"}}, 
+//                                 { "", 0, 0, 0, 0, 0, 0, {0,0,""}}                                
+//                                 };  
 
 
 // int celcius_to_farenheit(int temp_in_celcius) {
@@ -59,20 +61,118 @@ static WEATHER weather_data[] = {
 //     error_check(cursor->close(cursor)); 
 // } 
 
+void chance_of_rain(WT_SESSION* session);
+void generate_data(WEATHER *w_array);
+void search_temperature(WT_SESSION *session);
+
+
+
+void chance_of_rain(WT_SESSION* session){
+    WT_CURSOR *cursor;
+    int ret;
+    uint64_t recno;
+    uint8_t humidity;
+    uint16_t pressure;
+
+    error_check(session->open_cursor(session, "colgroup:weathertable:humidity_pressure", NULL, NULL, &cursor));
+
+    while ((ret = cursor->next(cursor)) == 0) {
+        error_check(cursor->get_key(cursor, &recno));
+        error_check(cursor->get_value(cursor, &humidity, &pressure));
+        if (humidity > 70 && pressure < 1000){
+            printf("Rain likely\n");
+        } else {
+            printf("Rain unlikely\n");
+        }
+    }    
+    return;
+}
+
+void search_temperature(WT_SESSION *session){
+    WT_CURSOR *day_cursor, *join_cursor;
+    WT_CURSOR *temp_cursor;
+    uint16_t temp;
+    char *day;
+    // uint64_t recno;
+
+    error_check(session->open_cursor(session, "join:table:weathertable", NULL, NULL, &join_cursor));
+    error_check(session->open_cursor(session, "colgroup:weathertable:day_time", NULL, NULL, &day_cursor));
+    error_check(session->open_cursor(session, "colgroup:weathertable:temperature", NULL, NULL, &temp_cursor));
+
+    temp_cursor->set_key(temp_cursor, 20);
+    error_check(temp_cursor->search(temp_cursor));
+    error_check(session->join(session, join_cursor, temp_cursor, "compare=lt"));
+    error_check(temp_cursor->get_value(temp_cursor,&temp));
+    printf("found day: %s",day);
+
+    // day_cursor->set_key(day_cursor, "MON\0\0");
+    // error_check(day_cursor->search(day_cursor));
+    // error_check(session->join(session, join_cursor, day_cursor, "compare=eq"));
+    // error_check(day_cursor->get_value(day_cursor,&day));
+    // printf("found day: %s",day);
+    return;
+}
+
+void generate_data(WEATHER *w_array){
+    // WEATHER w_array[100];
+
+    // rand() % (max_number + 1 - minimum_number) + minimum_number
+    for (int i = 0; i < N_DATA; i++){
+        WEATHER w;
+        strcpy(w.day, "MON");
+        w.hour = 1200;
+        w.temp = rand() % (50 + 1 - 0) + 0;
+        w.humidity = rand() % (100 + 1 - 0) + 0;;
+        w.pressure = rand() % (1100 + 1 - 900) + 900;;
+        w.wind = rand() % (200 + 1 - 0) + 0;;
+        w.location.latitude = rand() % (180 + 1 - 0) + 0;;
+        w.location.longitude = rand() % (90 + 1 - 0) + 0;;
+        strcpy(w.location.country, "AUS");
+
+        w_array[i] = w;
+    }
+
+    // for (int i = 0; i < N_DATA; i++){
+    //     printf("{\n"
+    //         "    day: %s\n"
+    //         "    hour: %" PRIu16 "\n"
+    //         "    temp: %" PRIu8 "\n"
+    //         "    humidity: %" PRIu8 "\n"
+    //         "    pressure: %" PRIu16 "\n"
+    //         "    wind: %" PRIu8  "\n"
+    //         "    feels like: %" PRIu8 "\n" 
+    //         "    location:  {\n"
+    //         "                  lat: %" PRIu16 "\n"
+    //         "                  long: %" PRIu16 "\n"
+    //         "                  country: %s\n"
+    //         "                }\n"
+    //         "}\n\n", w_array[i].day, w_array[i].hour,w_array[i].temp, 
+    //         w_array[i].humidity, w_array[i].pressure, w_array[i].wind, 
+    //         w_array[i].feels_like_temp, 
+    //         w_array[i].location.latitude, w_array[i].location.longitude, 
+    //         w_array[i].location.country);
+    // }
+    return;
+}
+
 int
 main(int argc, char* argv[]) 
 {
+
     WEATHER* w;
     WT_CONNECTION *conn;
     WT_SESSION *session;
     WT_CURSOR *cursor;
     int ret;
     uint64_t recno;
+    WEATHER weather_data[N_DATA];
 
     const char* day; 
     uint16_t hour, pressure;
     uint8_t temp, humidity, wind, feels_like_temp; 
     LOCATION *location;
+
+    generate_data(weather_data);
 
     home = example_setup(argc, argv);
 
@@ -100,13 +200,15 @@ main(int argc, char* argv[])
 
     /* open a cursor on the table to insert the data ---[[[[ INSERT ]]]]--- */  
     error_check(session->open_cursor(session, "table:weathertable", NULL, "append", &cursor));
-    for (w = weather_data; w->pressure != 0; w++) {
+    w = weather_data;
+    for (int i = 0; i < N_DATA; i++) {
         WT_ITEM loc;
         loc.data = &w->location;
         loc.size = sizeof(w->location);
 
         cursor->set_value(cursor, w->day, w->hour, w->temp, w->humidity, w->pressure,w->wind,w->feels_like_temp, &loc);
         error_check(cursor->insert(cursor));
+        w++;
     }
     /* close cursor */
     error_check(cursor->close(cursor));    
@@ -139,6 +241,8 @@ main(int argc, char* argv[])
     /* MaxMin()  ASSIGNED TO:  MONICA */
     /* C to F ASSIGNED TO:  SID */
     /* difficult one (Probability of rain) ASSIGNED TO:  Sean*/
+    chance_of_rain(session);
+    // search_temperature(session);
 
     return (EXIT_SUCCESS);
 }
