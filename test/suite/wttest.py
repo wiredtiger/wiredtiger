@@ -226,7 +226,7 @@ class WiredTigerTestCase(unittest.TestCase):
         if seedw != 0 and seedz != 0:
             WiredTigerTestCase._randomseed = True
             WiredTigerTestCase._seeds = [seedw, seedz]
-           
+
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
         self.captureerr = CapturedFd('stderr.txt', 'error output')
