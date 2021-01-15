@@ -4,6 +4,7 @@ AM_CPPFLAGS = -I$(top_srcdir)/src/include
 AM_CPPFLAGS +=-I$(top_srcdir)/test/utility
 
 noinst_PROGRAMS = \
+	ex_col_store \
 	ex_access \
 	ex_all \
 	ex_backup \
