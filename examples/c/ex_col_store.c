@@ -253,7 +253,7 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
     error_check(
       session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &end_time_cursor));
 
-    /* select values WHERE (hour >= start AND hour <= end) AND country=NZ */
+    /* select values WHERE (hour >= start AND hour <= end) */
     start_time_cursor->set_key(start_time_cursor, start_time);
     error_check(start_time_cursor->search(start_time_cursor));
     error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge,count=10"));
@@ -262,13 +262,15 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
     error_check(end_time_cursor->search(end_time_cursor));
     error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
 
-    /* Initialize minimum temperature to temperature of the first record. */
+    /* 
+    Initialize minimum temperature to temperature of the first record.
+    Assumes at least one record is found in weather records. 
+    */
     join_cursor->next(join_cursor);
     error_check(join_cursor->get_key(join_cursor, &recno));
     error_check(join_cursor->get_value(join_cursor, &hour, &temp));
     min_so_far = temp;
 
-    /* List records that match criteria */
     while ((ret = join_cursor->next(join_cursor)) == 0) {
         error_check(join_cursor->get_key(join_cursor, &recno));
         error_check(join_cursor->get_value(join_cursor, &hour, &temp));
@@ -278,11 +280,67 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
         }
 
         /* For debugging purposes */
+        /* 
         printf("ID %" PRIu64, recno);
         printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
+        */
     }
 
     return min_so_far;
+}
+
+int
+find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
+{
+    WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
+    int ret;
+    uint64_t recno;
+    uint16_t hour;
+    uint8_t temp;
+    uint8_t max_so_far = 0;
+
+    /* Open cursors needed by the join. */
+    error_check(session->open_cursor(
+      session, "join:table:weathertable(hour,temp)", NULL, NULL, &join_cursor));
+    error_check(
+      session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &start_time_cursor));
+    error_check(
+      session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &end_time_cursor));
+
+    /* select values WHERE (hour >= start AND hour <= end) */
+    start_time_cursor->set_key(start_time_cursor, start_time);
+    error_check(start_time_cursor->search(start_time_cursor));
+    error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge,count=10"));
+
+    end_time_cursor->set_key(end_time_cursor, end_time);
+    error_check(end_time_cursor->search(end_time_cursor));
+    error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
+
+    /* 
+    Initialize maximum temperature to temperature of the first record. 
+    Assumes at least one record is found in weather records.
+    */
+    join_cursor->next(join_cursor);
+    error_check(join_cursor->get_key(join_cursor, &recno));
+    error_check(join_cursor->get_value(join_cursor, &hour, &temp));
+    max_so_far = temp;
+
+    while ((ret = join_cursor->next(join_cursor)) == 0) {
+        error_check(join_cursor->get_key(join_cursor, &recno));
+        error_check(join_cursor->get_value(join_cursor, &hour, &temp));
+
+        if (temp > max_so_far) {
+            max_so_far = temp;
+        }
+
+        /* For debugging purposes */
+        /*
+        printf("ID %" PRIu64, recno);
+        printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
+        */
+    }
+
+    return max_so_far;
 }
 
 int
@@ -338,63 +396,6 @@ average_data(WT_SESSION *session)
     error_check(loc_cursor->close(loc_cursor));
 
     return 0;
-}
-
-int
-find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
-{
-    WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
-    int ret;
-    uint64_t recno;
-    uint16_t hour;
-    uint8_t temp;
-    uint8_t max_so_far = 0;
-
-    /* Open cursors needed by the join. */
-    error_check(session->open_cursor(
-      session, "join:table:weathertable(hour,temp)", NULL, NULL, &join_cursor));
-    error_check(
-      session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &start_time_cursor));
-    error_check(
-      session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &end_time_cursor));
-
-    /* select values WHERE (hour >= start AND hour <= end) AND country=NZ */
-    start_time_cursor->set_key(start_time_cursor, start_time);
-    error_check(start_time_cursor->search(start_time_cursor));
-    error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge,count=10"));
-
-    end_time_cursor->set_key(end_time_cursor, end_time);
-    error_check(end_time_cursor->search(end_time_cursor));
-    error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
-
-    /* Add location filter LATER */
-    /*country_cursor->set_key(country_cursor, "NZ\0\0\0");
-    error_check(country_cursor->search(country_cursor));
-    error_check(
-        session->join(session, join_cursor, country_cursor, "compare=eq,count=10,strategy=bloom"));
-    */
-
-    /* Initialize maximum temperature to temperature of the first record. */
-    join_cursor->next(join_cursor);
-    error_check(join_cursor->get_key(join_cursor, &recno));
-    error_check(join_cursor->get_value(join_cursor, &hour, &temp));
-    max_so_far = temp;
-
-    /* List records that match criteria */
-    while ((ret = join_cursor->next(join_cursor)) == 0) {
-        error_check(join_cursor->get_key(join_cursor, &recno));
-        error_check(join_cursor->get_value(join_cursor, &hour, &temp));
-
-        if (temp > max_so_far) {
-            max_so_far = temp;
-        }
-
-        /* For debugging purposes */
-        printf("ID %" PRIu64, recno);
-        printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
-    }
-
-    return max_so_far;
 }
 
 int
