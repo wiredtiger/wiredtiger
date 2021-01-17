@@ -886,17 +886,6 @@ rollback_to_stable:
         WT_ERR(__wt_evict_create(session));
         eviction_started = true;
 
-        /*
-         * Currently, rollback to stable only needs to make changes to tables that use timestamps.
-         * That is because eviction does not run in parallel with a checkpoint, so content that is
-         * written never uses transaction IDs newer than the checkpoint's transaction ID and thus
-         * never needs to be rolled back. Once eviction is allowed while a checkpoint is active, it
-         * will be necessary to take the page write generation number into account during rollback
-         * to stable. For example, a page with write generation 10 and txnid 20 is written in one
-         * checkpoint, and in the next restart a new page with write generation 30 and txnid 20 is
-         * written. The rollback to stable operation should only rollback the latest page changes
-         * solely based on the write generation numbers.
-         */
         WT_ASSERT(session,
           conn->txn_global.has_stable_timestamp == false &&
             conn->txn_global.stable_timestamp == WT_TS_NONE);
@@ -912,7 +901,7 @@ rollback_to_stable:
             conn->txn_global.has_stable_timestamp = true;
 
         __wt_verbose(session, WT_VERB_RTS,
-          "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
+          "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
           __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
@@ -920,7 +909,7 @@ rollback_to_stable:
         WT_ERR(__wt_rollback_to_stable(session, NULL, true));
     }
 
-    /* Don't run recovery if we are going from logging disabled to enabled. */
+    /* Don't run recovery if no log was found. */
     if (no_log_recovery)
         goto done;
 
@@ -998,8 +987,8 @@ done:
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
-     * base write generation. The write generations of the pages which are on disk will be
-     * initialized when loaded to cache.
+     * base write generation because the recovery checkpoint writes the pages to disk with new write
+     * generation number which contains transaction ids that are needed to reset later.
      */
     __wt_dhandle_update_write_gens(session);
 

@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 #define WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, txnid) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && txnid >= S2C(session)->recovery_ckpt_snap_min)
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session) \
@@ -166,7 +166,7 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
 
     /* If not recovery then assume all the data as committed. */
     if (!F_ISSET(conn, WT_CONN_RECOVERING))
-        return false;
+        return (false);
     /*
      * Snapshot data:
      *	ids < recovery_ckpt_snap_min are committed,
@@ -174,21 +174,21 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
      *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
      */
     if (txnid < conn->recovery_ckpt_snap_min)
-        return false;
+        return (false);
     else if (txnid > conn->recovery_ckpt_snap_max)
-        return true;
+        return (true);
 
     /*
      * Return false when the recovery snapshot count is 0, which means there is no uncommitted
      * transaction ids.
      */
     if (conn->recovery_ckpt_snapshot_count == 0)
-        return false;
+        return (false);
 
     WT_BINARY_SEARCH(
       txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
 
-    return found;
+    return (found);
 }
 
 /*
@@ -317,9 +317,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         /*
          * Stop processing when we find the newer version value of this key is stable according to
-         * the current version stop timestamp when it is not appending the selected update to the
-         * update chain. Also it confirms that history store doesn't contains any newer version than
-         * the current version for the key.
+         * the current version stop timestamp and transaction id when it is not appending the
+         * selected update to the update chain. Also it confirms that history store doesn't contains
+         * any newer version than the current version for the key.
          */
         if (!replace &&
           (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
@@ -1320,8 +1320,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap) {
-            WT_STAT_CONN_INCR(session, txn_rts_inconsistent_ckpt);
-            WT_STAT_DATA_INCR(session, txn_rts_inconsistent_ckpt);
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_inconsistent_ckpt);
         }
 
         /*

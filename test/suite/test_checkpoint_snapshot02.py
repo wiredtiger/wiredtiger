@@ -59,7 +59,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             session.commit_transaction()
-            #session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows):
@@ -75,7 +74,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     def test_checkpoint_snapshot(self):
 
-        #ds = SimpleDataSet(self, self.uri, self.nrows, key_format="S", value_format='u')
         ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='log=(enabled=false)')
         ds.populate()
         valuea = "aaaaa" * 100
