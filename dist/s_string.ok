@@ -770,6 +770,7 @@ fflush
 ffs
 fgetc
 fgetln
+fgets
 fh
 fhandle
 filefrag
@@ -1328,6 +1329,7 @@ tokname
 tokstart
 toktype
 tolower
+toplevel
 totalsec
 toupper
 transactional
