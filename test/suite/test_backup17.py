@@ -114,8 +114,7 @@ class test_backup17(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval, True)
         self.mult = 0
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
-        self.mult = 1
-
+        
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
@@ -141,12 +140,14 @@ class test_backup17(backup_base):
         # Then perform the incremental backup with consolidate off (the default). Then add the
         # same data to the second table. Perform an incremental backup with consolidate on and
         # verify we get fewer, consolidated values.
-        self.add_data(self.uri, self.bigkey, self.bigval, True)
         self.mult = 1
+        self.add_data(self.uri, self.bigkey, self.bigval, True)
+
         uri1_lens = self.take_incr_backup(2, False)
 
-        self.add_data(self.uri2, self.bigkey, self.bigval, True)
         self.mult = 1
+        self.add_data(self.uri2, self.bigkey, self.bigval, True)
+
         uri2_lens = self.take_incr_backup(3, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.
