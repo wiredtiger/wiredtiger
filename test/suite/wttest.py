@@ -774,7 +774,8 @@ def runsuite(suite, parallel):
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
     try:
         if WiredTigerTestCase._randomseed:
-            WiredTigerTestCase.prout("Starting test suite with seedw=" + str(WiredTigerTestCase._seeds[0]) + " and seedz=" + str(WiredTigerTestCase._seeds[1]))
+            WiredTigerTestCase.prout("Starting test suite with seedw={0} and seedz={1}. Rerun this test with -seed {0}.{1} to get the same randomness"
+                .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
         return unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
     except BaseException as e:
