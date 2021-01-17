@@ -24,7 +24,7 @@ void print_all_columns(WT_SESSION *session);
 void chance_of_rain(WT_SESSION *session);
 void generate_data(WEATHER *w_array);
 void search_temperature(WT_SESSION *session);
-int average_data(WT_SESSION *session);
+void average_data(WT_SESSION *session);
 int find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time);
 int find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time);
 
@@ -288,66 +288,54 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
 
     return min_so_far;
 }
-int
+
+/*! [Obtains the average data across all fields given a specific location] */
+void
 average_data(WT_SESSION *session)
 {
     WT_CURSOR *loc_cursor;
-    unsigned int count = 0;
-    uint64_t recno;
     const char* day;
     const char* country; 
-    unsigned int ret_arr[5] = {0,0,0,0,0};
-    int ret;
-    uint16_t hour, pressure;
+    uint64_t recno;
+    uint16_t hour, pressure, start, end, loc_long;
     uint8_t temp, humidity, wind, feels_like_temp, loc_lat;
-    uint16_t start, end, loc_long;
+    int ret, num_rec = 5;
+    unsigned int count = 0;
+    unsigned int rec_arr[5] = {0,0,0,0,0};
 
-    /* Create an index to search for country*/
-    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
-
-    /* Open a cursor to search for the location */
+    /* Open a cursor to search for the location, currently NZ */
     error_check(session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, "AUS\0\0\0");
+    loc_cursor->set_key(loc_cursor, "RUS\0\0\0");
     error_check(loc_cursor->search(loc_cursor));
-
-    while ((ret = loc_cursor->next(loc_cursor)) == 0) {
-        error_check(loc_cursor->get_key(loc_cursor,&recno));
-        error_check(loc_cursor->get_value(loc_cursor, &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-
-        printf("\n ID %" PRIu64, recno);
-        printf(": hour%" PRIu16 " temp: %" PRIu8, hour, temp);
-    }
 
     /* Populate the array with the totals of each of the columns*/
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
         error_check(loc_cursor->get_key(loc_cursor,&recno));
         error_check(loc_cursor->get_value(loc_cursor,  &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
+        unsigned int temp_arr[5] = {temp,humidity,pressure,wind,feels_like_temp};
         count++;
-        ret_arr[0] += temp;
-        ret_arr[1] += humidity;
-        ret_arr[2] += pressure;
-        ret_arr[3] += wind;
-        ret_arr[4] += feels_like_temp;
-        // printf("%d",ret_arr[0]);
-    }
-    printf("count: %d",count);
-    /* Get the average values by dividing with the total number of records*/
-    for (int i = 0; i < 5; i++) {
-        ret_arr[i] = ret_arr[i] / count;
+
+        /* Increment the values of the rec_arr with the temp_arr values */
+        for (int i = 0; i < num_rec; i++) {
+            rec_arr[i] += temp_arr[i];
+        }
     }
 
-    // printf("Average records for location: \n Longitude: %" PRIu16 ", Latitude: %" PRIu16 ",
-    // Country: %s", search_loc.longitude, search_loc.latitude, search_loc.country);
+    printf("Number of matching entries: %d \n",count);
+
+    /* Get the average values by dividing with the total number of records*/
+    for (int i = 0; i < num_rec; i++) {
+        rec_arr[i] = rec_arr[i] / count;
+    }
     /* List the average records */
     printf(
-        "Average data for AUS : \n Temp: %" PRIu8 ", humidity: %" PRIu8 ", pressure: %" PRIu16 ", wind: %" PRIu8 ", feels like: %" PRIu8, ret_arr[0], ret_arr[1],ret_arr[2]
-        ,ret_arr[3],ret_arr[4]
+        "Average records for location RUS : \nTemp: %" PRIu8 ", Humidity: %" PRIu8 ", Pressure: %" PRIu16 ", Wind: %" PRIu8 ", Feels like: %" PRIu8 "\n", rec_arr[0], rec_arr[1],rec_arr[2]
+        ,rec_arr[3],rec_arr[4]
     );
     scan_end_check(ret == WT_NOTFOUND);
     error_check(loc_cursor->close(loc_cursor));
-
-    return 0;
 }
+
 int
 find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
 {
@@ -401,6 +389,7 @@ find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
         printf("ID %" PRIu64, recno);
         printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
     }
+}
 
 //     return max_so_far;
 // }
@@ -467,13 +456,16 @@ main(int argc, char *argv[])
     end = 2000;
 
     error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
+    /* Create an index to search for country*/
+    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
 
-    printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-      find_min_temp(session, start, end));
-    printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-      find_max_temp(session, start, end));
 
-    chance_of_rain(session);
+    // printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+    //   find_min_temp(session, start, end));
+    // printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+    //   find_max_temp(session, start, end));
+
+    // chance_of_rain(session);
     // search_temperature(session);
     average_data(session);
 
