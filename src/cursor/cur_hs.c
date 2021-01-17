@@ -900,14 +900,10 @@ __curhs_update(WT_CURSOR *cursor)
     WT_CURSOR *file_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_HS *hs_cursor;
-    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
     bool retry;
-
-    uint64_t hs_upd_type;
-    wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -935,13 +931,7 @@ __curhs_update(WT_CURSOR *cursor)
     hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
     hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
 
-    /* Allocate a buffer for the history store value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
-    /* Retrieve the history store value. */
-    WT_ERR(file_cursor->get_value(
-      file_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, hs_value));
-    WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &hs_upd, NULL));
+    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
     hs_upd->start_ts = hs_cursor->time_window.start_ts;
     hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
     hs_upd->txnid = hs_cursor->time_window.start_txn;
@@ -976,7 +966,6 @@ err:
         __wt_free(session, hs_upd);
         WT_TRET(cursor->reset(cursor));
     }
-    __wt_scr_free(session, &hs_value);
     API_END_RET(session, ret);
 }
 
