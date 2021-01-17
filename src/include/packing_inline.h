@@ -113,7 +113,11 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
         WT_CLEAR(*name);
         name->str = pn->buf;
         name->len = strlen(pn->buf);
+#ifdef __cplusplus
+        name->type = WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
+#else
         name->type = WT_CONFIG_ITEM_STRING;
+#endif
         pn->count++;
     } else
         WT_RET(__wt_config_next(&pn->config, name, &ignore));
