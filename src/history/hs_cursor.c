@@ -177,8 +177,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
-  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare,
-  WT_ITEM *on_disk_buf)
+  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_value);
@@ -186,7 +185,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
     WT_MODIFY_VECTOR modifies;
-    WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
@@ -200,7 +198,6 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
     __wt_modify_vector_init(session, &modifies);
-    txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     upd_found = false;
 
@@ -218,24 +215,19 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         key->size = WT_PTRDIFF(p, recno_key_buf);
     }
 
-    /* Allocate buffer for the history store value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
 
     /*
      * After positioning our cursor, we're stepping backwards to find the correct update. Since the
      * timestamp is part of the key, our cursor needs to go from the newest record (further in the
      * history store) to the oldest (earlier in the history store) for a given key.
-     */
-    read_timestamp = allow_prepare ? txn->prepare_timestamp : txn_shared->read_timestamp;
-
-    /*
+     *
      * A reader without a timestamp should read the largest timestamp in the range, however cursor
      * search near if given a 0 timestamp will place at the top of the range and hide the records
      * below it. As such we need to adjust a 0 timestamp to the timestamp max value.
      */
-    if (read_timestamp == WT_TS_NONE)
-        read_timestamp = WT_TS_MAX;
+    read_timestamp =
+      txn_shared->read_timestamp == WT_TS_NONE ? WT_TS_MAX : txn_shared->read_timestamp;
 
     hs_cursor->set_key(hs_cursor, 4, btree_id, key, read_timestamp, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_before(session, hs_cursor), true);
@@ -244,6 +236,8 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         goto done;
     }
 
+    /* Allocate buffer for the history store value. */
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
     WT_ERR(hs_cursor->get_value(
       hs_cursor, &hs_stop_durable_ts, &durable_timestamp, &upd_type_full, hs_value));
     upd_type = (uint8_t)upd_type_full;
