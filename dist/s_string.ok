@@ -15,6 +15,7 @@ ARG
 ARGS
 ASAN
 ASM
+AUS
 Addr
 Ailamaki
 Alakuijala
@@ -336,6 +337,7 @@ RNG
 RPC
 RTS
 RUNDIR
+RUS
 RWLOCK
 RXB
 Radu
@@ -564,6 +566,7 @@ ccr
 cd
 ce
 ceh
+celsius
 centric
 cfg
 cfko
@@ -752,6 +755,7 @@ existp
 extern
 extlist
 fadvise
+fahrenheit
 fallocate
 fallthrough
 fblocks
@@ -957,6 +961,7 @@ llll
 llu
 llvm
 loadtext
+loc
 localTime
 localkey
 localtime
@@ -1039,6 +1044,7 @@ mutexes
 mx
 mytable
 mytxn
+nTemp
 namespace
 namespaces
 nbits
@@ -1434,6 +1440,7 @@ walk's
 warmup
 wb
 wcursor
+weathertable
 whitespace
 wiredTiger
 wiredTigerTables

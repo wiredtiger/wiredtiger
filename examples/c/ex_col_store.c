@@ -113,7 +113,7 @@ update_celcius_to_fahrenheit(WT_SESSION *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &temp));
-        /* update the value from celcius to fahrenheit */
+        /* update the value from celsius to fahrenheit */
         cursor->set_value(cursor, celcius_to_fahrenheit(temp));
         error_check(cursor->update(cursor));
     }
@@ -176,8 +176,7 @@ generate_data(WEATHER *w_array)
     // rand() % (max_number + 1 - minimum_number) + minimum_number
     int day;
     int country;
-    time_t seed = (time_t)time(NULL);
-    srand(seed);
+    srand((unsigned int)1);
 
     for (int i = 0; i < N_DATA; i++) {
         WEATHER w;
@@ -480,17 +479,20 @@ main(int argc, char *argv[])
 
     home = example_setup(argc, argv);
 
-    /* Establising a connection */
+    /* Establishing a connection */
     error_check(wiredtiger_open(home, NULL, "create,statistics=(fast)", &conn));
 
-    /* Establising a session */
+    /* Establishing a session */
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create a table with coloumns and colgroup */
+    /* Create a table with columns and colgroup */
     error_check(session->create(session, "table:weathertable",
-      "key_format=r,value_format=5sHBBHBBHH5s,columns=(id,day,hour,temp,humidity,pressure,wind,"
-      "feels_like_temp,loc_lat,loc_long,country),colgroups=(day_time,temperature,humidity_pressure,"
-      "wind,feels_like_temp,location)"));
+      "key_format=r,value_format=" WT_UNCHECKED_STRING(
+        5sHBBHBBHH5s) ",columns=(id,day,hour,temp,"
+                      "humidity,pressure,wind,"
+                      "feels_like_temp,loc_lat,loc_long,country),colgroups=(day_time,temperature,"
+                      "humidity_pressure,"
+                      "wind,feels_like_temp,location)"));
 
     /* Create the colgroups */
     error_check(session->create(session, "colgroup:weathertable:day_time", "columns=(day,hour)"));
@@ -518,7 +520,7 @@ main(int argc, char *argv[])
     /* Prints all the data in the database */
     print_all_columns(session);
 
-    /* Update the temperature from Celcius to Fahrenheit */
+    /* Update the temperature from Celsius to Fahrenheit */
     print_temp_column(session);
     update_celcius_to_fahrenheit(session);
     print_temp_column(session);
