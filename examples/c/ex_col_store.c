@@ -151,8 +151,7 @@ remove_country(WT_SESSION *session)
     WT_CURSOR *cursor;
     int ret;
     uint64_t recno;
-    uint16_t loc_lat;
-    uint16_t loc_long;
+    uint16_t loc_lat, loc_long;
     const char *country;
 
     error_check(
@@ -406,8 +405,8 @@ average_data(WT_SESSION *session)
     const char *day;
     const char *country;
     uint64_t recno;
-    uint16_t hour, pressure, loc_long;
-    uint8_t temp, humidity, wind, feels_like_temp, loc_lat;
+    uint16_t hour, pressure, loc_long, loc_lat;
+    uint8_t temp, humidity, wind, feels_like_temp;
     int ret, num_rec = 5, exact;
     unsigned int count = 0;
     unsigned int rec_arr[5] = {0, 0, 0, 0, 0};
@@ -467,12 +466,12 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     WT_CURSOR *cursor;
     WEATHER weather_data[N_DATA];
-    uint16_t start, end;
-    int min_temp_result, max_temp_result;
+    // uint16_t start, end;
+    // int min_temp_result, max_temp_result;
 
-    start = 1000;
-    end = 2000;
-    min_temp_result = 0;
+    // start = 1000;
+    // end = 2000;
+    // min_temp_result = 0;
 
     /* Generating random data to populate the weather table */
     generate_data(weather_data);
@@ -520,35 +519,35 @@ main(int argc, char *argv[])
     /* Prints all the data in the database */
     print_all_columns(session);
 
-    /* Update the temperature from Celsius to Fahrenheit */
-    print_temp_column(session);
-    update_celcius_to_fahrenheit(session);
-    print_temp_column(session);
+    // /* Update the temperature from Celsius to Fahrenheit */
+    // print_temp_column(session);
+    // update_celcius_to_fahrenheit(session);
+    // print_temp_column(session);
 
-    /* Create indexes for searching */
-    error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
-    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
+    // /* Create indexes for searching */
+    // error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
+    // error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
 
-    /* Calling the example operations */
-    if (find_min_temp(session, start, end, &min_temp_result)) {
-        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-          min_temp_result);
-    } else {
-        printf("Invalid start and end time range, please try again.");
-    }
+    // /* Calling the example operations */
+    // if (find_min_temp(session, start, end, &min_temp_result)) {
+    //     printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+    //       min_temp_result);
+    // } else {
+    //     printf("Invalid start and end time range, please try again.");
+    // }
 
-    max_temp_result = 0;
-    if (find_max_temp(session, start, end, &max_temp_result)) {
-        printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-          max_temp_result);
-    } else {
-        printf("Invalid start and end time range, please try again.");
-    }
+    // max_temp_result = 0;
+    // if (find_max_temp(session, start, end, &max_temp_result)) {
+    //     printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+    //       max_temp_result);
+    // } else {
+    //     printf("Invalid start and end time range, please try again.");
+    // }
 
-    chance_of_rain(session);
-    remove_country(session);
-    print_all_columns(session);
-    average_data(session);
+    // chance_of_rain(session);
+    // remove_country(session);
+    // print_all_columns(session);
+    // average_data(session);
 
     /* Close the connection */
     error_check(conn->close(conn, NULL));
