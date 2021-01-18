@@ -176,8 +176,8 @@ generate_data(WEATHER *w_array)
     // rand() % (max_number + 1 - minimum_number) + minimum_number
     int day;
     int country;
-
-    srand(time(NULL));
+    time_t seed = (time_t)time(NULL);
+    srand(seed);
 
     for (int i = 0; i < N_DATA; i++) {
         WEATHER w;
@@ -551,5 +551,4 @@ main(int argc, char *argv[])
     /* Close the connection */
     error_check(conn->close(conn, NULL));
     return (EXIT_SUCCESS);
-
 }
