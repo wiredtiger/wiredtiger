@@ -25,8 +25,8 @@ void chance_of_rain(WT_SESSION *session);
 void generate_data(WEATHER *w_array);
 void search_temperature(WT_SESSION *session);
 int average_data(WT_SESSION *session);
-int find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time);
-int find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time);
+bool find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result);
+bool find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result);
 
 void
 print_all_columns(WT_SESSION *session)
@@ -239,12 +239,12 @@ generate_data(WEATHER *w_array)
     return;
 }
 
-int
-find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
+bool
+find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result)
 {
     WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
-    int min_so_far;
-    int ret;
+    int exact;
+    int ret = 0;
     uint64_t recno;
     uint16_t hour;
     uint8_t temp;
@@ -258,50 +258,78 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
       session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &end_time_cursor));
 
     /* select values WHERE (hour >= start AND hour <= end) */
+    /* Find the starting record closest to desired start time. */
     start_time_cursor->set_key(start_time_cursor, start_time);
-    error_check(start_time_cursor->search(start_time_cursor));
-    error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge,count=10"));
+    error_check(start_time_cursor->search_near(start_time_cursor, &exact));
+    switch (exact) {
+        case -1:
+            ret = start_time_cursor->next(start_time_cursor);
+            printf("Switch 1\n");
+            break;
+        default:
+            break;
+    }
 
+    if (ret == 0) {
+        error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge"));
+    } else {
+        return false;
+    }
+
+    /* Find the ending record closest to desired end time. */
     end_time_cursor->set_key(end_time_cursor, end_time);
-    error_check(end_time_cursor->search(end_time_cursor));
-    error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
+    error_check(end_time_cursor->search_near(end_time_cursor, &exact));
+    switch (exact) {
+        case 1:
+            ret = end_time_cursor->prev(end_time_cursor);
+            printf("Switch 2\n");
 
-    /* 
-    Initialize minimum temperature to temperature of the first record.
-    Assumes at least one record is found in weather records. 
-    */
-    join_cursor->next(join_cursor);
+            break;
+        default:
+            break;
+    }
+
+    if (ret == 0) {
+        error_check(session->join(session, join_cursor, end_time_cursor, "compare=le"));
+    } else {
+        return false;
+    }
+    
+    /* Initialize minimum temperature to temperature of the first record. */
+    ret = join_cursor->next(join_cursor);
+    if (ret != 0) {
+        return false;
+    }
+
     error_check(join_cursor->get_key(join_cursor, &recno));
     error_check(join_cursor->get_value(join_cursor, &hour, &temp));
-    min_so_far = temp;
+    *result = temp;
 
     while ((ret = join_cursor->next(join_cursor)) == 0) {
         error_check(join_cursor->get_key(join_cursor, &recno));
         error_check(join_cursor->get_value(join_cursor, &hour, &temp));
 
-        if (temp < min_so_far) {
-            min_so_far = temp;
+        if (temp < *result) {
+            *result = temp;
         }
 
         /* For debugging purposes */
-        /* 
         printf("ID %" PRIu64, recno);
         printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
-        */
     }
 
-    return min_so_far;
+    return true;
 }
 
-int
-find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
+bool
+find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result)
 {
     WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
-    int ret;
+    int exact;
+    int ret = 0;
     uint64_t recno;
     uint16_t hour;
     uint8_t temp;
-    uint8_t max_so_far = 0;
 
     /* Open cursors needed by the join. */
     error_check(session->open_cursor(
@@ -312,94 +340,67 @@ find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time)
       session->open_cursor(session, "index:weathertable:hour", NULL, NULL, &end_time_cursor));
 
     /* select values WHERE (hour >= start AND hour <= end) */
+    /* Find the starting record closest to desired start time. */
     start_time_cursor->set_key(start_time_cursor, start_time);
-    error_check(start_time_cursor->search(start_time_cursor));
-    error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge,count=10"));
+    error_check(start_time_cursor->search_near(start_time_cursor, &exact));
+    switch (exact) {
+        case -1:
+            ret = start_time_cursor->next(start_time_cursor);
+            printf("Switch 1\n");
+            break;
+        default:
+            break;
+    }
 
+    if (ret == 0) {
+        error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge"));
+    } else {
+        return false;
+    }
+
+    /* Find the ending record closest to desired end time. */
     end_time_cursor->set_key(end_time_cursor, end_time);
-    error_check(end_time_cursor->search(end_time_cursor));
-    error_check(session->join(session, join_cursor, end_time_cursor, "compare=le,count=10"));
+    error_check(end_time_cursor->search_near(end_time_cursor, &exact));
+    switch (exact) {
+        case 1:
+            ret = end_time_cursor->prev(end_time_cursor);
+            printf("Switch 2\n");
 
-    /* 
-    Initialize maximum temperature to temperature of the first record. 
-    Assumes at least one record is found in weather records.
-    */
+            break;
+        default:
+            break;
+    }
+
+    if (ret == 0) {
+        error_check(session->join(session, join_cursor, end_time_cursor, "compare=le"));
+    } else {
+        return false;
+    }
+
+    /* Initialize maximum temperature to temperature of the first record. */
     join_cursor->next(join_cursor);
+    if (ret != 0) {
+        return false;
+    }
+
     error_check(join_cursor->get_key(join_cursor, &recno));
     error_check(join_cursor->get_value(join_cursor, &hour, &temp));
-    max_so_far = temp;
+    *result = temp;
 
     while ((ret = join_cursor->next(join_cursor)) == 0) {
         error_check(join_cursor->get_key(join_cursor, &recno));
         error_check(join_cursor->get_value(join_cursor, &hour, &temp));
 
-        if (temp > max_so_far) {
-            max_so_far = temp;
+        if (temp > *result) {
+            *result = temp;
         }
 
         /* For debugging purposes */
-        /*
         printf("ID %" PRIu64, recno);
         printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
-        */
     }
 
-    return max_so_far;
-}
-
-int
-average_data(WT_SESSION *session)
-{
-    WT_CURSOR *loc_cursor;
-    unsigned int count = 0;
-    uint64_t recno;
-    const char *country;
-    unsigned int ret_arr[5] = {0, 0, 0, 0, 0};
-    int ret;
-    uint16_t hour, pressure;
-    uint8_t temp, humidity, wind, feels_like_temp, loc_lat;
-    uint16_t start, end, loc_long;
-
-    /* Create an index to search for country*/
-    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
-
-    /* Open a cursor to search for the location */
-    error_check(
-      session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, "AU\0\0\0");
-    error_check(loc_cursor->search(loc_cursor));
-
-    /* Populate the array with the totals of each of the columns*/
-    while ((ret = loc_cursor->next(loc_cursor)) == 0) {
-        error_check(loc_cursor->get_key(loc_cursor, &recno));
-        error_check(loc_cursor->get_value(loc_cursor, &temp, &humidity, &pressure, &wind,
-          &feels_like_temp, &loc_lat, &loc_long, &country));
-        count++;
-        ret_arr[0] += temp;
-        ret_arr[1] += humidity;
-        ret_arr[2] += pressure;
-        ret_arr[3] += wind;
-        ret_arr[4] += feels_like_temp;
-        printf("%d", ret_arr[0]);
-    }
-
-    /* Get the average values by dividing with the total number of records*/
-    for (int i = 0; i < 5; i++) {
-        ret_arr[i] = ret_arr[i] / count;
-    }
-
-    // printf("Average records for location: \n Longitude: %" PRIu16 ", Latitude: %" PRIu16 ",
-    // Country: %s", search_loc.longitude, search_loc.latitude, search_loc.country);
-    /* List the average records */
-    for (int i = 0; i < 5; i++) {
-        printf("Average data : temp: %" PRIu8 ", humidity: %" PRIu8 ", pressure: %" PRIu16
-               ", wind: %" PRIu8 ", feels like: %" PRIu8,
-          ret_arr[0], ret_arr[1], ret_arr[2], ret_arr[3], ret_arr[4]);
-    }
-    scan_end_check(ret == WT_NOTFOUND);
-    error_check(loc_cursor->close(loc_cursor));
-
-    return 0;
+    return true;
 }
 
 int
@@ -410,7 +411,8 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     WT_CURSOR *cursor;
     WEATHER weather_data[N_DATA];
-    uint16_t start, end, loc_long;
+    uint16_t start, end;
+    int min_temp_result, max_temp_result;
 
     generate_data(weather_data);
 
@@ -465,14 +467,25 @@ main(int argc, char *argv[])
 
     error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
 
-    printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-      find_min_temp(session, start, end));
-    printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-      find_max_temp(session, start, end));
+    min_temp_result = 0;
+    if (find_min_temp(session, start, end, &min_temp_result)) {
+        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+        min_temp_result);
+    } else {
+        printf("Invalid start and end time range, please try again.");
+    }
+    
+    max_temp_result = 0;
+    if (find_max_temp(session, start, end, &max_temp_result)) {
+        printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+        max_temp_result);
+    } else {
+        printf("Invalid start and end time range, please try again.");
+    }
 
     chance_of_rain(session);
     // search_temperature(session);
-    average_data(session);
+    // average_data(session);
 
     // close the connection
     error_check(conn->close(conn, NULL));
