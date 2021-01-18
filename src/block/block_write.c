@@ -356,9 +356,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 		 WT_CLOCKDIFF_NS(time_stop, time_start));
 #endif
 
-    /* SASHA: make sure we can always write the block that exists in cache, so
-     * we don't end up with inconsistent copies.
-     */
     if (block->fh->file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);

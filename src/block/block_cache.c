@@ -130,8 +130,8 @@ __wt_blkcache_get_or_check(
 
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
 
-    /* If more than half the file is likely to be in the buffer cache,
-     * don't use the cache.
+    /* If more than the configured fraction of the file is likely
+     * to fit in the buffer cache, don't use the cache.
      */
     if (blkcache->system_ram >=
 	__blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
@@ -214,6 +214,20 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
 
+    /* Try the no-write-allocate policy
+    if (write == true)
+	return -1;
+    */
+
+    /* If more than the configured fraction of the file is likely
+     * to fit in the buffer cache, don't use the cache.
+     */
+    if (blkcache->system_ram >=
+	__blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_put);
+	return WT_BLKCACHE_BYPASS;
+    }
+
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
         return WT_BLKCACHE_FULL;
@@ -266,7 +280,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
-    if (write) {
+    if (write == true) {
 	WT_STAT_CONN_INCRV(session, block_cache_bytes_insert_write, size);
 	WT_STAT_CONN_INCR(session, block_cache_blocks_insert_write);
     }
