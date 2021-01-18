@@ -758,7 +758,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
 
-    __wt_curhs_time_window(hs_cursor, &tw);
+    __wt_hs_upd_time_window(hs_cursor, &tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
     upd->txnid = tw->start_txn;
     upd->durable_ts = tw->durable_start_ts;

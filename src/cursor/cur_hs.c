@@ -529,11 +529,11 @@ err:
 }
 
 /*
- * __wt_curhs_time_window --
+ * __wt_hs_upd_time_window --
  *     Get the underlying time window of the hs cursor.
  */
 void
-__wt_curhs_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
+__wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_BTREE *hs_cbt;
