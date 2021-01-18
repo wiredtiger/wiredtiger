@@ -261,7 +261,6 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *
     switch (exact) {
     case -1:
         ret = start_time_cursor->next(start_time_cursor);
-        printf("Switch 1\n");
         break;
     default:
         break;
@@ -279,8 +278,6 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *
     switch (exact) {
     case 1:
         ret = end_time_cursor->prev(end_time_cursor);
-        printf("Switch 2\n");
-
         break;
     default:
         break;
@@ -407,15 +404,21 @@ average_data(WT_SESSION *session)
     uint64_t recno;
     uint16_t hour, pressure, loc_long;
     uint8_t temp, humidity, wind, feels_like_temp, loc_lat;
-    int ret, num_rec = 5;
+    int ret, num_rec = 5, exact;
     unsigned int count = 0;
     unsigned int rec_arr[5] = {0, 0, 0, 0, 0};
 
     /* Open a cursor to search for the location, currently RUS */
     error_check(
       session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, "RUS\0\0\0");
-    error_check(loc_cursor->search(loc_cursor));
+    loc_cursor->set_key(loc_cursor, "RUS\0\0");
+    error_check(loc_cursor->search_near(loc_cursor, &exact));
+
+    /* Error handling in the case RUS is not found*/
+    if (exact != 0) {
+        printf("Location not found!");
+        return;
+    }
 
     /* Populate the array with the totals of each of the columns */
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
