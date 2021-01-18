@@ -2233,16 +2233,6 @@ advance:
              */
             prev_eof = rd_lsn;
             WT_SET_LSN(&rd_lsn, rd_lsn.l.file + 1, 0);
-            /*
-             * Check the user define end lsn offset and file here
-             */
-            // printf("Checking user defined end lsn:\nl.file = %" PRIu32 "\nl.offset = %" PRIu32 "\n",
-            //     end_range_lsnp->l.file, end_range_lsnp->l.offset);
-            // if (!WT_IS_ZERO_LSN(end_range_lsnp)){
-            //     if (rd_lsn.l.file > end_range_lsnp->l.file || rd_lsn.l.offset > end_range_lsnp->l.offset){
-            //         break;
-            //     }
-            // }
             if (rd_lsn.l.file > end_lsn.l.file)
                 break;
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
@@ -2422,7 +2412,7 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_ONE))
                 break;
         }
-        if (!WT_IS_ZERO_LSN(end_range_lsnp)){
+        if (end_range_lsnp != NULL && !WT_IS_ZERO_LSN(end_range_lsnp)){
             if (next_lsn.l.file > end_range_lsnp->l.file){
                 break;
             } else if (next_lsn.l.file == end_range_lsnp->l.file && next_lsn.l.offset > end_range_lsnp->l.offset){
