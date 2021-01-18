@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os
+import os, glob
 import wttest, wiredtiger
 from suite_subprocess import suite_subprocess
 from helper import compare_files
@@ -41,9 +41,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     counter = 0
     # To determine whether to increase/decrease counter, which determines
     initial_backup = True
-
     # Used for populate function
     rows = 100
+    populate_big = None
 
     #
     # Add data to the given uri.
@@ -69,15 +69,19 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Populate a set of objects.
     #
-    def populate(self, objs, skiplsm, do_checkpoint=False):
+    def populate(self, objs, do_checkpoint=False, skiplsm=False):
+        cg_config = ''
         for i in objs:
-            if len(i) > 2 and i[2] and skiplsm:
-                continue
-
+            if len(i) > 2:
+                if i[2] and skiplsm:
+                    continue
+                if i[2] == self.populate_big:
+                    self.rows = 50000 # Big Object
+                else:
+                    self.rows = 1000  # Small Object
             if len(i) > 3:
-                i[1](self, i[0], self.row, cgconfig = i[3]).populate()  
-            else:
-                i[1](self, i[0], self.row).populate()  
+                cg_config = i[3] 
+            i[1](self, i[0], self.rows, cgconfig = cg_config).populate()
 
         # Backup needs a checkpoint
         if do_checkpoint:

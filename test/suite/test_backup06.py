@@ -26,11 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import glob
 import os
 import shutil
 import string
-from test_backup_base import test_backup_base
+from wtbackup import backup_base
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
@@ -43,7 +42,7 @@ except:
 
 # test_backup06.py
 #    Test that opening a backup cursor does not open file handles.
-class test_backup06(test_backup_base):
+class test_backup06(backup_base):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.
     num_table_sets = 10
@@ -67,10 +66,6 @@ class test_backup06(test_backup_base):
         ('table:' + pfx + '.7', ComplexLSMDataSet),
         ('table:' + pfx + '.8', ComplexLSMDataSet),
     ]
-
-    populate_options = {
-        'rows': 100
-    }
 
     # Populate a set of objects.
     def populate_many(self):
@@ -128,8 +123,8 @@ class test_backup06(test_backup_base):
         # We also want to make sure we detect and get an error when set to
         # false.  When set to true the open handles protect against schema
         # operations.
-        self.populate(self.fobjs, self.populate_options)
-        self.populate(self.tobjs, self.populate_options)
+        self.populate(self.fobjs)
+        self.populate(self.tobjs)
         cursor = self.session.open_cursor('backup:', None, None)
         # Check that we can create.
         self.session.create(schema_uri, None)
@@ -147,8 +142,8 @@ class test_backup06(test_backup_base):
 
     # Test cursor reset runs through the list twice.
     def test_cursor_reset(self):
-        self.populate(self.fobjs, self.populate_options)
-        self.populate(self.tobjs, self.populate_options)
+        self.populate(self.fobjs)
+        self.populate(self.tobjs)
         cursor = self.session.open_cursor('backup:', None, None)
         i = 0
         while True:

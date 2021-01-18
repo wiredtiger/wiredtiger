@@ -123,14 +123,8 @@ class test_backup_target(backup_base):
 
     # Test backup with targets.
     def test_backup_target(self):
-
-        if len(i) > 2 and i[2] and options.get('big') == i[2]:
-            rows = 50000           # Big object
-        else:
-            rows = options.get('rows', 100)
-        self.populate_options['big'] = self.big
-        print(self.big)
-        self.populate(self.objs, self.populate_options)
+        self.populate_big = self.big
+        self.populate(self.objs, True)
         self.backup_table_cursor(self.list)
 
 if __name__ == '__main__':
