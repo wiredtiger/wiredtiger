@@ -3236,6 +3236,11 @@ int wiredtiger_unpack_uint(WT_PACK_STREAM *ps, uint64_t *up)
 /*! @} */
 
 /*!
+ * @name Configuration strings
+ * @{
+ */
+
+/*!
  * The configuration information returned by the WiredTiger configuration
  * parsing functions in the WT_EXTENSION_API and the public API.
  */
