@@ -27,25 +27,15 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import glob, os, shutil, string
-<<<<<<< HEAD
-import wiredtiger, wttest
-from helper import compare_files
-from test_backup_base import test_backup_base
-=======
 import wiredtiger
 from wtbackup import backup_base
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
 from wtscenario import make_scenarios
 
 # test_backup03.py
 #    Utilities: wt backup
 # Test cursor backup with target URIs
-<<<<<<< HEAD
-class test_backup_target(test_backup_base):
-=======
 class test_backup_target(backup_base):
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     dir='backup.dir'                    # Backup directory name
 
     # This test is written to test LSM hot backups: we test a simple LSM object
@@ -90,37 +80,10 @@ class test_backup_target(backup_base):
     # Create a large cache, otherwise this test runs quite slowly.
     conn_config = 'cache_size=1G'
 
-<<<<<<< HEAD
-    #self.big is missing?!
+
     populate_options = {
-        'rows': 1000,
         'session_checkpoint': True
     }
-=======
-    # Populate a set of objects.
-    def populate(self):
-        for i in self.objs:
-            if self.big == i[2]:
-                rows = 50000           # Big object
-            else:
-                rows = 1000             # Small object
-            i[1](self, i[0], rows, cgconfig = i[3]).populate()
-        # Backup needs a checkpoint
-        self.session.checkpoint(None)
-
-    # Check that a URI doesn't exist, both the meta-data and the file names.
-    def confirmPathDoesNotExist(self, uri):
-        conn = self.wiredtiger_open(self.dir)
-        session = conn.open_session()
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.open_cursor(uri, None, None))
-        conn.close()
-
-        self.assertEqual(
-            glob.glob(self.dir + '*' + uri.split(":")[1] + '*'), [],
-            'confirmPathDoesNotExist: URI exists, file name matching \"' +
-            uri.split(":")[1] + '\" found')
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
     # Backup a set of target tables using a backup cursor.
     def backup_table_cursor(self, l):
@@ -150,11 +113,7 @@ class test_backup_target(backup_base):
         # Confirm the objects we backed up exist, with correct contents.
         for i in range(0, len(self.objs)):
             if not l or i in l:
-<<<<<<< HEAD
-                self.compare_backups(self.objs[i][0], self.dir, 'backup')
-=======
                 self.compare_backups(self.objs[i][0], self.dir, './')
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
         # Confirm the other objects don't exist.
         if l:
@@ -164,7 +123,13 @@ class test_backup_target(backup_base):
 
     # Test backup with targets.
     def test_backup_target(self):
+
+        if len(i) > 2 and i[2] and options.get('big') == i[2]:
+            rows = 50000           # Big object
+        else:
+            rows = options.get('rows', 100)
         self.populate_options['big'] = self.big
+        print(self.big)
         self.populate(self.objs, self.populate_options)
         self.backup_table_cursor(self.list)
 

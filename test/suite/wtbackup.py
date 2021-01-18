@@ -42,6 +42,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # To determine whether to increase/decrease counter, which determines
     initial_backup = True
 
+    # Used for populate function
+    rows = 100
+
     #
     # Add data to the given uri.
     # Allows the option for doing a session checkpoint after adding data.
@@ -62,6 +65,24 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.counter += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
+    
+    #
+    # Populate a set of objects.
+    #
+    def populate(self, objs, skiplsm, do_checkpoint=False):
+        for i in objs:
+            if len(i) > 2 and i[2] and skiplsm:
+                continue
+
+            if len(i) > 3:
+                i[1](self, i[0], self.row, cgconfig = i[3]).populate()  
+            else:
+                i[1](self, i[0], self.row).populate()  
+
+        # Backup needs a checkpoint
+        if do_checkpoint:
+            self.session.checkpoint()
+
     #
     # Set up all the directories needed for the test. We have a full backup directory for each
     # iteration and an incremental backup for each iteration. That way we can compare the full and
@@ -83,6 +104,20 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if os.path.exists(home_full_dir):
                 os.remove(home_full_dir)
             os.makedirs(home_full_dir + '/' + logpath)
+    
+    # Check that a URI doesn't exist, both the meta-data and the file names.
+    def confirmPathDoesNotExist(self, uri, dir):
+        conn = self.wiredtiger_open(dir)
+        session = conn.open_session()
+        self.assertRaises(wiredtiger.WiredTigerError,
+            lambda: session.open_cursor(uri, None, None))
+        conn.close()
+
+        self.assertEqual(
+            glob.glob(dir + '*' + uri.split(":")[1] + '*'), [],
+            'confirmPathDoesNotExist: URI exists, file name matching \"' +
+            uri.split(":")[1] + '\" found')
+
     #
     # Compare against two directory paths using the wt dump command.
     # The suffix allows the option to add distinctive tests adding suffix to both the output files and directories
