@@ -102,17 +102,11 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session)
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE ds_cbt;
     WT_DECL_RET;
-    WT_ITEM hs_key;
     uint32_t btree_id;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     btree_id = S2BT(session)->id;
 
-    /*
-     * We are required to position the history store cursor. Set it to the first record of our btree
-     * in the history store.
-     */
-    memset(&hs_key, 0, sizeof(hs_key));
     hs_cursor->set_key(hs_cursor, 1, btree_id);
     WT_ERR(__wt_hs_cursor_search_near_after(session, hs_cursor));
 
