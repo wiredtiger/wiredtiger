@@ -28,23 +28,14 @@
 
 import wiredtiger
 import os, shutil
-<<<<<<< HEAD
-from helper import compare_files
-from test_backup_base import test_backup_base
-=======
 from wtbackup import backup_base
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup19.py
 # Test cursor backup with a block-based incremental cursor source id only.
-<<<<<<< HEAD
-class test_backup19(test_backup_base):
-=======
 class test_backup19(backup_base):
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     bkp_home = "WT_BLOCK"
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
@@ -258,19 +249,6 @@ class test_backup19(backup_base):
         self.session.checkpoint()
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-
-        full_backup_out = self.full_out + '.' + str(self.counter)
-        full_backup_dir = self.home_full + '.' + str(self.counter)
-        if self.counter == 0:
-            full_backup_dir = self.home
-
-        incr_backup_out = self.incr_out + '.' + str(self.counter)
-        incr_backup_dir = self.home_incr + '.' + str(self.counter)
-        self.compare_backups(self.uri, full_backup_dir, full_backup_out, incr_backup_dir, incr_backup_out)
-
-=======
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 if __name__ == '__main__':
     wttest.run()

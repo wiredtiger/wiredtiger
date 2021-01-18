@@ -28,23 +28,14 @@
 
 import wiredtiger
 import os, shutil
-<<<<<<< HEAD
-from helper import compare_files
-from test_backup_base import test_backup_base
-=======
 from wtbackup import backup_base
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup14.py
 # Test cursor backup with a block-based incremental cursor.
-<<<<<<< HEAD
-class test_backup14(test_backup_base):
-=======
 class test_backup14(backup_base):
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
@@ -65,10 +56,7 @@ class test_backup14(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-<<<<<<< HEAD
-=======
     nops = 1000
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     def take_full_backup(self):
         if self.counter != 0:
             hdir = self.home_full + '.' + str(self.counter)
@@ -186,27 +174,6 @@ class test_backup14(backup_base):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
 
-<<<<<<< HEAD
-    #
-    # Add data to the given uri.
-    #
-    def add_data(self, uri, bulk_option):
-        c = self.session.open_cursor(uri, None, bulk_option)
-        for i in range(0, self.nops):
-            num = i + (self.mult * self.nops)
-            key = self.bigkey + str(num)
-            val = self.bigval + str(num)
-            c[key] = val
-        c.close()
-
-        # Increase the multiplier so that later calls insert unique items.
-        self.mult += 1
-        # Increase the counter so that later backups have unique ids.
-        if self.initial_backup == False:
-            self.counter += 1
-
-=======
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     #
     # Remove data from uri (table:main)
     #
@@ -243,12 +210,7 @@ class test_backup14(backup_base):
 
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-=======
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -258,12 +220,7 @@ class test_backup14(backup_base):
         self.remove_data()
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-=======
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -296,12 +253,7 @@ class test_backup14(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval)
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-=======
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -316,13 +268,7 @@ class test_backup14(backup_base):
 
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_logged, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-        self.compare_backups(self.uri, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-=======
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
@@ -331,27 +277,7 @@ class test_backup14(backup_base):
 
         self.take_full_backup()
         self.take_incr_backup()
-<<<<<<< HEAD
-        paths = self.setup_compare_backup_paths()
-        self.compare_backups(self.uri_not_logged, paths['full_backup_dir'], paths['full_backup_out'], paths['incr_backup_dir'], paths['incr_backup_out'])
-
-    def setup_compare_backup_paths(self):
-        full_backup_out = self.full_out + '.' + str(self.counter)
-        full_backup_dir = self.home_full + '.' + str(self.counter)
-        if self.counter == 0:
-            full_backup_dir = self.home
-
-        incr_backup_out = self.incr_out + '.' + str(self.counter)
-        incr_backup_dir = self.home_incr + '.' + str(self.counter)
-        return {
-            'full_backup_dir': full_backup_dir,
-            'full_backup_out': full_backup_out,
-            'incr_backup_dir': incr_backup_dir,
-            'incr_backup_out': incr_backup_out
-        }
-=======
         self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.counter))
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
     def test_backup14(self):
         os.mkdir(self.bkp_home)

@@ -28,12 +28,7 @@
 
 import threading, time, wiredtiger
 import glob, os, shutil
-<<<<<<< HEAD
-from helper import compare_files
-from test_backup_base import test_backup_base
-=======
 from wtbackup import backup_base
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from wtthread import op_thread
@@ -41,11 +36,7 @@ from wtthread import op_thread
 # test_backup04.py
 #    Utilities: wt backup
 # Test incremental cursor backup.
-<<<<<<< HEAD
-class test_backup_target(test_backup_base):
-=======
 class test_backup_target(backup_base):
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
 
@@ -152,13 +143,8 @@ class test_backup_target(backup_base):
         # backup to the original database and the full backup database.
         full_dir = self.dir + ".full"
         self.take_full_backup(full_dir)
-<<<<<<< HEAD
-        self.compare_backups(self.uri, full_dir, 'original', self.dir, 'backup_incr')
-        self.compare_backups(self.uri, self.dir, 'backup_incr')
-=======
         self.compare_backups(self.uri, self.dir, full_dir)
         self.compare_backups(self.uri, self.dir, './')
->>>>>>> a9278b2c18529e687221144cfb99d7321aeb387c
 
 if __name__ == '__main__':
     wttest.run()
