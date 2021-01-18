@@ -300,7 +300,6 @@ connection_stats = [
     CursorStat('cursor_next', 'cursor next calls'),
     CursorStat('cursor_next_hs_tombstone_rts', 'cursor next calls that skip due to a globally visible history store tombstone in rollback to stable'),
     CursorStat('cursor_prev', 'cursor prev calls'),
-    CursorStat('cursor_prev_hs_tombstone_rts', 'cursor prev calls that skip due to a globally visible history store tombstone in rollback to stable'),
     CursorStat('cursor_remove', 'cursor remove calls'),
     CursorStat('cursor_remove_bytes', 'cursor remove key bytes removed', 'size'),
     CursorStat('cursor_reopen', 'cursors reused from cache'),
