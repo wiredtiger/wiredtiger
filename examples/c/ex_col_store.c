@@ -545,5 +545,5 @@ main(int argc, char *argv[])
     /* Close the connection */
     error_check(conn->close(conn, NULL));
     return (EXIT_SUCCESS);
-    
+
 }
