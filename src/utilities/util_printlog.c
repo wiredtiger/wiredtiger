@@ -39,7 +39,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 
     flags = 0;
     ofile = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "f:s:mx")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "f:l:mx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
@@ -51,13 +51,14 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
         case 'x': /* hex output */
             LF_SET(WT_TXN_PRINTLOG_HEX);
             break;
-        case 's':
+        case 'l':
             start_str = __wt_optarg;
-            n_args = sscanf(start_str, "%" SCNu32 ",%" SCNu32 ",%" SCNu32 ",%" SCNu32, &start_lsnfile, &start_lsnoffset, &end_lsnfile, &end_lsnoffset);
-            if (n_args == 2){
+            n_args = sscanf(start_str, "%" SCNu32 ",%" SCNu32 ",%" SCNu32 ",%" SCNu32,
+              &start_lsnfile, &start_lsnoffset, &end_lsnfile, &end_lsnoffset);
+            if (n_args == 2) {
                 WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
                 start_set = true;
-            } else if (n_args == 4){
+            } else if (n_args == 4) {
                 WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
                 start_set = true;
@@ -74,7 +75,8 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
     if (argc != 0)
         return (usage());
 
-    if ((ret = __wt_txn_printlog(session, ofile, flags, start_set == true ? &start_lsn : NULL, end_set == true ? &end_lsn : NULL)) != 0)
+    if ((ret = __wt_txn_printlog(session, ofile, flags, start_set == true ? &start_lsn : NULL,
+           end_set == true ? &end_lsn : NULL)) != 0)
         (void)util_err(session, ret, "printlog");
 
     return (ret);

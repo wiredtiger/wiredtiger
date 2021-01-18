@@ -824,8 +824,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
              * checkpoint while scanning, we will change the full scan to start from there.
              */
             WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
-            ret = __wt_log_scan(
-              session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r, NULL, NULL);
+            ret = __wt_log_scan(session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA,
+              __txn_log_recover, &r, NULL, NULL);
         }
         if (F_ISSET(conn, WT_CONN_SALVAGE))
             ret = 0;
@@ -919,7 +919,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         ret = __wt_log_scan(
           session, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r, NULL, NULL);
     else
-        ret = __wt_log_scan(session, &r.ckpt_lsn, WT_LOGSCAN_RECOVER, __txn_log_recover, &r, NULL, NULL);
+        ret = __wt_log_scan(
+          session, &r.ckpt_lsn, WT_LOGSCAN_RECOVER, __txn_log_recover, &r, NULL, NULL);
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         ret = 0;
     WT_ERR(ret);
