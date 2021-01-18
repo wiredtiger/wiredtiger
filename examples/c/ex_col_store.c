@@ -17,8 +17,8 @@ typedef struct {
     char country[5];
 } WEATHER;
 
-uint8_t celcius_to_farenheit(uint8_t temp_in_celcius);
-void update_celcius_to_farenheit(WT_SESSION *session);
+uint8_t celcius_to_fahrenheit(uint8_t temp_in_celcius);
+void update_celcius_to_fahrenheit(WT_SESSION *session);
 void print_temp_column(WT_SESSION *session);
 void print_all_columns(WT_SESSION *session);
 void chance_of_rain(WT_SESSION *session);
@@ -95,23 +95,26 @@ print_temp_column(WT_SESSION *session)
 }
 
 uint8_t
-celcius_to_farenheit(uint8_t temp_in_celcius)
+celcius_to_fahrenheit(uint8_t temp_in_celcius)
 {
-    return (uint8_t)(1.8 * temp_in_celcius) + 32.0;
+    uint8_t temp_in_fahrenheit = (uint8_t)((1.8 * temp_in_celcius) + 32.0);
+    return temp_in_fahrenheit;
 }
 
 void
-update_celcius_to_farenheit(WT_SESSION *session)
+update_celcius_to_fahrenheit(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     int ret;
     uint8_t temp;
+    /* open the cursor on column 'temperature'*/
     error_check(
       session->open_cursor(session, "colgroup:weathertable:temperature", NULL, NULL, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &temp));
-        cursor->set_value(cursor, celcius_to_farenheit(temp));
+        /* update the value from celcius to fahrenheit */
+        cursor->set_value(cursor, celcius_to_fahrenheit(temp));
         error_check(cursor->update(cursor));
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -361,7 +364,6 @@ find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *
     default:
         break;
     }
-
     if (ret == 0) {
         error_check(session->join(session, join_cursor, end_time_cursor, "compare=le"));
     } else {
@@ -515,7 +517,7 @@ main(int argc, char *argv[])
 
     /* Update the temperature from Celcius to Fahrenheit */
     print_temp_column(session);
-    update_celcius_to_farenheit(session);
+    update_celcius_to_fahrenheit(session);
     print_temp_column(session);
 
     /* Create indexes for searching */
@@ -546,4 +548,5 @@ main(int argc, char *argv[])
     /* Close the connection */
     error_check(conn->close(conn, NULL));
     return (EXIT_SUCCESS);
+
 }
