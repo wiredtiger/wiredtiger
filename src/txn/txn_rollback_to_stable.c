@@ -968,74 +968,43 @@ static int
 __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_id)
 {
     WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(hs_key);
     WT_DECL_RET;
-    WT_ITEM key;
-    WT_UPDATE *hs_upd;
     wt_timestamp_t hs_start_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    int exact;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
     hs_cursor = NULL;
-    WT_CLEAR(key);
-    hs_upd = NULL;
 
     WT_RET(__wt_scr_alloc(session, 0, &hs_key));
 
     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session));
-    hs_cursor = session->hs_cursor;
-    cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
 
     /* Walk the history store for the given btree. */
-    hs_cursor->set_key(hs_cursor, btree_id, &key, WT_TS_NONE, 0);
-    ret = __wt_hs_cursor_search_near(session, hs_cursor, &exact);
+    hs_cursor->set_key(hs_cursor, 1, btree_id);
+    ret = __wt_hs_cursor_search_near_after(session, hs_cursor);
 
-    /*
-     * The search should always end up pointing to the start of the required btree or end of the
-     * previous btree on success. Move the cursor based on the result.
-     */
-    WT_ASSERT(session, (ret != 0 || exact != 0));
-    if (ret == 0 && exact < 0)
-        ret = __wt_hs_cursor_next(session, hs_cursor);
-
-    for (; ret == 0; ret = __wt_hs_cursor_next(session, hs_cursor)) {
+    for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
-        /* Stop crossing into the next btree boundary. */
-        if (btree_id != hs_btree_id)
-            break;
+        /* We shouldn't cross the btree search space. */
+        WT_ASSERT(session, btree_id == hs_btree_id);
 
-        /*
-         * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
-         */
-        if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            WT_STAT_CONN_INCR(session, cursor_next_hs_tombstone_rts);
-            continue;
-        }
-
-        /* Set this comparison as exact match of the search for later use. */
-        cbt->compare = 0;
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "rollback to stable history store cleanup of update with start timestamp: %s",
           __wt_timestamp_to_string(hs_start_ts, ts_string));
 
-        WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
-        WT_ERR(__wt_hs_modify(cbt, hs_upd));
+        WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
-        hs_upd = NULL;
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
     __wt_scr_free(session, &hs_key);
-    __wt_free(session, hs_upd);
-    WT_TRET(__wt_hs_cursor_close(session));
+    WT_TRET(hs_cursor->close(hs_cursor));
 
     return (ret);
 }

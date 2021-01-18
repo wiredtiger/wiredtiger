@@ -450,7 +450,6 @@ struct __wt_connection_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
-    int64_t cursor_next_hs_tombstone_rts;
     int64_t cursor_restart;
     int64_t cursor_prev;
     int64_t cursor_remove;
