@@ -25,7 +25,7 @@ void chance_of_rain(WT_SESSION *session);
 void generate_data(WEATHER *w_array);
 void remove_country(WT_SESSION *session);
 void search_temperature(WT_SESSION *session);
-int average_data(WT_SESSION *session);
+void average_data(WT_SESSION *session);
 bool find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result);
 bool find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *result);
 
@@ -410,7 +410,7 @@ average_data(WT_SESSION *session)
     unsigned int count = 0;
     unsigned int rec_arr[5] = {0,0,0,0,0};
 
-    /* Open a cursor to search for the location, currently NZ */
+    /* Open a cursor to search for the location, currently RUS */
     error_check(session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
     loc_cursor->set_key(loc_cursor, "RUS\0\0\0");
     error_check(loc_cursor->search(loc_cursor));
@@ -419,14 +419,19 @@ average_data(WT_SESSION *session)
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
         error_check(loc_cursor->get_key(loc_cursor,&recno));
         error_check(loc_cursor->get_value(loc_cursor,  &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-        count++;
+        
+        if (!strcmp("RUS",country)){
+            error_check(loc_cursor->get_key(loc_cursor,&recno));
+            error_check(loc_cursor->get_value(loc_cursor,  &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
+            count++;
 
-        /* Increment the values of the rec_arr with the temp_arr values */
-        rec_arr[0] += temp;
-        rec_arr[1] += humidity;
-        rec_arr[2] += pressure;
-        rec_arr[3] += wind;
-        rec_arr[4] += feels_like_temp;
+            /* Increment the values of the rec_arr with the temp_arr values */
+            rec_arr[0] += temp;
+            rec_arr[1] += humidity;
+            rec_arr[2] += pressure;
+            rec_arr[3] += wind;
+            rec_arr[4] += feels_like_temp;
+        }
     }
 
     printf("Number of matching entries: %u \n",count);
