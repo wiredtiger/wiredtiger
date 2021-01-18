@@ -12,10 +12,14 @@ static int
 usage(void)
 {
     static const char *options[] = {"-f", "output to the specified file", "-x",
-      "display key and value items in hexadecimal format", "-l", "start and stop the printlog",
+      "display key and value items in hexadecimal format", "-l",
+      "the start LSN from which the log will be printed, optionally the end LSN can also be "
+      "specified",
       NULL, NULL};
 
-    util_usage("printlog [-x] [-f output-file] [-l start-file,start-offset,end-file,end-offset]",
+    util_usage(
+      "printlog [-x] [-f output-file] [-l start-file,start-offset]|[-l "
+      "start-file,start-offset,end-file,end-offset]",
       "options:", options);
     return (1);
 }
@@ -40,7 +44,6 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
-            printf("Outfile: %s\n", ofile);
             break;
         case 'm': /* messages only */
             LF_SET(WT_TXN_PRINTLOG_MSG);
@@ -60,9 +63,9 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
                 start_set = true;
                 end_set = true;
-            } else {
+            } else
                 return (usage());
-            }
+
             break;
         case '?':
         default:
