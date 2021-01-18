@@ -176,6 +176,9 @@ generate_data(WEATHER *w_array)
     // rand() % (max_number + 1 - minimum_number) + minimum_number
     int day;
     int country;
+
+    srand(time(NULL));
+
     for (int i = 0; i < N_DATA; i++) {
         WEATHER w;
         day = rand() % (6 + 1 - 0) + 0;
