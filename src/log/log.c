@@ -2127,12 +2127,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * Check to see if the user set offset is in alignment, if not correct to the next aligned
          * log entry.
          */
-        if (start_range_lsnp->l.offset % allocsize != 0) {
+        if (start_range_lsnp->l.offset % allocsize != 0)
             WT_SET_LSN(&start_lsn, start_range_lsnp->l.file,
               start_range_lsnp->l.offset + (allocsize - start_range_lsnp->l.offset % allocsize));
-        } else {
+        else
             WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
-        }
     }
 
     if (lsnp != NULL) {
@@ -2402,12 +2401,16 @@ advance:
                 break;
         }
 
+        /*
+         * Break the scanning loop if the next file is larger than the user set end range file or if
+         * the the files are the same, break if the user set end offset is larger than the next
+         * offset.
+         */
         if (end_range_lsnp != NULL &&
           ((next_lsn.l.file > end_range_lsnp->l.file) ||
             (next_lsn.l.file == end_range_lsnp->l.file &&
-              next_lsn.l.offset > end_range_lsnp->l.offset))) {
+              next_lsn.l.offset > end_range_lsnp->l.offset)))
             break;
-        }
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 

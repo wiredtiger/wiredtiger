@@ -37,9 +37,9 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
     bool end_set, start_set;
 
     end_set = start_set = false;
-
     flags = 0;
     ofile = NULL;
+
     while ((ch = __wt_getopt(progname, argc, argv, "f:l:mx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
@@ -65,7 +65,6 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
                 end_set = true;
             } else
                 return (usage());
-
             break;
         case '?':
         default:
