@@ -297,7 +297,7 @@ average_data(WT_SESSION *session)
     const char* day;
     const char* country; 
     uint64_t recno;
-    uint16_t hour, pressure, start, end, loc_long;
+    uint16_t hour, pressure, loc_long;
     uint8_t temp, humidity, wind, feels_like_temp, loc_lat;
     int ret, num_rec = 5;
     unsigned int count = 0;
@@ -312,16 +312,17 @@ average_data(WT_SESSION *session)
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
         error_check(loc_cursor->get_key(loc_cursor,&recno));
         error_check(loc_cursor->get_value(loc_cursor,  &day, &hour, &temp, &humidity, &pressure, &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-        unsigned int temp_arr[5] = {temp,humidity,pressure,wind,feels_like_temp};
         count++;
 
         /* Increment the values of the rec_arr with the temp_arr values */
-        for (int i = 0; i < num_rec; i++) {
-            rec_arr[i] += temp_arr[i];
-        }
+        rec_arr[0] += temp;
+        rec_arr[1] += humidity;
+        rec_arr[2] += pressure;
+        rec_arr[3] += wind;
+        rec_arr[4] += feels_like_temp;
     }
 
-    printf("Number of matching entries: %d \n",count);
+    printf("Number of matching entries: %u \n",count);
 
     /* Get the average values by dividing with the total number of records*/
     for (int i = 0; i < num_rec; i++) {
