@@ -12,9 +12,11 @@ static int
 usage(void)
 {
     static const char *options[] = {"-f", "output to the specified file", "-x",
-      "display key and value items in hexadecimal format", NULL, NULL};
+      "display key and value items in hexadecimal format", "-l", "start and stop the printlog",
+      NULL, NULL};
 
-    util_usage("printlog [-x] [-f output-file]", "options:", options);
+    util_usage("printlog [-x] [-f output-file] [-l start-file,start-offset,end-file,end-offset]",
+      "options:", options);
     return (1);
 }
 
@@ -22,20 +24,15 @@ int
 util_printlog(WT_SESSION *session, int argc, char *argv[])
 {
     WT_DECL_RET;
+    WT_LSN end_lsn, start_lsn;
+    uint32_t end_lsnfile, end_lsnoffset, start_lsnfile, start_lsnoffset;
     uint32_t flags;
     int ch;
-    // int start_lsn = 0;
-    WT_LSN start_lsn;
-    WT_LSN end_lsn;
-    uint32_t start_lsnfile;
-    uint32_t start_lsnoffset;
-    uint32_t end_lsnfile;
-    uint32_t end_lsnoffset;
-    char *ofile;
-    char *start_str;
     int n_args;
-    bool start_set = false;
-    bool end_set = false;
+    char *ofile, *start_str;
+    bool end_set, start_set;
+
+    end_set = start_set = false;
 
     flags = 0;
     ofile = NULL;
@@ -63,6 +60,8 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
                 start_set = true;
                 end_set = true;
+            } else {
+                return (usage());
             }
             break;
         case '?':

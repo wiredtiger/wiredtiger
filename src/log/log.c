@@ -2090,21 +2090,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     if (log != NULL) {
         allocsize = log->allocsize;
         WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
-        if (start_range_lsnp != NULL) {
-            /*
-             * Check to see if the user set offset is in allignment, if not correct to the next
-             * alligned log entry.
-             */
-            if (start_range_lsnp->l.offset % allocsize != 0) {
-                WT_SET_LSN(&start_lsn, start_range_lsnp->l.file,
-                  start_range_lsnp->l.offset +
-                    (allocsize - start_range_lsnp->l.offset % allocsize));
-            } else {
-                WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
-            }
-        } else {
-            WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
-        }
+        WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
         if (lsnp == NULL) {
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
                 WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
@@ -2131,23 +2117,23 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
             lastlog = WT_MAX(lastlog, lognum);
             firstlog = WT_MIN(firstlog, lognum);
         }
-        if (start_range_lsnp != NULL) {
-            /* Check to see if the user set offset is in allignment,
-             * if not correct to the next alligned log entry.
-             */
-            if (start_range_lsnp->l.offset % allocsize != 0) {
-                WT_SET_LSN(&start_lsn, start_range_lsnp->l.file,
-                  start_range_lsnp->l.offset +
-                    (allocsize - start_range_lsnp->l.offset % allocsize));
-            } else {
-                WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
-            }
-        } else {
-            WT_SET_LSN(&start_lsn, firstlog, 0);
-        }
+        WT_SET_LSN(&start_lsn, firstlog, 0);
         WT_SET_LSN(&end_lsn, lastlog, 0);
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
+
+    if (start_range_lsnp != NULL) {
+        /* Check to see if the user set offset is in allignment,
+         * if not correct to the next alligned log entry.
+         */
+        if (start_range_lsnp->l.offset % allocsize != 0) {
+            WT_SET_LSN(&start_lsn, start_range_lsnp->l.file,
+              start_range_lsnp->l.offset + (allocsize - start_range_lsnp->l.offset % allocsize));
+        } else {
+            WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
+        }
+    }
+
     if (lsnp != NULL) {
         /*
          * Offsets must be on allocation boundaries. An invalid LSN from a user should just return
@@ -2415,13 +2401,11 @@ advance:
                 break;
         }
 
-        if (end_range_lsnp != NULL) {
-            if (next_lsn.l.file > end_range_lsnp->l.file) {
-                break;
-            } else if (next_lsn.l.file == end_range_lsnp->l.file &&
-              next_lsn.l.offset > end_range_lsnp->l.offset) {
-                break;
-            }
+        if (end_range_lsnp != NULL && next_lsn.l.file > end_range_lsnp->l.file) {
+            break;
+        } else if (end_range_lsnp != NULL && next_lsn.l.file == end_range_lsnp->l.file &&
+          next_lsn.l.offset > end_range_lsnp->l.offset) {
+            break;
         }
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
