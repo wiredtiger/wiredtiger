@@ -17,8 +17,8 @@ typedef struct {
     char country[5];
 } WEATHER;
 
-uint8_t celcius_to_fahrenheit(uint8_t temp_in_celcius);
-void update_celcius_to_fahrenheit(WT_SESSION *session);
+uint8_t celsius_to_fahrenheit(uint8_t temp_in_celcius);
+void update_celsius_to_fahrenheit(WT_SESSION *session);
 void print_temp_column(WT_SESSION *session);
 void print_all_columns(WT_SESSION *session);
 void chance_of_rain(WT_SESSION *session);
@@ -95,14 +95,14 @@ print_temp_column(WT_SESSION *session)
 }
 
 uint8_t
-celcius_to_fahrenheit(uint8_t temp_in_celcius)
+celsius_to_fahrenheit(uint8_t temp_in_celcius)
 {
     uint8_t temp_in_fahrenheit = (uint8_t)((1.8 * temp_in_celcius) + 32.0);
     return temp_in_fahrenheit;
 }
 
 void
-update_celcius_to_fahrenheit(WT_SESSION *session)
+update_celsius_to_fahrenheit(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     int ret;
@@ -114,7 +114,7 @@ update_celcius_to_fahrenheit(WT_SESSION *session)
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &temp));
         /* update the value from celsius to fahrenheit */
-        cursor->set_value(cursor, celcius_to_fahrenheit(temp));
+        cursor->set_value(cursor, celsius_to_fahrenheit(temp));
         error_check(cursor->update(cursor));
     }
     scan_end_check(ret == WT_NOTFOUND);
@@ -466,12 +466,12 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     WT_CURSOR *cursor;
     WEATHER weather_data[N_DATA];
-    // uint16_t start, end;
-    // int min_temp_result, max_temp_result;
+    uint16_t start, end;
+    int min_temp_result, max_temp_result;
 
-    // start = 1000;
-    // end = 2000;
-    // min_temp_result = 0;
+    start = 1000;
+    end = 2000;
+    min_temp_result = 0;
 
     /* Generating random data to populate the weather table */
     generate_data(weather_data);
@@ -519,35 +519,35 @@ main(int argc, char *argv[])
     /* Prints all the data in the database */
     print_all_columns(session);
 
-    // /* Update the temperature from Celsius to Fahrenheit */
-    // print_temp_column(session);
-    // update_celcius_to_fahrenheit(session);
-    // print_temp_column(session);
+    /* Update the temperature from Celsius to Fahrenheit */
+    print_temp_column(session);
+    update_celsius_to_fahrenheit(session);
+    print_temp_column(session);
 
-    // /* Create indexes for searching */
-    // error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
-    // error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
+    /* Create indexes for searching */
+    error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
+    error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
 
-    // /* Calling the example operations */
-    // if (find_min_temp(session, start, end, &min_temp_result)) {
-    //     printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-    //       min_temp_result);
-    // } else {
-    //     printf("Invalid start and end time range, please try again.");
-    // }
+    /* Calling the example operations */
+    if (find_min_temp(session, start, end, &min_temp_result)) {
+        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+          min_temp_result);
+    } else {
+        printf("Invalid start and end time range, please try again.");
+    }
 
-    // max_temp_result = 0;
-    // if (find_max_temp(session, start, end, &max_temp_result)) {
-    //     printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
-    //       max_temp_result);
-    // } else {
-    //     printf("Invalid start and end time range, please try again.");
-    // }
+    max_temp_result = 0;
+    if (find_max_temp(session, start, end, &max_temp_result)) {
+        printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n", start, end,
+          max_temp_result);
+    } else {
+        printf("Invalid start and end time range, please try again.");
+    }
 
-    // chance_of_rain(session);
-    // remove_country(session);
-    // print_all_columns(session);
-    // average_data(session);
+    chance_of_rain(session);
+    remove_country(session);
+    print_all_columns(session);
+    average_data(session);
 
     /* Close the connection */
     error_check(conn->close(conn, NULL));
