@@ -727,7 +727,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
-    WT_TIME_WINDOW *tw;
+    WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
     wt_timestamp_t durable_ts, hs_stop_durable_ts;
     size_t size, total_size;
@@ -758,11 +758,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
 
-    __wt_hs_upd_time_window(hs_cursor, &tw);
+    __wt_hs_upd_time_window(hs_cursor, &hs_tw);
     WT_ERR(__wt_upd_alloc(session, hs_value, WT_UPDATE_STANDARD, &upd, &size));
-    upd->txnid = tw->start_txn;
-    upd->durable_ts = tw->durable_start_ts;
-    upd->start_ts = tw->start_ts;
+    upd->txnid = hs_tw->start_txn;
+    upd->durable_ts = hs_tw->durable_start_ts;
+    upd->start_ts = hs_tw->start_ts;
     *fix_updp = upd;
 
     /*
@@ -786,11 +786,11 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /* If the history store record has a valid stop time point, append it. */
     if (hs_stop_durable_ts != WT_TS_MAX) {
-        WT_ASSERT(session, tw->stop_ts != WT_TS_MAX);
+        WT_ASSERT(session, hs_tw->stop_ts != WT_TS_MAX);
         WT_ERR(__wt_upd_alloc(session, NULL, WT_UPDATE_TOMBSTONE, &tombstone, &size));
-        tombstone->durable_ts = tw->durable_stop_ts;
-        tombstone->start_ts = tw->stop_ts;
-        tombstone->txnid = tw->stop_txn;
+        tombstone->durable_ts = hs_tw->durable_stop_ts;
+        tombstone->start_ts = hs_tw->stop_ts;
+        tombstone->txnid = hs_tw->stop_txn;
         tombstone->next = upd;
         /*
          * Set the flag to indicate that this update has been restored from history store for the
