@@ -41,7 +41,6 @@ class test_hs01(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
     key_format_values = [
-        # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S'))
@@ -144,8 +143,9 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Don't run durable check for columnar store. Since durable history rollback 
-        # is not implemented for columnar store. 
+        # Don't run durable check for columnar store. Since durable history rollback is 
+        # not implemented for columnar store. Remove this if statement once WT-5545
+        # is implemented.
         if self.key_format != 'r':
             # Scenario: 3
             # Check to see if the history store is working with the old timestamp.
