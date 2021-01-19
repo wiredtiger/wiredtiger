@@ -156,6 +156,7 @@ cd
 cdb
 cds
 changelog
+checkpointed
 checksum
 checksums
 ckp
@@ -188,6 +189,8 @@ dNOff
 dT
 dataN
 database's
+datafile
+datafiles
 dataitem
 dataset
 datasets
