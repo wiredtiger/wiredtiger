@@ -104,7 +104,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Create a small table.
         uri = "table:test_hs01"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="{}".format(self.key_format), value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 
@@ -144,17 +144,20 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Scenario: 3
-        # Check to see if the history store is working with the old timestamp.
-        bigvalue4 = b"ddddd" * 100
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
-        self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
-        # Check to see data can be see only till the stable_timestamp
-        self.durable_check(bigvalue3, uri, ds, nrows)
+        # Don't run durable check for columnar store. Since durable history rollback 
+        # is not implemented for columnar store. 
+        if self.key_format != 'r':
+            # Scenario: 3
+            # Check to see if the history store is working with the old timestamp.
+            bigvalue4 = b"ddddd" * 100
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+            self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
+            # Check to see data can be see only till the stable_timestamp
+            self.durable_check(bigvalue3, uri, ds, nrows)
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(i + 1))
-        # Check that the latest data can be seen.
-        self.durable_check(bigvalue4, uri, ds, nrows)
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(i + 1))
+            # Check that the latest data can be seen.
+            self.durable_check(bigvalue4, uri, ds, nrows)
 
 if __name__ == '__main__':
     wttest.run()
