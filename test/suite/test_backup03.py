@@ -80,11 +80,6 @@ class test_backup_target(backup_base):
     # Create a large cache, otherwise this test runs quite slowly.
     conn_config = 'cache_size=1G'
 
-
-    populate_options = {
-        'session_checkpoint': True
-    }
-
     # Backup a set of target tables using a backup cursor.
     def backup_table_cursor(self, l):
         # Create the backup directory.
