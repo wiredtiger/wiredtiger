@@ -2402,9 +2402,7 @@ advance:
         }
 
         /*
-         * Break the scanning loop if the next file is larger than the user set end range file or if
-         * the the files are the same, break if the user set end offset is larger than the next
-         * offset.
+         * Exit the scanning loop if the next LSN seen is greater than our user set end range LSN.
          */
         if (end_range_lsnp != NULL &&
           ((next_lsn.l.file > end_range_lsnp->l.file) ||

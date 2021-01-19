@@ -61,8 +61,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
             } else if (n_args == 4) {
                 WT_SET_LSN(&start_lsn, start_lsnfile, start_lsnoffset);
                 WT_SET_LSN(&end_lsn, end_lsnfile, end_lsnoffset);
-                start_set = true;
-                end_set = true;
+                end_set = start_set = true;
             } else
                 return (usage());
             break;
