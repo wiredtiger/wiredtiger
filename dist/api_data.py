@@ -197,6 +197,20 @@ lsm_config = [
     ]),
 ]
 
+tiered_config = [
+    Config('tiered', '', r'''
+        options only relevant for tiered data sources''',
+        type='category', subconfig=[
+        Config('chunk_size', '1GB', r'''
+            the maximum size of the hot chunk of tiered tree.  This
+            limit is soft - it is possible for chunks to be temporarily
+            larger than this value''',
+            min='1M'),
+        Config('tiers', '', r'''
+            list of data sources to combine into a tiered storage structure''', type='list')
+    ]),
+]
+
 file_runtime_config = common_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
@@ -408,6 +422,8 @@ lsm_meta = file_config + lsm_config + [
     Config('old_chunks', '', r'''
         obsolete chunks in the LSM tree'''),
 ]
+
+tiered_meta = tiered_config
 
 table_only_config = [
     Config('colgroups', '', r'''
@@ -1141,6 +1157,8 @@ methods = {
 
 'table.meta' : Method(table_meta),
 
+'tiered.meta' : Method(tiered_meta),
+
 'WT_CURSOR.close' : Method([]),
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
@@ -1165,8 +1183,8 @@ methods = {
         type='int'),
 ]),
 
-'WT_SESSION.create' : Method(file_config + lsm_config + source_meta +
-        index_only_config + table_only_config + [
+'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
+        source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists.  When false (the default), if the
         object exists, check that its settings match the specified
