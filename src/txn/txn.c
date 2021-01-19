@@ -724,7 +724,6 @@ static int
 __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
   WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended)
 {
-    WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_TIME_WINDOW *hs_tw;
@@ -741,8 +740,6 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     size = total_size = 0;
     tombstone = upd = NULL;
 
-    /* Allocate buffers for the data store and history store key. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     /* Get current value. */
@@ -753,7 +750,7 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
 
     /*
      * If the history update already has a stop time point and we are committing the prepared update
-     * there is no work to do.
+     * there is no work to do. This happens if a deleted key is reinserted by a prepared update.
      */
     if (hs_stop_durable_ts != WT_TS_MAX && commit)
         goto done;
@@ -828,7 +825,6 @@ err:
         __wt_free_update_list(session, &upd);
     }
 done:
-    __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
     return (ret);
 }
@@ -943,9 +939,7 @@ __txn_fixup_prepared_update(
         tw.stop_ts = txn->commit_timestamp;
         tw.durable_stop_ts = txn->durable_timestamp;
         tw.stop_txn = txn->id;
-        tw.start_ts = fix_upd->start_ts;
-        tw.durable_start_ts = fix_upd->durable_ts;
-        tw.start_txn = fix_upd->txnid;
+        WT_TIME_WINDOW_SET_START(&tw, fix_upd);
         tw.prepare = 0;
 
 #ifdef HAVE_DIAGNOSTIC
