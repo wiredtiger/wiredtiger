@@ -29,6 +29,7 @@
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,6 +40,13 @@ class test_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
+    key_format_values = [
+        # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
+        ('column', dict(key_format='r')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
         # Update a large number of records, we'll hang if the history store table
@@ -96,7 +104,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Create a small table.
         uri = "table:test_hs01"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format="{}".format(self.key_format), value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 
