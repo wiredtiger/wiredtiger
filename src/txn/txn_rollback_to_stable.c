@@ -12,8 +12,10 @@
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY | WT_VERB_RTS : WT_VERB_RTS)
+#define WT_VERB_RECOVERY_RTS(session)                                \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                     \
+        WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS | WT_VERB_RTS : \
+        WT_VERB_RTS)
 
 /*
  * __rollback_abort_newer_update --
@@ -544,17 +546,28 @@ __rollback_abort_row_ondisk_kv(
         WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
 
         WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
-        upd->txnid = vpack->tw.start_txn;
+        /*
+         * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because the
+         * connections write generation will be initialized after rollback to stable and the updates
+         * in the cache will be problematic. The transaction id of pages which are in disk will be
+         * automatically reset as part of unpacking cell when loaded to cache.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            upd->txnid = WT_TXN_NONE;
+        else
+            upd->txnid = vpack->tw.start_txn;
         upd->durable_ts = vpack->tw.durable_start_ts;
         upd->start_ts = vpack->tw.start_ts;
         F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
         WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
-          "and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
+          "key restored with commit timestamp: %s, durable timestamp: %s, stable timestamp: %s, "
+          "txnid: %" PRIu64
+          " and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
           ", prepared: %s",
           __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->txnid,
+          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,
           __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
           __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
           prepared ? "true" : "false");
@@ -1312,7 +1325,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
           WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
 
         if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-            __wt_verbose(session, WT_VERB_RTS,
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "Recovered checkpoint snapshot min  %" PRIu64 ", snapshot max : %" PRIu64
               ", snapshot count : %" PRIu32,
               S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
