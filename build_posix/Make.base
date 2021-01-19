@@ -42,6 +42,11 @@ man3_MANS = $(MAN3_PAGES)
 include_HEADERS= wiredtiger.h src/include/wiredtiger_ext.h
 AM_CPPFLAGS = -I$(srcdir)/src/include
 
+wiredtiger.h: prototypes
+.PHONY: prototypes
+prototypes:
+	@cd $(srcdir)/dist && $(PYTHON) prototypes.py
+
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = wiredtiger.pc
 

@@ -243,16 +243,20 @@ file_runtime_config = common_runtime_config + [
         system buffer cache after that many bytes from this object are
         written into the buffer cache''',
         min=0),
+    Config('readonly', 'false', r'''
+        the file is read-only. All methods that may modify a file are
+        disabled. See @ref readonly for more information''',
+        type='boolean'),
 ]
 
 # Per-file configuration
 file_config = format_meta + file_runtime_config + [
     Config('block_allocation', 'best', r'''
-        configure block allocation. Permitted values are \c "first" or
-        \c "best"; the \c "first" configuration uses a first-available
-        algorithm during block allocation, the \c "best" configuration
-        uses a best-fit algorithm''',
-        choices=['first', 'best',]),
+        configure block allocation. Permitted values are \c "best" or \c "first";
+        the \c "best" configuration uses a best-fit algorithm,
+        the \c "first" configuration uses a first-available algorithm during block allocation,
+        the \c "log-structure" configuration allocates a new file for each checkpoint''',
+        choices=['best', 'first', 'log-structured',]),
     Config('allocation_size', '4KB', r'''
         the file unit allocation size, in bytes, must a power-of-two;
         smaller values decrease the file space required by overflow
@@ -1164,6 +1168,8 @@ methods = {
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
+    Config('checkpoint', '', r'''
+        the file checkpoint entries''', undoc=True),
     Config('exclusive_refreshed', 'true', r'''
         refresh the in memory state and flush the metadata change to disk,
         disabling this flag is dangerous - it will only re-write the
