@@ -28,14 +28,14 @@
 
 import wiredtiger
 import os, shutil
-from test_backup_base import test_backup_base
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 import glob
 
 # test_backup19.py
 # Test cursor backup with a block-based incremental cursor source id only.
-class test_backup19(test_backup_base):
+class test_backup19(backup_base):
     bkp_home = "WT_BLOCK"
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
@@ -50,8 +50,7 @@ class test_backup19(test_backup_base):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
 
-    full_out = "./backup_block_full"
-    incr_out = "./backup_block_incr"
+    logpath = "logpath"
     new_table=False
 
     pfx = 'test_backup'
@@ -163,7 +162,7 @@ class test_backup19(test_backup_base):
     #
     # Add data to the given uri.
     #
-    def add_data(self, uri):
+    def add_complex_data(self, uri):
         c = self.session.open_cursor(uri, None, None)
         # The first time we want to add in a lot of data. Then after that we want to
         # rapidly change a single key to create a hotspot in one block.
@@ -199,26 +198,17 @@ class test_backup19(test_backup_base):
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.pr('Adding initial data')
-        self.options['initial_backup'] = True
-        self.add_data(self.uri)
+        self.initial_backup = True
+        self.add_complex_data(self.uri)
         self.take_full_backup(self.home_incr, self.options)
-        self.options['initial_backup'] = False
+        self.initial_backup = False
         self.session.checkpoint()
 
-        self.add_data(self.uri)
+        self.add_complex_data(self.uri)
         self.session.checkpoint()
 
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
         self.take_incr_backup()
-
-        full_backup_out = self.full_out + '.' + str(self.counter)
-        full_backup_dir = self.home_full + '.' + str(self.counter)
-        if self.counter == 0:
-            full_backup_dir = self.home
-
-        incr_backup_out = self.incr_out + '.' + str(self.counter)
-        incr_backup_dir = self.home_incr + '.' + str(self.counter)
-        self.compare_backups(self.uri, full_backup_dir, full_backup_out, True, incr_backup_dir, incr_backup_out)
-
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 if __name__ == '__main__':
     wttest.run()

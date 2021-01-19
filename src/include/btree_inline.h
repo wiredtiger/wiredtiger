@@ -850,7 +850,7 @@ __wt_ref_key_instantiated(WT_REF *ref)
      * See the comment in __wt_ref_key for an explanation of the magic.
      */
     v = (uintptr_t)ref->ref_ikey;
-    return (v & WT_IK_FLAG ? NULL : ref->ref_ikey);
+    return (v & WT_IK_FLAG ? NULL : (WT_IKEY *)ref->ref_ikey);
 }
 
 /*
@@ -962,7 +962,7 @@ __wt_row_leaf_key_info(
         if (ikeyp != NULL)
             *ikeyp = NULL;
         if (cellp != NULL)
-            *cellp = WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+            *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
         return (false);
     case WT_K_FLAG:
         /* Encoded key: no instantiated key, no cell. */
@@ -991,11 +991,11 @@ __wt_row_leaf_key_info(
     }
 
     /* Instantiated key. */
-    ikey = copy;
+    ikey = (WT_IKEY *)copy;
     if (ikeyp != NULL)
-        *ikeyp = copy;
+        *ikeyp = (WT_IKEY *)copy;
     if (cellp != NULL)
-        *cellp = WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+        *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
     if (datap != NULL) {
         *(void **)datap = WT_IKEY_DATA(ikey);
         *sizep = ikey->size;
@@ -1203,7 +1203,7 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
      * WT_ADDRs and swapped into place. The content of the two WT_ADDRs are identical, and we don't
      * care which version we get as long as we don't mix-and-match the two.
      */
-    WT_ORDERED_READ(addr, ref->addr);
+    WT_ORDERED_READ(addr, (WT_ADDR *)ref->addr);
 
     /* If NULL, there is no information. */
     if (addr == NULL)
@@ -1362,8 +1362,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
             if (++count < WT_MAX_SPLIT_COUNT)
                 continue;
 
-            WT_STAT_CONN_INCR(session, cache_inmem_splittable);
-            WT_STAT_DATA_INCR(session, cache_inmem_splittable);
+            WT_STAT_CONN_DATA_INCR(session, cache_inmem_splittable);
             return (true);
         }
 
@@ -1384,8 +1383,7 @@ __wt_leaf_page_can_split(WT_SESSION_IMPL *session, WT_PAGE *page)
         count += WT_MIN_SPLIT_MULTIPLIER;
         size += WT_MIN_SPLIT_MULTIPLIER * (WT_INSERT_KEY_SIZE(ins) + WT_UPDATE_MEMSIZE(ins->upd));
         if (count > WT_MIN_SPLIT_COUNT && size > (size_t)btree->maxleafpage) {
-            WT_STAT_CONN_INCR(session, cache_inmem_splittable);
-            WT_STAT_DATA_INCR(session, cache_inmem_splittable);
+            WT_STAT_CONN_DATA_INCR(session, cache_inmem_splittable);
             return (true);
         }
     }
@@ -1491,8 +1489,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * internal page already written in the checkpoint, leaving the checkpoint inconsistent.
      */
     if (modified && !__wt_btree_can_evict_dirty(session)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_checkpoint);
-        WT_STAT_DATA_INCR(session, cache_eviction_checkpoint);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_checkpoint);
         return (false);
     }
 

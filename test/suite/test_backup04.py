@@ -28,7 +28,7 @@
 
 import threading, time, wiredtiger
 import glob, os, shutil
-from test_backup_base import test_backup_base
+from wtbackup import backup_base
 from wtdataset import SimpleDataSet, simple_key
 from wtscenario import make_scenarios
 from wtthread import op_thread
@@ -36,7 +36,7 @@ from wtthread import op_thread
 # test_backup04.py
 #    Utilities: wt backup
 # Test incremental cursor backup.
-class test_backup_target(test_backup_base):
+class test_backup_target(backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
 
@@ -62,7 +62,7 @@ class test_backup_target(test_backup_base):
         return 'cache_size=1G,log=(archive=false,enabled,file_max=%s)' % \
             self.logmax
 
-    def populate(self, uri, dsize, rows):
+    def populate_with_string(self, uri, dsize, rows):
         self.pr('populate: ' + uri + ' with ' + str(rows) + ' rows')
         cursor = self.session.open_cursor(uri, None)
         for i in range(1, rows + 1):
@@ -99,7 +99,7 @@ class test_backup_target(test_backup_base):
         # Create the backup directory.
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.populate(self.uri, self.dsize, self.nops)
+        self.populate_with_string(self.uri, self.dsize, self.nops)
 
         # We need to start the directory for the incremental backup with
         # a full backup.  The full backup function creates the directory.
@@ -117,7 +117,6 @@ class test_backup_target(test_backup_base):
         #   Close the backup cursor
         updstr="bcdefghi"
         for increment in range(0, 5):
-            full_dir = self.dir + str(increment)
             # Add more work to move the logs forward.
             self.update(self.uri, self.dsize, updstr[increment], self.nops)
             self.session.checkpoint(None)
@@ -127,10 +126,10 @@ class test_backup_target(test_backup_base):
 
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
-        os.mkdir(full_dir)
-        self.take_full_backup(full_dir, {})
-        self.compare_backups(self.uri, full_dir, 'original', True, self.dir, 'backup_incr')
-        self.compare_backups(self.uri, self.dir, 'backup_incr', True)
+        full_dir = self.dir + ".full"
+        self.take_full_backup(full_dir)
+        self.compare_backups(self.uri, self.dir, full_dir)
+        self.compare_backups(self.uri, self.dir, './')
 
 if __name__ == '__main__':
     wttest.run()
