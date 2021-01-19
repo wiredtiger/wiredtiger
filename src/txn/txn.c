@@ -920,6 +920,7 @@ __txn_fixup_prepared_update(
 #endif
 
     txn = session->txn;
+    WT_TIME_WINDOW_INIT(&tw);
 
     /*
      * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
@@ -940,7 +941,6 @@ __txn_fixup_prepared_update(
         tw.durable_stop_ts = txn->durable_timestamp;
         tw.stop_txn = txn->id;
         WT_TIME_WINDOW_SET_START(&tw, fix_upd);
-        tw.prepare = 0;
 
 #ifdef HAVE_DIAGNOSTIC
         /* Retrieve the existing update value and stop timestamp. */
