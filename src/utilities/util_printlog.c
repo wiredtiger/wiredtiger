@@ -45,12 +45,6 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
         case 'f': /* output file */
             ofile = __wt_optarg;
             break;
-        case 'm': /* messages only */
-            LF_SET(WT_TXN_PRINTLOG_MSG);
-            break;
-        case 'x': /* hex output */
-            LF_SET(WT_TXN_PRINTLOG_HEX);
-            break;
         case 'l':
             start_str = __wt_optarg;
             n_args = sscanf(start_str, "%" SCNu32 ",%" SCNu32 ",%" SCNu32 ",%" SCNu32,
@@ -64,6 +58,12 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
                 end_set = start_set = true;
             } else
                 return (usage());
+            break;
+        case 'm': /* messages only */
+            LF_SET(WT_TXN_PRINTLOG_MSG);
+            break;
+        case 'x': /* hex output */
+            LF_SET(WT_TXN_PRINTLOG_HEX);
             break;
         case '?':
         default:
