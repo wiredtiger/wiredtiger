@@ -180,7 +180,7 @@ for completeness:
 @subsection allocation_size allocation_size
 This is the underlying unit of allocation for the file. As the unit of file
 allocation, it sets the minimum page size and how much space is wasted when
-storing small amounts of data and overflow items.
+storing small amounts of data.
  - an integer between 512B and 128 MB
  - must a power-of-two
  - default : 4 KB
@@ -188,10 +188,10 @@ storing small amounts of data and overflow items.
 \n Most applications should not need to tune the allocation size.
    - To be compatible with virtual memory page sizes and direct I/O requirements
 on the platform (4KB for most common server platforms)
-   - Smaller values decrease the file space required by overflow items.
-   - For example, if the allocation size is set to 4KB, an overflow item of
+   - Smaller values decrease the file space required by items.
+   - For example, if the allocation size is set to 4KB, an item of
 18,000 bytes requires 5 allocation units and wastes about 2KB of space. If the
-allocation size is 16KB, the same overflow item would waste more than 10KB.
+allocation size is 16KB, the same item would waste more than 10KB.
  - Configuration:
 \n Specified as allocation_size configuration option to WT_SESSION::create. An
 example of such a configuration string is as follows:
@@ -201,54 +201,21 @@ example of such a configuration string is as follows:
 </pre>
 
 @subsection key_val_max internal/leaf key/value max
- - Overflow items
-\n Overflow items are keys and values too large to easily store on a page. Overflow
-items are stored separately in the file from the page where the item logically
-appears, and so reading or writing an overflow item is more expensive than an
-on-page item, normally requiring additional I/O.  Additionally, overflow values
-are not cached in memory. This means overflow items won't affect the caching
-behavior of the application.  It also means that each time an overflow value is
-read, it is re-read from disk.
  - internal_key_max
-\n The largest key stored in an internal page, in bytes. If set, keys larger than
-the specified size are stored as overflow items.
+\n The largest key stored in an internal page, in bytes. It is a soft limit.
+If set, keys larger than the specified size are still stored in the same page.
    - The default and the maximum allowed value are both one-tenth the size of a
 newly split internal page.
  - leaf_key_max
-\n The largest key stored in a leaf page, in bytes. If set, keys larger than the
-specified size are stored as overflow items.
+\n The largest key stored in a leaf page, in bytes. It is a soft limit. If set,
+keys larger than the specified size are still stored in the same page.
    - The default value is one-tenth the size of a newly split leaf page.
  - leaf_value_max
-\n The largest value stored in a leaf page, in bytes. If set, values larger than
-the specified size are stored as overflow items
+\n The largest value stored in a leaf page, in bytes. It is a soft limit. If set,
+values larger than the specified size are still stored in the same page.
    - The default is one-half the size of a newly split leaf page.
-   - If the size is larger than the maximum leaf page size, the page size is
-temporarily ignored when large values are written.
  - Motivation to tune the values:
 \n Most applications should not need to tune the maximum key and value sizes.
-Applications requiring a small page size, but also having latency concerns such
-that the additional work to retrieve an overflow item may find modifying these
-values useful.
-\n Since overflow items are separately stored in the on-disk file, aren't cached
-and require additional I/O to access (read or write), applications should avoid
-creating overflow items.
-   - Since page sizes also determine the default size of overflow items, i.e.,
-keys and values too large to easily store on a page, they can be configured to
-avoid performance penalties working with overflow items:
-     - Applications with large keys and values, and concerned with latency,
-might increase the page size to avoid creating overflow items, in order to avoid
-the additional cost of retrieving them.
-     - Applications with large keys and values, doing random searches, might
-decrease the page size to avoid wasting cache space on overflow items that
-aren't likely to be needed.
-     - Applications with large keys and values, doing table scans, might
-increase the page size to avoid creating overflow items, as the overflow items
-must be read into memory in all cases, anyway.
-   - internal_key_max, leaf_key_max and leaf_value_max configuration values
-allow applications to change the size at which a key or value will be treated
-as an overflow item.
-     - Most applications should not need to tune the maximum key and value
-sizes.
      - The value of internal_key_max is relative to the maximum internal page
 size. Because the number of keys on an internal page determines the depth of the
 tree, the internal_key_max value can only be adjusted within a certain range,
@@ -261,7 +228,7 @@ larger page will be created as necessary.
  - Configuration:
 \n Specified as internal_key_max, leaf_key_max and leaf_value_max configuration
 options to WT_SESSION::create. An example of configuration string for a large
-leaf overflow value:
+leaf value:
 
 <pre>
      "key_format=S,value_format=S,leaf_page_max=16KB,leaf_value_max=256KB"

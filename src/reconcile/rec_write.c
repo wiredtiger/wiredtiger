@@ -570,9 +570,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Track if the page can be marked clean. */
     r->leave_dirty = false;
 
-    /* Track overflow items. */
-    r->ovfl_items = false;
-
     /* Track empty values. */
     r->all_empty_value = true;
     r->any_empty_value = false;
@@ -905,16 +902,16 @@ __wt_rec_split_init(
      * size.
      *
      * It's lots of work to build these pages and don't want to start over when we reach the maximum
-     * page size (it's painful to restart after creating overflow items and compacted data, for
-     * example, as those items have already been written to disk). So, the loop calls the helper
-     * functions when approaching a split boundary, and we save the information at that point. We
-     * also save the boundary information at the minimum split size. We maintain two chunks (each
-     * boundary represents a chunk that gets written as a page) in the memory, writing out the older
-     * one to the disk as a page when we need to make space for a new chunk. On reaching the last
-     * chunk, if it turns out to be smaller than the minimum split size, we go back into the
-     * penultimate chunk and split at this minimum split size boundary. This moves some data from
-     * the penultimate chunk to the last chunk, hence increasing the size of the last page written
-     * without decreasing the penultimate page size beyond the minimum split size.
+     * page size (it's painful to restart after creating items and compacted data, for example, as
+     * those items have already been written to disk). So, the loop calls the helper functions when
+     * approaching a split boundary, and we save the information at that point. We also save the
+     * boundary information at the minimum split size. We maintain two chunks (each boundary
+     * represents a chunk that gets written as a page) in the memory, writing out the older one to
+     * the disk as a page when we need to make space for a new chunk. On reaching the last chunk, if
+     * it turns out to be smaller than the minimum split size, we go back into the penultimate chunk
+     * and split at this minimum split size boundary. This moves some data from the penultimate
+     * chunk to the last chunk, hence increasing the size of the last page written without
+     * decreasing the penultimate page size beyond the minimum split size.
      *
      * Finally, all this doesn't matter for fixed-size column-store pages and salvage. Fixed-size
      * column store pages can split under (very) rare circumstances, but they're allocated at a
@@ -1743,11 +1740,9 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        multi->addr.type = WT_ADDR_LEAF_NO;
-        break;
     case WT_PAGE_COL_VAR:
     case WT_PAGE_ROW_LEAF:
-        multi->addr.type = r->ovfl_items ? WT_ADDR_LEAF : WT_ADDR_LEAF_NO;
+        multi->addr.type = WT_ADDR_LEAF_NO;
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -2001,12 +1996,10 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
     /*
      * This routine would be trivial, and only walk a single page freeing any blocks written to
      * support the split, except for root splits. In the case of root splits, we have to cope with
-     * multiple pages in a linked list, and we also have to discard overflow items written for the
-     * page.
+     * multiple pages in a linked list.
      */
     if (WT_PAGE_IS_INTERNAL(page) && mod->mod_root_split != NULL) {
         WT_RET(__rec_split_discard(session, mod->mod_root_split));
-        WT_RET(__wt_ovfl_track_wrapup(session, mod->mod_root_split));
         __wt_page_out(session, &mod->mod_root_split);
     }
 
@@ -2119,14 +2112,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     if (F_ISSET(r, WT_REC_HS))
         WT_RET(__rec_hs_wrapup(session, r));
-
-    /*
-     * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
-     * entirely consistent at that point (the underlying block manager is presumably going to do
-     * some action to resolve the list of allocated/free/whatever blocks that are associated with
-     * the checkpoint).
-     */
-    WT_RET(__wt_ovfl_track_wrapup(session, page));
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
@@ -2256,8 +2241,6 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
-    WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
-
     return (ret);
 }
 
@@ -2304,74 +2287,5 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 
 err:
     WT_TRET(__wt_hs_cursor_close(session));
-    return (ret);
-}
-
-/*
- * __wt_rec_cell_build_ovfl --
- *     Store overflow items in the file, returning the address cookie.
- */
-int
-__wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv, uint8_t type,
-  WT_TIME_WINDOW *tw, uint64_t rle)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    WT_PAGE *page;
-    WT_PAGE_HEADER *dsk;
-    size_t size;
-    uint8_t *addr, buf[WT_BTREE_MAX_ADDR_COOKIE];
-
-    btree = S2BT(session);
-    bm = btree->bm;
-    page = r->page;
-
-    /* Track if page has overflow items. */
-    r->ovfl_items = true;
-
-    /*
-     * See if this overflow record has already been written and reuse it if possible, otherwise
-     * write a new overflow record.
-     */
-    WT_RET(__wt_ovfl_reuse_search(session, page, &addr, &size, kv->buf.data, kv->buf.size));
-    if (addr == NULL) {
-        /* Allocate a buffer big enough to write the overflow record. */
-        size = kv->buf.size;
-        WT_RET(bm->write_size(bm, session, &size));
-        WT_RET(__wt_scr_alloc(session, size, &tmp));
-
-        /* Initialize the buffer: disk header and overflow record. */
-        dsk = tmp->mem;
-        memset(dsk, 0, WT_PAGE_HEADER_SIZE);
-        dsk->type = WT_PAGE_OVFL;
-        dsk->u.datalen = (uint32_t)kv->buf.size;
-        memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
-        dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
-        tmp->size = dsk->mem_size;
-
-        /* Write the buffer. */
-        addr = buf;
-        WT_ERR(__wt_bt_write(
-          session, tmp, addr, &size, NULL, false, F_ISSET(r, WT_REC_CHECKPOINT), false));
-
-        /*
-         * Track the overflow record (unless it's a bulk load, which by definition won't ever reuse
-         * a record.
-         */
-        if (!r->is_bulk_load)
-            WT_ERR(__wt_ovfl_reuse_add(session, page, addr, size, kv->buf.data, kv->buf.size));
-    }
-
-    /* Set the callers K/V to reference the overflow record's address. */
-    WT_ERR(__wt_buf_set(session, &kv->buf, addr, size));
-
-    /* Build the cell and return. */
-    kv->cell_len = __wt_cell_pack_ovfl(session, &kv->cell, type, tw, rle, kv->buf.size);
-    kv->len = kv->cell_len + kv->buf.size;
-
-err:
-    __wt_scr_free(session, &tmp);
     return (ret);
 }

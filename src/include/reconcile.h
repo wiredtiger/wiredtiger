@@ -57,22 +57,6 @@ struct __wt_reconcile {
     bool leave_dirty;
 
     /*
-     * Track if reconciliation has seen any overflow items. If a leaf page with no overflow items is
-     * written, the parent page's address cell is set to the leaf-no-overflow type. This means we
-     * can delete the leaf page without reading it because we don't have to discard any overflow
-     * items it might reference.
-     *
-     * The test test is per-page reconciliation, that is, once we see an overflow item on the page,
-     * all subsequent leaf pages written for the page will not be leaf-no-overflow type, regardless
-     * of whether or not they contain overflow items. In other words, leaf-no-overflow is not
-     * guaranteed to be set on every page that doesn't contain an overflow item, only that if it is
-     * set, the page contains no overflow items. XXX This was originally done because raw
-     * compression couldn't do better, now that raw compression has been removed, we should do
-     * better.
-     */
-    bool ovfl_items;
-
-    /*
      * Track if reconciliation of a row-store leaf page has seen empty (zero length) values. We
      * don't write out anything for empty values, so if there are empty values on a page, we have to
      * make two passes over the page when it's read to figure out how many keys it has, expensive in

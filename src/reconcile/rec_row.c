@@ -13,45 +13,17 @@
  *     Update prefix and suffix compression based on the last key.
  */
 static inline void
-__rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
+__rec_key_state_update(WT_RECONCILE *r)
 {
     WT_ITEM *a;
 
-    /*
-     * If writing an overflow key onto the page, don't update the "last key"
-     * value, and leave the state of prefix compression alone.  (If we are
-     * currently doing prefix compression, we have a key state which will
-     * continue to work, we're just skipping the key just created because
-     * it's an overflow key and doesn't participate in prefix compression.
-     * If we are not currently doing prefix compression, we can't start, an
-     * overflow key doesn't give us any state.)
-     *
-     * Additionally, if we wrote an overflow key onto the page, turn off the
-     * suffix compression of row-store internal node keys.  (When we split,
-     * "last key" is the largest key on the previous page, and "cur key" is
-     * the first key on the next page, which is being promoted.  In some
-     * cases we can discard bytes from the "cur key" that are not needed to
-     * distinguish between the "last key" and "cur key", compressing the
-     * size of keys on internal nodes.  If we just built an overflow key,
-     * we're not going to update the "last key", making suffix compression
-     * impossible for the next key. Alternatively, we could remember where
-     * the last key was on the page, detect it's an overflow key, read it
-     * from disk and do suffix compression, but that's too much work for an
-     * unlikely event.)
-     *
-     * If we're not writing an overflow key on the page, update the last-key
-     * value and turn on both prefix and suffix compression.
-     */
-    if (ovfl_key)
-        r->key_sfx_compress = false;
-    else {
-        a = r->cur;
-        r->cur = r->last;
-        r->last = a;
+    /* update the last-key value and turn on both prefix and suffix compression. */
+    a = r->cur;
+    r->cur = r->last;
+    r->last = a;
 
-        r->key_pfx_compress = r->key_pfx_compress_conf;
-        r->key_sfx_compress = r->key_sfx_compress_conf;
-    }
+    r->key_pfx_compress = r->key_pfx_compress_conf;
+    r->key_sfx_compress = r->key_sfx_compress_conf;
 }
 
 /*
@@ -60,28 +32,15 @@ __rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
  *     internal page.
  */
 static int
-__rec_cell_build_int_key(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
+__rec_cell_build_int_key(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size)
 {
-    WT_BTREE *btree;
     WT_REC_KV *key;
 
-    *is_ovflp = false;
-
-    btree = S2BT(session);
     key = &r->k;
 
     /* Copy the bytes into the "current" and key buffers. */
     WT_RET(__wt_buf_set(session, r->cur, data, size));
     WT_RET(__wt_buf_set(session, &key->buf, data, size));
-
-    /* Create an overflow object if the data won't fit. */
-    if (size > btree->maxintlkey) {
-        WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
-
-        *is_ovflp = true;
-        return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
-    }
 
     key->cell_len = __wt_cell_pack_int_key(&key->cell, key->buf.size);
     key->len = key->cell_len + key->buf.size;
@@ -95,16 +54,13 @@ __rec_cell_build_int_key(
  *     page.
  */
 static int
-__rec_cell_build_leaf_key(
-  WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
+__rec_cell_build_leaf_key(WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size)
 {
     WT_BTREE *btree;
     WT_REC_KV *key;
     size_t pfx_max;
     uint8_t pfx;
     const uint8_t *a, *b;
-
-    *is_ovflp = false;
 
     btree = S2BT(session);
     key = &r->k;
@@ -156,21 +112,6 @@ __rec_cell_build_leaf_key(
         WT_RET(__wt_buf_set(session, &key->buf, (uint8_t *)data + pfx, size - pfx));
     }
 
-    /* Create an overflow object if the data won't fit. */
-    if (key->buf.size > btree->maxleafkey) {
-        /*
-         * Overflow objects aren't prefix compressed -- rebuild any object that was prefix
-         * compressed.
-         */
-        if (pfx == 0) {
-            WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
-
-            *is_ovflp = true;
-            return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
-        }
-        return (__rec_cell_build_leaf_key(session, r, NULL, 0, is_ovflp));
-    }
-
     key->cell_len = __wt_cell_pack_leaf_key(&key->cell, pfx, key->buf.size);
     key->len = key->cell_len + key->buf.size;
 
@@ -189,7 +130,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_RECONCILE *r;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
-    bool ovfl_key;
 
     r = cbulk->reconcile;
     btree = S2BT(session);
@@ -199,7 +139,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     key = &r->k;
     val = &r->v;
     WT_RET(__rec_cell_build_leaf_key(session, r, /* Build key cell */
-      cursor->key.data, cursor->key.size, &ovfl_key));
+      cursor->key.data, cursor->key.size));
     if (cursor->value.size == 0)
         val->len = 0;
     else
@@ -214,8 +154,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
          */
         if (r->key_pfx_compress_conf) {
             r->key_pfx_compress = false;
-            if (!ovfl_key)
-                WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
+            WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0));
         }
         WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
     }
@@ -233,7 +172,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
     /* Update compression state. */
-    __rec_key_state_update(r, ovfl_key);
+    __rec_key_state_update(r);
 
     return (0);
 }
@@ -250,7 +189,6 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *key, *val;
     uint32_t i;
-    bool ovfl_key;
 
     mod = page->modify;
 
@@ -260,8 +198,8 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /* Build the key and value cells. */
-        WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
-          r->cell_zero ? 1 : multi->key.ikey->size, &ovfl_key));
+        WT_RET(__rec_cell_build_int_key(
+          session, r, WT_IKEY_DATA(multi->key.ikey), r->cell_zero ? 1 : multi->key.ikey->size));
         r->cell_zero = false;
 
         addr = &multi->addr;
@@ -277,7 +215,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __rec_key_state_update(r);
     }
     return (0);
 }
@@ -300,8 +238,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REC_KV *key, *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
-    size_t key_overflow_size, size;
-    bool force, hazard, key_onpage_ovfl, ovfl_key;
+    size_t size;
+    bool force, hazard, key_onpage_ovfl;
     const void *p;
 
     btree = S2BT(session);
@@ -333,8 +271,6 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * transforming the page from its disk image to its in-memory version, for example).
      */
     r->cell_zero = true;
-
-    key_overflow_size = 0;
 
     /* For each entry in the in-memory page... */
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -457,49 +393,24 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /*
          * Build key cell. Truncate any 0th key, internal pages don't need 0th keys.
          */
-        if (key_onpage_ovfl) {
-            key->buf.data = cell;
-            key->buf.size = __wt_cell_total_len(kpack);
-            key->cell_len = 0;
-            key->len = key->buf.size;
-            ovfl_key = true;
-            key_overflow_size += ikey->size;
-        } else {
-            __wt_ref_key(page, ref, &p, &size);
-            if (r->cell_zero)
-                size = 1;
-            WT_ERR(__rec_cell_build_int_key(session, r, p, size, &ovfl_key));
-            if (ovfl_key)
-                key_overflow_size += size;
-        }
+        __wt_ref_key(page, ref, &p, &size);
+        if (r->cell_zero)
+            size = 1;
+        WT_ERR(__rec_cell_build_int_key(session, r, p, size));
         r->cell_zero = false;
 
         /*
          * Boundary: split or write the page.
          *
          * We always instantiate row-store internal page keys in order to avoid special casing the
-         * B+tree search code to handle keys that may not exist (and I/O in a search path). Because
-         * root pages are pinned, overflow keys on the root page can cause follow-on cache effects
-         * where huge root pages tie down lots of cache space and eviction frantically attempts to
-         * evict objects that can't be evicted. If the in-memory image is too large, force a split.
-         * Potentially, limiting ourselves to 10 items per page is going to result in deep trees
-         * which will impact search performance, but at some point, the application's configuration
-         * is too stupid to survive.
+         * B+tree search code to handle keys that may not exist (and I/O in a search path). If the
+         * in-memory image is too large, force a split. Potentially, limiting ourselves to 10 items
+         * per page is going to result in deep trees which will impact search performance, but at
+         * some point, the application's configuration is too stupid to survive.
          */
-        force = r->entries > 20 && key_overflow_size > btree->maxmempage_image;
-        if (force || __wt_rec_need_split(r, key->len + val->len)) {
-            key_overflow_size = 0;
-
-            /*
-             * In one path above, we copied address blocks from the page rather than building the
-             * actual key. In that case, we have to build the key now because we are about to
-             * promote it.
-             */
-            if (key_onpage_ovfl)
-                WT_ERR(__wt_buf_set(session, r->cur, WT_IKEY_DATA(ikey), ikey->size));
-
+        force = r->entries > 20;
+        if (force || __wt_rec_need_split(r, key->len + val->len))
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, force));
-        }
 
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
@@ -507,7 +418,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __rec_key_state_update(r);
     }
     WT_INTL_FOREACH_END;
 
@@ -549,7 +460,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
-    bool ovfl_key;
 
     btree = S2BT(session);
 
@@ -622,8 +532,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             WT_RET(__wt_illegal_value(session, upd->type));
         }
         /* Build key cell. */
-        WT_RET(__rec_cell_build_leaf_key(
-          session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins), &ovfl_key));
+        WT_RET(__rec_cell_build_leaf_key(session, r, WT_INSERT_KEY(ins), WT_INSERT_KEY_SIZE(ins)));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len)) {
@@ -633,8 +542,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
-                if (!ovfl_key)
-                    WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
+                WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0));
             }
 
             WT_RET(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
@@ -653,7 +561,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __rec_key_state_update(r);
     }
 
     return (0);
@@ -716,7 +624,7 @@ __wt_rec_row_leaf(
     WT_UPDATE_SELECT upd_select;
     uint64_t slvg_skip;
     uint32_t i;
-    bool dictionary, key_onpage_ovfl, ovfl_key;
+    bool dictionary;
     void *copy;
 
     btree = S2BT(session);
@@ -820,18 +728,7 @@ __wt_rec_row_leaf(
                  * The transaction ids are cleared after restart. Repack the cell to flush the
                  * cleared transaction ids.
                  */
-                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
-                    r->ovfl_items = true;
-
-                    val->buf.data = vpack->data;
-                    val->buf.size = vpack->size;
-
-                    /* Rebuild the cell. */
-                    val->cell_len =
-                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, &tw, 0, val->buf.size);
-                    val->len = val->cell_len + val->buf.size;
-                } else
-                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
+                WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
 
                 dictionary = true;
             } else {
@@ -839,10 +736,6 @@ __wt_rec_row_leaf(
                 val->buf.size = __wt_cell_total_len(vpack);
                 val->cell_len = 0;
                 val->len = val->buf.size;
-
-                /* Track if page has overflow items. */
-                if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW))
-                    r->ovfl_items = true;
             }
         } else {
             /*
@@ -936,74 +829,41 @@ __wt_rec_row_leaf(
         }
 
         /*
-         * Build key cell.
-         *
-         * If the key is an overflow key that hasn't been removed, use the original backing blocks.
+         * Get the key from the page or an instantiated key, or inline building the key from a
+         * previous key (it's a fast path for simple, prefix-compressed keys), or by building the
+         * key from scratch.
          */
-        key_onpage_ovfl = kpack != NULL && F_ISSET(kpack, WT_CELL_UNPACK_OVERFLOW) &&
-          kpack->raw != WT_CELL_KEY_OVFL_RM;
-        if (key_onpage_ovfl) {
-            key->buf.data = cell;
-            key->buf.size = __wt_cell_total_len(kpack);
-            key->cell_len = 0;
-            key->len = key->buf.size;
-            ovfl_key = true;
+        if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &tmpkey->data, &tmpkey->size))
+            goto build;
 
+        kpack = &_kpack;
+        __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+        if (kpack->type == WT_CELL_KEY && tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
             /*
-             * We aren't creating a key so we can't use this key as a prefix for a subsequent key.
+             * Grow the buffer as necessary, ensuring data data has been copied into local buffer
+             * space, then append the suffix to the prefix already in the buffer.
+             *
+             * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
+             * data length to the prefix bytes.
              */
-            tmpkey->size = 0;
-
-            /* Track if page has overflow items. */
-            r->ovfl_items = true;
-        } else {
-            /*
-             * Get the key from the page or an instantiated key, or inline building the key from a
-             * previous key (it's a fast path for simple, prefix-compressed keys), or by building
-             * the key from scratch.
-             */
-            if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &tmpkey->data, &tmpkey->size))
-                goto build;
-
-            kpack = &_kpack;
-            __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-            if (kpack->type == WT_CELL_KEY && tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
-                /*
-                 * Grow the buffer as necessary, ensuring data data has been copied into local
-                 * buffer space, then append the suffix to the prefix already in the buffer.
-                 *
-                 * Don't grow the buffer unnecessarily or copy data we don't need, truncate the
-                 * item's data length to the prefix bytes.
-                 */
-                tmpkey->size = kpack->prefix;
-                WT_ERR(__wt_buf_grow(session, tmpkey, tmpkey->size + kpack->size));
-                memcpy((uint8_t *)tmpkey->mem + tmpkey->size, kpack->data, kpack->size);
-                tmpkey->size += kpack->size;
-            } else
-                WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
+            tmpkey->size = kpack->prefix;
+            WT_ERR(__wt_buf_grow(session, tmpkey, tmpkey->size + kpack->size));
+            memcpy((uint8_t *)tmpkey->mem + tmpkey->size, kpack->data, kpack->size);
+            tmpkey->size += kpack->size;
+        } else
+            WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
 build:
-            WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size, &ovfl_key));
-        }
+        WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len)) {
-            /*
-             * If we copied address blocks from the page rather than building the actual key, we
-             * have to build the key now because we are about to promote it.
-             */
-            if (key_onpage_ovfl) {
-                WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, kpack, r->cur));
-                WT_NOT_READ(key_onpage_ovfl, false);
-            }
-
             /*
              * Turn off prefix compression until a full key written to the new page, and (unless
              * already working with an overflow key), rebuild the key without compression.
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
-                if (!ovfl_key)
-                    WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
+                WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0));
             }
 
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, key->len + val->len, false));
@@ -1022,7 +882,7 @@ build:
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __rec_key_state_update(r);
 
 leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */

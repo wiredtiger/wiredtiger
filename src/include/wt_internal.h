@@ -257,8 +257,6 @@ struct __wt_optrack_header;
 typedef struct __wt_optrack_header WT_OPTRACK_HEADER;
 struct __wt_optrack_record;
 typedef struct __wt_optrack_record WT_OPTRACK_RECORD;
-struct __wt_ovfl_reuse;
-typedef struct __wt_ovfl_reuse WT_OVFL_REUSE;
 struct __wt_ovfl_track;
 typedef struct __wt_ovfl_track WT_OVFL_TRACK;
 struct __wt_page;

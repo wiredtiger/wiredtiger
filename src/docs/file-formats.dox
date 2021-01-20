@@ -18,9 +18,7 @@ columns can be separated into multiple files and only the columns being
 returned need be present in the cache).
 
 Row-store keys and values, and variable-length column-store values, can
-be up to (4GB - 512B) in length.  Keys and values too large to fit on a
-normal page are stored as overflow items in the file, and are likely to
-require additional file I/O to access.
+be up to (4GB - 512B) in length.
 
 Fixed-length column-store values (value_format type 't'), are limited
 to 8-bits, and only values between 0 and 255 may be stored.

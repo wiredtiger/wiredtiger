@@ -241,9 +241,8 @@ file_config = format_meta + file_runtime_config + [
         choices=['first', 'best',]),
     Config('allocation_size', '4KB', r'''
         the file unit allocation size, in bytes, must a power-of-two;
-        smaller values decrease the file space required by overflow
-        items, and the default value of 4KB is a good choice absent
-        requirements from the operating system or storage device''',
+        the default value of 4KB is a good choice absent requirements
+        from the operating system or storage device''',
         min='512B', max='128MB'),
     Config('block_compressor', 'none', r'''
         configure a compressor for file blocks.  Permitted values are \c "none"
@@ -310,11 +309,10 @@ file_config = format_meta + file_runtime_config + [
         historic term for internal_key_max''',
         min=0, undoc=True),
     Config('internal_key_max', '0', r'''
-        the largest key stored in an internal node, in bytes.  If set, keys
-        larger than the specified size are stored as overflow items (which
-        may require additional I/O to access).  The default and the maximum
-        allowed value are both one-tenth the size of a newly split internal
-        page''',
+        the largest key stored in an internal node, in bytes. It is a soft limit.
+        If set, keys larger than the specified size are still stored in the same
+        page. The default and the maximum allowed value are both one-tenth the
+        size of a newly split internal page''',
         min='0'),
     Config('key_gap', '10', r'''
         the maximum gap between instantiated keys in a Btree leaf page,
@@ -322,10 +320,10 @@ file_config = format_meta + file_runtime_config + [
         random Btree leaf page key''',
         min='0', undoc=True),
     Config('leaf_key_max', '0', r'''
-        the largest key stored in a leaf node, in bytes.  If set, keys
-        larger than the specified size are stored as overflow items (which
-        may require additional I/O to access).  The default value is
-        one-tenth the size of a newly split leaf page''',
+        the largest key stored in a leaf node, in bytes. It is a soft limit.
+        If set, even keys larger than the specified size are still stored in
+        the same page. The default value is one-tenth the size of a newly
+        split leaf page''',
         min='0'),
     Config('leaf_page_max', '32KB', r'''
         the maximum page size for leaf nodes, in bytes; the size must
@@ -336,12 +334,9 @@ file_config = format_meta + file_runtime_config + [
         is done''',
         min='512B', max='512MB'),
     Config('leaf_value_max', '0', r'''
-        the largest value stored in a leaf node, in bytes.  If set, values
-        larger than the specified size are stored as overflow items (which
-        may require additional I/O to access). If the size is larger than
-        the maximum leaf page size, the page size is temporarily ignored
-        when large values are written. The default is one-half the size of
-        a newly split leaf page''',
+        the largest value stored in a leaf node, in bytes. It is a soft limit.
+        If set, values larger than the specified size are still stored in the
+        same page. The default is one-half the size of a newly split leaf page''',
         min='0'),
     Config('leaf_item_max', '0', r'''
         historic term for leaf_key_max and leaf_value_max''',

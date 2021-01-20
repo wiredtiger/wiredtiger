@@ -9,8 +9,10 @@
 #include "wt_internal.h"
 
 /* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY | WT_VERB_RTS : WT_VERB_RTS)
+#define WT_VERB_RECOVERY_RTS(session)                                \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                     \
+        WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS | WT_VERB_RTS : \
+        WT_VERB_RTS)
 /*
  * __rollback_abort_newer_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,

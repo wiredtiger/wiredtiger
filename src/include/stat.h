@@ -886,12 +886,9 @@ struct __wt_dsrc_stats {
     int64_t rec_dictionary;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
-    int64_t rec_overflow_key_internal;
     int64_t rec_prefix_compression;
     int64_t rec_multiblock_leaf;
-    int64_t rec_overflow_key_leaf;
     int64_t rec_multiblock_max;
-    int64_t rec_overflow_value;
     int64_t rec_page_match;
     int64_t rec_time_window_pages_prepared;
     int64_t rec_time_window_pages_start_ts;

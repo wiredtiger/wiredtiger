@@ -474,44 +474,6 @@ __wt_cell_pack_leaf_key(WT_CELL *cell, uint8_t prefix, size_t size)
 }
 
 /*
- * __wt_cell_pack_ovfl --
- *     Pack an overflow cell.
- */
-static inline size_t
-__wt_cell_pack_ovfl(WT_SESSION_IMPL *session, WT_CELL *cell, uint8_t type, WT_TIME_WINDOW *tw,
-  uint64_t rle, size_t size)
-{
-    uint8_t *p;
-
-    /* Start building a cell: the descriptor byte starts zero. */
-    p = cell->__chunk;
-    *p = '\0';
-
-    switch (type) {
-    case WT_CELL_KEY_OVFL:
-    case WT_CELL_KEY_OVFL_RM:
-        WT_ASSERT(session, tw == NULL);
-        ++p;
-        break;
-    case WT_CELL_VALUE_OVFL:
-    case WT_CELL_VALUE_OVFL_RM:
-        __cell_pack_value_validity(session, &p, tw);
-        break;
-    }
-
-    if (rle < 2)
-        cell->__chunk[0] |= type; /* Type */
-    else {
-        cell->__chunk[0] |= type | WT_CELL_64V; /* Type */
-                                                /* RLE */
-        WT_IGNORE_RET(__wt_vpack_uint(&p, 0, rle));
-    }
-    /* Length */
-    WT_IGNORE_RET(__wt_vpack_uint(&p, 0, (uint64_t)size));
-    return (WT_PTRDIFF(p, cell));
-}
-
-/*
  * __wt_cell_rle --
  *     Return the cell's RLE value.
  */

@@ -162,45 +162,6 @@ struct __wt_addr_copy {
 };
 
 /*
- * Overflow tracking for reuse: When a page is reconciled, we write new K/V overflow items. If pages
- * are reconciled multiple times, we need to know if we've already written a particular overflow
- * record (so we don't write it again), as well as if we've modified an overflow record previously
- * written (in which case we want to write a new record and discard blocks used by the previously
- * written record). Track overflow records written for the page, storing the values in a skiplist
- * with the record's value as the "key".
- */
-struct __wt_ovfl_reuse {
-    uint32_t value_offset; /* Overflow value offset */
-    uint32_t value_size;   /* Overflow value size */
-    uint8_t addr_offset;   /* Overflow addr offset */
-    uint8_t addr_size;     /* Overflow addr size */
-
-/*
- * On each page reconciliation, we clear the entry's in-use flag, and reset it as the overflow
- * record is re-used. After reconciliation completes, unused skiplist entries are discarded, along
- * with their underlying blocks.
- *
- * On each page reconciliation, set the just-added flag for each new skiplist entry; if
- * reconciliation fails for any reason, discard the newly added skiplist entries, along with their
- * underlying blocks.
- */
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_OVFL_REUSE_INUSE 0x1u
-#define WT_OVFL_REUSE_JUST_ADDED 0x2u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint8_t flags;
-
-/*
- * The untyped address immediately follows the WT_OVFL_REUSE structure, the untyped value
- * immediately follows the address.
- */
-#define WT_OVFL_REUSE_ADDR(p) ((void *)((uint8_t *)(p) + (p)->addr_offset))
-#define WT_OVFL_REUSE_VALUE(p) ((void *)((uint8_t *)(p) + (p)->value_offset))
-
-    WT_OVFL_REUSE *next[0]; /* Forward-linked skip list */
-};
-
-/*
  * History store table support: when a page is being reconciled for eviction and has updates that
  * might be required by earlier readers in the system, the updates are written into the history
  * store table, and restored as necessary if the page is read.
@@ -421,12 +382,6 @@ struct __wt_page_modify {
      * so we don't allocate the structures to track them until we actually see them in the data.
      */
     struct __wt_ovfl_track {
-        /*
-         * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile
-         * the page.
-         */
-        WT_OVFL_REUSE *ovfl_reuse[WT_SKIP_MAXDEPTH];
-
         /*
          * Overflow key/value addresses to be discarded from the block manager after reconciliation
          * completes successfully.
