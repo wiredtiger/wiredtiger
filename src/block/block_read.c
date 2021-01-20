@@ -238,7 +238,7 @@ __wt_block_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t logid, WT_FH *
     if (logid == 0)
         filename = block->name;
     else {
-        WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08d", block->name, logid));
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, logid));
         filename = tmp->data;
     }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
