@@ -72,6 +72,23 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
             '\\u0001\\u0002abcd\\u0003\\u0004')
         self.check_file_contains('printlog-hex.out',
             '0102616263640304')
+        # Check the printlog start LSN and stop LSN feature.
+        self.runWt(['printlog', '-l 2,1'], outfilename='printlog-range01.out')
+        self.check_file_contains('printlog-range01.out',
+            '"lsn" : [2,128],')
+        self.check_file_not_contains('printlog-range01.out',
+            '"lsn" : [1,128],')
+        self.check_file_not_contains('printlog-range01.out',
+            '"lsn" : [1,128],')
+        self.runWt(['printlog', '-l 2,1,3,1'], outfilename='printlog-range02.out')
+        self.check_file_contains('printlog-range02.out',
+            '"lsn" : [2,128],')
+        self.check_file_not_contains('printlog-range02.out',
+            '"lsn" : [1,128],')
+        self.check_file_not_contains('printlog-range02.out',
+            '"lsn" : [3,128],')
+
+
 
 if __name__ == '__main__':
     wttest.run()
