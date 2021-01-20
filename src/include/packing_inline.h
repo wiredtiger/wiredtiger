@@ -114,7 +114,7 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
         name->str = pn->buf;
         name->len = strlen(pn->buf);
         /*
-         * C++ treats nested struct definitions differently to C, as such we need to use scope
+         * C++ treats nested structure definitions differently to C, as such we need to use scope
          * resolution to fully define the type.
          */
 #ifdef __cplusplus
