@@ -143,9 +143,8 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # Don't run durable check for columnar store. Since durable history rollback is 
-        # not implemented for columnar store. Remove this if statement once WT-5545
-        # is implemented.
+        # Rollback to stable support for column store is not implemented, and it fails only when it is used with timestamps.
+        # Remove the above comment once WT-5545 is implemented.
         if self.key_format != 'r':
             # Scenario: 3
             # Check to see if the history store is working with the old timestamp.
