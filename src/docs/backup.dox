@@ -171,9 +171,8 @@ database directory has not been opened and recovery run.  Once recovery
 has run in a backup directory, you can no longer back up to that
 database directory.
 
-The only limitation of block-based incremental backup is that it does not
-work with LSM trees. It will throw an error if backup API is used to do
-block-based incremental backup with LSM trees.
+Block-based incremental backup does not work with LSM trees. An error
+will be returned in that case.
 
 An example of opening the backup data source for block-based incremental backup:
 
