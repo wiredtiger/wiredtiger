@@ -214,10 +214,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
 
-    /* Try the no-write-allocate policy
-    if (write == true)
+    /* Bypass on write if the no-write-allocate setting is on */
+    if (write && blkcache->write_allocate == false) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
 	return -1;
-    */
+    }
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -366,8 +367,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  */
 static int
 __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
-		   int type, char *nvram_device_path, size_t system_ram,
-		   int percent_file_in_dram)
+		int type, char *nvram_device_path, size_t system_ram,
+		int percent_file_in_dram, bool write_allocate)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -379,6 +380,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
     blkcache->hash_size = hash_size;
     blkcache->system_ram = system_ram;
     blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
+    blkcache->write_allocate = write_allocate;
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -476,6 +478,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
 
+    bool write_allocate = true;
     char *nvram_device_path = NULL;
     int cache_type = BLKCACHE_UNCONFIGURED, percent_file_in_dram;
     size_t cache_size, hash_size, system_ram;
@@ -527,6 +530,11 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     if ((percent_file_in_dram = (int)cval.val) == 0)
 	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
 
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.write_allocate", &cval));
+    if (cval.val == 0)
+	write_allocate = false;
+
     return __blkcache_init(session, cache_size, hash_size, cache_type,
-			      nvram_device_path, system_ram, percent_file_in_dram);
+			   nvram_device_path, system_ram,
+			   percent_file_in_dram, write_allocate);
 }

@@ -465,6 +465,9 @@ connection_runtime_config = [
                       min='0', max='1024GB'),
                Config('type', '', r'''
                    cache location: DRAM or NVRAM.'''),
+               Config('write_allocate', 'true', r'''
+                      allocate cache blocks on write''',
+                      type='boolean'),
            ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should

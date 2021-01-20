@@ -56,6 +56,7 @@ struct __wt_blkcache {
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
     WT_SPINLOCK * hash_locks;
 
+    bool write_allocate;
     char *nvram_device_path;
     float fraction_in_dram;
     int refs_since_filesize_estimated;

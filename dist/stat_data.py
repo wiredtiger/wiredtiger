@@ -210,6 +210,7 @@ connection_stats = [
     BlockStat('block_cache_bypass_get', 'block cache number of bypasses on get'),
     BlockStat('block_cache_bypass_filesize', 'block cache file size causing bypass'),
     BlockStat('block_cache_bypass_put', 'block cache number of bypasses on put'),
+    BlockStat('block_cache_bypass_writealloc', 'block cache number of bypasses because no-write-allocate setting was on'),
     BlockStat('block_cache_bytes', 'block cache total bytes'),
     BlockStat('block_cache_bytes_update', 'block cache cached bytes updated'),
     BlockStat('block_cache_bytes_insert_read', 'block cache total bytes inserted on read path'),

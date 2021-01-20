@@ -890,6 +890,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: block cache cached bytes updated",
   "block-manager: block cache file size causing bypass",
   "block-manager: block cache lookups",
+  "block-manager: block cache number of bypasses because no-write-allocate setting was on",
   "block-manager: block cache number of bypasses on get",
   "block-manager: block cache number of bypasses on put",
   "block-manager: block cache number of hits including existence checks",
@@ -1440,6 +1441,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bytes_update = 0;
     stats->block_cache_bypass_filesize = 0;
     stats->block_cache_data_refs = 0;
+    stats->block_cache_bypass_writealloc = 0;
     stats->block_cache_bypass_get = 0;
     stats->block_cache_bypass_put = 0;
     stats->block_cache_hits = 0;
@@ -1956,6 +1958,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bytes_update += WT_STAT_READ(from, block_cache_bytes_update);
     to->block_cache_bypass_filesize += WT_STAT_READ(from, block_cache_bypass_filesize);
     to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
+    to->block_cache_bypass_writealloc += WT_STAT_READ(from, block_cache_bypass_writealloc);
     to->block_cache_bypass_get += WT_STAT_READ(from, block_cache_bypass_get);
     to->block_cache_bypass_put += WT_STAT_READ(from, block_cache_bypass_put);
     to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
