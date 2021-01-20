@@ -39,8 +39,8 @@ until that process has completed to continue with the checkpoint.
 
 5. The metadata checkpoint
 A new entry into the metadata file is created for every datafile checkpointed, including the
-history store. As such the metadata file is the last file to be checkpointed. As WiredTiger maintains
-two checkpoints, the location of the most recent checkpoint is written to the turtle file.
+history store. As such the metadata file is the last file to be checkpointed. As WiredTiger
+maintains two checkpoints, the location of the most recent checkpoint is written to the turtle file.
 
 # Skipping checkpoints #
 
