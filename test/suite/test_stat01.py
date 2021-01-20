@@ -125,7 +125,7 @@ class test_stat01(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor('statistics:' + self.uri, None, None)
         self.check_stats(cursor, 8192, 'btree: maximum leaf page size')
         self.check_stats(cursor, 4096, 'btree: maximum internal page size')
-        self.check_stats(cursor, 10, 'btree: overflow pages')
+        self.check_stats(cursor, 0, 'btree: overflow pages')
 
         values = cursor[stat.dsrc.btree_overflow]
         self.assertEqual(values[0], 'btree: overflow pages')
