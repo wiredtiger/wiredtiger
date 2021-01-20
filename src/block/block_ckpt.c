@@ -482,7 +482,7 @@ __wt_block_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
     ++block->logid;
 
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08d", block->name, block->logid));
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
     filename = tmp->data;
     WT_ERR(__wt_close(session, &block->fh));
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
