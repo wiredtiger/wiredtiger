@@ -171,6 +171,19 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 }
 
 /*
+ * __wt_hs_cbt --
+ *     Convert a hs cursor to the underlying btree cursor
+ */
+WT_CURSOR_BTREE *
+__wt_hs_cbt(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    return (WT_CURSOR_BTREE *)hs_cursor->file_cursor;
+}
+
+/*
  * __wt_hs_find_upd --
  *     Scan the history store for a record the btree cursor wants to position on. Create an update
  *     for the record and return to the caller.
