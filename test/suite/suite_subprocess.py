@@ -93,6 +93,8 @@ class suite_subprocess:
             got = f.read(len(expect) + 100)
             self.assertEqual(got, expect, filename + ': does not contain expected:\n\'' + expect + '\', but contains:\n\'' + got + '\'.')
 
+    # Check contents of the file against a provided checklist. Expected is used as a bool to either
+    # ensure checklist is included or ensure the checklist is not included in the file.
     def check_file_contains_one_of(self, filename, checklist, expected):
         """
         Check that the file contains the expected string in the first 100K bytes
