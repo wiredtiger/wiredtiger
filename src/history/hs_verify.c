@@ -105,6 +105,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session)
     uint32_t btree_id;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     btree_id = S2BT(session)->id;
 
     hs_cursor->set_key(hs_cursor, 1, btree_id);
@@ -156,6 +157,7 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
     uri_data = NULL;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     WT_ERR(__wt_scr_alloc(session, 0, &buf));
     WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor), true);
     stop = ret == WT_NOTFOUND ? true : false;
