@@ -78,19 +78,19 @@ class test_backup_target(backup_base):
 
     # Take an incremental backup and then truncate/archive the logs.
     def take_incr_backup(self, dir):
-            config = 'target=("log:")'
-            cursor = self.session.open_cursor('backup:', None, config)
-            while True:
-                ret = cursor.next()
-                if ret != 0:
-                    break
-                newfile = cursor.get_key()
-                sz = os.path.getsize(newfile)
-                self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
-                shutil.copy(newfile, dir)
-            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-            self.session.truncate('log:', cursor, None, None)
-            cursor.close()
+        config = 'target=("log:")'
+        cursor = self.session.open_cursor('backup:', None, config)
+        while True:
+            ret = cursor.next()
+            if ret != 0:
+                break
+            newfile = cursor.get_key()
+            sz = os.path.getsize(newfile)
+            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
+            shutil.copy(newfile, dir)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        self.session.truncate('log:', cursor, None, None)
+        cursor.close()
 
     # Run background inserts while running checkpoints and incremental backups
     # repeatedly.
@@ -105,7 +105,7 @@ class test_backup_target(backup_base):
         # a full backup.  The full backup function creates the directory.
         dir = self.dir
         os.mkdir(dir)
-        self.take_full_backup(dir, {})
+        self.take_full_backup(dir)
         self.session.checkpoint(None)
 
         #
@@ -127,6 +127,7 @@ class test_backup_target(backup_base):
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.
         full_dir = self.dir + ".full"
+        os.mkdir(full_dir)
         self.take_full_backup(full_dir)
         self.compare_backups(self.uri, self.dir, full_dir)
         self.compare_backups(self.uri, self.dir, './')

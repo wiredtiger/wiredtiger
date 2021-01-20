@@ -25,7 +25,7 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
-import os, glob
+import os, glob, shutil
 import wttest, wiredtiger
 from suite_subprocess import suite_subprocess
 from helper import compare_files
@@ -125,13 +125,13 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     def copy_file(self, file, dir, logpath):
         copy_from = file
         # If it is log file, prepend the path.
-        if logpath and "WiredTigerLog" in file:
-            copy_to = dir + '/' + logpath
-        else:
-            copy_to = dir
-        shutil.copy(copy_from, copy_to)
+        # if logpath and "WiredTigerLog" in file:
+        #     copy_to = dir + '/' + logpath
+        # else:
+        #     copy_to = dir
+        shutil.copy(copy_from, dir)
 
-    def take_full_backup(self, backup_dir, max_iteration, logpath):
+    def take_full_backup(self, backup_dir, max_iteration=0, logpath=''):
         #
         # First time through we take a full backup into the incremental directories. Otherwise only
         # into the appropriate full directory.
@@ -140,7 +140,6 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if self.initial_backup:
             buf = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
         bkup_c = self.session.open_cursor('backup:', None, buf)
-
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.

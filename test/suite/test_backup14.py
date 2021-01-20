@@ -71,7 +71,7 @@ class test_backup14(backup_base):
             copy_from = newfile
             # If it is log file, prepend the path.
             if ("WiredTigerLog" in newfile):
-                copy_to = h + '/' + self.options['logpath']
+                copy_to = h + '/' + self.logpath
             else:
                 copy_to = h
 
@@ -100,7 +100,7 @@ class test_backup14(backup_base):
 
                     copy_from = newfile
                     if ("WiredTigerLog" in newfile):
-                        copy_to = h + '/' + self.options['logpath']
+                        copy_to = h + '/' + self.logpath
                     else:
                         copy_to = h
                     shutil.copy(copy_from, copy_to)
@@ -121,11 +121,11 @@ class test_backup14(backup_base):
             incr_c.close()
 
             # For each file, we want to copy the file into each of the later incremental directories
-            for i in range(self.counter, self.options['max_iteration']):
+            for i in range(self.counter, self.max_iteration):
                 h = self.home_incr + '.' + str(i)
                 copy_from = newfile
                 if ("WiredTigerLog" in newfile):
-                    copy_to = h + '/' + self.options['logpath']
+                    copy_to = h + '/' + self.logpath
                 else:
                     copy_to = h
                 shutil.copy(copy_from, copy_to)
@@ -160,13 +160,13 @@ class test_backup14(backup_base):
         self.initial_backup = True
         self.add_data(self.uri, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_incr, self.max_iteration, self.logpath)
         self.initial_backup = False
         self.session.checkpoint()
 
         self.add_data(self.uri, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
         self.take_incr_backup()
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
@@ -176,7 +176,7 @@ class test_backup14(backup_base):
     #
     def remove_all_records_validate(self):
         self.remove_data()
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
         self.take_incr_backup()
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
@@ -209,7 +209,7 @@ class test_backup14(backup_base):
     def create_dropped_table_add_new_content(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.add_data(self.uri, self.bigkey, self.bigval)
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
         self.take_incr_backup()
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
@@ -224,7 +224,7 @@ class test_backup14(backup_base):
         self.session.create(self.uri_logged, "key_format=S,value_format=S")
         self.add_data(self.uri_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
         self.take_incr_backup()
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
         #
@@ -233,7 +233,7 @@ class test_backup14(backup_base):
         self.session.create(self.uri_not_logged, "key_format=S,value_format=S,log=(enabled=false)")
         self.add_data(self.uri_not_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.options)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
         self.take_incr_backup()
         self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.counter))
 
@@ -242,7 +242,7 @@ class test_backup14(backup_base):
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.setup_directories(self.options['max_iteration'], self.home_incr, self.home_full, self.options['logpath'])
+        self.setup_directories(self.max_iteration, self.home_incr, self.home_full, self.logpath)
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.add_data_validate_backups()
