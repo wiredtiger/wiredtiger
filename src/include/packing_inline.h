@@ -113,6 +113,10 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
         WT_CLEAR(*name);
         name->str = pn->buf;
         name->len = strlen(pn->buf);
+        /*
+         * C++ treats nested struct definitions differently to C, as such we need to use scope
+         * resolution to fully define the type.
+         */
 #ifdef __cplusplus
         name->type = WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
 #else
