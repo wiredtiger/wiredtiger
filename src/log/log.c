@@ -2042,10 +2042,10 @@ __log_salvage_message(
  *     Scan the logs, calling a function on each record found.
  */
 int
-__wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
+__wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
-  void *cookie, WT_LSN *start_range_lsnp, WT_LSN *end_range_lsnp)
+  void *cookie)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(buf);
@@ -2080,7 +2080,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     if (func == NULL)
         return (0);
 
-    if (lsnp != NULL && LF_ISSET(WT_LOGSCAN_FIRST | WT_LOGSCAN_FROM_CKP))
+    if (start_lsnp != NULL && LF_ISSET(WT_LOGSCAN_FIRST | WT_LOGSCAN_FROM_CKP))
         WT_RET_MSG(session, WT_ERROR, "choose either a start LSN or a start flag");
     /*
      * Set up the allocation size, starting and ending LSNs. The values for those depend on whether
@@ -2091,7 +2091,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
         allocsize = log->allocsize;
         WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
         WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
-        if (lsnp == NULL) {
+        if (start_lsnp == NULL) {
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
                 WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
             else if (!LF_ISSET(WT_LOGSCAN_FIRST))
@@ -2122,28 +2122,16 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
 
-    if (start_range_lsnp != NULL) {
-        /*
-         * Check to see if the user set offset is in alignment, if not correct to the next aligned
-         * log entry.
-         */
-        if (start_range_lsnp->l.offset % allocsize != 0)
-            WT_SET_LSN(&start_lsn, start_range_lsnp->l.file,
-              start_range_lsnp->l.offset + (allocsize - start_range_lsnp->l.offset % allocsize));
-        else
-            WT_ASSIGN_LSN(&start_lsn, start_range_lsnp);
-    }
-
-    if (lsnp != NULL) {
+    if (start_lsnp != NULL) {
         /*
          * Offsets must be on allocation boundaries. An invalid LSN from a user should just return
          * WT_NOTFOUND. It is not an error. But if it is from recovery, we expect valid LSNs so give
          * more information about that.
          */
-        if (lsnp->l.offset % allocsize != 0) {
+        if (start_lsnp->l.offset % allocsize != 0) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND, "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
-                  lsnp->l.file, lsnp->l.offset);
+                  start_lsnp->l.file, start_lsnp->l.offset);
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2152,11 +2140,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * return WT_NOTFOUND. It is not an error. But if it is from recovery, we expect valid LSNs
          * so give more information about that.
          */
-        if (lsnp->l.file > lastlog) {
+        if (start_lsnp->l.file > lastlog) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND,
                   "__wt_log_scan LSN %" PRIu32 "/%" PRIu32 " larger than biggest log file %" PRIu32,
-                  lsnp->l.file, lsnp->l.offset, lastlog);
+                  start_lsnp->l.file, start_lsnp->l.offset, lastlog);
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2164,8 +2152,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * Log cursors may not know the starting LSN. If an LSN is passed in that it is equal to the
          * smallest LSN, start from the beginning of the log.
          */
-        if (!WT_IS_INIT_LSN(lsnp))
-            WT_ASSIGN_LSN(&start_lsn, lsnp);
+        if (!WT_IS_INIT_LSN(start_lsnp))
+            WT_ASSIGN_LSN(&start_lsn, start_lsnp);
     }
     WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
@@ -2404,11 +2392,9 @@ advance:
         /*
          * Exit the scanning loop if the next LSN seen is greater than our user set end range LSN.
          */
-        if (end_range_lsnp != NULL &&
-          ((next_lsn.l.file > end_range_lsnp->l.file) ||
-            (next_lsn.l.file == end_range_lsnp->l.file &&
-              next_lsn.l.offset > end_range_lsnp->l.offset)))
+        if (end_lsnp != NULL && __wt_log_cmp(&next_lsn, end_lsnp) == 1)
             break;
+
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 

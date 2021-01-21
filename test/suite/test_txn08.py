@@ -73,22 +73,38 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
         self.check_file_contains('printlog-hex.out',
             '0102616263640304')
         # Check the printlog start LSN and stop LSN feature.
-        self.runWt(['printlog', '-l 2,1'], outfilename='printlog-range01.out')
+        self.runWt(['printlog', '-l 2,128'], outfilename='printlog-range01.out')
         self.check_file_contains('printlog-range01.out',
             '"lsn" : [2,128],')
+        self.check_file_contains('printlog-range01.out',
+            '"lsn" : [2,256],')
         self.check_file_not_contains('printlog-range01.out',
             '"lsn" : [1,128],')
-        self.check_file_not_contains('printlog-range01.out',
-            '"lsn" : [1,128],')
-        self.runWt(['printlog', '-l 2,1,3,1'], outfilename='printlog-range02.out')
+        self.runWt(['printlog', '-l 2,128,3,128'], outfilename='printlog-range02.out')
         self.check_file_contains('printlog-range02.out',
             '"lsn" : [2,128],')
         self.check_file_not_contains('printlog-range02.out',
             '"lsn" : [1,128],')
         self.check_file_not_contains('printlog-range02.out',
-            '"lsn" : [3,128],')
-
-
+            '"lsn" : [3,256],')
+        # Test for invalid lsn, return WT_NOTFOUND
+        self.runWt(['printlog', '-l 2,100'], outfilename='printlog-range03.out', errfilename='printlog-range03.err', failure=True)
+        self.check_file_contains('printlog-range03.err','WT_NOTFOUND')
+        # Test for Start > end, print the start lsn and then stop
+        self.runWt(['printlog', '-l 3,128,2,128'], outfilename='printlog-range04.out')
+        self.check_file_contains('printlog-range04.out','"lsn" : [3,128],')
+        self.check_file_not_contains('printlog-range04.out','"lsn" : [3,256],')
+        # Test for usage error, print the usage message if arguments are invalid
+        self.runWt(['printlog', '-l'], outfilename='printlog-range05.out', errfilename='printlog-range05.err', failure=True)
+        self.check_file_contains('printlog-range05.err','wt: option requires an argument -- l')
+        # Test start and end offset of 0
+        self.runWt(['printlog', '-l 2,0,3,0'], outfilename='printlog-range06.out')
+        self.check_file_contains('printlog-range06.out',
+            '"lsn" : [2,128],')
+        self.check_file_not_contains('printlog-range06.out',
+            '"lsn" : [1,128],')
+        self.check_file_not_contains('printlog-range06.out',
+            '"lsn" : [3,256],')
 
 if __name__ == '__main__':
     wttest.run()
