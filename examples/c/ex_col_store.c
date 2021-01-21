@@ -442,13 +442,12 @@ average_data(WT_SESSION *session)
     ret = loc_cursor->search(loc_cursor);
 
     /* Error handling in the case RUS is not found. In this case as it's a hardcoded location,
-    *  if there aren't any matching locations, no average data is obtained and we proceed with the
-    *  test instead of aborting. If an unexpected error occurs, exit. 
-    * */
-    if ( ret != 0 && ret == WT_NOTFOUND ) {
+     *  if there aren't any matching locations, no average data is obtained and we proceed with the
+     *  test instead of aborting. If an unexpected error occurs, exit.
+     * */
+    if (ret != 0 && ret == WT_NOTFOUND) {
         return;
-    }
-    else{
+    } else {
         exit(1);
     }
 
@@ -459,7 +458,7 @@ average_data(WT_SESSION *session)
         error_check(loc_cursor->get_key(loc_cursor, &recno));
         error_check(loc_cursor->get_value(loc_cursor, &day, &hour, &temp, &humidity, &pressure,
           &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-        
+
         /* Increment the values of the rec_arr with the temp_arr values. */
         rec_arr[0] += temp;
         rec_arr[1] += humidity;
@@ -546,7 +545,7 @@ main(int argc, char *argv[])
 
     /* Update the temperature from Celsius to Fahrenheit. */
     update_celsius_to_fahrenheit(session);
-    
+
     print_temp_column(session);
 
     /* Create indexes for searching */
