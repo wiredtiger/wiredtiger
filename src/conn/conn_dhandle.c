@@ -901,8 +901,8 @@ restart:
 
 /*
  * __wt_dhandle_update_write_gens --
- *     Update the open dhandles write generation, run write generation and base write
- *     generation number.
+ *     Update the open dhandles write generation, run write generation and base write generation
+ *     number.
  */
 void
 __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
