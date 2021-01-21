@@ -763,7 +763,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
     F_SET(conn, WT_CONN_RECOVERING);
     WT_ERR(__recovery_set_ckpt_base_write_gen(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     WT_ERR(__recovery_setup_file(&r, WT_METAFILE_URI, config));
     WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
@@ -886,6 +885,7 @@ rollback_to_stable:
         WT_ERR(__wt_evict_create(session));
         eviction_started = true;
 
+        WT_ERR(__recovery_set_checkpoint_snapshot(session));
         WT_ASSERT(session,
           conn->txn_global.has_stable_timestamp == false &&
             conn->txn_global.stable_timestamp == WT_TS_NONE);
@@ -900,7 +900,7 @@ rollback_to_stable:
         if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
             conn->txn_global.has_stable_timestamp = true;
 
-        __wt_verbose(session, WT_VERB_RTS,
+        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RTS,
           "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),

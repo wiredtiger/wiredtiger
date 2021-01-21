@@ -169,6 +169,14 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
     /* If not recovery then assume all the data as committed. */
     if (!F_ISSET(conn, WT_CONN_RECOVERING))
         return (false);
+
+    /*
+     * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
+     * details are zero then return false i.e, updates are committed.
+     */
+    if (conn->recovery_ckpt_snap_min == 0 && conn->recovery_ckpt_snap_max == 0)
+        return (false);
+
     /*
      * Snapshot data:
      *	ids < recovery_ckpt_snap_min are committed,
@@ -355,11 +363,13 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "history store update aborted with start timestamp: %s, durable timestamp: %s, stop "
-          "timestamp: %s and stable timestamp: %s",
+          "timestamp: %s, stable timestamp: %s, start txnid : %" PRIu64
+          " and stop txnid : %" PRIu64,
           __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
           __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
           __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
-          __wt_timestamp_to_string(rollback_timestamp, ts_string[3]));
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[3]), cbt->upd_value->tw.start_txn,
+          cbt->upd_value->tw.stop_txn);
 
         /*
          * Start time point of the current record may be used as stop time point of the previous
@@ -1274,6 +1284,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
     WT_RET(__wt_metadata_cursor(session, &cursor));
 
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "Recovered checkpoint snapshot min  %" PRIu64 ", snapshot max : %" PRIu64
+          ", snapshot count : %" PRIu32,
+          S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
+          S2C(session)->recovery_ckpt_snapshot_count);
+
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
 
@@ -1323,13 +1340,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
         has_txn_updates_gt_than_ckpt_snap =
           WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
-
-        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "Recovered checkpoint snapshot min  %" PRIu64 ", snapshot max : %" PRIu64
-              ", snapshot count : %" PRIu32,
-              S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
-              S2C(session)->recovery_ckpt_snapshot_count);
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap) {
