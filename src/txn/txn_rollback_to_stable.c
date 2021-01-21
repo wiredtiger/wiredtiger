@@ -335,8 +335,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
           (hs_stop_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid "
-              ": %" PRIu64,
+              "history store update valid with stop timestamp: %s, stable timestamp: %s and txnid: "
+              "%" PRIu64,
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
               cbt->upd_value->tw.stop_txn);
@@ -351,7 +351,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
-              "timestamp: %s, stable timestamp: %s and txnid : %" PRIu64,
+              "timestamp: %s, stable timestamp: %s and txnid: %" PRIu64,
               __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
               __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
@@ -363,8 +363,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "history store update aborted with start timestamp: %s, durable timestamp: %s, stop "
-          "timestamp: %s, stable timestamp: %s, start txnid : %" PRIu64
-          " and stop txnid : %" PRIu64,
+          "timestamp: %s, stable timestamp: %s, start txnid: %" PRIu64 " and stop txnid: %" PRIu64,
           __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
           __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
           __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
@@ -1286,8 +1285,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "Recovered checkpoint snapshot min  %" PRIu64 ", snapshot max : %" PRIu64
-          ", snapshot count : %" PRIu32,
+          "Recovered checkpoint snapshot min:  %" PRIu64 ", snapshot max: %" PRIu64
+          ", snapshot count: %" PRIu32,
           S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
           S2C(session)->recovery_ckpt_snapshot_count);
 
@@ -1342,9 +1341,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
           WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
 
         /* Increment the inconsistent checkpoint stats counter. */
-        if (has_txn_updates_gt_than_ckpt_snap) {
+        if (has_txn_updates_gt_than_ckpt_snap)
             WT_STAT_CONN_DATA_INCR(session, txn_rts_inconsistent_ckpt);
-        }
 
         /*
          * The rollback to stable will skip the tables during recovery and shutdown in the following
