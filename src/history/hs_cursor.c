@@ -449,7 +449,12 @@ err:
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  WT_TIME_WINDOW *on_disk_tw
+#endif
+)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
