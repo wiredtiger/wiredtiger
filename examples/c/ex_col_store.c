@@ -65,12 +65,11 @@ static void
 print_all_columns(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    const char *country;
-    int ret;
     uint64_t recno;
-    const char *day;
-    uint16_t hour, pressure, loc_lat, loc_long;
-    uint8_t humidity, temp, wind, feels_like_temp;
+    int ret;
+    uint16_t hour, loc_lat, loc_long, pressure;
+    uint8_t feels_like_temp, humidity, temp, wind;
+    const char *country, *day;
 
     error_check(session->open_cursor(session, TABLE_NAME, NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
@@ -130,8 +129,7 @@ update_celsius_to_fahrenheit(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     int ret;
-    uint8_t temp;
-    uint8_t temp_in_fahrenheit;
+    uint8_t temp, temp_in_fahrenheit;
 
     error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
@@ -154,10 +152,10 @@ static void
 chance_of_rain(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    int ret;
     uint64_t recno;
-    uint8_t humidity;
+    int ret;
     uint16_t pressure;
+    uint8_t humidity;
 
     error_check(
       session->open_cursor(session, "colgroup:weather:humidity_pressure", NULL, NULL, &cursor));
@@ -177,8 +175,8 @@ static void
 remove_country(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    int ret;
     uint64_t recno;
+    int ret;
     uint16_t loc_lat, loc_long;
     const char *country;
 
@@ -201,8 +199,7 @@ remove_country(WT_SESSION *session)
 static void
 generate_data(WEATHER *w_array)
 {
-    int day;
-    int country;
+    int country, day;
 
     srand((unsigned int)getpid());
 
@@ -284,10 +281,10 @@ generate_data(WEATHER *w_array)
 static int
 find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *min_temp)
 {
-    WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
+    WT_CURSOR *end_time_cursor, *join_cursor, *start_time_cursor;
+    uint64_t recno;
     int exact;
     int ret;
-    uint64_t recno;
     uint16_t hour;
     uint8_t temp;
 
@@ -355,10 +352,10 @@ find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *
 static int
 find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *max_temp)
 {
-    WT_CURSOR *join_cursor, *start_time_cursor, *end_time_cursor;
+    WT_CURSOR *end_time_cursor, *join_cursor, *start_time_cursor;
+    uint64_t recno;
     int exact;
     int ret;
-    uint64_t recno;
     uint16_t hour;
     uint8_t temp;
 
@@ -426,12 +423,12 @@ void
 average_data(WT_SESSION *session)
 {
     WT_CURSOR *loc_cursor;
-    const char *day;
-    const char *country;
     uint64_t recno;
-    uint16_t hour, pressure, loc_long, loc_lat;
-    uint8_t temp, humidity, wind, feels_like_temp;
     unsigned int count;
+    uint16_t hour, loc_lat, loc_long, pressure;
+    uint8_t feels_like_temp, humidity, temp, wind;
+    const char *country, *day;
+
     /* num_rec is the total number of records we're obtaining averages for. */
     int ret, num_rec;
     /* rec_arr holds the sum of the records in order to obtain the averages. */
@@ -491,8 +488,8 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     WT_CURSOR *cursor;
     WEATHER weather_data[NUM_ENTRIES];
-    uint16_t starting_time, ending_time;
-    int min_temp_result, max_temp_result;
+    int max_temp_result, min_temp_result;
+    uint16_t ending_time, starting_time;
 
     home = example_setup(argc, argv);
 
