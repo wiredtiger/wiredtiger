@@ -62,23 +62,7 @@ class test_backup11(backup_base):
         # We *can* use a log target duplicate on an incremental primary backup so that
         # a backup process can get all the log files that occur while that primary cursor
         # is open.
-        config = 'target=("log:")'
-        dupc = self.session.open_cursor(None, bkup_c, config)
-        dup_logs = []
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
-            newfile = dupc.get_key()
-            self.assertTrue("WiredTigerLog" in newfile)
-            sz = os.path.getsize(newfile)
-            if (newfile not in orig_logs):
-                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                shutil.copy(newfile, self.dir)
-            # Record all log files returned for later verification.
-            dup_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        dupc.close()
+        dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs)
         bkup_c.close()
 
         # Add more data

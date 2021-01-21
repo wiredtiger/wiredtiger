@@ -52,61 +52,6 @@ class test_backup17(backup_base):
 
     nops = 1000
 
-    def take_incr_backup(self, id, consolidate):
-        # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
-        if consolidate:
-            buf += ',consolidate=true'
-        buf += ')'
-        bkup_c = self.session.open_cursor('backup:', None, buf)
-        lens = []
-        saw_multiple = False
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            config = 'incremental=(file=' + newfile + ')'
-            self.pr('Open incremental cursor with ' + config)
-            dup_cnt = 0
-            dupc = self.session.open_cursor(None, bkup_c, config)
-            while True:
-                ret = dupc.next()
-                if ret != 0:
-                    break
-                incrlist = dupc.get_keys()
-                offset = incrlist[0]
-                size = incrlist[1]
-                curtype = incrlist[2]
-                # 1 is WT_BACKUP_FILE
-                # 2 is WT_BACKUP_RANGE
-                self.assertTrue(curtype == 1 or curtype == 2)
-                if curtype == 1:
-                    self.pr('Copy from: ' + newfile + ' (' + str(size) + ') to ' + self.dir)
-                    shutil.copy(newfile, self.dir)
-                else:
-                    self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    lens.append(size)
-                    rfp = open(newfile, "r+b")
-                    wfp = open(self.dir + '/' + newfile, "w+b")
-                    rfp.seek(offset, 0)
-                    wfp.seek(offset, 0)
-                    if size > self.granval:
-                        saw_multiple = True
-                    buf = rfp.read(size)
-                    wfp.write(buf)
-                    rfp.close()
-                    wfp.close()
-                dup_cnt += 1
-            dupc.close()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
-        if consolidate:
-            self.assertTrue(saw_multiple)
-        else:
-            self.assertFalse(saw_multiple)
-        return lens
-
     def check_consolidate_sizes(self, len, consolidate):
         saw_multiple = False
         for size in len:
@@ -140,13 +85,13 @@ class test_backup17(backup_base):
         self.mult = 1
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        uri1_lens = self.take_incr_backup2(self.dir, 2)
+        uri1_lens = self.take_incr_backup(self.dir, 2)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
-        uri2_lens = self.take_incr_backup2(self.dir, 3, 0, '', True)
+        uri2_lens = self.take_incr_backup(self.dir, 3, 0, '', True)
         self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.

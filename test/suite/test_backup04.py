@@ -78,19 +78,7 @@ class test_backup_target(backup_base):
 
     # Take an incremental backup and then truncate/archive the logs.
     def take_incr_backup(self, dir):
-        config = 'target=("log:")'
-        cursor = self.session.open_cursor('backup:', None, config)
-        while True:
-            ret = cursor.next()
-            if ret != 0:
-                break
-            newfile = cursor.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + dir)
-            shutil.copy(newfile, dir)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        self.session.truncate('log:', cursor, None, None)
-        cursor.close()
+        dup_logs = self.take_log_backup(bkup_c, dir, [], True)
 
     # Run background inserts while running checkpoints and incremental backups
     # repeatedly.
