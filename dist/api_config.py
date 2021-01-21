@@ -2,8 +2,17 @@
 
 from __future__ import print_function
 import os, re, sys, textwrap
-import api_data
 from dist import compare_srcfile, format_srcfile
+
+test_config = False
+
+if len(sys.argv) == 1 or sys.argv[1] != "-t":
+    print("Generating standard config")
+    import api_data as api_data_def
+else:
+    print("Generating test config")
+    test_config = True
+    import test_data as api_data_def
 
 # Temporary file.
 tmp_file = '__tmp'
@@ -76,7 +85,7 @@ def parseconfig(c, method_name, name_indent=''):
     if ctype == 'category':
         for subc in sorted(c.subconfig):
             output += parseconfig(subc, method_name, \
-                                  name_indent + ('&nbsp;' * 4))
+                                name_indent + ('&nbsp;' * 4))
         output += '@config{ ),,}\n'
     return output
 
@@ -97,58 +106,61 @@ def getconfcheck(c):
             w.wrap(check + ' ' + cstr + ', ' + sstr + ' },'))
     return check
 
-skip = False
-for line in open(f, 'r'):
-    if skip:
-        if '@configend' in line:
-            skip = False
-        continue
-
-    m = cbegin_re.match(line)
-    if not m:
-        tfile.write(line)
-        continue
-
-    prefix, config_name = m.groups()
-    if config_name not in api_data.methods:
-        print("Missing configuration for " + config_name, file=sys.stderr)
-        tfile.write(line)
-        continue
-
-    skip = ('@configstart' in line)
-
-    if not api_data.methods[config_name].config:
-        tfile.write(prefix + '@configempty{' + config_name +
-                ', see dist/api_data.py}\n')
-        continue
-
-    tfile.write(prefix + '@configstart{' + config_name +
-            ', see dist/api_data.py}\n')
-
-    w = textwrap.TextWrapper(width=100-len(prefix.expandtabs()),
-            break_on_hyphens=False,
-            break_long_words=False,
-            replace_whitespace=False,
-            fix_sentence_endings=True)
-    # Separate at spaces, and after a set of non-breaking space indicators.
-    w.wordsep_re = w.wordsep_simple_re = \
-        re.compile(r'(\s+|(?<=&nbsp;)[\w_,.;:]+)')
-    for c in api_data.methods[config_name].config:
-        if 'undoc' in c.flags:
+if not test_config:
+    skip = False
+    for line in open(f, 'r'):
+        if skip:
+            if '@configend' in line:
+                skip = False
             continue
-        output = parseconfig(c, config_name)
-        for l in w.wrap(output):
-            tfile.write(prefix + l.replace('\n', '\n' + prefix) + '\n')
 
-    tfile.write(prefix + '@configend\n')
+        m = cbegin_re.match(line)
+        if not m:
+            tfile.write(line)
+            continue
 
-tfile.close()
-compare_srcfile(tmp_file, f)
+        prefix, config_name = m.groups()
+        if config_name not in api_data_def.methods:
+            print("Missing configuration for " + config_name, file=sys.stderr)
+            tfile.write(line)
+            continue
+
+        skip = ('@configstart' in line)
+
+        if not api_data_def.methods[config_name].config:
+            tfile.write(prefix + '@configempty{' + config_name +
+                    ', see dist/api_data.py}\n')
+            continue
+
+        tfile.write(prefix + '@configstart{' + config_name +
+                ', see dist/api_data.py}\n')
+
+        w = textwrap.TextWrapper(width=100-len(prefix.expandtabs()),
+                break_on_hyphens=False,
+                break_long_words=False,
+                replace_whitespace=False,
+                fix_sentence_endings=True)
+        # Separate at spaces, and after a set of non-breaking space indicators.
+        w.wordsep_re = w.wordsep_simple_re = \
+            re.compile(r'(\s+|(?<=&nbsp;)[\w_,.;:]+)')
+        for c in api_data_def.methods[config_name].config:
+            if 'undoc' in c.flags:
+                continue
+            output = parseconfig(c, config_name)
+            for l in w.wrap(output):
+                tfile.write(prefix + l.replace('\n', '\n' + prefix) + '\n')
+
+        tfile.write(prefix + '@configend\n')
+
+    tfile.close()
+    compare_srcfile(tmp_file, f)
 
 #####################################################################
 # Create config_def.c with defaults for each config string
 #####################################################################
 f='../src/config/config_def.c'
+if test_config:
+    f = '../test/cppsuite/test_config.c'
 tfile = open(tmp_file, 'w')
 
 tfile.write('''/* DO NOT EDIT: automatically built by dist/api_config.py. */
@@ -239,8 +251,8 @@ def getsubconfigstr(c):
 
 # Write structures of arrays of allowable configuration options, including a
 # NULL as a terminator for iteration.
-for name in sorted(api_data.methods.keys()):
-    config = api_data.methods[name].config
+for name in sorted(api_data_def.methods.keys()):
+    config = api_data_def.methods[name].config
     if config:
         tfile.write('''
 static const WT_CONFIG_CHECK confchk_%(name)s[] = {
@@ -258,8 +270,8 @@ tfile.write('static const WT_CONFIG_ENTRY config_entries[] = {')
 
 slot=-1
 config_defines = ''
-for name in sorted(api_data.methods.keys()):
-    config = api_data.methods[name].config
+for name in sorted(api_data_def.methods.keys()):
+    config = api_data_def.methods[name].config
     slot += 1
 
     # Build a list of #defines that reference specific slots in the list (the
@@ -295,53 +307,54 @@ tfile.write('\n};\n')
 
 # Write the routine that connects the WT_CONNECTION_IMPL structure to the list
 # of configuration entry structures.
-tfile.write('''
-int
-__wt_conn_config_init(WT_SESSION_IMPL *session)
-{
-\tWT_CONNECTION_IMPL *conn;
-\tconst WT_CONFIG_ENTRY *ep, **epp;
+if not test_config:
+    tfile.write('''
+    int
+    __wt_conn_config_init(WT_SESSION_IMPL *session)
+    {
+    \tWT_CONNECTION_IMPL *conn;
+    \tconst WT_CONFIG_ENTRY *ep, **epp;
 
-\tconn = S2C(session);
+    \tconn = S2C(session);
 
-\t/* Build a list of pointers to the configuration information. */
-\tWT_RET(__wt_calloc_def(session, WT_ELEMENTS(config_entries), &epp));
-\tconn->config_entries = epp;
+    \t/* Build a list of pointers to the configuration information. */
+    \tWT_RET(__wt_calloc_def(session, WT_ELEMENTS(config_entries), &epp));
+    \tconn->config_entries = epp;
 
-\t/* Fill in the list to reference the default information. */
-\tfor (ep = config_entries;;) {
-\t\t*epp++ = ep++;
-\t\tif (ep->method == NULL)
-\t\t\tbreak;
-\t}
-\treturn (0);
-}
+    \t/* Fill in the list to reference the default information. */
+    \tfor (ep = config_entries;;) {
+    \t\t*epp++ = ep++;
+    \t\tif (ep->method == NULL)
+    \t\t\tbreak;
+    \t}
+    \treturn (0);
+    }
 
-void
-__wt_conn_config_discard(WT_SESSION_IMPL *session)
-{
-\tWT_CONNECTION_IMPL *conn;
+    void
+    __wt_conn_config_discard(WT_SESSION_IMPL *session)
+    {
+    \tWT_CONNECTION_IMPL *conn;
 
-\tconn = S2C(session);
+    \tconn = S2C(session);
 
-\t__wt_free(session, conn->config_entries);
-}
+    \t__wt_free(session, conn->config_entries);
+    }
 
-/*
- * __wt_conn_config_match --
- *      Return the static configuration entry for a method.
- */
-const WT_CONFIG_ENTRY *
-__wt_conn_config_match(const char *method)
-{
-\tconst WT_CONFIG_ENTRY *ep;
+    /*
+    * __wt_conn_config_match --
+    *      Return the static configuration entry for a method.
+    */
+    const WT_CONFIG_ENTRY *
+    __wt_conn_config_match(const char *method)
+    {
+    \tconst WT_CONFIG_ENTRY *ep;
 
-\tfor (ep = config_entries; ep->method != NULL; ++ep)
-\t\tif (strcmp(method, ep->method) == 0)
-\t\t\treturn (ep);
-\treturn (NULL);
-}
-''')
+    \tfor (ep = config_entries; ep->method != NULL; ++ep)
+    \t\tif (strcmp(method, ep->method) == 0)
+    \t\t\treturn (ep);
+    \treturn (NULL);
+    }
+    ''')
 
 tfile.close()
 format_srcfile(tmp_file)
@@ -350,7 +363,10 @@ compare_srcfile(tmp_file, f)
 # Update the config.h file with the #defines for the configuration entries.
 tfile = open(tmp_file, 'w')
 skip = 0
-for line in open('../src/include/config.h', 'r'):
+config_file = '../src/include/config.h'
+if test_config:
+    config_file = '../test/suite/config.h'
+for line in open(config_file, 'r'):
     if skip:
         if 'configuration section: END' in line:
             tfile.write('/*\n' + line)
@@ -363,4 +379,4 @@ for line in open('../src/include/config.h', 'r'):
         tfile.write(config_defines)
 tfile.close()
 format_srcfile(tmp_file)
-compare_srcfile(tmp_file, '../src/include/config.h')
+compare_srcfile(tmp_file, config_file)

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include "test_harness/test_harness.h"
+#include "test_harness/configuration_settings.h"
 
 class poc_test : public test_harness::test {
     public:
