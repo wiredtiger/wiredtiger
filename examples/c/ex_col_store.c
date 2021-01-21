@@ -423,7 +423,7 @@ average_data(WT_SESSION *session)
     *  if there aren't any matching locations, no average data is obtained and we proceed with the
     *  test instead of aborting. If an unexpected error occurs, exit. 
     * */
-    if (ret != 0 || ret == WT_NOTFOUND) {
+    if ( ret != 0 && ret == WT_NOTFOUND ) {
         return;
     }
     else{
