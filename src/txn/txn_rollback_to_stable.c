@@ -305,7 +305,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
             /* Retrieve the time window from the history cursor. */
-            __wt_curhs_time_window(hs_cursor, &hs_tw);
+            __wt_hs_upd_time_window(hs_cursor, &hs_tw);
             upd->txnid = hs_tw->start_txn;
             upd->durable_ts = hs_tw->durable_start_ts;
             upd->start_ts = hs_tw->start_ts;

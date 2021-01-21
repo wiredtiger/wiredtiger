@@ -529,21 +529,6 @@ err:
 }
 
 /*
- * __wt_curhs_time_window --
- *     Get the underlying time window of the hs cursor.
- */
-void
-__wt_curhs_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
-{
-    WT_CURSOR *file_cursor;
-    WT_CURSOR_BTREE *hs_cbt;
-
-    file_cursor = ((WT_CURSOR_HS *)hs_cursor)->file_cursor;
-    hs_cbt = (WT_CURSOR_BTREE *)file_cursor;
-    *twp = &hs_cbt->upd_value->tw;
-}
-
-/*
  * __wt_hs_cursor_search_near_before --
  *     Set the cursor position at the requested position or before it.
  */
