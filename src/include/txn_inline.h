@@ -1005,13 +1005,13 @@ retry:
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
-        WT_RET(__wt_hs_find_upd(
-          session, key, cbt->iface.value_format, recno, cbt->upd_value, false, &cbt->upd_value->buf
 #ifdef HAVE_DIAGNOSTIC
-          ,
-          &tw
+        WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
+          &cbt->upd_value->buf, &tw));
+#else
+        WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
+          &cbt->upd_value->buf));
 #endif
-          ));
     }
 
     /*
