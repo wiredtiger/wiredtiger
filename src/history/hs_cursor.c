@@ -373,24 +373,17 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
                 break;
             }
 
-            /*
-             * If we find a history store record that either corresponds to the on-disk value or is
-             * newer than it then we should use the on-disk value as the base value and apply our
-             * modifies on top of it.
-             */
-            if (on_disk_tw->start_ts < hs_start_ts_tmp ||
-              (on_disk_tw->start_ts == hs_start_ts_tmp &&
-                on_disk_tw->start_txn <= hs_cbt->upd_value->tw.start_txn)) {
-                /* Fallback to the onpage value as the base value. */
-                orig_hs_value_buf = hs_value;
-                hs_value = on_disk_buf;
-                upd_type = WT_UPDATE_STANDARD;
-                break;
-            }
-
             WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts_tmp, &durable_timestamp_tmp,
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
+
+            /*
+             * Current onpage value may also be in the history store if checkpoint has moved it
+             * here. We should not look past the onpage value to look for the base value.
+             */
+            WT_ASSERT(session,
+              upd_type == WT_UPDATE_STANDARD || hs_start_ts_tmp == WT_TS_NONE ||
+                hs_start_ts_tmp < on_disk_tw->start_ts);
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
