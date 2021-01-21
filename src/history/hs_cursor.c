@@ -178,9 +178,14 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
  *     globally. Otherwise, a prepare conflict will be returned upon reading a prepared update.
  */
 static int
-__hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
-  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare,
-  WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+__hs_find_upd_int(
+  WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key, const char *value_format,
+  uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  WT_TIME_WINDOW *on_disk_tw
+#endif
+)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
