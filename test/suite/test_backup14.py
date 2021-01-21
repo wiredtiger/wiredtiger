@@ -167,7 +167,7 @@ class test_backup14(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval)
 
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -177,7 +177,7 @@ class test_backup14(backup_base):
     def remove_all_records_validate(self):
         self.remove_data()
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -194,7 +194,7 @@ class test_backup14(backup_base):
 
         self.new_table = True
         self.add_data(self.uri2, self.bigkey, self.bigval)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
 
         table_list = 'tablelist.txt'
         # Assert if the dropped table (table:main) exists in the incremental folder.
@@ -210,7 +210,7 @@ class test_backup14(backup_base):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.add_data(self.uri, self.bigkey, self.bigval)
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -225,7 +225,7 @@ class test_backup14(backup_base):
         self.add_data(self.uri_logged, self.bigkey, self.bigval)
 
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
         #
         # Insert bulk data into uri4 (table:not_logged_table).
@@ -234,7 +234,7 @@ class test_backup14(backup_base):
         self.add_data(self.uri_not_logged, self.bigkey, self.bigval)
 
         self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup()
+        self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
         self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.counter))
 
     def test_backup14(self):

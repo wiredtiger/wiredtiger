@@ -55,18 +55,8 @@ class test_backup11(backup_base):
         self.add_data(self.uri, 'key', 'value', True)
 
         # Now copy the files returned by the backup cursor.
-        orig_logs = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-            if "WiredTigerLog" in newfile:
-                orig_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        all_files = self.take_full_backup(self.dir, bkup_c)
+        orig_logs = [file for file in all_files if "WiredTigerLog" in file]
 
         # Now open a duplicate backup cursor.
         # We *can* use a log target duplicate on an incremental primary backup so that

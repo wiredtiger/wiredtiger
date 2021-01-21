@@ -113,9 +113,9 @@ class test_backup15(backup_base):
             # should not interfere with each other.
             if i % 2 == 0:
                 self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-                self.take_incr_backup()
+                self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
             else:
-                self.take_incr_backup()
+                self.take_incr_backup2(self.home_incr, self.counter, self.max_iteration, self.logpath)
                 self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
             self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 

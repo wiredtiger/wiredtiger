@@ -107,6 +107,16 @@ class test_backup17(backup_base):
             self.assertFalse(saw_multiple)
         return lens
 
+    def check_consolidate_sizes(self, len, consolidate):
+        saw_multiple = False
+        for size in len:
+            if size > self.granval:
+                saw_multiple = True
+        if consolidate:
+            self.assertTrue(saw_multiple)
+        else:
+            self.assertFalse(saw_multiple)
+
     def test_backup17(self):
 
         self.session.create(self.uri, "key_format=S,value_format=S")
@@ -119,22 +129,9 @@ class test_backup17(backup_base):
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
         os.mkdir(self.dir)
-        config = 'incremental=(enabled,granularity=%s,this_id="ID1")' % self.gran
-        bkup_c = self.session.open_cursor('backup:', None, config)
-
+        self.initial_backup = True
         # Now copy the files returned by the backup cursor.
-        all_files = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-            all_files.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
+        self.take_full_backup(self.dir)
 
         # This is the main part of the test for consolidate. Add data to the first table.
         # Then perform the incremental backup with consolidate off (the default). Then add the
@@ -143,12 +140,14 @@ class test_backup17(backup_base):
         self.mult = 1
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        uri1_lens = self.take_incr_backup(2, False)
+        uri1_lens = self.take_incr_backup2(self.dir, 2)
+        self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
-        uri2_lens = self.take_incr_backup(3, True)
+        uri2_lens = self.take_incr_backup2(self.dir, 3, 0, '', True)
+        self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.
         self.assertLess(len(uri2_lens), len(uri1_lens))
