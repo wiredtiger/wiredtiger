@@ -60,9 +60,6 @@ static void remove_country(WT_SESSION *session);
 static void average_data(WT_SESSION *session);
 static int find_min_and_max_temp(
   WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *min_temp, int *max_temp);
-// static int find_min_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time, int
-// *result); static int find_max_temp(WT_SESSION *session, uint16_t start_time, uint16_t end_time,
-// int *result);
 
 static void
 print_all_columns(WT_SESSION *session)
