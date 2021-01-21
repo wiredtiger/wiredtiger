@@ -36,8 +36,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     mult = 0                    # counter to have variance in data
     nops = 100                  # number of operations added to uri
 
-    # counter to used to produce unique backup ids the backup id, and is
-    # generally used only for using add_data() first time.
+    # We use counter to produce unique backup names for multiple iterations
+    # of incremental backup tests.
     counter = 0
     # To determine whether to increase/decrease counter, which determines
     initial_backup = True
@@ -65,7 +65,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.counter += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
-    
+
     #
     # Populate a set of objects.
     #
@@ -80,7 +80,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     self.rows = 1000  # Small Object
             if len(i) > 3:
-                cg_config = i[3] 
+                cg_config = i[3]
             i[1](self, i[0], self.rows, cgconfig = cg_config).populate()
 
         # Backup needs a checkpoint
@@ -108,7 +108,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if os.path.exists(home_full_dir):
                 os.remove(home_full_dir)
             os.makedirs(home_full_dir + '/' + logpath)
-    
+
     # Check that a URI doesn't exist, both the meta-data and the file names.
     def confirmPathDoesNotExist(self, uri, dir):
         conn = self.wiredtiger_open(dir)

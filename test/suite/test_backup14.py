@@ -48,6 +48,7 @@ class test_backup14(backup_base):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
     logpath = "logpath"
+    nops = 1000
     max_iteration=7
     new_table=False
 
@@ -56,7 +57,6 @@ class test_backup14(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-    nops = 1000
     def take_full_backup(self):
         if self.counter != 0:
             hdir = self.home_full + '.' + str(self.counter)
