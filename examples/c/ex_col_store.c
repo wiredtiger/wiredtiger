@@ -496,18 +496,15 @@ main(int argc, char *argv[])
     uint16_t starting_time, ending_time;
     int min_temp_result, max_temp_result;
 
-    /* Generating random data to populate the weather table */
-    generate_data(weather_data);
-
     home = example_setup(argc, argv);
 
-    /* Establishing a connection */
+    /* Establishing a connection. */
     error_check(wiredtiger_open(home, NULL, "create,statistics=(fast)", &conn));
 
-    /* Establishing a session */
+    /* Establishing a session. */
     error_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create a table with columns and colgroup */
+    /* Create a table with columns and colgroup. */
     error_check(session->create(session, TABLE_NAME,
       "key_format=r,value_format=" WT_UNCHECKED_STRING(
         5sHBBHBBHH5s) ",columns=(id,day,hour,temp,"
@@ -527,7 +524,10 @@ main(int argc, char *argv[])
     error_check(session->create(
       session, "colgroup:weathertable:location", "columns=(loc_lat,loc_long,country)"));
 
-    /* Open a cursor on the table to insert the data ---[[[[ INSERT ]]]]--- */
+    /* Generating random data to populate the weather table. */
+    generate_data(weather_data);
+
+    /* Open a cursor on the table to insert the data. */
     error_check(session->open_cursor(session, TABLE_NAME, NULL, "append", &cursor));
     w = weather_data;
     for (int i = 0; i < NUM_ENTRIES; i++) {
@@ -536,26 +536,28 @@ main(int argc, char *argv[])
         error_check(cursor->insert(cursor));
         w++;
     }
-    /* Close cursor */
+    /* Close cursor. */
     error_check(cursor->close(cursor));
 
-    /* Prints all the data in the database */
+    /* Prints all the data in the database. */
     print_all_columns(session);
 
-    /* Update the temperature from Celsius to Fahrenheit */
     print_temp_column(session);
+
+    /* Update the temperature from Celsius to Fahrenheit. */
     update_celsius_to_fahrenheit(session);
+    
     print_temp_column(session);
 
     /* Create indexes for searching */
     error_check(session->create(session, "index:weathertable:hour", "columns=(hour)"));
     error_check(session->create(session, "index:weathertable:country", "columns=(country)"));
 
-    /* Calling the example operations */
+    /* Calling the example operations. */
 
     /*
      * Start and end points for time range for finding min/max temperature, in 24 hour format.
-     * Example uses 10am - 8pm but can change the values for desired start and end times
+     * Example uses 10am - 8pm but can change the values for desired start and end times.
      */
     starting_time = 1000;
     ending_time = 2000;
@@ -578,7 +580,7 @@ main(int argc, char *argv[])
     print_all_columns(session);
     average_data(session);
 
-    /* Close the connection */
+    /* Close the connection. */
     error_check(conn->close(conn, NULL));
     return (EXIT_SUCCESS);
 }
