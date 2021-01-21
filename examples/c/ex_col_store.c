@@ -407,46 +407,53 @@ average_data(WT_SESSION *session)
     uint64_t recno;
     uint16_t hour, pressure, loc_long, loc_lat;
     uint8_t temp, humidity, wind, feels_like_temp;
-    int ret, num_rec = 5, exact;
-    unsigned int count = 0;
+    unsigned int count;
+    /* num_rec is the total number of records we're obtaining averages for. */
+    int ret, num_rec, exact;
+    /* rec_arr holds the sum of the records in order to obtain the averages. */
     unsigned int rec_arr[5] = {0, 0, 0, 0, 0};
 
-    /* Open a cursor to search for the location, currently RUS */
+    /* Open a cursor to search for the location, currently RUS. */
     error_check(
       session->open_cursor(session, "index:weathertable:country", NULL, NULL, &loc_cursor));
     loc_cursor->set_key(loc_cursor, "RUS\0\0");
-    error_check(loc_cursor->search_near(loc_cursor, &exact));
+    ret = loc_cursor->search(loc_cursor);
 
-    /* Error handling in the case RUS is not found*/
-    if (exact != 0) {
-        printf("Location not found!");
+    /* Error handling in the case RUS is not found. In this case as it's a hardcoded location,
+    *  if there aren't any matching locations, no average data is obtained and we proceed with the
+    *  test instead of aborting. If an unexpected error occurs, exit. 
+    * */
+    if (ret != 0 || ret == WT_NOTFOUND) {
         return;
     }
+    else{
+        exit(1);
+    }
 
-    /* Populate the array with the totals of each of the columns */
+    /* Populate the array with the totals of each of the columns. */
+    count = 0;
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
+        count++;
         error_check(loc_cursor->get_key(loc_cursor, &recno));
         error_check(loc_cursor->get_value(loc_cursor, &day, &hour, &temp, &humidity, &pressure,
           &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-
-        if (!strcmp("RUS", country)) {
-            error_check(loc_cursor->get_key(loc_cursor, &recno));
-            error_check(loc_cursor->get_value(loc_cursor, &day, &hour, &temp, &humidity, &pressure,
-              &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
-            count++;
-
-            /* Increment the values of the rec_arr with the temp_arr values */
-            rec_arr[0] += temp;
-            rec_arr[1] += humidity;
-            rec_arr[2] += pressure;
-            rec_arr[3] += wind;
-            rec_arr[4] += feels_like_temp;
-        }
+        
+        /* Increment the values of the rec_arr with the temp_arr values. */
+        rec_arr[0] += temp;
+        rec_arr[1] += humidity;
+        rec_arr[2] += pressure;
+        rec_arr[3] += wind;
+        rec_arr[4] += feels_like_temp;
     }
 
+    scan_end_check(ret == WT_NOTFOUND);
+    error_check(loc_cursor->close(loc_cursor));
+
+    /* For debugging purposes. */
     printf("Number of matching entries: %u \n", count);
 
-    /* Get the average values by dividing with the total number of records */
+    /* Get the average values by dividing with the total number of records. */
+    num_rec = 5;
     for (int i = 0; i < num_rec; i++) {
         rec_arr[i] = rec_arr[i] / count;
     }
@@ -454,8 +461,7 @@ average_data(WT_SESSION *session)
     printf("Average records for location RUS : \nTemp: %" PRIu8 ", Humidity: %" PRIu8
            ", Pressure: %" PRIu16 ", Wind: %" PRIu8 ", Feels like: %" PRIu8 "\n",
       rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
-    scan_end_check(ret == WT_NOTFOUND);
-    error_check(loc_cursor->close(loc_cursor));
+
 }
 
 int
