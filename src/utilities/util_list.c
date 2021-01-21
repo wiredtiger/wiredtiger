@@ -92,8 +92,8 @@ list_init_block(WT_SESSION *session, const char *key, WT_BLOCK *block)
         WT_ERR(util_err(session, ret, "WT_EXTENSION_API.config_parser_open"));
     if ((ret = parser->get(parser, "allocation_size", &cval)) == 0)
         block->allocsize = (uint32_t)cval.val;
-    else
-        ret = ret == WT_NOTFOUND ? 0 : util_err(session, ret, "WT_CONFIG_PARSER.get");
+    else if (ret != WT_NOTFOUND)
+        WT_ERR(util_err(session, ret, "WT_CONFIG_PARSER.get"));
 
     if ((ret = parser->get(parser, "block_allocation", &cval)) == 0)
         block->log_structured = WT_STRING_MATCH("log_structured", cval.str, cval.len);
