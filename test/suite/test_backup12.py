@@ -72,7 +72,6 @@ class test_backup12(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
         # Now copy the files returned by the backup cursor.
-        all_files = []
         all_files = self.take_full_backup(self.dir, bkup_c)
 
         # Now open a duplicate backup cursor.

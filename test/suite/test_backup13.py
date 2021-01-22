@@ -96,8 +96,6 @@ class test_backup13(backup_base):
         self.add_data_and_check()
 
         # Now copy the files returned by the backup cursor.
-        all_files = []
-
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.

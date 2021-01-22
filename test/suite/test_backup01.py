@@ -83,19 +83,6 @@ class test_backup(backup_base):
         for i in self.objs:
             self.compare_backups(i[0], self.dir, './')
 
-    # Check that a URI doesn't exist, both the meta-data and the file names.
-    def confirmPathDoesNotExist(self, uri):
-        conn = self.wiredtiger_open(self.dir)
-        session = conn.open_session()
-        self.assertRaises(wiredtiger.WiredTigerError,
-            lambda: session.open_cursor(uri, None, None))
-        conn.close()
-
-        self.assertEqual(
-            glob.glob(self.dir + '*' + uri.split(":")[1] + '*'), [],
-            'confirmPathDoesNotExist: URI exists, file name matching \"' +
-            uri.split(":")[1] + '\" found')
-
     # Backup a set of chosen tables/files using the wt backup command.
     def backup_table(self, l):
         # Remove any previous backup directories.
