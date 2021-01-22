@@ -97,7 +97,7 @@ __wt_stats_aggregate(void *stats_arg, int slot)
     int64_t **stats, aggr_v;
     int i;
 
-    stats = stats_arg;
+    stats = (int64_t **)stats_arg;
     for (aggr_v = 0, i = 0; i < WT_COUNTER_SLOTS; i++)
         aggr_v += stats[i][slot];
 
@@ -128,7 +128,7 @@ __wt_stats_clear(void *stats_arg, int slot)
     int64_t **stats;
     int i;
 
-    stats = stats_arg;
+    stats = (int64_t **)stats_arg;
     for (i = 0; i < WT_COUNTER_SLOTS; i++)
         stats[i][slot] = 0;
 }
@@ -400,6 +400,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
     int64_t cache_eviction_pages_queued_oldest;
+    int64_t cache_eviction_pages_queued_urgent_hs_dirty;
     int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
     int64_t cache_eviction_fail_parent_has_overflow_items;
@@ -697,6 +698,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
@@ -909,6 +911,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;

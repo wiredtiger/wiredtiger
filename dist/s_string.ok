@@ -407,6 +407,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UPD
 URI
 URIs
 UTF
@@ -954,6 +955,7 @@ libs
 libtool
 libwiredtiger
 linkers
+liveness
 llll
 llu
 llvm
