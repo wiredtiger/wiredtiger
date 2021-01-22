@@ -30,6 +30,12 @@
 #   Test that checkpoint writes out updates to the history store file.
 #
 
+#
+# [TEST_TAGS]
+# checkpoint:correctness:checkpoint_data
+# [END_TAGS]
+#
+
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wiredtiger import stat
