@@ -105,7 +105,7 @@ class test_backup(backup_base):
         # Confirm the other objects don't exist.
         for i in range(0, len(self.objs)):
             if i not in l:
-                self.confirmPathDoesNotExist(self.objs[i][0])
+                self.confirmPathDoesNotExist(self.objs[i][0], self.dir)
 
     # Test backup of database subsets.
     def test_backup_table(self):
