@@ -26,14 +26,12 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_checkpoint03.py
-#   Test that checkpoint writes out updates to the history store file.
-#
-
-#
 # [TEST_TAGS]
 # checkpoint:correctness:checkpoint_data
 # [END_TAGS]
+#
+# test_checkpoint03.py
+#   Test that checkpoint writes out updates to the history store file.
 #
 
 from suite_subprocess import suite_subprocess
