@@ -919,8 +919,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         ret = __wt_log_scan(
           session, NULL, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
     else
-        ret = __wt_log_scan(
-          session, &r.ckpt_lsn, NULL, WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
+        ret = __wt_log_scan(session, &r.ckpt_lsn, NULL, WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         ret = 0;
     WT_ERR(ret);

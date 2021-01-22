@@ -749,8 +749,7 @@ __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags, WT_
         WT_ERR(__wt_fprintf(session, fs, "[\n"));
     args.fs = fs;
     args.flags = flags;
-    WT_ERR(
-      __wt_log_scan(session, start_lsn, end_lsn, 0x0, __txn_printlog, &args));
+    WT_ERR(__wt_log_scan(session, start_lsn, end_lsn, 0x0, __txn_printlog, &args));
     if (!LF_ISSET(WT_TXN_PRINTLOG_MSG))
         ret = __wt_fprintf(session, fs, "\n]\n");
 
