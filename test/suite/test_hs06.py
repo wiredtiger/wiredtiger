@@ -48,7 +48,7 @@ class test_hs06(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     key_format_values = [
         # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
-        # ('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S'))
     ]
@@ -214,6 +214,11 @@ class test_hs06(wttest.WiredTigerTestCase):
         uri = "table:test_hs06"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
+
+        # Prepare reads currently not supported with columnar store.
+        # Remove this once prepare reads is supported. 
+        if self.key_format == 'r':
+            return
 
         value1 = 'a' * 500
         value2 = 'b' * 500
