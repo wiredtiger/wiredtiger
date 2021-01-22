@@ -384,7 +384,9 @@ __hs_find_upd_int(
 
             /*
              * Current onpage value may also be in the history store if checkpoint has moved it
-             * here. We should not look past the onpage value to look for the base value.
+             * here. In this case, we should not use the onpage value as the base value because the
+             * checkpoint reconciliation may have removed the overflown value. However, we should
+             * not look past the onpage value to look for the base value.
              */
             WT_ASSERT(session,
               upd_type == WT_UPDATE_STANDARD || hs_start_ts_tmp < on_disk_tw->start_ts ||
