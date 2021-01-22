@@ -42,8 +42,20 @@ man3_MANS = $(MAN3_PAGES)
 include_HEADERS= wiredtiger.h src/include/wiredtiger_ext.h
 AM_CPPFLAGS = -I$(srcdir)/src/include
 
+wiredtiger.h: prototypes
+.PHONY: prototypes
+prototypes:
+	@cd $(srcdir)/dist && $(PYTHON) prototypes.py
+
 pkgconfigdir = $(libdir)/pkgconfig
 pkgconfig_DATA = wiredtiger.pc
+
+EXTERN_H = $(srcdir)/include/extern.h
+.PHONY: $(EXTERN_H)
+$(EXTERN_H):
+	@cd $(srcdir)/dist && $(PYTHON) prototypes.py
+
+libwiredtiger_la_SOURCES += $(EXTERN_H)
 
 $(srcdir)/Makefile.am: $(srcdir)/build_posix/Make.base $(srcdir)/build_posix/makemake $(srcdir)/dist/filelist
 	@cd $(srcdir)/build_posix && sh makemake
