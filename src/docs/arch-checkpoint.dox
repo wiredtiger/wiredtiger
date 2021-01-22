@@ -26,11 +26,10 @@ checkpoint state and gathers a list of handles to be checkpointed. A global sche
 checkpoint prepare to avoid any tables being created or dropped during this phase, additionally the
 global transaction lock is taken during this process as it must modify the global transaction state,
 and to ensure the \c stable_timestamp doesn't move ahead of the snapshot taken by the checkpoint
-transaction.
-
-Each handle gathered refers to a specific b-tree. The set of b-trees gathered by the checkpoint
-varies based off configuration. Additionally clean b-trees, i.e. b-trees without any modifications
-are excluded from the list, with an exception for specific checkpoint configuration scenarios.
+transaction. Each handle gathered refers to a specific b-tree. The set of b-trees gathered by the
+checkpoint varies based off configuration. Additionally clean b-trees, i.e. b-trees without any
+modifications are excluded from the list, with an exception for specific checkpoint configuration
+scenarios.
 
 2. The datafiles checkpoint
 The main work of checkpoint is done here, the array of b-tree's collected in the prepare stage are
