@@ -48,6 +48,14 @@ common_runtime_config = [
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
+        Config('commit_timestamp', 'none', r'''
+            This option is no longer supported. Retained for backward
+            compatibility. Use \c write_timestamp option instead.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
+        Config('durable_timestamp', 'none', r'''
+            This option is no longer supported. Retained for backward
+            compatibility. Use \c write_timestamp option instead.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
@@ -284,6 +292,9 @@ file_config = format_meta + file_runtime_config + [
     Config('format', 'btree', r'''
         the file format''',
         choices=['btree']),
+    Config('huffman_key', 'none', r'''
+        This option is no longer supported. Retained for backward
+        compatibility. See @ref huffman for more information'''),
     Config('huffman_value', 'none', r'''
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
