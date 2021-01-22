@@ -387,8 +387,9 @@ __hs_find_upd_int(
              * here. We should not look past the onpage value to look for the base value.
              */
             WT_ASSERT(session,
-              upd_type == WT_UPDATE_STANDARD || hs_start_ts_tmp == WT_TS_NONE ||
-                hs_start_ts_tmp < on_disk_tw->start_ts);
+              upd_type == WT_UPDATE_STANDARD || hs_start_ts_tmp < on_disk_tw->start_ts ||
+                (hs_start_ts_tmp == on_disk_tw->start_ts &&
+                  hs_cbt->upd_value->tw.start_txn <= on_disk_tw->start_txn));
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
