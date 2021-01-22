@@ -885,14 +885,10 @@ __curhs_update(WT_CURSOR *cursor)
     WT_CURSOR *file_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_CURSOR_HS *hs_cursor;
-    WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
     bool retry;
-
-    uint64_t hs_upd_type;
-    wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -914,33 +910,11 @@ __curhs_update(WT_CURSOR *cursor)
     WT_ASSERT(session, !WT_TIME_WINDOW_IS_EMPTY(&hs_cursor->time_window));
     WT_ASSERT(session, WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window));
 
-    /*
-     * Ideally we want to check if we are positioned on the newest value for user key. However, we
-     * can't check if the timestamp was set to WT_TS_MAX when we searched for the key. We can can a
-     * next() on cursor to confirm there is no newer value but that would disturb our cursor. A more
-     * expensive method would be to search again and verify.
-     */
-
     /* The tombstone to represent the stop time window. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &hs_tombstone, NULL));
     hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
     hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
     hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
-
-    /* Modify the existing value with a new stop timestamp. */
-
-    /* Allocate a buffer for the history store value. */
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
-
-    /* Retrieve the existing update value and stop timestamp. */
-    WT_ERR(file_cursor->get_value(
-      file_cursor, &hs_stop_durable_ts, &hs_durable_ts, &hs_upd_type, hs_value));
-    WT_ASSERT(session, hs_stop_durable_ts == WT_TS_MAX);
-    WT_ASSERT(session, (uint8_t)hs_upd_type == WT_UPDATE_STANDARD);
-
-    /* Use set_value method to pack the new value. */
-    file_cursor->set_value(
-      file_cursor, hs_cursor->time_window.stop_ts, hs_durable_ts, hs_upd_type, hs_value);
 
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
     hs_upd->start_ts = hs_cursor->time_window.start_ts;
@@ -950,6 +924,11 @@ __curhs_update(WT_CURSOR *cursor)
     /* Connect the tombstone to the update. */
     hs_tombstone->next = hs_upd;
 
+    /*
+     * Since we're using internal functions to modify the row structure, we need to manually set the
+     * comparison to an exact match.
+     */
+    cbt->compare = 0;
     /* Make the updates and if we fail, search and try again. */
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
         WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
@@ -970,7 +949,6 @@ __curhs_update(WT_CURSOR *cursor)
 err:
         __wt_free(session, hs_tombstone);
         __wt_free(session, hs_upd);
-        __wt_scr_free(session, &hs_value);
         WT_TRET(cursor->reset(cursor));
     }
     API_END_RET(session, ret);
