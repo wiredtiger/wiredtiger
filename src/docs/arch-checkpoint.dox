@@ -10,8 +10,11 @@ and during compaction.
 A checkpoint is performed within the context of snapshot isolation transaction as such the
 checkpoint has a consistent view of the database from beginning to end. The checkpoint can be run
 with or without a timestamp, generally a timestamp is used. This timestamp is not used as a
-\c read_timestamp for the checkpoint transaction. The timestamp provided is set to the checkpoint
-timestamp which is written out with the metadata information for the checkpoint.
+\c read_timestamp for the checkpoint transaction. The checkpoint timestamp will be set to the
+current \c stable_timestamp during checkpoint prepare. This timestamp is written out with the
+metadata information for the checkpoint. On startup WiredTiger will set the \c stable_timestamp
+internally to the timestamp contained in the metadata, and rollback updates which are newer to the
+\c stable_timestamp see: WT_CONNECTION::rollback_to_stable.
 
 # The checkpoint algorithm #
 
@@ -19,14 +22,23 @@ A checkpoint can be broken up into 5 main stages:
 
 1. The prepare stage
 Checkpoint prepare sets up the checkpoint, it begins the checkpoint transaction, updates the global
-checkpoint state and gathers a list of handles to be checkpointed. Where each handle refers to a
-specific b-tree. The set of b-trees gathered by the checkpoint varies based off configuration.
-Additionally clean b-trees, i.e. b-trees without any modifications are excluded from the list.
+checkpoint state and gathers a list of handles to be checkpointed. A global schema lock wraps
+checkpoint prepare to avoid any tables being created or dropped during this phase, additionally the
+global transaction lock is taken during this process as it must modify the global transaction state,
+and to ensure the \c stable_timestamp doesn't move ahead of the snapshot taken by the checkpoint
+transaction.
+
+Each handle gathered refers to a specific b-tree. The set of b-trees gathered by the checkpoint
+varies based off configuration. Additionally clean b-trees, i.e. b-trees without any modifications
+are excluded from the list, with an exception for specific checkpoint configuration scenarios.
 
 2. The datafiles checkpoint
 The main work of checkpoint is done here, the array of b-tree's collected in the prepare stage are
 iterated over. For each b-tree, the tree is walked and all the dirty pages are reconciled. Skipping
-clean pages to avoid unnecessary work.
+clean pages to avoid unnecessary work. Pages made clean ahead of the checkpoint by eviction are
+still skipped regardless of whether the update written by eviction is visible to the checkpoint
+transaction. The checkpoint guarantees that a clean version of every page in the tree exists and
+can be written to disk.
 
 3. The history store checkpoint
 The history store is checkpointed after the datafiles intentionally as during the reconciliation
@@ -58,5 +70,8 @@ checks within WiredTiger, essentially if a b-tree is behind a checkpoint, i.e. i
 generation is less than the current checkpoint generation, then the checkpoint transaction id and
 checkpoint timestamp are included in certain visibility checks. This prevents eviction from evicting
 updates from a given b-tree ahead of the checkpoint.
+
+# Garbage collection #
+
 
 */
