@@ -954,6 +954,7 @@ libs
 libtool
 libwiredtiger
 linkers
+liveness
 llll
 llu
 llvm
