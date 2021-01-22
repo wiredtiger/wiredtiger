@@ -342,6 +342,8 @@ struct __wt_connection_stats {
     int64_t block_cache_bypass_filesize;
     int64_t block_cache_data_refs;
     int64_t block_cache_bypass_writealloc;
+    int64_t block_cache_bypass_overhead_get;
+    int64_t block_cache_bypass_overhead_put;
     int64_t block_cache_bypass_get;
     int64_t block_cache_bypass_put;
     int64_t block_cache_hits;

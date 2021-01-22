@@ -21,6 +21,8 @@
 
 #define BLKCACHE_TRACE 0
 
+#define BLKCACHE_OVERHEAD_THRESHOLD 0.1
+
 #define WT_BLKCACHE_FULL   -2
 #define WT_BLKCACHE_BYPASS -3
 
@@ -67,6 +69,20 @@ struct __wt_blkcache {
     size_t num_data_blocks;
     size_t max_bytes;
     size_t system_ram;
+
+    /*
+     * Various metrics helping us measure the overhead and
+     * decide if to bypass the cache.
+     * We access them without synchronization despite races.
+     * These serve as heuristics, and we don't need precise values
+     * for them to be useful. If, because of races, we lose updates
+     * of these values, assuming that we lose them at the same
+     * rate for all variables, the ratio should remain roughly
+     * accurate. We care about the ratio.
+     */
+    size_t lookup_attempts;
+    size_t insert_attempts;
+    size_t removals;
 
 #ifdef HAVE_LIBMEMKIND
     struct memkind *pmem_kind;

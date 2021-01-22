@@ -35,6 +35,22 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     return (0);
 }
 
+
+static inline bool
+__blkcache_high_overhead(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_BLKCACHE *blkcache;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if ((double)(blkcache->insert_attempts + blkcache->removals)/
+	(double)(blkcache->lookup_attempts) > BLKCACHE_OVERHEAD_THRESHOLD)
+	return true;
+    return false;
+}
+
 /*
  * Every so often, compute the total size of the files open
  * in the block manager.
@@ -139,6 +155,18 @@ __wt_blkcache_get_or_check(
 	return WT_BLKCACHE_BYPASS;
     }
 
+    blkcache->lookup_attempts++;
+
+    /*
+     * If we are by-passing the cache due to high overhead, then we are
+     * not populating it. In that case, it makes little sense to look
+     * things up in it.
+     */
+    if (__blkcache_high_overhead(session) == true) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_get);
+	return WT_BLKCACHE_BYPASS;
+    }
+
     id.checksum = (uint64_t)checksum;
     id.offset = (uint64_t)offset;
     id.size = (uint64_t)size;
@@ -214,11 +242,17 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
 
+    blkcache->insert_attempts++;
+
     /* Bypass on write if the no-write-allocate setting is on */
     if (write && blkcache->write_allocate == false) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
 	return -1;
     }
+
+    /* Are we within cache size limits? */
+    if (blkcache->bytes_used >= blkcache->max_bytes)
+        return WT_BLKCACHE_FULL;
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -229,10 +263,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 	return WT_BLKCACHE_BYPASS;
     }
 
-    /* Are we within cache size limits? */
-    if (blkcache->bytes_used >= blkcache->max_bytes)
-        return WT_BLKCACHE_FULL;
-
+    /* Bypass on high overhead */
+    if (__blkcache_high_overhead(session) == true) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
+	return WT_BLKCACHE_BYPASS;
+    }
     /*
      * Allocate space in the cache outside of the critical section. In the unlikely event that we
      * fail to allocate metadata, or if the item exists and the caller did not check for that prior
@@ -351,6 +386,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             WT_STAT_CONN_DECRV(session, block_cache_bytes, size);
             WT_STAT_CONN_DECR(session, block_cache_blocks);
 	    WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
+	    blkcache->removals++;
 	    __wt_verbose(session, WT_VERB_BLKCACHE, "block removed from cache: "
 			 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
 			 "checksum=%" PRIu32 ", hash=%" PRIu64,
