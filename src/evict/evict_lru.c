@@ -1739,7 +1739,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      * can generate even more HS content and will not help with the cache pressure, and will
      * probably just amplify it further.
      */
-    if (!WT_IS_HS(btree) && __wt_cache_hs_dirty(session)) {
+    if (!WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
         /* If target pages are less than 10, keep it like that. */
         target_pages = target_pages < 10 ? target_pages : target_pages / 10;
         WT_STAT_CONN_INCR(session, cache_eviction_target_page_reduced);
@@ -1956,7 +1956,7 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * the configured cache size during checkpoints where reconciling non-HS pages can generate
          * significant amount of HS dirty content very quickly.
          */
-        if (WT_IS_HS(btree) && __wt_cache_hs_dirty(session)) {
+        if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
