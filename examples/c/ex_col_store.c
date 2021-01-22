@@ -39,15 +39,15 @@
 static const char *home;
 
 typedef struct {
-    char day[5];
     uint16_t hour;
-    uint8_t temp;
-    uint8_t humidity;
     uint16_t pressure;
-    uint8_t wind;
-    uint8_t feels_like_temp;
     uint16_t loc_lat;
     uint16_t loc_long;
+    uint8_t temp;
+    uint8_t humidity;
+    uint8_t wind;
+    uint8_t feels_like_temp;
+    char day[5];
     char country[5];
 } WEATHER;
 
@@ -74,8 +74,8 @@ print_all_columns(WT_SESSION *session)
     error_check(session->open_cursor(session, TABLE_NAME, NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &recno));
-        error_check(cursor->get_value(cursor, &day, &hour, &temp, &humidity, &pressure, &wind,
-          &feels_like_temp, &loc_lat, &loc_long, &country));
+        error_check(cursor->get_value(cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
+          &humidity, &wind, &feels_like_temp, &day, &country));
 
         printf(
           "{\n"
@@ -236,6 +236,8 @@ generate_data(WEATHER *w_array)
         w.hour = rand() % 2401;
         /* Temperature range: 0-50C.  */
         w.temp = rand() % 51;
+        /* Feels like temperature range 0-50C */
+        w.feels_like_temp = rand() % 51;
         /* Humidity range: 0-100%. */
         w.humidity = rand() % 101;
         /* Pressure range: 900-1100pa */
@@ -389,8 +391,8 @@ average_data(WT_SESSION *session)
     while ((ret = loc_cursor->next(loc_cursor)) == 0) {
         count++;
         error_check(loc_cursor->get_key(loc_cursor, &recno));
-        error_check(loc_cursor->get_value(loc_cursor, &day, &hour, &temp, &humidity, &pressure,
-          &wind, &feels_like_temp, &loc_lat, &loc_long, &country));
+        error_check(loc_cursor->get_value(loc_cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
+          &humidity, &wind, &feels_like_temp, &day, &country));
 
         /* Increment the values of the rec_arr with the temp_arr values. */
         rec_arr[0] += temp;
@@ -438,9 +440,9 @@ main(int argc, char *argv[])
     /* Create a table with columns and colgroup. */
     error_check(session->create(session, TABLE_NAME,
       "key_format=r,value_format=" WT_UNCHECKED_STRING(
-        5sHBBHBBHH5s) ",columns=(id,day,hour,temp,"
-                      "humidity,pressure,wind,"
-                      "feels_like_temp,loc_lat,loc_long,country),colgroups=(day_time,temperature,"
+        HHHHBBBB5s5s) ",columns=(id,hour,pressure,loc_lat,"
+                      "loc_long,temp,humidity,"
+                      "wind,feels_like_temp,day,country),colgroups=(day_time,temperature,"
                       "humidity_pressure,"
                       "wind,feels_like_temp,location)"));
 
@@ -461,10 +463,10 @@ main(int argc, char *argv[])
     /* Open a cursor on the table to insert the data. */
     error_check(session->open_cursor(session, TABLE_NAME, NULL, "append", &cursor));
     for (int i = 0; i < NUM_ENTRIES; i++) {
-        cursor->set_value(cursor, weather_data[i].day, weather_data[i].hour, weather_data[i].temp,
-          weather_data[i].humidity, weather_data[i].pressure, weather_data[i].wind,
-          weather_data[i].feels_like_temp, weather_data[i].loc_lat, weather_data[i].loc_long,
-          weather_data[i].country);
+        cursor->set_value(cursor, weather_data[i].hour, weather_data[i].pressure,
+          weather_data[i].loc_lat, weather_data[i].loc_long, weather_data[i].temp,
+          weather_data[i].humidity, weather_data[i].wind, weather_data[i].feels_like_temp,
+          weather_data[i].day, weather_data[i].country);
         error_check(cursor->insert(cursor));
     }
     /* Close cursor. */
