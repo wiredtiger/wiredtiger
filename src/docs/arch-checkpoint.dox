@@ -72,5 +72,8 @@ updates from a given b-tree ahead of the checkpoint.
 
 # Garbage collection #
 
-
+While processing a b-tree checkpoint can mark pages as obsolete, any page that has an aggregated
+stop time pair which is globally visible will no longer be required by any reader and can be marked
+as deleted. This occurs prior to the page being reconciled, allowing for the page to be removed
+during the reconciliation.
 */
