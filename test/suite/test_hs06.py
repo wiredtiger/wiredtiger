@@ -216,7 +216,7 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.create(uri, create_params)
 
         # Prepare reads currently not supported with columnar store.
-        # Remove this once prepare reads is supported. 
+        # Remove this once prepare reads is supported in WT-6061.
         if self.key_format == 'r':
             return
 
