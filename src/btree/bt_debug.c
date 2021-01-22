@@ -1019,7 +1019,7 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
 
     /* Dump the page metadata. */
     WT_WITH_PAGE_INDEX(session, ret = __debug_page_metadata(ds, ref));
-    WT_RET(ret);
+    WT_ERR(ret);
 
     /* Dump the page. */
     switch (ref->page->type) {
@@ -1050,7 +1050,7 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
 err:
     if (hs_cursor != NULL) {
         WT_TRET(hs_cursor->close(hs_cursor));
-    } 
+    }
     return (ret);
 }
 
@@ -1367,7 +1367,8 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page, WT_CURSOR *hs_cursor)
  *     Dump a column-store skiplist.
  */
 static int
-__debug_col_skip(WT_DBG *ds, WT_INSERT_HEAD *head, const char *tag, bool hexbyte, WT_CURSOR *hs_cursor)
+__debug_col_skip(
+  WT_DBG *ds, WT_INSERT_HEAD *head, const char *tag, bool hexbyte, WT_CURSOR *hs_cursor)
 {
     WT_INSERT *ins;
     WT_SESSION_IMPL *session;
