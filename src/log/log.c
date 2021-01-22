@@ -2687,7 +2687,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
             __wt_log_slot_free(session, myslot.slot);
     } else if (force) {
         /*
-         * If we are going to wait for this slot to get written, signal the wrlsn thread.
+         * If we are going to wait for this slot to get written, signal the log server thread.
          *
          * XXX I've seen times when conditions are NULL.
          */
