@@ -109,7 +109,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 os.remove(home_full_dir)
             os.makedirs(home_full_dir + '/' + logpath)
 
+    #
     # Check that a URI doesn't exist, both the meta-data and the file names.
+    #
     def confirmPathDoesNotExist(self, uri, dir):
         conn = self.wiredtiger_open(dir)
         session = conn.open_session()
