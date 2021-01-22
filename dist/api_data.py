@@ -197,7 +197,7 @@ lsm_config = [
     ]),
 ]
 
-tiered_config = [
+tiered_config = common_runtime_config + [
     Config('tiered', '', r'''
         options only relevant for tiered data sources''',
         type='category', subconfig=[
