@@ -462,9 +462,15 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
     btree = S2BT(session);
 
     WT_RET(__wt_hs_cursor_open(session));
+#ifdef HAVE_DIAGNOSTIC
     WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
       (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
          allow_prepare, on_disk_buf, on_disk_tw)));
+#else
+    WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
+      (ret = __hs_find_upd_int(
+         session, btree->id, key, value_format, recno, upd_value, allow_prepare, on_disk_buf)));
+#endif
     WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
