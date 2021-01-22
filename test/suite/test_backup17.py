@@ -85,13 +85,13 @@ class test_backup17(backup_base):
         self.mult = 1
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        uri1_lens = self.take_incr_backup(self.dir, 2)
+        uri1_lens = self.take_incr_backup_file(self.dir, 2)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
-        uri2_lens = self.take_incr_backup(self.dir, 3, 0, '', True)
+        uri2_lens = self.take_incr_backup_file(self.dir, 3, True)
         self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.

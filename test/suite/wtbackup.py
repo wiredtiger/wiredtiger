@@ -197,7 +197,6 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if max_iteration != 0:
             write_to = backup_incr_dir  + '.' + str(id) + '/' + filename
         rfp = open(read_from, "r+b")
-
         rfp.seek(offset, 0)
         buf = rfp.read(size)
         if max_iteration != 0:
@@ -229,10 +228,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         config = 'incremental=(file=' + newfile + ')'
         # For each file listed, open a duplicate backup cursor and copy the blocks.
         incr_c = self.session.open_cursor(None, bkup_c, config)
-
         # For consolidate
         lens = []
-
         # We cannot use 'for newfile in incr_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
@@ -285,9 +282,34 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     #backup_incr_dir
     #options: [id, max_iteration]
-    def take_incr_backup(self, backup_incr_dir, id, max_iteration=0, logpath='', consolidate=False):
-        self.assertTrue(id > 0)
+    def take_incr_backup(self, backup_incr_dir, id, max_iteration, logpath):
+        self.assertTrue(id > 0 and max_iteration > 0)
+        # Open the backup data source for incremental backup.
+        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
+        self.pr(buf)
+        bkup_c = self.session.open_cursor('backup:', None, buf)
 
+        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
+        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
+        # If that changes then this, and the use of the duplicate below can change.
+        while True:
+            ret = bkup_c.next()
+            if ret != 0:
+                break
+            newfile = bkup_c.get_key()
+            self.copy_file(newfile, backup_incr_dir + '.0', logpath)
+            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, max_iteration, logpath)
+            # For each file, we want to copy it into each of the later incremental directories.
+            for i in range(id, max_iteration):
+                h = backup_incr_dir + '.' + str(i)
+                self.copy_file(newfile, h, logpath)
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        bkup_c.close()
+
+    #backup_incr_dir
+    #options: [id, max_iteration]
+    def take_incr_backup_file(self, backup_incr_dir, id, consolidate = False):
+        self.assertTrue(id > 0)
         # Open the backup data source for incremental backup.
         buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
         if consolidate:
@@ -296,8 +318,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr(buf)
         bkup_c = self.session.open_cursor('backup:', None, buf)
         
-        # For consolidate
-        lens = []
+        files_info = []
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
@@ -306,39 +327,11 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if ret != 0:
                 break
             newfile = bkup_c.get_key()
-            if max_iteration != 0:
-                self.copy_file(newfile, backup_incr_dir + '.0', logpath)
-            lens += self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, max_iteration, logpath)
-            # For each file, we want to copy it into each of the later incremental directories.
-            for i in range(id, max_iteration):
-                h = backup_incr_dir + '.' + str(i)
-                self.copy_file(newfile, h, logpath)
+            file_sizes = self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, 0, '')
+            if consolidate:
+                files_info += file_sizes
+            else:
+                files_info.append(newfile)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
-        return lens
-
-    #backup_incr_dir
-    #options: [id, max_iteration]
-    def take_incr_backup_file(self, backup_incr_dir, id):
-        self.assertTrue(id > 0)
-
-        # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '")'
-        self.pr(buf)
-        bkup_c = self.session.open_cursor('backup:', None, buf)
-        
-        # For consolidate
-        files = []
-        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
-        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
-        # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, 0, '')
-            files.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
-        return files
+        return files_info
