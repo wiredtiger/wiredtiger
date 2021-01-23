@@ -993,6 +993,7 @@ lx
 lz
 lzo
 mT
+mWx
 madvise
 majmin
 majorp
@@ -1039,7 +1040,6 @@ multithreaded
 munmap
 mutex
 mutexes
-mx
 mytable
 mytxn
 namespace

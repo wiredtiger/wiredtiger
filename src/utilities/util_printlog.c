@@ -28,13 +28,16 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 
     flags = 0;
     ofile = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "f:mx")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "f:mWx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
             break;
         case 'm': /* messages only */
             LF_SET(WT_TXN_PRINTLOG_MSG);
+            break;
+        case 'W': /* redact user data, WiredTiger info only */
+            LF_SET(WT_TXN_PRINTLOG_REDACT);
             break;
         case 'x': /* hex output */
             LF_SET(WT_TXN_PRINTLOG_HEX);
