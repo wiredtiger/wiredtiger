@@ -20,13 +20,20 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 
     flags = 0;
     ofile = NULL;
+
+    /*
+     * By default redact user data. This way if any support people are using this on customer data,
+     * it is redacted unless they make the effort to keep it in. It lessens the risk of doing the
+     * wrong command.
+     */
+    LF_SET(WT_TXN_PRINTLOG_REDACT);
     while ((ch = __wt_getopt(progname, argc, argv, "f:Wx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
             break;
-        case 'W': /* redact user data, WiredTiger info only */
-            LF_SET(WT_TXN_PRINTLOG_REDACT);
+        case 'W': /* don't redact user data */
+            LF_CLR(WT_TXN_PRINTLOG_REDACT);
             break;
         case 'x': /* hex output */
             LF_SET(WT_TXN_PRINTLOG_HEX);
