@@ -395,8 +395,9 @@ struct __wt_txn_printlog_args {
     WT_FSTREAM *fs;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_PRINTLOG_HEX 0x1u /* Add hex output */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_TXN_PRINTLOG_HEX 0x1u    /* Add hex output */
+#define WT_TXN_PRINTLOG_REDACT 0x2u /* Redact user data from output */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
 

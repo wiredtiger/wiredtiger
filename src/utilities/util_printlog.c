@@ -20,10 +20,13 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
 
     flags = 0;
     ofile = NULL;
-    while ((ch = __wt_getopt(progname, argc, argv, "f:x")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "f:Wx")) != EOF)
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
+            break;
+        case 'W': /* redact user data, WiredTiger info only */
+            LF_SET(WT_TXN_PRINTLOG_REDACT);
             break;
         case 'x': /* hex output */
             LF_SET(WT_TXN_PRINTLOG_HEX);
