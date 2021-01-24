@@ -39,7 +39,7 @@ class test_hs20(wttest.WiredTigerTestCase):
 
     def test_hs20(self):
         uri = 'table:test_hs20'
-        # Set a very small leaf value max to trigger writing overflow values
+        # Set a very small maximum leaf value to trigger writing overflow values
         self.session.create(uri, 'key_format=S,value_format=S,leaf_value_max=10B')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -48,8 +48,8 @@ class test_hs20(wttest.WiredTigerTestCase):
         value1 = 'a' * 500
         value2 = 'b' * 50
 
+        # Insert a value that is larger than the maximum leaf value.
         for i in range(0, 10):
-            # Insert the base overflow values
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -69,19 +69,19 @@ class test_hs20(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.modify(mods), 0)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
 
-        # Insert more data to trigger eviction
+        # Insert more data to trigger eviction.
         for i in range(10, 100000):
             self.session.begin_transaction()
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Update the overflow values
+        # Update the overflow values.
         for i in range(0, 10):
             self.session.begin_transaction()
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Do a checkpoint to move the overflow values to the history store but keep them still in memory
+        # Do a checkpoint to move the overflow values to the history store but keep the current in memory disk image.
         self.session.checkpoint()
 
         # Search the first modifies.
