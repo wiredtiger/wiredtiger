@@ -115,13 +115,8 @@ class test_backup15(backup_base):
                 self.take_full_backup(self.home_full + '.' + str(self.counter))
                 self.take_incr_backup(self.home_incr, self.counter)
             else:
-<<<<<<< HEAD
                 self.take_incr_backup(self.home_incr, self.counter)
                 self.take_full_backup(self.home_full + '.' + str(self.counter))
-=======
-                self.take_incr_backup()
-                self.take_full_backup()
->>>>>>> origin/develop
             self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
 if __name__ == '__main__':
