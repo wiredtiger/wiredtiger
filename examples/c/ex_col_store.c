@@ -47,8 +47,8 @@ typedef struct {
     uint8_t humidity;
     uint8_t wind;
     uint8_t feels_like_temp;
-    char day[5];
-    char country[5];
+    char day[4];
+    char country[4];
 } WEATHER;
 
 static void update_celsius_to_fahrenheit(WT_SESSION *session);
@@ -255,13 +255,13 @@ generate_data(WEATHER *w_array)
             strcpy(w.country, "AUS");
             break;
         case 1:
-            strcpy(w.country, "UK");
+            strcpy(w.country, "GBR");
             break;
         case 2:
-            strcpy(w.country, "US");
+            strcpy(w.country, "USA");
             break;
         case 3:
-            strcpy(w.country, "NZ");
+            strcpy(w.country, "NZD");
             break;
         case 4:
             strcpy(w.country, "IND");
