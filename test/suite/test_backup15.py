@@ -40,12 +40,12 @@ class test_backup15(backup_base):
     counter=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     logmax="100K"
+    max_iteration=5
     mult=0
     nops=100000
     savefirst=0
     savekey='NOTSET'
     uri="table:main"
-    max_iteration=5
 
     dir='backup.dir'                    # Backup directory name
     home_full = "WT_BLOCK_LOG_FULL"

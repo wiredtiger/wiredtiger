@@ -48,8 +48,8 @@ class test_backup14(backup_base):
     home_full = "WT_BLOCK_LOG_FULL"
     home_incr = "WT_BLOCK_LOG_INCR"
     logpath = "logpath"
-    max_iteration=7
     nops = 1000
+    max_iteration=7
     new_table=False
 
     pfx = 'test_backup'

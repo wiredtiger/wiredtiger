@@ -111,6 +111,7 @@ class test_backup16(backup_base):
         self.assertEqual(num_files, len(expected_file_list))
 
     def test_backup16(self):
+
         # Create four tables before the first backup. Add data to two of them.
         self.session.create(self.uri1, 'key_format=S,value_format=S')
         self.session.create(self.uri2, 'key_format=S,value_format=S')
@@ -149,7 +150,6 @@ class test_backup16(backup_base):
         # Both new tables should appear in the incremental and the old table with
         # new data.
         files_to_backup = [self.file1, self.file4, self.file5]
-
         self.verify_incr_backup(files_to_backup)
 
         # Add more data and checkpoint. Earlier old tables without new data should not

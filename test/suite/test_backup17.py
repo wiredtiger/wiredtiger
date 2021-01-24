@@ -74,7 +74,6 @@ class test_backup17(backup_base):
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
         os.mkdir(self.dir)
-        self.initial_backup = True
         # Now copy the files returned by the backup cursor.
         config = 'incremental=(enabled,granularity=%s,this_id="ID1")' % self.gran
         bkup_c = self.session.open_cursor('backup:', None, config)

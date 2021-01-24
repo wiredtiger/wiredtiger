@@ -125,7 +125,7 @@ class test_backup13(backup_base):
         bkup_c.close()
 
         # Make sure after a force stop we cannot access old backup info.
-        config = 'incremental=(src_id="ID0",this_id="ID2")'
+        config = 'incremental=(src_id="ID1",this_id="ID3")'
 
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))

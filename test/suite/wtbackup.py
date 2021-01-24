@@ -36,8 +36,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     mult = 0                    # counter to have variance in data
     nops = 100                  # number of operations added to uri
 
-    # counter to used to produce unique backup ids the backup id, and is
-    # generally used only for using add_data() first time.
+    # We use counter to produce unique backup names for multiple iterations
+    # of incremental backup tests.
     counter = 0
     # To determine whether to increase/decrease counter, which determines
     initial_backup = False
