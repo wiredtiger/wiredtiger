@@ -57,7 +57,6 @@ class test_backup14(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-
     #
     # Remove data from uri (table:main)
     #

@@ -149,7 +149,7 @@ class test_backup16(backup_base):
         # Both new tables should appear in the incremental and the old table with
         # new data.
         files_to_backup = [self.file1, self.file4, self.file5]
-        
+
         self.verify_incr_backup(files_to_backup)
 
         # Add more data and checkpoint. Earlier old tables without new data should not

@@ -69,7 +69,7 @@ class test_backup17(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval, True)
         self.mult = 0
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
-        
+
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.

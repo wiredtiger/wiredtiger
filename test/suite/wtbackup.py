@@ -71,7 +71,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.counter += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
-    
+
     #
     # Populate a set of objects.
     #
@@ -86,7 +86,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     self.rows = 1000  # Small Object
             if len(i) > 3:
-                cg_config = i[3] 
+                cg_config = i[3]
             i[1](self, i[0], self.rows, cgconfig = cg_config).populate()
 
         # Backup needs a checkpoint
@@ -114,7 +114,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if os.path.exists(home_full_dir):
                 os.remove(home_full_dir)
             os.makedirs(home_full_dir + '/' + self.logpath)
-    
+
     #
     # Check that a URI doesn't exist, both the meta-data and the file names.
     #
@@ -147,7 +147,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # grabbing files to copy over into a given directory.
     # Optional arguments:
     # backup_cur: A backup cursor that can be given into the function, but function caller
-    #    holds reponsibility of closing the cursor. 
+    #    holds reponsibility of closing the cursor.
     #
     def take_full_backup(self, backup_dir, backup_cur=None):
         #
@@ -208,7 +208,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(True, compare_files(self, base_out, other_out))
 
     #
-    # Perform a block range copy for a given offset and file. 
+    # Perform a block range copy for a given offset and file.
     #
     # id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
     #
@@ -240,8 +240,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         wfp.close()
 
     #
-    # With a given backup cursor, open an incremental block cursor to copy the blocks of a 
-    # given file. If the type of file is WT_BACKUP_FILE, perform full copy into given directory, 
+    # With a given backup cursor, open an incremental block cursor to copy the blocks of a
+    # given file. If the type of file is WT_BACKUP_FILE, perform full copy into given directory,
     # otherwise if type of file is WT_BACKUP_RANGE, perform partial copy of the file using range copy
     # Optional arguments:
     #   id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
@@ -311,7 +311,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     #
     # Open incremental backup cursor, with a given id and iterate through all the files
-    # and perform incremental block copy for each of them. This function is used for tests 
+    # and perform incremental block copy for each of them. This function is used for tests
     # that perform multiple incremental backups, and through utilising max_iteration
     #
     def take_incr_backup(self, backup_incr_dir, id):
@@ -355,7 +355,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         config += ')'
         self.pr(config)
         bkup_c = self.session.open_cursor('backup:', None, config)
-        
+
         files_info = []
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
