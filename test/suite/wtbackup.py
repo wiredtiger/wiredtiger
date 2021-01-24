@@ -25,7 +25,11 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+<<<<<<< HEAD
 import os, glob, shutil
+=======
+import os, glob
+>>>>>>> origin/develop
 import wttest, wiredtiger
 from suite_subprocess import suite_subprocess
 from helper import compare_files
@@ -36,21 +40,32 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     mult = 0                    # counter to have variance in data
     nops = 100                  # number of operations added to uri
 
+<<<<<<< HEAD
     # counter to used to produce unique backup ids the backup id, and is
     # generally used only for using add_data() first time.
     counter = 0
     # To determine whether to increase/decrease counter, which determines
     initial_backup = False
+=======
+    # We use counter to produce unique backup names for multiple iterations
+    # of incremental backup tests.
+    counter = 0
+    # To determine whether to increase/decrease counter, which determines
+    initial_backup = True
+>>>>>>> origin/develop
     # Used for populate function
     rows = 100
     populate_big = None
 
+<<<<<<< HEAD
     # Used for tests that test multiple incremental backups, copying into future
     # incremental backup directories, is used in conjunction with id argument that is
     # passed in
     max_iteration = 0
     #specify a logpath directory to be used to place wiredtiger log files
     logpath=''
+=======
+>>>>>>> origin/develop
     #
     # Add data to the given uri.
     # Allows the option for doing a session checkpoint after adding data.
@@ -67,11 +82,19 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if do_checkpoint:
             self.session.checkpoint()
         # Increase the counter so that later backups have unique ids.
+<<<<<<< HEAD
         if not self.initial_backup and self.max_iteration != 0:
             self.counter += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
     
+=======
+        if not self.initial_backup:
+            self.counter += 1
+        # Increase the multiplier so that later calls insert unique items.
+        self.mult += 1
+
+>>>>>>> origin/develop
     #
     # Populate a set of objects.
     #
@@ -86,7 +109,11 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 else:
                     self.rows = 1000  # Small Object
             if len(i) > 3:
+<<<<<<< HEAD
                 cg_config = i[3] 
+=======
+                cg_config = i[3]
+>>>>>>> origin/develop
             i[1](self, i[0], self.rows, cgconfig = cg_config).populate()
 
         # Backup needs a checkpoint
@@ -98,23 +125,37 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # iteration and an incremental backup for each iteration. That way we can compare the full and
     # incremental each time through.
     #
+<<<<<<< HEAD
     def setup_directories(self, home_incr, home_full):
         for i in range(0, self.max_iteration):
+=======
+    def setup_directories(self, max_iteration, home_incr, home_full, logpath):
+        for i in range(0, max_iteration):
+>>>>>>> origin/develop
             # The log directory is a subdirectory of the home directory,
             # creating that will make the home directory also.
 
             home_incr_dir = home_incr + '.' + str(i)
             if os.path.exists(home_incr_dir):
                 os.remove(home_incr_dir)
+<<<<<<< HEAD
             os.makedirs(home_incr_dir + '/' + self.logpath)
+=======
+            os.makedirs(home_incr_dir + '/' + logpath)
+>>>>>>> origin/develop
 
             if i == 0:
                 continue
             home_full_dir = home_full + '.' + str(i)
             if os.path.exists(home_full_dir):
                 os.remove(home_full_dir)
+<<<<<<< HEAD
             os.makedirs(home_full_dir + '/' + self.logpath)
     
+=======
+            os.makedirs(home_full_dir + '/' + logpath)
+
+>>>>>>> origin/develop
     #
     # Check that a URI doesn't exist, both the meta-data and the file names.
     #
@@ -131,6 +172,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             uri.split(":")[1] + '\" found')
 
     #
+<<<<<<< HEAD
     # Copy a file into given directory
     #
     def copy_file(self, file, dir):
@@ -184,6 +226,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         return all_files
 
     #
+=======
+>>>>>>> origin/develop
     # Compare against two directory paths using the wt dump command.
     # The suffix allows the option to add distinctive tests adding suffix to both the output files and directories
     #
@@ -206,6 +250,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         other_dir = other_dir_home + sfx
         self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
         self.assertEqual(True, compare_files(self, base_out, other_out))
+<<<<<<< HEAD
 
     #
     # Perform a block range copy for a given offset and file. 
@@ -373,3 +418,5 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
         return files_info
+=======
+>>>>>>> origin/develop

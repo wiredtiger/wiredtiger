@@ -49,6 +49,7 @@ class test_backup14(backup_base):
     home_incr = "WT_BLOCK_LOG_INCR"
     logpath = "logpath"
     max_iteration=7
+    nops = 1000
     new_table=False
 
     pfx = 'test_backup'
@@ -56,7 +57,6 @@ class test_backup14(backup_base):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
-    nops = 1000
 
     #
     # Remove data from uri (table:main)

@@ -141,7 +141,6 @@ class test_backup16(backup_base):
         #
         self.session.create(self.uri4, "key_format=S,value_format=S")
         self.session.create(self.uri5, "key_format=S,value_format=S")
-
         self.add_data(self.uri1, self.bigkey, self.bigval, True)
         self.add_data(self.uri5, self.bigkey, self.bigval, True)
         self.session.checkpoint()

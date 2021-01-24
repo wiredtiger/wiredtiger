@@ -100,7 +100,7 @@ class test_backup15(backup_base):
         self.pr('Adding initial data')
         self.initial_backup = True
         self.add_complex_data(self.uri)
-        self.take_full_backup(self.home_incr, None)
+        self.take_full_backup(self.home_incr)
         self.initial_backup = False
         self.session.checkpoint()
 
@@ -112,11 +112,16 @@ class test_backup15(backup_base):
             # Swap the order of the full and incremental backups. It should not matter. They
             # should not interfere with each other.
             if i % 2 == 0:
-                self.take_full_backup(self.home_full + '.' + str(self.counter), None)
+                self.take_full_backup(self.home_full + '.' + str(self.counter))
                 self.take_incr_backup(self.home_incr, self.counter)
             else:
+<<<<<<< HEAD
                 self.take_incr_backup(self.home_incr, self.counter)
-                self.take_full_backup(self.home_full + '.' + str(self.counter), None)
+                self.take_full_backup(self.home_full + '.' + str(self.counter))
+=======
+                self.take_incr_backup()
+                self.take_full_backup()
+>>>>>>> origin/develop
             self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
 if __name__ == '__main__':
