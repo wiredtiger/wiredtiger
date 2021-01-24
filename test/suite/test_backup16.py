@@ -38,7 +38,6 @@ from wtscenario import make_scenarios
 class test_backup16(backup_base):
 
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
-    counter=1
     logmax='100K'
 
     # Define the table name and its on-disk file name together.
@@ -63,7 +62,7 @@ class test_backup16(backup_base):
     mult = 1
     counter = 1
     nops = 10
-
+    initial_backup = True
     def verify_incr_backup(self, expected_file_list):
         bkup_config = ('incremental=(src_id="ID' +  str(self.counter - 1) +
                        '",this_id="ID' + str(self.counter) + '")')
@@ -112,7 +111,6 @@ class test_backup16(backup_base):
         self.assertEqual(num_files, len(expected_file_list))
 
     def test_backup16(self):
-
         # Create four tables before the first backup. Add data to two of them.
         self.session.create(self.uri1, 'key_format=S,value_format=S')
         self.session.create(self.uri2, 'key_format=S,value_format=S')
@@ -143,6 +141,7 @@ class test_backup16(backup_base):
         #
         self.session.create(self.uri4, "key_format=S,value_format=S")
         self.session.create(self.uri5, "key_format=S,value_format=S")
+
         self.add_data(self.uri1, self.bigkey, self.bigval, True)
         self.add_data(self.uri5, self.bigkey, self.bigval, True)
         self.session.checkpoint()
@@ -151,6 +150,7 @@ class test_backup16(backup_base):
         # Both new tables should appear in the incremental and the old table with
         # new data.
         files_to_backup = [self.file1, self.file4, self.file5]
+        
         self.verify_incr_backup(files_to_backup)
 
         # Add more data and checkpoint. Earlier old tables without new data should not

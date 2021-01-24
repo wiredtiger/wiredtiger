@@ -94,21 +94,21 @@ class test_backup19(backup_base):
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.setup_directories(self.max_iteration, self.home_incr, self.home_full, self.logpath)
+        self.setup_directories(self.home_incr, self.home_full)
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.pr('Adding initial data')
         self.initial_backup = True
         self.add_complex_data(self.uri)
-        self.take_full_backup(self.home_incr, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_incr, None)
         self.initial_backup = False
         self.session.checkpoint()
 
         self.add_complex_data(self.uri)
         self.session.checkpoint()
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter), None)
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 if __name__ == '__main__':
     wttest.run()

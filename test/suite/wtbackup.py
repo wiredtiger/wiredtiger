@@ -45,9 +45,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     rows = 100
     populate_big = None
 
-    #Set granularity level for full backup
-    gran = "1M"
-
+    # Used for tests that test multiple incremental backups, copying into future
+    # incremental backup directories, is used in conjunction with id argument that is
+    # passed in
+    max_iteration = 0
+    #specify a logpath directory to be used to place wiredtiger log files
+    logpath=''
     #
     # Add data to the given uri.
     # Allows the option for doing a session checkpoint after adding data.
@@ -64,7 +67,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if do_checkpoint:
             self.session.checkpoint()
         # Increase the counter so that later backups have unique ids.
-        if not self.initial_backup:
+        if not self.initial_backup and self.max_iteration != 0:
             self.counter += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
@@ -95,22 +98,22 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # iteration and an incremental backup for each iteration. That way we can compare the full and
     # incremental each time through.
     #
-    def setup_directories(self, max_iteration, home_incr, home_full, logpath):
-        for i in range(0, max_iteration):
+    def setup_directories(self, home_incr, home_full):
+        for i in range(0, self.max_iteration):
             # The log directory is a subdirectory of the home directory,
             # creating that will make the home directory also.
 
             home_incr_dir = home_incr + '.' + str(i)
             if os.path.exists(home_incr_dir):
                 os.remove(home_incr_dir)
-            os.makedirs(home_incr_dir + '/' + logpath)
+            os.makedirs(home_incr_dir + '/' + self.logpath)
 
             if i == 0:
                 continue
             home_full_dir = home_full + '.' + str(i)
             if os.path.exists(home_full_dir):
                 os.remove(home_full_dir)
-            os.makedirs(home_full_dir + '/' + logpath)
+            os.makedirs(home_full_dir + '/' + self.logpath)
     
     #
     # Check that a URI doesn't exist, both the meta-data and the file names.
@@ -130,14 +133,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Copy a file into given directory
     #
-    def copy_file(self, file, dir, logpath):
+    def copy_file(self, file, dir):
         copy_from = file
         # If it is log file, prepend the path.
-        if logpath and "WiredTigerLog" in file:
-            copy_to = dir + '/' + logpath
+        if self.logpath and "WiredTigerLog" in file:
+            copy_to = dir + '/' + self.logpath
         else:
             copy_to = dir
-        shutil.copy(copy_from, dir)
+        shutil.copy(copy_from, copy_to)
 
     #
     # Uses a backup cursor to perform a full backup, by iterating through the cursor
@@ -145,21 +148,18 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # Optional arguments:
     # backup_cur: A backup cursor that can be given into the function, but function caller
     #    holds reponsibility of closing the cursor. 
-    # max_iteration: Used for tests that test multiple incremental backups, copying into future
-    #    incremental backup directories
-    # logpath: specify a logpath directory to be used to place wiredtiger log files
     #
-    def take_full_backup(self, backup_dir, backup_cur=None, max_iteration=0, logpath=''):
+    def take_full_backup(self, backup_dir, backup_cur=None):
         #
         # First time through we take a full backup into the incremental directories. Otherwise only
         # into the appropriate full directory.
         #
         bkup_c = backup_cur
         if backup_cur == None:
-            buf = None
-            if self.initial_backup:
-                buf = 'incremental=(granularity=%s,enabled=true,this_id=ID0)' % self.gran
-            bkup_c = self.session.open_cursor('backup:', None, buf)
+            config = None
+            if self.initial_backup and self.max_iteration != 0:
+                config = 'incremental=(granularity=1M,enabled=true,this_id=ID0)'
+            bkup_c = self.session.open_cursor('backup:', None, config)
         all_files = []
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
@@ -169,14 +169,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if ret != 0:
                 break
             newfile = bkup_c.get_key()
-            if self.initial_backup and max_iteration != 0:
+            if self.initial_backup and self.max_iteration != 0:
                 # Take a full backup into each incremental directory
-                for i in range(0, max_iteration):
-                    self.copy_file(newfile, backup_dir  + '.' + str(i), logpath)
+                for i in range(0, self.max_iteration):
+                    self.copy_file(newfile, backup_dir  + '.' + str(i))
             else:
                 sz = os.path.getsize(newfile)
                 self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                self.copy_file(newfile, backup_dir, logpath)
+                self.copy_file(newfile, backup_dir)
                 all_files.append(newfile)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         if backup_cur == None:
@@ -209,29 +209,30 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     #
     # Perform a block range copy for a given offset and file. 
-    #   id and max_iteration: Used as a flag for tests that need to perform multiple incremental 
-    #       backup directories, distinguished by id.
     #
-    def range_copy(self, filename, offset, size, id, max_iteration, backup_incr_dir):
+    # id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
+    #
+    def range_copy(self, filename, offset, size, id, backup_incr_dir):
         read_from = filename
         write_to = backup_incr_dir  + '/' + filename
-        if max_iteration != 0:
+        if self.max_iteration != 0:
             write_to = backup_incr_dir  + '.' + str(id) + '/' + filename
         rfp = open(read_from, "r+b")
         rfp.seek(offset, 0)
         buf = rfp.read(size)
         # Perform between previous incremental directory, to check that
         # the old file and the new file is different.
-        if max_iteration != 0:
+        if self.max_iteration != 0:
             old_to = backup_incr_dir + '.' + str(id - 1) + '/' + filename
-            self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
-            old_rfp = open(old_to, "r+b")
-            old_rfp.seek(offset, 0)
-            old_buf = old_rfp.read(size)
-            old_rfp.close()
-            # This assertion tests that the offset range we're given actually changed
-            # from the previous backup.
-            self.assertNotEqual(buf, old_buf)
+            if os.path.exists(old_to):
+                self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
+                old_rfp = open(old_to, "r+b")
+                old_rfp.seek(offset, 0)
+                old_buf = old_rfp.read(size)
+                old_rfp.close()
+                # This assertion tests that the offset range we're given actually changed
+                # from the previous backup.
+                self.assertNotEqual(buf, old_buf)
         wfp = open(write_to, "w+b")
         wfp.seek(offset, 0)
         wfp.write(buf)
@@ -243,12 +244,10 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # given file. If the type of file is WT_BACKUP_FILE, perform full copy into given directory, 
     # otherwise if type of file is WT_BACKUP_RANGE, perform partial copy of the file using range copy
     # Optional arguments:
-    #   id and max_iteration: Used as a flag for tests that need to perform multiple incremental 
-    #       backup directories, distinguished by id
-    #   logpath: specify a logpath directory to be used to place wiredtiger log files
-    # Note: we return the sizes of WT_BACKUP_RANGE type files for test that check for the consolidate config
+    #   id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
+    # Note: we return the sizes of WT_BACKUP_RANGE type files for tests that check for the consolidate config
     #
-    def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir, id=0, max_iteration=0, logpath=''):
+    def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir, id=0):
         config = 'incremental=(file=' + newfile + ')'
         # For each file listed, open a duplicate backup cursor and copy the blocks.
         incr_c = self.session.open_cursor(None, bkup_c, config)
@@ -269,20 +268,23 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if curtype == wiredtiger.WT_BACKUP_FILE:
                 # Copy the whole file.
                 h = backup_incr_dir
-                if max_iteration != 0:
+                if self.max_iteration != 0:
                     h += '.' + str(id)
-                self.copy_file(newfile, h, logpath)
+                self.copy_file(newfile, h)
             else:
                 # Copy the block range.
                 self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                self.range_copy(newfile, offset, size, id, max_iteration, backup_incr_dir)
+                self.range_copy(newfile, offset, size, id, backup_incr_dir)
                 lens.append(size)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         incr_c.close()
         return lens
 
     #
-    # Given a backup cursor, open a log backup cursor, to record all the 
+    # Given a backup cursor, open a log cursor, and copy all log files that are not
+    # in the given log list. Return all the log files, for tests that do verification
+    # Optional argument:
+    #   truncate: perform truncate/archive option on the logs.
     #
     def take_log_backup(self, bkup_c, backup_dir, orig_logs, truncate=False):
         # Now open a duplicate backup cursor.
@@ -312,12 +314,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # and perform incremental block copy for each of them. This function is used for tests 
     # that perform multiple incremental backups, and through utilising max_iteration
     #
-    def take_incr_backup(self, backup_incr_dir, id, max_iteration, logpath):
-        self.assertTrue(id > 0 and max_iteration > 0)
+    def take_incr_backup(self, backup_incr_dir, id):
+        self.assertTrue(id > 0 and self.max_iteration > 0)
         # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
-        self.pr(buf)
-        bkup_c = self.session.open_cursor('backup:', None, buf)
+        config = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '")'
+        self.pr(config)
+        bkup_c = self.session.open_cursor('backup:', None, config)
 
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
@@ -327,12 +329,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             if ret != 0:
                 break
             newfile = bkup_c.get_key()
-            self.copy_file(newfile, backup_incr_dir + '.0', logpath)
-            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id, max_iteration, logpath)
+            self.copy_file(newfile, backup_incr_dir + '.0')
+            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id)
             # For each file, we want to copy it into each of the later incremental directories.
-            for i in range(id, max_iteration):
+            for i in range(id, self.max_iteration):
                 h = backup_incr_dir + '.' + str(i)
-                self.copy_file(newfile, h, logpath)
+                self.copy_file(newfile, h)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
 
@@ -341,18 +343,18 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # and perform incremental block copy for each of them. This function is used for tests
     # that require the information about the files. Default returns a list of filenames
     # Optional arguments:
-    # consolidate: Used to add consolidate option to the cursor, and returns the sizes of the file
-    #   for tests
+    # consolidate: Used to add consolidate option to the cursor
+    # ret_sizes: Flag to return sizes of files instead of default
     #
-    def take_incr_backup_file(self, backup_incr_dir, id, consolidate = False):
+    def take_incr_backup_file(self, backup_incr_dir, id, consolidate=False, ret_sizes=False):
         self.assertTrue(id > 0)
         # Open the backup data source for incremental backup.
-        buf = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
+        config = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '"'
         if consolidate:
-            buf += ',consolidate=true'
-        buf += ')'
-        self.pr(buf)
-        bkup_c = self.session.open_cursor('backup:', None, buf)
+            config += ',consolidate=true'
+        config += ')'
+        self.pr(config)
+        bkup_c = self.session.open_cursor('backup:', None, config)
         
         files_info = []
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
@@ -364,7 +366,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 break
             newfile = bkup_c.get_key()
             file_sizes = self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir)
-            if consolidate:
+            if ret_sizes:
                 files_info += file_sizes
             else:
                 files_info.append(newfile)

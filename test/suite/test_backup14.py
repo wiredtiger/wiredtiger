@@ -86,14 +86,14 @@ class test_backup14(backup_base):
         self.initial_backup = True
         self.add_data(self.uri, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_incr, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_incr)
         self.initial_backup = False
         self.session.checkpoint()
 
         self.add_data(self.uri, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter))
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -102,8 +102,8 @@ class test_backup14(backup_base):
     #
     def remove_all_records_validate(self):
         self.remove_data()
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter))
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -120,7 +120,7 @@ class test_backup14(backup_base):
 
         self.new_table = True
         self.add_data(self.uri2, self.bigkey, self.bigval)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_incr_backup(self.home_incr, self.counter)
 
         table_list = 'tablelist.txt'
         # Assert if the dropped table (table:main) exists in the incremental folder.
@@ -135,8 +135,8 @@ class test_backup14(backup_base):
     def create_dropped_table_add_new_content(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.add_data(self.uri, self.bigkey, self.bigval)
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter))
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
 
     #
@@ -150,8 +150,8 @@ class test_backup14(backup_base):
         self.session.create(self.uri_logged, "key_format=S,value_format=S")
         self.add_data(self.uri_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter))
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.counter))
         #
         # Insert bulk data into uri4 (table:not_logged_table).
@@ -159,8 +159,8 @@ class test_backup14(backup_base):
         self.session.create(self.uri_not_logged, "key_format=S,value_format=S,log=(enabled=false)")
         self.add_data(self.uri_not_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter), self.max_iteration, self.logpath)
-        self.take_incr_backup(self.home_incr, self.counter, self.max_iteration, self.logpath)
+        self.take_full_backup(self.home_full + '.' + str(self.counter))
+        self.take_incr_backup(self.home_incr, self.counter)
         self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.counter))
 
     def test_backup14(self):
@@ -168,7 +168,7 @@ class test_backup14(backup_base):
         self.home = self.bkp_home
         self.session.create(self.uri, "key_format=S,value_format=S")
 
-        self.setup_directories(self.max_iteration, self.home_incr, self.home_full, self.logpath)
+        self.setup_directories(self.home_incr, self.home_full)
 
         self.pr('*** Add data, checkpoint, take backups and validate ***')
         self.add_data_validate_backups()

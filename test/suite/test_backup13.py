@@ -99,14 +99,15 @@ class test_backup13(backup_base):
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
-        self.initial_backup = True
-        all_files = self.take_full_backup(self.dir)
-
+        config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
+        bkup_c = self.session.open_cursor('backup:', None, config)
+        all_files = self.take_full_backup(self.dir, bkup_c)
+        bkup_c.close()
         # Add more data.
         self.add_data_and_check()
 
         # Now do an incremental backup.
-        bkup_files = self.take_incr_backup_file(self.dir, 1)
+        bkup_files = self.take_incr_backup_file(self.dir, 2)
 
         all_set = set(all_files)
         bkup_set = set(bkup_files)

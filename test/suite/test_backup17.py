@@ -76,7 +76,10 @@ class test_backup17(backup_base):
         os.mkdir(self.dir)
         self.initial_backup = True
         # Now copy the files returned by the backup cursor.
-        self.take_full_backup(self.dir)
+        config = 'incremental=(enabled,granularity=%s,this_id="ID1")' % self.gran
+        bkup_c = self.session.open_cursor('backup:', None, config)
+        self.take_full_backup(self.dir, bkup_c)
+        bkup_c.close()
 
         # This is the main part of the test for consolidate. Add data to the first table.
         # Then perform the incremental backup with consolidate off (the default). Then add the
@@ -85,13 +88,13 @@ class test_backup17(backup_base):
         self.mult = 1
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        uri1_lens = self.take_incr_backup_file(self.dir, 2)
+        uri1_lens = self.take_incr_backup_file(self.dir, 2, False, True)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
-        uri2_lens = self.take_incr_backup_file(self.dir, 3, True)
+        uri2_lens = self.take_incr_backup_file(self.dir, 3, True, True)
         self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.

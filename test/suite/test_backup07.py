@@ -79,7 +79,6 @@ class test_backup07(backup_base):
 
         # Now copy the files returned by the backup cursor. This should not
         # include the newly created table.
-        self.initial_backup = True
         self.take_full_backup(self.dir)
 
         # After the full backup, open and recover the backup database.
