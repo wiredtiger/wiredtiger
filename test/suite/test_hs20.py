@@ -29,7 +29,7 @@
 import time, wiredtiger, wttest
 
 # test_hs20.py
-# Ensure we never reconsturct a reverse modify update in the history store based on the onpage overflown value
+# Ensure we never reconsturct a reverse modify update in the history store based on the onpage overflow value
 def timestamp_str(t):
     return '%x' % t
 
@@ -39,7 +39,7 @@ class test_hs20(wttest.WiredTigerTestCase):
 
     def test_hs20(self):
         uri = 'table:test_hs20'
-        # Set a very small leaf value max to trigger writing overflown values
+        # Set a very small leaf value max to trigger writing overflow values
         self.session.create(uri, 'key_format=S,value_format=S,leaf_value_max=10B')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -49,7 +49,7 @@ class test_hs20(wttest.WiredTigerTestCase):
         value2 = 'b' * 50
 
         for i in range(0, 10):
-            # Insert the base overflown values
+            # Insert the base overflow values
             self.session.begin_transaction()
             cursor[str(i)] = value1
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -75,13 +75,13 @@ class test_hs20(wttest.WiredTigerTestCase):
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Update the overflown values
+        # Update the overflow values
         for i in range(0, 10):
             self.session.begin_transaction()
             cursor[str(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
-        # Do a checkpoint to move the overflown values to the history store but keep them still in memory
+        # Do a checkpoint to move the overflow values to the history store but keep them still in memory
         self.session.checkpoint()
 
         # Search the first modifies.

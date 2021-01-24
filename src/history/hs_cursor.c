@@ -383,10 +383,12 @@ __hs_find_upd_int(
             upd_type = (uint8_t)upd_type_full;
 
             /*
-             * Current onpage value may also be in the history store if checkpoint has moved it
-             * here. In this case, we should not use the onpage value as the base value because the
-             * checkpoint reconciliation may have removed the overflown value. However, we should
-             * not look past the onpage value to look for the base value.
+             * The current onpage value in memory may also be in the history store if checkpoint
+             * chooses to write a newer version in its disk image and move the onpage value of the
+             * in memory disk image to the history store. In this case, we should not use the onpage
+             * value as the base value if it is an overflow value because the checkpoint
+             * reconciliation may have removed the underlying overflow cell. However, we should not
+             * look past the onpage value to look for the base value.
              */
             WT_ASSERT(session,
               upd_type == WT_UPDATE_STANDARD || hs_start_ts_tmp < on_disk_tw->start_ts ||
