@@ -381,7 +381,7 @@ average_data(WT_SESSION *session)
      *  if there aren't any matching locations, no average data is obtained and we proceed with the
      *  test instead of aborting. If an unexpected error occurs, exit.
      * */
-    if (ret != 0 && ret == WT_NOTFOUND)
+    if (ret == WT_NOTFOUND)
         return;
     else if (ret != 0)
         exit(1);
@@ -414,8 +414,13 @@ average_data(WT_SESSION *session)
         rec_arr[i] = rec_arr[i] / count;
     }
     /* List the average records */
-    printf("Average records for location RUS : \nTemp: %" PRIu8 ", Humidity: %" PRIu8
-           ", Pressure: %" PRIu16 ", Wind: %" PRIu8 ", Feels like: %" PRIu8 "\n",
+    printf(
+      "Average records for location RUS : \nTemp: %u"
+      ", Humidity: %u"
+      ", Pressure: %u"
+      ", Wind: %u"
+      ", Feels like: %u"
+      "\n",
       rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
 }
 
