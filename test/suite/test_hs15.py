@@ -47,7 +47,7 @@ class test_hs15(wttest.WiredTigerTestCase):
         if self.key_format == 'S':
             return str(i)
         return i
-        
+
     def test_hs15(self):
         uri = 'table:test_hs15'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
