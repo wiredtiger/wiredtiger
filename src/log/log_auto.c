@@ -136,7 +136,7 @@ __wt_logop_col_modify_print(
     escaped = NULL;
     WT_RET(__wt_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -208,7 +208,7 @@ __wt_logop_col_put_print(
     escaped = NULL;
     WT_RET(__wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -276,7 +276,7 @@ __wt_logop_col_remove_print(
 
     WT_RET(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -336,7 +336,7 @@ __wt_logop_col_truncate_print(
 
     WT_RET(__wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -400,7 +400,7 @@ __wt_logop_row_modify_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -477,7 +477,7 @@ __wt_logop_row_put_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -552,7 +552,7 @@ __wt_logop_row_remove_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
@@ -624,7 +624,7 @@ __wt_logop_row_truncate_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode));
 
-    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != 0) {
+    if (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && fileid != WT_METAFILE_ID) {
         WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
         return (0);
     }
