@@ -7,24 +7,22 @@ are stable according to the stable timestamp and recovered checkpoint snapshot.
 
 Rollback to stable process scans each and every table present in the database
 except metadata @ref arch-metadata to remove the modifications from the table
-that are more than stable timestamp.
+that are more than stable timestamp and recovered checkpoint snapshot.
 
-To improve the performance of rollback to stable operation, rollback to stable
-will perform only on particular tables that need rollback. Also while processing
-each table, will skip reading the pages into memory that don't need any rollback.
-
-In the process of removing newer modifications from the table, rts scans the
-history store table to find out a valid stable update to replace the data store
-version. In case if there is no history store version is available, the data
-store version is removed.
+In the process of removing newer modifications from the table, all the in-memory
+updates are aborted and the on-disk version updates are replaced with an update
+from history store if exist. In case if there is no history store version is
+available, the data store version is removed.
 
 Rollback to stable is performed in three phases
 1. WT startup
 2. WT shutdown
 3. Application initiated
 
-Rollback to stable doesn't operate on logged tables as the updates on these are stable
-when the transaction gets committed.
+To improve the performance of rollback to stable operation, rollback to stable
+will perform only on particular tables that need rollback. Rollback to stable
+doesn't operate on logged tables as the updates on these are stable when the
+transaction gets committed.
 
 @section rts-stable-update Stable update of rollback to stable
 
@@ -53,9 +51,9 @@ There are some special conditions where the table is skipped for rollback to sta
 3. Files that don't exist
 4. Files that are corrupted.
 
-Once the table is processed for rolling back unstable updates, if the table has no
-timestamp updates, then the history store table is scanned to remove any historical
-versions related to this table as these older versions no longer required.
+If the table has no timestamp updates, then the history store table is
+scanned to remove any historical versions related to this table as these
+older versions no longer required.
 
 Once all the tables are process for rollback to stable, at the end the history store
 is processed to remove any unstable updates more than the stable timestamp.
@@ -84,25 +82,17 @@ following order.
 @section rts-abort-update How rollback to stable aborts in-memory updates
 
 Traverse through all the updates in the update list and abort them until a stable
-update that have durable timestamp less than or equal to the stable timestamp.
+update is found.
 
 @section rts-abort-on-disk-update How rollback to stable aborts on-disk update
 
-Get the on-disk update if no stable update is found on the update list and validate
-it against stable timestamp and with recovery snapshot (only in recovery mode) to find
-out whether the update is stable or not?
+If the start time pair is not stable try to find a valid update from the history
+store that is stable to replace the on-disk version if exists otherwise remove
+the on-disk key. In case if the stop time pair if exists and if its not stable,
+restore the on-disk update again into the update list.
 
-First compare the on-disk update start time pair is not stable try to find a valid
-update from the history store that is stable to replace the on-disk version if
-exists otherwise remove the on-disk key.
-
-If the on-disk version update start time pair is stable, compare it against stop
-time pair if exists and if its not stable, restore the on-disk update again into
-the update list.
-
-To remove any existing update, rollback to stable creates adds globally visible
-tombstone to the key update list and this key will get removed later during the
-reconciliation.
+To remove any existing update, rollback to stable adds globally visible tombstone to
+the key update list and this key will get removed later during the reconciliation.
 
 Note: As of now, rollback to stable don't work on removing on-disk columnar updates.
 
