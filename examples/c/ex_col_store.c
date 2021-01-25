@@ -359,12 +359,10 @@ void
 average_data(WT_SESSION *session)
 {
     WT_CURSOR *loc_cursor;
-    uint64_t recno;
     unsigned int count;
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
-
     /* num_rec is the total number of records we're obtaining averages for. */
     int ret, num_rec;
     /* rec_arr holds the sum of the records in order to obtain the averages. */
