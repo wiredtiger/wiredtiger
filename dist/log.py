@@ -88,12 +88,12 @@ def n_setup(f):
 
 # Check for an operation that has a file id type. Redact any user data
 # if the redact flag is set, but print operations for file id 0, known
-# to be the metadta.
+# to be the metadata.
 def check_redact(optype):
     for f  in optype.fields:
         if f[0] == 'uint32_id':
             redact_str = '\tif (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && '
-            redact_str += '%s != 0) {\n' % (f[1])
+            redact_str += '%s != WT_METAFILE_ID) {\n' % (f[1])
             redact_str += '\t\tWT_RET(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             redact_str += '\t\treturn (0);\n\t}\n'
             return redact_str
