@@ -279,10 +279,10 @@ generate_data(WEATHER *w_array)
     }
 }
 
-/* 
- * The function returns 0 when a valid min/max temperature can be calculated given the time range. 
- * If no records are found it will return WT_NOTFOUND, otherwise the program will crash if an internal
- * error is encountered. 
+/*
+ * The function returns 0 when a valid min/max temperature can be calculated given the time range.
+ * If no records are found it will return WT_NOTFOUND, otherwise the program will crash if an
+ * internal error is encountered.
  */
 static int
 find_min_and_max_temp(
@@ -515,7 +515,7 @@ main(int argc, char *argv[])
     min_temp_result = 0;
     max_temp_result = 0;
     ret = find_min_and_max_temp(
-          session, starting_time, ending_time, &min_temp_result, &max_temp_result);
+      session, starting_time, ending_time, &min_temp_result, &max_temp_result);
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
     if (ret == 0) {
