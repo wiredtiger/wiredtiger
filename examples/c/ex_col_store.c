@@ -279,7 +279,8 @@ generate_data(WEATHER *w_array)
     }
 }
 
-/* The function returns 0 when a valid min/max temperature can be calculated given the time range. 
+/* 
+ * The function returns 0 when a valid min/max temperature can be calculated given the time range. 
  * If no records are found it will return WT_NOTFOUND, otherwise the program will crash if an internal
  * error is encountered. 
  */
