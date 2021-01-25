@@ -47,8 +47,8 @@ typedef struct {
     uint8_t humidity;
     uint8_t wind;
     uint8_t feels_like_temp;
-    char day[4];
-    char country[4];
+    char day[5];
+    char country[5];
 } WEATHER;
 
 static void update_celsius_to_fahrenheit(WT_SESSION *session);
@@ -205,8 +205,6 @@ generate_data(WEATHER *w_array)
 
     for (int i = 0; i < NUM_ENTRIES; i++) {
         WEATHER w;
-
-        memset(w.day, '\0', sizeof(w.day));
         day = rand() % 7;
         switch (day) {
         case 0:
@@ -250,7 +248,6 @@ generate_data(WEATHER *w_array)
         /* longitude: 0-90 degrees. */
         w.loc_long = rand() % 91;
 
-        memset(w.country, '\0', sizeof(w.country));
         country = rand() % 7;
         switch (country) {
         case 0:
@@ -447,7 +444,7 @@ main(int argc, char *argv[])
     /* Create a table with columns and colgroup. */
     error_check(session->create(session, TABLE_NAME,
       "key_format=r,value_format=" WT_UNCHECKED_STRING(
-        HHHHBBBB5s5s) ",columns=(id,hour,pressure,loc_lat,"
+        HHHHBBBB5S5S) ",columns=(id,hour,pressure,loc_lat,"
                       "loc_long,temp,humidity,"
                       "wind,feels_like_temp,day,country),colgroups=(day_time,temperature,"
                       "humidity_pressure,"
