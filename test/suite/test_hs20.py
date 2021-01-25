@@ -29,7 +29,7 @@
 import time, wiredtiger, wttest
 
 # test_hs20.py
-# Ensure we never reconsturct a reverse modify update in the history store based on the onpage overflow value
+# Ensure we never reconstruct a reverse modify update in the history store based on the onpage overflow value
 def timestamp_str(t):
     return '%x' % t
 
