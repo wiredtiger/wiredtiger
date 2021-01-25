@@ -113,8 +113,8 @@ class test_checkpoint08(wttest.WiredTigerTestCase):
         self.assertEqual(hsval, 0)
 
         stat_cursor = self.session.open_cursor('statistics:file:WiredTigerHS.wt', None, None)
-        not_skip_obsolete_page = stat_cursor[stat.dsrc.txn_checkpoint_not_skipped_due_to_obsolete_pages][2]
-        self.assertEqual(not_skip_obsolete_page, 1)
+        obsolete_applied = stat_cursor[stat.dsrc.txn_checkpoint_obsolete_applied][2]
+        self.assertEqual(obsolete_applied, 1)
         stat_cursor.close()
 
         c1.close()
