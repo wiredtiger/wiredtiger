@@ -47,7 +47,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
     def test_tiered(self):
         args = 'key_format=S,block_allocation=log-structured'
         self.verbose(3,
-            'Test BLS with config: ' + args + ' count: ' + str(self.nrecs))
+            'Test log-structured allocation with config: ' + args + ' count: ' + str(self.nrecs))
         #ds = SimpleDataSet(self, self.uri, self.nrecs, config=args)
         ds = SimpleDataSet(self, self.uri, 10, config=args)
         ds.populate()

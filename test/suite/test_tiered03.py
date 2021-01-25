@@ -48,7 +48,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
     def test_sharing(self):
         args = 'block_allocation=log-structured'
         self.verbose(3,
-            'Test BLS with config: ' + args + ' count: ' + str(self.nrecs))
+            'Test log-structured allocation with config: ' + args + ' count: ' + str(self.nrecs))
         ds = SimpleDataSet(self, self.uri, 10, config=args)
         ds.populate()
         ds.check()
