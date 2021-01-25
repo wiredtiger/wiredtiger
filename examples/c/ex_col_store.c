@@ -205,29 +205,30 @@ generate_data(WEATHER *w_array)
 
     for (int i = 0; i < NUM_ENTRIES; i++) {
         WEATHER w;
-        day = rand() % 7;
 
+        memset(w.day, '\0', sizeof(w.day));
+        day = rand() % 7;
         switch (day) {
         case 0:
-            strcpy(w.day, "MON");
+            strncpy(w.day, "MON", 3);
             break;
         case 1:
-            strcpy(w.day, "TUE");
+            strncpy(w.day, "TUE", 3);
             break;
         case 2:
-            strcpy(w.day, "WED");
+            strncpy(w.day, "WED", 3);
             break;
         case 3:
-            strcpy(w.day, "THU");
+            strncpy(w.day, "THU", 3);
             break;
         case 4:
-            strcpy(w.day, "FRI");
+            strncpy(w.day, "FRI", 3);
             break;
         case 5:
-            strcpy(w.day, "SAT");
+            strncpy(w.day, "SAT", 3);
             break;
         case 6:
-            strcpy(w.day, "SUN");
+            strncpy(w.day, "SUN", 3);
             break;
         default:
             assert(false);
@@ -249,28 +250,29 @@ generate_data(WEATHER *w_array)
         /* longitude: 0-90 degrees. */
         w.loc_long = rand() % 91;
 
+        memset(w.country, '\0', sizeof(w.country));
         country = rand() % 7;
         switch (country) {
         case 0:
-            strcpy(w.country, "AUS");
+            strncpy(w.country, "AUS", 3);
             break;
         case 1:
-            strcpy(w.country, "GBR");
+            strncpy(w.country, "GBR", 3);
             break;
         case 2:
-            strcpy(w.country, "USA");
+            strncpy(w.country, "USA", 3);
             break;
         case 3:
-            strcpy(w.country, "NZD");
+            strncpy(w.country, "NZD", 3);
             break;
         case 4:
-            strcpy(w.country, "IND");
+            strncpy(w.country, "IND", 3);
             break;
         case 5:
-            strcpy(w.country, "CHI");
+            strncpy(w.country, "CHI", 3);
             break;
         case 6:
-            strcpy(w.country, "RUS");
+            strncpy(w.country, "RUS", 3);
             break;
         default:
             assert(false);
