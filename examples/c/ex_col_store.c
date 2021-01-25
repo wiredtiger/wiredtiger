@@ -279,6 +279,10 @@ generate_data(WEATHER *w_array)
     }
 }
 
+/* The function returns 0 when a valid min/max temperature can be calculated given the time range. 
+ * If no records are found it will return WT_NOTFOUND, otherwise the program will crash if an internal
+ * error is encountered. 
+ */
 static int
 find_min_and_max_temp(
   WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *min_temp, int *max_temp)
@@ -304,29 +308,35 @@ find_min_and_max_temp(
     start_time_cursor->set_key(start_time_cursor, start_time);
     error_check(start_time_cursor->search_near(start_time_cursor, &exact));
     ret = 0;
-    if (exact == -1)
+    if (exact == -1) {
         ret = start_time_cursor->next(start_time_cursor);
+        if (ret == WT_NOTFOUND)
+            return ret;
+        else
+            error_check(ret);
+    }
 
-    if (ret == 0)
-        error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge"));
-    else
-        return ret;
+    error_check(session->join(session, join_cursor, start_time_cursor, "compare=ge"));
 
     /* Find the ending record closest to desired end time. */
     end_time_cursor->set_key(end_time_cursor, end_time);
     error_check(end_time_cursor->search_near(end_time_cursor, &exact));
-    if (exact == 1)
+    if (exact == 1) {
         ret = end_time_cursor->prev(end_time_cursor);
+        if (ret == WT_NOTFOUND)
+            return ret;
+        else
+            error_check(ret);
+    }
 
-    if (ret == 0)
-        error_check(session->join(session, join_cursor, end_time_cursor, "compare=le"));
-    else
-        return ret;
+    error_check(session->join(session, join_cursor, end_time_cursor, "compare=le"));
 
     /* Initialize minimum temperature and maximum temperature to temperature of the first record. */
     ret = join_cursor->next(join_cursor);
-    if (ret != 0)
+    if (ret == WT_NOTFOUND)
         return ret;
+    else
+        error_check(ret);
 
     error_check(join_cursor->get_key(join_cursor, &recno));
     error_check(join_cursor->get_value(join_cursor, &hour, &temp));
@@ -430,7 +440,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     WT_CURSOR *cursor;
     WEATHER weather_data[NUM_ENTRIES];
-    int max_temp_result, min_temp_result;
+    int max_temp_result, min_temp_result, ret;
     uint16_t ending_time, starting_time;
 
     home = example_setup(argc, argv);
@@ -498,10 +508,11 @@ main(int argc, char *argv[])
     ending_time = 2000;
     min_temp_result = 0;
     max_temp_result = 0;
+    ret = find_min_and_max_temp(
+          session, starting_time, ending_time, &min_temp_result, &max_temp_result);
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
-    if (find_min_and_max_temp(
-          session, starting_time, ending_time, &min_temp_result, &max_temp_result) == 0) {
+    if (ret == 0) {
         printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, min_temp_result);
         printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
