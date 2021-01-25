@@ -1415,15 +1415,17 @@ __checkpoint_lock_dirty_tree(
             if (now > btree->clean_ckpt_timer)
                 skip_ckpt = false;
         }
-        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_HAS_STOP_TS)) {
+
+        /* Skip the clean btree until the btree has obsolete pages. */
+        if (skip_ckpt && !F_ISSET(btree, WT_BTREE_OBSOLETE_PAGES)) {
             F_SET(btree, WT_BTREE_SKIP_CKPT);
             goto skip;
         }
     }
 
-    /* If we have to process this btree for any reason, reset the timer and stop timestamp flag. */
+    /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
-    F_CLR(btree, WT_BTREE_HAS_STOP_TS);
+    F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
     /* Get the list of checkpoints for this file. */
     WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase));
@@ -1487,6 +1489,32 @@ skip:
 }
 
 /*
+ * __checkpoint_apply_obsolete --
+ *     Returns true if the checkpoint is obsolete.
+ */
+static bool
+__checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *ckpt)
+{
+    if (ckpt->size != 0) {
+        /*
+         * Mark the btree has obsolete page if the checkpoint has valid stop timestamp. This flag is
+         * used to avoid skipping the btree until the obsolete check is performed on the
+         * checkpoints.
+         */
+        if (ckpt->ta.newest_stop_ts != WT_TS_MAX)
+            F_SET(btree, WT_BTREE_OBSOLETE_PAGES);
+        if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn,
+              (ckpt->ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
+                                                      ckpt->ta.newest_stop_durable_ts))) {
+            WT_STAT_CONN_DATA_INCR(session, txn_checkpoint_obsolete_applied);
+            return (true);
+        }
+    }
+
+    return (false);
+}
+
+/*
  * __checkpoint_mark_skip --
  *     Figure out whether the checkpoint can be skipped for a tree.
  */
@@ -1529,17 +1557,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
              * Don't skip the objects that have obsolete pages to let them to be removed as part of
              * checkpoint cleanup.
              */
-            if (ckpt->size != 0) {
-                if (ckpt->ta.newest_stop_ts != WT_TS_MAX)
-                    F_SET(btree, WT_BTREE_HAS_STOP_TS);
-                if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn,
-                      (ckpt->ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
-                                                              ckpt->ta.newest_stop_durable_ts))) {
-                    WT_STAT_CONN_DATA_INCR(
-                      session, txn_checkpoint_not_skipped_due_to_obsolete_pages);
-                    return (0);
-                }
-            }
+            if (__checkpoint_apply_obsolete(session, btree, ckpt))
+                return (0);
 
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 ++deleted;

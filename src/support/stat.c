@@ -212,7 +212,7 @@ static const char *const __stats_dsrc_desc[] = {
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable sweeping history store keys",
   "transaction: rollback to stable updates removed from history store",
-  "transaction: transaction checkpoints not skipped due to obsolete pages",
+  "transaction: transaction checkpoints due to obsolete pages",
   "transaction: update conflicts",
 };
 
@@ -459,7 +459,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_sweep_hs_keys = 0;
     stats->txn_rts_hs_removed = 0;
-    stats->txn_checkpoint_not_skipped_due_to_obsolete_pages = 0;
+    stats->txn_checkpoint_obsolete_applied = 0;
     stats->txn_update_conflict = 0;
 }
 
@@ -693,8 +693,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
     to->txn_rts_sweep_hs_keys += from->txn_rts_sweep_hs_keys;
     to->txn_rts_hs_removed += from->txn_rts_hs_removed;
-    to->txn_checkpoint_not_skipped_due_to_obsolete_pages +=
-      from->txn_checkpoint_not_skipped_due_to_obsolete_pages;
+    to->txn_checkpoint_obsolete_applied += from->txn_checkpoint_obsolete_applied;
     to->txn_update_conflict += from->txn_update_conflict;
 }
 
@@ -934,8 +933,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_sweep_hs_keys += WT_STAT_READ(from, txn_rts_sweep_hs_keys);
     to->txn_rts_hs_removed += WT_STAT_READ(from, txn_rts_hs_removed);
-    to->txn_checkpoint_not_skipped_due_to_obsolete_pages +=
-      WT_STAT_READ(from, txn_checkpoint_not_skipped_due_to_obsolete_pages);
+    to->txn_checkpoint_obsolete_applied += WT_STAT_READ(from, txn_checkpoint_obsolete_applied);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 
@@ -1424,7 +1422,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: rollback to stable restored tombstones from history store",
   "transaction: rollback to stable sweeping history store keys",
   "transaction: rollback to stable updates removed from history store",
-  "transaction: transaction checkpoints not skipped due to obsolete pages",
+  "transaction: transaction checkpoints due to obsolete pages",
   "transaction: update conflicts",
 };
 
@@ -1938,7 +1936,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_rts_hs_restore_tombstones = 0;
     stats->txn_rts_sweep_hs_keys = 0;
     stats->txn_rts_hs_removed = 0;
-    stats->txn_checkpoint_not_skipped_due_to_obsolete_pages = 0;
+    stats->txn_checkpoint_obsolete_applied = 0;
     stats->txn_update_conflict = 0;
 }
 
@@ -2463,8 +2461,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
     to->txn_rts_sweep_hs_keys += WT_STAT_READ(from, txn_rts_sweep_hs_keys);
     to->txn_rts_hs_removed += WT_STAT_READ(from, txn_rts_hs_removed);
-    to->txn_checkpoint_not_skipped_due_to_obsolete_pages +=
-      WT_STAT_READ(from, txn_checkpoint_not_skipped_due_to_obsolete_pages);
+    to->txn_checkpoint_obsolete_applied += WT_STAT_READ(from, txn_checkpoint_obsolete_applied);
     to->txn_update_conflict += WT_STAT_READ(from, txn_update_conflict);
 }
 
