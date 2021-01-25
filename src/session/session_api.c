@@ -57,6 +57,9 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
     WT_DECL_RET;
+#ifdef HAVE_DIAGNOSTIC
+    WT_DATA_HANDLE *saved_dhandle;
+#endif
     uint64_t now;
     uint32_t position;
     int i, t_ret, nbuckets, nexamined, nclosed;
@@ -76,6 +79,9 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     position = session->cursor_sweep_position;
     productive = true;
     nbuckets = nexamined = nclosed = 0;
+#ifdef HAVE_DIAGNOSTIC
+    saved_dhandle = session->dhandle;
+#endif
 
     /* Turn off caching so that cursor close doesn't try to cache. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
@@ -113,6 +119,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
     WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
 
+    WT_ASSERT(session, session->dhandle == saved_dhandle);
     return (ret);
 }
 
@@ -445,6 +452,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     case 't':
         if (WT_PREFIX_MATCH(uri, "table:"))
             WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
+        if (WT_PREFIX_MATCH(uri, "tiered:"))
+            WT_RET(__wt_curtiered_open(session, uri, owner, cfg, cursorp));
         break;
     case 'c':
         if (WT_PREFIX_MATCH(uri, "colgroup:")) {
@@ -583,7 +592,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
             if (!WT_PREFIX_MATCH(uri, "backup:") && !WT_PREFIX_MATCH(uri, "colgroup:") &&
               !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "file:") &&
               !WT_PREFIX_MATCH(uri, "lsm:") && !WT_PREFIX_MATCH(uri, WT_METADATA_URI) &&
-              !WT_PREFIX_MATCH(uri, "table:") && __wt_schema_get_source(session, uri) == NULL)
+              !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:") &&
+              __wt_schema_get_source(session, uri) == NULL)
                 WT_ERR(__wt_bad_object_type(session, uri));
         }
     }
