@@ -87,8 +87,8 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
             '"lsn" : [1,128],')
         self.check_file_not_contains('printlog-range02.out',
             '"lsn" : [3,256],')
-        # Test for invalid lsn, return WT_NOTFOUND
-        self.runWt(['printlog', '-l 2,100'], outfilename='printlog-range03.out', errfilename='printlog-range03.err', failure=True)
+        # Test for invalid LSN, return WT_NOTFOUND
+        self.runWt(['printlog', '-l 2,300'], outfilename='printlog-range03.out', errfilename='printlog-range03.err', failure=True)
         self.check_file_contains('printlog-range03.err','WT_NOTFOUND')
         # Test for Start > end, print the start lsn and then stop
         self.runWt(['printlog', '-l 3,128,2,128'], outfilename='printlog-range04.out')
@@ -105,6 +105,14 @@ class test_txn08(wttest.WiredTigerTestCase, suite_subprocess):
             '"lsn" : [1,128],')
         self.check_file_not_contains('printlog-range06.out',
             '"lsn" : [3,256],')
+        # Test for start == end
+        self.runWt(['printlog', '-l 1,256,1,256'], outfilename='printlog-range07.out')
+        self.check_file_contains('printlog-range07.out',
+            '"lsn" : [1,256],')
+        self.check_file_not_contains('printlog-range07.out',
+            '"lsn" : [1,128],')
+        self.check_file_not_contains('printlog-range07.out',
+            '"lsn" : [1,384],')
 
 if __name__ == '__main__':
     wttest.run()

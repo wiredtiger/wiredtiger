@@ -2392,7 +2392,7 @@ advance:
         /*
          * Exit the scanning loop if the next LSN seen is greater than our user set end range LSN.
          */
-        if (end_lsnp != NULL && __wt_log_cmp(&next_lsn, end_lsnp) == 1)
+        if (end_lsnp != NULL && __wt_log_cmp(&next_lsn, end_lsnp) > 0)
             break;
 
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
