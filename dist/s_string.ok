@@ -407,6 +407,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UPD
 URI
 URIs
 UTF
@@ -644,6 +645,7 @@ cursoring
 cursorp
 curstat
 curtable
+curtiered
 cust
 customp
 cv
@@ -953,6 +955,7 @@ libs
 libtool
 libwiredtiger
 linkers
+liveness
 llll
 llu
 llvm
