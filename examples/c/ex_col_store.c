@@ -369,12 +369,10 @@ void
 average_data(WT_SESSION *session)
 {
     WT_CURSOR *loc_cursor;
-    uint64_t recno;
     unsigned int count;
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
-
     /* num_rec is the total number of records we're obtaining averages for. */
     int ret, num_rec;
     /* rec_arr holds the sum of the records in order to obtain the averages. */
@@ -382,33 +380,40 @@ average_data(WT_SESSION *session)
 
     /* Open a cursor to search for the location, currently RUS. */
     error_check(session->open_cursor(session, "index:weather:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, "RUS\0\0");
+    loc_cursor->set_key(loc_cursor, "RUS");
     ret = loc_cursor->search(loc_cursor);
 
     /*
      *  Error handling in the case RUS is not found. In this case as it's a hardcoded location,
      *  if there aren't any matching locations, no average data is obtained and we proceed with the
      *  test instead of aborting. If an unexpected error occurs, exit.
-     * */
+     */
     if (ret == WT_NOTFOUND)
         return;
     else if (ret != 0)
-        exit(1);
+        exit(EXIT_FAILURE);
 
     /* Populate the array with the totals of each of the columns. */
     count = 0;
-    while ((ret = loc_cursor->next(loc_cursor)) == 0) {
-        count++;
-        error_check(loc_cursor->get_key(loc_cursor, &recno));
+    while (ret == 0) {
+
         error_check(loc_cursor->get_value(loc_cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
           &humidity, &wind, &feels_like_temp, &day, &country));
 
+        if (strcmp(country, "RUS") != 0) {
+            ret = loc_cursor->next(loc_cursor);
+            continue;
+        }
+
+        count++;
         /* Increment the values of the rec_arr with the temp_arr values. */
         rec_arr[0] += temp;
         rec_arr[1] += humidity;
         rec_arr[2] += pressure;
         rec_arr[3] += wind;
         rec_arr[4] += feels_like_temp;
+
+        ret = loc_cursor->next(loc_cursor);
     }
 
     scan_end_check(ret == WT_NOTFOUND);
