@@ -210,25 +210,25 @@ generate_data(WEATHER *w_array)
         day = rand() % 7;
         switch (day) {
         case 0:
-            strncpy(w.day, "MON", 3);
+            strcpy(w.day, "MON");
             break;
         case 1:
-            strncpy(w.day, "TUE", 3);
+            strcpy(w.day, "TUE");
             break;
         case 2:
-            strncpy(w.day, "WED", 3);
+            strcpy(w.day, "WED");
             break;
         case 3:
-            strncpy(w.day, "THU", 3);
+            strcpy(w.day, "THU");
             break;
         case 4:
-            strncpy(w.day, "FRI", 3);
+            strcpy(w.day, "FRI");
             break;
         case 5:
-            strncpy(w.day, "SAT", 3);
+            strcpy(w.day, "SAT");
             break;
         case 6:
-            strncpy(w.day, "SUN", 3);
+            strcpy(w.day, "SUN");
             break;
         default:
             assert(false);
@@ -254,25 +254,25 @@ generate_data(WEATHER *w_array)
         country = rand() % 7;
         switch (country) {
         case 0:
-            strncpy(w.country, "AUS", 3);
+            strcpy(w.country, "AUS");
             break;
         case 1:
-            strncpy(w.country, "GBR", 3);
+            strcpy(w.country, "GBR");
             break;
         case 2:
-            strncpy(w.country, "USA", 3);
+            strcpy(w.country, "USA");
             break;
         case 3:
-            strncpy(w.country, "NZD", 3);
+            strcpy(w.country, "NZD");
             break;
         case 4:
-            strncpy(w.country, "IND", 3);
+            strcpy(w.country, "IND");
             break;
         case 5:
-            strncpy(w.country, "CHI", 3);
+            strcpy(w.country, "CHI");
             break;
         case 6:
-            strncpy(w.country, "RUS", 3);
+            strcpy(w.country, "RUS");
             break;
         default:
             assert(false);
