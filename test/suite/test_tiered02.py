@@ -29,13 +29,13 @@
 import wiredtiger, wtscenario, wttest
 from wtdataset import SimpleDataSet
 
-# test_bls01.py
+# test_tiered02.py
 #    Test block-log-structured tree configuration options.
-class test_bls01(wttest.WiredTigerTestCase):
+class test_tiered02(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    uri = "file:test_bls01"
+    uri = "file:test_tiered02"
 
     # Occasionally add a lot of records, so that merges (and bloom) happen.
     record_count_scenarios = wtscenario.quick_scenarios(
@@ -44,7 +44,7 @@ class test_bls01(wttest.WiredTigerTestCase):
     scenarios = wtscenario.make_scenarios(record_count_scenarios, prune=100, prunelong=500)
 
     # Test drop of an object.
-    def test_bls(self):
+    def test_tiered(self):
         args = 'key_format=S,block_allocation=log-structured'
         self.verbose(3,
             'Test BLS with config: ' + args + ' count: ' + str(self.nrecs))

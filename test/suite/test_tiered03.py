@@ -30,13 +30,13 @@ import os, re
 import wiredtiger, wtscenario, wttest
 from wtdataset import SimpleDataSet
 
-# test_bls02.py
+# test_tiered03.py
 #    Test block-log-structured tree configuration options.
-class test_bls02(wttest.WiredTigerTestCase):
+class test_tiered03(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    uri = 'file:test_bls02'
+    uri = 'file:test_tiered03'
 
     # Occasionally add a lot of records, so that merges (and bloom) happen.
     record_count_scenarios = wtscenario.quick_scenarios(
