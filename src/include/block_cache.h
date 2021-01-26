@@ -73,15 +73,15 @@ struct __wt_blkcache {
     /*
      * Various metrics helping us measure the overhead and
      * decide if to bypass the cache.
-     * We access them without synchronization despite races.
+     * We access some of them without synchronization despite races.
      * These serve as heuristics, and we don't need precise values
      * for them to be useful. If, because of races, we lose updates
      * of these values, assuming that we lose them at the same
      * rate for all variables, the ratio should remain roughly
      * accurate. We care about the ratio.
      */
-    size_t lookup_attempts;
-    size_t insert_attempts;
+    size_t lookups;
+    size_t inserts;
     size_t removals;
 
 #ifdef HAVE_LIBMEMKIND

@@ -47,16 +47,17 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     blkcache = &conn->blkcache;
 
     if (counter++ % 1000000 == 0)
-	printf("ins_attempts=%ld, rmvals=%ld, lkp_attempts=%ld, "
-	       "ratio = %f, thrshold = %f\n", blkcache->insert_attempts,
-	       blkcache->removals, blkcache->lookup_attempts,
-	       (double)(blkcache->insert_attempts + blkcache->removals)/
-	       (double)(blkcache->lookup_attempts),
+	printf("inserts=%ld, removals=%ld, lookups=%ld, "
+	       "ratio = %f, thrshold = %f\n", blkcache->inserts,
+	       blkcache->removals, blkcache->lookups,
+	       (double)(blkcache->inserts + blkcache->removals)/
+	       (double)(blkcache->lookups),
 	       BLKCACHE_OVERHEAD_THRESHOLD);
 
-    if ((double)(blkcache->insert_attempts + blkcache->removals)/
-	(double)(blkcache->lookup_attempts) > BLKCACHE_OVERHEAD_THRESHOLD)
+    if ((double)(blkcache->inserts + blkcache->removals)/
+	(double)(blkcache->lookups) > BLKCACHE_OVERHEAD_THRESHOLD)
 	return true;
+
     return false;
 }
 
@@ -154,7 +155,7 @@ __wt_blkcache_get_or_check(
         return -1;
 
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
-    blkcache->lookup_attempts++;
+    blkcache->lookups++;
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -165,16 +166,6 @@ __wt_blkcache_get_or_check(
 	return WT_BLKCACHE_BYPASS;
     }
 
-    /*
-     * If we are by-passing the cache due to high overhead, then we are
-     * not populating it. In that case, it makes little sense to look
-     * things up in it.
-     *
-    if (__blkcache_high_overhead(session) == true) {
-	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_get);
-	return WT_BLKCACHE_BYPASS;
-    }
-    */
     id.checksum = (uint64_t)checksum;
     id.offset = (uint64_t)offset;
     id.size = (uint64_t)size;
@@ -269,7 +260,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 	return WT_BLKCACHE_BYPASS;
     }
 
-    blkcache->insert_attempts++;
     /* Bypass on high overhead */
     if (__blkcache_high_overhead(session) == true) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
@@ -310,6 +300,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 
     blkcache->num_data_blocks++;
     blkcache->bytes_used += size;
+    blkcache->inserts++;
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 
@@ -343,11 +334,11 @@ item_exists:
 	WT_STAT_CONN_INCRV(session, block_cache_bytes_update, size);
 	WT_STAT_CONN_INCR(session, block_cache_blocks_update);
     }
+
     __wt_verbose(session, WT_VERB_BLKCACHE, "block exists during put: "
 		 "offset=%" PRIuMAX ", size=%" PRIu32 ", "
 		 "checksum=%" PRIu32 ", hash=%" PRIu64,
 		 (uintmax_t)offset, (uint32_t)size, checksum, hash);
-
 err:
     __blkcache_free(session, data_ptr);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
