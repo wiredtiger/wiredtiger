@@ -39,11 +39,20 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
 {
+    static uint64_t counter = 0;
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE *blkcache;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+
+    if (counter++ % 1000000 == 0)
+	printf("ins_attempts=%ld, rmvals=%ld, lkp_attempts=%ld, "
+	       "ratio = %f, thrshold = %f\n", blkcache->insert_attempts,
+	       blkcache->removals, blkcache->lookup_attempts,
+	       (double)(blkcache->insert_attempts + blkcache->removals)/
+	       (double)(blkcache->lookup_attempts),
+	       BLKCACHE_OVERHEAD_THRESHOLD);
 
     if ((double)(blkcache->insert_attempts + blkcache->removals)/
 	(double)(blkcache->lookup_attempts) > BLKCACHE_OVERHEAD_THRESHOLD)
@@ -145,6 +154,7 @@ __wt_blkcache_get_or_check(
         return -1;
 
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
+    blkcache->lookup_attempts++;
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -155,18 +165,16 @@ __wt_blkcache_get_or_check(
 	return WT_BLKCACHE_BYPASS;
     }
 
-    blkcache->lookup_attempts++;
-
     /*
      * If we are by-passing the cache due to high overhead, then we are
      * not populating it. In that case, it makes little sense to look
      * things up in it.
-     */
+     *
     if (__blkcache_high_overhead(session) == true) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_get);
 	return WT_BLKCACHE_BYPASS;
     }
-
+    */
     id.checksum = (uint64_t)checksum;
     id.offset = (uint64_t)offset;
     id.size = (uint64_t)size;
@@ -242,8 +250,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return -1;
 
-    blkcache->insert_attempts++;
-
     /* Bypass on write if the no-write-allocate setting is on */
     if (write && blkcache->write_allocate == false) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
@@ -263,6 +269,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 	return WT_BLKCACHE_BYPASS;
     }
 
+    blkcache->insert_attempts++;
     /* Bypass on high overhead */
     if (__blkcache_high_overhead(session) == true) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
@@ -567,8 +574,12 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.write_allocate", &cval));
-    if (cval.val == 0)
+    if (cval.val == 0)  {
 	write_allocate = false;
+	printf("Setting write_allocate to false\n");
+    }
+    else
+	printf("Setting write_allocate to true\n");
 
     return __blkcache_init(session, cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram,
