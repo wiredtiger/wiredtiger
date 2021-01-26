@@ -90,7 +90,7 @@ list_init_block(WT_SESSION *session, const char *key, WT_BLOCK *block)
         WT_ERR(util_err(session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
     /*
      * The config variable should be set and not NULL, but Coverity is convinced otherwise. This is
-     * an infrequent, non-performant code path. Just add this extra conditional to make it happy.
+     * an infrequent code path. Just add this extra conditional to make it happy.
      */
     if (config == NULL)
         goto err;
