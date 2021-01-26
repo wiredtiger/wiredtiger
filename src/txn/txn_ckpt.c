@@ -1495,17 +1495,20 @@ skip:
 static bool
 __checkpoint_apply_obsolete(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CKPT *ckpt)
 {
+    wt_timestamp_t stop_ts;
+
+    stop_ts = WT_TS_MAX;
     if (ckpt->size != 0) {
         /*
-         * Mark the btree has obsolete page if the checkpoint has valid stop timestamp. This flag is
-         * used to avoid skipping the btree until the obsolete check is performed on the
-         * checkpoints.
+         * If the checkpoint has a valid stop timestamp, mark the btree as having obsolete pages.
+         * This flag is used to avoid skipping the btree until the obsolete check is performed on
+         * the checkpoints.
          */
-        if (ckpt->ta.newest_stop_ts != WT_TS_MAX)
+        if (ckpt->ta.newest_stop_ts != WT_TS_MAX) {
             F_SET(btree, WT_BTREE_OBSOLETE_PAGES);
-        if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn,
-              (ckpt->ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX :
-                                                      ckpt->ta.newest_stop_durable_ts))) {
+            stop_ts = ckpt->ta.newest_stop_durable_ts;
+        }
+        if (__wt_txn_visible_all(session, ckpt->ta.newest_stop_txn, stop_ts)) {
             WT_STAT_CONN_DATA_INCR(session, txn_checkpoint_obsolete_applied);
             return (true);
         }
