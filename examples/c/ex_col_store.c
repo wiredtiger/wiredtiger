@@ -346,7 +346,6 @@ find_min_and_max_temp(
 
     /* Iterating through found records between start and end time to find the min & max temps. */
     while ((ret = join_cursor->next(join_cursor)) == 0) {
-        error_check(join_cursor->get_key(join_cursor, &recno));
         error_check(join_cursor->get_value(join_cursor, &hour, &temp));
 
         if (temp < *min_temp)
@@ -362,7 +361,14 @@ find_min_and_max_temp(
          */
     }
 
-    return (EXIT_SUCCESS);
+    /* 
+     * If WT_NOTFOUND is hit at this point, it is because we have traversed through all temperature records,
+     * hence we return 0 to the calling function to signal success. Otherwise an internal error was hit. 
+     */
+    if (ret != WT_NOTFOUND)
+        error_check(ret);
+
+    return (0);
 }
 
 /* Obtains the average data across all fields given a specific location. */
