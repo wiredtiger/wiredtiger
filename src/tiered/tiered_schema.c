@@ -36,6 +36,7 @@ __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive, co
     }
 
 err:
+    __wt_free(session, meta_value);
     __wt_free(session, metadata);
     return (ret);
 }
@@ -204,7 +205,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_config_next(&cparser, &ckey, &cval));
         WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)ckey.len, ckey.str));
         WT_ERR(__wt_session_get_dhandle(session, (const char *)buf->data, NULL, cfg, 0));
-        __wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+        (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
         /* Load in reverse order (based on LSM logic). */
         tiered->tiers[(tiered->ntiers - 1) - i] = session->dhandle;
         WT_ERR(__wt_session_release_dhandle(session));
@@ -247,7 +248,7 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_free(session, tiered->value_format);
     if (tiered->tiers != NULL) {
         for (i = 0; i < tiered->ntiers; i++)
-            __wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
+            (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
         __wt_free(session, tiered->tiers);
     }
 
