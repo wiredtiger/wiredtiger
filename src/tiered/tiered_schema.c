@@ -36,6 +36,7 @@ __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive, co
     }
 
 err:
+    __wt_free(session, meta_value);
     __wt_free(session, metadata);
     return (ret);
 }
