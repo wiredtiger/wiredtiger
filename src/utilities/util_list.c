@@ -88,7 +88,8 @@ list_init_block(WT_SESSION *session, const char *key, WT_BLOCK *block)
     wt_api = session->connection->get_extension_api(session->connection);
     if ((ret = wt_api->metadata_search(wt_api, session, key, &config)) != 0)
         WT_ERR(util_err(session, ret, "%s: WT_EXTENSION_API.metadata_search", key));
-    if ((ret = wt_api->config_parser_open(wt_api, session, config, strlen(config), &parser)) != 0)
+    if (config != NULL &&
+      (ret = wt_api->config_parser_open(wt_api, session, config, strlen(config), &parser)) != 0)
         WT_ERR(util_err(session, ret, "WT_EXTENSION_API.config_parser_open"));
     if ((ret = parser->get(parser, "allocation_size", &cval)) == 0)
         block->allocsize = (uint32_t)cval.val;
