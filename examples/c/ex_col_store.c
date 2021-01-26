@@ -361,9 +361,10 @@ find_min_and_max_temp(
          */
     }
 
-    /* 
-     * If WT_NOTFOUND is hit at this point, it is because we have traversed through all temperature records,
-     * hence we return 0 to the calling function to signal success. Otherwise an internal error was hit. 
+    /*
+     * If WT_NOTFOUND is hit at this point, it is because we have traversed through all temperature
+     * records, hence we return 0 to the calling function to signal success. Otherwise an internal
+     * error was hit.
      */
     if (ret != WT_NOTFOUND)
         error_check(ret);
