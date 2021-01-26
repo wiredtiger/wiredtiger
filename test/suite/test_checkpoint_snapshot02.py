@@ -83,7 +83,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.uri)
         self.large_updates(self.uri, valuea, ds, self.nrows)
-        #self.session.checkpoint()
 
         self.check(valuea, self.uri, self.nrows)
 
@@ -93,7 +92,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
-            self.pr("start checkpoint thread")
             ckpt.start()
 
             # Check for the value to wait for checkpoint to start.
