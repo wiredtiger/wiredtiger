@@ -303,13 +303,13 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
+        type = (uint8_t)type_full;
 
         /*
          * Do not include history store updates greater than on-disk data store version to construct
          * a full update to restore.
          */
         if (hs_start_ts < unpack->tw.start_ts) {
-            type = (uint8_t)type_full;
             if (type == WT_UPDATE_MODIFY)
                 WT_ERR(__wt_modify_apply_item(
                   session, S2BT(session)->value_format, &full_value, hs_value->data));
