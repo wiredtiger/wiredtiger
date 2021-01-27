@@ -54,7 +54,7 @@ class test_backup11(backup_base):
         # Add data while the backup cursor is open.
         self.add_data(self.uri, 'key', 'value', True)
 
-        # Now copy the files returned by the backup cursor.
+        # Now make a full backup and track the log files.
         all_files = self.take_full_backup(self.dir, bkup_c)
         orig_logs = [file for file in all_files if "WiredTigerLog" in file]
 

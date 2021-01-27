@@ -37,7 +37,7 @@ import glob
 # Test cursor backup with a block-based incremental cursor source id only.
 class test_backup19(backup_base):
     bkp_home = "WT_BLOCK"
-    counter=0
+    bkup_id=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     logmax="100K"
     mult=0
@@ -87,7 +87,7 @@ class test_backup19(backup_base):
         self.mult += 1
         # Increase the counter so that later backups have unique ids.
         if self.initial_backup == False:
-            self.counter += 1
+            self.bkup_id += 1
 
     def test_backup19(self):
         os.mkdir(self.bkp_home)
@@ -107,8 +107,8 @@ class test_backup19(backup_base):
         self.add_complex_data(self.uri)
         self.session.checkpoint()
 
-        self.take_full_backup(self.home_full + '.' + str(self.counter))
-        self.take_incr_backup(self.home_incr, self.counter)
-        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
+        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_incr_backup(self.home_incr)
+        self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
 if __name__ == '__main__':
     wttest.run()

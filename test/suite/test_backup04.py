@@ -93,7 +93,7 @@ class test_backup_target(backup_base):
         self.populate_with_string(self.uri, self.dsize, self.nops)
 
         # We need to start the directory for the incremental backup with
-        # a full backup.  The full backup function creates the directory.
+        # a full backup.
         dir = self.dir
         os.mkdir(dir)
         self.take_full_backup(dir)

@@ -87,26 +87,25 @@ class test_backup13(backup_base):
     def test_backup13(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.add_data_and_check()
-        # Open up the backup cursor. This causes a new log file to be created.
-        # That log file is not part of the list returned. This is a full backup
-        # primary cursor with incremental configured.
+
         os.mkdir(self.dir)
 
         # Add more data while the backup cursor is open.
         self.add_data_and_check()
 
-        # Now copy the files returned by the backup cursor.
-        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
-        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
-        # If that changes then this, and the use of the duplicate below can change.
+        # Open up the backup cursor. This causes a new log file to be created.
+        # That log file is not part of the list returned. This is a full backup
+        # primary cursor with incremental configured.
         config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
+
+        # Now make a full backup and track the files.
         all_files = self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
         # Add more data.
         self.add_data_and_check()
 
-        # Now do an incremental backup.
+        # Now do an incremental backup with id 2.
         bkup_files = self.take_incr_backup_file(self.dir, 2)
 
         all_set = set(all_files)
@@ -125,8 +124,7 @@ class test_backup13(backup_base):
         bkup_c.close()
 
         # Make sure after a force stop we cannot access old backup info.
-        config = 'incremental=(src_id="ID1",this_id="ID3")'
-
+        config = 'incremental=(src_id="ID1",this_id="ID2")'
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
 

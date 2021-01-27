@@ -52,9 +52,13 @@ class test_backup17(backup_base):
 
     nops = 1000
 
-    def check_consolidate_sizes(self, len, consolidate):
+    #
+    # With a file length list, and given consolidate option, check
+    # that we get the appropriate lengths from incremental backups
+    #
+    def check_consolidate_sizes(self, file_lens, consolidate):
         saw_multiple = False
-        for size in len:
+        for size in file_lens:
             if size > self.granval:
                 saw_multiple = True
         if consolidate:
@@ -70,13 +74,14 @@ class test_backup17(backup_base):
         self.mult = 0
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
+        os.mkdir(self.dir)
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
-        os.mkdir(self.dir)
-        # Now copy the files returned by the backup cursor.
         config = 'incremental=(enabled,granularity=%s,this_id="ID1")' % self.gran
         bkup_c = self.session.open_cursor('backup:', None, config)
+
+        # Now make a full backup and track the log files.
         self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
 
@@ -87,12 +92,14 @@ class test_backup17(backup_base):
         self.mult = 1
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
+        # Do an incremental backup with id 2.
         uri1_lens = self.take_incr_backup_file(self.dir, 2, False, True)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
+        # Now do an incremental backup with id 3.
         uri2_lens = self.take_incr_backup_file(self.dir, 3, True, True)
         self.check_consolidate_sizes(uri2_lens, True)
 

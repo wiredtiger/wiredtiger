@@ -58,12 +58,12 @@ class test_backup12(backup_base):
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
         self.add_data(self.uri_rem, self.bigkey, self.bigval, True)
 
+        os.mkdir(self.dir)
+        #
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
-        os.mkdir(self.dir)
-        #
-        # Note, this first backup is actually done before a checkpoint is taken.
+        # Note: this first backup is actually done before a checkpoint is taken.
         #
         config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
@@ -71,7 +71,7 @@ class test_backup12(backup_base):
         # Add more data while the backup cursor is open.
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        # Now copy the files returned by the backup cursor.
+        # Now make a full backup and track the log files.
         all_files = self.take_full_backup(self.dir, bkup_c)
 
         # Now open a duplicate backup cursor.
@@ -89,7 +89,7 @@ class test_backup12(backup_base):
         # Drop a table.
         self.session.drop(self.uri_rem)
 
-        # Now do an incremental backup.
+        # Now do an incremental backup with id 2.
         bkup_files = self.take_incr_backup_file(self.dir, 2)
         all_files += bkup_files
 

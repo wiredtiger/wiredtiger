@@ -38,7 +38,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     # We use counter to produce unique backup names for multiple iterations
     # of incremental backup tests.
-    counter = 0
+    bkup_id = 0
     # To determine whether to increase/decrease counter, which determines
     initial_backup = False
     # Used for populate function
@@ -46,11 +46,11 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     populate_big = None
 
     # Used for tests that test multiple incremental backups, copying into future
-    # incremental backup directories, is used in conjunction with id argument that is
-    # passed in
+    # incremental backup directories, is differentiated with bkup_id
     max_iteration = 0
-    #specify a logpath directory to be used to place wiredtiger log files
+    # Specify a logpath directory to be used to place wiredtiger log files
     logpath=''
+
     #
     # Add data to the given uri.
     # Allows the option for doing a session checkpoint after adding data.
@@ -68,7 +68,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.checkpoint()
         # Increase the counter so that later backups have unique ids.
         if not self.initial_backup and self.max_iteration != 0:
-            self.counter += 1
+            self.bkup_id += 1
         # Increase the multiplier so that later calls insert unique items.
         self.mult += 1
 
@@ -144,16 +144,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     #
     # Uses a backup cursor to perform a full backup, by iterating through the cursor
-    # grabbing files to copy over into a given directory.
+    # grabbing files to copy over into a given directory. When dealing with a test
+    # that performs multiple incremental backups, we initially perform a full backup
+    # on each incremental directory as a starting base.
     # Optional arguments:
     # backup_cur: A backup cursor that can be given into the function, but function caller
     #    holds reponsibility of closing the cursor.
     #
     def take_full_backup(self, backup_dir, backup_cur=None):
-        #
-        # First time through we take a full backup into the incremental directories. Otherwise only
-        # into the appropriate full directory.
-        #
         bkup_c = backup_cur
         if backup_cur == None:
             config = None
@@ -210,20 +208,18 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Perform a block range copy for a given offset and file.
     #
-    # id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
-    #
-    def range_copy(self, filename, offset, size, id, backup_incr_dir):
+    def range_copy(self, filename, offset, size, backup_incr_dir):
         read_from = filename
         write_to = backup_incr_dir  + '/' + filename
         if self.max_iteration != 0:
-            write_to = backup_incr_dir  + '.' + str(id) + '/' + filename
+            write_to = backup_incr_dir  + '.' + str(self.bkup_id) + '/' + filename
         rfp = open(read_from, "r+b")
         rfp.seek(offset, 0)
         buf = rfp.read(size)
         # Perform between previous incremental directory, to check that
         # the old file and the new file is different.
         if self.max_iteration != 0:
-            old_to = backup_incr_dir + '.' + str(id - 1) + '/' + filename
+            old_to = backup_incr_dir + '.' + str(self.bkup_id - 1) + '/' + filename
             if os.path.exists(old_to):
                 self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
                 old_rfp = open(old_to, "r+b")
@@ -243,11 +239,10 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # With a given backup cursor, open an incremental block cursor to copy the blocks of a
     # given file. If the type of file is WT_BACKUP_FILE, perform full copy into given directory,
     # otherwise if type of file is WT_BACKUP_RANGE, perform partial copy of the file using range copy
-    # Optional arguments:
-    #   id: To distinguish between multiple incremental directories, used in conjunction with max_iterations.
-    # Note: we return the sizes of WT_BACKUP_RANGE type files for tests that check for the consolidate config
     #
-    def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir, id=0):
+    # Note: we return the sizes of WT_BACKUP_RANGE type files for tests that check for consolidate config
+    #
+    def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir):
         config = 'incremental=(file=' + newfile + ')'
         # For each file listed, open a duplicate backup cursor and copy the blocks.
         incr_c = self.session.open_cursor(None, bkup_c, config)
@@ -269,12 +264,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 # Copy the whole file.
                 h = backup_incr_dir
                 if self.max_iteration != 0:
-                    h += '.' + str(id)
+                    h += '.' + str(self.bkup_id)
                 self.copy_file(newfile, h)
             else:
                 # Copy the block range.
                 self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                self.range_copy(newfile, offset, size, id, backup_incr_dir)
+                self.range_copy(newfile, offset, size, backup_incr_dir)
                 lens.append(size)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         incr_c.close()
@@ -282,7 +277,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
 
     #
     # Given a backup cursor, open a log cursor, and copy all log files that are not
-    # in the given log list. Return all the log files, for tests that do verification
+    # in the given log list. Return all the log files
     # Optional argument:
     #   truncate: perform truncate/archive option on the logs.
     #
@@ -312,12 +307,14 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Open incremental backup cursor, with a given id and iterate through all the files
     # and perform incremental block copy for each of them. This function is used for tests
-    # that perform multiple incremental backups, and through utilising max_iteration
+    # that perform multiple incremental backups, which uses both bkup_id as the current
+    # incremental id and max_iteration to keep future incremental directories updated with
+    # changes in incremental backup.
     #
-    def take_incr_backup(self, backup_incr_dir, id):
-        self.assertTrue(id > 0 and self.max_iteration > 0)
+    def take_incr_backup(self, backup_incr_dir):
+        self.assertTrue(self.bkup_id > 0 and self.max_iteration > 0)
         # Open the backup data source for incremental backup.
-        config = 'incremental=(src_id="ID' +  str(id - 1) + '",this_id="ID' + str(id) + '")'
+        config = 'incremental=(src_id="ID' +  str(self.bkup_id - 1) + '",this_id="ID' + str(self.bkup_id) + '")'
         self.pr(config)
         bkup_c = self.session.open_cursor('backup:', None, config)
 
@@ -330,9 +327,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 break
             newfile = bkup_c.get_key()
             self.copy_file(newfile, backup_incr_dir + '.0')
-            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir, id)
+            self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir)
             # For each file, we want to copy it into each of the later incremental directories.
-            for i in range(id, self.max_iteration):
+            for i in range(self.bkup_id, self.max_iteration):
                 h = backup_incr_dir + '.' + str(i)
                 self.copy_file(newfile, h)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
@@ -341,7 +338,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # Open incremental backup cursor, with an id and iterate through all the files
     # and perform incremental block copy for each of them. This function is used for tests
-    # that require the information about the files. Default returns a list of filenames
+    # that require the information about the files. Default returns a list of file names
     # Optional arguments:
     # consolidate: Used to add consolidate option to the cursor
     # ret_sizes: Flag to return sizes of files instead of default

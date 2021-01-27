@@ -37,7 +37,7 @@ import glob
 # Test cursor backup with a block-based incremental cursor.
 class test_backup15(backup_base):
     bkp_home = "WT_BLOCK"
-    counter=0
+    bkup_id=0
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     logmax="100K"
     max_iteration=5
@@ -87,7 +87,7 @@ class test_backup15(backup_base):
         self.mult += 1
         # Increase the counter so that later backups have unique ids.
         if self.initial_backup == False:
-            self.counter += 1
+            self.bkup_id += 1
 
     def test_backup15(self):
         os.mkdir(self.bkp_home)
@@ -103,7 +103,6 @@ class test_backup15(backup_base):
         self.take_full_backup(self.home_incr)
         self.initial_backup = False
         self.session.checkpoint()
-
         # Each call now to take a full backup will make a copy into a full directory. Then
         # each incremental will take an incremental backup and we can compare them.
         for i in range(1, self.max_iteration):
@@ -112,12 +111,12 @@ class test_backup15(backup_base):
             # Swap the order of the full and incremental backups. It should not matter. They
             # should not interfere with each other.
             if i % 2 == 0:
-                self.take_full_backup(self.home_full + '.' + str(self.counter))
-                self.take_incr_backup(self.home_incr, self.counter)
+                self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+                self.take_incr_backup(self.home_incr)
             else:
-                self.take_incr_backup(self.home_incr, self.counter)
-                self.take_full_backup(self.home_full + '.' + str(self.counter))
-            self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.counter))
+                self.take_incr_backup(self.home_incr)
+                self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+            self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
 
 if __name__ == '__main__':
     wttest.run()

@@ -67,8 +67,7 @@ class test_backup07(backup_base):
         # when the backup metadata is created on cursor open and the newly
         # created file is not in the cursor list.
 
-        # Open up the backup cursor, create and add data to a new table
-        # and then copy the files.
+        # Create and add data to a new table and then copy the files with a full backup.
         os.mkdir(self.dir)
 
         # Now create and populate the new table. Make sure the log records
@@ -77,8 +76,8 @@ class test_backup07(backup_base):
         self.add_data(self.newuri, 'key', 'value')
         self.session.log_flush('sync=on')
 
-        # Now copy the files returned by the backup cursor. This should not
-        # include the newly created table.
+        # Now copy the files using full backup. This should not include the newly
+        # created table.
         self.take_full_backup(self.dir)
 
         # After the full backup, open and recover the backup database.
