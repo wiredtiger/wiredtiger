@@ -38,7 +38,7 @@ class test_hs13(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
     key_format_values = [
-        # ('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer', dict(key_format='i'))
     ]
     scenarios = make_scenarios(key_format_values)

@@ -43,7 +43,7 @@ class test_hs09(wttest.WiredTigerTestCase):
     uri = "table:test_hs09"
     key_format_values = [
         # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
-        # ('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S')),
     ]

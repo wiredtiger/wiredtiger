@@ -38,10 +38,14 @@ def timestamp_str(t):
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     session_config = 'isolation=snapshot'
+    key_format_values = (
+        ('column', dict(key_format='r')),
+        ('int', dict(key_format='i'))
+    )
     scenarios = make_scenarios([
         ('deletion', dict(update_type='deletion')),
         ('update', dict(update_type='update')),
-    ])
+    ], key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -51,7 +55,7 @@ class test_hs11(wttest.WiredTigerTestCase):
 
     def test_non_ts_updates_clears_hs(self):
         uri = 'table:test_hs11'
-        create_params = 'key_format=S,value_format=S'
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
         value1 = 'a' * 500
@@ -107,7 +111,7 @@ class test_hs11(wttest.WiredTigerTestCase):
 
     def test_ts_updates_donot_clears_hs(self):
         uri = 'table:test_hs11'
-        create_params = 'key_format=S,value_format=S'
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_params)
 
         value1 = 'a' * 500
