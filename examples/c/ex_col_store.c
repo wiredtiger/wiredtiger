@@ -66,8 +66,8 @@ static void
 print_all_columns(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    uint64_t recno;
     WT_DECL_RET;
+    uint64_t recno;
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
@@ -153,8 +153,8 @@ static void
 chance_of_rain(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    uint64_t recno;
     WT_DECL_RET;
+    uint64_t recno;
     uint16_t pressure;
     uint8_t humidity;
 
@@ -176,8 +176,8 @@ static void
 remove_country(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    uint64_t recno;
     WT_DECL_RET;
+    uint64_t recno;
     uint16_t loc_lat, loc_long;
     const char *country;
 
@@ -201,11 +201,11 @@ static void
 generate_data(WEATHER *w_array)
 {
     int country, day;
+    WEATHER w;
 
     srand((unsigned int)getpid());
 
     for (int i = 0; i < NUM_ENTRIES; i++) {
-        WEATHER w;
         day = rand() % 7;
         switch (day) {
         case 0:
@@ -291,9 +291,9 @@ find_min_and_max_temp(
   WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *min_temp, int *max_temp)
 {
     WT_CURSOR *end_time_cursor, *join_cursor, *start_time_cursor;
+    WT_DECL_RET;
     uint64_t recno;
     int exact;
-    WT_DECL_RET;
     uint16_t hour;
     uint8_t temp;
 
@@ -372,13 +372,13 @@ void
 average_data(WT_SESSION *session)
 {
     WT_CURSOR *loc_cursor;
+    WT_DECL_RET;
     unsigned int count;
+    /* rec_arr holds the sum of the records in order to obtain the averages. */
+    unsigned int rec_arr[NUM_REC];
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
-    WT_DECL_RET;
-    /* rec_arr holds the sum of the records in order to obtain the averages. */
-    unsigned int rec_arr[NUM_REC] = {0, 0, 0, 0, 0};
 
     /* Open a cursor to search for the location, currently RUS. */
     error_check(session->open_cursor(session, "index:weather:country", NULL, NULL, &loc_cursor));
@@ -397,6 +397,7 @@ average_data(WT_SESSION *session)
 
     /* Populate the array with the totals of each of the columns. */
     count = 0;
+    memset(rec_arr, 0, sizeof(rec_arr));
     while (ret == 0) {
         error_check(loc_cursor->get_value(loc_cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
           &humidity, &wind, &feels_like_temp, &day, &country));
@@ -442,8 +443,8 @@ int
 main(int argc, char *argv[])
 {
     WT_CONNECTION *conn;
-    WT_SESSION *session;
     WT_CURSOR *cursor;
+    WT_SESSION *session;
     WEATHER weather_data[NUM_ENTRIES];
     int max_temp_result, min_temp_result, ret;
     uint16_t ending_time, starting_time;
