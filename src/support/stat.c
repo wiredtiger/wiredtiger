@@ -123,6 +123,7 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: eviction walk target pages histogram - 128 and higher",
   "cache: eviction walk target pages histogram - 32-63",
   "cache: eviction walk target pages histogram - 64-128",
+  "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: eviction walks abandoned",
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
@@ -206,6 +207,7 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable hs records with stop timestamps older than newer records",
+  "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
   "transaction: rollback to stable restored tombstones from history store",
@@ -370,6 +372,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_target_page_ge128 = 0;
     stats->cache_eviction_target_page_lt64 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
+    stats->cache_eviction_target_page_reduced = 0;
     stats->cache_eviction_walks_abandoned = 0;
     stats->cache_eviction_walks_stopped = 0;
     stats->cache_eviction_walks_gave_up_no_targets = 0;
@@ -451,6 +454,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
+    stats->txn_rts_inconsistent_ckpt = 0;
     stats->txn_rts_keys_removed = 0;
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
@@ -602,6 +606,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_ge128 += from->cache_eviction_target_page_ge128;
     to->cache_eviction_target_page_lt64 += from->cache_eviction_target_page_lt64;
     to->cache_eviction_target_page_lt128 += from->cache_eviction_target_page_lt128;
+    to->cache_eviction_target_page_reduced += from->cache_eviction_target_page_reduced;
     to->cache_eviction_walks_abandoned += from->cache_eviction_walks_abandoned;
     to->cache_eviction_walks_stopped += from->cache_eviction_walks_stopped;
     to->cache_eviction_walks_gave_up_no_targets += from->cache_eviction_walks_gave_up_no_targets;
@@ -683,6 +688,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
     to->txn_rts_hs_stop_older_than_newer_start += from->txn_rts_hs_stop_older_than_newer_start;
+    to->txn_rts_inconsistent_ckpt += from->txn_rts_inconsistent_ckpt;
     to->txn_rts_keys_removed += from->txn_rts_keys_removed;
     to->txn_rts_keys_restored += from->txn_rts_keys_restored;
     to->txn_rts_hs_restore_tombstones += from->txn_rts_hs_restore_tombstones;
@@ -829,6 +835,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_target_page_ge128 += WT_STAT_READ(from, cache_eviction_target_page_ge128);
     to->cache_eviction_target_page_lt64 += WT_STAT_READ(from, cache_eviction_target_page_lt64);
     to->cache_eviction_target_page_lt128 += WT_STAT_READ(from, cache_eviction_target_page_lt128);
+    to->cache_eviction_target_page_reduced +=
+      WT_STAT_READ(from, cache_eviction_target_page_reduced);
     to->cache_eviction_walks_abandoned += WT_STAT_READ(from, cache_eviction_walks_abandoned);
     to->cache_eviction_walks_stopped += WT_STAT_READ(from, cache_eviction_walks_stopped);
     to->cache_eviction_walks_gave_up_no_targets +=
@@ -920,6 +928,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
+    to->txn_rts_inconsistent_ckpt += WT_STAT_READ(from, txn_rts_inconsistent_ckpt);
     to->txn_rts_keys_removed += WT_STAT_READ(from, txn_rts_keys_removed);
     to->txn_rts_keys_restored += WT_STAT_READ(from, txn_rts_keys_restored);
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);
@@ -1021,6 +1030,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages queued for eviction post lru sorting",
   "cache: pages queued for urgent eviction",
   "cache: pages queued for urgent eviction during walk",
+  "cache: pages queued for urgent eviction from history store due to high dirty content",
   "cache: pages seen by eviction walk that are already queued",
   "cache: pages selected for eviction unable to be evicted",
   "cache: pages selected for eviction unable to be evicted as the parent page has overflow items",
@@ -1323,6 +1333,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction walk target pages histogram - 128 and higher",
   "cache: eviction walk target pages histogram - 32-63",
   "cache: eviction walk target pages histogram - 64-128",
+  "cache: eviction walk target pages reduced due to history store cache pressure",
   "cache: eviction walks abandoned",
   "cache: eviction walks gave up because they restarted their walk twice",
   "cache: eviction walks gave up because they saw too many pages and found no candidates",
@@ -1406,6 +1417,7 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable hs records with stop timestamps older than newer records",
+  "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
   "transaction: rollback to stable restored tombstones from history store",
@@ -1539,6 +1551,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_pages_queued_post_lru = 0;
     stats->cache_eviction_pages_queued_urgent = 0;
     stats->cache_eviction_pages_queued_oldest = 0;
+    stats->cache_eviction_pages_queued_urgent_hs_dirty = 0;
     stats->cache_eviction_pages_already_queued = 0;
     stats->cache_eviction_fail = 0;
     stats->cache_eviction_fail_parent_has_overflow_items = 0;
@@ -1836,6 +1849,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_target_page_ge128 = 0;
     stats->cache_eviction_target_page_lt64 = 0;
     stats->cache_eviction_target_page_lt128 = 0;
+    stats->cache_eviction_target_page_reduced = 0;
     stats->cache_eviction_walks_abandoned = 0;
     stats->cache_eviction_walks_stopped = 0;
     stats->cache_eviction_walks_gave_up_no_targets = 0;
@@ -1917,6 +1931,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
+    stats->txn_rts_inconsistent_ckpt = 0;
     stats->txn_rts_keys_removed = 0;
     stats->txn_rts_keys_restored = 0;
     stats->txn_rts_hs_restore_tombstones = 0;
@@ -2038,6 +2053,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, cache_eviction_pages_queued_urgent);
     to->cache_eviction_pages_queued_oldest +=
       WT_STAT_READ(from, cache_eviction_pages_queued_oldest);
+    to->cache_eviction_pages_queued_urgent_hs_dirty +=
+      WT_STAT_READ(from, cache_eviction_pages_queued_urgent_hs_dirty);
     to->cache_eviction_pages_already_queued +=
       WT_STAT_READ(from, cache_eviction_pages_already_queued);
     to->cache_eviction_fail += WT_STAT_READ(from, cache_eviction_fail);
@@ -2346,6 +2363,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_target_page_ge128 += WT_STAT_READ(from, cache_eviction_target_page_ge128);
     to->cache_eviction_target_page_lt64 += WT_STAT_READ(from, cache_eviction_target_page_lt64);
     to->cache_eviction_target_page_lt128 += WT_STAT_READ(from, cache_eviction_target_page_lt128);
+    to->cache_eviction_target_page_reduced +=
+      WT_STAT_READ(from, cache_eviction_target_page_reduced);
     to->cache_eviction_walks_abandoned += WT_STAT_READ(from, cache_eviction_walks_abandoned);
     to->cache_eviction_walks_stopped += WT_STAT_READ(from, cache_eviction_walks_stopped);
     to->cache_eviction_walks_gave_up_no_targets +=
@@ -2437,6 +2456,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
+    to->txn_rts_inconsistent_ckpt += WT_STAT_READ(from, txn_rts_inconsistent_ckpt);
     to->txn_rts_keys_removed += WT_STAT_READ(from, txn_rts_keys_removed);
     to->txn_rts_keys_restored += WT_STAT_READ(from, txn_rts_keys_restored);
     to->txn_rts_hs_restore_tombstones += WT_STAT_READ(from, txn_rts_hs_restore_tombstones);

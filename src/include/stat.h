@@ -400,6 +400,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_pages_queued_post_lru;
     int64_t cache_eviction_pages_queued_urgent;
     int64_t cache_eviction_pages_queued_oldest;
+    int64_t cache_eviction_pages_queued_urgent_hs_dirty;
     int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
     int64_t cache_eviction_fail_parent_has_overflow_items;
@@ -697,6 +698,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
@@ -778,6 +780,7 @@ struct __wt_connection_stats {
     int64_t rec_time_window_stop_txn;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_hs_stop_older_than_newer_start;
+    int64_t txn_rts_inconsistent_ckpt;
     int64_t txn_rts_keys_removed;
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_hs_restore_tombstones;
@@ -909,6 +912,7 @@ struct __wt_dsrc_stats {
     int64_t cache_eviction_target_page_ge128;
     int64_t cache_eviction_target_page_lt64;
     int64_t cache_eviction_target_page_lt128;
+    int64_t cache_eviction_target_page_reduced;
     int64_t cache_eviction_walks_abandoned;
     int64_t cache_eviction_walks_stopped;
     int64_t cache_eviction_walks_gave_up_no_targets;
@@ -990,6 +994,7 @@ struct __wt_dsrc_stats {
     int64_t rec_time_window_stop_txn;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts_hs_stop_older_than_newer_start;
+    int64_t txn_rts_inconsistent_ckpt;
     int64_t txn_rts_keys_removed;
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_hs_restore_tombstones;
