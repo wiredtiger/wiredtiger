@@ -31,7 +31,7 @@
 
 static void config_backup_incr(void);
 static void config_backup_incr_granularity(void);
-static void config_backup_incr_compatibility_check(void);
+static void config_backup_incr_log_compatibility_check(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
@@ -269,7 +269,7 @@ config_backup_incr(void)
      */
     if (config_is_perm("backup.incremental")) {
         if (g.c_backup_incr_flag == INCREMENTAL_LOG)
-            config_backup_incr_compatibility_check();
+            config_backup_incr_log_compatibility_check();
         if (g.c_backup_incr_flag == INCREMENTAL_BLOCK)
             config_backup_incr_granularity();
         return;
@@ -759,10 +759,10 @@ config_in_memory_reset(void)
 
 /*
  * config_backup_incr_compatibility_check --
- *     Backup incremental compatibility check.
+ *     Backup incremental log compatibility check.
  */
 static void
-config_backup_incr_compatibility_check(void)
+config_backup_incr_log_compatibility_check(void)
 {
     /*
      * Incremental backup using log files is incompatible with logging archival. Disable logging
@@ -815,7 +815,7 @@ config_lsm_reset(void)
             case 2:
                 /* 50% */
                 config_single("backup.incremental=log", false);
-                config_backup_incr_compatibility_check();
+                config_backup_incr_log_compatibility_check();
                 break;
             }
     }
