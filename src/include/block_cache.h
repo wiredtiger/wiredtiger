@@ -60,6 +60,7 @@ struct __wt_blkcache {
 
     bool write_allocate;
     char *nvram_device_path;
+    double overhead_pct;
     float fraction_in_dram;
     int refs_since_filesize_estimated;
     int type;

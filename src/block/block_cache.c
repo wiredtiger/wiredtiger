@@ -48,14 +48,14 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
 
     if (counter++ % 1000000 == 0)
 	printf("inserts=%ld, removals=%ld, lookups=%ld, "
-	       "ratio = %f, thrshold = %f\n", blkcache->inserts,
+	       "ratio = %.2f, thrshold = %.2f\n", blkcache->inserts,
 	       blkcache->removals, blkcache->lookups,
 	       (double)(blkcache->inserts + blkcache->removals)/
 	       (double)(blkcache->lookups),
-	       BLKCACHE_OVERHEAD_THRESHOLD);
+	       blkcache->overhead_pct);
 
     if ((double)(blkcache->inserts + blkcache->removals)/
-	(double)(blkcache->lookups) > BLKCACHE_OVERHEAD_THRESHOLD)
+	(double)(blkcache->lookups) > blkcache->overhead_pct)
 	return true;
 
     return false;
@@ -402,7 +402,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
 static int
 __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
 		int type, char *nvram_device_path, size_t system_ram,
-		int percent_file_in_dram, bool write_allocate)
+		int percent_file_in_dram, bool write_allocate,
+		double overhead_pct)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -414,7 +415,10 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
     blkcache->hash_size = hash_size;
     blkcache->system_ram = system_ram;
     blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
+    blkcache->overhead_pct = overhead_pct;
     blkcache->write_allocate = write_allocate;
+
+    printf("Set overhead percent to %f\n", blkcache->overhead_pct);
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -514,6 +518,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     bool write_allocate = true;
     char *nvram_device_path = NULL;
+    double overhead_pct;
     int cache_type = BLKCACHE_UNCONFIGURED, percent_file_in_dram;
     size_t cache_size, hash_size, system_ram;
 
@@ -565,14 +570,17 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.write_allocate", &cval));
-    if (cval.val == 0)  {
+    if (cval.val == 0)
 	write_allocate = false;
-	printf("Setting write_allocate to false\n");
-    }
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.max_percent_overhead", &cval));
+    if (cval.val == 0)
+	overhead_pct = BLKCACHE_OVERHEAD_THRESHOLD;
     else
-	printf("Setting write_allocate to true\n");
+	overhead_pct = (double)cval.val/(double)100;
 
     return __blkcache_init(session, cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram,
-			   percent_file_in_dram, write_allocate);
+			   percent_file_in_dram, write_allocate,
+			   overhead_pct);
 }

@@ -454,6 +454,12 @@ connection_runtime_config = [
                Config('hashsize', '0', r'''
                    size of the hashtable that keeps track of blocks.''',
                    min='512', max='1073741824'),
+               Config('max_percent_overhead', '0', r'''
+                   maximum tolerated overhead expressed as the number of
+                   blocks added and removed as percent of blocks looked up.
+                   Cache population will be suppressed if the overhead
+                   exceeds the supplied threshold.''',
+                   min='1', max='100'),
                Config('path', '', r'''
                    the file path for the NVRAM that will be used as a cache
                    if cache type NVRAM is chosen.'''),

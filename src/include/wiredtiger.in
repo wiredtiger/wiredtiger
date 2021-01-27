@@ -2160,11 +2160,14 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * hashsize, size of the hashtable that keeps track of blocks., an integer between 512 and
 	 * 1073741824; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the
-	 * NVRAM that will be used as a cache if cache type NVRAM is chosen., a string; default
-	 * empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram, bypass cache if that
-	 * percent of file fits in DRAM., an integer between 0 and 100; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum
+	 * tolerated overhead expressed as the number of blocks added and removed as percent of
+	 * blocks looked up.  Cache population will be suppressed if the overhead exceeds the
+	 * supplied threshold., an integer between 1 and 100; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a
+	 * cache if cache type NVRAM is chosen., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram, bypass cache if that percent of
+	 * file fits in DRAM., an integer between 0 and 100; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block cache., an
 	 * integer between 0 and 1024GB; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;system_ram,
@@ -2795,8 +2798,12 @@ struct __wt_connection {
  * flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the hashtable that
  * keeps track of blocks., an integer between 512 and 1073741824; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a cache if
- * cache type NVRAM is chosen., a string; default empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum tolerated overhead expressed as the
+ * number of blocks added and removed as percent of blocks looked up.  Cache population will be
+ * suppressed if the overhead exceeds the supplied threshold., an integer between 1 and 100; default
+ * \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a
+ * cache if cache type NVRAM is chosen., a string; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * percent_file_in_dram, bypass cache if that percent of file fits in DRAM., an integer between 0
  * and 100; default \c 0.}
