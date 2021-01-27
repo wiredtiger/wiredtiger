@@ -44,7 +44,6 @@ class test_hs12(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(key_format_values)
 
     def test_modify_append_to_string(self):
-        self.session.breakpoint()
         uri = "table:test_reverse_modify01_notimestamp"
         create_params = 'value_format=S,key_format={}'.format(self.key_format)
         value1 = 'abcedfghijklmnopqrstuvwxyz' * 5

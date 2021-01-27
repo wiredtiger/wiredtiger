@@ -54,13 +54,8 @@ class test_hs04(wttest.WiredTigerTestCase):
         ('too-low', dict(reconfig_file_max='99MB', reconfig_stat_val=None)),
         ('zero', dict(reconfig_file_max='0', reconfig_stat_val=0))
     ]
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
-        ('string', dict(key_format='S'))
-    ]
     scenarios = make_scenarios(init_file_max_values, reconfig_file_max_values,
-                               in_memory_values, key_format_values)
+                               in_memory_values)
 
     def conn_config(self):
         config = 'statistics=(fast)'
@@ -82,7 +77,7 @@ class test_hs04(wttest.WiredTigerTestCase):
         return i
 
     def test_hs(self):
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format=S,value_format=S'
         self.session.create(self.uri, create_params)
 
         if self.in_memory:

@@ -209,15 +209,15 @@ class test_hs06(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
     def test_hs_prepare_reads(self):
-        # Create a small table.
-        uri = "table:test_hs06"
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
-        self.session.create(uri, create_params)
-
         # Prepare reads currently not supported with columnar store.
         # Remove this once prepare reads is supported in WT-6061.
         if self.key_format == 'r':
             return
+
+        # Create a small table.
+        uri = "table:test_hs06"
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(uri, create_params)
 
         value1 = 'a' * 500
         value2 = 'b' * 500
