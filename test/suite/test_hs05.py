@@ -46,7 +46,6 @@ class test_hs05(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     stable = 1
     key_format_values = [
-        # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S'))

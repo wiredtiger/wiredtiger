@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import time, wiredtiger, wttest, unittest
-from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -37,11 +36,6 @@ def timestamp_str(t):
 class test_hs18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
-    key_format_values = [
-        # ('column', dict(key_format='r')),
-        ('string', dict(key_format='S'))
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def check_value(self, cursor, value):
         cursor.set_key(str(0))

@@ -55,7 +55,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         return i
 
     def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
-        self.session.breakpoint()
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value
@@ -79,7 +78,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         session.close()
 
     def test_uncommitted_updates_not_written_to_hs(self):
-        self.session.breakpoint()
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -110,7 +108,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         self.check_ckpt_hs(value2, value1, 2, 3)
 
     def test_prepared_updates_not_written_to_hs(self):
-        self.session.breakpoint()
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -144,7 +141,6 @@ class test_hs09(wttest.WiredTigerTestCase):
             ',durable_timestamp=' + timestamp_str(5))
 
     def test_write_newest_version_to_data_store(self):
-        self.session.breakpoint()
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -169,7 +165,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         self.check_ckpt_hs(value2, value1, 2, 3)
 
     def test_write_deleted_version_to_data_store(self):
-        self.session.breakpoint()
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
@@ -202,5 +197,4 @@ class test_hs09(wttest.WiredTigerTestCase):
         self.check_ckpt_hs(value2, value1, 2, 3)
 
 if __name__ == '__main__':
-    self.session.breakpoint()
     wttest.run()
