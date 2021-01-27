@@ -15,12 +15,16 @@
 int
 __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, cval, tierconf;
     WT_DECL_RET;
+    int ntiers;
     char *meta_value;
     const char *cfg[] = {WT_CONFIG_BASE(session, tiered_meta), config, NULL};
     const char *metadata;
 
     metadata = NULL;
+    ntiers = 0;
 
     /* If it can be opened, it already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -29,6 +33,17 @@ __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive, co
         goto err;
     }
     WT_RET_NOTFOUND_OK(ret);
+
+    /* A tiered cursor must specify at least one underlying table */
+    WT_RET(__wt_config_gets(session, cfg, "tiered.tiers", &tierconf));
+    __wt_config_subinit(session, &cparser, &tierconf);
+
+    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
+        ++ntiers;
+    WT_RET_NOTFOUND_OK(ret);
+
+    if (ntiers == 0)
+        WT_RET_MSG(session, EINVAL, "tiered table must specify at least one tier");
 
     if (!F_ISSET(S2C(session), WT_CONN_READONLY)) {
         WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
@@ -189,13 +204,13 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     /* Point to some items in the copy to save re-parsing. */
     WT_RET(__wt_config_gets(session, tiered_cfg, "tiered.tiers", &tierconf));
 
-    /*
-     * Count the number of tiers.
-     */
+    /* Count the number of tiers. */
     __wt_config_subinit(session, &cparser, &tierconf);
     while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
         ++tiered->ntiers;
     WT_RET_NOTFOUND_OK(ret);
+
+    WT_ASSERT(session, tiered->ntiers > 0);
 
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_calloc_def(session, tiered->ntiers, &tiered->tiers));
