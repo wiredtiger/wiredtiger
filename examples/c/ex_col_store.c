@@ -35,6 +35,7 @@
 
 #define NUM_ENTRIES 100
 #define TABLE_NAME "table:weather"
+#define NUM_REC 5
 
 static const char *home;
 
@@ -66,7 +67,7 @@ print_all_columns(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     uint64_t recno;
-    int ret;
+    WT_DECL_RET;
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
@@ -111,7 +112,7 @@ static void
 print_temp_column(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    int ret;
+    WT_DECL_RET;
     uint8_t temp;
 
     error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
@@ -128,7 +129,7 @@ static void
 update_celsius_to_fahrenheit(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    int ret;
+    WT_DECL_RET;
     uint8_t temp, temp_in_fahrenheit;
 
     error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
@@ -153,7 +154,7 @@ chance_of_rain(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     uint64_t recno;
-    int ret;
+    WT_DECL_RET;
     uint16_t pressure;
     uint8_t humidity;
 
@@ -176,7 +177,7 @@ remove_country(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     uint64_t recno;
-    int ret;
+    WT_DECL_RET;
     uint16_t loc_lat, loc_long;
     const char *country;
 
@@ -280,9 +281,10 @@ generate_data(WEATHER *w_array)
 }
 
 /*
- * The function returns 0 when a valid min/max temperature can be calculated given the time range.
- * If no records are found it will return WT_NOTFOUND, otherwise the program will crash if an
- * internal error is encountered.
+ * find_min_and_max_temp --
+ *     The function returns 0 when a valid min/max temperature can be calculated given the time
+ *     range. If no records are found it will return WT_NOTFOUND, otherwise the program will crash
+ *     if an internal error is encountered.
  */
 static int
 find_min_and_max_temp(
@@ -291,7 +293,7 @@ find_min_and_max_temp(
     WT_CURSOR *end_time_cursor, *join_cursor, *start_time_cursor;
     uint64_t recno;
     int exact;
-    int ret;
+    WT_DECL_RET;
     uint16_t hour;
     uint8_t temp;
 
@@ -308,7 +310,6 @@ find_min_and_max_temp(
      */
     start_time_cursor->set_key(start_time_cursor, start_time);
     error_check(start_time_cursor->search_near(start_time_cursor, &exact));
-    ret = 0;
     if (exact == -1) {
         ret = start_time_cursor->next(start_time_cursor);
         if (ret == WT_NOTFOUND)
@@ -348,17 +349,8 @@ find_min_and_max_temp(
     while ((ret = join_cursor->next(join_cursor)) == 0) {
         error_check(join_cursor->get_value(join_cursor, &hour, &temp));
 
-        if (temp < *min_temp)
-            *min_temp = temp;
-
-        if (temp > *max_temp)
-            *max_temp = temp;
-
-        /* For debugging purposes */
-        /*
-            printf("ID %" PRIu64, recno);
-            printf(": hour %" PRIu16 " temp: %" PRIu8 "\n", hour, temp);
-         */
+        *min_temp = WT_MIN(*min_temp, temp);
+        *max_temp = WT_MAX(*max_temp, temp);
     }
 
     /*
@@ -372,7 +364,10 @@ find_min_and_max_temp(
     return (0);
 }
 
-/* Obtains the average data across all fields given a specific location. */
+/*
+ * average_data --
+ *     Obtains the average data across all fields given a specific location.
+ */
 void
 average_data(WT_SESSION *session)
 {
@@ -381,10 +376,9 @@ average_data(WT_SESSION *session)
     uint16_t hour, loc_lat, loc_long, pressure;
     uint8_t feels_like_temp, humidity, temp, wind;
     const char *country, *day;
-    /* num_rec is the total number of records we're obtaining averages for. */
-    int ret, num_rec;
+    WT_DECL_RET;
     /* rec_arr holds the sum of the records in order to obtain the averages. */
-    unsigned int rec_arr[5] = {0, 0, 0, 0, 0};
+    unsigned int rec_arr[NUM_REC] = {0, 0, 0, 0, 0};
 
     /* Open a cursor to search for the location, currently RUS. */
     error_check(session->open_cursor(session, "index:weather:country", NULL, NULL, &loc_cursor));
@@ -404,7 +398,6 @@ average_data(WT_SESSION *session)
     /* Populate the array with the totals of each of the columns. */
     count = 0;
     while (ret == 0) {
-
         error_check(loc_cursor->get_value(loc_cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
           &humidity, &wind, &feels_like_temp, &day, &country));
 
@@ -431,10 +424,9 @@ average_data(WT_SESSION *session)
     printf("Number of matching entries: %u \n", count);
 
     /* Get the average values by dividing with the total number of records. */
-    num_rec = 5;
-    for (int i = 0; i < num_rec; i++) {
+    for (int i = 0; i < NUM_REC; i++)
         rec_arr[i] = rec_arr[i] / count;
-    }
+
     /* List the average records */
     printf(
       "Average records for location RUS : \nTemp: %u"
