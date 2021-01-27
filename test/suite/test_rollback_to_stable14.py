@@ -175,13 +175,6 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         self.simulate_crash_restart(".", "RESTART")
         self.pr("restart complete")
 
-        # Check that the correct data is seen at and after the stable timestamp.
-        #self.check(value_a, uri, nrows, 20)
-        #self.session.breakpoint()
-        #self.check(value_modQ, uri, nrows, 30)
-        #self.check(value_modR, uri, nrows, 40)
-        #self.check(value_modS, uri, nrows, 50)
-
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
@@ -194,11 +187,17 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
 
         self.assertEqual(calls, 0)
         self.assertEqual(keys_removed, 0)
-        self.assertEqual(keys_restored, nrows)
+        self.assertEqual(keys_restored, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreater(pages_visited, 0)
         self.assertGreaterEqual(hs_removed, nrows)
         self.assertGreaterEqual(hs_sweep, 0)
+
+        # Check that the correct data is seen at and after the stable timestamp.
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_modQ, uri, nrows, 30)
+        self.check(value_modR, uri, nrows, 40)
+        self.check(value_modS, uri, nrows, 50)
 
         # The test may output the following message in eviction under cache pressure. Ignore that.
         self.ignoreStdoutPatternIfExists("oldest pinned transaction ID rolled back for eviction")

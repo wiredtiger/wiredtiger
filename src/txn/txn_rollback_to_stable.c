@@ -427,7 +427,6 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
              * the rollback to stable operation.
              */
             F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
 
             /*
              * We have a tombstone on the original update chain and it is behind the stable

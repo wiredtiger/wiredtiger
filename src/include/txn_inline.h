@@ -840,14 +840,16 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
  *     Get the first visible update in a list (or NULL if none are visible).
  */
 static inline int
-__wt_txn_read_upd_list(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, WT_UPDATE **prepare_updp)
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
+  WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
     uint8_t prepare_state, type;
 
     if (prepare_updp != NULL)
         *prepare_updp = NULL;
+    if (restored_updp != NULL)
+        *restored_updp = NULL;
     __wt_upd_value_clear(cbt->upd_value);
 
     for (; upd != NULL; upd = upd->next) {
@@ -855,6 +857,16 @@ __wt_txn_read_upd_list(
         /* Skip reserved place-holders, they're never visible. */
         if (type == WT_UPDATE_RESERVE)
             continue;
+
+        /*
+         * Save the restored update to use it as base value update in case if we need to reach
+         * history store instead of on-disk value.
+         */
+        if (restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
+          type == WT_UPDATE_STANDARD) {
+            WT_ASSERT(session, *restored_updp == NULL);
+            *restored_updp = upd;
+        }
 
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
         /*
@@ -927,14 +939,14 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
   WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_TIME_WINDOW tw;
-    WT_UPDATE *prepare_upd;
+    WT_UPDATE *prepare_upd, *restored_upd;
     bool have_stop_tw, retry;
 
-    prepare_upd = NULL;
+    prepare_upd = restored_upd = NULL;
     retry = true;
 
 retry:
-    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd));
+    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
@@ -1005,6 +1017,17 @@ retry:
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
+
+        /*
+         * Use the restored update data as base value if it is restored as part of RTS instead of
+         * existing on-disk value.
+         */
+        if (restored_upd != NULL) {
+            cbt->upd_value->buf.data = restored_upd->data;
+            cbt->upd_value->buf.size = restored_upd->size;
+            WT_ASSERT(session, restored_upd->start_ts <= tw.start_ts);
+        }
+
         WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
           &cbt->upd_value->buf, &tw));
     }
