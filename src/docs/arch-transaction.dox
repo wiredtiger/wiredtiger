@@ -90,7 +90,7 @@ Only transactions running in snapshot isolation can run with timestamps.
 
 @subsection Visibility
 
-The visibility of the transactions in WiredTiger considers both the opertions' transaction ids and timestamps. The operation is visible only when both its transaction id and its timestamp are visible to the reading transaction.
+The visibility of the transactions in WiredTiger considers both the operations' transaction ids and timestamps. The operation is visible only when both its transaction id and its timestamp are visible to the reading transaction.
 
 To read a key, WiredTiger first traverses all the updates of that key still in memory until a visible update is found. The in-memory updates in WiredTiger are organized as a singly linked list with the newest update at the head, called the update chain. If no value is visible on the update chain, it checks the version on the disk image, which is the version that was chosen to be written to disk in the last reconciliation. If it is still invisible, WiredTiger will search the history store to check if there is a version visible to the reader there.
 
