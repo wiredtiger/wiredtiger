@@ -469,6 +469,7 @@ rmw
 ro
 rotn
 rpc
+rts
 runnable
 runtime
 rwlock
