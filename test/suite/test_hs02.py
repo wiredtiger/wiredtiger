@@ -42,8 +42,10 @@ class test_hs02(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        ('column', dict(key_format='r')),
-        ('string', dict(key_format='S'))
+        ('string', dict(key_format='S')),
+        # Remove for column store until rollback to stable is implemented for column store
+        # WT-5545
+        # ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(key_format_values)
 

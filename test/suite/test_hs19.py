@@ -65,18 +65,18 @@ class test_hs19(wttest.WiredTigerTestCase):
 
         # Insert an update without timestamp.
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value1
+        cursor[self.create_key(1)] = value1
         self.session.commit_transaction()
 
         # Do 2 modifies.
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('B', 100, 1)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('C', 101, 1)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -90,14 +90,14 @@ class test_hs19(wttest.WiredTigerTestCase):
         # The 0 at the end of the modify call indicates how many bytes to replace, we keep
         # it as 0 here to not overwrite any of the existing value.
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('AAAAAAAAAA', 102, 0)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Insert a modify to get written as the on disk value by checkpoint.
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('D', 102, 1)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
@@ -109,7 +109,7 @@ class test_hs19(wttest.WiredTigerTestCase):
         # Add an additional modify so that when eviction sees this page it will rewrite it as it's
         # dirty.
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('E', 103, 1)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
@@ -118,7 +118,7 @@ class test_hs19(wttest.WiredTigerTestCase):
         cursor.reset()
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
         # Search for the key so we position our cursor on the page that we want to evict.
-        evict_cursor.set_key(self.create_key(0))
+        evict_cursor.set_key(self.create_key(1))
         evict_cursor.search()
         evict_cursor.reset()
         evict_cursor.close()
@@ -130,7 +130,7 @@ class test_hs19(wttest.WiredTigerTestCase):
 
         # Retrieve the value at timestamp 1.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.search()
 
         # Assert that it matches our expected value.
@@ -144,7 +144,7 @@ class test_hs19(wttest.WiredTigerTestCase):
 
         # Retrieve the value at timestamp 1.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.search()
 
         # Assert that it matches our expected value.
@@ -160,7 +160,7 @@ class test_hs19(wttest.WiredTigerTestCase):
 
         # Retrieve the value at timestamp 1.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.search()
         # Assert that it matches our expected value.
         self.assertEqual(cursor.get_value(), expected)

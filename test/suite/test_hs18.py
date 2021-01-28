@@ -49,7 +49,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         return i
 
     def check_value(self, cursor, value):
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         self.assertEqual(cursor.search(), 0)
         self.assertEqual(cursor.get_value(), value)
         cursor.reset()
@@ -66,6 +66,8 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         cursor2 = session2.open_cursor(uri)
 
+        self.session.breakpoint()
+
         value0 = 'f' * 500
         value1 = 'a' * 500
         value2 = 'b' * 500
@@ -75,21 +77,23 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value0
+        cursor[self.create_key(1)] = value0
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a long running transaction which could see update 0.
         session2.begin_transaction()
         self.check_value(cursor2, value0)
 
+        self.session.breakpoint()
+
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value1
+        cursor[self.create_key(1)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value2
+        cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Insert a bunch of contents to fill the cache
@@ -100,16 +104,18 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value4
+        cursor[self.create_key(1)] = value4
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value5
+        cursor[self.create_key(1)] = value5
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
+
+        self.session.breakpoint()
 
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 11000):
@@ -138,7 +144,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value1
+        cursor[self.create_key(1)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a long running transaction which could see update 0.
@@ -148,7 +154,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value2
+        cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Start a long running transaction which could see update 0.
@@ -164,12 +170,12 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value4
+        cursor[self.create_key(1)] = value4
         self.session.commit_transaction()
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value5
+        cursor[self.create_key(1)] = value5
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Check our value is still correct.
@@ -202,7 +208,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update without a timestamp
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value0
+        cursor[self.create_key(1)] = value0
         self.session.commit_transaction()
 
         # Start a long running transaction which could see update 0.
@@ -213,16 +219,16 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value1
+        cursor[self.create_key(1)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value2
+        cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Insert a bunch of other contents to trigger eviction
-        for i in range(1, 10000):
+        for i in range(2, 10000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value3
             self.session.commit_transaction()
@@ -232,7 +238,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value4
+        cursor[self.create_key(1)] = value4
         self.session.commit_transaction()
 
         # Insert a bunch of other contents to trigger eviction
@@ -263,7 +269,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[0]
+        cursor[self.create_key(1)] = values[0]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a transaction that will see update 0.
@@ -271,7 +277,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[1]
+        cursor[self.create_key(1)] = values[1]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Start a transaction that will see update 1.
@@ -279,7 +285,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[2]
+        cursor[self.create_key(1)] = values[2]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Start a transaction that will see update 2.
@@ -293,7 +299,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[3]
+        cursor[self.create_key(1)] = values[3]
         self.session.commit_transaction()
 
         # Start a transaction that will see update 3.
@@ -301,7 +307,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[4]
+        cursor[self.create_key(1)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Insert a bunch of other contents to trigger eviction
@@ -312,7 +318,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Validate all values are visible and correct.
         for i in range(0, 3):
-            cursors[i].set_key(self.create_key(0))
+            cursors[i].set_key(self.create_key(1))
             self.assertEqual(cursors[i].search(), 0)
             self.assertEqual(cursors[i].get_value(), values[i])
             cursors[i].reset()
@@ -335,7 +341,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[0]
+        cursor[self.create_key(1)] = values[0]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a transaction that will see update 0.
@@ -343,7 +349,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[1]
+        cursor[self.create_key(1)] = values[1]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Start a transaction that will see update 1.
@@ -351,7 +357,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert another update at timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[2]
+        cursor[self.create_key(1)] = values[2]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Start a transaction that will see update 2.
@@ -365,7 +371,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[3]
+        cursor[self.create_key(1)] = values[3]
         self.session.commit_transaction()
 
         # Start a transaction that will see update 4.
@@ -373,7 +379,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update with timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[4]
+        cursor[self.create_key(1)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Start a transaction that will see update 4.
@@ -381,7 +387,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update with timestamp 10
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[5]
+        cursor[self.create_key(1)] = values[5]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
         # Start a transaction that will see update 5.
@@ -389,7 +395,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update with timestamp 15
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[6]
+        cursor[self.create_key(1)] = values[6]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
         # Start a transaction that will see update 6.
@@ -403,14 +409,14 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Validate all values are visible and correct.
         for i in range(0, 6):
-            cursors[i].set_key(self.create_key(0))
+            cursors[i].set_key(self.create_key(1))
             self.assertEqual(cursors[i].search(), 0)
             self.assertEqual(cursors[i].get_value(), values[i])
             cursors[i].reset()
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[7]
+        cursor[self.create_key(1)] = values[7]
         self.session.commit_transaction()
 
         # Start a transaction that will see update 7.
@@ -418,7 +424,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit an update with timestamp 5
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[8]
+        cursor[self.create_key(1)] = values[8]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         # Insert a bunch of other contents to trigger eviction
@@ -429,7 +435,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Validate all values are visible and correct.
         for i in range(0, 7):
-            cursors[i].set_key(self.create_key(0))
+            cursors[i].set_key(self.create_key(1))
             self.assertEqual(cursors[i].search(), 0)
             self.assertEqual(cursors[i].get_value(), values[i])
             cursors[i].reset()
@@ -459,7 +465,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[0]
+        cursor[self.create_key(1)] = values[0]
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Start a long running transaction which could see update 0.
@@ -467,7 +473,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.modify([wiredtiger.Modify('a', 0, 0)])
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
@@ -479,7 +485,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Insert another modify at timestamp 10
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.modify([wiredtiger.Modify('b', 0, 0)])
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
@@ -494,7 +500,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit a modify without a timestamp on our original key
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = values[3]
+        cursor[self.create_key(1)] = values[3]
         self.session.commit_transaction()
 
         # Start a long running transaction which could see value 5.
@@ -502,7 +508,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Commit a final modify.
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         cursor.modify([wiredtiger.Modify('e', 0, 0)])
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 

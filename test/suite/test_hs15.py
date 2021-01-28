@@ -59,24 +59,24 @@ class test_hs15(wttest.WiredTigerTestCase):
 
         # Insert an update without timestamp
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value1
+        cursor[self.create_key(1)] = value1
         self.session.commit_transaction()
 
         # Insert a bunch of other contents to trigger eviction
-        for i in range(1, 1000):
+        for i in range(2, 1000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Do a modify and an update with timestamps
         self.session.begin_transaction()
-        cursor.set_key(self.create_key(0))
+        cursor.set_key(self.create_key(1))
         mods = [wiredtiger.Modify('B', 100, 1)]
         self.assertEqual(cursor.modify(mods), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
 
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value2
+        cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         # Make the modify with timestamp and the update without timestamp obsolete
@@ -86,11 +86,11 @@ class test_hs15(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.session.begin_transaction()
-        cursor[self.create_key(0)] = value3
+        cursor[self.create_key(1)] = value3
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
         # Insert a bunch of other contents to trigger eviction
-        for i in range(1, 1000):
+        for i in range(2, 1000):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value3
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
@@ -99,13 +99,13 @@ class test_hs15(wttest.WiredTigerTestCase):
         expected[100] = 'B'
         expected = str().join(expected)
         self.session.begin_transaction('read_timestamp=' + timestamp_str(1))
-        self.assertEqual(cursor[self.create_key(0)], expected)
+        self.assertEqual(cursor[self.create_key(1)], expected)
         self.session.rollback_transaction()
 
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
-        self.assertEqual(cursor[self.create_key(0)], value2)
+        self.assertEqual(cursor[self.create_key(1)], value2)
         self.session.rollback_transaction()
 
         self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
-        self.assertEqual(cursor[self.create_key(0)], value3)
+        self.assertEqual(cursor[self.create_key(1)], value3)
         self.session.rollback_transaction()

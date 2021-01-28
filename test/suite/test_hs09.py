@@ -43,9 +43,9 @@ class test_hs09(wttest.WiredTigerTestCase):
     uri = "table:test_hs09"
     key_format_values = [
         # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
-        ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
         ('string', dict(key_format='S')),
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -107,38 +107,41 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         self.check_ckpt_hs(value2, value1, 2, 3)
 
+    # Remove for column store until prepared updates is implemented for column store
+    # WT-6061
     def test_prepared_updates_not_written_to_hs(self):
-        # Create a small table.
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
-        self.session.create(self.uri, create_params)
+        if self.key_format != 'r':
+            # Create a small table.
+            create_params = 'key_format={},value_format=S'.format(self.key_format)
+            self.session.create(self.uri, create_params)
 
-        value1 = 'a' * 500
-        value2 = 'b' * 500
-        value3 = 'c' * 500
+            value1 = 'a' * 500
+            value2 = 'b' * 500
+            value3 = 'c' * 500
 
-        # Load 1MB of data.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
-        cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction()
-        for i in range(1, 2000):
-            cursor[self.create_key(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+            # Load 1MB of data.
+            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+            cursor = self.session.open_cursor(self.uri)
+            self.session.begin_transaction()
+            for i in range(1, 2000):
+                cursor[self.create_key(i)] = value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
-        # Load another 1MB of data with a later timestamp.
-        self.session.begin_transaction()
-        for i in range(1, 2000):
-            cursor[self.create_key(i)] = value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+            # Load another 1MB of data with a later timestamp.
+            self.session.begin_transaction()
+            for i in range(1, 2000):
+                cursor[self.create_key(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Prepare some updates
-        self.session.begin_transaction()
-        for i in range(1, 11):
-            cursor[self.create_key(i)] = value3
-        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
+            # Prepare some updates
+            self.session.begin_transaction()
+            for i in range(1, 11):
+                cursor[self.create_key(i)] = value3
+            self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_hs(value2, value1, 2, 3)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
-            ',durable_timestamp=' + timestamp_str(5))
+            self.check_ckpt_hs(value2, value1, 2, 3)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
+                ',durable_timestamp=' + timestamp_str(5))
 
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
