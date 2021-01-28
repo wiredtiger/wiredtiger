@@ -77,8 +77,7 @@ class test_hs04(wttest.WiredTigerTestCase):
         return i
 
     def test_hs(self):
-        create_params = 'key_format=S,value_format=S'
-        self.session.create(self.uri, create_params)
+        self.session.create(self.uri, 'key_format=S,value_format=S')
 
         if self.in_memory:
             # For in-memory configurations, we simply ignore any history store
