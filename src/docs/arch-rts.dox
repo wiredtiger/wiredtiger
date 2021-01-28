@@ -2,17 +2,18 @@
 
 Rollback to stable is an operation that retains only the modifications that
 are stable according to the stable timestamp and recovered checkpoint snapshot.
+The checkpoint transaction snapshot details are saved at the end of every
+checkpoint are recovered and used as a recovered checkpoint snapshot.
 
 @section rts-overview Overview of rollback to stable
 
-Rollback to stable process scans each and every table present in the database
-except metadata @ref arch-metadata to remove the modifications from the table
+Rollback to stable scans each and every table present in the database except
+metadata @ref arch-metadata to remove the modifications from the table
 that are more than stable timestamp and recovered checkpoint snapshot.
 
 In the process of removing newer modifications from the table, all the in-memory
 updates are aborted and the on-disk version updates are replaced with an update
-from history store if exist. In case if there is no history store version is
-available, the data store version is removed.
+from history store otherwise the data store version is removed.
 
 Rollback to stable is performed in three phases
 1. WT startup
@@ -87,9 +88,9 @@ update is found.
 @section rts-abort-on-disk-update How rollback to stable aborts on-disk update
 
 If the start time pair is not stable try to find a valid update from the history
-store that is stable to replace the on-disk version if exists otherwise remove
-the on-disk key. In case if the stop time pair if exists and if its not stable,
-restore the on-disk update again into the update list.
+store that is stable to replace the on-disk version otherwise remove the on-disk
+key. In case if the stop time pair if exists and if its not stable, restore the
+on-disk update again into the update list.
 
 To remove any existing update, rollback to stable adds globally visible tombstone to
 the key update list and this key will get removed later during the reconciliation.
