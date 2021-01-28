@@ -71,11 +71,6 @@ class test_hs04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def create_key(self, i):
-        if self.key_format == 'S':
-            return str(i)
-        return i
-
     def test_hs(self):
         create_params = 'key_format=S,value_format=S'
         self.session.create(self.uri, create_params)
