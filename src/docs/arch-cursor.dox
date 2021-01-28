@@ -26,7 +26,7 @@ implementation classes.
 
 The code for each cursor type's methods are generally organized in a single file.
 For example, a backup cursor is implemented in \c src/cursor/cur_backup.c .
-Shared or utility cursor methods are defined in \c src/cursor/cur_std.c .
+Similarly, shared or utility cursor methods are defined in \c src/cursor/cur_std.c .
 
 Several cursor types have the concept of subordinate cursors, or child
 cursors.  For example, a table cursor is composed of subordinate file cursors,
