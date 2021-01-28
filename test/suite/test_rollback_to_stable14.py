@@ -202,5 +202,97 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         # The test may output the following message in eviction under cache pressure. Ignore that.
         self.ignoreStdoutPatternIfExists("oldest pinned transaction ID rolled back for eviction")
 
+    def test_rollback_to_stable_same_ts(self):
+        nrows = 1500
+
+        # Create a table without logging.
+        self.pr("create/populate table")
+        uri = "table:rollback_to_stable14"
+        ds = SimpleDataSet(
+            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds.populate()
+
+        # Pin oldest and stable to timestamp 10.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
+            ',stable_timestamp=' + timestamp_str(10))
+
+        value_a = "aaaaa" * 100
+
+        value_modQ = mod_val(value_a, 'Q', 0)
+        value_modR = mod_val(value_modQ, 'R', 1)
+        value_modS = mod_val(value_modR, 'S', 2)
+        value_modT = mod_val(value_modS, 'T', 3)
+
+        # Perform a combination of modifies and updates.
+        self.pr("large updates and modifies")
+        self.large_updates(uri, value_a, ds, nrows, 20)
+        self.large_modifies(uri, 'Q', ds, 0, 1, nrows, 30)
+        self.large_modifies(uri, 'R', ds, 1, 1, nrows, 60)
+        self.large_modifies(uri, 'S', ds, 2, 1, nrows, 60)
+        self.large_modifies(uri, 'T', ds, 3, 1, nrows, 60)
+
+        # Verify data is visible and correct.
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_modQ, uri, nrows, 30)
+        self.check(value_modT, uri, nrows, 60)
+
+        # Pin stable to timestamp 60 if prepare otherwise 50.
+        if self.prepare:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(60))
+        else:
+            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
+
+        # Create a checkpoint thread
+        done = threading.Event()
+        ckpt = checkpoint_thread(self.conn, done)
+        try:
+            self.pr("start checkpoint")
+            ckpt.start()
+
+            # Perform several modifies in parallel with checkpoint.
+            # Rollbacks may occur when checkpoint is running, so retry as needed.
+            self.pr("modifies")
+            retry_rollback(self, 'modify ds1, W', None,
+                           lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, 70))
+            retry_rollback(self, 'modify ds1, X', None,
+                           lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, 80))
+            retry_rollback(self, 'modify ds1, Y', None,
+                           lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, 90))
+            retry_rollback(self, 'modify ds1, Z', None,
+                           lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, 100))
+        finally:
+            done.set()
+            ckpt.join()
+
+        # Simulate a server crash and restart.
+        self.pr("restart")
+        self.simulate_crash_restart(".", "RESTART")
+        self.pr("restart complete")
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        hs_sweep = stat_cursor[stat.conn.txn_rts_sweep_hs_keys][2]
+        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
+        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        stat_cursor.close()
+
+        self.assertEqual(calls, 0)
+        self.assertEqual(keys_removed, 0)
+        self.assertEqual(keys_restored, 0)
+        self.assertEqual(upd_aborted, 0)
+        self.assertGreater(pages_visited, 0)
+        self.assertGreaterEqual(hs_removed, nrows)
+        self.assertGreaterEqual(hs_sweep, 0)
+
+        # Check that the correct data is seen at and after the stable timestamp.
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_modQ, uri, nrows, 30)
+
+        # The test may output the following message in eviction under cache pressure. Ignore that.
+        self.ignoreStdoutPatternIfExists("oldest pinned transaction ID rolled back for eviction")
+
 if __name__ == '__main__':
     wttest.run()

@@ -256,7 +256,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * Do not include history store updates greater than on-disk data store version to construct
          * a full update to restore.
          */
-        if (hs_start_ts < unpack->tw.start_ts) {
+        if (hs_start_ts <= unpack->tw.start_ts) {
             if (type == WT_UPDATE_MODIFY)
                 WT_ERR(__wt_modify_apply_item(
                   session, S2BT(session)->value_format, &full_value, hs_value->data));
