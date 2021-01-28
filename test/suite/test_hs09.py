@@ -38,7 +38,7 @@ def timestamp_str(t):
 # second newest committed version to history store.
 class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+    conn_config = 'cache_size=10MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
     uri = "table:test_hs09"
     key_format_values = [
@@ -54,20 +54,34 @@ class test_hs09(wttest.WiredTigerTestCase):
             return str(i)
         return i
 
-    def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
+    def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts,
+                      expected_hs_stop_ts, expect_prepared_in_datastore = False,
+                      expected_prepared_value = None):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
-        # Check the data file value
-        cursor = session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint')
+        # Check the data file value.
+        cursor = session.open_cursor(self.uri)
+
+        # If we are expecting prepapred updates in the datastore, start an explicit transaction with
+        # ignore prepare flag to avoid getting a WT_PREPARE_CONFLICT error.
+        if expect_prepared_in_datastore:
+            session.begin_transaction("ignore_prepare=true")
+
         for _, value in cursor:
+            if expect_prepared_in_datastore and value == expected_prepared_value:
+                continue
             self.assertEqual(value, expected_data_value)
+
+        if expect_prepared_in_datastore:
+            session.rollback_transaction()
+
         cursor.close()
-        # Check the history store file value
-        cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
+        # Check the history store file value.
+        cursor = session.open_cursor("file:WiredTigerHS.wt")
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
-            # No WT_UPDATE_TOMBSTONE in the history store
+            # No WT_UPDATE_TOMBSTONE in the history store.
             self.assertNotEqual(type, 5)
-            # No WT_UPDATE_BIRTHMARK in the history store
+            # No WT_UPDATE_BIRTHMARK in the history store.
             self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
             if (type == 4):
@@ -100,7 +114,7 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Uncommitted changes
+        # Uncommitted changes.
         self.session.begin_transaction()
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
@@ -130,13 +144,15 @@ class test_hs09(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
 
-        # Prepare some updates
+        # Prepare some updates.
         self.session.begin_transaction()
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
         self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
 
-        self.check_ckpt_hs(value2, value1, 2, 3)
+        # We can expect prepared values to show up in data store if the eviction runs between now
+        # and the time when we open a cursor on the user table.
+        self.check_ckpt_hs(value2, value1, 2, 3, True, value3)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
             ',durable_timestamp=' + timestamp_str(5))
 
