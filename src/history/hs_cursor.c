@@ -180,7 +180,7 @@ __wt_hs_cursor_position(WT_SESSION_IMPL *session, WT_CURSOR *cursor, uint32_t bt
 static int
 __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare,
-  WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+  WT_ITEM *on_disk_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *hs_cbt;
@@ -208,7 +208,6 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     upd_found = false;
-    WT_UNUSED(on_disk_tw);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_search_hs);
 
@@ -377,20 +376,6 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
             WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts_tmp, &durable_timestamp_tmp,
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
-
-            /*
-             * The current onpage value in memory may also be in the history store if checkpoint
-             * chooses to write a newer version in its disk image and move the onpage value of the
-             * in memory disk image to the history store. In this case, don't use the onpage value
-             * as the base value as if the onpage value is an overflow value, it is now removed by
-             * the checkpoint reconciliation. However, we should not look past the onpage value to
-             * look for the base value.
-             */
-            WT_ASSERT(session,
-              upd_type == WT_UPDATE_STANDARD || on_disk_tw->start_ts == WT_TS_NONE ||
-                hs_start_ts_tmp < on_disk_tw->start_ts ||
-                (hs_start_ts_tmp == on_disk_tw->start_ts &&
-                  hs_cbt->upd_value->tw.start_txn <= on_disk_tw->start_txn));
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
@@ -451,7 +436,7 @@ err:
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format, uint64_t recno,
-  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf, WT_TIME_WINDOW *on_disk_tw)
+  WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf)
 {
     WT_BTREE *btree;
     WT_DECL_RET;
@@ -460,8 +445,8 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_forma
 
     WT_RET(__wt_hs_cursor_open(session));
     WT_WITH_BTREE(session, CUR2BT(session->hs_cursor),
-      (ret = __hs_find_upd_int(session, btree->id, key, value_format, recno, upd_value,
-         allow_prepare, on_disk_buf, on_disk_tw)));
+      (ret = __hs_find_upd_int(
+         session, btree->id, key, value_format, recno, upd_value, allow_prepare, on_disk_buf)));
     WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
