@@ -15,6 +15,7 @@ ARG
 ARGS
 ASAN
 ASM
+AUS
 Addr
 Ailamaki
 Alakuijala
@@ -157,6 +158,7 @@ FreeBSD's
 FreeLibrary
 Fsync
 Fuerst
+GBR
 GCC
 GIDs
 GLIBC
@@ -283,6 +285,7 @@ NOVALUE
 NOWAIT
 NUL
 NUM
+NZD
 NetBSD
 NoAddr
 Noll
@@ -336,6 +339,7 @@ RNG
 RPC
 RTS
 RUNDIR
+RUS
 RWLOCK
 RXB
 Radu
@@ -407,6 +411,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UPD
 URI
 URIs
 UTF
@@ -564,6 +569,7 @@ ccr
 cd
 ce
 ceh
+celsius
 centric
 cfg
 cfko
@@ -644,6 +650,7 @@ cursoring
 cursorp
 curstat
 curtable
+curtiered
 cust
 customp
 cv
@@ -752,6 +759,7 @@ existp
 extern
 extlist
 fadvise
+fahrenheit
 fallocate
 fallthrough
 fblocks
@@ -835,6 +843,7 @@ goutf
 gt
 handleops
 handlep
+hardcoded
 hashval
 havesize
 hdr
@@ -953,10 +962,12 @@ libs
 libtool
 libwiredtiger
 linkers
+liveness
 llll
 llu
 llvm
 loadtext
+loc
 localTime
 localkey
 localtime
@@ -1039,6 +1050,7 @@ mutexes
 mx
 mytable
 mytxn
+nTemp
 namespace
 namespaces
 nbits
