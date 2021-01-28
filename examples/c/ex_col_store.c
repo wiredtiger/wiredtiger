@@ -200,8 +200,8 @@ remove_country(WT_SESSION *session)
 static void
 generate_data(WEATHER *w_array)
 {
-    int country, day;
     WEATHER w;
+    int country, day;
 
     srand((unsigned int)getpid());
 
