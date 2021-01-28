@@ -6,11 +6,11 @@ a session (thread of control).
 
 Internally, the current transaction state is represented by the WT_TXN structure.
 
-WiredTiger performs all the operations in transactions. If the user doesn't explicitly declare a transaction, WiredTiger will automatically create a transaction for the user's operation.
+WiredTiger performs all the operations in transactions. If the user doesn't explicitly begin a transaction, WiredTiger will automatically create a transaction for the user's read or write operation.
 
 @section Lifecycle
 
-A WiredTiger session creates and managers the transactions' whole lifecycle. A session is only able to manage one transaction at any given time and it cannot run another transaction until the current one completes. Since every session are executed on a single thread, all the operations in the transaction are executed sequentially on the same thread as well.
+A WiredTiger session creates and manages the transactions' lifecycle. One transaction can be run at a time per session, and that transaction must complete before another transaction can be started. Since every session is singly-threaded, all the operations in the transaction are executed on the same thread.
 
 @plantuml_start{transaction_lifecycle.png}
 @startuml{transaction_lifecycle.png}
@@ -47,8 +47,7 @@ Stop
 @enduml
 @plantuml_end
 
-A transaction starts when the user explicitly declares
-it or automatically when the user performs an operation if there is no active transaction in the session that the user is operating on. If it is declared explicitly, it will continue to be active until it is committed or rolled back. If it is created automatically, it will cease to be active after the user operation either successfully completes or fails.
+A transaction starts in two scenarios, when the user calls begin via WT_SESSION::begin_transaction or internally when the user preforms either a read or write operation. Internally they are only started if they are not already within the context of a running transaction. If declared explicitly the transaction will be active until it is committed or rolled back. If it is created internally, it will cease to be active after the user operation either successfully completes or fails.
 
 If the transaction is committed successfully, any write operation it performs is accepted by the database and will be durable to some extent based on the durability setting. Otherwise, all the write operations it has done will be reverted and will not be available any more.
 
