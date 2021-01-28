@@ -55,8 +55,7 @@ class test_hs09(wttest.WiredTigerTestCase):
         return i
 
     def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts,
-                      expected_hs_stop_ts, expect_prepared_in_datastore = False,
-                      expected_prepared_value = None):
+                      expected_hs_stop_ts, expect_prepared_in_datastore = False):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
         # Check the data file value.
@@ -68,8 +67,6 @@ class test_hs09(wttest.WiredTigerTestCase):
             session.begin_transaction("ignore_prepare=true")
 
         for _, value in cursor:
-            if expect_prepared_in_datastore and value == expected_prepared_value:
-                continue
             self.assertEqual(value, expected_data_value)
 
         if expect_prepared_in_datastore:
@@ -152,7 +149,7 @@ class test_hs09(wttest.WiredTigerTestCase):
 
         # We can expect prepared values to show up in data store if the eviction runs between now
         # and the time when we open a cursor on the user table.
-        self.check_ckpt_hs(value2, value1, 2, 3, True, value3)
+        self.check_ckpt_hs(value2, value1, 2, 3, True)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
             ',durable_timestamp=' + timestamp_str(5))
 
