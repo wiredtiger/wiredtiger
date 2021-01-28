@@ -4,11 +4,11 @@ Cursors are used in WiredTiger to get and modify data.
 A caller of WiredTiger uses WT_SESSION::open_cursor to create
 a WT_CURSOR.  Methods on the WT_CURSOR can then be used to
 position, iterate, get, and set data.  In the typical case, a cursor
-will be used to access keys and values in a Btree.  Cursors are
-also used to retrieve indexed data as well as WiredTiger statistics, log files,
+will be used to access keys and values in a Btree.  However, cursors
+can also used to access indexed data, WiredTiger statistics, log files,
 and metadata. Additionally, cursors are used for managing backups.
 
-The various kinds of cursors are created during the WT_SESSION::open_cursor call.
+The various kinds of cursors are created by the WT_SESSION::open_cursor call.
 Depending on the <code>uri</code> used when opening a cursor, the cursor will
 be implemented internally as one of the many cursor structures that include
 \c WT_CURSOR_BTREE, \c WT_CURSOR_BACKUP, \c WT_CURSOR_INDEX, \c WT_CURSOR_LOG,
@@ -24,17 +24,17 @@ Thus, in our C code, we have something similar to a class hierarchy, having
 an abstract base class (WT_CURSOR) with virtual methods, and a number of
 implementation classes.
 
-The code for each cursor type's methods are generally grouped together,
-for example, a backup cursor is implemented in \c src/cursor/cur_backup.c .
-Shared or utility cursor methods are in \c src/cursor/cur_std.c .
+The code for each cursor type's methods are generally organized in a single file.
+For example, a backup cursor is implemented in \c src/cursor/cur_backup.c .
+Shared or utility cursor methods are defined in \c src/cursor/cur_std.c .
 
 Several cursor types have the concept of subordinate cursors, or child
 cursors.  For example, a table cursor is composed of subordinate file cursors,
 each representing a column group.  A metadata cursor has a subordinate
 cursor that is a file cursor on the metadata file.
 
-Every open cursor appears on a list in \c WT_SESSION->cursors .  This list is ordered
-in the way that cursors are closed when the session is closed.  Thus, if a subordinate
+Every open cursor appears on a list in \c WT_SESSION->cursors. This list is ordered
+in a way that cursors are closed when the session is closed. Thus, if a subordinate
 cursor needs to be closed before its parent, it must be listed before the parent.
 
 @section arch_cursor_raw Data translation
@@ -42,7 +42,7 @@ cursor needs to be closed before its parent, it must be listed before the parent
 Cursors that expose Btree data, like file, table and index cursors, return a set of keys and values,
 translating encoded data to types that match the schema.  For example, if the \c value_format specified for
 a table is \c "iSi" (an integer, a null-terminated string, an integer), then data `{0, "abc", 5}` might
-be stored in the B-tree in a packed format as:
+be stored in the Btree in a packed format as:
 ```
 0x80 0x61 0x62 0x63 0x00 0x85
 ```
@@ -73,8 +73,8 @@ Each column group's columns are the stored in a single btree and may be looked u
 See @ref schema_column_groups for API details.
 
 Tables may also have indices. These are implemented as Btrees mapping the index key(s) to the
-main key(s) of the table.  Indices may be added after the data is populated in the main table,
-this requires the index to be filled at the time it is added.  Index cursors are implemented using
+main key(s) of the table.  Indices may be added after the data is populated in the main table.
+This requires the index to be filled at the time it is added.  Index cursors are implemented using
 \c WT_CURSOR_INDEX.  Methods on this cursor that set and get values know to use the value that appears
 in the index as a key into the main table.
 See @ref schema_indices for API details.
@@ -128,7 +128,7 @@ In this case, the plan is this string (with spacing added):
 ```
 0v n 1v s n 1v n 0k s n 0k n 0v s n 1v s n
 ```
-To break it down,   
+To break it down,
 - \c "0v" means use sub-cursor 0 and prepare to read values.
 - \c "n" means get the next value, that is \c "x1".
 - \c "1v" means use sub-cursor 1 and prepare to read values.
@@ -141,21 +141,21 @@ Each skip involves enough decoding of the data item to determine its length so i
 be skipped over.
 
 With the default (complete) projection, getting values is fast.  Using the default plan, the needed
-columns are pulled out of each subordinate cursor one by one, being copied to the caller's arguments.
+columns are pulled out of each subordinate cursor one by one, and get copied to the caller's arguments.
 With projections, the simple algorithm following the plan works well if the columns in the projection
 are grouped by column group and requested in order.  Without that discipline, as in this example,
 the performance will not be optimal.
 
-The implementation of plan creation and execution resides the schema.
+The implementation of plan creation and execution resides in the @ref arch-schema.
 
 @section arch_cursor_dump Dump cursors
 
 Dump cursors are used in two rather different ways.  Regular dump cursors retrieve the raw keys and values
-and translate bytes either as raw characters or translating to hex.  This flavor of dump cursor is used
+and translate bytes either as raw characters or as hex values.  This flavor of dump cursor is used
 by the `wt dump` or `wt dump -x` utility.  JSON dump cursors do more sophisticated translation, returning a string that is a JSON
 formatted record, with the name for each key and its data and the name for each value and its corresponding data.
 Data is translated to either integral, floating point, or string depending on the format of the column in the schema.
-This flavor of dump cursor is used by the `wt dump -j` command as part of creating a JSON dump of WiredTiger URI.
+This flavor of dump cursor is used by the `wt dump -j` command as part of creating a JSON dump of a WiredTiger table or file.
 
 There is a single \c WT_CURSOR_DUMP struct that is used to implement both flavors.
 The dump code checks for the \c WT_CURSTD_DUMP_JSON flag and as needed, calls into functions
@@ -163,12 +163,12 @@ in `src/cursor/cur_json.c` .  The code in that file also implements several exte
 by the `wt` utility when loading JSON-dumped files.  In particular, the \c __wt_json_token function
 returns individual JSON tokens from an input string.
 
-The JSON code used by the dump cursor uses some storage that hangs off of `cursor->json_private` that
+The JSON code used by the dump cursor uses some storage that hangs off of `cursor->json_private` which
 is typed as \c WT_CURSOR_JSON.  When a JSON flavored cursor is created, the list of key column names
 and value column names is populated in \c WT_CURSOR_JSON.  These names, obtained from the
 configuration string that created the table or file, are useful to have in advance,
 as they are used once per row to help fill out the JSON output.  The functions that get
-rows know to iterate these names and unpack the corresponding column data,
+rows iterate these names and unpack the corresponding column data,
 converting them into the appropriate JSON format for the data.
 
 @section arch_cursor_backup Backup cursors
@@ -187,12 +187,12 @@ Closing the backup cursor sets it back to zero.
 Having an open backup influences actions
 elsewhere in WiredTiger, since part of the backup protocol involves the application copying
 whole data files.  Thus, having an open backup may cause the block manager and log file server
-thread to avoid truncating data and log files.  A truncate of a file being copied by the
+thread to avoid truncating data and log files.  A truncation of a file being copied by the
 application would be unexpected. Also, open checkpoints are not deleted during the
 course of a backup.
 
 When the backup cursor is initialized, the complete set of files needed to back up is generated
-and stored in the cursor.  This makes the backup's \c next function easy, just return the next
+and stored in the cursor.  This makes the backup's \c next function easy as it just returns the next
 file in the list.
 
 Incremental backups work much the same way, except that the file list is reduced to files that
@@ -222,7 +222,7 @@ of the cursor.  To get the next row that satisfies a join requires that multiple
 Generally, the "left-most" index cursor is iterated first.  Using the example above, the \c price
 index would be iterated, skipping over any entries that did not satisfy `(row.price > 100 and row.price <= 200)`.
 Then other cursors are checked to see that any other conditions are satisfied.
-The join may be configured to use Bloom filters, when that occurs,
+The join may be configured to use Bloom filters, and when that occurs,
 \c WT_CURSOR_JOIN_ENTRIES contain the bloom filter for individual index checks.  This allows checks
 to occur quickly, at the expense of an initialization that occurs when the cursor begins iteration.
 
