@@ -1029,7 +1029,7 @@ retry:
         }
 
         WT_RET(__wt_hs_find_upd(session, key, cbt->iface.value_format, recno, cbt->upd_value, false,
-          &cbt->upd_value->buf, &tw));
+          &cbt->upd_value->buf));
     }
 
     /*
