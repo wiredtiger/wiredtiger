@@ -498,6 +498,7 @@ src
 ssd
 startsync
 startuml
+startup
 statlog
 stderr
 stdout
