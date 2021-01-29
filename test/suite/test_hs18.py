@@ -39,7 +39,7 @@ class test_hs18(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('string', dict(key_format='S'))
+        # ('string', dict(key_format='S'))
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -66,8 +66,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         cursor2 = session2.open_cursor(uri)
 
-        self.session.breakpoint()
-
         value0 = 'f' * 500
         value1 = 'a' * 500
         value2 = 'b' * 500
@@ -83,8 +81,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a long running transaction which could see update 0.
         session2.begin_transaction()
         self.check_value(cursor2, value0)
-
-        self.session.breakpoint()
 
         # Insert an update at timestamp 5
         self.session.begin_transaction()
@@ -115,8 +111,6 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Check our value is still correct.
         self.check_value(cursor2, value0)
 
-        self.session.breakpoint()
-
         # Insert a bunch of other contents to trigger eviction
         for i in range(10001, 11000):
             self.session.begin_transaction()
@@ -128,6 +122,11 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     # Test that we don't get the wrong value if we read with a timestamp originally.
     def test_read_timestamp_weirdness(self):
+        # Mixed mode transactions not supported for column store scenario. 
+        # Re-enable once WT-7136 is complete.
+        if self.key_format == 'r':
+            return
+
         uri = 'table:test_hs18'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
         cursor = self.session.open_cursor(uri)
@@ -252,6 +251,11 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     # Test older readers for each of the updates moved to the history store.
     def test_multiple_older_readers(self):
+        # Mixed mode transactions not supported for column store scenario. 
+        # Re-enable once WT-7136 is complete.
+        if self.key_format == 'r':
+            return
+
         uri = 'table:test_multiple_older_readers'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
         cursor = self.session.open_cursor(uri)
@@ -324,6 +328,11 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursors[i].reset()
 
     def test_multiple_older_readers_with_multiple_mixed_mode(self):
+        # Mixed mode transactions not supported for column store scenario. 
+        # Re-enable once WT-7136 is complete.
+        if self.key_format == 'r':
+            return
+
         uri = 'table:test_multiple_older_readers'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
         cursor = self.session.open_cursor(uri)
@@ -441,6 +450,11 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursors[i].reset()
 
     def test_modifies(self):
+        # Modify not supported for column store scenario. 
+        # Re-enable once WT-7136 is complete.
+        if self.key_format == 'r':
+            return
+
         uri = 'table:test_modifies'
         self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
         cursor = self.session.open_cursor(uri)
