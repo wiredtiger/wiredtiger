@@ -236,7 +236,7 @@ Consider
 ```
 (row.price > 100 and row.in_stock < 10) .... or (row.aisle == 12 and row.on_sale == 1)
 ```
-The last part of the query (being part of an OR clause) may be first executed after a number of items
+The last part of the query (being part of an OR clause) will be first executed after a number of items
 are returned that satisfy the first part of the query.  If the join cursor is closed before then,
 it would be a waste to have opened subordinate cursors on the \c aisle and \c on_sale indices, and
 potentially computed bloom filters, etc.
@@ -314,8 +314,8 @@ some periodic activity that causes it to run its sweep, an occasional call to WT
 After a dhandle has been dead for enough time, it is expected that all of its weak references will drop to zero,
 and the dhandle itself can be freed by the dhandle sweep.
 
-If there is a failure during the \c cache function, then we would want fully close the cursor.
-Rather than have special case code to handle this rare condition, we instead call \c reopen to
+If there is a failure during the \c cache function, then we would want to fully close the cursor.
+Rather than having special case code to handle this rare condition, we instead call \c reopen to
 temporarily bring the cursor back to an open state, and turn cursor caching off temporarily in
 the session while we close the cursor, releasing all its resources and references.
 
@@ -352,7 +352,7 @@ occurs in the connection sweep code.  The latter job occurs in the session curso
 
 The session cursor cache sweep currently happens in the WT_CURSOR::close call,
 and also on calls to WT_SESSION::reset.  On one hand, we don't want the overhead
-of a sweep to occur too frequently. It quite possible that both close and reset can be called a lot
+of a sweep to occur too frequently. It is quite possible that both close and reset can be called a lot
 and there may be many of thousands of cached cursors in the session.  For that reason, we'd like
 to do the sweep in small increments, and not on each call.  On the other hand, in a larger system,
 a session may be part of a pool servicing higher level requests.  When a session completes its work,
