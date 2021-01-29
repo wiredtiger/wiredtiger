@@ -1,0 +1,128 @@
+#!/usr/bin/env python
+#
+# Public Domain 2014-2021 MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#
+# This is free and unencumbered software released into the public domain.
+#
+# Anyone is free to copy, modify, publish, use, compile, sell, or
+# distribute this software, either in source code form or as a compiled
+# binary, for any purpose, commercial or non-commercial, and by any
+# means.
+#
+# In jurisdictions that recognize copyright laws, the author or authors
+# of this software dedicate any and all copyright interest in the
+# software to the public domain. We make this dedication for the benefit
+# of the public at large and to the detriment of our heirs and
+# successors. We intend this dedication to be an overt act of
+# relinquishment in perpetuity of all present and future rights to this
+# software under copyright law.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR
+# OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
+# ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
+# OTHER DEALINGS IN THE SOFTWARE.
+
+import codecs
+from suite_subprocess import suite_subprocess
+import wiredtiger, wttest
+
+# test_util18.py
+#   Utilities: wt printlog
+class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
+    """
+    Test wt printlog
+    """
+    tablename = 'test_util18.a'
+    uri = 'table:' + tablename
+    logmax = 100
+    nentries = 5
+    create_params = 'key_format=S,value_format=S'
+
+    def conn_config(self):
+        return 'log=(archive=false,enabled,file_max=%dK)' % self.logmax
+
+    # Insert entries into the table
+    def populate(self):
+        cursor = self.session.open_cursor(self.uri, None)
+        for i in range(0, self.nentries):
+            key = 'KEY' + str(i)
+            val = 'VAL' + str(i)
+            cursor[key] = val
+        cursor.close()
+
+    # Check the given printlog file reflects the data written by 'populate'
+    def check_populated_printlog(self, log_file, expect_keyval, expect_keyval_hex):
+        for i in range(0, self.nentries):
+            key = 'KEY' + str(i)
+            val = 'VAL' + str(i)
+            # Check if the KEY/VAL commits exist in the log file
+            if expect_keyval:
+                self.check_file_contains(log_file, '"key": "%s\\u0000"' % key)
+                self.check_file_contains(log_file, '"value": "%s\\u0000"' % val)
+            else:
+                self.check_file_not_contains(log_file, '"key": "%s\\u0000"' % key)
+                self.check_file_not_contains(log_file, '"value": "%s\\u0000"' % val)
+
+            # Convert our KEY/VAL strings to their expected hex value
+            hex_key = codecs.encode(key.encode(), 'hex')
+            val_key = codecs.encode(val.encode(), 'hex')
+            # Check if the KEY/VAL commits exist in the log file (in hex form)
+            if expect_keyval_hex:
+                self.check_file_contains(log_file, '"key-hex": "%s00"' % str(hex_key, 'ascii'))
+                self.check_file_contains(log_file, '"value-hex": "%s00"' % str(val_key, 'ascii'))
+            else:
+                self.check_file_not_contains(log_file, '"key-hex": "%s00"' % str(hex_key, 'ascii'))
+                self.check_file_not_contains(log_file, '"value-hex": "%s00"' % str(val_key, 'ascii'))
+
+    def test_printlog_file(self):
+        """
+        Test printlog on a populated table
+        """
+        self.session.create('table:' + self.tablename, self.create_params)
+        self.populate()
+        self.runWt(["printlog"], outfilename='printlog.out')
+        self.check_non_empty_file('printlog.out')
+        self.check_populated_printlog('printlog.out', True, False)
+
+    def test_printlog_hex_file(self):
+        """
+        Test printlog with hexadecimal formatting on a populated table
+        """
+        self.session.create('table:' + self.tablename, self.create_params)
+        self.populate()
+        self.runWt(["printlog", "-x"], outfilename='printlog-hex.out')
+        self.check_non_empty_file('printlog-hex.out')
+        self.check_populated_printlog('printlog-hex.out', True, True)
+
+    def test_printlog_message(self):
+        """
+        Test printlog with messages-only formatting on a populated table
+        """
+        # Run reconfigure with compatibility to force 'COMPATIBILITY' message
+        self.conn.reconfigure('compatibility=(release=3.2.0)')
+        self.session.create('table:' + self.tablename, self.create_params)
+        self.populate()
+        self.runWt(["printlog", "-m"], outfilename='printlog-message.out')
+        self.check_non_empty_file('printlog-message.out')
+        self.check_file_contains('printlog-message.out', 'COMPATIBILITY: Version now 3')
+        self.check_populated_printlog('printlog-message.out', False, False)
+
+    def test_printlog_lsn_offset(self):
+        """
+        Test printlog with an LSN offset provided
+        """
+        self.session.create('table:' + self.tablename, self.create_params)
+        self.populate()
+        self.runWt(["printlog", '-l 1,128,1,128'], outfilename='printlog-lsn-offset.out')
+        self.check_file_contains('printlog-lsn-offset.out', '"lsn" : [1,128]')
+        self.check_file_not_contains('printlog-lsn-offset.out', '"lsn" : [1,256]')
+        self.check_populated_printlog('printlog-lsn-offset.out', False, False)
+        self.runWt(["printlog", '-l 1,128'], outfilename='printlog-lsn-offset.out')
+        self.check_populated_printlog('printlog-lsn-offset.out', True, False)
+
+if __name__ == '__main__':
+    wttest.run()
