@@ -858,16 +858,6 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
         if (type == WT_UPDATE_RESERVE)
             continue;
 
-        /*
-         * Save the restored update to use it as base value update in case if we need to reach
-         * history store instead of on-disk value.
-         */
-        if (restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
-          type == WT_UPDATE_STANDARD) {
-            WT_ASSERT(session, *restored_updp == NULL);
-            *restored_updp = upd;
-        }
-
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
         /*
          * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
@@ -899,6 +889,16 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
           prepare_updp != NULL && *prepare_updp == NULL &&
           F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
             *prepare_updp = upd;
+
+        /*
+         * Save the restored update to use it as base value update in case if we need to reach
+         * history store instead of on-disk value.
+         */
+        if (restored_updp != NULL && F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS) &&
+          type == WT_UPDATE_STANDARD) {
+            WT_ASSERT(session, *restored_updp == NULL);
+            *restored_updp = upd;
+        }
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
             /* Ignore the prepared update, if transaction configuration says so. */
