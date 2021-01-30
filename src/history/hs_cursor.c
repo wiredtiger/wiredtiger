@@ -373,6 +373,19 @@ __hs_find_upd_int(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
                 break;
             }
 
+            /*
+             * If the stop time pair on the tombstone in the history store is already globally
+             * visible fall back to the base value. This is possible in scenarios where the latest
+             * updates are aborted by RTS according to stable timestamp.
+             */
+            if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw)) {
+                /* Fallback to the provided value as the base value. */
+                orig_hs_value_buf = hs_value;
+                hs_value = base_value_buf;
+                upd_type = WT_UPDATE_STANDARD;
+                break;
+            }
+
             WT_ERR(hs_cursor->get_value(hs_cursor, &hs_stop_durable_ts_tmp, &durable_timestamp_tmp,
               &upd_type_full, hs_value));
             upd_type = (uint8_t)upd_type_full;
