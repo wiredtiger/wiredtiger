@@ -229,20 +229,22 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         self.pr("large updates and modifies")
         self.large_updates(uri, value_a, ds, nrows, 20)
         self.large_modifies(uri, 'Q', ds, 0, 1, nrows, 30)
-        self.large_modifies(uri, 'R', ds, 1, 1, nrows, 60)
-        self.large_modifies(uri, 'S', ds, 2, 1, nrows, 60)
-        self.large_modifies(uri, 'T', ds, 3, 1, nrows, 60)
+        # prepare cannot use same timestamp always, so use a different timestamps that are aborted.
+        if self.prepare:
+            self.large_modifies(uri, 'R', ds, 1, 1, nrows, 51)
+            self.large_modifies(uri, 'S', ds, 2, 1, nrows, 55)
+            self.large_modifies(uri, 'T', ds, 3, 1, nrows, 60)
+        else:
+            self.large_modifies(uri, 'R', ds, 1, 1, nrows, 60)
+            self.large_modifies(uri, 'S', ds, 2, 1, nrows, 60)
+            self.large_modifies(uri, 'T', ds, 3, 1, nrows, 60)
 
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
         self.check(value_modQ, uri, nrows, 30)
         self.check(value_modT, uri, nrows, 60)
 
-        # Pin stable to timestamp 60 if prepare otherwise 50.
-        if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(60))
-        else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(50))
 
         # Create a checkpoint thread
         done = threading.Event()
@@ -288,7 +290,7 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         self.assertEqual(keys_restored, 0)
         self.assertEqual(upd_aborted, 0)
         self.assertGreater(pages_visited, 0)
-        self.assertGreaterEqual(hs_removed, nrows)
+        self.assertGreaterEqual(hs_removed, nrows * 3)
         self.assertGreaterEqual(hs_sweep, 0)
 
         # Check that the correct data is seen at and after the stable timestamp.
