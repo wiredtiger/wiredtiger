@@ -75,5 +75,8 @@ updates from a given b-tree ahead of the checkpoint.
 While processing a b-tree checkpoint can mark pages as obsolete, any page that has an aggregated
 stop time pair which is globally visible will no longer be required by any reader and can be marked
 as deleted. This occurs prior to the page being reconciled, allowing for the page to be removed
-during the reconciliation.
+during the reconciliation. However this does not mean that the deleted page is available for re-use
+as it may be referenced by older checkpoints, once the older checkpoint is deleted the page is free
+to be used. Given the freed pages exist at the end of the file the file can be truncated. Otherwise
+compaction will need to be initiated to shrink the file, see: WT_SESSION::compact.
 */
