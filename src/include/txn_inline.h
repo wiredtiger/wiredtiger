@@ -836,11 +836,12 @@ __wt_upd_alloc_tombstone(WT_SESSION_IMPL *session, WT_UPDATE **updp, size_t *siz
 }
 
 /*
- * __wt_txn_read_upd_list --
- *     Get the first visible update in a list (or NULL if none are visible).
+ * __wt_txn_read_upd_list_internal --
+ *     Internal helper function to get the first visible update in a list (or NULL if none are
+ *     visible).
  */
 static inline int
-__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
+__wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
   WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
 {
     WT_VISIBLE_TYPE upd_visible;
@@ -928,6 +929,16 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
 }
 
 /*
+ * __wt_txn_read_upd_list --
+ *     Get the first visible update in a list (or NULL if none are visible).
+ */
+static inline int
+__wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd)
+{
+    return __wt_txn_read_upd_list_internal(session, cbt, upd, NULL, NULL);
+}
+
+/*
  * __wt_txn_read --
  *     Get the first visible update in a chain. This function will first check the update list
  *     supplied as a function argument. If there is no visible update, it will check the onpage
@@ -946,7 +957,7 @@ __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint
     retry = true;
 
 retry:
-    WT_RET(__wt_txn_read_upd_list(session, cbt, upd, &prepare_upd, &restored_upd));
+    WT_RET(__wt_txn_read_upd_list_internal(session, cbt, upd, &prepare_upd, &restored_upd));
     if (WT_UPDATE_DATA_VALUE(cbt->upd_value) ||
       (cbt->upd_value->type == WT_UPDATE_MODIFY && cbt->upd_value->skip_buf))
         return (0);
