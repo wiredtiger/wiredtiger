@@ -122,7 +122,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     # Test that we don't get the wrong value if we read with a timestamp originally.
     def test_read_timestamp_weirdness(self):
-        # Mixed mode transactions not supported for column store scenario. 
+        # Mixed mode transactions not supported for column store scenario.
         # Re-enable once WT-7136 is complete.
         if self.key_format == 'r':
             return
@@ -251,7 +251,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
     # Test older readers for each of the updates moved to the history store.
     def test_multiple_older_readers(self):
-        # Mixed mode transactions not supported for column store scenario. 
+        # Mixed mode transactions not supported for column store scenario.
         # Re-enable once WT-7136 is complete.
         if self.key_format == 'r':
             return
@@ -328,7 +328,7 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursors[i].reset()
 
     def test_multiple_older_readers_with_multiple_mixed_mode(self):
-        # Mixed mode transactions not supported for column store scenario. 
+        # Mixed mode transactions not supported for column store scenario.
         # Re-enable once WT-7136 is complete.
         if self.key_format == 'r':
             return
@@ -450,7 +450,7 @@ class test_hs18(wttest.WiredTigerTestCase):
             cursors[i].reset()
 
     def test_modifies(self):
-        # Modify not supported for column store scenario. 
+        # Modify not supported for column store scenario.
         # Re-enable once WT-7136 is complete.
         if self.key_format == 'r':
             return
