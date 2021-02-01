@@ -15,8 +15,8 @@ class tmp_test(wttest.WiredTigerTestCase):
         ('integer', dict(key_format='i')),
     ]
     value_format_values = [
-        ('fixed', dict(value_format='500s')),
-        ('variable', dict(value_format='S')),
+        ('fixed', dict(value_format='8t')),
+        ('variable', dict(value_format='i')),
     ]
     scenarios = make_scenarios(key_format_values, value_format_values)
 
@@ -45,12 +45,13 @@ class tmp_test(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 
-        tmp_value = 'aaaaa' * 100
-        tmp_value2 = 'bbbbb' * 100
-        tmp_value3 = 'ccccc' * 100
-        tmp_value4 = 'ddddd' * 100
-        tmp_value5 = 'eeeee' * 100
+        tmp_value = 0x20
+        tmp_value2 = 0x30
+        tmp_value3 = 0x40
+        tmp_value4 = 0x50
+        tmp_value5 = 0x60
 
+        # Do a bunch of transactions
         self.session.begin_transaction()
         cursor[1] = tmp_value
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -75,7 +76,16 @@ class tmp_test(wttest.WiredTigerTestCase):
 
         self.conn.rollback_to_stable()
 
+        # Check that only tmp_value is available
         self.check(tmp_value, uri, 1, 2)
+        self.check(tmp_value, uri, 1, 5)
+
+        self.session.checkpoint()
+
+        self.check(tmp_value, uri, 1, 2)
+
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(7))
+        self.check(tmp_value, uri, 1, 7)
 
         self.session.close()
 
