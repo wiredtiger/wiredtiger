@@ -20,7 +20,8 @@ internally to the timestamp contained in the metadata, and rollback updates whic
 
 A checkpoint can be broken up into 5 main stages:
 
-1. The prepare stage
+_The prepare stage:_
+
 Checkpoint prepare sets up the checkpoint, it begins the checkpoint transaction, updates the global
 checkpoint state and gathers a list of handles to be checkpointed. A global schema lock wraps
 checkpoint prepare to avoid any tables being created or dropped during this phase, additionally the
@@ -31,7 +32,8 @@ checkpoint varies based off configuration. Additionally clean b-trees, i.e. b-tr
 modifications are excluded from the list, with an exception for specific checkpoint configuration
 scenarios.
 
-2. The datafiles checkpoint
+_The datafiles checkpoint:_
+
 The main work of checkpoint is done here, the array of b-tree's collected in the prepare stage are
 iterated over. For each b-tree, the tree is walked and all the dirty pages are reconciled. Skipping
 clean pages to avoid unnecessary work. Pages made clean ahead of the checkpoint by eviction are
@@ -39,16 +41,19 @@ still skipped regardless of whether the update written by eviction is visible to
 transaction. The checkpoint guarantees that a clean version of every page in the tree exists and
 can be written to disk.
 
-3. The history store checkpoint
+_The history store checkpoint:_
+
 The history store is checkpointed after the datafiles intentionally as during the reconciliation
 of the data files additional writes may be created in the history store and its important to include
 them in the checkpoint.
 
-4. Flushing the files to disk
+_Flushing the files to disk:_
+
 All the b-trees checkpointed and the history are flushed to disk at this stage, WiredTiger will wait
 until that process has completed to continue with the checkpoint.
 
-5. The metadata checkpoint
+_The metadata checkpoint:_
+
 A new entry into the metadata file is created for every datafile checkpointed, including the
 history store. As such the metadata file is the last file to be checkpointed. As WiredTiger
 maintains two checkpoints, the location of the most recent checkpoint is written to the turtle file.
