@@ -3,7 +3,6 @@ from helper import copy_wiredtiger_home
 import wiredtiger, wttest, unittest
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
     return '%x' % t
@@ -16,6 +15,20 @@ class tmp_test(wttest.WiredTigerTestCase):
         ('integer', dict(key_format='i')),
     ]
     scenarios = make_scenarios(key_format_values)
+
+    def check(self, check_value, uri, nrows, read_ts):
+        session = self.session
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        cursor = session.open_cursor(uri)
+        count = 0
+        for k, v in cursor:
+            self.assertEqual(v, check_value)
+            count += 1
+        session.commit_transaction()
+        self.assertEqual(count, nrows)
 
     def test_rollback_to_stable(self):
         # Create a small table.
@@ -34,6 +47,7 @@ class tmp_test(wttest.WiredTigerTestCase):
         tmp_value4 = 'ddddd' * 100
         tmp_value5 = 'eeeee' * 100
 
+    
         self.session.begin_transaction()
         cursor[1] = tmp_value
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -54,9 +68,11 @@ class tmp_test(wttest.WiredTigerTestCase):
         cursor[1] = tmp_value5
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(7))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
+
         self.conn.rollback_to_stable()
-        self.check(tmp_value3, uri, 1, 9)
+
+        self.check(tmp_value, uri, 1, 2)
 
         self.session.close()
         
