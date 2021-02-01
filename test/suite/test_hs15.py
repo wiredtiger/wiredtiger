@@ -26,7 +26,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-#
 # [TEST_TAGS]
 # caching_eviction:correctness:written_data
 # [END_TAGS]

@@ -5,7 +5,7 @@ checkpoints:correctness:cross_table:Ensure that checkpoints across many tables a
 checkpoints:fault_injection:data_correctness:After a fault-induced failure, all data for completed checkpoints is properly preserved
 checkpoints:liveness:liveness:Identify bugs and race conditions related to checkpoints that can cause deadlocks or livelocks
 checkpoints:scalability:many_checkpoints:Ensure that we can take as many checkpoints as there is storage space for
-caching_eviction:fault_injection:cache_corruption:If dirty or clean data is corrupted in cache, what happens?  (not clear if WT is expected to handle this cleanly)
+caching_eviction:fault_injection:cache_corruption:If dirty or clean data is corrupted in cache, what happens?
 caching_eviction:correctness:written_data:Ensure that the data written out by eviction is correct after reading
 caching_eviction:liveness:cache_stuck:Identify bugs and bad workloads that can cause the WiredTiger cache to live lock (a.k.a., “cache stuck” errors).
 caching_eviction:scalability:large_caches:Test that WT behaves correctly with very large cache sizes.
