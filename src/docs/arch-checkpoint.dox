@@ -8,13 +8,14 @@ WT_SESSION::checkpoint, or internally. Internally checkpoints are created on sta
 and during compaction.
 
 A checkpoint is performed within the context of snapshot isolation transaction as such the
-checkpoint has a consistent view of the database from beginning to end. The checkpoint can be run
-with or without a timestamp, generally a timestamp is used. This timestamp is not used as a
-\c read_timestamp for the checkpoint transaction. The checkpoint timestamp will be set to the
-current \c stable_timestamp during checkpoint prepare. This timestamp is written out with the
-metadata information for the checkpoint. On startup WiredTiger will set the \c stable_timestamp
-internally to the timestamp contained in the metadata, and rollback updates which are newer to the
-\c stable_timestamp see: WT_CONNECTION::rollback_to_stable.
+checkpoint has a consistent view of the database from beginning to end. Typically when running a
+checkpoint the configuration \c "use_timestamp=true" is specified. This instructs WiredTiger to set
+the \c checkpoint_timestamp to be the current \c stable_timestamp. As of the latest version of
+WiredTiger the \c checkpoint_timestamp timestamp is not used as a \c read_timestamp for the
+checkpoint transaction. The \c checkpoint_timestamp is written out with the metadata information for
+the checkpoint. On startup WiredTiger will set the \c stable_timestamp internally to the timestamp
+contained in the metadata, and rollback updates which are newer to the \c stable_timestamp see:
+WT_CONNECTION::rollback_to_stable.
 
 # The checkpoint algorithm #
 
@@ -36,7 +37,7 @@ _The data files checkpoint:_
 
 Data files in this instance refer to all the user created files. The main work of checkpoint is done
 here, the array of b-tree's collected in the prepare stage are iterated over. For each b-tree, the
-tree is walked and all the dirty pages are reconciled. Skipping clean pages to avoid unnecessary
+tree is walked and all the dirty pages are reconciled. Clean pages are skipped to avoid unnecessary
 work. Pages made clean ahead of the checkpoint by eviction are still skipped regardless of whether
 the update written by eviction is visible to the checkpoint transaction. The checkpoint guarantees
 that a clean version of every page in the tree exists and can be written to disk.
@@ -69,15 +70,15 @@ via configuration.
 
 The checkpoint generation indicates which iteration of checkpoint a file has undergone, at the start
 of a checkpoint the generation is incremented. Then after processing any b-tree its
-\c checkpoint_gen to the latest checkpoint generation. Checkpoint generations impact visibility
-checks within WiredTiger, essentially if a b-tree is behind a checkpoint, i.e. its checkpoint
-generation is less than the current checkpoint generation, then the checkpoint transaction id and
-checkpoint timestamp are included in certain visibility checks. This prevents eviction from evicting
-updates from a given b-tree ahead of the checkpoint.
+\c checkpoint_gen is set to the latest checkpoint generation. Checkpoint generations impact
+visibility checks within WiredTiger, essentially if a b-tree is behind a checkpoint, i.e. its
+checkpoint generation is less than the current checkpoint generation, then the checkpoint
+transaction id and checkpoint timestamp are included in certain visibility checks.
+This prevents eviction from evicting updates from a given b-tree ahead of the checkpoint.
 
 # Garbage collection #
 
-While processing a b-tree checkpoint can mark pages as obsolete, any page that has an aggregated
+While processing a b-tree, checkpoint can mark pages as obsolete. Any page that has an aggregated
 stop time pair which is globally visible will no longer be required by any reader and can be marked
 as deleted. This occurs prior to the page being reconciled, allowing for the page to be removed
 during the reconciliation. However this does not mean that the deleted page is available for re-use
