@@ -6,12 +6,16 @@ component = ""
 testingArea = ""
 testType = ""
 
+isEnd = False
+isFileIgnored = False
 isFileTagged = False
 isStart = False
-isEnd = False
+showInfo = False
 showMissingFiles = False
 
-nbTests = 0
+nbIgnoredFiles = 0
+nbMissingFiles = 0
+nbValidFiles = 0
 
 sortedTags = []
 testFiles = []
@@ -30,8 +34,11 @@ for arg in sys.argv:
     if arg == "-h":
         print("Usage: python test_tag.py [options]")
         print("Options:")
+        print("\t-i\tShow info")
         print("\t-p\tShow files with no test tags")
         exit()
+    elif arg == "-i":
+        showInfo = True
     elif arg == "-p":
         showMissingFiles = True
 #####
@@ -65,11 +72,11 @@ validationFile.close()
 ##### PARSE TEST FILES #####
 for filename in testFiles:
     inputFile = open(filename, "r")
-
     lines = inputFile.readlines()
 
     isStart = False
     isEnd = False
+    isFileIgnored = False
     isFileTagged = False
 
     # Read line by line
@@ -81,25 +88,32 @@ for filename in testFiles:
 
         # Check if line is valid
         if not line:
-            continue
+            if isStart == True:
+                print("Error syntax in file " + filename)
+                exit()
+            else:
+                continue
 
         # Check if end of test tag
         if END_TAG in line:
+            # END_TAG should not be before START_TAG
             if isStart == False:
                 print("Error syntax in file " + filename + ". Unexpected tag: " + END_TAG)
                 exit()
-            if isFileTagged == False:
+            # END_TAG should not be met before a test tag
+            if isFileIgnored == False and isFileTagged == False:
                 print("Error syntax in file " + filename + ". Missing test tag.")
                 exit()
 
             isEnd = True
-            nbTests = nbTests + 1
+            nbValidFiles = nbValidFiles + 1
 
             # Go to next file
             break
 
         # Check if start of test tag
         if START_TAG in line:
+            # Only one START_TAG is allowed
             if isStart == True:
                 print("Error syntax in file " + filename + ". Unexpected tag: " + START_TAG)
                 exit()
@@ -109,13 +123,17 @@ for filename in testFiles:
 
         if isStart == True:
             # Check if file is ignored
+            if isFileIgnored == True:
+                print("Unexpected value in ignored file: " + filename)
+                exit()
             if line == IGNORE_FILE:
-                isFileTagged = True
+                nbIgnoredFiles = nbIgnoredFiles + 1
+                isFileIgnored = True
                 print("File is ignored ! " + filename)
                 continue
             # Check if current tag is valid
             if not line in validTags:
-                print("Tag is not valid ! Add the new tag to test_tags.ok: \n" + line)
+                print("Tag is not valid ! Add the new tag to test_tags.ok:\n" + line)
                 exit()
             else:
                 isFileTagged = True
@@ -126,8 +144,10 @@ for filename in testFiles:
             else:
                 taggedFiles[line] = [filename]
 
-    if isFileTagged == False and showMissingFiles == True:
-        print("Missing test tag in file: " + filename)
+    if isFileIgnored == False and isFileTagged == False:
+        nbMissingFiles = nbMissingFiles + 1
+        if showMissingFiles == True:
+            print("Missing test tag in file: " + filename)
 
     inputFile.close()
 #####
@@ -168,4 +188,11 @@ for tag in sortedTags:
                      + link + '\n')
 
 outputFile.close()
+#####
+
+##### STATS #####
+if showInfo == True:
+    print("Number of files tagged: " + str(nbValidFiles))
+    print("Number of missing files: " + str(nbMissingFiles))
+    print("Number of ignored files: " + str(nbIgnoredFiles))
 #####
