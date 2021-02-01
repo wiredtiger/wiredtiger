@@ -154,6 +154,14 @@ static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_assert_subconfigs[] = {
+  {"commit_timestamp", "string", NULL,
+    "choices=[\"always\",\"key_consistent\",\"never\","
+    "\"none\"]",
+    NULL, 0},
+  {"durable_timestamp", "string", NULL,
+    "choices=[\"always\",\"key_consistent\",\"never\","
+    "\"none\"]",
+    NULL, 0},
   {"read_timestamp", "string", NULL, "choices=[\"always\",\"never\",\"none\"]", NULL, 0},
   {"write_timestamp", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
@@ -164,7 +172,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create_log_subconfigs[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_alter[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0}, {"checkpoint", "string", NULL, NULL, NULL, 0},
   {"exclusive_refreshed", "boolean", NULL, NULL, NULL, 0},
   {"log", "category", NULL, NULL, confchk_WT_SESSION_create_log_subconfigs, 1},
@@ -244,7 +252,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
   {"allocation_size", "int", NULL, "min=512B,max=128MB", NULL, 0},
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"block_allocation", "string", NULL, "choices=[\"best\",\"first\",\"log-structured\"]", NULL, 0},
   {"block_compressor", "string", NULL, NULL, NULL, 0},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0},
@@ -254,7 +262,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_create[] = {
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
   {"exclusive", "boolean", NULL, NULL, NULL, 0}, {"extractor", "string", NULL, NULL, NULL, 0},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
-  {"huffman_value", "string", NULL, NULL, NULL, 0},
+  {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"immutable", "boolean", NULL, NULL, NULL, 0},
   {"import", "category", NULL, NULL, confchk_WT_SESSION_create_import_subconfigs, 3},
@@ -379,7 +387,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_verify[] = {
 
 static const WT_CONFIG_CHECK confchk_colgroup_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
   {"source", "string", NULL, NULL, NULL, 0}, {"type", "string", NULL, NULL, NULL, 0},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
@@ -393,7 +401,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
   {"allocation_size", "int", NULL, "min=512B,max=128MB", NULL, 0},
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"block_allocation", "string", NULL, "choices=[\"best\",\"first\",\"log-structured\"]", NULL, 0},
   {"block_compressor", "string", NULL, NULL, NULL, 0},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0},
@@ -402,7 +410,7 @@ static const WT_CONFIG_CHECK confchk_file_config[] = {
   {"dictionary", "int", NULL, "min=0", NULL, 0},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
-  {"huffman_value", "string", NULL, NULL, NULL, 0},
+  {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
@@ -436,7 +444,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
   {"allocation_size", "int", NULL, "min=512B,max=128MB", NULL, 0},
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"block_allocation", "string", NULL, "choices=[\"best\",\"first\",\"log-structured\"]", NULL, 0},
   {"block_compressor", "string", NULL, NULL, NULL, 0},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0}, {"checkpoint", "string", NULL, NULL, NULL, 0},
@@ -447,7 +455,8 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
   {"dictionary", "int", NULL, "min=0", NULL, 0},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
-  {"huffman_value", "string", NULL, NULL, NULL, 0}, {"id", "string", NULL, NULL, NULL, 0},
+  {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
+  {"id", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
@@ -480,7 +489,7 @@ static const WT_CONFIG_CHECK confchk_file_meta[] = {
 
 static const WT_CONFIG_CHECK confchk_index_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
   {"extractor", "string", NULL, NULL, NULL, 0}, {"immutable", "boolean", NULL, NULL, NULL, 0},
   {"index_key_columns", "int", NULL, NULL, NULL, 0},
@@ -498,7 +507,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"access_pattern_hint", "string", NULL, "choices=[\"none\",\"random\",\"sequential\"]", NULL, 0},
   {"allocation_size", "int", NULL, "min=512B,max=128MB", NULL, 0},
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"block_allocation", "string", NULL, "choices=[\"best\",\"first\",\"log-structured\"]", NULL, 0},
   {"block_compressor", "string", NULL, NULL, NULL, 0},
   {"cache_resident", "boolean", NULL, NULL, NULL, 0},
@@ -507,7 +516,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
   {"columns", "list", NULL, NULL, NULL, 0}, {"dictionary", "int", NULL, "min=0", NULL, 0},
   {"encryption", "category", NULL, NULL, confchk_WT_SESSION_create_encryption_subconfigs, 2},
   {"format", "string", NULL, "choices=[\"btree\"]", NULL, 0},
-  {"huffman_value", "string", NULL, NULL, NULL, 0},
+  {"huffman_key", "string", NULL, NULL, NULL, 0}, {"huffman_value", "string", NULL, NULL, NULL, 0},
   {"ignore_in_memory_cache_size", "boolean", NULL, NULL, NULL, 0},
   {"internal_item_max", "int", NULL, "min=0", NULL, 0},
   {"internal_key_max", "int", NULL, "min=0", NULL, 0},
@@ -541,7 +550,7 @@ static const WT_CONFIG_CHECK confchk_lsm_meta[] = {
 
 static const WT_CONFIG_CHECK confchk_table_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"colgroups", "list", NULL, NULL, NULL, 0}, {"collator", "string", NULL, NULL, NULL, 0},
   {"columns", "list", NULL, NULL, NULL, 0},
   {"key_format", "format", __wt_struct_confchk, NULL, NULL, 0},
@@ -555,7 +564,7 @@ static const WT_CONFIG_CHECK confchk_table_meta[] = {
 
 static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
   {"app_metadata", "string", NULL, NULL, NULL, 0},
-  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 2},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
   {"tiered", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_subconfigs, 2},
   {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
   {"write_timestamp_usage", "string", NULL,
@@ -936,10 +945,11 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_CURSOR.reconfigure", "append=false,overwrite=true", confchk_WT_CURSOR_reconfigure, 2},
   {"WT_SESSION.alter",
     "access_pattern_hint=none,app_metadata=,"
-    "assert=(read_timestamp=none,write_timestamp=off),"
-    "cache_resident=false,checkpoint=,exclusive_refreshed=true,"
-    "log=(enabled=true),os_cache_dirty_max=0,os_cache_max=0,"
-    "readonly=false,verbose=[],write_timestamp_usage=none",
+    "assert=(commit_timestamp=none,durable_timestamp=none,"
+    "read_timestamp=none,write_timestamp=off),cache_resident=false,"
+    "checkpoint=,exclusive_refreshed=true,log=(enabled=true),"
+    "os_cache_dirty_max=0,os_cache_max=0,readonly=false,verbose=[],"
+    "write_timestamp_usage=none",
     confchk_WT_SESSION_alter, 12},
   {"WT_SESSION.begin_transaction",
     "ignore_prepare=false,isolation=,name=,operation_timeout_ms=0,"
@@ -956,13 +966,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.compact", "timeout=1200", confchk_WT_SESSION_compact, 1},
   {"WT_SESSION.create",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
-    "assert=(read_timestamp=none,write_timestamp=off),"
-    "block_allocation=best,block_compressor=,cache_resident=false,"
-    "checksum=uncompressed,colgroups=,collator=,columns=,dictionary=0"
-    ",encryption=(keyid=,name=),exclusive=false,extractor=,"
-    "format=btree,huffman_value=,ignore_in_memory_cache_size=false,"
-    "immutable=false,import=(enabled=false,file_metadata=,"
-    "repair=false),internal_item_max=0,internal_key_max=0,"
+    "assert=(commit_timestamp=none,durable_timestamp=none,"
+    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
+    "block_compressor=,cache_resident=false,checksum=uncompressed,"
+    "colgroups=,collator=,columns=,dictionary=0,encryption=(keyid=,"
+    "name=),exclusive=false,extractor=,format=btree,huffman_key=,"
+    "huffman_value=,ignore_in_memory_cache_size=false,immutable=false"
+    ",import=(enabled=false,file_metadata=,repair=false),"
+    "internal_item_max=0,internal_key_max=0,"
     "internal_key_truncate=true,internal_page_max=4KB,key_format=u,"
     "key_gap=10,leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
@@ -975,7 +986,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",source=,split_deepen_min_child=0,split_deepen_per_child=0,"
     "split_pct=90,tiered=(chunk_size=1GB,tiers=),type=file,"
     "value_format=u,verbose=[],write_timestamp_usage=none",
-    confchk_WT_SESSION_create, 48},
+    confchk_WT_SESSION_create, 49},
   {"WT_SESSION.drop",
     "checkpoint_wait=true,force=false,lock_wait=true,"
     "remove_files=true",
@@ -1018,16 +1029,18 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "strict=false",
     confchk_WT_SESSION_verify, 7},
   {"colgroup.meta",
-    "app_metadata=,assert=(read_timestamp=none,write_timestamp=off),"
+    "app_metadata=,assert=(commit_timestamp=none,"
+    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,source=,type=file,verbose=[],"
     "write_timestamp_usage=none",
     confchk_colgroup_meta, 8},
   {"file.config",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
-    "assert=(read_timestamp=none,write_timestamp=off),"
-    "block_allocation=best,block_compressor=,cache_resident=false,"
-    "checksum=uncompressed,collator=,columns=,dictionary=0,"
-    "encryption=(keyid=,name=),format=btree,huffman_value=,"
+    "assert=(commit_timestamp=none,durable_timestamp=none,"
+    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
+    "block_compressor=,cache_resident=false,checksum=uncompressed,"
+    "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
+    "format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
@@ -1037,14 +1050,15 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,value_format=u,verbose=[]"
     ",write_timestamp_usage=none",
-    confchk_file_config, 39},
+    confchk_file_config, 40},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
-    "assert=(read_timestamp=none,write_timestamp=off),"
-    "block_allocation=best,block_compressor=,cache_resident=false,"
-    "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,"
-    "checksum=uncompressed,collator=,columns=,dictionary=0,"
-    "encryption=(keyid=,name=),format=btree,huffman_value=,id=,"
+    "assert=(commit_timestamp=none,durable_timestamp=none,"
+    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
+    "block_compressor=,cache_resident=false,checkpoint=,"
+    "checkpoint_backup_info=,checkpoint_lsn=,checksum=uncompressed,"
+    "collator=,columns=,dictionary=0,encryption=(keyid=,name=),"
+    "format=btree,huffman_key=,huffman_value=,id=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,leaf_item_max=0,"
@@ -1054,19 +1068,21 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,value_format=u,verbose=[]"
     ",version=(major=0,minor=0),write_timestamp_usage=none",
-    confchk_file_meta, 44},
+    confchk_file_meta, 45},
   {"index.meta",
-    "app_metadata=,assert=(read_timestamp=none,write_timestamp=off),"
+    "app_metadata=,assert=(commit_timestamp=none,"
+    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "collator=,columns=,extractor=,immutable=false,index_key_columns="
     ",key_format=u,source=,type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
     confchk_index_meta, 13},
   {"lsm.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
-    "assert=(read_timestamp=none,write_timestamp=off),"
-    "block_allocation=best,block_compressor=,cache_resident=false,"
-    "checksum=uncompressed,chunks=,collator=,columns=,dictionary=0,"
-    "encryption=(keyid=,name=),format=btree,huffman_value=,"
+    "assert=(commit_timestamp=none,durable_timestamp=none,"
+    "read_timestamp=none,write_timestamp=off),block_allocation=best,"
+    "block_compressor=,cache_resident=false,checksum=uncompressed,"
+    "chunks=,collator=,columns=,dictionary=0,encryption=(keyid=,"
+    "name=),format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
     "internal_page_max=4KB,key_format=u,key_gap=10,last=,"
@@ -1081,14 +1097,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     ",readonly=false,split_deepen_min_child=0,"
     "split_deepen_per_child=0,split_pct=90,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
-    confchk_lsm_meta, 43},
+    confchk_lsm_meta, 44},
   {"table.meta",
-    "app_metadata=,assert=(read_timestamp=none,write_timestamp=off),"
+    "app_metadata=,assert=(commit_timestamp=none,"
+    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "colgroups=,collator=,columns=,key_format=u,value_format=u,"
     "verbose=[],write_timestamp_usage=none",
     confchk_table_meta, 9},
   {"tiered.meta",
-    "app_metadata=,assert=(read_timestamp=none,write_timestamp=off),"
+    "app_metadata=,assert=(commit_timestamp=none,"
+    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
     "tiered=(chunk_size=1GB,tiers=),verbose=[],"
     "write_timestamp_usage=none",
     confchk_tiered_meta, 5},

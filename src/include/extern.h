@@ -763,8 +763,8 @@ extern int __wt_hs_delete_key_from_ts(
   WT_SESSION_IMPL *session, uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_find_upd(WT_SESSION_IMPL *session, WT_ITEM *key, const char *value_format,
-  uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *on_disk_buf,
-  WT_TIME_WINDOW *on_disk_tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint64_t recno, WT_UPDATE_VALUE *upd_value, bool allow_prepare, WT_ITEM *base_value_buf)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
@@ -842,7 +842,8 @@ extern int __wt_log_remove(WT_SESSION_IMPL *session, const char *file_prefix, ui
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_reset(WT_SESSION_IMPL *session, uint32_t lognum)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
+extern int __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp,
+  uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
   void *cookie) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1521,9 +1522,9 @@ extern int __wt_txn_parse_timestamp_raw(WT_SESSION_IMPL *session, const char *na
   wt_timestamp_t *timestamp, WT_CONFIG_ITEM *cval) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
-    WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_txn_printlog(WT_SESSION *wt_session, const char *ofile, uint32_t flags,
+  WT_LSN *start_lsn, WT_LSN *end_lsn) WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_query_timestamp(WT_SESSION_IMPL *session, char *hex_timestamp,
   const char *cfg[], bool global_txn) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_txn_reconfigure(WT_SESSION_IMPL *session, const char *config)
@@ -2069,7 +2070,10 @@ static inline int __wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
   uint64_t recno, WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
-  WT_UPDATE *upd, WT_UPDATE **prepare_updp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_UPDATE *upd) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
+  WT_UPDATE *upd, WT_UPDATE **prepare_updp, WT_UPDATE **restored_updp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_search_check(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
