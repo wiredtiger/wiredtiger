@@ -53,7 +53,7 @@ Stop
 @plantuml_end
 
 A transaction starts in two scenarios, when the user calls begin via
-WT_SESSION::begin_transaction or internally when the user preforms either a read or write
+WT_SESSION::begin_transaction or internally when the user performs either a read or write
 operation. Internally they are only started if they are not already within the context of a
 running transaction. If declared explicitly the transaction will be active until it is
 committed or rolled back. If it is created internally, it will cease to be active after the
@@ -65,12 +65,12 @@ the write operations it has done will be reverted and will not be available any 
 
 @section ACID Properties
 
-Like other databases, transactions in WiredTiger enforces the ACID properties (atomicity,
+Like other databases, transactions in WiredTiger enforce the ACID properties (atomicity,
 consistency, isolation, and durability).
 
 @subsection Atomicity
 
-All write operations initially happens in memory in WiredTiger and it cannot write them to disk
+All write operations initially happen in memory in WiredTiger and will not be written to disk
 until the entire transaction is committed. Therefore, the size of the transaction must fit in
 memory.
 
@@ -81,7 +81,7 @@ persisted operations are actually visible in regards to their snapshot.
 
 There is one case that atomicity of transactions is not honored using timestamps in WiredTiger.
 If the operations in the same transaction are conducted at different timestamps and the
-checkpoint happens in between the timestamps, only the operations happens before or at the
+checkpoint happens in between the timestamps, only the operations happen before or at the
 checkpoint timestamp will be persisted in the checkpoint and the operations happen after the
 checkpoint timestamp in the transaction will be discarded.
 
@@ -118,7 +118,7 @@ before calling another search. Read uncommitted transactions don't have a snapsh
 
 If the transaction has a snapshot, each read will check whether the update's transaction id is
 in its snapshot. The updates with transaction ids in the snapshot or larger than the largest
-transaction id in the snapshot is not visible to the reading transaction.
+transaction id in the snapshot are not visible to the reading transaction.
 
 When operating in read committed or read uncommitted isolation levels, it is possible to read
 different values of the same key, seeing records not seen before, or finding records disappear
@@ -160,7 +160,7 @@ the history store to check if there is a version visible to the reader there.
 The repeated read guarantee under snapshot isolation may break in one case if the timestamps
 committed to the updates are out of order, e.g,
 
-U@20 -> U@30 -> U@15.
+\c U@20 -> \c U@30 -> \c U@15.
 
 In the above example, reading with timestamp 15 doesn't guarantee to return the third update.
 In some cases, users may read the second update U@30 if it is moved to the history store.
@@ -169,18 +169,18 @@ In some cases, users may read the second update U@30 if it is moved to the histo
 
 WiredTiger transactions support commit level durability and checkpoint level durability. An
 operation is commit level durable if logging is enabled on the table (@ref arch-logging). After
-it has been successfully commit, the operation is guaranteed to survive restart. An operation
+it has been successfully committed, the operation is guaranteed to survive restart. An operation
 will only survive across restart under checkpoint durability if it is included in the last
 successful checkpoint.
 
-@section Prepared Transaction
+@section Prepared Transactions
 
-WiredTiger introduces prepared transaction to meet the needs of implementing distributed
+WiredTiger introduces prepared transactions to meet the needs of implementing distributed
 transactions through two-phase commit. Prepared transactions only work under snapshot isolation.
 
 Instead of just having the beginning, operating, and rollback or commit phase, it has a
 prepared phase before the rollback or commit phase. After prepare is called, WiredTiger
-releases the transaction's snapshot and prohibit any more read or write operations on the
+releases the transaction's snapshot and prohibits any more read or write operations on the
 transaction.
 
 By introducing the prepared stage, a two-phase distributed transaction algorithm can rely on
