@@ -14,7 +14,7 @@ usage(void)
     static const char *options[] = {"-f", "output to the specified file", "-x",
       "display key and value items in hexadecimal format", NULL, NULL};
 
-    util_usage("printlog [-x] [-f output-file]", "options:", options);
+    util_usage("printlog [-mux] [-f output-file]", "options:", options);
     return (1);
 }
 
@@ -34,7 +34,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
      * wrong command.
      */
     LF_SET(WT_TXN_PRINTLOG_REDACT);
-    while ((ch = __wt_getopt(progname, argc, argv, "f:mWx")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "f:mux")) != EOF)
         switch (ch) {
         case 'f': /* output file */
             ofile = __wt_optarg;
@@ -42,7 +42,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
         case 'm': /* messages only */
             LF_SET(WT_TXN_PRINTLOG_MSG);
             break;
-        case 'W': /* don't redact user data */
+        case 'u': /* print user data, don't redact */
             LF_CLR(WT_TXN_PRINTLOG_REDACT);
             break;
         case 'x': /* hex output */
