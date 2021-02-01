@@ -14,7 +14,11 @@ class tmp_test(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
     ]
-    scenarios = make_scenarios(key_format_values)
+    value_format_values = [
+        ('fixed', dict(value_format='500s')),
+        ('variable', dict(value_format='S')),
+    ]
+    scenarios = make_scenarios(key_format_values, value_format_values)
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
@@ -33,7 +37,7 @@ class tmp_test(wttest.WiredTigerTestCase):
     def test_rollback_to_stable(self):
         # Create a small table.
         uri = "table:tmp"
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
         cursor =  self.session.open_cursor(uri)
 
@@ -47,7 +51,6 @@ class tmp_test(wttest.WiredTigerTestCase):
         tmp_value4 = 'ddddd' * 100
         tmp_value5 = 'eeeee' * 100
 
-    
         self.session.begin_transaction()
         cursor[1] = tmp_value
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -75,9 +78,6 @@ class tmp_test(wttest.WiredTigerTestCase):
         self.check(tmp_value, uri, 1, 2)
 
         self.session.close()
-        
 
 if __name__ == '__main__':
     wttest.run()
-        
-
