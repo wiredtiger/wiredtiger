@@ -13,7 +13,7 @@ class tmp_test(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(key_format_values)
 
-    def rollback_to_stable_test(self):
+    def test_rollback_to_stable(self):
         # Create a small table.
         uri = "table:tmp"
         create_params = 'key_format={},value_format=S'.format(self.key_format)
