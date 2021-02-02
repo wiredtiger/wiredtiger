@@ -952,7 +952,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
  *     Dump the history store tree given a user cursor.
  */
 int
-__wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
+__wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_CURSOR *hs_cursor;
@@ -960,8 +960,7 @@ __wt_debug_cursor_tree_hs(void *cursor_arg, const char *ofile)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
-    session = CUR2S(cursor_arg);
-
+    session = (WT_SESSION_IMPL *)session_arg;
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     cbt = __wt_hs_cbt(hs_cursor);
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
