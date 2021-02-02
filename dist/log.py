@@ -92,7 +92,7 @@ def n_setup(f):
 def check_redact(optype):
     for f  in optype.fields:
         if f[0] == 'uint32_id':
-            redact_str = '\tif (FLD_ISSET(args->flags, WT_TXN_PRINTLOG_REDACT) && '
+            redact_str = '\tif (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && '
             redact_str += '%s != WT_METAFILE_ID) {\n' % (f[1])
             redact_str += '\t\tWT_RET(__wt_fprintf(session, args->fs, " REDACTED"));\n'
             redact_str += '\t\treturn (0);\n\t}\n'

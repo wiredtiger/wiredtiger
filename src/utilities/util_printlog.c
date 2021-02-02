@@ -44,7 +44,6 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
      * it is redacted unless they make the effort to keep it in. It lessens the risk of doing the
      * wrong command.
      */
-    LF_SET(WT_TXN_PRINTLOG_REDACT);
     while ((ch = __wt_getopt(progname, argc, argv, "f:l:mux")) != EOF)
         switch (ch) {
         case 'f': /* output file */
@@ -68,7 +67,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
             LF_SET(WT_TXN_PRINTLOG_MSG);
             break;
         case 'u': /* print user data, don't redact */
-            LF_CLR(WT_TXN_PRINTLOG_REDACT);
+            LF_SET(WT_TXN_PRINTLOG_UNREDACT);
             break;
         case 'x': /* hex output */
             LF_SET(WT_TXN_PRINTLOG_HEX);
