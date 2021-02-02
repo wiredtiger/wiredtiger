@@ -7,8 +7,9 @@ from wtscenario import make_scenarios
 def timestamp_str(t):
     return '%x' % t
 
+#change name rollback to stable 15
 class tmp_test(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=10MB'
+    conn_config = 'cache_size=5MB' #enough cache
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -17,6 +18,7 @@ class tmp_test(wttest.WiredTigerTestCase):
     value_format_values = [
         ('fixed', dict(value_format='8t')),
         ('variable', dict(value_format='i')),
+        #string
     ]
     scenarios = make_scenarios(key_format_values, value_format_values)
 
@@ -53,48 +55,51 @@ class tmp_test(wttest.WiredTigerTestCase):
 
         # Do a bunch of transactions (Updates in memory)
         #Insert
-        self.session.begin_transaction()
-        for i in range(1, 20000):
+        for i in range(1, 2000): # make a variable.
+            self.session.begin_transaction()
             cursor[i] = tmp_value
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         #First Update
-        self.session.begin_transaction()
-        for i in range(1, 20000):
+        for i in range(1, 2000):
+            self.session.begin_transaction()
             cursor[i] = tmp_value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         #Set stable Timestamp
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         #Rollback to the stable timestamp
         self.conn.rollback_to_stable()
         # Check that only tmp_value is available
-        self.check(tmp_value, uri, 19999, 2)
+        self.check(tmp_value, uri, 1999, 2)
 
         #Second Update
-        self.session.begin_transaction()
-        for i in range(1, 20000):
+        for i in range(1, 2000):
+            self.session.begin_transaction()
             cursor[i] = tmp_value3
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
 
         #Third Update
-        self.session.begin_transaction()
-        for i in range(1, 20000):
+        for i in range(1, 2000):
+            self.session.begin_transaction()
             cursor[i] = tmp_value4
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
 
         #Set stable Timestamp
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(7))
         #Rollback to the stable timestamp
         self.conn.rollback_to_stable()
         #Check that only tmp_value is available
-        self.check(tmp_value3, uri, 19999, 7)
+        self.check(tmp_value3, uri, 1999, 7)
         
-        #Fourth Update
-        self.session.begin_transaction()
-        for i in range(1, 20000):
+        #Fourth Update 
+        for i in range(1, 2000):
+            self.session.begin_transaction()
             cursor[i] = tmp_value5
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        #Add Stats 
+
 
         self.session.close()
 
