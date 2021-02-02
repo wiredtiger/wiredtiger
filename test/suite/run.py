@@ -28,7 +28,7 @@
 #
 # [TEST_TAGS]
 # ignored_file
-# [END_TAGS]#
+# [END_TAGS]
 #
 # run.py
 #      Command line test runner
