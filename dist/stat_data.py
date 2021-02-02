@@ -231,6 +231,7 @@ connection_stats = [
     CacheStat('cache_eviction_pages_queued_oldest', 'pages queued for urgent eviction during walk'),
     CacheStat('cache_eviction_pages_queued_post_lru', 'pages queued for eviction post lru sorting'),
     CacheStat('cache_eviction_pages_queued_urgent', 'pages queued for urgent eviction'),
+    CacheStat('cache_eviction_pages_queued_urgent_hs_dirty', 'pages queued for urgent eviction from history store due to high dirty content'),
     CacheStat('cache_eviction_pages_already_queued', 'pages seen by eviction walk that are already queued'),
     CacheStat('cache_eviction_pages_in_parallel_with_checkpoint', 'pages evicted in parallel with checkpoint'),
     CacheStat('cache_eviction_queue_empty', 'eviction server candidate queue empty when topping up'),
@@ -762,6 +763,7 @@ conn_dsrc_stats = [
     CacheStat('cache_eviction_target_page_lt128', 'eviction walk target pages histogram - 64-128'),
     CacheStat('cache_eviction_target_page_lt32', 'eviction walk target pages histogram - 10-31'),
     CacheStat('cache_eviction_target_page_lt64', 'eviction walk target pages histogram - 32-63'),
+    CacheStat('cache_eviction_target_page_reduced', 'eviction walk target pages reduced due to history store cache pressure'),
     CacheStat('cache_eviction_walk_from_root', 'eviction walks started from root of tree'),
     CacheStat('cache_eviction_walk_restart', 'eviction walks restarted'),
     CacheStat('cache_eviction_walk_saved_pos', 'eviction walks started from saved location in tree'),
@@ -852,8 +854,10 @@ conn_dsrc_stats = [
     ##########################################
     # Transaction statistics
     ##########################################
+    TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
+    TxnStat('txn_rts_hs_restore_updates', 'rollback to stable restored updates from history store'),
     TxnStat('txn_rts_hs_restore_tombstones', 'rollback to stable restored tombstones from history store'),
     TxnStat('txn_rts_hs_stop_older_than_newer_start', 'rollback to stable hs records with stop timestamps older than newer records'),
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),

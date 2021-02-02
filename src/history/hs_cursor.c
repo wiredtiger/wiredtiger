@@ -121,7 +121,7 @@ __wt_hs_cbt(WT_CURSOR *cursor)
  */
 int
 __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
-  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *on_disk_buf)
+  const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(hs_value);
@@ -227,14 +227,14 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
             WT_ERR_NOTFOUND_OK(hs_cursor->next(hs_cursor), true);
             if (ret == WT_NOTFOUND) {
                 /*
-                 * Fallback to the onpage value as the base value.
+                 * Fallback to the provided value as the base value.
                  *
                  * Work around of clang analyzer complaining the value is never read as it is reset
                  * again by the following WT_ERR macro.
                  */
                 WT_NOT_READ(ret, 0);
                 orig_hs_value_buf = hs_value;
-                hs_value = on_disk_buf;
+                hs_value = base_value_buf;
                 upd_type = WT_UPDATE_STANDARD;
                 break;
             }
