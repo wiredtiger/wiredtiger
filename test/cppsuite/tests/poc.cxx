@@ -1,7 +1,6 @@
 #include <iostream>
 #include <cstdlib>
 #include "test_harness/test_harness.h"
-#include "test_harness/configuration_settings.h"
 
 class poc_test : public test_harness::test {
     public:
@@ -24,8 +23,11 @@ class poc_test : public test_harness::test {
         ret = wiredtiger_open(default_dir.c_str(), NULL, "create,cache_size=1G", &conn);
         return (ret);
     }
+
+    poc_test(std::string config) : test(config) {}
 };
 
 int main(int argc, char *argv[]) {
-    return poc_test().run();
+    const char * cfg = "collection_count=1,key_size=5";
+    return poc_test(cfg).run();
 }

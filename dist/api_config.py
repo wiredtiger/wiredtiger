@@ -358,6 +358,25 @@ if not test_config:
     \treturn (NULL);
     }
     ''')
+else:
+    tfile.write(
+    '''
+    /*
+        * __wt_test_config_match --
+        *     Return the static configuration entry for a test.
+        */
+    const WT_CONFIG_ENTRY *
+    __wt_test_config_match(const char *test_name)
+    {
+        const WT_CONFIG_ENTRY *ep;
+
+        for (ep = config_entries; ep->method != NULL; ++ep)
+            if (strcmp(test_name, ep->method) == 0)
+                return (ep);
+        return (NULL);
+    }
+    '''
+    )
 
 tfile.close()
 format_srcfile(tmp_file)
