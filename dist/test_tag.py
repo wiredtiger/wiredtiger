@@ -105,10 +105,8 @@ for filename in testFiles:
             if isFileIgnored == False and isFileTagged == False:
                 print("Error syntax in file " + filename + ". Missing test tag.")
                 exit()
-
             isEnd = True
             nbValidFiles = nbValidFiles + 1
-
             # Go to next file
             break
 
@@ -118,7 +116,6 @@ for filename in testFiles:
             if isStart == True:
                 print("Error syntax in file " + filename + ". Unexpected tag: " + START_TAG)
                 exit()
-
             isStart = True
             continue
 
@@ -137,7 +134,6 @@ for filename in testFiles:
                 exit()
             else:
                 isFileTagged = True
-
             # Check if current tag has already matched test files
             if line in taggedFiles:
                 taggedFiles[line].append(filename)
