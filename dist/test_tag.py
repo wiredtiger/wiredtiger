@@ -88,6 +88,7 @@ for filename in testFiles:
 
         # Check if line is valid
         if not line:
+            # Check if invalid line after START_TAG
             if isStart == True:
                 print("Error syntax in file " + filename)
                 exit()
@@ -129,7 +130,6 @@ for filename in testFiles:
             if line == IGNORE_FILE:
                 nbIgnoredFiles = nbIgnoredFiles + 1
                 isFileIgnored = True
-                print("File is ignored ! " + filename)
                 continue
             # Check if current tag is valid
             if not line in validTags:
@@ -172,6 +172,7 @@ for tag in sortedTags:
     testType = currentLine[1]
     testingArea = currentLine[2]
 
+    # Format output
     component = component.replace("_", " ").title()
     testType = testType.replace("_", " ").title()
     testingArea = testingArea.replace("_", " ").title()
@@ -180,6 +181,7 @@ for tag in sortedTags:
     link = ""
     for name in taggedFiles[tag]:
         link += "[" + name + "](" + name + "), "
+    # Remove the extra ", " at the end
     link = link[:-2]
 
     # Write to output
@@ -192,7 +194,14 @@ outputFile.close()
 
 ##### STATS #####
 if showInfo == True:
-    print("Number of files tagged: " + str(nbValidFiles))
-    print("Number of missing files: " + str(nbMissingFiles))
-    print("Number of ignored files: " + str(nbIgnoredFiles))
+    print("Tagged files:\t" + str(nbValidFiles - nbIgnoredFiles))
+    print("Missing files:\t" + str(nbMissingFiles))
+    print("Ignored files:\t" + str(nbIgnoredFiles))
+    print("Total files:\t" + str(nbValidFiles + nbMissingFiles))
 #####
+
+# Enforce tagging
+#if nbMissingFiles > 0:
+#    print("Files missing a tag: " + str(nbMissingFiles))
+#    if showMissingFiles == False:
+#        print("Call \'python test_tag.py -p\' to list all files with no tags")
