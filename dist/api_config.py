@@ -6,11 +6,14 @@ from dist import compare_srcfile, format_srcfile
 
 test_config = False
 
+# This file serves two purposes, it can generate configuration for the main wiredtiger library and,
+# it can generate configuration for the c and cpp suite tests. To avoid duplication we import the
+# differing apis here and then treat them as the same for the remainder of the script. However we
+# do have different logic depending on whether we intend to generate the test api or not, which is
+# managed with a boolean flag.
 if len(sys.argv) == 1 or sys.argv[1] != "-t":
-    print("Generating standard config")
     import api_data as api_data_def
 else:
-    print("Generating test config")
     test_config = True
     import test_data as api_data_def
 
@@ -361,22 +364,21 @@ format_srcfile(tmp_file)
 compare_srcfile(tmp_file, f)
 
 # Update the config.h file with the #defines for the configuration entries.
-tfile = open(tmp_file, 'w')
-skip = 0
-config_file = '../src/include/config.h'
-if test_config:
-    config_file = '../test/suite/config.h'
-for line in open(config_file, 'r'):
-    if skip:
-        if 'configuration section: END' in line:
-            tfile.write('/*\n' + line)
-            skip = 0
-    else:
-        tfile.write(line)
-    if 'configuration section: BEGIN' in line:
-        skip = 1
-        tfile.write(' */\n')
-        tfile.write(config_defines)
-tfile.close()
-format_srcfile(tmp_file)
-compare_srcfile(tmp_file, config_file)
+if not test_config:
+    tfile = open(tmp_file, 'w')
+    skip = 0
+    config_file = '../src/include/config.h'
+    for line in open(config_file, 'r'):
+        if skip:
+            if 'configuration section: END' in line:
+                tfile.write('/*\n' + line)
+                skip = 0
+        else:
+            tfile.write(line)
+        if 'configuration section: BEGIN' in line:
+            skip = 1
+            tfile.write(' */\n')
+            tfile.write(config_defines)
+    tfile.close()
+    format_srcfile(tmp_file)
+    compare_srcfile(tmp_file, config_file)
