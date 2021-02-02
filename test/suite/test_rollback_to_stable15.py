@@ -38,15 +38,18 @@ def timestamp_str(t):
 # test_rollback_to_stable15.py
 # Test that roll back to stable handles updates present in the
 # update-list for both fixed length and variable length column store.
+# The large cache size,and less data ensures that eviction doesn't run.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=20MB,statistics=(all)'
+    conn_config = 'cache_size=200MB,statistics=(all)'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer', dict(key_format='i')),
     ]
     value_format_values = [
+        # Fixed length 
         ('fixed', dict(value_format='8t')),
+        # Variable length
         ('variable', dict(value_format='i')),
     ]
     scenarios = make_scenarios(key_format_values, value_format_values)
