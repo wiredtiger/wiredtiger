@@ -15,7 +15,7 @@ usage(void)
       "display key and value items in hexadecimal format", "-l",
       "the start LSN from which the log will be printed, optionally the end LSN can also be "
       "specified",
-      NULL, NULL};
+      "-m", "output log message records only", "-u", "print user data, don't redact", NULL, NULL};
 
     util_usage(
       "printlog [-mux] [-f output-file] [-l start-file,start-offset]|[-l "
