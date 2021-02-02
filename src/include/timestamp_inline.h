@@ -171,7 +171,20 @@ __wt_time_window_clear_obsolete(
      * create an extra update on the end of the chain later in reconciliation as we'll re-append the
      * disk image value to the update chain.
      */
+    //__wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,"__wt_time_window_clear_obsolete- start_txn: %" PRIu64 ", Oldest Id: %"PRIu64 ", txn_global->checkpoint_txn_shared.pinned_id: %"PRIu64, tw->start_txn, oldest_id, &S2C(session)->txn_global->checkpoint_txn_shared.pinned_id);
+    WT_TXN_GLOBAL *txn_global;
+    char ts_string[4][WT_TS_INT_STRING_SIZE];
+
+    txn_global = &S2C(session)->txn_global;
+
     if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        
+        if (txn_global->checkpoint_running)
+            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,"__wt_time_window_clear_obsolete- start_txn: %" PRIu64 ", Oldest Id: %"PRIu64 ", txn_global->checkpoint_txn_shared.pinned_id: %"PRIu64 " , Checkpoint timestamp :%s, Meta Chekpoint timestamp : %s", tw->start_txn, oldest_id, txn_global->checkpoint_txn_shared.pinned_id, __wt_timestamp_to_string(txn_global->checkpoint_timestamp, ts_string[0]),
+            __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]));
+
+
+
         if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id)
             tw->start_txn = WT_TXN_NONE;
         /* Avoid retrieving the pinned timestamp unless we need it. */

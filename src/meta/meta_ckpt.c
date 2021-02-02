@@ -1001,6 +1001,7 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
     wt_timestamp_t oldest_timestamp;
     uint32_t snap_count;
     char hex_timestamp[WT_TS_HEX_STRING_SIZE];
+    char ts_string[5][WT_TS_INT_STRING_SIZE];
 
     txn_global = &S2C(session)->txn_global;
 
@@ -1057,6 +1058,8 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
         WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], "]"));
     }
     WT_ERR(__wt_metadata_update(session, WT_SYSTEM_CKPT_SNAPSHOT_URI, buf->data));
+
+    __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS," Saving checkpoint snapshot min : %"PRIu64 ", snapshot max : %" PRIu64 " snapshot count : %"PRIu32 ", Oldest timestamp : %s , Meta checkpoint timestamp : %s", txn->snap_min, txn->snap_max, txn->snapshot_count, __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]), __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[0]));
 
     /* Record the base write gen in metadata as part of checkpoint */
     WT_ERR(__wt_buf_fmt(

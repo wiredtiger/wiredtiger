@@ -769,8 +769,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     metafile = &r.files[WT_METAFILE_ID];
     metafile->c = metac;
 
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
     /*
      * If no log was found (including if logging is disabled), or if the last checkpoint was done
      * with logging disabled, recovery should not run. Scan the metadata to figure out the largest
@@ -874,6 +872,10 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(metac->close(metac));
 
 rollback_to_stable:
+    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
+    WT_ERR(__recovery_set_oldest_timestamp(&r));
+    WT_ERR(__recovery_set_checkpoint_snapshot(session));
+    
     /*
      * Perform rollback to stable only when the following conditions met.
      * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
@@ -885,7 +887,6 @@ rollback_to_stable:
         WT_ERR(__wt_evict_create(session));
         eviction_started = true;
 
-        WT_ERR(__recovery_set_checkpoint_snapshot(session));
         WT_ASSERT(session,
           conn->txn_global.has_stable_timestamp == false &&
             conn->txn_global.stable_timestamp == WT_TS_NONE);

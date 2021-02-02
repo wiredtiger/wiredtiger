@@ -86,7 +86,14 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         self.check(valuea, self.uri, self.nrows)
 
-        self.session.begin_transaction()
+        
+
+        session1 = self.conn.open_session()
+        session1.begin_transaction()
+        cursor1 = session1.open_cursor(self.uri)
+        cursor1.set_key(ds.key(0))
+        cursor1.set_value(valueb)
+        self.assertEqual(cursor1.insert(), 0)
 
         # Create a checkpoint thread
         done = threading.Event()
@@ -105,11 +112,12 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
             # Insert some data from the transaction which is running before
             # checkpoint started
             for i in range(0, self.nrows):
-                cursor.set_key(ds.key(i))
-                cursor.set_value(valueb)
-                self.assertEqual(cursor.insert(), 0)
-            self.session.commit_transaction()
+                cursor1.set_key(ds.key(i))
+                cursor1.set_value(valueb)
+                self.assertEqual(cursor1.insert(), 0)
+            session1.commit_transaction()
 
+            
             self.large_updates(self.uri, valuec, ds, self.nrows)
             self.large_updates(self.uri, valued, ds, self.nrows)
 
