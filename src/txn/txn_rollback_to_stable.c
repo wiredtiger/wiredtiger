@@ -280,6 +280,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
               __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[3]), type);
+#ifdef HAVE_DIAGNOSTIC
+            __wt_hs_upd_time_window(hs_cursor, &hs_tw);
+#endif
             WT_ASSERT(session, hs_tw->start_ts < unpack->tw.start_ts);
             valid_update_found = true;
             break;
@@ -314,11 +317,11 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * list. Otherwise remove the key by adding a tombstone.
          */
         if (valid_update_found) {
+            /* Retrieve the time window from the history cursor. */
+            __wt_hs_upd_time_window(hs_cursor, &hs_tw);
             WT_ASSERT(session, hs_tw->start_ts < unpack->tw.start_ts);
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
-            /* Retrieve the time window from the history cursor. */
-            __wt_hs_upd_time_window(hs_cursor, &hs_tw);
             upd->txnid = hs_tw->start_txn;
             upd->durable_ts = hs_tw->durable_start_ts;
             upd->start_ts = hs_tw->start_ts;
