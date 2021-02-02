@@ -664,6 +664,123 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __conn_add_shared_storage --
+ *     WT_CONNECTION->add_shared_storage method.
+ */
+static int
+__conn_add_shared_storage(
+  WT_CONNECTION *wt_conn, const char *name, WT_SHARED_STORAGE *shared_storage, const char *config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_SHARED_STORAGE *nshared_storage;
+    WT_SESSION_IMPL *session;
+
+    nshared_storage = NULL;
+
+    conn = (WT_CONNECTION_IMPL *)wt_conn;
+    CONNECTION_API_CALL(conn, session, add_shared_storage, config, cfg);
+    WT_UNUSED(cfg);
+
+    WT_ERR(__wt_calloc_one(session, &nshared_storage));
+    WT_ERR(__wt_strdup(session, name, &nshared_storage->name));
+    nshared_storage->shared_storage = shared_storage;
+
+    __wt_spin_lock(session, &conn->api_lock);
+    TAILQ_INSERT_TAIL(&conn->shstorageqh, nshared_storage, q);
+    nshared_storage = NULL;
+    __wt_spin_unlock(session, &conn->api_lock);
+
+err:
+    if (nshared_storage != NULL) {
+        __wt_free(session, nshared_storage->name);
+        __wt_free(session, nshared_storage);
+    }
+
+    API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __shared_storage_confchk --
+ *     Check for a valid custom shared_storage.
+ */
+static int
+__shared_storage_confchk(
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_SHARED_STORAGE **shared_storagep)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_NAMED_SHARED_STORAGE *nshared_storage;
+
+    *shared_storagep = NULL;
+
+    conn = S2C(session);
+    TAILQ_FOREACH (nshared_storage, &conn->shstorageqh, q)
+        if (WT_STRING_MATCH(nshared_storage->name, cname->str, cname->len)) {
+            *shared_storagep = nshared_storage->shared_storage;
+            return (0);
+        }
+    WT_RET_MSG(session, EINVAL, "unknown shared_storage '%.*s'", (int)cname->len, cname->str);
+}
+
+/*
+ * __wt_shared_storage_config --
+ *     Given a configuration, configure the shared_storage.
+ */
+int
+__wt_shared_storage_config(WT_SESSION_IMPL *session, const char *uri, const char *config,
+  WT_SHARED_STORAGE **shared_storagep, int *ownp)
+{
+    WT_CONFIG_ITEM cname;
+    WT_SHARED_STORAGE *shared_storage;
+
+    *shared_storagep = NULL;
+    *ownp = 0;
+
+    WT_RET_NOTFOUND_OK(__wt_config_getones_none(session, config, "shared_storage", &cname));
+    if (cname.len == 0)
+        return (0);
+
+    WT_RET(__shared_storage_confchk(session, &cname, &shared_storage));
+    if (shared_storage == NULL)
+        return (0);
+
+    if (*shared_storagep == NULL)
+        *shared_storagep = shared_storage;
+    else
+        *ownp = 1;
+
+    return (0);
+}
+
+/*
+ * __wt_conn_remove_shared_storage --
+ *     Remove shared_storage added by WT_CONNECTION->add_shared_storage, only used internally.
+ */
+int
+__wt_conn_remove_shared_storage(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_NAMED_SHARED_STORAGE *nshared_storage;
+
+    conn = S2C(session);
+
+    while ((nshared_storage = TAILQ_FIRST(&conn->shstorageqh)) != NULL) {
+        /* Remove from the connection's list, free memory. */
+        TAILQ_REMOVE(&conn->shstorageqh, nshared_storage, q);
+        /* Call any termination method. */
+        if (nshared_storage->shared_storage->terminate != NULL)
+            WT_TRET(nshared_storage->shared_storage->terminate(
+              nshared_storage->shared_storage, (WT_SESSION *)session));
+
+        __wt_free(session, nshared_storage->name);
+        __wt_free(session, nshared_storage);
+    }
+
+    return (ret);
+}
+
+/*
  * __conn_get_extension_api --
  *     WT_CONNECTION.get_extension_api method.
  */
@@ -2313,7 +2430,8 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_configure_method, __conn_is_new, __conn_open_session,
       __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_get_extension_api};
+      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_shared_storage,
+      __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};
 

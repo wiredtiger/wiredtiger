@@ -64,8 +64,7 @@ extern "C" {
 struct __wt_collator;	    typedef struct __wt_collator WT_COLLATOR;
 struct __wt_compressor;	    typedef struct __wt_compressor WT_COMPRESSOR;
 struct __wt_config_item;    typedef struct __wt_config_item WT_CONFIG_ITEM;
-struct __wt_config_parser;
-	typedef struct __wt_config_parser WT_CONFIG_PARSER;
+struct __wt_config_parser;  typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;	    typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;	    typedef struct __wt_cursor WT_CURSOR;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;
@@ -78,6 +77,7 @@ struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;	    typedef struct __wt_item WT_ITEM;
 struct __wt_modify;	    typedef struct __wt_modify WT_MODIFY;
 struct __wt_session;	    typedef struct __wt_session WT_SESSION;
+struct __wt_shared_storage; typedef struct __wt_shared_storage WT_SHARED_STORAGE;
 
 #if defined(SWIGJAVA)
 #define	WT_HANDLE_NULLABLE(typename)	typename##_NULLABLE
@@ -2543,6 +2543,24 @@ struct __wt_connection {
 	    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config);
 
 	/*!
+	 * Add a shared storage implementation.
+	 *
+	 * The application must first implement the WT_SHARED_STORAGE
+	 * interface and then register the implementation with WiredTiger:
+	 *
+	 * @snippet ex_shared_storage.c WT_SHARED_STORAGE register
+	 *
+	 * @param connection the connection handle
+	 * @param name the name of the shared storage implementation to be used for
+         *      URIs beginning with \c "shared:"
+	 * @param shared_storage the populated shared storage structure
+	 * @configempty{WT_CONNECTION.add_shared_storage, see dist/api_data.py}
+	 * @errors
+	 */
+	int __F(add_shared_storage)(WT_CONNECTION *connection, const char *name,
+            WT_SHARED_STORAGE *shared_storage, const char *config);
+
+	/*!
 	 * Return a reference to the WiredTiger extension functions.
 	 *
 	 * @snippet ex_data_source.c WT_EXTENSION_API declaration
@@ -4205,7 +4223,7 @@ typedef enum {
  * the implementation to protect any shared data.
  *
  * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::add_file_system.  See @ref custom_file_systems for more
+ * WT_CONNECTION::set_file_system.  See @ref custom_file_systems for more
  * information.
  *
  * @snippet ex_file_system.c WT_FILE_SYSTEM register
@@ -4311,7 +4329,6 @@ struct __wt_file_system {
 	 * @param file_system the WT_FILE_SYSTEM
 	 * @param session the current WiredTiger session
 	 * @param name the name of the file system object
-	 * @param durable if the operation requires durability
 	 * @param flags 0 or ::WT_FS_DURABLE
 	 */
 	int (*fs_remove)(WT_FILE_SYSTEM *file_system,
@@ -4646,6 +4663,179 @@ struct __wt_file_handle {
 	    wt_off_t offset, size_t length, const void *buf);
 };
 #endif /* !defined(SWIG) */
+
+#ifdef DOXYGEN
+/*! WT_SHARED_STORAGE::open_object flags: create a new object */
+#define	WT_SS_OPEN_CREATE	0x0
+/*! WT_SHARED_STORAGE::open_object flags: open is read-only */
+#define	WT_SS_OPEN_READONLY	0x0
+#else
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define	WT_SS_OPEN_CREATE	0x1u
+#define	WT_SS_OPEN_READONLY	0x2u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+#endif
+
+/*!
+ * The interface implemented by applications to provide a shared system
+ * implementation. This documentation refers to "object" and "bucket"
+ * to mean a "file-like object" and a "container of objects", respectively.
+ *
+ * <b>Thread safety:</b> WiredTiger may invoke methods on the WT_SHARED_STORAGE
+ * interface from multiple threads concurrently. It is the responsibility of
+ * the implementation to protect any shared data.
+ *
+ * Applications register implementations with WiredTiger by calling
+ * WT_CONNECTION::add_shared_storage.  See @ref custom_shared_storages for more
+ * information.
+ *
+ * @snippet ex_shared_storage.c WT_SHARED_STORAGE register
+ */
+struct __wt_shared_storage {
+	/*!
+	 * Return a location handle from a location string.
+         * A location string may encode a bucket name, or the equivalent for this
+         * shared storage system, authorization information for that bucket,
+         * naming prefixes to be used for objects in that bucket, etc.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location the location string
+	 * @param[out] location_handle the allocated handle
+	 */
+	int (*ss_location_handle)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, const char *location, void **location_handle);
+
+	/*!
+	 * Free a location handle created by WT_SHARED_STORAGE::ss_location_handle.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location_handle the handle to be freed.
+	 */
+	int (*ss_location_handle_free)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, void *location_handle);
+
+	/*!
+	 * Return a list of object names for the given location.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location_handle the location to list
+	 * @param[out] objlist the method returns an allocated array of
+	 *    individually allocated strings, one for each object in the location.
+	 * @param[out] countp the number of entries returned
+	 */
+	int (*ss_location_list)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, void *location_handle,
+	    char ***objlist, uint32_t *countp);
+
+	/*!
+	 * Free memory allocated by WT_SHARED_STORAGE::location_list.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param objlist array returned by WT_SHARED_STORAGE::location_list
+	 * @param count count returned by WT_SHARED_STORAGE::location_list
+	 */
+	int (*ss_location_list_free)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, char **objlist, uint32_t count);
+
+	/*!
+	 * Return if the named object exists in the location.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+         * @param location_handle the location to search
+	 * @param name the name of the object
+	 * @param[out] existp If the named shared storage object exists
+	 */
+	int (*ss_exist)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, void *location_handle, const char *name, bool *existp);
+
+	/*!
+	 * Open a handle for a named shared storage object
+	 *
+	 * The method should return ENOENT if the object is not being created and
+	 * does not exist.
+	 *
+	 * The method should return EACCES if the object cannot be opened given
+         * permissions by the location.
+	 *
+	 * The method should return EEXIST if the object is being created and
+         * it already exists.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location_handle the location where the object will be stored.
+	 * @param name the name of the object within the location.
+	 * @param flags flags indicating how to open the object, exactly one of
+	 *    ::WT_SS_OPEN_CREATE, ::WT_SS_OPEN_READONLY.
+	 * @param[out] file_handlep the handle to the newly opened object. Shared
+	 *    storage implementations must allocate memory for the handle and
+	 *    the WT_FILE_HANDLE::name field, and fill in the WT_FILE_HANDLE::
+	 *    fields. Applications wanting to associate private information
+	 *    with the WT_FILE_HANDLE:: structure should declare and allocate
+	 *    their own structure as a superset of a WT_FILE_HANDLE:: structure.
+	 */
+	int (*ss_open_object)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+	    void *location_handle, const char *name, uint32_t flags, WT_FILE_HANDLE **file_handlep);
+
+	/*!
+	 * Remove a named shared storage object
+	 *
+	 * This method is not required if shared storage is configured readonly
+         * and should be set to NULL when not required by the shared storage implementation.
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location_handle the location containing the object
+	 * @param name the name of the shared storage object
+	 * @param flags must be 0
+	 */
+	int (*ss_remove)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, void *location_handle, const char *name, uint32_t flags);
+
+	/*!
+	 * Return the size of a named shared storage object
+	 *
+	 * @errors
+	 *
+	 * @param shared_storage the WT_SHARED_STORAGE
+	 * @param session the current WiredTiger session
+	 * @param location_handle the location containing the object
+	 * @param name the name of the shared storage object
+	 * @param[out] sizep the size of the shared storage object
+	 */
+	int (*ss_size)(WT_SHARED_STORAGE *shared_storage,
+	    WT_SESSION *session, void *location_handle, const char *name, wt_off_t *sizep);
+
+	/*!
+	 * A callback performed when the shared storage is closed and will no
+	 * longer be accessed by the WiredTiger database.
+	 *
+	 * This method is not required and should be set to NULL when not
+	 * required by the shared system implementation.
+	 *
+	 * The WT_SHARED_STORAGE::terminate callback is intended to allow cleanup,
+	 * the handle will not be subsequently accessed by WiredTiger.
+	 */
+	int (*terminate)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session);
+};
 
 /*!
  * Entry point to an extension, called when the extension is loaded.

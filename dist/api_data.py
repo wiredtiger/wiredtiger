@@ -1656,6 +1656,7 @@ methods = {
 'WT_CONNECTION.add_data_source' : Method([]),
 'WT_CONNECTION.add_encryptor' : Method([]),
 'WT_CONNECTION.add_extractor' : Method([]),
+'WT_CONNECTION.add_shared_storage' : Method([]),
 'WT_CONNECTION.close' : Method([
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
