@@ -1017,7 +1017,7 @@ multithreaded
 munmap
 mutex
 mutexes
-mx
+mux
 mytable
 mytxn
 namespace
