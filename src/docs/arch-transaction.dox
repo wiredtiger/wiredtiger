@@ -122,18 +122,18 @@ transaction id in the snapshot are not visible to the reading transaction.
 
 When operating in read committed or read uncommitted isolation levels, it is possible to read
 different values of the same key, seeing records not seen before, or finding records disappear
-in the same transaction. This is called phantom read. Under snapshot, WiredTiger guarantees
+in the same transaction. This is called a phantom read. Under snapshot isolation, WiredTiger guarantees
 repeated reads returning the same result except one case using timestamps.
 
 @subsection Timestamps
 
-WiredTiger provides a mechanism for the user to control when his operations should be visible,
+WiredTiger provides a mechanism to control when operations should be visible,
 called timestamps. Timestamps are user specified sequence numbers that are associated with each
-operation. In addition, user can assign an immutable read timestamp to a transaction at the
+operation. In addition, users can assign an immutable read timestamp to a transaction at the
 beginning. A transaction can only see updates with timestamps smaller or equal to its read
 timestamp. Note that read timestamp 0 means no read timestamp and the transaction can see the
 updates regardless of timestamps. Also note that timestamps don't have to be derived from
-physical times. User can use any 64 bit unsigned integer as logical timestamps. For a single
+physical times. Users can use any 64 bit unsigned integer as logical timestamps. For a single
 operation, the timestamps associated with the operations in the same transaction don't have to
 be the same as long as they are monotonically increasing.
 
@@ -160,7 +160,7 @@ the history store to check if there is a version visible to the reader there.
 The repeated read guarantee under snapshot isolation may break in one case if the timestamps
 committed to the updates are out of order, e.g,
 
-\c U@20 -> \c U@30 -> \c U@15.
+`U@20 -> U@30 -> U@15`
 
 In the above example, reading with timestamp 15 doesn't guarantee to return the third update.
 In some cases, users may read the second update U@30 if it is moved to the history store.
