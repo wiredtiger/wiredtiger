@@ -95,8 +95,13 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
             endp = root_addr;
             WT_ERR(__wt_block_addr_to_buffer(
-              block, &endp, ci->root_offset, ci->root_size, ci->root_checksum));
+              block, &endp, ci->root_logid, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
+
+            if (block->log_structured) {
+                block->logid = ci->root_logid;
+                WT_ERR(__wt_block_newfile(session, block));
+            }
         }
 
         /*
@@ -113,7 +118,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      * the end of the file, that was done when the checkpoint was first written (re-writing the
      * checkpoint might possibly make it relevant here, but it's unlikely enough I don't bother).
      */
-    if (!checkpoint)
+    if (!checkpoint && !block->log_structured)
         WT_ERR(__wt_block_truncate(session, block, ci->file_size));
 
     if (0) {
@@ -237,10 +242,10 @@ __wt_block_checkpoint(
      */
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
-        ci->root_size = ci->root_checksum = 0;
+        ci->root_logid = ci->root_size = ci->root_checksum = 0;
     } else
-        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_offset, &ci->root_size,
-          &ci->root_checksum, data_checksum, true, false));
+        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_logid, &ci->root_offset,
+          &ci->root_size, &ci->root_checksum, data_checksum, true, false));
 
     /*
      * Checkpoints are potentially reading/writing/merging lots of blocks, pre-allocate structures
@@ -397,7 +402,8 @@ __ckpt_add_blkmod_entry(
  *     Add the checkpoint's allocated blocks to all valid incremental backup source identifiers.
  */
 static int
-__ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci)
+__ckpt_add_blk_mods_alloc(
+  WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CKPT *ci, WT_BLOCK *block)
 {
     WT_BLOCK_MODS *blk_mod;
     WT_CKPT *ckpt;
@@ -417,10 +423,13 @@ __ckpt_add_blk_mods_alloc(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_
         if (!F_ISSET(blk_mod, WT_BLOCK_MODS_VALID))
             continue;
 
+        if (block->created_during_backup)
+            WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, 0, block->allocsize));
         WT_EXT_FOREACH (ext, ci->alloc.off) {
             WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ext->off, ext->size));
         }
     }
+    block->created_during_backup = false;
     return (0);
 }
 
@@ -456,6 +465,37 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
             WT_RET(__ckpt_add_blkmod_entry(session, blk_mod, ci->avail.offset, ci->avail.size));
     }
     return (0);
+}
+
+/*
+ * __wt_block_newfile --
+ *     Switch a log-structured block object to a new file.
+ */
+int
+__wt_block_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    const char *filename;
+
+    /* Bump to a new file ID. */
+    ++block->logid;
+
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
+    filename = tmp->data;
+    WT_ERR(__wt_close(session, &block->fh));
+    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
+      WT_FS_OPEN_CREATE | block->file_flags, &block->fh));
+    WT_ERR(__wt_desc_write(session, block->fh, block->allocsize));
+
+    block->size = block->allocsize;
+    __wt_block_ckpt_destroy(session, &block->live);
+    WT_ERR(__wt_block_ckpt_init(session, &block->live, "live"));
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -595,7 +635,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * Record the checkpoint's allocated blocks. Do so before skipping any processing and before
      * possibly merging in blocks from any previous checkpoint.
      */
-    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci));
+    WT_ERR(__ckpt_add_blk_mods_alloc(session, ckptbase, ci, block));
 
     /* Skip the additional processing if we aren't deleting checkpoints. */
     if (!deleting)
@@ -606,7 +646,7 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * lists, and the freed blocks will then be included when writing the live extent lists.
      */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE))
+        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) || block->log_structured)
             continue;
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
@@ -739,6 +779,9 @@ live_update:
     WT_ERR(__wt_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
     ci->ckpt_discard = ci->discard;
     WT_ERR(__wt_block_extlist_init(session, &ci->discard, "live", "discard", false));
+
+    if (block->log_structured)
+        WT_ERR(__wt_block_newfile(session, block));
 
 #ifdef HAVE_DIAGNOSTIC
     /*

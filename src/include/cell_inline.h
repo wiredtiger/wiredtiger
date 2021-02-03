@@ -534,7 +534,7 @@ __wt_cell_total_len(void *unpack_arg)
 {
     WT_CELL_UNPACK_COMMON *unpack;
 
-    unpack = unpack_arg;
+    unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
 
     /*
      * The length field is specially named because it's dangerous to use it: it represents the
@@ -1081,6 +1081,7 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
     void *huffman;
 
     btree = S2BT(session);
+    huffman = NULL;
 
     /* Reference the cell's data, optionally decode it. */
     switch (unpack->type) {
@@ -1089,8 +1090,6 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
         store->size = unpack->size;
         if (page_type == WT_PAGE_ROW_INT)
             return (0);
-
-        huffman = btree->huffman_key;
         break;
     case WT_CELL_VALUE:
         store->data = unpack->data;
@@ -1101,8 +1100,6 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
         if (page_type == WT_PAGE_ROW_INT || decoded)
             return (0);
-
-        huffman = btree->huffman_key;
         break;
     case WT_CELL_VALUE_OVFL:
         WT_RET(__wt_ovfl_read(session, page, unpack, store, &decoded));
@@ -1116,7 +1113,7 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
 
     return (huffman == NULL || store->size == 0 ?
         0 :
-        __wt_huffman_decode(session, huffman, store->data, store->size, store));
+        __wt_huffman_decode(session, huffman, (const uint8_t *)store->data, store->size, store));
 }
 
 /*
@@ -1134,7 +1131,7 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 {
     WT_CELL_UNPACK_COMMON *unpack;
 
-    unpack = unpack_arg;
+    unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
 
     WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
     return (__cell_data_ref(session, NULL, page_type, unpack, store));
@@ -1147,7 +1144,7 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 static inline int
 __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, page, page->type, unpack_arg, store));
+    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack_arg, store));
 }
 
 /*

@@ -197,7 +197,7 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -297,7 +297,7 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
@@ -372,7 +372,7 @@ restart_read:
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         __wt_upd_value_clear(cbt->upd_value);
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
@@ -514,7 +514,7 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd, NULL));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
                 continue;
@@ -590,8 +590,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     session = CUR2S(cbt);
     total_skipped = 0;
 
-    WT_STAT_CONN_INCR(session, cursor_prev);
-    WT_STAT_DATA_INCR(session, cursor_prev);
+    WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
     flags = /* tree walk flags */
       WT_READ_NO_SPLIT | WT_READ_PREV | WT_READ_SKIP_INTL;
@@ -690,16 +689,12 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
     }
 
 err:
-    if (total_skipped < 100) {
-        WT_STAT_CONN_INCR(session, cursor_prev_skip_lt_100);
-        WT_STAT_DATA_INCR(session, cursor_prev_skip_lt_100);
-    } else {
-        WT_STAT_CONN_INCR(session, cursor_prev_skip_ge_100);
-        WT_STAT_DATA_INCR(session, cursor_prev_skip_ge_100);
-    }
+    if (total_skipped < 100)
+        WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_ge_100);
 
-    WT_STAT_CONN_INCRV(session, cursor_prev_skip_total, total_skipped);
-    WT_STAT_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_total, total_skipped);
 
     switch (ret) {
     case 0:

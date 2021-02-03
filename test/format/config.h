@@ -88,9 +88,6 @@ static CONFIG c[] = {
     NULL},
 
   /* 20% */
-  {"btree.huffman_key", "configure huffman encoded keys", C_BOOL, 20, 0, 0, &g.c_huffman_key, NULL},
-
-  /* 20% */
   {"btree.huffman_value", "configure huffman encoded values", C_BOOL, 20, 0, 0, &g.c_huffman_value,
     NULL},
 
@@ -303,6 +300,10 @@ static CONFIG c[] = {
   /* 2% */
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
     &g.c_timing_stress_hs_checkpoint_delay, NULL},
+
+  /* 2% */
+  {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_search,
+    NULL},
 
   /* 2% */
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_sweep,

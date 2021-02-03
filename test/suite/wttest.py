@@ -26,6 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# [TEST_TAGS]
+# ignored_file
+# [END_TAGS]
+#
 # WiredTigerTestCase
 #   parent class for all test cases
 #
@@ -113,6 +117,14 @@ class CapturedFd(object):
                       contents + '"')
         self.expectpos = os.path.getsize(self.filename)
 
+    def ignorePreviousOutput(self):
+        """
+        Ignore any output up to this point.
+        """
+        if self.file != None:
+            self.file.flush()
+        self.expectpos = os.path.getsize(self.filename)
+
     def checkAdditional(self, testcase, expect):
         """
         Check to see that an additional string has been added to the
@@ -127,7 +139,7 @@ class CapturedFd(object):
                              gotstr + '"')
         self.expectpos = os.path.getsize(self.filename)
 
-    def checkAdditionalPattern(self, testcase, pat):
+    def checkAdditionalPattern(self, testcase, pat, re_flags = 0):
         """
         Check to see that an additional string has been added to the
         output file.  If it has not, raise it as a test failure.
@@ -136,7 +148,7 @@ class CapturedFd(object):
         if self.file != None:
             self.file.flush()
         gotstr = self.readFileFrom(self.filename, self.expectpos, 1500)
-        if re.search(pat, gotstr) == None:
+        if re.search(pat, gotstr, re_flags) == None:
             testcase.fail('in ' + self.desc +
                           ', expected pattern "' + pat + '", but got "' +
                           gotstr + '"')
@@ -190,7 +202,7 @@ class WiredTigerTestCase(unittest.TestCase):
     @staticmethod
     def globalSetup(preserveFiles = False, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, ignoreStdout = False):
+                    longtest = False, ignoreStdout = False, seedw = 0, seedz = 0):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
@@ -213,6 +225,11 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._globalSetup = True
         WiredTigerTestCase._ttyDescriptor = None
+        WiredTigerTestCase._seeds = [521288629, 362436069]
+        WiredTigerTestCase._randomseed = False
+        if seedw != 0 and seedz != 0:
+            WiredTigerTestCase._randomseed = True
+            WiredTigerTestCase._seeds = [seedw, seedz]
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -419,6 +436,18 @@ class WiredTigerTestCase(unittest.TestCase):
         if exc_list and exc_list[-1][0] is self:
             return exc_list[-1][1]
 
+    def cleanStderr(self):
+        self.captureerr.ignorePreviousOutput()
+
+    def cleanStdout(self):
+        self.captureout.ignorePreviousOutput()
+
+    def checkStderr(self):
+        self.captureerr.check(self)
+
+    def checkStdout(self):
+        self.captureout.check(self)
+
     def tearDown(self):
         # This approach works for all our support Python versions and
         # is suggested by one of the answers in:
@@ -450,7 +479,6 @@ class WiredTigerTestCase(unittest.TestCase):
             except:
                 pass
         self._connections = []
-
         try:
             self.fdTearDown()
             self.captureout.check(self)
@@ -512,24 +540,24 @@ class WiredTigerTestCase(unittest.TestCase):
         self.captureerr.checkAdditional(self, expect)
 
     @contextmanager
-    def expectedStdoutPattern(self, pat):
+    def expectedStdoutPattern(self, pat, re_flags=0):
         self.captureout.check(self)
         yield
-        self.captureout.checkAdditionalPattern(self, pat)
+        self.captureout.checkAdditionalPattern(self, pat, re_flags)
 
     @contextmanager
-    def expectedStderrPattern(self, pat):
+    def expectedStderrPattern(self, pat, re_flags=0):
         self.captureerr.check(self)
         yield
-        self.captureerr.checkAdditionalPattern(self, pat)
+        self.captureerr.checkAdditionalPattern(self, pat, re_flags)
 
-    def ignoreStdoutPatternIfExists(self, pat):
+    def ignoreStdoutPatternIfExists(self, pat, re_flags=0):
         if self.captureout.hasUnexpectedOutput(self):
-            self.captureout.checkAdditionalPattern(self, pat)
+            self.captureout.checkAdditionalPattern(self, pat, re_flags)
 
-    def ignoreStderrPatternIfExists(self, pat):
+    def ignoreStderrPatternIfExists(self, pat, re_flags=0):
         if self.captureerr.hasUnexpectedOutput(self):
-            self.captureerr.checkAdditionalPattern(self, pat)
+            self.captureerr.checkAdditionalPattern(self, pat, re_flags)
 
     def assertRaisesWithMessage(self, exceptionType, expr, message):
         """
@@ -737,6 +765,9 @@ def longtest(description):
 def islongtest():
     return WiredTigerTestCase._longtest
 
+def getseed():
+    return WiredTigerTestCase._seeds
+
 def runsuite(suite, parallel):
     suite_to_run = suite
     if parallel > 1:
@@ -746,6 +777,9 @@ def runsuite(suite, parallel):
         WiredTigerTestCase._concurrent = True
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
     try:
+        if WiredTigerTestCase._randomseed:
+            WiredTigerTestCase.prout("Starting test suite with seedw={0} and seedz={1}. Rerun this test with -seed {0}.{1} to get the same randomness"
+                .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
         return unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
     except BaseException as e:

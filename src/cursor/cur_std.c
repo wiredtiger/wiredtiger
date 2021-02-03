@@ -736,8 +736,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
      * caching fails, we'll decrement the statistics after reopening the cursor (and getting the
      * data handle back).
      */
-    WT_STAT_CONN_INCR(session, cursor_cache);
-    WT_STAT_DATA_INCR(session, cursor_cache);
+    WT_STAT_CONN_DATA_INCR(session, cursor_cache);
     WT_ERR(cursor->cache(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
     *released = true;
@@ -751,8 +750,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
 err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
-        WT_STAT_CONN_DECR(session, cursor_cache);
-        WT_STAT_DATA_DECR(session, cursor_cache);
+        WT_STAT_CONN_DATA_DECR(session, cursor_cache);
     }
 
     return (ret);
@@ -796,6 +794,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
          */
         WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
         if (cval.val)
+            return (WT_NOTFOUND);
+
+        WT_RET(__wt_config_gets_def(session, cfg, "debug", 0, &cval));
+        if (cval.len != 0)
             return (WT_NOTFOUND);
 
         WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
@@ -883,8 +885,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
                 }
             }
 
-            WT_STAT_CONN_INCR(session, cursor_reopen);
-            WT_STAT_DATA_INCR(session, cursor_reopen);
+            /*
+             * A side effect of a cursor open is to leave the session's data handle set. Honor that
+             * for a "reopen".
+             */
+            if (cbt != NULL)
+                session->dhandle = cbt->dhandle;
 
             *cursorp = cursor;
             return (0);
@@ -979,6 +985,33 @@ err:
 }
 
 /*
+ * __cursor_config_debug --
+ *     Set configuration options for debug category.
+ */
+static int
+__cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+
+    /*
+     * Debug options. Special handling for options that aren't found - since reconfigure passes in
+     * just the single configuration string, not the stack.
+     */
+    if ((ret = __wt_config_gets_def(session, cfg, "debug.release_evict", 0, &cval)) == 0) {
+        if (cval.val)
+            F_SET(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
+        else
+            F_CLR(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
+    } else
+        WT_RET_NOTFOUND_OK(ret);
+    return (0);
+}
+
+/*
  * __wt_cursor_reconfigure --
  *     Set runtime-configurable settings.
  */
@@ -988,6 +1021,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    const char *cfg[] = {config, NULL};
 
     CURSOR_API_CALL(cursor, session, reconfigure, NULL);
 
@@ -1017,6 +1051,8 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
             F_CLR(cursor, WT_CURSTD_OVERWRITE);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
     API_END_RET(session, ret);
@@ -1110,6 +1146,7 @@ __wt_cursor_init(
         cursor->update = __wt_cursor_notsup;
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
     }
+    WT_RET(__cursor_config_debug(cursor, cfg));
 
     /*
      * dump If an index cursor is opened with dump, then this function is called on the index files,

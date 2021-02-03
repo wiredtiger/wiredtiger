@@ -349,9 +349,11 @@ Redistributions
 Refactor
 Resize
 RocksDB
+Runtime
 SIMD
 SLIST
 SLVG
+SMT
 SOURCE's
 SPINLOCK
 SQL
@@ -408,6 +410,7 @@ UINT
 ULINE
 UNC
 UNCOND
+UPD
 URI
 URIs
 UTF
@@ -637,6 +640,7 @@ curconfig
 curdump
 curextract
 curfile
+curhs
 curindex
 curjoin
 curlog
@@ -645,6 +649,7 @@ cursoring
 cursorp
 curstat
 curtable
+curtiered
 cust
 customp
 cv
@@ -770,6 +775,7 @@ fflush
 ffs
 fgetc
 fgetln
+fgets
 fh
 fhandle
 filefrag
@@ -901,6 +907,8 @@ io
 ip
 isalnum
 isalpha
+isascii
+isb
 iscntrl
 isdigit
 isgraph
@@ -954,6 +962,7 @@ libs
 libtool
 libwiredtiger
 linkers
+liveness
 llll
 llu
 llvm
@@ -1037,7 +1046,7 @@ multithreaded
 munmap
 mutex
 mutexes
-mx
+mux
 mytable
 mytxn
 namespace
@@ -1329,6 +1338,7 @@ tokname
 tokstart
 toktype
 tolower
+toplevel
 totalsec
 toupper
 transactional

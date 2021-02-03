@@ -98,34 +98,34 @@
 #error "Clang versions 3.5 and earlier are unsupported by WiredTiger"
 #endif
 
-#define WT_ATOMIC_CAS(ptr, oldp, new) \
-    __atomic_compare_exchange_n(ptr, oldp, new, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
-#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, new_arg)             \
-    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, new_arg) \
-    {                                                                  \
-        return (WT_ATOMIC_CAS(vp, &old, new));                         \
+#define WT_ATOMIC_CAS(ptr, oldp, newv) \
+    __atomic_compare_exchange_n(ptr, oldp, newv, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)
+#define WT_ATOMIC_CAS_FUNC(name, vp_arg, old_arg, newv_arg)             \
+    static inline bool __wt_atomic_cas##name(vp_arg, old_arg, newv_arg) \
+    {                                                                   \
+        return (WT_ATOMIC_CAS(vp, &old, newv));                         \
     }
-WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t new)
-WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t new)
-WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t new)
-WT_ATOMIC_CAS_FUNC(32, uint32_t *vp, uint32_t old, uint32_t new)
-WT_ATOMIC_CAS_FUNC(v32, volatile uint32_t *vp, uint32_t old, volatile uint32_t new)
-WT_ATOMIC_CAS_FUNC(i32, int32_t *vp, int32_t old, int32_t new)
-WT_ATOMIC_CAS_FUNC(iv32, volatile int32_t *vp, int32_t old, volatile int32_t new)
-WT_ATOMIC_CAS_FUNC(64, uint64_t *vp, uint64_t old, uint64_t new)
-WT_ATOMIC_CAS_FUNC(v64, volatile uint64_t *vp, uint64_t old, volatile uint64_t new)
-WT_ATOMIC_CAS_FUNC(i64, int64_t *vp, int64_t old, int64_t new)
-WT_ATOMIC_CAS_FUNC(iv64, volatile int64_t *vp, int64_t old, volatile int64_t new)
-WT_ATOMIC_CAS_FUNC(size, size_t *vp, size_t old, size_t new)
+WT_ATOMIC_CAS_FUNC(8, uint8_t *vp, uint8_t old, uint8_t newv)
+WT_ATOMIC_CAS_FUNC(v8, volatile uint8_t *vp, uint8_t old, volatile uint8_t newv)
+WT_ATOMIC_CAS_FUNC(16, uint16_t *vp, uint16_t old, uint16_t newv)
+WT_ATOMIC_CAS_FUNC(32, uint32_t *vp, uint32_t old, uint32_t newv)
+WT_ATOMIC_CAS_FUNC(v32, volatile uint32_t *vp, uint32_t old, volatile uint32_t newv)
+WT_ATOMIC_CAS_FUNC(i32, int32_t *vp, int32_t old, int32_t newv)
+WT_ATOMIC_CAS_FUNC(iv32, volatile int32_t *vp, int32_t old, volatile int32_t newv)
+WT_ATOMIC_CAS_FUNC(64, uint64_t *vp, uint64_t old, uint64_t newv)
+WT_ATOMIC_CAS_FUNC(v64, volatile uint64_t *vp, uint64_t old, volatile uint64_t newv)
+WT_ATOMIC_CAS_FUNC(i64, int64_t *vp, int64_t old, int64_t newv)
+WT_ATOMIC_CAS_FUNC(iv64, volatile int64_t *vp, int64_t old, volatile int64_t newv)
+WT_ATOMIC_CAS_FUNC(size, size_t *vp, size_t old, size_t newv)
 
 /*
  * __wt_atomic_cas_ptr --
  *     Pointer compare and swap.
  */
 static inline bool
-__wt_atomic_cas_ptr(void *vp, void *old, void *new)
+__wt_atomic_cas_ptr(void *vp, void *old, void *newv)
 {
-    return (WT_ATOMIC_CAS((void **)vp, &old, new));
+    return (WT_ATOMIC_CAS((void **)vp, &old, newv));
 }
 
 #define WT_ATOMIC_FUNC(name, ret, vp_arg, v_arg)                 \
@@ -217,7 +217,14 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
     } while (0)
 
 #elif defined(__aarch64__)
-#define WT_PAUSE() __asm__ volatile("yield" ::: "memory")
+/*
+ * Use an isb instruction here to be closer to the original x86 pause instruction. The yield
+ * instruction that was previously here is a nop that is intended to provide a hint that a
+ * thread in a SMT system could yield. This is different from the x86 pause instruction
+ * which delays execution by O(100) cycles. The isb will typically delay execution by about
+ * 50 cycles so it's a reasonable alternative.
+ */
+#define WT_PAUSE() __asm__ volatile("isb" ::: "memory")
 
 /*
  * dmb are chosen here because they are sufficient to guarantee the ordering described above. We

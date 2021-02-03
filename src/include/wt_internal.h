@@ -141,6 +141,8 @@ struct __wt_cursor_data_source;
 typedef struct __wt_cursor_data_source WT_CURSOR_DATA_SOURCE;
 struct __wt_cursor_dump;
 typedef struct __wt_cursor_dump WT_CURSOR_DUMP;
+struct __wt_cursor_hs;
+typedef struct __wt_cursor_hs WT_CURSOR_HS;
 struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
 struct __wt_cursor_join;
@@ -163,6 +165,8 @@ struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
 typedef struct __wt_cursor_table WT_CURSOR_TABLE;
+struct __wt_cursor_tiered;
+typedef struct __wt_cursor_tiered WT_CURSOR_TIERED;
 struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
@@ -239,6 +243,8 @@ struct __wt_multi;
 typedef struct __wt_multi WT_MULTI;
 struct __wt_myslot;
 typedef struct __wt_myslot WT_MYSLOT;
+struct __wt_name_flag;
+typedef struct __wt_name_flag WT_NAME_FLAG;
 struct __wt_named_collator;
 typedef struct __wt_named_collator WT_NAMED_COLLATOR;
 struct __wt_named_compressor;
@@ -309,6 +315,8 @@ struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_tiered;
+typedef struct __wt_tiered WT_TIERED;
 struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
@@ -398,6 +406,7 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
+#include "tiered.h"
 #include "txn.h"
 
 #include "session.h" /* required by connection.h */

@@ -195,6 +195,7 @@ __curbackup_close(WT_CURSOR *cursor)
     WT_CURSOR_BACKUP *cb;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    const char *cfg[3] = {NULL, NULL, NULL};
 
     cb = (WT_CURSOR_BACKUP *)cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, close, NULL);
@@ -204,6 +205,20 @@ err:
         __wt_verbose(
           session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
         __wt_backup_destroy(session);
+        /*
+         * We need to force a checkpoint to the metadata to make the force stop durable. Without it,
+         * the backup information could reappear if we crash and restart.
+         */
+        cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
+        cfg[1] = "force=true";
+        /*
+         * Metadata checkpoints rely on read-committed isolation. Use that here no matter what
+         * isolation the caller's session sets for isolation.
+         */
+        WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
+          WT_WITH_METADATA_LOCK(session,
+            WT_WITH_TXN_ISOLATION(
+              session, WT_ISO_READ_COMMITTED, ret = __wt_checkpoint(session, cfg))));
     }
 
     /*
@@ -273,6 +288,15 @@ __wt_curbackup_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *other,
     othercb = (WT_CURSOR_BACKUP *)other;
     if (othercb != NULL)
         WT_CURSOR_BACKUP_CHECK_STOP(othercb);
+
+    /* Special backup cursor to query incremental IDs. */
+    if (strcmp(uri, "backup:query_id") == 0) {
+        /* Top level cursor code does not allow a URI and cursor. We don't need to check here. */
+        WT_ASSERT(session, othercb == NULL);
+        if (!F_ISSET(S2C(session), WT_CONN_INCR_BACKUP))
+            WT_RET_MSG(session, EINVAL, "Incremental backup is not configured");
+        F_SET(cb, WT_CURBACKUP_QUERYID);
+    }
 
     /*
      * Start the backup and fill in the cursor's list. Acquire the schema lock, we need a consistent
@@ -431,7 +455,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *uri;
-    bool incremental_config, is_dup, log_config, target_list;
+    bool consolidate, incremental_config, is_dup, log_config, target_list;
 
     *foundp = *incr_only = *log_only = false;
 
@@ -453,6 +477,19 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
         }
         /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
+        incremental_config = true;
+    }
+
+    /*
+     * Consolidation can be on a per incremental basis or a per-file duplicate cursor basis.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "incremental.consolidate", &cval));
+    consolidate = F_MASK(cb, WT_CURBACKUP_CONSOLIDATE);
+    if (cval.val) {
+        if (is_dup)
+            WT_RET_MSG(session, EINVAL,
+              "Incremental consolidation can only be specified on a primary backup cursor");
+        F_SET(cb, WT_CURBACKUP_CONSOLIDATE);
         incremental_config = true;
     }
 
@@ -574,11 +611,39 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
               session, EINVAL, "Incremental primary cursor must have a known source identifier");
         F_SET(cb, WT_CURBACKUP_INCR);
     }
+
+    /* Return an error if block-based incremental backup is performed with open LSM trees. */
+    if (incremental_config && !TAILQ_EMPTY(&conn->lsmqh))
+        WT_ERR_MSG(session, ENOTSUP, "LSM does not work with block-based incremental backup");
+
 err:
-    if (ret != 0 && cb->incr_src != NULL)
+    if (ret != 0 && cb->incr_src != NULL) {
         F_CLR(cb->incr_src, WT_BLKINCR_INUSE);
+        F_CLR(cb, WT_CURBACKUP_CONSOLIDATE);
+        F_SET(cb, consolidate);
+    }
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __backup_query_setup --
+ *     Setup the names to return with a backup query cursor.
+ */
+static int
+__backup_query_setup(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb)
+{
+    WT_BLKINCR *blkincr;
+    u_int i;
+
+    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
+        blkincr = &S2C(session)->incr_backups[i];
+        /* If it isn't valid, skip it. */
+        if (!F_ISSET(blkincr, WT_BLKINCR_VALID))
+            continue;
+        WT_RET(__backup_list_append(session, cb, blkincr->id_str));
+    }
+    return (0);
 }
 
 /*
@@ -622,7 +687,7 @@ __backup_start(
      * set a flag and we're done. Actions will be performed on cursor close.
      */
     WT_RET_NOTFOUND_OK(__wt_config_gets(session, cfg, "incremental.force_stop", &cval));
-    if (cval.val) {
+    if (!F_ISSET(cb, WT_CURBACKUP_QUERYID) && cval.val) {
         /*
          * If we're force stopping incremental backup, set the flag. The resources involved in
          * incremental backup will be released on cursor close and that is the only expected usage
@@ -652,7 +717,16 @@ __backup_start(
 
         /* We're the lock holder, we own cleanup. */
         F_SET(cb, WT_CURBACKUP_LOCKER);
-
+        /*
+         * If we are a query backup cursor there are no configuration settings and it will set up
+         * its own list of strings to return. We don't have to do any of the other processing. A
+         * query creates a list to return but does not create the backup file. After appending the
+         * list of IDs we are done.
+         */
+        if (F_ISSET(cb, WT_CURBACKUP_QUERYID)) {
+            ret = __backup_query_setup(session, cb);
+            goto query_done;
+        }
         /*
          * Create a temporary backup file. This must be opened before generating the list of targets
          * in backup_config. This file will later be renamed to the correct name depending on
@@ -719,6 +793,7 @@ __backup_start(
         WT_ERR(__backup_list_append(session, cb, WT_WIREDTIGER));
     }
 
+query_done:
 err:
     /* Close the hot backup file. */
     if (srcfs != NULL)
@@ -726,7 +801,8 @@ err:
     /*
      * Sync and rename the temp file into place.
      */
-    if (ret == 0)
+    WT_TRET(__wt_fs_exist(session, WT_BACKUP_TMP, &exist));
+    if (ret == 0 && exist)
         ret = __wt_sync_and_rename(session, &cb->bfs, WT_BACKUP_TMP, dest);
     if (ret == 0) {
         WT_WITH_HOTBACKUP_WRITE_LOCK(session, conn->hot_backup_list = cb->list);
@@ -807,7 +883,8 @@ __backup_list_uri_append(WT_SESSION_IMPL *session, const char *name, bool *skip)
      */
     if (!WT_PREFIX_MATCH(name, "file:") && !WT_PREFIX_MATCH(name, "colgroup:") &&
       !WT_PREFIX_MATCH(name, "index:") && !WT_PREFIX_MATCH(name, "lsm:") &&
-      !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) && !WT_PREFIX_MATCH(name, "table:"))
+      !WT_PREFIX_MATCH(name, WT_SYSTEM_PREFIX) && !WT_PREFIX_MATCH(name, "table:") &&
+      !WT_PREFIX_MATCH(name, "tiered:"))
         WT_RET_MSG(session, ENOTSUP, "hot backup is not supported for objects of type %s", name);
 
     /* Add the metadata entry to the backup file. */

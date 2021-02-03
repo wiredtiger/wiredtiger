@@ -817,15 +817,15 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
                 WT_ERR_MSG(session, WT_RUN_RECOVERY, "Read-only database needs recovery");
         }
         if (WT_IS_INIT_LSN(&metafile->ckpt_lsn))
-            ret = __wt_log_scan(session, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
+            ret = __wt_log_scan(session, NULL, NULL, WT_LOGSCAN_FIRST, __txn_log_recover, &r);
         else {
             /*
              * Start at the last checkpoint LSN referenced in the metadata. If we see the end of a
              * checkpoint while scanning, we will change the full scan to start from there.
              */
             WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
-            ret = __wt_log_scan(
-              session, &metafile->ckpt_lsn, WT_LOGSCAN_RECOVER_METADATA, __txn_log_recover, &r);
+            ret = __wt_log_scan(session, &metafile->ckpt_lsn, NULL, WT_LOGSCAN_RECOVER_METADATA,
+              __txn_log_recover, &r);
         }
         if (F_ISSET(conn, WT_CONN_SALVAGE))
             ret = 0;
@@ -841,11 +841,19 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
     }
 
-    /* Check whether the history store exists. */
-    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
-
     /* Scan the metadata to find the live files and their IDs. */
     WT_ERR(__recovery_file_scan(&r));
+
+    /*
+     * Check whether the history store exists.
+     *
+     * This will open a dhandle on the history store and initialize its write gen so we must ensure
+     * that the connection-wide base write generation is stable at this point. Performing a recovery
+     * file scan will involve updating the connection-wide base write generation so we MUST do this
+     * before checking for the existence of a history store file.
+     */
+    WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
+
     /*
      * Clear this out. We no longer need it and it could have been re-allocated when scanning the
      * files.
@@ -909,9 +917,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
     if (WT_IS_INIT_LSN(&r.ckpt_lsn))
         ret = __wt_log_scan(
-          session, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
+          session, NULL, NULL, WT_LOGSCAN_FIRST | WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
     else
-        ret = __wt_log_scan(session, &r.ckpt_lsn, WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
+        ret = __wt_log_scan(session, &r.ckpt_lsn, NULL, WT_LOGSCAN_RECOVER, __txn_log_recover, &r);
     if (F_ISSET(conn, WT_CONN_SALVAGE))
         ret = 0;
     WT_ERR(ret);
@@ -957,7 +965,7 @@ done:
         if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
             conn->txn_global.has_stable_timestamp = true;
 
-        __wt_verbose(session, WT_VERB_RTS,
+        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RTS,
           "Performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),

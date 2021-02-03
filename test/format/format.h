@@ -53,6 +53,7 @@
 
 #define BACKUP_INFO_FILE "BACKUP_INFO"         /* Format's backup information for restart */
 #define BACKUP_INFO_FILE_TMP "BACKUP_INFO.TMP" /* Format's backup information for restart */
+#define BACKUP_MAX_COPY MEGABYTE(64)           /* Maximum size we'll read/write at a time */
 #define WT_NAME "wt"                           /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
@@ -170,7 +171,6 @@ typedef struct {
     char *c_file_type;
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
-    uint32_t c_huffman_key;
     uint32_t c_huffman_value;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
@@ -215,6 +215,7 @@ typedef struct {
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
     uint32_t c_timing_stress_hs_checkpoint_delay;
+    uint32_t c_timing_stress_hs_search;
     uint32_t c_timing_stress_hs_sweep;
     uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_split_1;

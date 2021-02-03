@@ -31,6 +31,7 @@
 
 static void config_backup_incr(void);
 static void config_backup_incr_granularity(void);
+static void config_backup_incr_log_compatibility_check(void);
 static void config_backward_compatible(void);
 static void config_cache(void);
 static void config_checkpoint(void);
@@ -54,12 +55,6 @@ static void config_map_isolation(const char *, u_int *);
 static void config_pct(void);
 static void config_reset(void);
 static void config_transaction(void);
-
-/*
- * We currently disable random LSM testing, that is, it can be specified explicitly but we won't
- * randomly choose LSM as a data_source configuration.
- */
-#define DISABLE_RANDOM_LSM_TESTING 1
 
 /*
  * config_final --
@@ -131,7 +126,6 @@ config_run(void)
             config_single("runs.source=file", false);
             break;
         case 2: /* 20% */
-#if !defined(DISABLE_RANDOM_LSM_TESTING)
             /*
              * LSM requires a row-store and backing disk.
              *
@@ -147,7 +141,6 @@ config_run(void)
             if (config_is_perm("ops.truncate") && g.c_truncate)
                 break;
             config_single("runs.source=lsm", false);
-#endif
             break;
         case 3:
         case 4:
@@ -275,12 +268,8 @@ config_backup_incr(void)
      * archival doesn't seem as useful as testing backup, let the backup configuration override.
      */
     if (config_is_perm("backup.incremental")) {
-        if (g.c_backup_incr_flag == INCREMENTAL_LOG) {
-            if (g.c_logging_archive && config_is_perm("logging.archive"))
-                testutil_die(EINVAL, "backup.incremental=log is incompatible with logging.archive");
-            if (g.c_logging_archive)
-                config_single("logging.archive=0", false);
-        }
+        if (g.c_backup_incr_flag == INCREMENTAL_LOG)
+            config_backup_incr_log_compatibility_check();
         if (g.c_backup_incr_flag == INCREMENTAL_BLOCK)
             config_backup_incr_granularity();
         return;
@@ -397,6 +386,12 @@ config_backward_compatible(void)
             testutil_die(
               EINVAL, "stress.hs_checkpoint_delay not supported in backward compatibility mode");
         config_single("stress.hs_checkpoint_delay=off", false);
+    }
+
+    if (g.c_timing_stress_hs_search) {
+        if (config_is_perm("stress.hs_search"))
+            testutil_die(EINVAL, "stress.hs_search not supported in backward compatibility mode");
+        config_single("stress.hs_search=off", false);
     }
 }
 
@@ -763,6 +758,23 @@ config_in_memory_reset(void)
 }
 
 /*
+ * config_backup_incr_compatibility_check --
+ *     Backup incremental log compatibility check.
+ */
+static void
+config_backup_incr_log_compatibility_check(void)
+{
+    /*
+     * Incremental backup using log files is incompatible with logging archival. Disable logging
+     * archival if log incremental backup is set.
+     */
+    if (g.c_logging_archive && config_is_perm("logging.archive"))
+        testutil_die(EINVAL, "backup.incremental=log is incompatible with logging.archive");
+    if (g.c_logging_archive)
+        config_single("logging.archive=0", false);
+}
+
+/*
  * config_lsm_reset --
  *     LSM configuration review.
  */
@@ -784,6 +796,28 @@ config_lsm_reset(void)
     if (!config_is_perm("ops.prepare") && !config_is_perm("transaction.timestamps")) {
         config_single("ops.prepare=off", false);
         config_single("transaction.timestamps=off", false);
+    }
+
+    /*
+     * LSM does not work with block-based incremental backup, change the incremental backup
+     * mechanism if block based in configured.
+     */
+    if (g.c_backups) {
+        if (config_is_perm("backup.incremental") && g.c_backup_incr_flag == INCREMENTAL_BLOCK)
+            testutil_die(EINVAL, "LSM does not work with backup.incremental=block configuration.");
+
+        if (g.c_backup_incr_flag == INCREMENTAL_BLOCK)
+            switch (mmrand(NULL, 1, 2)) {
+            case 1:
+                /* 50% */
+                config_single("backup.incremental=off", false);
+                break;
+            case 2:
+                /* 50% */
+                config_single("backup.incremental=log", false);
+                config_backup_incr_log_compatibility_check();
+                break;
+            }
     }
 }
 

@@ -30,12 +30,11 @@
 #define WT_REC_CHECKPOINT 0x004u
 #define WT_REC_CLEAN_AFTER_REC 0x008u
 #define WT_REC_EVICT 0x010u
-#define WT_REC_EVICTION_THREAD 0x020u
-#define WT_REC_HS 0x040u
-#define WT_REC_IN_MEMORY 0x080u
-#define WT_REC_SCRUB 0x100u
-#define WT_REC_VISIBILITY_ERR 0x200u
-#define WT_REC_VISIBLE_ALL 0x400u
+#define WT_REC_HS 0x020u
+#define WT_REC_IN_MEMORY 0x040u
+#define WT_REC_SCRUB 0x080u
+#define WT_REC_VISIBILITY_ERR 0x100u
+#define WT_REC_VISIBLE_ALL 0x200u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
 /*
@@ -235,11 +234,86 @@ struct __wt_ovfl_reuse {
 #else
 #define WT_HS_COMPRESSOR "none"
 #endif
-#define WT_HS_CONFIG                                                              \
-    "key_format=" WT_UNCHECKED_STRING(IuQQ) ",value_format=" WT_UNCHECKED_STRING( \
-      QQQu) ",block_compressor=" WT_HS_COMPRESSOR                                 \
-            ",leaf_value_max=64MB"                                                \
-            ",prefix_compression=false"
+#define WT_HS_KEY_FORMAT WT_UNCHECKED_STRING(IuQQ)
+#define WT_HS_VALUE_FORMAT WT_UNCHECKED_STRING(QQQu)
+#define WT_HS_CONFIG                                                   \
+    "key_format=" WT_HS_KEY_FORMAT ",value_format=" WT_HS_VALUE_FORMAT \
+    ",block_compressor=" WT_HS_COMPRESSOR                              \
+    ",leaf_value_max=64MB"                                             \
+    ",prefix_compression=false"
+
+/*
+ * WT_SAVE_UPD --
+ *	Unresolved updates found during reconciliation.
+ */
+struct __wt_save_upd {
+    WT_INSERT *ins; /* Insert list reference */
+    WT_ROW *ripcip; /* Original on-page reference */
+    WT_UPDATE *onpage_upd;
+    bool restore; /* Whether to restore this saved update chain */
+};
+
+/*
+ * WT_MULTI --
+ *	Replacement block information used during reconciliation.
+ */
+struct __wt_multi {
+    /*
+     * Block's key: either a column-store record number or a row-store variable length byte string.
+     */
+    union {
+        uint64_t recno;
+        WT_IKEY *ikey;
+    } key;
+
+    /*
+     * A disk image that may or may not have been written, used to re-instantiate the page in
+     * memory.
+     */
+    void *disk_image;
+
+    /*
+     * List of unresolved updates. Updates are either a row-store insert or update list, or
+     * column-store insert list. When creating history store records, there is an additional value,
+     * the committed item's transaction information.
+     *
+     * If there are unresolved updates, the block wasn't written and there will always be a disk
+     * image.
+     */
+    WT_SAVE_UPD *supd;
+    uint32_t supd_entries;
+    bool supd_restore; /* Whether to restore saved update chains to this page */
+
+    /*
+     * Disk image was written: address, size and checksum. On subsequent reconciliations of this
+     * page, we avoid writing the block if it's unchanged by comparing size and checksum; the reuse
+     * flag is set when the block is unchanged and we're reusing a previous address.
+     */
+    WT_ADDR addr;
+    uint32_t size;
+    uint32_t checksum;
+};
+
+/*
+ * WT_OVFL_TRACK --
+ *  Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
+ * so we don't allocate the structures to track them until we actually see them in the data.
+ */
+struct __wt_ovfl_track {
+    /*
+     * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile the
+     * page.
+     */
+    WT_OVFL_REUSE *ovfl_reuse[WT_SKIP_MAXDEPTH];
+
+    /*
+     * Overflow key/value addresses to be discarded from the block manager after reconciliation
+     * completes successfully.
+     */
+    WT_CELL **discard;
+    size_t discard_entries;
+    size_t discard_allocated;
+};
 
 /*
  * WT_PAGE_MODIFY --
@@ -302,50 +376,8 @@ struct __wt_page_modify {
 #undef mod_disk_image
 #define mod_disk_image u1.r.disk_image
 
-        struct { /* Multiple replacement blocks */
-            struct __wt_multi {
-                /*
-                 * Block's key: either a column-store record number or a row-store variable length
-                 * byte string.
-                 */
-                union {
-                    uint64_t recno;
-                    WT_IKEY *ikey;
-                } key;
-
-                /*
-                 * A disk image that may or may not have been written, used to re-instantiate the
-                 * page in memory.
-                 */
-                void *disk_image;
-
-                /*
-                 * List of unresolved updates. Updates are either a row-store insert or update list,
-                 * or column-store insert list. When creating history store records, there is an
-                 * additional value, the committed item's transaction information.
-                 *
-                 * If there are unresolved updates, the block wasn't written and there will always
-                 * be a disk image.
-                 */
-                struct __wt_save_upd {
-                    WT_INSERT *ins; /* Insert list reference */
-                    WT_ROW *ripcip; /* Original on-page reference */
-                    WT_UPDATE *onpage_upd;
-                    bool restore; /* Whether to restore this saved update chain */
-                } * supd;
-                uint32_t supd_entries;
-                bool supd_restore; /* Whether to restore saved update chains to this page */
-
-                /*
-                 * Disk image was written: address, size and checksum. On subsequent reconciliations
-                 * of this page, we avoid writing the block if it's unchanged by comparing size and
-                 * checksum; the reuse flag is set when the block is unchanged and we're reusing a
-                 * previous address.
-                 */
-                WT_ADDR addr;
-                uint32_t size;
-                uint32_t checksum;
-            } * multi;
+        struct {
+            WT_MULTI *multi;        /* Multiple replacement blocks */
             uint32_t multi_entries; /* Multiple blocks element count */
         } m;
 #undef mod_multi
@@ -415,25 +447,8 @@ struct __wt_page_modify {
 #define mod_row_update u2.row_leaf.update
     } u2;
 
-    /*
-     * Overflow record tracking for reconciliation. We assume overflow records are relatively rare,
-     * so we don't allocate the structures to track them until we actually see them in the data.
-     */
-    struct __wt_ovfl_track {
-        /*
-         * Overflow key/value address/byte-string pairs we potentially reuse each time we reconcile
-         * the page.
-         */
-        WT_OVFL_REUSE *ovfl_reuse[WT_SKIP_MAXDEPTH];
-
-        /*
-         * Overflow key/value addresses to be discarded from the block manager after reconciliation
-         * completes successfully.
-         */
-        WT_CELL **discard;
-        size_t discard_entries;
-        size_t discard_allocated;
-    } * ovfl_track;
+    /* Overflow record tracking for reconciliation. */
+    WT_OVFL_TRACK *ovfl_track;
 
 #define WT_PAGE_LOCK(s, p) __wt_spin_lock((s), &(p)->modify->page_lock)
 #define WT_PAGE_TRYLOCK(s, p) __wt_spin_trylock((s), &(p)->modify->page_lock)
@@ -481,6 +496,30 @@ WT_PACKED_STRUCT_BEGIN(__wt_col_rle)
 WT_PACKED_STRUCT_END
 
 /*
+ * WT_PAGE_INDEX --
+ *	The page index held by each internal page.
+ */
+struct __wt_page_index {
+    uint32_t entries;
+    uint32_t deleted_entries;
+    WT_REF **index;
+};
+
+/*
+ * WT_COL_VAR_REPEAT --
+ *  Variable-length column-store pages have an array of page entries with RLE counts
+ * greater than 1 when reading the page, so it's not necessary to walk the page counting
+ * records to find a specific entry. We can do a binary search in this array, then an
+ * offset calculation to find the cell.
+ *
+ * It's a separate structure to keep the page structure as small as possible.
+ */
+struct __wt_col_var_repeat {
+    uint32_t nrepeats;     /* repeat slots */
+    WT_COL_RLE repeats[0]; /* lookup RLE array */
+};
+
+/*
  * WT_PAGE --
  *	The WT_PAGE structure describes the in-memory page information.
  */
@@ -514,11 +553,7 @@ struct __wt_page {
             WT_REF *parent_ref; /* Parent reference */
             uint64_t split_gen; /* Generation of last split */
 
-            struct __wt_page_index {
-                uint32_t entries;
-                uint32_t deleted_entries;
-                WT_REF **index;
-            } * volatile __index; /* Collated children */
+            WT_PAGE_INDEX *volatile __index; /* Collated children */
         } intl;
 #undef pg_intl_parent_ref
 #define pg_intl_parent_ref u.intl.parent_ref
@@ -583,20 +618,8 @@ struct __wt_page {
 
         /* Variable-length column-store leaf page. */
         struct {
-            WT_COL *col_var; /* Values */
-
-            /*
-             * Variable-length column-store pages have an array of page entries with RLE counts
-             * greater than 1 when reading the page, so it's not necessary to walk the page counting
-             * records to find a specific entry. We can do a binary search in this array, then an
-             * offset calculation to find the cell.
-             *
-             * It's a separate structure to keep the page structure as small as possible.
-             */
-            struct __wt_col_var_repeat {
-                uint32_t nrepeats;     /* repeat slots */
-                WT_COL_RLE repeats[0]; /* lookup RLE array */
-            } * repeats;
+            WT_COL *col_var;            /* Values */
+            WT_COL_VAR_REPEAT *repeats; /* Repeats array */
 #define WT_COL_VAR_REPEAT_SET(page) ((page)->u.col_var.repeats != NULL)
         } col_var;
 #undef pg_var
@@ -806,6 +829,19 @@ struct __wt_page_deleted {
 };
 
 /*
+ * WT_REF_HIST --
+ *	State information of a ref at a single point in time.
+ */
+struct __wt_ref_hist {
+    WT_SESSION_IMPL *session;
+    const char *name;
+    const char *func;
+    uint32_t time_sec;
+    uint16_t line;
+    uint16_t state;
+};
+
+/*
  * WT_REF --
  *	A single in-memory page and state information.
  */
@@ -871,14 +907,7 @@ struct __wt_ref {
 #define WT_REF_SAVE_STATE_MAX 3
 #ifdef HAVE_DIAGNOSTIC
     /* Capture history of ref state changes. */
-    struct __wt_ref_hist {
-        WT_SESSION_IMPL *session;
-        const char *name;
-        const char *func;
-        uint32_t time_sec;
-        uint16_t line;
-        uint16_t state;
-    } hist[WT_REF_SAVE_STATE_MAX];
+    WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];
     uint64_t histoff;
 #define WT_REF_SAVE_STATE(ref, s, f, l)                                   \
     do {                                                                  \
@@ -1015,11 +1044,10 @@ struct __wt_col {
 
 /*
  * WT_IKEY --
- *	Instantiated key: row-store keys are usually prefix compressed and
- *	sometimes Huffman encoded or overflow objects.  Normally, a row-store
- *	page in-memory key points to the on-page WT_CELL, but in some cases,
- *	we instantiate the key in memory, in which case the row-store page
- *	in-memory key points to a WT_IKEY structure.
+ *  Instantiated key: row-store keys are usually prefix compressed or overflow objects.
+ *  Normally, a row-store page in-memory key points to the on-page WT_CELL, but in some
+ *  cases, we instantiate the key in memory, in which case the row-store page in-memory
+ *  key points to a WT_IKEY structure.
  */
 struct __wt_ikey {
     uint32_t size; /* Key length */
@@ -1053,6 +1081,9 @@ struct __wt_update {
 
     wt_timestamp_t durable_ts; /* timestamps */
     wt_timestamp_t start_ts;
+#ifdef HAVE_DIAGNOSTIC
+    wt_timestamp_t prev_durable_ts;
+#endif
 
     WT_UPDATE *next; /* forward-linked list */
 
@@ -1076,10 +1107,10 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_CLEARED_HS 0x01u               /* Update that cleared the history store. */
-#define WT_UPDATE_DS 0x02u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
-#define WT_UPDATE_OBSOLETE 0x08u                 /* Update that is obsolete. */
+#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
+#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
+#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
 #define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
 #define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
@@ -1098,7 +1129,11 @@ struct __wt_update {
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
  */
+#ifdef HAVE_DIAGNOSTIC
+#define WT_UPDATE_SIZE 47
+#else
 #define WT_UPDATE_SIZE 39
+#endif
 
 /*
  * The memory size of an update: include some padding because this is such a common case that
