@@ -14,7 +14,6 @@
 namespace test_harness {
 class test {
     public:
-    std::string _config;
     configuration *_configuration;
     static const std::string _name;
     /*
@@ -23,8 +22,7 @@ class test {
      */
     virtual int run() = 0;
 
-    test(std::string config) : _config(config)
-    {
+    test(std::string config) {
         _configuration = new configuration(_name.c_str(), config.c_str());
     }
 };
