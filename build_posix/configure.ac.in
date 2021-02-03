@@ -156,6 +156,10 @@ if test "$wt_cv_enable_python" = "yes"; then
 	AC_SUBST(PYTHON_INSTALL_ARG)
 fi
 
+# Check whether our compiler supports LibFuzzer.
+AX_CHECK_COMPILE_FLAG([-fsanitize=fuzzer-no-link], [wt_cv_libfuzzer_works=yes])
+AM_CONDITIONAL([HAVE_LIBFUZZER], [test "$wt_cv_libfuzzer_works" = "yes"])
+
 AM_TYPES
 
 AC_PROG_INSTALL
