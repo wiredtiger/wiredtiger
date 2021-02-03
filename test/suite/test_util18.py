@@ -98,7 +98,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
             wt_args.append("-u")
         self.runWt(wt_args, outfilename='printlog.out')
         self.check_non_empty_file('printlog.out')
-        self.check_populated_printlog('printlog.out', True & self.print_user_data, False)
+        self.check_populated_printlog('printlog.out', self.print_user_data, False)
 
     def test_printlog_hex_file(self):
         """
@@ -112,7 +112,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
             wt_args.append("-u")
         self.runWt(wt_args, outfilename='printlog-hex.out')
         self.check_non_empty_file('printlog-hex.out')
-        self.check_populated_printlog('printlog-hex.out', True & self.print_user_data, True & self.print_user_data)
+        self.check_populated_printlog('printlog-hex.out', self.print_user_data, self.print_user_data)
 
     def test_printlog_message(self):
         """
@@ -176,7 +176,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         if self.print_user_data:
             wt_args.append("-u")
         self.runWt(wt_args, outfilename='printlog-lsn-offset.out')
-        self.check_populated_printlog('printlog-lsn-offset.out', True & self.print_user_data, False)
+        self.check_populated_printlog('printlog-lsn-offset.out', self.print_user_data, False)
 
         # Test that using LSN '1,0' and our first LSN value produce the same output when passed to printlog.
         # We expect printing from LSN '1,0' (which should denote to the beginning of the first log file)
