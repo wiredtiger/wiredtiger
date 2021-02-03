@@ -947,8 +947,7 @@ wiredtiger_open_shared_storage_configuration = [
         Config('name', 'none', r'''
             Permitted values are \c "none"
             or custom storage name created with
-            WT_CONNECTION::add_shared_storage.
-            See @ref shared_storage for more information'''),
+            WT_CONNECTION::add_shared_storage'''),
         Config('local_retention', '5', r'''
             minutes to retain data on shared storage on the local tier for
             faster read access''',
