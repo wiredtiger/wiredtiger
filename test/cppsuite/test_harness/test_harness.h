@@ -22,7 +22,8 @@ class test {
      */
     virtual int run() = 0;
 
-    test(std::string config) {
+    test(std::string config)
+    {
         _configuration = new configuration(_name.c_str(), config.c_str());
     }
 };
