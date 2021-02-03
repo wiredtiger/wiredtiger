@@ -1,4 +1,4 @@
-# This file is a python script that describes the WiredTiger API.
+# This file is a python script that describes the cpp test framework test configuration options.
 
 class Method:
     def __init__(self, config):
