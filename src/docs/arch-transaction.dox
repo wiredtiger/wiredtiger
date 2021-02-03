@@ -6,9 +6,8 @@ Transactions provide a powerful abstraction for multiple threads to operate on d
 
 Internally, the current transaction state is represented by the WT_TXN structure.
 
-WiredTiger performs all the operations in transactions. If the user doesn't explicitly begin a
-transaction, WiredTiger will automatically create a transaction for the user's read or write
-operation.
+Except schema operations, WiredTiger performs all the read and write operations within a transaction. If the user doesn't explicitly begin a
+transaction, WiredTiger will automatically create a transaction for the user's operation.
 
 @section Lifecycle
 
@@ -92,7 +91,7 @@ it is not included in the latest checkpoint.
 
 @subsection Isolation
 
-Isolation is one of the important feature of database to decide whether one transaction can
+Isolation is one of the important features of database to decide whether one transaction can
 read updates done by the other concurrent transactions. WiredTiger supports three isolation
 levels, read uncommitted, read committed, and snapshot. However, only snapshot is supported for
 write operations. By default, WiredTiger runs in snapshot isolation.
@@ -123,7 +122,7 @@ transaction id in the snapshot are not visible to the reading transaction.
 When operating in read committed or read uncommitted isolation levels, it is possible to read
 different values of the same key, seeing records not seen before, or finding records disappear
 in the same transaction. This is called a phantom read. Under snapshot isolation, WiredTiger guarantees
-repeated reads returning the same result except one case using timestamps.
+repeated reads returning the same result except in one scenario using timestamps.
 
 @subsection Timestamps
 
@@ -188,15 +187,17 @@ the prepared state to reach consensus among all the nodes for committing.
 
 Along with the prepared phase, WiredTiger introduces the prepared timestamp and durable
 timestamp. They are to prevent the slow prepared transactions blocking the movement of the
-global stable timestamp, which may cause excessive amount of data being pinned in memory. The
+global stable timestamp, which may cause excessive amounts of data to be pinned in memory. The
 stable timestamp is allowed to move beyond the prepared timestamp and at the commit time, the
 prepared transaction can then be committed after the current stable timestamp with a larger
-durable timestamp.
+durable timestamp. The durable timestamp also marks the time the update is to be stable. If the
+stable timestamp is moved to or beyond the durable timestamp of an update, it will not be removed
+by rollback to stable from a checkpoint. See @ref arch-rts for more details.
 
 The visibility of the prepared transaction is also special when in the prepared state. Since in
 the prepared state, the transaction has released its snapshot, it should be visible to the
 transactions starting after that based on the normal visibility rule. However, the prepared
-transaction has not been committed and cannot be visible yet. In this situation, WiredTiger
-either ignores the prepared update and tries to read the older updates if it is configured to
-do so, or returns the WT_PREPARE_CONFLICT error code for the caller to retry later.
+transaction has not been committed and cannot be visible yet. In this situation, WiredTiger will
+return a WT_PREPARE_CONFLICT to indicate to the caller to retry later, or if configured WiredTiger
+will ignore the prepared update and read older updates.
 */
