@@ -39,6 +39,8 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = 100
     nentries = 5
     create_params = 'key_format=S,value_format=S'
+    key_prefix = 'KEY'
+    val_prefix = 'VAL'
 
     # Whether user data is redacted or printed.
     print_user_data = [
@@ -55,16 +57,16 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
     def populate(self):
         cursor = self.session.open_cursor(self.uri, None)
         for i in range(0, self.nentries):
-            key = 'KEY' + str(i)
-            val = 'VAL' + str(i)
+            key = self.key_prefix + str(i)
+            val = self.val_prefix + str(i)
             cursor[key] = val
         cursor.close()
 
     # Check the given printlog file reflects the data written by 'populate'.
     def check_populated_printlog(self, log_file, expect_keyval, expect_keyval_hex):
         for i in range(0, self.nentries):
-            key = 'KEY' + str(i)
-            val = 'VAL' + str(i)
+            key = self.key_prefix + str(i)
+            val = self.val_prefix + str(i)
             # Check if the KEY/VAL commits exist in the log file.
             if expect_keyval:
                 self.check_file_contains(log_file, '"key": "%s\\u0000"' % key)
