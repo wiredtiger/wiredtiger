@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import codecs
+import codecs, filecmp
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
@@ -137,7 +137,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
 
-        # Open a log cursor to accurately extract the first and second LSN from our
+        # Open a log cursor to accurately extract the first, second and last LSN from our
         # log.
         c = self.session.open_cursor("log:", None, None)
         # Moving the cursor to the beginning of the file, extract our first LSN.
@@ -146,12 +146,18 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         # Moving the cursor, extract our second LSN.
         c.next()
         second_lsn_keys = c.get_key()
+        last_lsn_keys = []
+        # Moving the cursor to the last available key, extract the last LSN value.
+        while c.next() == 0:
+            last_lsn_keys = c.get_key()
+            c.next()
         c.close()
 
-        # Construct the first and second LSN values, assuming the
+        # Construct the first, second and last LSN values, assuming the
         # key elements follow the following sequence: [lsn.file, lsn.offset, opcount].
         first_lsn = '%s,%s' % (first_lsn_keys[0], first_lsn_keys[1])
         second_lsn = '%s,%s' % (second_lsn_keys[0], second_lsn_keys[1])
+        last_lsn = '%s,%s' % (last_lsn_keys[0], last_lsn_keys[1])
 
         # Test printlog on a bounded range that starts and ends on our first LSN record. In doing so we want
         # to assert that other log records won't be printed e.g. the second LSN record.
@@ -169,6 +175,18 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
             wt_args.append("-u")
         self.runWt(wt_args, outfilename='printlog-lsn-offset.out')
         self.check_populated_printlog('printlog-lsn-offset.out', True & self.print_user_data, False)
+
+        # Test that using LSN '1,0' and our first LSN value produce the same output when passed to printlog.
+        # We expect printing from LSN '1,0' (which should denote to the beginning of the first log file)
+        # is equivalent to printing from our first extracted LSN value to the last LSN value.
+        wt_args_beginning = ["printlog", '-l 1,0,%s' % last_lsn]
+        wt_args_first = ["printlog", '-l %s,%s' % (first_lsn, last_lsn)]
+        if self.print_user_data:
+            wt_args_beginning.append("-u")
+            wt_args_first.append("-u")
+        self.runWt(wt_args_beginning, outfilename='printlog-lsn-offset-beginning.out')
+        self.runWt(wt_args_first, outfilename='printlog-lsn-offset-first.out')
+        self.assertTrue(filecmp.cmp('printlog-lsn-offset-beginning.out', 'printlog-lsn-offset-first.out'))
 
 if __name__ == '__main__':
     wttest.run()
