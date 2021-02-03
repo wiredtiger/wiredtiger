@@ -119,17 +119,18 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         """
         Test printlog with messages-only formatting on a populated table
         """
-        # Run reconfigure with compatibility to force 'COMPATIBILITY' message
-        self.conn.reconfigure('compatibility=(release=3.2.0)')
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
+        # Write a log message that we can specifically test the presence of.
+        log_message = "Test Message: %s" % self.tablename
+        self.session.log_printf(log_message)
         wt_args = ["printlog", "-m"]
         # Append "-u" if we expect printlog to print user data.
         if self.print_user_data:
             wt_args.append("-u")
         self.runWt(wt_args, outfilename='printlog-message.out')
         self.check_non_empty_file('printlog-message.out')
-        self.check_file_contains('printlog-message.out', 'COMPATIBILITY: Version now 3')
+        self.check_file_contains('printlog-message.out', log_message)
         self.check_populated_printlog('printlog-message.out', False, False)
 
     def test_printlog_lsn_offset(self):
