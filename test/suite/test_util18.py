@@ -29,6 +29,7 @@
 import codecs
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 # test_util18.py
 #   Utilities: wt printlog
@@ -41,6 +42,14 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
     logmax = 100
     nentries = 5
     create_params = 'key_format=S,value_format=S'
+
+    # Whether user data is redacted or printed.
+    print_user_data = [
+        ('show_user_data', dict(print_user_data=True)),
+        ('no_user_data', dict(print_user_data=False)),
+    ]
+
+    scenarios = make_scenarios(print_user_data)
 
     def conn_config(self):
         return 'log=(archive=false,enabled,file_max=%dK)' % self.logmax
@@ -84,9 +93,13 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
-        self.runWt(["printlog"], outfilename='printlog.out')
+        wt_args = ["printlog"]
+        # Append "-u" if we expect printlog to print user data.
+        if self.print_user_data:
+            wt_args.append("-u")
+        self.runWt(wt_args, outfilename='printlog.out')
         self.check_non_empty_file('printlog.out')
-        self.check_populated_printlog('printlog.out', True, False)
+        self.check_populated_printlog('printlog.out', True & self.print_user_data, False)
 
     def test_printlog_hex_file(self):
         """
@@ -94,9 +107,13 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
-        self.runWt(["printlog", "-x"], outfilename='printlog-hex.out')
+        wt_args = ["printlog", "-x"]
+        # Append "-u" if we expect printlog to print user data.
+        if self.print_user_data:
+            wt_args.append("-u")
+        self.runWt(wt_args, outfilename='printlog-hex.out')
         self.check_non_empty_file('printlog-hex.out')
-        self.check_populated_printlog('printlog-hex.out', True, True)
+        self.check_populated_printlog('printlog-hex.out', True & self.print_user_data, True & self.print_user_data)
 
     def test_printlog_message(self):
         """
@@ -106,7 +123,11 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         self.conn.reconfigure('compatibility=(release=3.2.0)')
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
-        self.runWt(["printlog", "-m"], outfilename='printlog-message.out')
+        wt_args = ["printlog", "-m"]
+        # Append "-u" if we expect printlog to print user data.
+        if self.print_user_data:
+            wt_args.append("-u")
+        self.runWt(wt_args, outfilename='printlog-message.out')
         self.check_non_empty_file('printlog-message.out')
         self.check_file_contains('printlog-message.out', 'COMPATIBILITY: Version now 3')
         self.check_populated_printlog('printlog-message.out', False, False)
@@ -117,12 +138,18 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
-        self.runWt(["printlog", '-l 1,128,1,128'], outfilename='printlog-lsn-offset.out')
+        wt_args = ["printlog", '-l 1,128,1,128']
+        self.runWt(wt_args, outfilename='printlog-lsn-offset.out')
         self.check_file_contains('printlog-lsn-offset.out', '"lsn" : [1,128]')
         self.check_file_not_contains('printlog-lsn-offset.out', '"lsn" : [1,256]')
         self.check_populated_printlog('printlog-lsn-offset.out', False, False)
-        self.runWt(["printlog", '-l 1,128'], outfilename='printlog-lsn-offset.out')
-        self.check_populated_printlog('printlog-lsn-offset.out', True, False)
+
+        wt_args = ["printlog", '-l 1,128']
+        # Append "-u" if we expect printlog to print user data.
+        if self.print_user_data:
+            wt_args.append("-u")
+        self.runWt(wt_args, outfilename='printlog-lsn-offset.out')
+        self.check_populated_printlog('printlog-lsn-offset.out', True & self.print_user_data, False)
 
 if __name__ == '__main__':
     wttest.run()
