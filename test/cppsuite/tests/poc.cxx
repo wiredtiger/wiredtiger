@@ -30,6 +30,6 @@ class poc_test : public test_harness::test {
 const std::string poc_test::test::_name = "poc_test";
 
 int main(int argc, char *argv[]) {
-    const char * cfg = "collection_count=1,key_size=5";
+    const char *cfg = "collection_count=1,key_size=5";
     return poc_test(cfg).run();
 }
