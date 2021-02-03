@@ -7,6 +7,7 @@ Atomicity
 BLOBs
 BLRrVv
 CFLAGS
+COV
 CPPFLAGS
 CPUs
 CRC
@@ -17,6 +18,7 @@ Christoph
 Collet's
 Coverity
 Coverity's
+CURSTD
 DB's
 DBTs
 DHANDLE
@@ -51,15 +53,20 @@ Google's
 HyperDex
 HyperLevelDB
 IEC
+IMPL
+ITER
 JDK
 JIRA
 JavaScript
 KMS
 LD
 LDFLAGS
+LibFuzzer
 LIBS
+LINKFLAGS
 LLC
 LLVM
+LLVMFuzzerTestOneInput
 LOGREC
 LRU
 LRrVv
@@ -84,6 +91,7 @@ OPTYPE
 PMU
 PPC
 PRELOAD
+PROFDATA
 README
 RedHat
 RepMgr
@@ -93,6 +101,7 @@ Roelofs
 RrVv
 Rrx
 SCons
+Sanitizer
 Seward's
 SiH
 TSC
@@ -114,6 +123,7 @@ Yann
 Za
 Zstd
 aR
+abc
 abstime
 ack'ed
 ajn
@@ -127,6 +137,7 @@ apiflags
 ar
 archiver
 arg
+args
 atomicity
 autoconf
 autogen
@@ -149,6 +160,7 @@ bufs
 builtin
 builtins
 bzip
+cacheable
 cachesize
 calc
 callbk
@@ -156,6 +168,7 @@ cd
 cdb
 cds
 changelog
+checkpointed
 checksum
 checksums
 ckp
@@ -173,6 +186,7 @@ conn
 const
 control's
 copydoc
+cov
 cp
 cpp
 cpu
@@ -180,6 +194,7 @@ crashless
 crc
 curfile
 cursortype
+curtable
 customerABC
 cv
 dN
@@ -197,6 +212,7 @@ dbformat
 dbm
 dbt
 decl
+decrement
 decrementing
 decrypt
 decrypted
@@ -243,6 +259,7 @@ extensibility
 fadvise
 failchk
 fallocate
+fcoverage
 fd's
 fdatasync
 fextend
@@ -264,11 +281,16 @@ flamegraph
 flamegraphs
 fnv
 forw
+fprofile
 fput
 freelist
 fs
+fsanitize
 fsync
 ftruncate
+fuzzer
+fuzzers
+fuzzutil
 fvisibility
 fxray
 gcc
@@ -291,6 +313,7 @@ html
 htmlinclude
 huffman
 hugepage
+iSi
 icount
 ie
 iflag
@@ -299,6 +322,7 @@ indices
 init
 insn
 intl
+intpack
 inuse
 io
 ip
@@ -325,6 +349,7 @@ len
 lgnd
 li
 libdir
+libfuzzer
 libhe
 libkvs
 libtool
@@ -438,6 +463,8 @@ printlog
 printvalue
 priv
 proc
+profdata
+profraw
 pthread
 pthreads
 putKey
@@ -462,6 +489,7 @@ recoverability
 recs
 rectype
 relinking
+req
 rerequests
 ret
 rf
@@ -469,6 +497,7 @@ rmw
 ro
 rotn
 rpc
+rts
 runnable
 runtime
 rwlock
@@ -483,6 +512,7 @@ scons
 screenshots
 secretkey
 selectable
+sep
 seqname
 seqno
 serializable
@@ -497,6 +527,7 @@ src
 ssd
 startsync
 startuml
+startup
 statlog
 stderr
 stdout
@@ -578,6 +609,13 @@ wrlock
 wtperf
 wtstats
 xa
+xaa
+xad
+xbe
+xde
+xdeadbeef
+xef
+xff
 xray
 yieldcpu
 zlib
