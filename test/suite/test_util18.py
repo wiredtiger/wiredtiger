@@ -136,13 +136,34 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
-        wt_args = ["printlog", '-l 1,128,1,128']
+
+        # Open a log cursor to accurately extract the first and second LSN from our
+        # log.
+        c = self.session.open_cursor("log:", None, None)
+        # Moving the cursor to the beginning of the file, extract our first LSN.
+        c.next()
+        first_lsn_keys = c.get_key()
+        # Moving the cursor, extract our second LSN.
+        c.next()
+        second_lsn_keys = c.get_key()
+        c.close()
+
+        # Construct the first and second LSN values, assuming the
+        # key elements follow the following sequence: [lsn.file, lsn.offset, opcount].
+        first_lsn = '%s,%s' % (first_lsn_keys[0], first_lsn_keys[1])
+        second_lsn = '%s,%s' % (second_lsn_keys[0], second_lsn_keys[1])
+
+        # Test printlog on a bounded range that starts and ends on our first LSN record. In doing so we want
+        # to assert that other log records won't be printed e.g. the second LSN record.
+        wt_args = ["printlog", '-l %s,%s' % (first_lsn, first_lsn)]
         self.runWt(wt_args, outfilename='printlog-lsn-offset.out')
-        self.check_file_contains('printlog-lsn-offset.out', '"lsn" : [1,128]')
-        self.check_file_not_contains('printlog-lsn-offset.out', '"lsn" : [1,256]')
+        self.check_file_contains('printlog-lsn-offset.out', '"lsn" : [%s]' % first_lsn)
+        self.check_file_not_contains('printlog-lsn-offset.out', '"lsn" : [%s]' % second_lsn)
         self.check_populated_printlog('printlog-lsn-offset.out', False, False)
 
-        wt_args = ["printlog", '-l 1,128']
+        # Test printlog from the starting LSN value to the end of the log. We expect to find the logs relating
+        # to the population of our table.
+        wt_args = ["printlog", '-l %s' % first_lsn]
         # Append "-u" if we expect printlog to print user data.
         if self.print_user_data:
             wt_args.append("-u")
