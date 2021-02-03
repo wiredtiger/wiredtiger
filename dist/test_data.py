@@ -42,7 +42,7 @@ class Config:
     def __ge__(self, other):
         return self.name >= other.name
 methods = {
-'default_config' : Method([
+'poc_test' : Method([
     Config('collection_count', '1', r'''
         the number of collections to create for testing''',
         min='1', max='10'),

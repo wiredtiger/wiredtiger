@@ -14,16 +14,18 @@
 namespace test_harness {
 class test {
     public:
+    std::string _config;
+    configuration *_configuration;
+    static const std::string _name;
     /*
      * All tests will implement this initially, the return value from it will indicate whether the
      * test was successful or not.
      */
     virtual int run() = 0;
-    std::string _config;
-    configuration *_configuration;
+
     test(std::string config) : _config(config)
     {
-        _configuration = new configuration(config.c_str());
+        _configuration = new configuration(_name.c_str(), config.c_str());
     }
 };
 } // namespace test_harness
