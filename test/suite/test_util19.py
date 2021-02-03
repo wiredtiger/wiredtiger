@@ -33,9 +33,6 @@ from wtscenario import make_scenarios
 # test_util19.py
 #   Utilities: wt downgrade
 class test_util19(wttest.WiredTigerTestCase, suite_subprocess):
-    """
-    Test wt downgrade
-    """
     tablename = 'test_util19.a'
     uri = 'table:' + tablename
     entries = 100
@@ -71,26 +68,25 @@ class test_util19(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_downgrade(self):
         """
-        Test wt downgrade on our created table
+        Run wt downgrade on our created database and test its new compatibility version.
         """
         # Create the initial database at the compatibility level established by
-        # the connection config ('create_rel')
+        # the connection config ('create_rel').
         self.session.create(self.uri, 'key_format=S,value_format=S')
         c = self.session.open_cursor(self.uri, None)
-        # Populate the table to generate log files
+        # Populate the table to generate some log files.
         for i in range(self.entries):
             key = 'KEY' + str(i)
             val = 'VAL' + str(i)
             c[key] = val
         c.close()
 
-        # Call the downgrade utility to reconfigure with the specified compatibility version.
-        # Based on the downgrade version we can test if the corresponding log compatibility version
-        # has been set
+        # Call the downgrade utility to reconfigure our database with the specified compatibility version.
         wt_config = 'log=(archive=false,enabled,file_max=%s),verbose=[log]' % self.log_max
         downgrade_opt = '-V %s' % self.downgrade_rel
         self.runWt(['-C', wt_config , 'downgrade', downgrade_opt], reopensession=False, outfilename='downgrade.out')
-
+        # Based on the downgrade version we can test if the corresponding log compatibility version
+        # has been set.
         compat_str = '/WT_CONNECTION\.reconfigure: .*: COMPATIBILITY: Version now %d/' % self.log_downgrade_compat
         if self.log_downgrade_compat != self.log_latest_compat:
             self.check_file_contains('downgrade.out', compat_str)

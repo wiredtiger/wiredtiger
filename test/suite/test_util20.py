@@ -33,19 +33,18 @@ from wtdataset import SimpleDataSet, ComplexDataSet
 # test_util20.py
 #   Utilities: wt upgrade
 class test_util20(wttest.WiredTigerTestCase, suite_subprocess):
-    """
-    Test wt upgrade
-    """
     name = 'test_util20.a'
     create_params = 'key_format=S,value_format=S'
     num_rows = 10
 
     def test_upgrade_table_complex_data(self):
+        # Run wt upgrade on a complex dataset and test for successful completion.
         uri = 'table:' + self.name
         ComplexDataSet(self, uri, self.num_rows).populate()
         self.runWt(['upgrade', uri])
 
     def test_upgrade_table_simple_data(self):
+        # Run wt upgrade on a simple dataset and test for successful completion.
         uri = 'table:' + self.name
         SimpleDataSet(self, uri, self.num_rows).populate()
         self.runWt(['upgrade', uri])

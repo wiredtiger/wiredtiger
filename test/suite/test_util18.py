@@ -34,9 +34,6 @@ from wtscenario import make_scenarios
 # test_util18.py
 #   Utilities: wt printlog
 class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
-    """
-    Test wt printlog
-    """
     tablename = 'test_util18.a'
     uri = 'table:' + tablename
     logmax = 100
@@ -54,7 +51,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
     def conn_config(self):
         return 'log=(archive=false,enabled,file_max=%dK)' % self.logmax
 
-    # Insert entries into the table
+    # Populate our test table with data we can check against in the printlog output.
     def populate(self):
         cursor = self.session.open_cursor(self.uri, None)
         for i in range(0, self.nentries):
@@ -63,12 +60,12 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
             cursor[key] = val
         cursor.close()
 
-    # Check the given printlog file reflects the data written by 'populate'
+    # Check the given printlog file reflects the data written by 'populate'.
     def check_populated_printlog(self, log_file, expect_keyval, expect_keyval_hex):
         for i in range(0, self.nentries):
             key = 'KEY' + str(i)
             val = 'VAL' + str(i)
-            # Check if the KEY/VAL commits exist in the log file
+            # Check if the KEY/VAL commits exist in the log file.
             if expect_keyval:
                 self.check_file_contains(log_file, '"key": "%s\\u0000"' % key)
                 self.check_file_contains(log_file, '"value": "%s\\u0000"' % val)
@@ -76,10 +73,10 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
                 self.check_file_not_contains(log_file, '"key": "%s\\u0000"' % key)
                 self.check_file_not_contains(log_file, '"value": "%s\\u0000"' % val)
 
-            # Convert our KEY/VAL strings to their expected hex value
+            # Convert our KEY/VAL strings to their expected hex value.
             hex_key = codecs.encode(key.encode(), 'hex')
             val_key = codecs.encode(val.encode(), 'hex')
-            # Check if the KEY/VAL commits exist in the log file (in hex form)
+            # Check if the KEY/VAL commits exist in the log file (in hex form).
             if expect_keyval_hex:
                 self.check_file_contains(log_file, '"key-hex": "%s00"' % str(hex_key, 'ascii'))
                 self.check_file_contains(log_file, '"value-hex": "%s00"' % str(val_key, 'ascii'))
@@ -89,7 +86,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_printlog_file(self):
         """
-        Test printlog on a populated table
+        Run printlog on a populated table.
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
@@ -103,7 +100,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_printlog_hex_file(self):
         """
-        Test printlog with hexadecimal formatting on a populated table
+        Run printlog with hexadecimal formatting on a populated table.
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
@@ -117,7 +114,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_printlog_message(self):
         """
-        Test printlog with messages-only formatting on a populated table
+        Run printlog with messages-only formatting on a populated table.
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
@@ -135,7 +132,7 @@ class test_util18(wttest.WiredTigerTestCase, suite_subprocess):
 
     def test_printlog_lsn_offset(self):
         """
-        Test printlog with an LSN offset provided
+        Run printlog with an LSN offset provided.
         """
         self.session.create('table:' + self.tablename, self.create_params)
         self.populate()
