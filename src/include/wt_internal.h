@@ -309,6 +309,8 @@ struct __wt_spinlock;
 typedef struct __wt_spinlock WT_SPINLOCK;
 struct __wt_stash;
 typedef struct __wt_stash WT_STASH;
+struct __wt_storage_manager;
+typedef struct __wt_storage_manager WT_STORAGE_MANAGER;
 struct __wt_table;
 typedef struct __wt_table WT_TABLE;
 struct __wt_thread;
@@ -405,6 +407,7 @@ typedef uint64_t wt_timestamp_t;
 #include "os.h"
 #include "reconcile.h"
 #include "schema.h"
+#include "storage.h"
 #include "thread_group.h"
 #include "tiered.h"
 #include "txn.h"

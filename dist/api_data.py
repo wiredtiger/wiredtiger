@@ -721,6 +721,30 @@ connection_runtime_config = [
             this will update the value if one is already set''',
             min='1MB', max='10TB')
         ]),
+    Config('shared_storage_manager', '', r'''
+        shared storage manager configuration options''',
+        type='category', subconfig=[
+            Config('object_target_size', '10M', r'''
+                the approximate size of objects before creating them on the
+                shared storage tier''',
+                min='100K', max='10TB'),
+            Config('threads_max', '8', r'''
+                maximum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads started will vary
+                depending on the current eviction load. Each eviction worker
+                thread uses a session from the configured session_max''',
+                min=1, max=20),
+            Config('threads_min', '1', r'''
+                minimum number of threads WiredTiger will start to help evict
+                pages from cache. The number of threads currently running will
+                vary depending on the current eviction load''',
+                min=1, max=20),
+            Config('wait', '0', r'''
+                seconds to wait between each periodic housekeeping of
+                shared storage. Setting this value above 0 configures periodic
+                management inside WiredTiger''',
+                min='0', max='100000'),
+            ]),
     Config('statistics', 'none', r'''
         Maintain database statistics, which may impact performance.
         Choosing "all" maintains all statistics regardless of cost,
@@ -910,6 +934,28 @@ connection_reconfigure_statistics_log_configuration = [
         type='category', subconfig=
         statistics_log_configuration_common)
 ]
+
+wiredtiger_open_shared_storage_configuration = [
+    Config('shared_storage', '', r'''
+        enable shared storage. Enabling shared storage may use one session from the
+        configured session_max''',
+        type='category', subconfig=
+        log_configuration_common + [
+        Config('enabled', 'false', r'''
+            enable shared storage subsystem''',
+            type='boolean'),
+        Config('name', 'none', r'''
+            Permitted values are \c "none"
+            or custom storage name created with
+            WT_CONNECTION::add_shared_storage.
+            See @ref shared_storage for more information'''),
+        Config('local_retention', '5', r'''
+            minutes to retain data on shared storage on the local tier for
+            faster read access''',
+            min='0', max='120'),
+    ]),
+]
+
 wiredtiger_open_statistics_log_configuration = [
     Config('statistics_log', '', r'''
         log any statistics the database is configured to maintain,
@@ -950,6 +996,7 @@ wiredtiger_open_common =\
     connection_runtime_config +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
+    wiredtiger_open_shared_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The

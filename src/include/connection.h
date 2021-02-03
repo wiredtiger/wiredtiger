@@ -365,6 +365,23 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
+    WT_SESSION_IMPL *storage_session; /* Storage thread session */
+    wt_thread_t storage_tid;          /* Storage thread */
+    bool storage_tid_set;             /* Storage thread set */
+    WT_CONDVAR *storage_cond;         /* Storage wait mutex */
+    uint64_t storage_retain_secs;     /* Storage period */
+
+    WT_STORAGE_MANAGER storage_manager; /* Storage worker thread information */
+    bool storage_server_running;        /* Internal storage server operating */
+
+    uint32_t storage_threads_max; /* Max storage threads */
+    uint32_t storage_threads_min; /* Min storage threads */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_CONN_STORAGE_ENABLED 0x1u /* Shared storage is configured */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t storage_flags;          /* Global storage configuration */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x002u  /* Logging is configured */
@@ -557,7 +574,8 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_LOG 0x04u
 #define WT_CONN_SERVER_LSM 0x08u
 #define WT_CONN_SERVER_STATISTICS 0x10u
-#define WT_CONN_SERVER_SWEEP 0x20u
+#define WT_CONN_SERVER_STORAGE 0x20u
+#define WT_CONN_SERVER_SWEEP 0x40u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t server_flags;
 

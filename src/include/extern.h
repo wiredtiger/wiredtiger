@@ -1395,6 +1395,14 @@ extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_storage_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_storage_manager_config(WT_SESSION_IMPL *session, const char **cfg)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_strndup(WT_SESSION_IMPL *session, const void *str, size_t len, void *retp)

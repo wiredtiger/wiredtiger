@@ -2643,6 +2643,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     }
 
     WT_ERR(__wt_conn_statistics_config(session, cfg));
+    WT_ERR(__wt_storage_config(session, cfg));
     WT_ERR(__wt_lsm_manager_config(session, cfg));
     WT_ERR(__wt_sweep_config(session, cfg));
 
