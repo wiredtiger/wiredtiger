@@ -192,7 +192,7 @@ __wt_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     if (0) {
 err:
-        (void)__wt_storage_destroy(session);
+        WT_TRET(__wt_storage_destroy(session));
     }
     return (ret);
 }
