@@ -157,8 +157,9 @@ if test "$wt_cv_enable_python" = "yes"; then
 fi
 
 # Check whether our compiler supports LibFuzzer.
+# FIXME-WT-7158: We've disabled building it on PPC since there's something wrong with our PPC toolchain in Evergreen.
 AX_CHECK_COMPILE_FLAG([-fsanitize=fuzzer-no-link], [wt_cv_libfuzzer_works=yes])
-AM_CONDITIONAL([HAVE_LIBFUZZER], [test "$wt_cv_libfuzzer_works" = "yes"])
+AM_CONDITIONAL([HAVE_LIBFUZZER], [test "$wt_cv_libfuzzer_works" = "yes" -a "$wt_cv_powerpc" != "yes"])
 
 AM_TYPES
 
