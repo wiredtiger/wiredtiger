@@ -77,7 +77,7 @@ class test_backup_target(backup_base):
         cursor.close()
 
     # Take an incremental backup and then truncate/archive the logs.
-    def take_incr_backup_and_truncate(self, dir):
+    def take_log_incr_backup(self, dir):
         config = 'target=("log:")'
         cursor = self.session.open_cursor('backup:', None, config)
         self.take_full_backup(dir, cursor)
@@ -86,7 +86,7 @@ class test_backup_target(backup_base):
 
     # Run background inserts while running checkpoints and incremental backups
     # repeatedly.
-    def test_incremental_backup(self):
+    def test_log_incremental_backup(self):
         import sys
         # Create the backup directory.
         self.session.create(self.uri, "key_format=S,value_format=S")
@@ -114,7 +114,7 @@ class test_backup_target(backup_base):
             self.session.checkpoint(None)
 
             self.pr('Iteration: ' + str(increment))
-            self.take_incr_backup_and_truncate(self.dir)
+            self.take_log_incr_backup(self.dir)
 
         # After running, take a full backup.  Compare the incremental
         # backup to the original database and the full backup database.

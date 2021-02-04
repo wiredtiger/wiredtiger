@@ -32,22 +32,22 @@ from helper import compare_files
 
 # Shared base class used by backup tests.
 class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
-    data_cursor_config = None    # a config string for cursors
-    mult = 0                    # counter to have variance in data
-    nops = 100                  # number of operations added to uri
+    data_cursor_config = None   # a config string for cursors.
+    mult = 0                    # counter to have variance in data.
+    nops = 100                  # number of operations added to uri.
 
     # We use counter to produce unique backup ids for multiple iterations
     # of incremental backup.
     bkup_id = 0
-    # To determine whether to increase/decrease counter, which determines
+    # Setup some of the backup tests, and increments the backup id.
     initial_backup = False
-    # Used for populate function
+    # Used for populate function.
     rows = 100
     populate_big = None
 
-    # Specify a logpath directory to be used to place wiredtiger log files
+    # Specify a logpath directory to be used to place wiredtiger log files.
     logpath=''
-    # Temporary directory used to consistent data between multiple incremental backups
+    # Temporary directory used to verify consistent data between multiple incremental backups.
     home_tmp = "WT_TEST_TMP"
 
     #
@@ -88,7 +88,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 cg_config = i[3]
             i[1](self, i[0], self.rows, cgconfig = cg_config).populate()
 
-        # Backup needs a checkpoint
+        # Backup needs a checkpoint.
         if do_checkpoint:
             self.session.checkpoint()
 
@@ -129,7 +129,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             uri.split(":")[1] + '\" found')
 
     #
-    # Copy a file into given directory
+    # Copy a file into given directory.
     #
     def copy_file(self, file, dir):
         copy_from = file
@@ -139,6 +139,16 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             copy_to = dir
         shutil.copy(copy_from, copy_to)
+    
+    #
+    # Cursor next wrapper function.
+    #
+    def next(self, cur):
+        ret = cur.next()
+        if ret == 0:
+           return True
+        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        return False
 
     #
     # Uses a backup cursor to perform a full backup, by iterating through the cursor
@@ -160,23 +170,19 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
+        while self.next(bkup_c):
             newfile = bkup_c.get_key()
             sz = os.path.getsize(newfile)
             self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
             self.copy_file(newfile, backup_dir)
             all_files.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         if backup_cur == None:
             bkup_c.close()
         return all_files
 
     #
     # Compare against two directory paths using the wt dump command.
-    # The suffix allows the option to add distinctive tests adding suffix to the output files
+    # The suffix allows the option to add distinctive tests adding suffix to the output files.
     #
     def compare_backups(self, uri, base_dir, other_dir, suffix = None):
         sfx = ""
@@ -217,7 +223,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             # from the previous backup.
             self.assertNotEqual(buf, old_buf)
         wfp = None
-        # Create file if the file doesn't exist
+        # Create file if the file doesn't exist.
         if not os.path.exists(write_to):
             wfp = open(write_to, "w+b")
         else:
@@ -230,9 +236,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     # With a given backup cursor, open an incremental block cursor to copy the blocks of a
     # given file. If the type of file is WT_BACKUP_FILE, perform full copy into given directory,
-    # otherwise if type of file is WT_BACKUP_RANGE, perform partial copy of the file using range copy
+    # otherwise if type of file is WT_BACKUP_RANGE, perform partial copy of the file using range copy.
     #
-    # Note: we return the sizes of WT_BACKUP_RANGE type files for tests that check for consolidate config
+    # Note: we return the sizes of WT_BACKUP_RANGE type files for tests that check for consolidate config.
     #
     def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir):
         config = 'incremental=(file=' + newfile + ')'
@@ -243,10 +249,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # We cannot use 'for newfile in incr_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = incr_c.next()
-            if ret != 0:
-                break
+        while self.next(incr_c):
             incrlist = incr_c.get_keys()
             offset = incrlist[0]
             size = incrlist[1]
@@ -260,13 +263,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
                 self.range_copy(newfile, offset, size, backup_incr_dir)
                 lens.append(size)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         incr_c.close()
         return lens
 
     #
     # Given a backup cursor, open a log cursor, and copy all log files that are not
-    # in the given log list. Return all the log files
+    # in the given log list. Return all the log files.
     #
     def take_log_backup(self, bkup_c, backup_dir, orig_logs, log_cursor=None):
         # Now open a duplicate backup cursor.
@@ -275,10 +277,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             config = 'target=("log:")'
             dupc = self.session.open_cursor(None, bkup_c, config)
         dup_logs = []
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
+        while self.next(dupc):
             newfile = dupc.get_key()
             self.assertTrue("WiredTigerLog" in newfile)
             sz = os.path.getsize(newfile)
@@ -287,7 +286,6 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
                 shutil.copy(newfile, backup_dir)
             # Record all log files returned for later verification.
             dup_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         if log_cursor == None:
             dupc.close()
         return dup_logs
@@ -298,10 +296,9 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     # the backup files.
     #
     # Optional arguments:
-    # consolidate: Add consolidate option to the cursor
-    # ret_sizes: Flag to return sizes of files instead of default
+    # consolidate: Add consolidate option to the cursor.
     #
-    def take_incr_backup(self, backup_incr_dir, id=0, consolidate=False, ret_sizes=False):
+    def take_incr_backup(self, backup_incr_dir, id=0, consolidate=False):
         self.assertTrue(id > 0 or self.bkup_id > 0)
         if id == 0:
             id = self.bkup_id
@@ -313,22 +310,17 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.pr(config)
         bkup_c = self.session.open_cursor('backup:', None, config)
 
-        files_info = []
+        file_sizes = []
+        file_names = []
+        
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
+        while self.next(bkup_c):
             newfile = bkup_c.get_key()
-            file_sizes = self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir)
-            if ret_sizes:
-                files_info += file_sizes
-            else:
-                files_info.append(newfile)
-            # Copy into temp directory for tests that require further iterations of incremental backups
+            file_sizes += self.take_incr_backup_block(bkup_c, newfile, backup_incr_dir)
+            file_names.append(newfile)
+            # Copy into temp directory for tests that require further iterations of incremental backups.
             self.copy_file(newfile, self.home_tmp)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         bkup_c.close()
-        return files_info
+        return (file_names, file_sizes)

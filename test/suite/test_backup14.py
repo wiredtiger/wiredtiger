@@ -58,7 +58,7 @@ class test_backup14(backup_base):
     bigval = 'Value' * 100
 
     #
-    # Remove data from uri (table:main)
+    # Remove data from uri (table:main).
     #
     def remove_data(self):
         c = self.session.open_cursor(self.uri)
@@ -116,7 +116,7 @@ class test_backup14(backup_base):
         # Drop main table.
         self.session.drop(self.uri)
 
-        # Create uri2 (table:extra)
+        # Create uri2 (table:extra).
         self.session.create(self.uri2, "key_format=S,value_format=S")
 
         self.new_table = True

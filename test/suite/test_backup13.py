@@ -57,18 +57,18 @@ class test_backup13(backup_base):
 
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
+        # with the connection still open, copy files to new directory.
         shutil.rmtree(newdir, ignore_errors=True)
         os.mkdir(newdir)
         for fname in os.listdir(olddir):
             fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
+            # Skip lock file on Windows since it is locked.
             if os.path.isfile(fullname) and \
                 "WiredTiger.lock" not in fullname and \
                 "Tmplog" not in fullname and \
                 "Preplog" not in fullname:
                 shutil.copy(fullname, newdir)
-        # close the original connection and open to new directory
+        # close the original connection and open to new directory.
         self.close_conn()
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
@@ -106,7 +106,7 @@ class test_backup13(backup_base):
         self.add_data_and_check()
 
         # Now do an incremental backup with id 2.
-        bkup_files = self.take_incr_backup(self.dir, 2)
+        (bkup_files, _) = self.take_incr_backup(self.dir, 2)
 
         all_set = set(all_files)
         bkup_set = set(bkup_files)
@@ -124,7 +124,7 @@ class test_backup13(backup_base):
         bkup_c.close()
 
         # Make sure after a force stop we cannot access old backup info.
-        config = 'incremental=(src_id="ID1",this_id="ID2")'
+        config = 'incremental=(src_id="ID1",this_id="ID3")'
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
 

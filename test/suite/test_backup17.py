@@ -53,8 +53,10 @@ class test_backup17(backup_base):
     nops = 1000
 
     #
-    # With a file length list, and given consolidate option, check
-    # that we get the appropriate lengths from incremental backups
+    # With a file length list, and the consolidate option is used, we expect the incremental 
+    # backup to collapse adjacent blocks and return us lengths that exceed the granularity setting 
+    # and verify that we see multiple blocks. If consolidate is not used, no block lengths should 
+    # ever be greater than the granularity setting.
     #
     def check_consolidate_sizes(self, file_lens, consolidate):
         saw_multiple = False
@@ -93,14 +95,14 @@ class test_backup17(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
         # Do an incremental backup with id 2.
-        uri1_lens = self.take_incr_backup(self.dir, 2, False, True)
+        (_, uri1_lens) = self.take_incr_backup(self.dir, 2, False)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
         # Now do an incremental backup with id 3.
-        uri2_lens = self.take_incr_backup(self.dir, 3, True, True)
+        (_, uri2_lens) = self.take_incr_backup(self.dir, 3, True)
         self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.

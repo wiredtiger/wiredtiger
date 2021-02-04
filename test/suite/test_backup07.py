@@ -34,8 +34,7 @@ from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup07.py
-# Test cursor backup with target URIs, logging and create during backup
-
+# Test cursor backup with target URIs, logging and create during backup.
 class test_backup07(backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
