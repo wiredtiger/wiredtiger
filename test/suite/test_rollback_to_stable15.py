@@ -70,7 +70,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
 
     def test_rollback_to_stable(self):
         # Create a table.
-        uri = "table:tmp"
+        uri = "table:rollback_to_stable15"
         nrows = 2000
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
@@ -86,7 +86,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         value40 = 0x50
 
         #Insert value20 at timestamp 2
-        for i in range(1, nrows): # make a variable.
+        for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value20
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
@@ -122,10 +122,11 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.check(value30, uri, nrows - 1, 7)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         stat_cursor.close()
-        self.assertEqual(upd_aborted + keys_restored, (nrows*2) - 2)
+        self.assertEqual(upd_aborted, (nrows*2) - 2)
+        self.assertEqual(calls, 2)
 
         self.session.close()
 
