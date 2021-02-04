@@ -227,7 +227,8 @@ __hs_insert_record_with_btree(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BT
                 WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
                 /*
                  * Check if the existing HS value is same as the new value we are about to insert.
-                 * We can skip this check if the existing value has a globally visible stop time.
+                 * We can skip this check if the existing value has a globally visible stop time,
+                 * i.e., the value has been deleted from the HS.
                  */
                 if (cmp == 0)
                     WT_ASSERT(session,
