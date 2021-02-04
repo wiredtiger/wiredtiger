@@ -60,6 +60,10 @@ __wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
     return (__wt_storage_manager_config(session, cfg));
 }
 
+/*
+ * __wt_storage_manager_config --
+ *     Parse and setup the storage manager options.
+ */
 int
 __wt_storage_manager_config(WT_SESSION_IMPL *session, const char **cfg)
 {
@@ -75,9 +79,15 @@ __wt_storage_manager_config(WT_SESSION_IMPL *session, const char **cfg)
     mgr->wait_usecs = (uint64_t)cval.val * WT_MILLION;
 
     WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_max", &cval));
+    if (cval.val > WT_STORAGE_MAX_WORKERS)
+        WT_RET_MSG(session, EINVAL, "Maximum storage workers of %" PRIu32 " larger than %d",
+          (uint32_t)cval.val, WT_STORAGE_MAX_WORKERS);
     mgr->workers_max = (uint32_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_min", &cval));
+    if (cval.val < WT_STORAGE_MIN_WORKERS)
+        WT_RET_MSG(session, EINVAL, "Minimum storage workers of %" PRIu32 " less than %d",
+          (uint32_t)cval.val, WT_STORAGE_MIN_WORKERS);
     mgr->workers_min = (uint32_t)cval.val;
     WT_ASSERT(session, mgr->workers_min <= mgr->workers_max);
     return (0);
@@ -90,7 +100,11 @@ __wt_storage_manager_config(WT_SESSION_IMPL *session, const char **cfg)
 static bool
 __storage_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_STORAGE));
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_STORAGE)) &&
+      !F_ISSET(&conn->storage_manager, WT_STORAGE_MANAGER_SHUTDOWN));
 }
 
 /*
@@ -165,7 +179,7 @@ __wt_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (!F_ISSET(conn, WT_CONN_STORAGE_ENABLED))
         return (0);
 
-    F_SET(conn, WT_CONN_SERVER_STORAGE);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_STORAGE);
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, &conn->storage_session));
     session = conn->storage_session;
@@ -200,7 +214,7 @@ __wt_storage_destroy(WT_SESSION_IMPL *session)
      */
 
     /* Stop the server thread. */
-    F_CLR(conn, WT_CONN_SERVER_STORAGE);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_STORAGE);
     if (conn->storage_tid_set) {
         __wt_cond_signal(session, conn->storage_cond);
         WT_TRET(__wt_thread_join(session, &conn->storage_tid));
