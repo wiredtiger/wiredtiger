@@ -80,20 +80,7 @@ class test_backup10(backup_base):
         # Now open a duplicate backup cursor.
         config = 'target=("log:")'
         dupc = self.session.open_cursor(None, bkup_c, config)
-        dup_logs = []
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
-            newfile = dupc.get_key()
-            self.assertTrue("WiredTigerLog" in newfile)
-            sz = os.path.getsize(newfile)
-            if (newfile not in orig_logs):
-                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                shutil.copy(newfile, self.dir)
-            # Record all log files returned for later verification.
-            dup_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs, dupc)
 
         # We expect that the duplicate logs are a superset of the
         # original logs. And we expect the difference to be the
@@ -119,7 +106,6 @@ class test_backup10(backup_base):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             dupc, config), 0), msg)
-
         dupc.close()
 
         # Test we must use the log target.

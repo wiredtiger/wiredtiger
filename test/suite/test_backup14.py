@@ -91,9 +91,10 @@ class test_backup14(backup_base):
 
         self.add_data(self.uri, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_full_backup(self.home_full)
         self.take_incr_backup(self.home_incr)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
+        self.setup_directories(self.home_incr, self.home_full)
 
     #
     # This function will remove all the records from table (table:main), take backup and validate the
@@ -101,9 +102,10 @@ class test_backup14(backup_base):
     #
     def remove_all_records_validate(self):
         self.remove_data()
-        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_full_backup(self.home_full)
         self.take_incr_backup(self.home_incr)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
+        self.setup_directories(self.home_incr, self.home_full)
 
     #
     # This function will drop the existing table uri (table:main) that is part of the backups and
@@ -126,6 +128,7 @@ class test_backup14(backup_base):
         self.runWt(['-R', '-h', self.home, 'list'], outfilename=table_list)
         ret = os.system("grep " + self.uri + " " + table_list)
         self.assertNotEqual(ret, 0, self.uri + " dropped, but table exists in " + self.home)
+        self.setup_directories(self.home_incr, self.home_full)
 
     #
     # This function will create previously dropped table uri (table:main) and add different content to
@@ -134,9 +137,10 @@ class test_backup14(backup_base):
     def create_dropped_table_add_new_content(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
         self.add_data(self.uri, self.bigkey, self.bigval)
-        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_full_backup(self.home_full)
         self.take_incr_backup(self.home_incr)
         self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
+        self.setup_directories(self.home_incr, self.home_full)
 
     #
     # This function will insert bulk data in logged and not-logged table, take backups and validate the
@@ -149,18 +153,20 @@ class test_backup14(backup_base):
         self.session.create(self.uri_logged, "key_format=S,value_format=S")
         self.add_data(self.uri_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_full_backup(self.home_full)
         self.take_incr_backup(self.home_incr)
         self.compare_backups(self.uri_logged, self.home_full, self.home_incr, str(self.bkup_id))
+        self.setup_directories(self.home_incr, self.home_full)
         #
         # Insert bulk data into uri4 (table:not_logged_table).
         #
         self.session.create(self.uri_not_logged, "key_format=S,value_format=S,log=(enabled=false)")
         self.add_data(self.uri_not_logged, self.bigkey, self.bigval)
 
-        self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+        self.take_full_backup(self.home_full)
         self.take_incr_backup(self.home_incr)
         self.compare_backups(self.uri_not_logged, self.home_full, self.home_incr, str(self.bkup_id))
+        self.setup_directories(self.home_incr, self.home_full)
 
     def test_backup14(self):
         os.mkdir(self.bkp_home)

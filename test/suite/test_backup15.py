@@ -111,12 +111,13 @@ class test_backup15(backup_base):
             # Swap the order of the full and incremental backups. It should not matter. They
             # should not interfere with each other.
             if i % 2 == 0:
-                self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+                self.take_full_backup(self.home_full)
                 self.take_incr_backup(self.home_incr)
             else:
                 self.take_incr_backup(self.home_incr)
-                self.take_full_backup(self.home_full + '.' + str(self.bkup_id))
+                self.take_full_backup(self.home_full)
             self.compare_backups(self.uri, self.home_full, self.home_incr, str(self.bkup_id))
+            self.setup_directories(self.home_incr, self.home_full)
 
 if __name__ == '__main__':
     wttest.run()

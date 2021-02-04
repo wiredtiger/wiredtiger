@@ -81,6 +81,7 @@ class test_backup_target(backup_base):
         config = 'target=("log:")'
         cursor = self.session.open_cursor('backup:', None, config)
         self.take_full_backup(dir, cursor)
+        self.session.truncate('log:', cursor, None, None)
         cursor.close()
 
     # Run background inserts while running checkpoints and incremental backups

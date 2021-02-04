@@ -93,14 +93,14 @@ class test_backup17(backup_base):
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
         # Do an incremental backup with id 2.
-        uri1_lens = self.take_incr_backup_file(self.dir, 2, False, True)
+        uri1_lens = self.take_incr_backup(self.dir, 2, False, True)
         self.check_consolidate_sizes(uri1_lens, False)
 
         self.mult = 1
         self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
         # Now do an incremental backup with id 3.
-        uri2_lens = self.take_incr_backup_file(self.dir, 3, True, True)
+        uri2_lens = self.take_incr_backup(self.dir, 3, True, True)
         self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.
