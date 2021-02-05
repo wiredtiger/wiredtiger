@@ -343,7 +343,7 @@ output; the \c -f option re-directs the output to the specified file.
 Print only message-type log records.
 
 @par <code>-u</code>
-Print user data. Do not redact.
+Display user data.
 
 @par <code>-x</code>
 Keys and value items in the log are printed in hex format in addition
