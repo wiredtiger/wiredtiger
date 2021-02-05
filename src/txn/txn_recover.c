@@ -317,7 +317,8 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     uint32_t rectype;
     const uint8_t *end, *p;
 
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "__txn_log_recover : %s", "txn-recover");
+    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "__txn_log_recover : %s",
+      "txn-recover");
 
     r = cookie;
     p = WT_LOG_SKIP_HEADER(logrec->data);
@@ -745,14 +746,14 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool do_checkpoint, eviction_started, hs_exists, needs_rec, was_backup;
-    bool rts_executed, no_log_recovery;
+    bool rts_executed;
 
     conn = S2C(session);
     WT_CLEAR(r);
     WT_INIT_LSN(&r.ckpt_lsn);
     config = NULL;
     do_checkpoint = hs_exists = true;
-    rts_executed = no_log_recovery = false;
+    rts_executed = false;
     eviction_started = false;
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
@@ -785,7 +786,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          * earlier time.
          */
         WT_ERR(__recovery_file_scan(&r));
-        no_log_recovery = true;
 
         /*
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
@@ -799,10 +799,11 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         else
             do_checkpoint = false;
         WT_ERR(__hs_exists(session, metac, cfg, &hs_exists));
-        goto rollback_to_stable;
+        goto done;
     }
 
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", " Start");
+    __wt_verbose(
+      session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", " Start");
 
     /*
      * First, do a pass through the log to recover the metadata, and establish the last checkpoint
@@ -814,7 +815,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * recovery can continue. Other errors remain errors.
      */
     if (!was_backup) {
-        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", "!was_backup");
+        __wt_verbose(
+          session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", "!was_backup");
         r.metadata_only = true;
         /*
          * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up
@@ -876,49 +878,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     r.files[0].c = NULL;
     WT_ERR(metac->close(metac));
 
-rollback_to_stable:
-    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
-    WT_ERR(__recovery_set_oldest_timestamp(&r));
-    WT_ERR(__recovery_set_checkpoint_snapshot(session));
-    
-    /*
-     * Perform rollback to stable only when the following conditions met.
-     * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
-     *    any changes that need to be done on the database other than reading.
-     * 2. The history store file was found in the metadata.
-     */
-    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
-        /* Start the eviction threads for rollback to stable if not already started. */
-        WT_ERR(__wt_evict_create(session));
-        eviction_started = true;
-
-        WT_ASSERT(session,
-          conn->txn_global.has_stable_timestamp == false &&
-            conn->txn_global.stable_timestamp == WT_TS_NONE);
-
-        /*
-         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
-         * stable.
-         */
-        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
-        conn->txn_global.has_stable_timestamp = false;
-
-        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
-            conn->txn_global.has_stable_timestamp = true;
-
-        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RTS,
-          "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
-          "%s",
-          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
-          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
-        rts_executed = true;
-        WT_ERR(__wt_rollback_to_stable(session, NULL, true));
-    }
-
-    /* Don't run recovery if no log was found. */
-    if (no_log_recovery)
-        goto done;
-
     /*
      * Now, recover all the files apart from the metadata. Pass WT_LOGSCAN_RECOVER so that old logs
      * get truncated.
@@ -959,10 +918,8 @@ rollback_to_stable:
      * paging. Start eviction threads if not already started for recovery without history store
      * cursors.
      */
-    if (!eviction_started) {
-        WT_ERR(__wt_evict_create(session));
-        eviction_started = true;
-    }
+    WT_ERR(__wt_evict_create(session));
+    eviction_started = true;
 
     /*
      * Always run recovery even if it was a clean shutdown only if this is not a read-only
@@ -980,6 +937,45 @@ rollback_to_stable:
     WT_ERR(ret);
 
 done:
+    WT_ERR(__recovery_set_checkpoint_timestamp(&r));
+    WT_ERR(__recovery_set_oldest_timestamp(&r));
+    WT_ERR(__recovery_set_checkpoint_snapshot(session));
+
+    /*
+     * Perform rollback to stable only when the following conditions met.
+     * 1. The connection is not read-only. A read-only connection expects that there shouldn't be
+     *    any changes that need to be done on the database other than reading.
+     * 2. The history store file was found in the metadata.
+     */
+    if (hs_exists && !F_ISSET(conn, WT_CONN_READONLY)) {
+        /* Start the eviction threads for rollback to stable if not already started. */
+        if (!eviction_started) {
+            WT_ERR(__wt_evict_create(session));
+            eviction_started = true;
+        }
+
+        WT_ASSERT(session,
+          conn->txn_global.has_stable_timestamp == false &&
+            conn->txn_global.stable_timestamp == WT_TS_NONE);
+
+        /*
+         * Set the stable timestamp from recovery timestamp and process the trees for rollback to
+         * stable.
+         */
+        conn->txn_global.stable_timestamp = conn->txn_global.recovery_timestamp;
+        conn->txn_global.has_stable_timestamp = false;
+
+        if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
+            conn->txn_global.has_stable_timestamp = true;
+
+        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RTS,
+          "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
+          "%s",
+          __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),
+          __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string[1]));
+        rts_executed = true;
+        WT_ERR(__wt_rollback_to_stable(session, NULL, true));
+    }
 
     if (do_checkpoint || rts_executed)
         /*

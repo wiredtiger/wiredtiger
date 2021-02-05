@@ -86,8 +86,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         self.check(valuea, self.uri, self.nrows)
 
-        
-
         session1 = self.conn.open_session()
         session1.begin_transaction()
         cursor1 = session1.open_cursor(self.uri)
@@ -117,7 +115,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
                 self.assertEqual(cursor1.insert(), 0)
             session1.commit_transaction()
 
-            
             self.large_updates(self.uri, valuec, ds, self.nrows)
             self.large_updates(self.uri, valued, ds, self.nrows)
 

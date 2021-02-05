@@ -403,7 +403,9 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * list. Otherwise remove the key by adding a tombstone.
          */
         if (valid_update_found) {
-            WT_ASSERT(session, cbt->upd_value->tw.start_ts < unpack->tw.start_ts || cbt->upd_value->tw.start_txn < unpack->tw.start_txn);
+            WT_ASSERT(session,
+              cbt->upd_value->tw.start_ts < unpack->tw.start_ts ||
+                cbt->upd_value->tw.start_txn < unpack->tw.start_txn);
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
             /*
@@ -1403,8 +1405,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
           !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
-              "prepared updates: %s or when durable time is not found: %s or txnid: %" PRIu64 " is greater than "
-              "recovery checkpoint snap min: %s",
+              "prepared updates: %s or when durable time is not found: %s or txnid: %" PRIu64
+              " is greater than recovery checkpoint snap min: %s",
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
               !durable_ts_found ? "true" : "false", rollback_txnid,
