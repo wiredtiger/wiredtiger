@@ -4,7 +4,7 @@ conn_config="cache_size=2GB,checkpoint=(wait=30)"
 table_config="type=file,leaf_page_max=32k,leaf_value_max=128k,split_pct=90"
 # The values are starting small, insert a lot so our database grows larger than
 # cache quickly.
-icount=2000000
+icount=10000000
 report_interval=5
 run_time=240
 populate_threads=1
