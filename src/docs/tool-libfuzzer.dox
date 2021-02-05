@@ -10,18 +10,18 @@ A fuzzer is a program that consists of the aforementioned target function linked
 LibFuzzer runtime. The LibFuzzer runtime provides the entry-point to the program and repeatedly
 calls the target function with generated inputs.
 
-## Step 1: Select Clang as your C compiler in your build configuration
+## Step 1: Configure with Clang as your C compiler and enable LibFuzzer
 
 Support for LibFuzzer is implemented as a compiler flag in Clang. WiredTiger's build configuration
-checks whether the compiler in use supports \c -fsanitize=fuzzer and if so, elects to build the
-tests.
+checks whether the compiler in use supports \c -fsanitize=fuzzer-no-link and if so, elects to build
+the tests.
 
 Compiling with Clang's Address Sanitizer isn't mandatory but it is recommended since fuzzing often
 exposes memory bugs.
 
 @code
 $ cd build_posix/
-$ ../configure CC="clang-8" CFLAGS="-fsanitize=address"
+$ ../configure --enable-libfuzzer CC="clang-8" CFLAGS="-fsanitize=address"
 @endcode
 
 ## Step 2: Build as usual
