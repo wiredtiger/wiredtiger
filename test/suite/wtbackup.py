@@ -139,7 +139,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         else:
             copy_to = dir
         shutil.copy(copy_from, copy_to)
-    
+
     #
     # Cursor next wrapper function.
     #
@@ -160,6 +160,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #    holds reponsibility of closing the cursor.
     #
     def take_full_backup(self, backup_dir, backup_cur=None):
+        self.pr('Full backup to ' + backup_dir + ': ')
         bkup_c = backup_cur
         if backup_cur == None:
             config = None
@@ -199,6 +200,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             os.remove(other_out)
         # Run wt dump on incremental backup
         self.runWt(['-R', '-h', other_dir, 'dump', uri], outfilename=other_out)
+        self.pr("compare_files: " + base_out + ", " + other_out)
         self.assertEqual(True, compare_files(self, base_out, other_out))
 
     #
@@ -242,6 +244,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
     #
     def take_incr_backup_block(self, bkup_c, newfile, backup_incr_dir):
         config = 'incremental=(file=' + newfile + ')'
+        self.pr('Open incremental cursor with ' + config)
         # For each file listed, open a duplicate backup cursor and copy the blocks.
         incr_c = self.session.open_cursor(None, bkup_c, config)
         # For consolidate
@@ -256,6 +259,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
             curtype = incrlist[2]
             self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
             if curtype == wiredtiger.WT_BACKUP_FILE:
+                sz = os.path.getsize(newfile)
+                self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + backup_incr_dir)
                 # Copy the whole file.
                 self.copy_file(newfile, backup_incr_dir)
             else:
@@ -307,12 +312,12 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         if consolidate:
             config += ',consolidate=true'
         config += ')'
-        self.pr(config)
+        self.pr("Incremental backup cursor with config " + config)
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         file_sizes = []
         file_names = []
-        
+
         # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.

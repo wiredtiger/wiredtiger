@@ -71,7 +71,7 @@ class test_backup12(backup_base):
         # Add more data while the backup cursor is open.
         self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        # Now make a full backup and track the log files.
+        # Now make a full backup.
         all_files = self.take_full_backup(self.dir, bkup_c)
 
         # Now open a duplicate backup cursor.

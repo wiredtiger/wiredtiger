@@ -53,9 +53,9 @@ class test_backup17(backup_base):
     nops = 1000
 
     #
-    # With a file length list, and the consolidate option is used, we expect the incremental 
-    # backup to collapse adjacent blocks and return us lengths that exceed the granularity setting 
-    # and verify that we see multiple blocks. If consolidate is not used, no block lengths should 
+    # With a file length list, and the consolidate option is used, we expect the incremental
+    # backup to collapse adjacent blocks and return us lengths that exceed the granularity setting
+    # and verify that we see multiple blocks. If consolidate is not used, no block lengths should
     # ever be greater than the granularity setting.
     #
     def check_consolidate_sizes(self, file_lens, consolidate):
