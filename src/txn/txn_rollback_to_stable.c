@@ -267,7 +267,13 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
                 WT_ASSERT(session, type == WT_UPDATE_STANDARD);
                 WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
             }
-        }
+        } else
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "history store update more recent than on-disk update with start timestamp: %s,"
+              " durable timestamp: %s, stop timestamp: %s and type: %" PRIu8,
+              __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
+              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]), type);
 
         /*
          * Verify the history store timestamps are in order. The start timestamp may be equal to the

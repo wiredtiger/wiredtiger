@@ -686,7 +686,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
              * inserting the first update.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
-            if (upd->type == WT_UPDATE_MODIFY && enable_reverse_modify &&
+            if (!F_ISSET(upd, WT_UPDATE_DS) && upd->type == WT_UPDATE_MODIFY &&
+              enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
