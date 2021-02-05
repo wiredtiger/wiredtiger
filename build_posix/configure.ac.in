@@ -30,8 +30,7 @@ define([AC_LIBTOOL_LANG_F77_CONFIG], [:])dnl
 #
 # Check whether the C++ compiler works by linking a trivial program.
 AM_CONDITIONAL([IS_CXX_OK], [test "$CC" = "cc"])
-# Compare gcc and g++ versions if required
-AM_COND_IF([IS_CXX_OK], [], AM_CONDITIONAL([IS_CXX_OK], [test $(expr `"$CC" --version | grep ^gcc | sed 's/^.* //g'` ) = $(expr `"$CXX" --version | grep ^g++ | sed 's/^.* //g'` )]))
+AM_COND_IF([IS_CXX_OK], [], AM_CONDITIONAL([IS_CXX_OK], [test $(expr `"$CC" --version | head -n 1 | grep -o -E "[[[[:digit:]]]].[[[[:digit:]]]].[[[[:digit:]]]]" | uniq`) = $(expr `"$CXX" --version | head -n 1 | grep -o -E "[[[[:digit:]]]].[[[[:digit:]]]].[[[[:digit:]]]]" | uniq`)]))
 
 AM_COND_IF([IS_CXX_OK],
         [AC_CACHE_CHECK([whether the C++ compiler works],
