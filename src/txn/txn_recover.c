@@ -317,6 +317,8 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     uint32_t rectype;
     const uint8_t *end, *p;
 
+    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "__txn_log_recover : %s", "txn-recover");
+
     r = cookie;
     p = WT_LOG_SKIP_HEADER(logrec->data);
     end = (const uint8_t *)logrec->data + logrec->size;
@@ -800,6 +802,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         goto rollback_to_stable;
     }
 
+    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", " Start");
+
     /*
      * First, do a pass through the log to recover the metadata, and establish the last checkpoint
      * LSN. Skip this when opening a hot backup: we already have the correct metadata in that case.
@@ -810,6 +814,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * recovery can continue. Other errors remain errors.
      */
     if (!was_backup) {
+        __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", "!was_backup");
         r.metadata_only = true;
         /*
          * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up

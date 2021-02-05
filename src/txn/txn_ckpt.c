@@ -1942,6 +1942,9 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
     if (need_tracking)
         WT_RET(__wt_meta_track_on(session));
 
+    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS,
+      "txn-recover __wt_checkpoint_close : %s", "CHECKPOINT CLOSE");
+
     WT_SAVE_DHANDLE(
       session, ret = __checkpoint_lock_dirty_tree(session, false, false, need_tracking, NULL));
     WT_ASSERT(session, ret == 0);
