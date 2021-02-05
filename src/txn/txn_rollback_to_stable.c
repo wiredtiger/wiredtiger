@@ -260,6 +260,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * history store shouldn't have any problem.
          */
         if (hs_start_ts <= unpack->tw.start_ts) {
+            WT_ASSERT(session, (hs_start_ts != unpack->tw.start_ts) || type == WT_UPDATE_STANDARD);
             if (type == WT_UPDATE_MODIFY)
                 WT_ERR(__wt_modify_apply_item(
                   session, S2BT(session)->value_format, &full_value, hs_value->data));
