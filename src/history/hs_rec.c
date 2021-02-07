@@ -691,8 +691,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
-             * store as a full update, because the on-disk update will be the base update for all
-             * the updates are previous to the on-disk update.
+             * store as a full update because the on-disk update will be the base update for all the
+             * updates that are older than the on-disk update.
              *
              * Due to concurrent operation of checkpoint and eviction, it is possible that history
              * store may have more recent versions of a key than the on-disk version. Without a

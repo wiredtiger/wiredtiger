@@ -254,10 +254,10 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
 
         /*
          * Do not include history store updates greater than on-disk data store version to construct
-         * a full update to restore. Even if we include the most recent updates than the on-disk
-         * version shouldn't be problem as the on-disk version in history store is always a full
-         * update. It is better to not to include those updates as it unnecessarily increases the
-         * rollback to stable time.
+         * a full update to restore. Include the most recent updates than the on-disk version
+         * shouldn't be problem as the on-disk version in history store is always a full update. It
+         * is better to not to include those updates as it unnecessarily increases the rollback to
+         * stable time.
          *
          * Comparing with timestamps here has no problem unlike in search flow where the timestamps
          * may be reset during reconciliation. RTS detects an on-disk update is unstable based on
