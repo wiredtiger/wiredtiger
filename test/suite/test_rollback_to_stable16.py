@@ -39,7 +39,7 @@ def timestamp_str(t):
 # Test that roll back to stable handles updates present on disk for variable length column store.
 # Attempt to evict to test on disk values.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=5MB,statistics=(all),debug_mode=(eviction=false)'
+    conn_config = 'cache_size=2MB,statistics=(all)'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -119,13 +119,6 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.conn.rollback_to_stable()
         #Check that only value30 is available
         self.check(value20, uri, nrows - 1, 2)
-
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
-        self.assertEqual(upd_aborted, (nrows*2) - 2)
-        self.assertEqual(calls, 2)
 
         self.session.close()
 
