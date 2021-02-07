@@ -4,6 +4,7 @@
 
 #include "wt_internal.h"
 #include <string>
+#include <stdexcept>
 
 namespace test_harness {
 class configuration {
