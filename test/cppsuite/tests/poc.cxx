@@ -23,8 +23,13 @@ class poc_test : public test_harness::test {
         ret = wiredtiger_open(default_dir, NULL, "create,cache_size=1G", &conn);
         return (ret);
     }
+
+    poc_test(std::string config) : test(config) {}
 };
 
+const std::string poc_test::test::_name = "poc_test";
+
 int main(int argc, char *argv[]) {
-    return poc_test().run();
+    const char *cfg = "collection_count=1,key_size=5";
+    return poc_test(cfg).run();
 }
