@@ -1154,8 +1154,8 @@ cursor_runtime_config = [
         configures whether the cursor's insert, update and remove
         methods check the existing state of the record.  If \c overwrite
         is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
-        if the record exists, WT_CURSOR::update and WT_CURSOR::remove
-        fail with ::WT_NOTFOUND if the record does not exist''',
+        if the record exists, WT_CURSOR::update fails with ::WT_NOTFOUND
+        if the record does not exist''',
         type='boolean'),
 ]
 
