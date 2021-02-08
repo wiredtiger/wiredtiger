@@ -19,16 +19,13 @@ There are many testing areas covered by WiredTiger's test infrasture. Some of th
 - suite (Python / Unit tests)
 - csuite
 
-### Memory sanitised testing
-> TODO
-
 ### Performance testing
 > TODO
 
 - wtperf
 - workgen
 
-### Sanitised testing
+### Sanitized testing
 > TODO
 
 ### Stress testing
@@ -36,17 +33,26 @@ There are many testing areas covered by WiredTiger's test infrasture. Some of th
 
 - format
 
-## Test harnesses
+## Test frameworks
 > TODO
 
-### CPP testing
-Stress testing combined with correctness testing
-
-### CSuite testing
+### CSuite
 > TODO
 
-### Python testing
+### CPPSuite
+> TODO
+
+### Format
+> TODO
+
+### Python
 Whitebox testing (Focus on specific features but others are used alongside)
+
+### WTPerf
+> TODO
+
+### Workgen
+> TODO
 
 ## Evergreen
 See [GitHub repository](https://github.com/evergreen-ci/evergreen/wiki).
@@ -90,5 +96,5 @@ WiredTiger code coverage is measured by gcov, >75% of lines are currently covere
 
 > TODO
 
-## Cyclomatic Complexity
+### Cyclomatic Complexity
 > TODO
