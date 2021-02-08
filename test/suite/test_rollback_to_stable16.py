@@ -50,6 +50,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         # ('fixed', dict(value_format='8t')),
         # Variable length
         ('variable', dict(value_format='i')),
+        ('string', dict(value_format='S')),
     ]
     scenarios = make_scenarios(key_format_values, value_format_values)
 
@@ -79,10 +80,16 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 
-        value20 = 0x20
-        value30 = 0x30
-        value40 = 0x40
-        value50 = 0x50
+        if self.value_format == 'S':
+            value20 = "aaaaa" * 100
+            value30 = "bbbbb" * 100
+            value40 = "ccccc" * 100
+            value50 = "ddddd" * 100
+        else:
+            value20 = 0x20
+            value30 = 0x30
+            value40 = 0x40
+            value50 = 0x50
 
         #Insert value20 at timestamp 2
         for i in range(1, nrows):
@@ -102,23 +109,37 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         # # Check that only value20 is available
         # self.check(value20, uri, nrows - 1, 2)
 
-        #Second Update to value30 at timestamp 7
+        #Second Update to value40 at timestamp 7
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value40
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
 
-        #Third Update to value40 at timestamp 9
+        #Third Update to value50 at timestamp 9
         for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[i] = value50
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
 
+
+        self.session.checkpoint()
         #Set stable timestamp to 7
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
         self.conn.rollback_to_stable()
         #Check that only value30 is available
+        self.check(value30, uri, nrows - 1, 5)
         self.check(value20, uri, nrows - 1, 2)
+        
+        self.check(value30, uri, nrows - 1, 7)
+        self.check(value30, uri, nrows - 1, 9)
+
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        stat_cursor.close()
+        self.assertEqual(upd_aborted, (nrows*2) - 2)
+        self.assertEqual(calls, 2)
 
         self.session.close()
 
