@@ -459,7 +459,7 @@ connection_runtime_config = [
                    blocks added and removed as percent of blocks looked up.
                    Cache population will be suppressed if the overhead
                    exceeds the supplied threshold.''',
-                   min='1', max='100'),
+                   min='1', max='500'),
                Config('path', '', r'''
                    the file path for the NVRAM that will be used as a cache
                    if cache type NVRAM is chosen.'''),
