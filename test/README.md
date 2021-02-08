@@ -1,27 +1,65 @@
 # WiredTiger Testing
 
 ## Introduction
+The reliability and robustness of WiredTiger is achieved in part by thorough and careful testing.
 
-TBD
+- C tests: 26939 SLOC
+- CPP tests: 30 SLOC
+- Python tests: 83992 SLOC
 
-## Generate the test coverage documentation
+## Testing types
+There are many testing areas covered by WiredTiger's test infrasture. Some of the high level areas are:
 
-To generate the test coverage documentation, execute the following command:
+### Compatibility testing
+> TODO
 
-```bash
-python test_tag.py [options]
-```
-> test_tag.py is located under the dist/ directory
+### Correctness testing
+> TODO
 
-The script parses all *.py and main.c files present in the test/ directory.
+- suite (Python / Unit tests)
+- csuite
 
--h for help
--i to generate stats
--p to list all files that are missing a test
+### Memory sanitised testing
+> TODO
 
-## How tag a file ?
+### Performance testing
+> TODO
 
-Each test file shall contain a tag in the following format:
+- wtperf
+- workgen
+
+### Sanitised testing
+> TODO
+
+### Stress testing
+> TODO
+
+- format
+
+## Test harnesses
+> TODO
+
+### CPP testing
+Stress testing combined with correctness testing
+
+### CSuite testing
+> TODO
+
+### Python testing
+Whitebox testing (Focus on specific features but others are used alongside)
+
+## Evergreen
+See [GitHub repository](https://github.com/evergreen-ci/evergreen/wiki).
+
+## Coverage
+> TODO
+
+### Tests
+The [test coverage documentation](../output.md) is generated from tags that are present in each test file (main.c and *.py)
+
+#### Tagging scheme
+
+Each test file shall contain a tag using the following scheme:
 
 ```
 [TEST_TAGS]
@@ -47,25 +85,10 @@ ignored_file
 [END_TAGS]
 ```
 
-## Components
+### Code
+WiredTiger code coverage is measured by gcov, >75% of lines are currently covered by the current testing framework.
 
+> TODO
 
-
-## Usage
-
-```python
-import foobar
-
-foobar.pluralize('word') # returns 'words'
-foobar.pluralize('goose') # returns 'geese'
-foobar.singularize('phenomena') # returns 'phenomenon'
-```
-
-## Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
-
-Please make sure to update tests as appropriate.
-
-## License
-
-[Test Coverage](../output.md)
+## Cyclomatic Complexity
+> TODO
