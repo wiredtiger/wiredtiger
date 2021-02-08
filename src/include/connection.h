@@ -370,6 +370,8 @@ struct __wt_connection_impl {
     bool storage_tid_set;             /* Storage thread set */
     WT_CONDVAR *storage_cond;         /* Storage wait mutex */
     uint64_t storage_retain_secs;     /* Storage period */
+    uint64_t storage_auth_timeout;    /* Storage authentication timeout */
+    const char *storage_auth_token;   /* Storage authentication cookie */
 
     WT_STORAGE_MANAGER storage_manager; /* Storage worker thread information */
     bool storage_server_running;        /* Internal storage server operating */

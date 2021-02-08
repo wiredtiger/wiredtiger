@@ -54,6 +54,12 @@ __wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
     else
         FLD_CLR(conn->storage_flags, WT_CONN_STORAGE_ENABLED);
 
+    WT_RET(__wt_config_gets(session, cfg, "shared_storage.auth_timeout", &cval));
+    conn->storage_auth_timeout = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "shared_storage.auth_token", &cval));
+    conn->storage_auth_token = cval.str;
+
     WT_RET(__wt_config_gets(session, cfg, "shared_storage.local_retention", &cval));
     conn->storage_retain_secs = (uint64_t)cval.val * WT_MINUTE;
 
