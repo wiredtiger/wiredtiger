@@ -1494,6 +1494,13 @@ methods = {
         files''',
         type='boolean'),
 ]),
+
+'WT_SESSION.share_storage' : Method([
+    Config('force', 'false', r'''
+        force sharing of all data''',
+        type='boolean'),
+]),
+
 'WT_SESSION.strerror' : Method([]),
 'WT_SESSION.transaction_sync' : Method([
     Config('timeout_ms', '1200000', # !!! Must match WT_SESSION_BG_SYNC_MSEC

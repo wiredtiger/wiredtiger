@@ -377,6 +377,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_rollback_transaction[] = {
 static const WT_CONFIG_CHECK confchk_WT_SESSION_salvage[] = {
   {"force", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_WT_SESSION_share_storage[] = {
+  {"force", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_WT_SESSION_timestamp_transaction[] = {
   {"commit_timestamp", "string", NULL, NULL, NULL, 0},
   {"durable_timestamp", "string", NULL, NULL, NULL, 0},
@@ -1045,6 +1048,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_SESSION.rollback_transaction", "operation_timeout_ms=0",
     confchk_WT_SESSION_rollback_transaction, 1},
   {"WT_SESSION.salvage", "force=false", confchk_WT_SESSION_salvage, 1},
+  {"WT_SESSION.share_storage", "force=false", confchk_WT_SESSION_share_storage, 1},
   {"WT_SESSION.strerror", "", NULL, 0},
   {"WT_SESSION.timestamp_transaction",
     "commit_timestamp=,durable_timestamp=,prepare_timestamp=,"

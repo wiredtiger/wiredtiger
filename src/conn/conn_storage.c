@@ -20,6 +20,36 @@
 #endif
 
 /*
+ * __share_storage_once --
+ *     Perform one iteration of sharing storage.
+ */
+static int
+__share_storage_once(WT_SESSION_IMPL *session, bool force)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(force);
+    return (0);
+}
+
+/*
+ * __wt_share_storage --
+ *     Entry function for share_storage method.
+ */
+int
+__wt_share_storage(WT_SESSION_IMPL *session, const char **cfg)
+{
+    WT_CONFIG_ITEM cval;
+    bool force;
+
+    WT_STAT_CONN_INCR(session, share_storage);
+    WT_RET(__wt_config_gets(session, cfg, "force", &cval));
+    force = cval.val != 0;
+
+    WT_RET(__share_storage_once(session, force));
+    return (0);
+}
+
+/*
  * __wt_storage_config --
  *     Parse and setup the storage server options.
  */
@@ -62,6 +92,7 @@ __wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
 
     WT_RET(__wt_config_gets(session, cfg, "shared_storage.local_retention", &cval));
     conn->storage_retain_secs = (uint64_t)cval.val * WT_MINUTE;
+    WT_STAT_CONN_SET(session, storage_retention, conn->storage_retain_secs);
 
     return (__wt_storage_manager_config(session, cfg));
 }
@@ -158,9 +189,11 @@ __storage_server(void *arg)
          * - See if there is any "overlapping" data that needs to be removed from local tier.
          * - Remove the local objects.
          */
+        WT_ERR(__share_storage_once(session, false));
     }
 
     if (0) {
+err:
         WT_IGNORE_RET(__wt_panic(session, ret, "storage server error"));
     }
     __wt_buf_free(session, &path);
