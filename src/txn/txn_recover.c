@@ -984,18 +984,16 @@ done:
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
-    if (rts_executed) {
-        /* Initialize the connection's base write generation after rollback to stable. */
-        WT_ERR(__wt_metadata_init_base_write_gen(session));
+    /* Initialize the connection's base write generation after rollback to stable. */
+    WT_ERR(__wt_metadata_init_base_write_gen(session));
 
-        /*
-         * Update the open dhandles write generations and base write generation with the
-         * connection's base write generation because the recovery checkpoint writes the pages to
-         * disk with new write generation number which contains transaction ids that are needed to
-         * reset later.
-         */
-        __wt_dhandle_update_write_gens(session);
-    }
+    /*
+     * Update the open dhandles write generations and base write generation with the connection's
+     * base write generation because the recovery checkpoint writes the pages to disk with new write
+     * generation number which contains transaction ids that are needed to reset later.
+     */
+    __wt_dhandle_update_write_gens(session);
+
     /*
      * If we're downgrading and have newer log files, force an archive, no matter what the archive
      * setting is.

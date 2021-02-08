@@ -524,9 +524,19 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     /* If this is the first time opening the tree this run. */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen)
-        btree->base_write_gen = btree->run_write_gen = btree->write_gen;
+        btree->run_write_gen = btree->write_gen;
     else
-        btree->base_write_gen = btree->run_write_gen = ckpt->run_write_gen;
+        btree->run_write_gen = ckpt->run_write_gen;
+
+    /*
+     * Don't reset the transaction ids in rollback to stable when called from recovery because
+     * rollback to stable in addition to stable timestamp also depends on transaction ids from the
+     * page that are read into cache to decide if an update needs to be rolled back.
+     */
+    if (!F_ISSET(S2C(session), WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle))
+        btree->base_write_gen = btree->run_write_gen;
+    else
+        btree->base_write_gen = ckpt->run_write_gen;
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're
