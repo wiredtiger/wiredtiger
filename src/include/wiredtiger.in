@@ -1388,6 +1388,8 @@ struct __wt_session {
 	/*!
 	 * Flush the log.
 	 *
+	 * WT_SESSION::log_flush will fail if logging is not enabled.
+	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.log_flush, see dist/api_data.py}
 	 * @config{sync, forcibly flush the log and wait for it to achieve the synchronization level
