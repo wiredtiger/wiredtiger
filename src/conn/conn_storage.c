@@ -112,12 +112,14 @@ int
 __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
-    const char *cfg[2];
+    const char *cfg[3];
     bool force;
 
     WT_STAT_CONN_INCR(session, share_storage);
-    cfg[0] = (char *)config;
-    cfg[1] = NULL;
+
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_share_storage);
+    cfg[1] = (char *)config;
+    cfg[2] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     force = cval.val != 0;
 
