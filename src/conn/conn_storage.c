@@ -78,7 +78,7 @@ __share_storage_remove_tree(WT_SESSION_IMPL *session, const char *uri, bool forc
         /*
          * We want to remove the entry and the file. Probably do a schema_drop on the file:uri.
          */
-        ;
+        __wt_verbose(session, WT_VERB_TIERED, "Would remove %s. Local retention expired", newfile);
 
 err:
     __wt_free(session, config);
