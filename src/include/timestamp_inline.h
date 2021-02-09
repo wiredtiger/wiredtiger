@@ -177,31 +177,15 @@ __wt_time_window_clear_obsolete(
      * disk image value to the update chain.
      */
     if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
-        if (txn_global->checkpoint_running)
-            __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-              "__wt_time_window_clear_obsolete- start_txn: %" PRIu64 ", Oldest Id: %" PRIu64
-              ", txn_global->checkpoint_txn_shared.pinned_id: %" PRIu64
-              " , Checkpoint timestamp :%s, Meta Checkpoint timestamp : %s",
-              tw->start_txn, oldest_id, txn_global->checkpoint_txn_shared.pinned_id,
-              __wt_timestamp_to_string(txn_global->checkpoint_timestamp, ts_string[0]),
-              __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]));
-
-        if (tw->stop_txn == WT_TXN_MAX && tw->start_txn < oldest_id)
+        if (tw->start_txn < oldest_id)
             tw->start_txn = WT_TXN_NONE;
-        /* Avoid retrieving the pinned timestamp unless we need it. */
-        if (tw->stop_ts == WT_TS_MAX) {
-            /*
-             * The durable stop timestamp should be it's default value whenever the stop timestamp
-             * is.
-             */
-            WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
-            /*
-             * The durable start timestamp is always greater than or equal to the start timestamp,
-             * as such we must check it against the pinned timestamp and not the start timestamp.
-             */
-            WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
-            if (tw->durable_start_ts < oldest_ts)
-                tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
-        }
+
+        /*
+         * The durable start timestamp is always greater than or equal to the start timestamp, as
+         * such we must check it against the pinned timestamp and not the start timestamp.
+         */
+        WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+        if (tw->durable_start_ts < oldest_ts)
+            tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
     }
 }
