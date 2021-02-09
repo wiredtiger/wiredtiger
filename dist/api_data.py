@@ -895,7 +895,7 @@ statistics_log_configuration_common = [
     Config('timestamp', '"%b %d %H:%M:%S"', r'''
         a timestamp prepended to each log record, may contain strftime
         conversion specifications, when \c json is configured, defaults
-        to \c "%FT%Y.000Z"'''),
+        to \c "%Y-%m-%dT%H:%M:%S.000Z"'''),
     Config('wait', '0', r'''
         seconds to wait between each write of the log records; setting
         this value above 0 configures statistics logging''',

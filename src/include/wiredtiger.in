@@ -2206,7 +2206,7 @@ struct __wt_connection {
 	 * data sources of a particular type ("table:")., a list of strings; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record\, may
 	 * contain strftime conversion specifications\, when \c json is configured\, defaults to \c
-	 * "%FT%Y.000Z"., a string; default \c "%b %d %H:%M:%S".}
+	 * "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * wait, seconds to wait between each write of the log records; setting this value above 0
 	 * configures statistics logging., an integer between 0 and 100000; default \c 0.}
@@ -2909,8 +2909,8 @@ struct __wt_connection {
  * logging.  The list may include URIs matching a single data source ("table:mytable")\, or a URI
  * matching all data sources of a particular type ("table:")., a list of strings; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record\, may contain
- * strftime conversion specifications\, when \c json is configured\, defaults to \c "%FT%Y.000Z"., a
- * string; default \c "%b %d %H:%M:%S".}
+ * strftime conversion specifications\, when \c json is configured\, defaults to
+ * \c "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait
  * between each write of the log records; setting this value above 0 configures statistics logging.,
  * an integer between 0 and 100000; default \c 0.}
