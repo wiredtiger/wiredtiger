@@ -34,7 +34,7 @@ __share_storage_once(WT_SESSION_IMPL *session, bool force)
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    return (0);
+    return;
 }
 
 /*
