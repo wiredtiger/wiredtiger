@@ -27,7 +27,8 @@ class test {
         _configuration = new configuration(_name, config);
     }
 
-    ~test() {
+    ~test()
+    {
         delete _configuration;
     }
 };
