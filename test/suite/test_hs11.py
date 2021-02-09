@@ -97,26 +97,28 @@ class test_hs11(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        # Remove for column store until rollback to stable is implemented for column store
-        # WT-5545
+        # FIXME-WT-7120 Remove for column store until rollback to stable is implemented for column
+        # store
         # Ensure that we blew away history store content.
-        if self.key_format != 'r':
-            for ts in range(1, 5):
-                self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
-                for i in range(1, 10000):
-                    if i % 2 == 0:
-                        if self.update_type == 'deletion':
-                            cursor.set_key(self.create_key(i))
-                            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
-                        else:
-                            self.assertEqual(cursor[self.create_key(i)], value2)
-                    else:
-                        self.assertEqual(cursor[self.create_key(i)], value1)
-                self.session.rollback_transaction()
+        if self.key_format == 'r':
+            return
 
-            if self.update_type == 'deletion':
-                hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
-                self.assertGreater(hs_truncate, 0)
+        for ts in range(1, 5):
+            self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
+            for i in range(1, 10000):
+                if i % 2 == 0:
+                    if self.update_type == 'deletion':
+                        cursor.set_key(self.create_key(i))
+                        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+                    else:
+                        self.assertEqual(cursor[self.create_key(i)], value2)
+                else:
+                    self.assertEqual(cursor[self.create_key(i)], value1)
+            self.session.rollback_transaction()
+
+        if self.update_type == 'deletion':
+            hs_truncate = self.get_stat(stat.conn.cache_hs_key_truncate_onpage_removal)
+            self.assertGreater(hs_truncate, 0)
 
     def test_ts_updates_donot_clears_hs(self):
         uri = 'table:test_hs11'

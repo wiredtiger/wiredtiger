@@ -143,8 +143,9 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         session2.close()
 
-        # FIXME-WT-7120: Rollback to stable support for column store is not implemented, and it
-        # fails only when it is used with timestamps.
+        # FIXME-WT-7120: Rollback to stable support for column store is not implemented,
+        # and it fails only when it is used with timestamps.
+        # Remove the above comment once complete.
         if self.key_format == 'r':
             return
 
