@@ -7,7 +7,7 @@ icount=500000000
 report_interval=5
 checkpoint_threads=1
 checkpoint_interval=10
-run_time=300
+run_time=3600
 populate_threads=1
 threads=((count=1,inserts=1),(count=2,reads=1),(count=2,updates=1))
 # Add throughput/latency monitoring
