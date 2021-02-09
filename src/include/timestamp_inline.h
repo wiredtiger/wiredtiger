@@ -166,11 +166,6 @@ static inline void
 __wt_time_window_clear_obsolete(
   WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, uint64_t oldest_id, wt_timestamp_t oldest_ts)
 {
-    WT_TXN_GLOBAL *txn_global;
-    char ts_string[4][WT_TS_INT_STRING_SIZE];
-
-    txn_global = &S2C(session)->txn_global;
-
     /*
      * In memory database don't need to avoid writing values to the cell. If we remove this check we
      * create an extra update on the end of the chain later in reconciliation as we'll re-append the
