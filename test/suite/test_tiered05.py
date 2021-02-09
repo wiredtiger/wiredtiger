@@ -41,7 +41,7 @@ class test_tiered05(wttest.WiredTigerTestCase):
     def conn_config(self):
         return \
           'statistics=(fast),' + \
-          'shared_storage_manager=(objet_target_size=20M,wait=10),' + \
+          'shared_storage_manager=(object_target_size=20M,wait=10),' + \
           'shared_storage=(enabled,local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
           'auth_timeout=%d,' % self.auth_timeout + \
