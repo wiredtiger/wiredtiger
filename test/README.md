@@ -13,19 +13,16 @@ There are many testing areas covered by WiredTiger's test infrasture. Some of th
 ### Compatibility testing
 
 ### Correctness testing
-
 - suite (Python / Unit tests)
 - csuite
 
 ### Performance testing
-
 - wtperf
 - workgen
 
 ### Sanitized testing
 
 ### Stress testing
-
 - format
 
 ## Test frameworks
@@ -52,7 +49,6 @@ See [GitHub repository](https://github.com/evergreen-ci/evergreen/wiki).
 The [test coverage documentation](../output.md) is generated from tags that are present in each test file (main.c and *.py)
 
 #### Tagging scheme
-
 Each test file shall contain a tag using the following scheme:
 
 ```
@@ -81,6 +77,5 @@ ignored_file
 
 ### Code
 WiredTiger code coverage is measured by gcov, >75% of lines are currently covered by the current testing framework.
-
 
 ### Cyclomatic Complexity
