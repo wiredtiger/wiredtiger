@@ -23,7 +23,7 @@
  * __share_storage_once --
  *     Perform one iteration of shared storage maintenance.
  */
-static int
+static void
 __share_storage_once(WT_SESSION_IMPL *session, bool force)
 {
     WT_UNUSED(session);
@@ -126,7 +126,7 @@ __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     force = cval.val != 0;
 
-    WT_RET(__share_storage_once(session, force));
+    __share_storage_once(session, force);
     return (0);
 }
 
@@ -266,7 +266,7 @@ __storage_server(void *arg)
          * Here is where we do work. Work we expect to do:
          *
          */
-        WT_ERR(__share_storage_once(session, false));
+        __share_storage_once(session, false);
         WT_ERR(__share_storage_remove(session, false));
     }
 
