@@ -26,6 +26,10 @@ class test {
     {
         _configuration = new configuration(_name.c_str(), config.c_str());
     }
+
+    ~test() {
+        delete _configuration;
+    }
 };
 } // namespace test_harness
 
