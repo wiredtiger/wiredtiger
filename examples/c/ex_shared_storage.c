@@ -115,13 +115,11 @@ __declspec(dllexport)
 /*
  * Forward function declarations for shared storage API implementation
  */
-static int demo_ss_open(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *,
-  uint32_t, WT_FILE_HANDLE **);
-static int demo_ss_location_handle(
-  WT_SHARED_STORAGE *, WT_SESSION *, const char *, void **);
+static int demo_ss_open(
+  WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, uint32_t, WT_FILE_HANDLE **);
+static int demo_ss_location_handle(WT_SHARED_STORAGE *, WT_SESSION *, const char *, void **);
 static int demo_ss_location_handle_free(WT_SHARED_STORAGE *, WT_SESSION *, void *);
-static int demo_ss_location_list(
-  WT_SHARED_STORAGE *, WT_SESSION *, void *, char ***, uint32_t *);
+static int demo_ss_location_list(WT_SHARED_STORAGE *, WT_SESSION *, void *, char ***, uint32_t *);
 static int demo_ss_location_list_free(WT_SHARED_STORAGE *, WT_SESSION *, char **, uint32_t);
 static int demo_ss_exist(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, bool *);
 static int demo_ss_remove(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, uint32_t);
@@ -269,7 +267,7 @@ demo_ss_open(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *locat
     WT_FILE_HANDLE *file_handle;
     int ret = 0;
 
-    (void)flags;     /* Unused */
+    (void)flags; /* Unused */
 
     *file_handlep = NULL;
 
@@ -364,15 +362,14 @@ err:
  */
 static int
 demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
- const char *location_info, void **location_handlep)
+  const char *location_info, void **location_handlep)
 {
     size_t len;
     char *p;
 
     /*
-     * Our "handle" is nothing more than the location string followed
-     * by a slash delimiter.  We won't allow slashes in the location
-     * info parameter.
+     * Our "handle" is nothing more than the location string followed by a slash delimiter. We won't
+     * allow slashes in the location info parameter.
      */
     if (strchr(location_info, '/') != NULL)
         return (EINVAL);
@@ -388,11 +385,12 @@ demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
  * demo_ss_location_handle_free --
  *     Free a location handle created by ss_location_handle.
  */
-static int demo_ss_location_handle_free(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
- void *location_handle)
+static int
+demo_ss_location_handle_free(
+  WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle)
 {
     (void)shared_storage; /* Unused */
-    (void)session; /* Unused */
+    (void)session;        /* Unused */
 
     free(location_handle);
     return (0);
@@ -492,8 +490,8 @@ demo_ss_location_list_free(
  *     Return if the file exists.
  */
 static int
-demo_ss_exist(
-  WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle, const char *name, bool *existp)
+demo_ss_exist(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
+  const char *name, bool *existp)
 {
     DEMO_SHARED_STORAGE *demo_ss;
 
@@ -850,7 +848,7 @@ main(void)
     WT_CONNECTION *conn;
     const char *open_config;
     int ret = 0;
-#if 0    
+#if 0
     WT_CURSOR *cursor;
     WT_SESSION *session;
     const char *key, *tier0_uri, *tier1_uri, *uri;
@@ -887,10 +885,9 @@ main(void)
     /*! [WT_SHARED_STORAGE register] */
 
     /*
-     * At the moment, the infrastructure that would use the shared storage
-     * extension does not exist.
+     * At the moment, the infrastructure that would use the shared storage extension does not exist.
      */
-#if 0     
+#if 0
     if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
         fprintf(stderr, "WT_CONNECTION.open_session: %s\n", wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
@@ -904,7 +901,7 @@ main(void)
         return (EXIT_FAILURE);
     }
     if ((ret = session->create(session, tier1_uri,
-          "shared=(location=encoded_bucket_name_and_auth),key_format=S,value_format=S")) != 0) {
+          "shared=(location=encoded_bucket_and_authorization),key_format=S,value_format=S")) != 0) {
         fprintf(stderr, "WT_SESSION.create: %s: %s\n", tier_uri, wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }

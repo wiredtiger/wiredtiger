@@ -4686,8 +4686,7 @@ struct __wt_file_handle {
  * the implementation to protect any shared data.
  *
  * Applications register implementations with WiredTiger by calling
- * WT_CONNECTION::add_shared_storage.  See @ref custom_shared_storages for more
- * information.
+ * WT_CONNECTION::add_shared_storage.
  *
  * @snippet ex_shared_storage.c WT_SHARED_STORAGE register
  */
@@ -4728,13 +4727,13 @@ struct __wt_shared_storage {
 	 * @param shared_storage the WT_SHARED_STORAGE
 	 * @param session the current WiredTiger session
 	 * @param location_handle the location to list
-	 * @param[out] objlist the method returns an allocated array of
+	 * @param[out] object_list the method returns an allocated array of
 	 *    individually allocated strings, one for each object in the location.
 	 * @param[out] countp the number of entries returned
 	 */
 	int (*ss_location_list)(WT_SHARED_STORAGE *shared_storage,
 	    WT_SESSION *session, void *location_handle,
-	    char ***objlist, uint32_t *countp);
+	    char ***object_list, uint32_t *countp);
 
 	/*!
 	 * Free memory allocated by WT_SHARED_STORAGE::location_list.

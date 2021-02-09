@@ -727,11 +727,13 @@ __shared_storage_confchk(
  *     Given a configuration, configure the shared_storage.
  */
 int
-__wt_shared_storage_config(WT_SESSION_IMPL *session, const char *uri, const char *config,
-  WT_SHARED_STORAGE **shared_storagep, int *ownp)
+__wt_shared_storage_config(
+  WT_SESSION_IMPL *session, const char *config, WT_SHARED_STORAGE **shared_storagep, int *ownp)
 {
     WT_CONFIG_ITEM cname;
     WT_SHARED_STORAGE *shared_storage;
+
+    WT_UNUSED(uri);
 
     *shared_storagep = NULL;
     *ownp = 0;
