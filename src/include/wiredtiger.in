@@ -1435,10 +1435,11 @@ struct __wt_session {
 	/*!
 	 * Reset the session handle.
 	 *
-	 * This method resets all cursors associated with this session and
-	 * discards cached resources.  The session can be re-used immediately
-	 * after this call returns. If a transaction is running on this
-	 * session, then this call takes no action and return an error.
+	 * This method resets all cursors associated with this session,
+	 * discards cached resources and resets session statistics.
+	 * The session can be re-used immediately after this call returns.
+	 * If a transaction is running on this session, then this call takes
+	 * no action and return an error.
 	 *
 	 * @snippet ex_all.c Reset the session
 	 *
