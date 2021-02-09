@@ -38,7 +38,7 @@ __share_storage_once(WT_SESSION_IMPL *session, bool force)
 }
 
 /*
- * __share_storage_remove --
+ * __share_storage_remove_tree --
  *     Perform one iteration of shared storage local tier removal.
  */
 static int
