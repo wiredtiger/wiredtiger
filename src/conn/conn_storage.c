@@ -21,13 +21,86 @@
 
 /*
  * __share_storage_once --
- *     Perform one iteration of sharing storage.
+ *     Perform one iteration of shared storage maintenance.
  */
 static int
 __share_storage_once(WT_SESSION_IMPL *session, bool force)
 {
     WT_UNUSED(session);
     WT_UNUSED(force);
+    /*
+     * - See if there is any "merging" work to do to prepare and create an object that is
+     *   suitable for placing onto shared storage.
+     * - Do the work to create said objects.
+     * - Move the objects.
+     */
+    return (0);
+}
+
+/*
+ * __share_storage_remove --
+ *     Perform one iteration of shared storage local tier removal.
+ */
+static int
+__share_storage_remove_tree(WT_SESSION_IMPL *session, const char *uri, bool force)
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    size_t len;
+    uint64_t now;
+    char *config, *newfile;
+    const char *cfg[2], *filename;
+
+    if (uri == NULL)
+        return (0);
+    __wt_verbose(session, WT_VERB_TIERED, "Removing tree %s", uri);
+    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "shared:"));
+    filename = uri;
+    WT_PREFIX_SKIP_REQUIRED(session, filename, "shared:");
+    len = strlen("file:") + strlen(filename) + 1;
+    WT_ERR(__wt_calloc_def(session, len, &newfile));
+    WT_ERR(__wt_snprintf(newfile, len, "file:%s", filename));
+
+    /*
+     * If the file version of the shared object does not exist there is nothing to do.
+     */
+    WT_ERR(__wt_metadata_search(session, newfile, &config));
+
+    /*
+     * We have a local version of this shared data. Check its metadata for when it expires and
+     * remove if necessary.
+     */
+    cfg[0] = config;
+    cfg[1] = NULL;
+    WT_ERR(__wt_config_gets(session, cfg, "local_retain", &cval));
+    __wt_seconds(session, &now);
+    if (force || (uint64_t)cval.val + S2C(session)->storage_retain_secs >= now)
+        /*
+         * We want to remove the entry and the file. Probably do a schema_drop on the file:uri.
+         */
+        ;
+
+err:
+    __wt_free(session, config);
+    __wt_free(session, newfile);
+    return (ret);
+}
+
+/*
+ * __share_storage_remove --
+ *     Perform one iteration of shared storage local tier removal.
+ */
+static int
+__share_storage_remove(WT_SESSION_IMPL *session, bool force)
+{
+    WT_UNUSED(session);
+    WT_UNUSED(force);
+
+    /*
+     * We want to walk the metadata perhaps and for each shared URI, call remove on its file:URI
+     * version.
+     */
+    WT_RET(__share_storage_remove_tree(session, NULL, force));
     return (0);
 }
 
@@ -36,12 +109,15 @@ __share_storage_once(WT_SESSION_IMPL *session, bool force)
  *     Entry function for share_storage method.
  */
 int
-__wt_share_storage(WT_SESSION_IMPL *session, const char **cfg)
+__wt_share_storage(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    const char *cfg[2];
     bool force;
 
     WT_STAT_CONN_INCR(session, share_storage);
+    cfg[0] = (char *)config;
+    cfg[1] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     force = cval.val != 0;
 
@@ -182,14 +258,9 @@ __storage_server(void *arg)
         /*
          * Here is where we do work. Work we expect to do:
          *
-         * - See if there is any "merging" work to do to prepare and create an object that is
-         *   suitable for placing onto shared storage.
-         * - Do the work to create said objects.
-         * - Move the objects.
-         * - See if there is any "overlapping" data that needs to be removed from local tier.
-         * - Remove the local objects.
          */
         WT_ERR(__share_storage_once(session, false));
+        WT_ERR(__share_storage_remove(session, false));
     }
 
     if (0) {

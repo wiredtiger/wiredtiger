@@ -800,6 +800,17 @@ struct __wt_session {
 	int __F(reconfigure)(WT_SESSION *session, const char *config);
 
 	/*!
+	 * Initiate a single operation to manage shared storage.
+	 *
+	 * @param session the session handle
+	 * @configstart{WT_SESSION.share_storage, see dist/api_data.py}
+	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(share_storage)(WT_SESSION *session, const char *config);
+
+	/*!
 	 * Return information about an error as a string.
 	 *
 	 * @snippet ex_all.c Display an error thread safe

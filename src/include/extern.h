@@ -1371,7 +1371,7 @@ extern int __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffer
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_set_return_func(WT_SESSION_IMPL *session, const char *func, int line, int err)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_share_storage(WT_SESSION_IMPL *session, const char **cfg)
+extern int __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
