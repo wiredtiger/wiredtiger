@@ -941,17 +941,22 @@ wiredtiger_open_shared_storage_configuration = [
         configured session_max''',
         type='category', subconfig=
         log_configuration_common + [
+        Config('auth_timeout', 0, r'''
+            time in seconds that the authentication token is valid''',
+            min='0', max='100000'),
+        Config('auth_token', '', r'''
+            authentication token string'''),
         Config('enabled', 'false', r'''
             enable shared storage subsystem''',
             type='boolean'),
-        Config('name', 'none', r'''
-            Permitted values are \c "none"
-            or custom storage name created with
-            WT_CONNECTION::add_shared_storage'''),
         Config('local_retention', '5', r'''
             minutes to retain data on shared storage on the local tier for
             faster read access''',
             min='0', max='120'),
+        Config('name', 'none', r'''
+            Permitted values are \c "none"
+            or custom storage name created with
+            WT_CONNECTION::add_shared_storage'''),
     ]),
 ]
 

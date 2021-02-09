@@ -2906,19 +2906,21 @@ struct __wt_connection {
  * from the configured session_max., a set of related configuration options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;archive, automatically archive unneeded log files., a boolean
  * flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable shared storage
- * subsystem., a boolean flag; default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention,
- * minutes to retain data on shared storage on the local tier for faster read access., an integer
- * between 0 and 120; default \c 5.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c
- * "none" or custom storage name created with WT_CONNECTION::add_shared_storage., a string; default
- * \c none.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache
- * usage\, as a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks
- * belonging to the log in the system buffer cache after that percentage of the log has been written
- * into the buffer cache without an intervening file sync., an integer between 0 and 100; default \c
- * 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_timeout, time in seconds that the
+ * authentication token is valid., an integer between 0 and 100000; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token, authentication token string., a string; default
+ * empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable shared storage subsystem., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, minutes to retain data
+ * on shared storage on the local tier for faster read access., an integer between 0 and 120;
+ * default \c 5.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or custom
+ * storage name created with WT_CONNECTION::add_shared_storage., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;os_cache_dirty_pct, maximum dirty system buffer cache usage\, as
+ * a percentage of the log's \c file_max.  If non-zero\, schedule writes for dirty blocks belonging
+ * to the log in the system buffer cache after that percentage of the log has been written into the
+ * buffer cache without an intervening file sync., an integer between 0 and 100; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;prealloc, pre-allocate log files., a boolean flag; default \c
  * true.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;zero_fill, manually write zeroes into log files., a

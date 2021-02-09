@@ -606,7 +606,9 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_log_subconfigs[] = {
   {"zero_fill", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_shared_storage_subconfigs[] = {
-  {"archive", "boolean", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
+  {"archive", "boolean", NULL, NULL, NULL, 0},
+  {"auth_timeout", "int", NULL, "min=0,max=100000", NULL, 0},
+  {"auth_token", "string", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
   {"local_retention", "int", NULL, "min=0,max=120", NULL, 0},
   {"name", "string", NULL, NULL, NULL, 0},
   {"os_cache_dirty_pct", "int", NULL, "min=0,max=100", NULL, 0},
@@ -668,7 +670,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"session_scratch_max", "int", NULL, NULL, NULL, 0},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5},
-  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 7},
+  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 9},
   {"shared_storage_manager", "category", NULL, NULL,
     confchk_wiredtiger_open_shared_storage_manager_subconfigs, 4},
   {"statistics", "list", NULL,
@@ -747,7 +749,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"session_scratch_max", "int", NULL, NULL, NULL, 0},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5},
-  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 7},
+  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 9},
   {"shared_storage_manager", "category", NULL, NULL,
     confchk_wiredtiger_open_shared_storage_manager_subconfigs, 4},
   {"statistics", "list", NULL,
@@ -823,7 +825,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"session_scratch_max", "int", NULL, NULL, NULL, 0},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5},
-  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 7},
+  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 9},
   {"shared_storage_manager", "category", NULL, NULL,
     confchk_wiredtiger_open_shared_storage_manager_subconfigs, 4},
   {"statistics", "list", NULL,
@@ -897,7 +899,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"session_scratch_max", "int", NULL, NULL, NULL, 0},
   {"session_table_cache", "boolean", NULL, NULL, NULL, 0},
   {"shared_cache", "category", NULL, NULL, confchk_wiredtiger_open_shared_cache_subconfigs, 5},
-  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 7},
+  {"shared_storage", "category", NULL, NULL, confchk_wiredtiger_open_shared_storage_subconfigs, 9},
   {"shared_storage_manager", "category", NULL, NULL,
     confchk_wiredtiger_open_shared_storage_manager_subconfigs, 4},
   {"statistics", "list", NULL,
@@ -1169,15 +1171,15 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "operation_tracking=(enabled=false,path=\".\"),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
-    "reserve=0,size=500MB),shared_storage=(archive=true,enabled=false"
-    ",local_retention=5,name=,os_cache_dirty_pct=0,prealloc=true,"
-    "zero_fill=false),shared_storage_manager=(object_target_size=10M,"
-    "threads_max=8,threads_min=1,wait=0),statistics=none,"
-    "statistics_log=(json=false,on_close=false,path=\".\",sources=,"
-    "timestamp=\"%b %d %H:%M:%S\",wait=0),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),"
-    "use_environment=true,use_environment_priv=false,verbose=[],"
-    "verify_metadata=false,write_through=",
+    "reserve=0,size=500MB),shared_storage=(archive=true,"
+    "auth_timeout=0,auth_token=,enabled=false,local_retention=5,name="
+    ",os_cache_dirty_pct=0,prealloc=true,zero_fill=false),"
+    "shared_storage_manager=(object_target_size=10M,threads_max=8,"
+    "threads_min=1,wait=0),statistics=none,statistics_log=(json=false"
+    ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
+    ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
+    ",method=fsync),use_environment=true,use_environment_priv=false,"
+    "verbose=[],verify_metadata=false,write_through=",
     confchk_wiredtiger_open, 57},
   {"wiredtiger_open_all",
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
@@ -1205,15 +1207,16 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "operation_tracking=(enabled=false,path=\".\"),readonly=false,"
     "salvage=false,session_max=100,session_scratch_max=2MB,"
     "session_table_cache=true,shared_cache=(chunk=10MB,name=,quota=0,"
-    "reserve=0,size=500MB),shared_storage=(archive=true,enabled=false"
-    ",local_retention=5,name=,os_cache_dirty_pct=0,prealloc=true,"
-    "zero_fill=false),shared_storage_manager=(object_target_size=10M,"
-    "threads_max=8,threads_min=1,wait=0),statistics=none,"
-    "statistics_log=(json=false,on_close=false,path=\".\",sources=,"
-    "timestamp=\"%b %d %H:%M:%S\",wait=0),timing_stress_for_test=,"
-    "transaction_sync=(enabled=false,method=fsync),"
-    "use_environment=true,use_environment_priv=false,verbose=[],"
-    "verify_metadata=false,version=(major=0,minor=0),write_through=",
+    "reserve=0,size=500MB),shared_storage=(archive=true,"
+    "auth_timeout=0,auth_token=,enabled=false,local_retention=5,name="
+    ",os_cache_dirty_pct=0,prealloc=true,zero_fill=false),"
+    "shared_storage_manager=(object_target_size=10M,threads_max=8,"
+    "threads_min=1,wait=0),statistics=none,statistics_log=(json=false"
+    ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
+    ",wait=0),timing_stress_for_test=,transaction_sync=(enabled=false"
+    ",method=fsync),use_environment=true,use_environment_priv=false,"
+    "verbose=[],verify_metadata=false,version=(major=0,minor=0),"
+    "write_through=",
     confchk_wiredtiger_open_all, 58},
   {"wiredtiger_open_basecfg",
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
@@ -1240,8 +1243,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\"),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
-    "shared_storage=(archive=true,enabled=false,local_retention=5,"
-    "name=,os_cache_dirty_pct=0,prealloc=true,zero_fill=false),"
+    "shared_storage=(archive=true,auth_timeout=0,auth_token=,"
+    "enabled=false,local_retention=5,name=,os_cache_dirty_pct=0,"
+    "prealloc=true,zero_fill=false),"
     "shared_storage_manager=(object_target_size=10M,threads_max=8,"
     "threads_min=1,wait=0),statistics=none,statistics_log=(json=false"
     ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
@@ -1274,8 +1278,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "path=\".\"),readonly=false,salvage=false,session_max=100,"
     "session_scratch_max=2MB,session_table_cache=true,"
     "shared_cache=(chunk=10MB,name=,quota=0,reserve=0,size=500MB),"
-    "shared_storage=(archive=true,enabled=false,local_retention=5,"
-    "name=,os_cache_dirty_pct=0,prealloc=true,zero_fill=false),"
+    "shared_storage=(archive=true,auth_timeout=0,auth_token=,"
+    "enabled=false,local_retention=5,name=,os_cache_dirty_pct=0,"
+    "prealloc=true,zero_fill=false),"
     "shared_storage_manager=(object_target_size=10M,threads_max=8,"
     "threads_min=1,wait=0),statistics=none,statistics_log=(json=false"
     ",on_close=false,path=\".\",sources=,timestamp=\"%b %d %H:%M:%S\""
