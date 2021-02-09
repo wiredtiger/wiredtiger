@@ -1,4 +1,4 @@
-# WiredTiger Testing
+# WiredTiger Testing Overview
 
 ## Introduction
 The reliability and robustness of WiredTiger is achieved in part by thorough and careful testing.
@@ -11,54 +11,42 @@ The reliability and robustness of WiredTiger is achieved in part by thorough and
 There are many testing areas covered by WiredTiger's test infrasture. Some of the high level areas are:
 
 ### Compatibility testing
-> TODO
 
 ### Correctness testing
-> TODO
 
 - suite (Python / Unit tests)
 - csuite
 
 ### Performance testing
-> TODO
 
 - wtperf
 - workgen
 
 ### Sanitized testing
-> TODO
 
 ### Stress testing
-> TODO
 
 - format
 
 ## Test frameworks
-> TODO
 
 ### CSuite
-> TODO
 
 ### CPPSuite
-> TODO
 
 ### Format
-> TODO
 
 ### Python
-Whitebox testing (Focus on specific features but others are used alongside)
+Whitebox testing. Focus on specific features but others are used alongside.
 
 ### WTPerf
-> TODO
 
 ### Workgen
-> TODO
 
-## Evergreen
+### Evergreen
 See [GitHub repository](https://github.com/evergreen-ci/evergreen/wiki).
 
 ## Coverage
-> TODO
 
 ### Tests
 The [test coverage documentation](../output.md) is generated from tags that are present in each test file (main.c and *.py)
@@ -94,7 +82,5 @@ ignored_file
 ### Code
 WiredTiger code coverage is measured by gcov, >75% of lines are currently covered by the current testing framework.
 
-> TODO
 
 ### Cyclomatic Complexity
-> TODO
