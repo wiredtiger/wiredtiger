@@ -533,7 +533,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * rollback to stable in addition to stable timestamp also depends on transaction ids from the
      * page that are read into cache to decide if an update needs to be rolled back.
      */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle))
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
+      __wt_btree_immediately_durable(session))
         btree->base_write_gen = btree->run_write_gen;
     else
         btree->base_write_gen = ckpt->run_write_gen;
