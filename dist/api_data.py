@@ -729,15 +729,13 @@ connection_runtime_config = [
                 shared storage tier''',
                 min='100K', max='10TB'),
             Config('threads_max', '8', r'''
-                maximum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads started will vary
-                depending on the current eviction load. Each eviction worker
-                thread uses a session from the configured session_max''',
+                maximum number of threads WiredTiger will start to help manage
+                shared storage maintenance. Each worker thread uses a session
+                from the configured session_max''',
                 min=1, max=20),
             Config('threads_min', '1', r'''
-                minimum number of threads WiredTiger will start to help evict
-                pages from cache. The number of threads currently running will
-                vary depending on the current eviction load''',
+                minimum number of threads WiredTiger will start to help manage
+                shared storage maintenance.''',
                 min=1, max=20),
             Config('wait', '0', r'''
                 seconds to wait between each periodic housekeeping of
@@ -935,24 +933,33 @@ connection_reconfigure_statistics_log_configuration = [
         statistics_log_configuration_common)
 ]
 
+shared_storage_configuration_common = [
+    Config('auth_timeout', 0, r'''
+        time in seconds that the authentication token is valid''',
+        min='0', max='100000'),
+    Config('auth_token', '', r'''
+        authentication token string'''),
+    Config('local_retention', '5', r'''
+        minutes to retain data on shared storage on the local tier for
+        faster read access''',
+        min='0', max='120'),
+]
+connection_reconfigure_shared_storage_configuration = [
+    Config('shared_storage', '', r'''
+        enable shared storage. Enabling shared storage may use one session from the
+        configured session_max''',
+        type='category', subconfig=
+        shared_storage_configuration_common)
+]
 wiredtiger_open_shared_storage_configuration = [
     Config('shared_storage', '', r'''
         enable shared storage. Enabling shared storage may use one session from the
         configured session_max''',
         type='category', subconfig=
-        log_configuration_common + [
-        Config('auth_timeout', 0, r'''
-            time in seconds that the authentication token is valid''',
-            min='0', max='100000'),
-        Config('auth_token', '', r'''
-            authentication token string'''),
+        shared_storage_configuration_common + [
         Config('enabled', 'false', r'''
             enable shared storage subsystem''',
             type='boolean'),
-        Config('local_retention', '5', r'''
-            minutes to retain data on shared storage on the local tier for
-            faster read access''',
-            min='0', max='120'),
         Config('name', 'none', r'''
             Permitted values are \c "none"
             or custom storage name created with
@@ -1742,6 +1749,7 @@ methods = {
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_log_configuration +\
+    connection_reconfigure_shared_storage_configuration +\
     connection_reconfigure_statistics_log_configuration +\
     connection_runtime_config
 ),

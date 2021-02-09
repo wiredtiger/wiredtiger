@@ -116,6 +116,9 @@ __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
     bool force;
 
     WT_STAT_CONN_INCR(session, share_storage);
+    if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_STORAGE))
+        WT_RET_MSG(
+          session, EINVAL, "Cannot call share_storage when storage manager thread is configured");
 
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_share_storage);
     cfg[1] = (char *)config;
@@ -128,11 +131,46 @@ __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
- * __wt_storage_config --
+ * __storage_manager_config --
+ *     Parse and setup the storage manager options.
+ */
+static int
+__storage_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
+{
+    WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
+    WT_STORAGE_MANAGER *mgr;
+
+    conn = S2C(session);
+    mgr = &conn->storage_manager;
+
+    /* Only start the server if wait time is non-zero */
+    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.wait", &cval));
+    mgr->wait_usecs = (uint64_t)cval.val * WT_MILLION;
+    if (runp != NULL)
+        *runp = mgr->wait_usecs != 0;
+
+    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_max", &cval));
+    if (cval.val > WT_STORAGE_MAX_WORKERS)
+        WT_RET_MSG(session, EINVAL, "Maximum storage workers of %" PRIu32 " larger than %d",
+          (uint32_t)cval.val, WT_STORAGE_MAX_WORKERS);
+    mgr->workers_max = (uint32_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_min", &cval));
+    if (cval.val < WT_STORAGE_MIN_WORKERS)
+        WT_RET_MSG(session, EINVAL, "Minimum storage workers of %" PRIu32 " less than %d",
+          (uint32_t)cval.val, WT_STORAGE_MIN_WORKERS);
+    mgr->workers_min = (uint32_t)cval.val;
+    WT_ASSERT(session, mgr->workers_min <= mgr->workers_max);
+    return (0);
+}
+
+/*
+ * __storage_config --
  *     Parse and setup the storage server options.
  */
-int
-__wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
+static int
+__storage_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 {
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
@@ -172,45 +210,12 @@ __wt_storage_config(WT_SESSION_IMPL *session, const char **cfg)
     conn->storage_retain_secs = (uint64_t)cval.val * WT_MINUTE;
     WT_STAT_CONN_SET(session, storage_retention, conn->storage_retain_secs);
 
-    return (__wt_storage_manager_config(session, cfg));
-}
-
-/*
- * __wt_storage_manager_config --
- *     Parse and setup the storage manager options.
- */
-int
-__wt_storage_manager_config(WT_SESSION_IMPL *session, const char **cfg)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    WT_STORAGE_MANAGER *mgr;
-
-    conn = S2C(session);
-    mgr = &conn->storage_manager;
-
-    /* Only start the server if wait time is non-zero */
-    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.wait", &cval));
-    mgr->wait_usecs = (uint64_t)cval.val * WT_MILLION;
-
-    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_max", &cval));
-    if (cval.val > WT_STORAGE_MAX_WORKERS)
-        WT_RET_MSG(session, EINVAL, "Maximum storage workers of %" PRIu32 " larger than %d",
-          (uint32_t)cval.val, WT_STORAGE_MAX_WORKERS);
-    mgr->workers_max = (uint32_t)cval.val;
-
-    WT_RET(__wt_config_gets(session, cfg, "shared_storage_manager.threads_min", &cval));
-    if (cval.val < WT_STORAGE_MIN_WORKERS)
-        WT_RET_MSG(session, EINVAL, "Minimum storage workers of %" PRIu32 " less than %d",
-          (uint32_t)cval.val, WT_STORAGE_MIN_WORKERS);
-    mgr->workers_min = (uint32_t)cval.val;
-    WT_ASSERT(session, mgr->workers_min <= mgr->workers_max);
-    return (0);
+    return (__storage_manager_config(session, cfg, runp));
 }
 
 /*
  * __storage_server_run_chk --
- *     Check to decide if the statistics log server should continue running.
+ *     Check to decide if the shared storage server should continue running.
  */
 static bool
 __storage_server_run_chk(WT_SESSION_IMPL *session)
@@ -224,7 +229,7 @@ __storage_server_run_chk(WT_SESSION_IMPL *session)
 
 /*
  * __storage_server --
- *     The statistics server thread.
+ *     The shared storage server thread.
  */
 static WT_THREAD_RET
 __storage_server(void *arg)
@@ -276,21 +281,24 @@ err:
 
 /*
  * __wt_storage_create --
- *     Start the statistics server thread.
+ *     Start the storage server thread.
  */
 int
 __wt_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    bool start;
 
     conn = S2C(session);
 
-    /* Set first, the thread might run before we finish up. */
-    WT_RET(__wt_storage_config(session, cfg));
-    if (!F_ISSET(conn, WT_CONN_STORAGE_ENABLED))
+    /* Destroy any existing thread since we could be a reconfigure. */
+    WT_RET(__wt_storage_destroy(session));
+    WT_RET(__storage_config(session, cfg, &start));
+    if (!F_ISSET(conn, WT_CONN_STORAGE_ENABLED) || !start)
         return (0);
 
+    /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_STORAGE);
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, &conn->storage_session));

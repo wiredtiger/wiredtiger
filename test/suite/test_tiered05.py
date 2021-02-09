@@ -28,12 +28,11 @@
 
 import wiredtiger, wtscenario, wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
 
-# test_tiered04.py
+# test_tiered05.py
 #    Basic shared storage API test.
-class test_tiered04(wttest.WiredTigerTestCase):
-    uri = "table:test_tiered04"
+class test_tiered05(wttest.WiredTigerTestCase):
+    uri = "table:test_tiered05"
 
     auth_timeout = 12
     auth_token = "test_token"
@@ -42,6 +41,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
     def conn_config(self):
         return \
           'statistics=(fast),' + \
+          'shared_storage_manager=(objet_target_size=20M,wait=10),' + \
           'shared_storage=(enabled,local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
           'auth_timeout=%d,' % self.auth_timeout + \
@@ -56,21 +56,9 @@ class test_tiered04(wttest.WiredTigerTestCase):
     # Test calling the share_storage API.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
-        # The retention is in minutes. The stat is in seconds.
-        retain = self.get_stat(stat.conn.storage_retention)
-        self.assertEqual(retain, self.retention * 60)
-        self.session.share_storage(None)
-        self.session.share_storage('force=true')
-        calls = self.get_stat(stat.conn.share_storage)
-        self.assertEqual(calls, 2)
-        new = self.retention * 2
-        config = 'shared_storage=(local_retention=%d)' % new
-        self.conn.reconfigure(config)
-        self.session.share_storage(None)
-        retain = self.get_stat(stat.conn.storage_retention)
-        calls = self.get_stat(stat.conn.share_storage)
-        self.assertEqual(retain, new * 60)
-        self.assertEqual(calls, 3)
+        msg = "/storage manager thread is configured/"
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.share_storage(None), 0), msg)
 
 if __name__ == '__main__':
     wttest.run()
