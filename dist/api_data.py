@@ -593,7 +593,7 @@ connection_runtime_config = [
         content in cache to this level. It is a percentage of the cache size if
         the value is within the range of 0 to 100 or an absolute size when
         greater than 100. The value is not allowed to exceed the \c cache_size.
-        Ignored if set to zero or \c in_memory is \c true''',
+        Ignored if set to zero.''',
         min=0, max='10TB'),
     Config('eviction_dirty_target', '5', r'''
         perform eviction in worker threads when the cache contains at least
