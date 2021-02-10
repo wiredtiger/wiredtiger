@@ -859,10 +859,10 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
 
     ##########################################
-    # Shared storage statistics
+    # Tiered storage statistics
     ##########################################
-    StorageStat('share_storage', 'share_storage operation calls'),
-    StorageStat('storage_retention', 'shared storage local retention time (secs)', 'no_clear,no_scale,size'),
+    StorageStat('tier_storage', 'tier_storage operation calls'),
+    StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
 
     ##########################################
     # Transaction statistics

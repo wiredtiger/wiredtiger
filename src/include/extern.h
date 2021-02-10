@@ -1371,8 +1371,6 @@ extern int __wt_session_reset_cursors(WT_SESSION_IMPL *session, bool free_buffer
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_set_return_func(WT_SESSION_IMPL *session, const char *func, int line, int err)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_share_storage(WT_SESSION_IMPL *session, const char *config)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_split_multi(WT_SESSION_IMPL *session, WT_REF *ref, int closing)
@@ -1398,10 +1396,6 @@ extern int __wt_stat_session_desc(WT_CURSOR_STAT *cst, int slot, const char **p)
 extern int __wt_statlog_create(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_storage_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1449,6 +1443,8 @@ extern int __wt_thread_group_destroy(WT_SESSION_IMPL *session, WT_THREAD_GROUP *
 extern int __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group,
   uint32_t new_min, uint32_t new_max, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tier_storage(WT_SESSION_IMPL *session, const char *config)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive,
@@ -1459,6 +1455,10 @@ extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_rename(WT_SESSION_IMPL *session, const char *olduri, const char *newuri,
   const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_worker(WT_SESSION_IMPL *session, const char *uri,

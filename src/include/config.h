@@ -87,8 +87,8 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_SESSION_reset_snapshot 33
 #define WT_CONFIG_ENTRY_WT_SESSION_rollback_transaction 34
 #define WT_CONFIG_ENTRY_WT_SESSION_salvage 35
-#define WT_CONFIG_ENTRY_WT_SESSION_share_storage 36
-#define WT_CONFIG_ENTRY_WT_SESSION_strerror 37
+#define WT_CONFIG_ENTRY_WT_SESSION_strerror 36
+#define WT_CONFIG_ENTRY_WT_SESSION_tier_storage 37
 #define WT_CONFIG_ENTRY_WT_SESSION_timestamp_transaction 38
 #define WT_CONFIG_ENTRY_WT_SESSION_transaction_sync 39
 #define WT_CONFIG_ENTRY_WT_SESSION_truncate 40

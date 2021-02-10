@@ -205,8 +205,8 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop durable timestamp",
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
-  "session: share_storage operation calls",
-  "session: shared storage local retention time (secs)",
+  "session: tier_storage operation calls",
+  "session: tiered storage local retention time (secs)",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable hs records with stop timestamps older than newer records",
   "transaction: rollback to stable keys removed",
@@ -455,8 +455,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_durable_stop_ts = 0;
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
-    stats->share_storage = 0;
-    /* not clearing storage_retention */
+    stats->tier_storage = 0;
+    /* not clearing tiered_retention */
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_keys_removed = 0;
@@ -692,8 +692,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += from->rec_time_window_durable_stop_ts;
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
-    to->share_storage += from->share_storage;
-    to->storage_retention += from->storage_retention;
+    to->tier_storage += from->tier_storage;
+    to->tiered_retention += from->tiered_retention;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
     to->txn_rts_hs_stop_older_than_newer_start += from->txn_rts_hs_stop_older_than_newer_start;
     to->txn_rts_keys_removed += from->txn_rts_keys_removed;
@@ -934,8 +934,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
-    to->share_storage += WT_STAT_READ(from, share_storage);
-    to->storage_retention += WT_STAT_READ(from, storage_retention);
+    to->tier_storage += WT_STAT_READ(from, tier_storage);
+    to->tiered_retention += WT_STAT_READ(from, tiered_retention);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);
@@ -1428,8 +1428,8 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop durable timestamp",
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
-  "session: share_storage operation calls",
-  "session: shared storage local retention time (secs)",
+  "session: tier_storage operation calls",
+  "session: tiered storage local retention time (secs)",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable hs records with stop timestamps older than newer records",
   "transaction: rollback to stable keys removed",
@@ -1946,8 +1946,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_durable_stop_ts = 0;
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
-    stats->share_storage = 0;
-    /* not clearing storage_retention */
+    stats->tier_storage = 0;
+    /* not clearing tiered_retention */
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts_hs_stop_older_than_newer_start = 0;
     stats->txn_rts_keys_removed = 0;
@@ -2474,8 +2474,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
-    to->share_storage += WT_STAT_READ(from, share_storage);
-    to->storage_retention += WT_STAT_READ(from, storage_retention);
+    to->tier_storage += WT_STAT_READ(from, tier_storage);
+    to->tiered_retention += WT_STAT_READ(from, tiered_retention);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts_hs_stop_older_than_newer_start +=
       WT_STAT_READ(from, txn_rts_hs_stop_older_than_newer_start);

@@ -721,25 +721,25 @@ connection_runtime_config = [
             this will update the value if one is already set''',
             min='1MB', max='10TB')
         ]),
-    Config('shared_storage_manager', '', r'''
-        shared storage manager configuration options''',
+    Config('tiered_manager', '', r'''
+        tiered storage manager configuration options''',
         type='category', subconfig=[
             Config('object_target_size', '10M', r'''
                 the approximate size of objects before creating them on the
-                shared storage tier''',
+                tiered storage tier''',
                 min='100K', max='10TB'),
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help manage
-                shared storage maintenance. Each worker thread uses a session
+                tiered storage maintenance. Each worker thread uses a session
                 from the configured session_max''',
                 min=1, max=20),
             Config('threads_min', '1', r'''
                 minimum number of threads WiredTiger will start to help manage
-                shared storage maintenance.''',
+                tiered storage maintenance.''',
                 min=1, max=20),
             Config('wait', '0', r'''
                 seconds to wait between each periodic housekeeping of
-                shared storage. Setting this value above 0 configures periodic
+                tiered storage. Setting this value above 0 configures periodic
                 management inside WiredTiger''',
                 min='0', max='100000'),
             ]),
@@ -933,37 +933,37 @@ connection_reconfigure_statistics_log_configuration = [
         statistics_log_configuration_common)
 ]
 
-shared_storage_configuration_common = [
+tiered_storage_configuration_common = [
     Config('auth_timeout', 0, r'''
         time in seconds that the authentication token is valid''',
         min='0', max='100000'),
     Config('auth_token', '', r'''
         authentication token string'''),
     Config('local_retention', '5', r'''
-        minutes to retain data on shared storage on the local tier for
+        minutes to retain data on tiered storage on the local tier for
         faster read access''',
         min='0', max='120'),
 ]
-connection_reconfigure_shared_storage_configuration = [
-    Config('shared_storage', '', r'''
-        enable shared storage. Enabling shared storage may use one session from the
+connection_reconfigure_tiered_storage_configuration = [
+    Config('tiered_storage', '', r'''
+        enable tiered storage. Enabling tiered storage may use one session from the
         configured session_max''',
         type='category', subconfig=
-        shared_storage_configuration_common)
+        tiered_storage_configuration_common)
 ]
-wiredtiger_open_shared_storage_configuration = [
-    Config('shared_storage', '', r'''
-        enable shared storage. Enabling shared storage may use one session from the
+wiredtiger_open_tiered_storage_configuration = [
+    Config('tiered_storage', '', r'''
+        enable tiered storage. Enabling tiered storage may use one session from the
         configured session_max''',
         type='category', subconfig=
-        shared_storage_configuration_common + [
+        tiered_storage_configuration_common + [
         Config('enabled', 'false', r'''
-            enable shared storage subsystem''',
+            enable tiered storage subsystem''',
             type='boolean'),
         Config('name', 'none', r'''
             Permitted values are \c "none"
             or custom storage name created with
-            WT_CONNECTION::add_shared_storage'''),
+            WT_CONNECTION::add_tiered_storage'''),
     ]),
 ]
 
@@ -1007,7 +1007,7 @@ wiredtiger_open_common =\
     connection_runtime_config +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
-    wiredtiger_open_shared_storage_configuration +\
+    wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
@@ -1507,7 +1507,7 @@ methods = {
         type='boolean'),
 ]),
 
-'WT_SESSION.share_storage' : Method([
+'WT_SESSION.tier_storage' : Method([
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),
@@ -1749,8 +1749,8 @@ methods = {
 'WT_CONNECTION.reconfigure' : Method(
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_log_configuration +\
-    connection_reconfigure_shared_storage_configuration +\
     connection_reconfigure_statistics_log_configuration +\
+    connection_reconfigure_tiered_storage_configuration +\
     connection_runtime_config
 ),
 'WT_CONNECTION.set_file_system' : Method([]),

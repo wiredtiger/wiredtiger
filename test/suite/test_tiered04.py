@@ -31,7 +31,7 @@ from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
 # test_tiered04.py
-#    Basic shared storage API test.
+#    Basic tiered storage API test.
 class test_tiered04(wttest.WiredTigerTestCase):
     uri = "table:test_tiered04"
 
@@ -42,7 +42,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
     def conn_config(self):
         return \
           'statistics=(fast),' + \
-          'shared_storage=(enabled,local_retention=%d,' % self.retention + \
+          'tiered_storage=(enabled,local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
           'auth_timeout=%d,' % self.auth_timeout + \
           'auth_token=%s)' % self.auth_token
@@ -53,22 +53,22 @@ class test_tiered04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    # Test calling the share_storage API.
+    # Test calling the tier_storage API.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
         # The retention is in minutes. The stat is in seconds.
-        retain = self.get_stat(stat.conn.storage_retention)
+        retain = self.get_stat(stat.conn.tiered_retention)
         self.assertEqual(retain, self.retention * 60)
-        self.session.share_storage(None)
-        self.session.share_storage('force=true')
-        calls = self.get_stat(stat.conn.share_storage)
+        self.session.tier_storage(None)
+        self.session.tier_storage('force=true')
+        calls = self.get_stat(stat.conn.tier_storage)
         self.assertEqual(calls, 2)
         new = self.retention * 2
-        config = 'shared_storage=(local_retention=%d)' % new
+        config = 'tiered_storage=(local_retention=%d)' % new
         self.conn.reconfigure(config)
-        self.session.share_storage(None)
-        retain = self.get_stat(stat.conn.storage_retention)
-        calls = self.get_stat(stat.conn.share_storage)
+        self.session.tier_storage(None)
+        retain = self.get_stat(stat.conn.tiered_retention)
+        calls = self.get_stat(stat.conn.tier_storage)
         self.assertEqual(retain, new * 60)
         self.assertEqual(calls, 3)
 

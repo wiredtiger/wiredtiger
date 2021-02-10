@@ -30,7 +30,7 @@ import wiredtiger, wtscenario, wttest
 from wiredtiger import stat
 
 # test_tiered05.py
-#    Basic shared storage API test.
+#    Basic tiered storage API test.
 class test_tiered05(wttest.WiredTigerTestCase):
     uri = "table:test_tiered05"
 
@@ -41,8 +41,8 @@ class test_tiered05(wttest.WiredTigerTestCase):
     def conn_config(self):
         return \
           'statistics=(fast),' + \
-          'shared_storage_manager=(object_target_size=20M,wait=10),' + \
-          'shared_storage=(enabled,local_retention=%d,' % self.retention + \
+          'tiered_manager=(object_target_size=20M,wait=10),' + \
+          'tiered_storage=(enabled,local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
           'auth_timeout=%d,' % self.auth_timeout + \
           'auth_token=%s)' % self.auth_token
@@ -53,12 +53,12 @@ class test_tiered05(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    # Test calling the share_storage API.
+    # Test calling the tier_storage API.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
         msg = "/storage manager thread is configured/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.share_storage(None), 0), msg)
+            lambda:self.assertEquals(self.session.tier_storage(None), 0), msg)
 
 if __name__ == '__main__':
     wttest.run()

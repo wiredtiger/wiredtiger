@@ -365,24 +365,24 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
-    WT_SESSION_IMPL *storage_session; /* Storage thread session */
-    wt_thread_t storage_tid;          /* Storage thread */
-    bool storage_tid_set;             /* Storage thread set */
-    WT_CONDVAR *storage_cond;         /* Storage wait mutex */
-    uint64_t storage_retain_secs;     /* Storage period */
-    uint64_t storage_auth_timeout;    /* Storage authentication timeout */
-    const char *storage_auth_token;   /* Storage authentication cookie */
+    WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
+    wt_thread_t tiered_tid;          /* Tiered thread */
+    bool tiered_tid_set;             /* Tiered thread set */
+    WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
+    uint64_t tiered_retain_secs;     /* Tiered period */
+    uint64_t tiered_auth_timeout;    /* Tiered authentication timeout */
+    const char *tiered_auth_token;   /* Tiered authentication cookie */
 
-    WT_STORAGE_MANAGER storage_manager; /* Storage worker thread information */
-    bool storage_server_running;        /* Internal storage server operating */
+    WT_TIERED_MANAGER tiered_manager; /* Tiered worker thread information */
+    bool tiered_server_running;       /* Internal tiered server operating */
 
-    uint32_t storage_threads_max; /* Max storage threads */
-    uint32_t storage_threads_min; /* Min storage threads */
+    uint32_t tiered_threads_max; /* Max tiered threads */
+    uint32_t tiered_threads_min; /* Min tiered threads */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CONN_STORAGE_ENABLED 0x1u /* Shared storage is configured */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t storage_flags;          /* Global storage configuration */
+#define WT_CONN_TIERED_ENABLED 0x1u /* Shared tiered is configured */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t tiered_flags;          /* Global tiered configuration */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
@@ -576,8 +576,8 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_LOG 0x04u
 #define WT_CONN_SERVER_LSM 0x08u
 #define WT_CONN_SERVER_STATISTICS 0x10u
-#define WT_CONN_SERVER_STORAGE 0x20u
-#define WT_CONN_SERVER_SWEEP 0x40u
+#define WT_CONN_SERVER_SWEEP 0x20u
+#define WT_CONN_SERVER_TIERED 0x40u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t server_flags;
 
