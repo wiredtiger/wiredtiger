@@ -455,14 +455,15 @@ __rollback_abort_col_ondisk_kv(
 
     __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
 
-
-    // printf("hs update aborted with start durable/commit timestamp: %s, %s, stop durable/commit "
-    //     "timestamp: %s, %s and stable timestamp: %s",
-    //     __wt_timestamp_to_string(unpack->tw.durable_start_ts, ts_string[0]),
-    //     __wt_timestamp_to_string(unpack->tw.start_ts, ts_string[1]),
-    //     __wt_timestamp_to_string(unpack->tw.durable_stop_ts, ts_string[2]),
-    //     __wt_timestamp_to_string(unpack->tw.stop_ts, ts_string[3]),
-    //     __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
+    printf("\n\n\n==============================\n");
+    printf("start durable/commit timestamp: %s, %s, stop durable/commit "
+        "timestamp: %s, %s and stable timestamp: %s",
+        __wt_timestamp_to_string(unpack.tw.durable_start_ts, ts_string[0]),
+        __wt_timestamp_to_string(unpack.tw.start_ts, ts_string[1]),
+        __wt_timestamp_to_string(unpack.tw.durable_stop_ts, ts_string[2]),
+        __wt_timestamp_to_string(unpack.tw.stop_ts, ts_string[3]),
+        __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
+    printf("\n==============================\n\n\n");
 
 
     return (0);
