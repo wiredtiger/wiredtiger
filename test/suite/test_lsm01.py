@@ -77,7 +77,7 @@ class test_lsm01(wttest.WiredTigerTestCase):
         args += ')' # Close the LSM configuration option group
         self.verbose(3,
             'Test LSM with config: ' + args + ' count: ' + str(self.nrecs))
-        SimpleDataSet(self, self.uri, self.nrecs).populate()
+        SimpleDataSet(self, self.uri, self.nrecs, config=args).populate()
 
         # TODO: Adding an explicit drop here can cause deadlocks, if a merge
         # is still happening. See issue #349.

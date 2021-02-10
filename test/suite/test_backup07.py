@@ -29,21 +29,20 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup07.py
-# Test cursor backup with target URIs, logging and create during backup
-
-class test_backup07(wttest.WiredTigerTestCase, suite_subprocess):
+# Test cursor backup with target URIs, logging and create during backup.
+class test_backup07(backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
     newuri="table:newtable"
 
     pfx = 'test_backup'
     scenarios = make_scenarios([
-        ('table', dict(uri='table:test',dsize=100,nops=100,nthreads=1)),
+        ('table', dict(uri='table:test',dsize=100,nthreads=1))
     ])
 
     # Create a large cache, otherwise this test runs quite slowly.
@@ -59,50 +58,26 @@ class test_backup07(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Insert small amounts of data at a time stopping just after we
         # cross into log file 2.
-        loop = 0
-        c = self.session.open_cursor(self.uri)
         while not os.path.exists(log2):
-            for i in range(0, self.nops):
-                num = i + (loop * self.nops)
-                key = 'key' + str(num)
-                val = 'value' + str(num)
-                c[key] = val
-            loop += 1
+            self.add_data(self.uri, 'key', 'value')
 
         # Test a potential bug in full backups and creates.
         # We allow creates during backup because the file doesn't exist
         # when the backup metadata is created on cursor open and the newly
         # created file is not in the cursor list.
 
-        # Open up the backup cursor, create and add data to a new table
-        # and then copy the files.
+        # Create and add data to a new table and then copy the files with a full backup.
         os.mkdir(self.dir)
-        bkup_c = self.session.open_cursor('backup:', None, None)
 
         # Now create and populate the new table. Make sure the log records
         # are on disk and will be copied to the backup.
         self.session.create(self.newuri, "key_format=S,value_format=S")
-        c = self.session.open_cursor(self.newuri)
-        for i in range(0, self.nops):
-            key = 'key' + str(i)
-            val = 'value' + str(i)
-            c[key] = val
-        c.close()
+        self.add_data(self.newuri, 'key', 'value')
         self.session.log_flush('sync=on')
 
-        # Now copy the files returned by the backup cursor. This should not
-        # include the newly created table.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            self.assertNotEqual(newfile, self.newuri)
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
+        # Now copy the files using full backup. This should not include the newly
+        # created table.
+        self.take_full_backup(self.dir)
 
         # After the full backup, open and recover the backup database.
         # Make sure we properly recover even though the log file will have

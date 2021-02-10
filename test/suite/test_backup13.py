@@ -29,18 +29,16 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup13.py
 # Test cursor backup with a block-based incremental cursor and force_stop.
-class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup13(backup_base):
     conn_config='cache_size=1G,log=(enabled,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
-    mult=0
-    nops=1000
     uri="table:test"
 
     scenarios = make_scenarios([
@@ -55,124 +53,60 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
     bigkey = 'Key' * 100
     bigval = 'Value' * 100
 
+    nops = 1000
+
     def simulate_crash_restart(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
+        # with the connection still open, copy files to new directory.
         shutil.rmtree(newdir, ignore_errors=True)
         os.mkdir(newdir)
         for fname in os.listdir(olddir):
             fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
+            # Skip lock file on Windows since it is locked.
             if os.path.isfile(fullname) and \
                 "WiredTiger.lock" not in fullname and \
                 "Tmplog" not in fullname and \
                 "Preplog" not in fullname:
                 shutil.copy(fullname, newdir)
-        # close the original connection and open to new directory
+        # close the original connection and open to new directory.
         self.close_conn()
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)
 
-    def add_data(self, uri):
-        c = self.session.open_cursor(uri)
-        for i in range(0, self.nops):
-            num = i + (self.mult * self.nops)
-            key = self.bigkey + str(num)
-            val = self.bigval + str(num)
-            c.set_key(key)
-            c.set_value(val)
-            # read committed and read uncommitted transactions are readonly, any write operations with
-            # these isolation levels should throw an error.
-            if self.sess_cfg == 'isolation=read-committed' or self.sess_cfg == 'isolation=read-uncommitted':
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda: c.insert(), "/not supported in read-committed or read-uncommitted transactions/")
-            else:
-                c.insert()
-        self.session.checkpoint()
-        c.close()
-        # Increase the multiplier so that later calls insert unique items.
-        self.mult += 1
-
     def session_config(self):
         return self.sess_cfg
 
+    def add_data_and_check(self):
+        if self.sess_cfg == 'isolation=read-committed' or self.sess_cfg == 'isolation=read-uncommitted':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.add_data(self.uri, self.bigkey, self.bigval, True),
+                "/not supported in read-committed or read-uncommitted transactions/")
+        else:
+            self.add_data(self.uri, self.bigkey, self.bigval, True)
+
     def test_backup13(self):
         self.session.create(self.uri, "key_format=S,value_format=S")
-        self.add_data(self.uri)
+        self.add_data_and_check()
+
+        os.mkdir(self.dir)
+
+        # Add more data while the backup cursor is open.
+        self.add_data_and_check()
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned. This is a full backup
         # primary cursor with incremental configured.
-        os.mkdir(self.dir)
         config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
 
-        # Add more data while the backup cursor is open.
-        self.add_data(self.uri)
-
-        # Now copy the files returned by the backup cursor.
-        all_files = []
-
-        # We cannot use 'for newfile in bkup_c:' usage because backup cursors don't have
-        # values and adding in get_values returns ENOTSUP and causes the usage to fail.
-        # If that changes then this, and the use of the duplicate below can change.
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-            all_files.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        # Now make a full backup and track the files.
+        all_files = self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
-
         # Add more data.
-        self.add_data(self.uri)
+        self.add_data_and_check()
 
-        # Now do an incremental backup.
-        config = 'incremental=(src_id="ID1",this_id="ID2")'
-        bkup_c = self.session.open_cursor('backup:', None, config)
-        self.pr('Open backup cursor ID1')
-        bkup_files = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            config = 'incremental=(file=' + newfile + ')'
-            self.pr('Open incremental cursor with ' + config)
-            dup_cnt = 0
-            dupc = self.session.open_cursor(None, bkup_c, config)
-            bkup_files.append(newfile)
-            all_files.append(newfile)
-            while True:
-                ret = dupc.next()
-                if ret != 0:
-                    break
-                incrlist = dupc.get_keys()
-                offset = incrlist[0]
-                size = incrlist[1]
-                curtype = incrlist[2]
-                self.assertTrue(curtype == wiredtiger.WT_BACKUP_FILE or curtype == wiredtiger.WT_BACKUP_RANGE)
-                if curtype == wiredtiger.WT_BACKUP_FILE:
-                    self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                    shutil.copy(newfile, self.dir)
-                else:
-                    self.pr('Range copy file ' + newfile + ' offset ' + str(offset) + ' len ' + str(size))
-                    rfp = open(newfile, "r+b")
-                    wfp = open(self.dir + '/' + newfile, "w+b")
-                    rfp.seek(offset, 0)
-                    wfp.seek(offset, 0)
-                    buf = rfp.read(size)
-                    wfp.write(buf)
-                    rfp.close()
-                    wfp.close()
-                dup_cnt += 1
-            dupc.close()
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
-        bkup_c.close()
+        # Now do an incremental backup with id 2.
+        (bkup_files, _) = self.take_incr_backup(self.dir, 2)
 
         all_set = set(all_files)
         bkup_set = set(bkup_files)
@@ -191,7 +125,6 @@ class test_backup13(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Make sure after a force stop we cannot access old backup info.
         config = 'incremental=(src_id="ID1",this_id="ID3")'
-
         self.assertRaises(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor('backup:', None, config))
 

@@ -206,6 +206,8 @@ src/support/scratch.c
 src/support/stat.c
 src/support/thread_group.c
 src/support/timestamp.c
+src/tiered/tiered_cursor.c
+src/tiered/tiered_schema.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
 src/txn/txn_ext.c
@@ -213,3 +215,4 @@ src/txn/txn_log.c
 src/txn/txn_recover.c
 src/txn/txn_rollback_to_stable.c
 src/txn/txn_timestamp.c
+test/cppsuite/test_config.c

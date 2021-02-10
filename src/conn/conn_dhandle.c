@@ -99,6 +99,9 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
         break;
+    case WT_DHANDLE_TYPE_TIERED:
+        WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, tiered_meta), &dhandle->cfg[0]));
+        break;
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
@@ -127,6 +130,9 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
     case WT_DHANDLE_TYPE_TABLE:
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
         break;
+    case WT_DHANDLE_TYPE_TIERED:
+        ret = __wt_tiered_close(session, (WT_TIERED *)dhandle);
+        break;
     }
 
     __wt_rwlock_destroy(session, &dhandle->rwlock);
@@ -150,6 +156,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TABLE *table;
+    WT_TIERED *tiered;
     uint64_t bucket;
 
     /*
@@ -165,6 +172,10 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         WT_RET(__wt_calloc_one(session, &table));
         dhandle = (WT_DATA_HANDLE *)table;
         dhandle->type = WT_DHANDLE_TYPE_TABLE;
+    } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
+        WT_RET(__wt_calloc_one(session, &tiered));
+        dhandle = (WT_DATA_HANDLE *)tiered;
+        dhandle->type = WT_DHANDLE_TYPE_TIERED;
     } else
         WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
@@ -364,6 +375,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
     case WT_DHANDLE_TYPE_TABLE:
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
+    case WT_DHANDLE_TYPE_TIERED:
+        WT_TRET(__wt_tiered_close(session, (WT_TIERED *)dhandle));
+        break;
     }
 
     /*
@@ -519,6 +533,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_schema_open_table(session));
         break;
+    case WT_DHANDLE_TYPE_TIERED:
+        WT_ERR(__wt_tiered_open(session, cfg));
+        break;
     }
 
     /*
@@ -647,6 +664,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             conn->ckpt_apply = conn->ckpt_skip = 0;
             conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
             time_start = __wt_clock(session);
+            F_SET(conn, WT_CONN_CKPT_GATHER);
         }
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
@@ -662,6 +680,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
         }
 done:
         if (WT_SESSION_IS_CHECKPOINT(session)) {
+            F_CLR(conn, WT_CONN_CKPT_GATHER);
             time_stop = __wt_clock(session);
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
@@ -675,6 +694,7 @@ done:
     }
 
 err:
+    F_CLR(conn, WT_CONN_CKPT_GATHER);
     WT_DHANDLE_RELEASE(dhandle);
     return (ret);
 }
