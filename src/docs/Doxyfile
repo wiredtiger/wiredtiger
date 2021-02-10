@@ -1590,6 +1590,7 @@ PREDEFINED             = DOXYGEN \
                          __wt_lsn:=WT_LSN \
                          __wt_modify:=WT_MODIFY \
                          __wt_session:=WT_SESSION \
+                         __wt_shared_storage:=WT_SHARED_STORAGE \
                          __wt_txn_notify:=WT_TXN_NOTIFY \
                          WT_HANDLE_CLOSED(x):=x \
                          WT_HANDLE_NULLABLE(x):=x
