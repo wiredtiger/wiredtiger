@@ -35,7 +35,7 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     return (0);
 }
 
-
+#if 0
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
 {
@@ -60,6 +60,30 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
 
     return false;
 }
+#endif
+
+static inline bool
+__blkcache_high_churn(WT_SESSION_IMPL *session)
+{
+    static uint64_t counter = 0;
+    WT_CONNECTION_IMPL *conn;
+    WT_BLKCACHE *blkcache;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (counter++ % 1000000 == 0)
+	printf("inserts=%ld, removals=%ld, ratio = %.2f, thrshold = %.2f\n",
+	       blkcache->inserts, blkcache->removals,
+	       (double)blkcache->removals/(double)blkcache->inserts,
+	       blkcache->overhead_pct);
+
+    if ((double)blkcache->removals/(double)blkcache->inserts > blkcache->overhead_pct)
+	return true;
+
+    return false;
+}
+
 
 /*
  * Every so often, compute the total size of the files open
@@ -155,7 +179,9 @@ __wt_blkcache_get_or_check(
         return -1;
 
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
+#if 0
     blkcache->lookups++;
+#endif
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -260,8 +286,12 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
 	return WT_BLKCACHE_BYPASS;
     }
 
-    /* Bypass on high overhead */
-    if (__blkcache_high_overhead(session) == true) {
+#if 0
+    /* Bypass on high overhead
+       if (__blkcache_high_overhead(session) == true) {*/
+#endif
+    /* Bypass on high churn */
+    if (__blkcache_high_churn(session) == true) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
 	return WT_BLKCACHE_BYPASS;
     }
