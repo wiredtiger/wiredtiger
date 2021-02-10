@@ -372,7 +372,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
-              "timestamp: %s, stable timestamp: %s, txnid: %" PRIu64 ", and type: %" PRIu8,
+              "timestamp: %s, stable timestamp: %s, txnid: %" PRIu64 " and type: %" PRIu8,
               __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
               __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
@@ -385,7 +385,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "history store update aborted with start timestamp: %s, durable timestamp: %s, stop "
           "timestamp: %s, stable timestamp: %s, start txnid: %" PRIu64 ", stop txnid: %" PRIu64
-          "and type: %" PRIu8,
+          " and type: %" PRIu8,
           __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
           __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
           __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
@@ -432,7 +432,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
             upd->durable_ts = cbt->upd_value->tw.durable_start_ts;
             upd->start_ts = cbt->upd_value->tw.start_ts;
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "update restored from history store (txnid: %" PRIu64
+              "update restored from history store txnid: %" PRIu64
               ", start_ts: %s and durable_ts: %s",
               upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
               __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
@@ -465,7 +465,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
                 tombstone->durable_ts = cbt->upd_value->tw.durable_stop_ts;
                 tombstone->start_ts = cbt->upd_value->tw.stop_ts;
                 __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-                  "tombstone restored from history store (txnid: %" PRIu64
+                  "tombstone restored from history store txnid: %" PRIu64
                   ", start_ts: %s, durable_ts: %s",
                   tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
                   __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
@@ -1311,7 +1311,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "Recovered checkpoint snapshot min:  %" PRIu64 ", snapshot max: %" PRIu64
+          "recovered checkpoint snapshot min:  %" PRIu64 ", snapshot max: %" PRIu64
           ", snapshot count: %" PRIu32,
           S2C(session)->recovery_ckpt_snap_min, S2C(session)->recovery_ckpt_snap_max,
           S2C(session)->recovery_ckpt_snapshot_count);
@@ -1381,7 +1381,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
           (addr_size == 0 ||
             (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "Skip rollback to stable on file %s because %s", uri,
+              "skip rollback to stable on file %s because %s", uri,
               addr_size == 0 ? "its checkpoint address length is 0" :
                                "it has timestamped updates and the stable timestamp is 0");
             continue;
@@ -1399,7 +1399,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         if ((ret == ENOENT) ||
           (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "Ignore performing rollback to stable on %s because the file %s", uri,
+              "ignore performing rollback to stable on %s because the file %s", uri,
               ret == ENOENT ? "does not exist" : "is corrupted.");
             continue;
         }

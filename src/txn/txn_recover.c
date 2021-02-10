@@ -317,9 +317,6 @@ __txn_log_recover(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LS
     uint32_t rectype;
     const uint8_t *end, *p;
 
-    __wt_verbose(session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "__txn_log_recover : %s",
-      "txn-recover");
-
     r = cookie;
     p = WT_LOG_SKIP_HEADER(logrec->data);
     end = (const uint8_t *)logrec->data + logrec->size;
