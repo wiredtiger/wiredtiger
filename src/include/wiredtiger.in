@@ -571,15 +571,10 @@ struct __wt_cursor {
 	/*!
 	 * Remove a record.
 	 *
-	 * If the cursor was configured with "overwrite=true" (the default),
-	 * the key must be set; the key's record will be removed if it exists,
+	 * The key must be set; the key's record will be removed if it exists,
 	 * no error will be returned if the record does not exist.
 	 *
 	 * @snippet ex_all.c Remove a record
-	 *
-	 * If the cursor was configured with "overwrite=false" (not the
-	 * default), the key must be set and the key's record must exist; the
-	 * record will be removed.
 	 *
 	 * Any cursor position does not change: if the cursor was positioned
 	 * before the WT_CURSOR::remove call, the cursor remains positioned
@@ -598,8 +593,6 @@ struct __wt_cursor {
 	 *
 	 * @param cursor the cursor handle
 	 * @errors
-	 * In particular, if \c overwrite=false is configured and no record
-	 * with the specified key exists, ::WT_NOTFOUND is returned.
 	 */
 	int __F(remove)(WT_CURSOR *cursor);
 
