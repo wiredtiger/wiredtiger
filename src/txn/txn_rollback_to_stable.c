@@ -77,17 +77,16 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
  */
 static void
 __rollback_abort_newer_insert(
-  WT_SESSION_IMPL *session, WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp)
+  WT_SESSION_IMPL *session, WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
     WT_INSERT *ins;
-    bool stable_update_found;
 
     printf("Aborting newer insert\n");
 
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
             __rollback_abort_newer_update(
-              session, ins->upd, rollback_timestamp, &stable_update_found);
+              session, ins->upd, rollback_timestamp, stable_update_found);
 }
 
 /*
@@ -436,7 +435,9 @@ __rollback_abort_col_ondisk_kv(
 
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
+    WT_UPDATE *upd;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
+    bool prepared;
 
     WT_UNUSED(session);
     WT_UNUSED(page);
@@ -464,6 +465,51 @@ __rollback_abort_col_ondisk_kv(
         __wt_timestamp_to_string(unpack.tw.stop_ts, ts_string[3]),
         __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
     printf("\n==============================\n\n\n");
+
+    prepared = unpack.tw.prepare;
+    if (WT_IS_HS(session->dhandle)) {
+        printf("Maybe histroy store\n");
+        /*
+         * Abort the history store update with stop durable timestamp greater than the stable
+         * timestamp or the updates with max stop timestamp which implies that they are associated
+         * with prepared transactions.
+         */
+        if (unpack.tw.durable_stop_ts > rollback_timestamp || unpack.tw.stop_ts == WT_TS_MAX) {
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "hs update aborted with start durable/commit timestamp: %s, %s, stop durable/commit "
+              "timestamp: %s, %s and stable timestamp: %s",
+              __wt_timestamp_to_string(unpack.tw.durable_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(unpack.tw.start_ts, ts_string[1]),
+              __wt_timestamp_to_string(unpack.tw.durable_stop_ts, ts_string[2]),
+              __wt_timestamp_to_string(unpack.tw.stop_ts, ts_string[3]),
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
+            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_sweep_hs_keys);
+        } else
+            return (0);
+    } else if (unpack.tw.durable_start_ts > rollback_timestamp ||
+      (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) && prepared)) {
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
+          "prepared: %s and stable timestamp: %s",
+          __wt_timestamp_to_string(unpack.tw.durable_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(unpack.tw.start_ts, ts_string[1]), prepared ? "true" : "false",
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            printf("fixup\n");
+            // return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
+        else {
+            /*
+             * In-memory database don't have a history store to provide a stable update, so remove
+             * the key.
+             */
+            printf("Applying tombstone\n"); 
+            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+        }
+    } else
+        /* Stable version according to the timestamp. */
+        return (0);
 
 
     return (0);
@@ -575,18 +621,20 @@ __rollback_abort_newer_col_var(
     WT_COL *cip;
     WT_INSERT_HEAD *ins;
     uint32_t i;
+    bool stable_update_found;
 
     /* Review the changes to the original on-page data items */
     WT_COL_FOREACH (page, cip, i){
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
-            __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+            __rollback_abort_newer_insert(session, ins, rollback_timestamp, &stable_update_found);
 
-        __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp);
+        if (!stable_update_found)
+            __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp);
     }
 
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_newer_insert(session, ins, rollback_timestamp, &stable_update_found);
 
     // WT_RET(__rollback_abort_row_ondisk_kv(session, page, cip, rollback_timestamp));
 }
@@ -604,11 +652,11 @@ __rollback_abort_newer_col_fix(
 
     /* Review the changes to the original on-page data items */
     if ((ins = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_newer_insert(session, ins, rollback_timestamp, NULL);
 
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_newer_insert(session, ins, rollback_timestamp, NULL);
 }
 
 /*
@@ -744,7 +792,7 @@ __rollback_abort_newer_row_leaf(
      * Review the insert list for keys before the first entry on the disk page.
      */
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        __rollback_abort_newer_insert(session, insert, rollback_timestamp);
+        __rollback_abort_newer_insert(session, insert, rollback_timestamp, NULL);
 
     /*
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
@@ -756,7 +804,7 @@ __rollback_abort_newer_row_leaf(
             __rollback_abort_newer_update(session, upd, rollback_timestamp, &stable_update_found);
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            __rollback_abort_newer_insert(session, insert, rollback_timestamp);
+            __rollback_abort_newer_insert(session, insert, rollback_timestamp, NULL);
 
         /*
          * If there is no stable update found in the update list, abort any on-disk value.
