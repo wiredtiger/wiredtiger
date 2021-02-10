@@ -656,8 +656,8 @@ struct __wt_cursor {
 	 * valid only for cursors with record number keys., a boolean flag; default \c false.}
 	 * @config{overwrite, configures whether the cursor's insert\, update and remove methods
 	 * check the existing state of the record.  If \c overwrite is \c false\, WT_CURSOR::insert
-	 * fails with ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update and
-	 * WT_CURSOR::remove fail with ::WT_NOTFOUND if the record does not exist., a boolean flag;
+	 * fails with ::WT_DUPLICATE_KEY if the record exists\, WT_CURSOR::update fails with
+	 * ::WT_NOTFOUND if the record does not exist., a boolean flag;
 	 * default \c true.}
 	 * @configend
 	 * @errors
