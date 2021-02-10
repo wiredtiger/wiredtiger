@@ -115,15 +115,20 @@ __declspec(dllexport)
 /*
  * Forward function declarations for shared storage API implementation
  */
-static int demo_ss_open(
-  WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, uint32_t, WT_FILE_HANDLE **);
-static int demo_ss_location_handle(WT_SHARED_STORAGE *, WT_SESSION *, const char *, void **);
-static int demo_ss_location_handle_free(WT_SHARED_STORAGE *, WT_SESSION *, void *);
-static int demo_ss_location_list(WT_SHARED_STORAGE *, WT_SESSION *, void *, char ***, uint32_t *);
+static int demo_ss_open(WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *,
+  uint32_t, WT_FILE_HANDLE **);
+static int demo_ss_location_handle(
+  WT_SHARED_STORAGE *, WT_SESSION *, const char *, WT_LOCATION_HANDLE **);
+static int demo_ss_location_handle_free(WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *);
+static int demo_ss_location_list(
+  WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, char ***, uint32_t *);
 static int demo_ss_location_list_free(WT_SHARED_STORAGE *, WT_SESSION *, char **, uint32_t);
-static int demo_ss_exist(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, bool *);
-static int demo_ss_remove(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, uint32_t);
-static int demo_ss_size(WT_SHARED_STORAGE *, WT_SESSION *, void *, const char *, wt_off_t *);
+static int demo_ss_exist(
+  WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, bool *);
+static int demo_ss_remove(
+  WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, uint32_t);
+static int demo_ss_size(
+  WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, wt_off_t *);
 static int demo_ss_terminate(WT_SHARED_STORAGE *, WT_SESSION *);
 
 /*
@@ -141,7 +146,8 @@ static int demo_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, con
  * Forward function declarations for internal functions
  */
 static int demo_handle_remove(WT_SESSION *, DEMO_FILE_HANDLE *);
-static DEMO_FILE_HANDLE *demo_handle_search(WT_SHARED_STORAGE *, void *, const char *);
+static DEMO_FILE_HANDLE *demo_handle_search(
+  WT_SHARED_STORAGE *, WT_LOCATION_HANDLE *, const char *);
 
 #define DEMO_FILE_SIZE_INCREMENT 32768
 
@@ -258,8 +264,9 @@ err:
  *     fopen for our demo shared storage
  */
 static int
-demo_ss_open(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
-  const char *name, uint32_t flags, WT_FILE_HANDLE **file_handlep)
+demo_ss_open(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+  WT_LOCATION_HANDLE *location_handle, const char *name, uint32_t flags,
+  WT_FILE_HANDLE **file_handlep)
 {
     DEMO_FILE_HANDLE *demo_fh;
     DEMO_SHARED_STORAGE *demo_ss;
@@ -362,7 +369,7 @@ err:
  */
 static int
 demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
-  const char *location_info, void **location_handlep)
+  const char *location_info, WT_LOCATION_HANDLE **location_handlep)
 {
     size_t len;
     char *p;
@@ -377,7 +384,7 @@ demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     p = malloc(len);
     strncpy(p, location_info, len);
     strncat(p, "/", len);
-    *location_handlep = p;
+    *location_handlep = (WT_LOCATION_HANDLE *)p;
     return (0);
 }
 
@@ -387,7 +394,7 @@ demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
  */
 static int
 demo_ss_location_handle_free(
-  WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle)
+  WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, WT_LOCATION_HANDLE *location_handle)
 {
     (void)shared_storage; /* Unused */
     (void)session;        /* Unused */
@@ -401,8 +408,8 @@ demo_ss_location_handle_free(
  *     Return a list of object names for the given location.
  */
 static int
-demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
-  char ***dirlistp, uint32_t *countp)
+demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+  WT_LOCATION_HANDLE *location_handle, char ***dirlistp, uint32_t *countp)
 {
     DEMO_FILE_HANDLE *demo_fh;
     DEMO_SHARED_STORAGE *demo_ss;
@@ -490,8 +497,8 @@ demo_ss_location_list_free(
  *     Return if the file exists.
  */
 static int
-demo_ss_exist(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
-  const char *name, bool *existp)
+demo_ss_exist(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+  WT_LOCATION_HANDLE *location_handle, const char *name, bool *existp)
 {
     DEMO_SHARED_STORAGE *demo_ss;
 
@@ -511,8 +518,8 @@ demo_ss_exist(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *loca
  *     POSIX remove.
  */
 static int
-demo_ss_remove(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
-  const char *name, uint32_t flags)
+demo_ss_remove(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+  WT_LOCATION_HANDLE *location_handle, const char *name, uint32_t flags)
 {
     DEMO_SHARED_STORAGE *demo_ss;
     DEMO_FILE_HANDLE *demo_fh;
@@ -537,8 +544,8 @@ demo_ss_remove(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *loc
  *     Get the size of a file in bytes, by file name.
  */
 static int
-demo_ss_size(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session, void *location_handle,
-  const char *name, wt_off_t *sizep)
+demo_ss_size(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+  WT_LOCATION_HANDLE *location_handle, const char *name, wt_off_t *sizep)
 {
     DEMO_SHARED_STORAGE *demo_ss;
     DEMO_FILE_HANDLE *demo_fh;
@@ -822,7 +829,8 @@ demo_handle_remove(WT_SESSION *session, DEMO_FILE_HANDLE *demo_fh)
  *     Return a matching handle, if one exists.
  */
 static DEMO_FILE_HANDLE *
-demo_handle_search(WT_SHARED_STORAGE *shared_storage, void *location_handle, const char *name)
+demo_handle_search(
+  WT_SHARED_STORAGE *shared_storage, WT_LOCATION_HANDLE *location_handle, const char *name)
 {
     DEMO_FILE_HANDLE *demo_fh;
     DEMO_SHARED_STORAGE *demo_ss;

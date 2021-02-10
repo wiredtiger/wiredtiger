@@ -733,8 +733,6 @@ __wt_shared_storage_config(
     WT_CONFIG_ITEM cname;
     WT_SHARED_STORAGE *shared_storage;
 
-    WT_UNUSED(uri);
-
     *shared_storagep = NULL;
     *ownp = 0;
 

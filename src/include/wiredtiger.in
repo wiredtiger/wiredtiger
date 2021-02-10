@@ -4664,17 +4664,20 @@ struct __wt_file_handle {
 };
 #endif /* !defined(SWIG) */
 
-#ifdef DOXYGEN
-/*! WT_SHARED_STORAGE::open_object flags: create a new object */
-#define	WT_SS_OPEN_CREATE	0x0
-/*! WT_SHARED_STORAGE::open_object flags: open is read-only */
-#define	WT_SS_OPEN_READONLY	0x0
-#else
+#if !defined(SWIG)
+#if !defined(DOXYGEN)
+/* This interface is not yet public. */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define	WT_SS_OPEN_CREATE	0x1u
 #define	WT_SS_OPEN_READONLY	0x2u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
-#endif
+
+/*!
+ * A location handle, and its encoding is defined by each implementation
+ * of the WT_SHARED_STORAGE interface.
+ */
+typedef struct __wt_location_handle WT_LOCATION_HANDLE;
 
 /*!
  * The interface implemented by applications to provide a shared system
@@ -4693,9 +4696,9 @@ struct __wt_file_handle {
 struct __wt_shared_storage {
 	/*!
 	 * Return a location handle from a location string.
-         * A location string may encode a bucket name, or the equivalent for this
-         * shared storage system, authorization information for that bucket,
-         * naming prefixes to be used for objects in that bucket, etc.
+	 * A location string may encode a bucket name, or the equivalent for this
+	 * shared storage system, authorization information for that bucket,
+	 * naming prefixes to be used for objects in that bucket, etc.
 	 *
 	 * @errors
 	 *
@@ -4705,7 +4708,7 @@ struct __wt_shared_storage {
 	 * @param[out] location_handle the allocated handle
 	 */
 	int (*ss_location_handle)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, const char *location, void **location_handle);
+	    WT_SESSION *session, const char *location, WT_LOCATION_HANDLE **location_handle);
 
 	/*!
 	 * Free a location handle created by WT_SHARED_STORAGE::ss_location_handle.
@@ -4717,7 +4720,7 @@ struct __wt_shared_storage {
 	 * @param location_handle the handle to be freed.
 	 */
 	int (*ss_location_handle_free)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, void *location_handle);
+	    WT_SESSION *session, WT_LOCATION_HANDLE *location_handle);
 
 	/*!
 	 * Return a list of object names for the given location.
@@ -4732,7 +4735,7 @@ struct __wt_shared_storage {
 	 * @param[out] countp the number of entries returned
 	 */
 	int (*ss_location_list)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, void *location_handle,
+	    WT_SESSION *session, WT_LOCATION_HANDLE *location_handle,
 	    char ***object_list, uint32_t *countp);
 
 	/*!
@@ -4742,11 +4745,11 @@ struct __wt_shared_storage {
 	 *
 	 * @param shared_storage the WT_SHARED_STORAGE
 	 * @param session the current WiredTiger session
-	 * @param objlist array returned by WT_SHARED_STORAGE::location_list
+	 * @param object_list array returned by WT_SHARED_STORAGE::location_list
 	 * @param count count returned by WT_SHARED_STORAGE::location_list
 	 */
 	int (*ss_location_list_free)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, char **objlist, uint32_t count);
+	    WT_SESSION *session, char **object_list, uint32_t count);
 
 	/*!
 	 * Return if the named object exists in the location.
@@ -4755,12 +4758,12 @@ struct __wt_shared_storage {
 	 *
 	 * @param shared_storage the WT_SHARED_STORAGE
 	 * @param session the current WiredTiger session
-         * @param location_handle the location to search
+	 * @param location_handle the location to search
 	 * @param name the name of the object
 	 * @param[out] existp If the named shared storage object exists
 	 */
-	int (*ss_exist)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, void *location_handle, const char *name, bool *existp);
+	int (*ss_exist)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+	    WT_LOCATION_HANDLE *location_handle, const char *name, bool *existp);
 
 	/*!
 	 * Open a handle for a named shared storage object
@@ -4769,10 +4772,10 @@ struct __wt_shared_storage {
 	 * does not exist.
 	 *
 	 * The method should return EACCES if the object cannot be opened given
-         * permissions by the location.
+	 * permissions by the location.
 	 *
 	 * The method should return EEXIST if the object is being created and
-         * it already exists.
+	 * it already exists.
 	 *
 	 * @errors
 	 *
@@ -4790,13 +4793,14 @@ struct __wt_shared_storage {
 	 *    their own structure as a superset of a WT_FILE_HANDLE:: structure.
 	 */
 	int (*ss_open_object)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
-	    void *location_handle, const char *name, uint32_t flags, WT_FILE_HANDLE **file_handlep);
+	    WT_LOCATION_HANDLE *location_handle, const char *name, uint32_t flags,
+	    WT_FILE_HANDLE **file_handlep);
 
 	/*!
 	 * Remove a named shared storage object
 	 *
 	 * This method is not required if shared storage is configured readonly
-         * and should be set to NULL when not required by the shared storage implementation.
+	 * and should be set to NULL when not required by the shared storage implementation.
 	 *
 	 * @errors
 	 *
@@ -4806,8 +4810,8 @@ struct __wt_shared_storage {
 	 * @param name the name of the shared storage object
 	 * @param flags must be 0
 	 */
-	int (*ss_remove)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, void *location_handle, const char *name, uint32_t flags);
+	int (*ss_remove)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+	    WT_LOCATION_HANDLE *location_handle, const char *name, uint32_t flags);
 
 	/*!
 	 * Return the size of a named shared storage object
@@ -4820,8 +4824,8 @@ struct __wt_shared_storage {
 	 * @param name the name of the shared storage object
 	 * @param[out] sizep the size of the shared storage object
 	 */
-	int (*ss_size)(WT_SHARED_STORAGE *shared_storage,
-	    WT_SESSION *session, void *location_handle, const char *name, wt_off_t *sizep);
+	int (*ss_size)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
+	    WT_LOCATION_HANDLE *location_handle, const char *name, wt_off_t *sizep);
 
 	/*!
 	 * A callback performed when the shared storage is closed and will no
@@ -4835,6 +4839,8 @@ struct __wt_shared_storage {
 	 */
 	int (*terminate)(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session);
 };
+#endif
+#endif /* !defined(SWIG) */
 
 /*!
  * Entry point to an extension, called when the extension is loaded.
