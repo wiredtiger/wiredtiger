@@ -82,6 +82,8 @@ __rollback_abort_newer_insert(
     WT_INSERT *ins;
     bool stable_update_found;
 
+    printf("Aborting newer insert\n");
+
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
             __rollback_abort_newer_update(
@@ -418,6 +420,55 @@ err:
 }
 
 /*
+ * __rollback_abort_col_ondisk_kv --
+ *     Fix the on-disk row K/V version according to the given timestamp.
+ */
+static int
+__rollback_abort_col_ondisk_kv(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, wt_timestamp_t rollback_timestamp)
+{
+    // WT_CELL_UNPACK_KV *vpack, _vpack;
+    // WT_DECL_RET;
+    // WT_ITEM buf;
+    // WT_UPDATE *upd;
+    // char ts_string[5][WT_TS_INT_STRING_SIZE];
+    // bool prepared;
+
+    WT_CELL *kcell;
+    WT_CELL_UNPACK_KV unpack;
+    char ts_string[5][WT_TS_INT_STRING_SIZE];
+
+    WT_UNUSED(session);
+    WT_UNUSED(page);
+    WT_UNUSED(cip);
+    WT_UNUSED(rollback_timestamp);
+
+    printf("rollback_abort_col_ondisk\n");
+
+    kcell = WT_COL_PTR(page, cip);
+
+    // WT_CLEAR(buf);
+    // upd = NULL;
+
+    // __wt_row_leaf_value_cell(session, page, cip, NULL, vpack);
+    // prepared = vpack->tw.prepare;
+
+    __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
+
+
+    // printf("hs update aborted with start durable/commit timestamp: %s, %s, stop durable/commit "
+    //     "timestamp: %s, %s and stable timestamp: %s",
+    //     __wt_timestamp_to_string(unpack->tw.durable_start_ts, ts_string[0]),
+    //     __wt_timestamp_to_string(unpack->tw.start_ts, ts_string[1]),
+    //     __wt_timestamp_to_string(unpack->tw.durable_stop_ts, ts_string[2]),
+    //     __wt_timestamp_to_string(unpack->tw.stop_ts, ts_string[3]),
+    //     __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
+
+
+    return (0);
+}
+
+/*
  * __rollback_abort_row_ondisk_kv --
  *     Fix the on-disk row K/V version according to the given timestamp.
  */
@@ -525,13 +576,18 @@ __rollback_abort_newer_col_var(
     uint32_t i;
 
     /* Review the changes to the original on-page data items */
-    WT_COL_FOREACH (page, cip, i)
+    WT_COL_FOREACH (page, cip, i){
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
             __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+
+        __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp);
+    }
 
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
         __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+
+    // WT_RET(__rollback_abort_row_ondisk_kv(session, page, cip, rollback_timestamp));
 }
 
 /*
