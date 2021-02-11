@@ -5,7 +5,7 @@ It is a central resource recording changes made to different tables, by differen
 threads, into a file on disk. Its purpose is so that changes made since the most recent
 checkpoint are not lost and can be recovered on restart after a crash (unclean shutdown).
 
-@subsection Log-related files in the database directory
+@subsection log_files Log-related files in the database directory
 
 There are three log-related files that users can see in the database directory.
 The actual write-ahead log files are prepended with the string \c WiredTigerLog.
@@ -23,7 +23,7 @@ There varying number of temporary and prepared log files in the directory. They
 are removed immediately on startup. Old pre-allocated log files cannot be reused
 on a restart because the log file version number could have changed in between runs.
 
-@subsection Configuration choices and their implications
+@subsection log_configuration Configuration choices and their implications
 
 Once the logging subsystem is enabled for the system, then other configuration settings
 control the finer details of the logging subsystem. The \c archive=true setting turns
@@ -48,7 +48,7 @@ backup has a contract that all files that existed when the backup cursor was ope
 continue to exist for the lifetime of the backup cursor. Renaming pre-allocated log
 files would violate that contract.
 
-@subsection Log operations and records
+@subsection log_records Log operations and records
 
 The unit written to the write-ahead log is a log record. Some log records are made up
 of log operations. The most common log record containing operations is the transaction
@@ -109,7 +109,7 @@ default synchronization setting of memory-only the path of writing its record in
 the write-ahead log becomes essentially two atomic operations and memory copies. The
 common path does not require acquiring locks.
 
-@subsection Internal Threads
+@subsection log_threads Internal Threads
 There are several internal logging-related threads that perform housekeeping on the
 logging subsystem. The main thread, called \c log_server, is a general thread. It
 flushes out the current slot to the file system. It does this every 50 milliseconds
@@ -139,7 +139,7 @@ will coalesce adjacent LSNs of slots in order to advance the LSN in larger incre
 This thread will then clean up and mark the state of the processed slots
 as \c WT_LOG_SLOT_FREE.
 
-@subsection Using the log
+@subsection log_usage Using the log
 
 In addition to storing a record of the operations performed to data in the write-ahead
 log, users can write their own strings into the logs via the \c WT_SESSION::log_printf
@@ -152,7 +152,7 @@ run recovery. If the system previously shutdown cleanly, then recovery determine
 the log does not need to be replayed. Otherwise, recovery replays all operations from
 the LSN of the most recent checkpoint. When timestamps are in use, recovery also
 performs a rollback-to-stable operation on tables that are not logged.
-# Remove this line and uncomment the next line after the rollback to stable page exists.
+# Remove this line and the comment marker for the next line after the rollback to stable page exists.
 # This aspect of recovery is discussed in @ref rollback_to_stable.
 
 Users can access and view the records in the log using one of two methods. The most
