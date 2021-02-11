@@ -94,7 +94,7 @@ asciichk()
 {
     # Make sure there are only ASCII characters in the input files.
     # Odd characters can cause our Python filter to fail.
-    (cd ../src/docs && LC_ALL=C grep -n '[^ -~	]' *.dox | cat -v) > $t
+    (cd ../src/docs && LC_ALL=C grep -n '[^[:print:]	]' *.dox | cat -v) > $t
     test -s $t && {
 	echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 	echo 'Non-ASCII content in src/docs/*.dox files is not allowed.'
