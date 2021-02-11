@@ -3,10 +3,6 @@
 ## Introduction
 The reliability and robustness of WiredTiger is achieved in part by thorough and careful testing.
 
-- C tests: 26939 SLOC
-- CPP tests: 30 SLOC
-- Python tests: 83992 SLOC
-
 ## Testing types
 There are many testing areas covered by WiredTiger's test infrasture. Some of the high level areas are:
 
@@ -20,10 +16,14 @@ There are many testing areas covered by WiredTiger's test infrasture. Some of th
 - wtperf
 - workgen
 
-### Sanitized testing
-
 ### Stress testing
 - format
+
+### Runtime correctness checking
+- ASAN, MSAN, UBSAN, Valgrind 
+
+### Static analysis
+- Coverity
 
 ## Test frameworks
 
