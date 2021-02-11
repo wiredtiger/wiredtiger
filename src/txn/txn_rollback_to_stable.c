@@ -149,6 +149,51 @@ err:
     return (ret);
 }
 
+static int
+__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
+  wt_timestamp_t rollback_timestamp, bool replace)
+{
+    WT_CELL_UNPACK_KV *unpack, _unpack;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(hs_value);
+    WT_CURSOR *hs_cursor;
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_CELL *kcell;
+    WT_ITEM full_value;
+    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
+   
+
+    kcell = WT_COL_PTR(page, cip);
+
+
+    /* Allocate buffers for the data store and history store key. */
+    WT_RET(__wt_scr_alloc(session, 0, &key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
+    WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
+
+    // a line missing here
+    // WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+    
+
+    /* Get the full update value from the data store. */
+    unpack = &_unpack;
+    __wt_cell_unpack_kv(session, page->dsk, kcell, unpack);
+    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
+    WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
+    newer_hs_durable_ts = unpack->tw.durable_start_ts;
+
+     /* Open a history store table cursor. */
+    WT_ERR(__wt_hs_cursor_open(session));
+    hs_cursor = session->hs_cursor;
+    cbt = (WT_CURSOR_BTREE *)hs_cursor;
+
+
+err:
+
+
+}
 /*
  * __rollback_row_ondisk_fixup_key --
  *     Abort updates in the history store and replace the on-disk value with an update that
@@ -495,9 +540,10 @@ __rollback_abort_col_ondisk_kv(
           __wt_timestamp_to_string(unpack.tw.durable_start_ts, ts_string[0]),
           __wt_timestamp_to_string(unpack.tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
-        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             printf("fixup\n");
-            // return (__rollback_row_ondisk_fixup_key(session, page, rip, rollback_timestamp, true));
+            return (__rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true));
+        }
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -569,7 +615,7 @@ __rollback_abort_row_ondisk_kv(
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
              * the key.
-             */
+             */     
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
         }
