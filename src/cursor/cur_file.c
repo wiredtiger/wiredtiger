@@ -621,10 +621,12 @@ __curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
     if (sweep_check_only) {
         /*
          * The sweep check returns WT_NOTFOUND if the cursor should be swept. Generally if the
-         * associated data handle cannot be reopened we want to sweep it. But we also don't want to
-         * sweep a handle that we're currently operating on. That can occur if we're in the middle
-         * of a close on a cursor for a handle that is marked as dropped, as session cursor sweeps
-         * can happen while closing.
+         * associated data handle cannot be reopened it should be swept. But a handle being operated
+         * on by this thread should not be swept. The situation where a handle cannot be reopened
+         * but also cannot be swept can occur if this thread is in the middle of closing a cursor
+         * for a handle that is marked as dropped. During the close, a few iterations of the session
+         * cursor sweep are run. The sweep calls this function to see if a cursor should be swept,
+         * and it may thus be asking about the very cursor being closed.
          */
         can_sweep = !WT_DHANDLE_CAN_REOPEN(dhandle) && dhandle != session->dhandle;
         return (can_sweep ? WT_NOTFOUND : 0);
