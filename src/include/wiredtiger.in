@@ -2236,13 +2236,11 @@ struct __wt_connection {
 	 * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
 	 * session from the configured session_max., a set of related configuration options defined
 	 * below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_timeout, time in seconds that the
-	 * authentication token is valid., an integer between 0 and 100000; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token, authentication token string., a string;
-	 * default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, minutes to retain data
-	 * on tiered storage on the local tier for faster read access., an integer between 0 and
-	 * 120; default \c 5.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token, authentication token string., a
+	 * string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds
+	 * to retain data on tiered storage on the local tier for faster read access., an integer
+	 * between 0 and 10000; default \c 300.}
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
@@ -2963,17 +2961,15 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one session
  * from the configured session_max., a set of related configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_timeout, time in seconds that the authentication token is
- * valid., an integer between 0 and 100000; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * auth_token, authentication token string., a string; default empty.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable tiered storage subsystem., a boolean flag;
- * default \c false.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, minutes to retain data on
- * tiered storage on the local tier for faster read access., an integer between 0 and 120; default
- * \c 5.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or custom storage
- * name created with WT_CONNECTION::add_tiered_storage., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token, authentication token string., a string; default
+ * empty.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable tiered storage subsystem., a boolean
+ * flag; default \c false.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds to
+ * retain data on tiered storage on the local tier for faster read access., an integer between 0 and
+ * 10000; default \c 300.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or
+ * custom storage name created with WT_CONNECTION::add_tiered_storage., a string; default \c none.}
  * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined below.}

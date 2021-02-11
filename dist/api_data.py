@@ -934,15 +934,12 @@ connection_reconfigure_statistics_log_configuration = [
 ]
 
 tiered_storage_configuration_common = [
-    Config('auth_timeout', 0, r'''
-        time in seconds that the authentication token is valid''',
-        min='0', max='100000'),
     Config('auth_token', '', r'''
         authentication token string'''),
-    Config('local_retention', '5', r'''
-        minutes to retain data on tiered storage on the local tier for
+    Config('local_retention', '300', r'''
+        time in seconds to retain data on tiered storage on the local tier for
         faster read access''',
-        min='0', max='120'),
+        min='0', max='10000'),
 ]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''

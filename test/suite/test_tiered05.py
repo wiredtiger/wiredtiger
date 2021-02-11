@@ -34,24 +34,15 @@ from wiredtiger import stat
 class test_tiered05(wttest.WiredTigerTestCase):
     uri = "table:test_tiered05"
 
-    auth_timeout = 12
     auth_token = "test_token"
     extension_name = "test"
-    retention = 10
     def conn_config(self):
         return \
           'statistics=(fast),' + \
           'tiered_manager=(object_target_size=20M,wait=10),' + \
-          'tiered_storage=(enabled,local_retention=%d,' % self.retention + \
+          'tiered_storage=(enabled,' + \
           'name=%s,' % self.extension_name + \
-          'auth_timeout=%d,' % self.auth_timeout + \
           'auth_token=%s)' % self.auth_token
-
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat][2]
-        stat_cursor.close()
-        return val
 
     # Test calling the tier_storage API.
     def test_tiered(self):

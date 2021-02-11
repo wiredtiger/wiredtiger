@@ -176,20 +176,6 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     WT_CONNECTION_IMPL *conn;
     bool enabled;
 
-    /*
-     * A note on reconfiguration: the standard "is this configuration string allowed" checks should
-     * fail if reconfiguration has invalid strings, for example, "log=(enabled)", or
-     * "statistics_log=(path=XXX)", because the connection reconfiguration method doesn't allow
-     * those strings. Additionally, the base configuration values during reconfiguration are the
-     * currently configured values (so we don't revert to default values when repeatedly
-     * reconfiguring), and configuration processing of a currently set value should not change the
-     * currently set value.
-     *
-     * In this code path, a previous storage log server reconfiguration may have stopped the
-     * server (and we're about to restart it). Because stopping the server discarded the configured
-     * information stored in the connection structure, we have to re-evaluate all configuration
-     * values, reconfiguration can't skip any of them.
-     */
     conn = S2C(session);
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.enabled", &cval));
@@ -200,14 +186,11 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     else
         FLD_CLR(conn->tiered_flags, WT_CONN_TIERED_ENABLED);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_timeout", &cval));
-    conn->tiered_auth_timeout = (uint64_t)cval.val;
-
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
     conn->tiered_auth_token = cval.str;
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
-    conn->tiered_retain_secs = (uint64_t)cval.val * WT_MINUTE;
+    conn->tiered_retain_secs = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, tiered_retention, conn->tiered_retain_secs);
 
     return (__tiered_manager_config(session, cfg, runp));
@@ -247,13 +230,6 @@ __tiered_server(void *arg)
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
-    /*
-     * We need a temporary place to build a path and an entry prefix. The length of the path plus
-     * 128 should be more than enough.
-     *
-     * We also need a place to store the current path, because that's how we know when to
-     * close/re-open the file.
-     */
     for (;;) {
         /* Wait until the next event. */
         __wt_cond_wait(session, conn->tiered_cond, mgr->wait_usecs, __tiered_server_run_chk);

@@ -14,7 +14,7 @@
 struct __wt_tiered_manager {
     uint64_t object_size; /* Ideal object size */
     uint64_t wait_usecs;  /* Wait time period */
-    uint32_t workers;     /* Current number of LSM workers */
+    uint32_t workers;     /* Current number of workers */
     uint32_t workers_max;
     uint32_t workers_min;
 

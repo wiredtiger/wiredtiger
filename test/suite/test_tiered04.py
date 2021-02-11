@@ -35,16 +35,14 @@ from wtdataset import SimpleDataSet
 class test_tiered04(wttest.WiredTigerTestCase):
     uri = "table:test_tiered04"
 
-    auth_timeout = 12
     auth_token = "test_token"
     extension_name = "test"
-    retention = 10
+    retention = 600
     def conn_config(self):
         return \
           'statistics=(fast),' + \
           'tiered_storage=(enabled,local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
-          'auth_timeout=%d,' % self.auth_timeout + \
           'auth_token=%s)' % self.auth_token
 
     def get_stat(self, stat):
@@ -58,7 +56,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.create(self.uri, 'key_format=S')
         # The retention is in minutes. The stat is in seconds.
         retain = self.get_stat(stat.conn.tiered_retention)
-        self.assertEqual(retain, self.retention * 60)
+        self.assertEqual(retain, self.retention)
         self.session.tier_storage(None)
         self.session.tier_storage('force=true')
         calls = self.get_stat(stat.conn.tier_storage)
@@ -69,7 +67,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.tier_storage(None)
         retain = self.get_stat(stat.conn.tiered_retention)
         calls = self.get_stat(stat.conn.tier_storage)
-        self.assertEqual(retain, new * 60)
+        self.assertEqual(retain, new)
         self.assertEqual(calls, 3)
 
 if __name__ == '__main__':

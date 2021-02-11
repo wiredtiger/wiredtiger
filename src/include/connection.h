@@ -370,7 +370,6 @@ struct __wt_connection_impl {
     bool tiered_tid_set;             /* Tiered thread set */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
     uint64_t tiered_retain_secs;     /* Tiered period */
-    uint64_t tiered_auth_timeout;    /* Tiered authentication timeout */
     const char *tiered_auth_token;   /* Tiered authentication cookie */
 
     WT_TIERED_MANAGER tiered_manager; /* Tiered worker thread information */
