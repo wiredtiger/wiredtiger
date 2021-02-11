@@ -16,6 +16,7 @@ class test {
     public:
     configuration *_configuration;
     static const char *_name;
+    const char *_default_config;
     /*
      * All tests will implement this initially, the return value from it will indicate whether the
      * test was successful or not.
@@ -30,6 +31,8 @@ class test {
     ~test()
     {
         delete _configuration;
+        delete _default_config;
+        delete _name;
     }
 };
 } // namespace test_harness
