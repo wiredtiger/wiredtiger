@@ -97,12 +97,12 @@ class test_hs11(wttest.WiredTigerTestCase):
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        # FIXME-WT-7120 Remove for column store until rollback to stable is implemented for column
-        # store
-        # Ensure that we blew away history store content.
+        # FIXME-WT-7120: Remove for column store until rollback to stable is implemented for column
+        # store.
         if self.key_format == 'r':
             return
 
+        # Ensure that we blew away history store content.
         for ts in range(1, 5):
             self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
             for i in range(1, 10000):
