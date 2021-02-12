@@ -7,6 +7,9 @@
 
 #include <cstdint>
 
+#include "test_util.h"
+
+#include "random_generator.h"
 #include "configuration_settings.h"
 
 // uint64_t
@@ -34,7 +37,7 @@ class workload {
         // const char *name = "poc_test";
         // _configuration = new configuration(name, cfg);
         test_harness::configuration *configuration = new test_harness::configuration(name, cfg);
-
+        _configuration = configuration;
         std::cout << configuration->get_config() << std::endl;
 
         int64_t value;
@@ -55,6 +58,65 @@ class workload {
         // TODO delete all dyn var
         // delete _conn;
         // delete _home;
+
+        // TODO
+        // Close connection
+    }
+
+    int
+    load()
+    {
+        // TODO
+        // Open connection
+        // Create collection
+        // Save sessions, cursors, etc
+        // Populate collections
+        int64_t collection_count;
+        int64_t key_count;
+
+        collection_count = 0;
+        key_count = 0;
+
+        // Create the working dir
+        testutil_make_work_dir(DEFAULT_DIR);
+
+        // Open connection
+        WT_RET(wiredtiger_open(DEFAULT_DIR, NULL, NULL, &_conn));
+
+        // Create collection/s
+        WT_RET(_conn->open_session(_conn, NULL, NULL, &_session));
+
+        WT_RET(_configuration->get_int("collection_count", collection_count));
+        for (int i = 0; i < collection_count; ++i) {
+            const char *collection_name = ("table:collection_" + std::to_string(i)).c_str();
+            WT_RET(_session->create(_session, collection_name, DEFAULT_TABLE_SCHEMA));
+            collection_names.push_back(collection_name);
+        }
+
+        WT_RET(_configuration->get_int("key_count", key_count));
+
+        // TODO
+        // auto
+        WT_CURSOR *cursor;
+        cursor = NULL;
+        
+        for (size_t i = 0; i < collection_names.size(); i++) {
+            WT_RET(_session->open_cursor(_session, collection_names[i], NULL, NULL, &cursor));
+            for (size_t j = 0; j < key_count; ++j) {
+                cursor->set_key(cursor, j);
+                cursor->set_value(cursor, random_generator::random_generator::getInstance()->generate_string());
+                WT_RET(cursor->insert(cursor));
+            }
+        }
+
+        return 0;
+    }
+
+    int
+    run()
+    {
+        // Empty until thread management lib is implemented
+        return 0;
     }
 
     int
@@ -188,7 +250,10 @@ class workload {
     private:
     const char *_home;
     WT_CONNECTION *_conn;
-    // configuration *_configuration;
+    WT_SESSION *_session;
+    test_harness::configuration *_configuration;
+
+    std::vector<const char *> collection_names;
 
     // TODO
     // Save sessions and cursors

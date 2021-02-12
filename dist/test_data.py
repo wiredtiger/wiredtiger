@@ -51,7 +51,7 @@ value_config = [
         The size of the values to be created''', min=0, max=10000),
 ]
 scale_config = [
-    Config('collection_count', 0, r'''
+    Config('collection_count', 1, r'''
         The number of colections the workload generator operates over''', min=0, max=200000),
     Config('key_count', 0, r'''
         The number of keys to be operated on per colection''', min=0, max=1000000),
@@ -66,24 +66,13 @@ workload_config = [
         The number of threads performing insert operations''',min=0, max=20),
     Config('insert_config',0, r'''
         The definition of the record being inserted''',
-        subconfig=key_config + value_config),
+        subconfig=load_config),
     Config('update_threads', 0, r'''
         The number of threads performing update operations''',min=0, max=20),
     Config('update_config',0,r''',
-        The definition of the record being updated''', subconfig=key_config + value_config)
+        The definition of the record being updated''', subconfig=load_config)
 ]
 
 methods = {
-'poc_test' : Method([
-    Config('collection_count', '1', r'''
-        the number of collections to create for testing''',
-        min='1', max='10'),
-    Config('key_size', '10', r'''
-        the size of the keys to be created in bytes''',
-        min='1', max='10000'),
-    Config('values', 'first', r'''
-        The value that each key will be populated with, used an example string configuration''',
-        choices=['first', 'second', 'third'])
-]),
-'wl_test' : Method(load_config + workload_config),
+'poc_test' : Method(load_config + workload_config),
 }
