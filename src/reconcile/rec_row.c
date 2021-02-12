@@ -78,6 +78,8 @@ __rec_cell_build_int_key(
     /* Create an overflow object if the data won't fit. */
     if (size > btree->maxintlkey) {
         WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
+        if (WT_IS_HS(btree))
+            WT_STAT_DATA_INCR(session, rec_overflow_key_internal_hs);
 
         *is_ovflp = true;
         return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
@@ -164,6 +166,8 @@ __rec_cell_build_leaf_key(
          */
         if (pfx == 0) {
             WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
+            if (WT_IS_HS(btree))
+                WT_STAT_DATA_INCR(session, rec_overflow_key_leaf_hs);
 
             *is_ovflp = true;
             return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));

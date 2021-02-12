@@ -101,9 +101,11 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes",
   "reconciliation: internal-page overflow keys",
+  "reconciliation: internal-page overflow keys in history store",
   "reconciliation: leaf page key bytes discarded using prefix compression",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
+  "reconciliation: leaf-page overflow keys in history store",
   "reconciliation: maximum blocks required for a page",
   "reconciliation: overflow values written",
   "reconciliation: page checksum matches",
@@ -351,9 +353,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_suffix_compression = 0;
     stats->rec_multiblock_internal = 0;
     stats->rec_overflow_key_internal = 0;
+    stats->rec_overflow_key_internal_hs = 0;
     stats->rec_prefix_compression = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
+    stats->rec_overflow_key_leaf_hs = 0;
     stats->rec_multiblock_max = 0;
     stats->rec_overflow_value = 0;
     stats->rec_page_match = 0;
@@ -585,9 +589,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_suffix_compression += from->rec_suffix_compression;
     to->rec_multiblock_internal += from->rec_multiblock_internal;
     to->rec_overflow_key_internal += from->rec_overflow_key_internal;
+    to->rec_overflow_key_internal_hs += from->rec_overflow_key_internal_hs;
     to->rec_prefix_compression += from->rec_prefix_compression;
     to->rec_multiblock_leaf += from->rec_multiblock_leaf;
     to->rec_overflow_key_leaf += from->rec_overflow_key_leaf;
+    to->rec_overflow_key_leaf_hs += from->rec_overflow_key_leaf_hs;
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_overflow_value += from->rec_overflow_value;
@@ -815,9 +821,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_suffix_compression += WT_STAT_READ(from, rec_suffix_compression);
     to->rec_multiblock_internal += WT_STAT_READ(from, rec_multiblock_internal);
     to->rec_overflow_key_internal += WT_STAT_READ(from, rec_overflow_key_internal);
+    to->rec_overflow_key_internal_hs += WT_STAT_READ(from, rec_overflow_key_internal_hs);
     to->rec_prefix_compression += WT_STAT_READ(from, rec_prefix_compression);
     to->rec_multiblock_leaf += WT_STAT_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_READ(from, rec_overflow_key_leaf);
+    to->rec_overflow_key_leaf_hs += WT_STAT_READ(from, rec_overflow_key_leaf_hs);
     if ((v = WT_STAT_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_overflow_value += WT_STAT_READ(from, rec_overflow_value);
