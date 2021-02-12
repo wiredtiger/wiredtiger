@@ -332,7 +332,6 @@ class WiredTigerTestCase(unittest.TestCase):
                 extfiles[ext] = complete
         if len(extfiles) != 0:
             result = ',extensions=[' + ','.join(list(extfiles.values())) + earlyLoading + ']'
-        self.tty('EXTENSIONS:' + str(result))
         return result
 
     # Can be overridden, but first consider setting self.conn_config
