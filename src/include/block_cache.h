@@ -83,7 +83,9 @@ struct __wt_blkcache {
      */
     size_t lookups;
     size_t inserts;
+    size_t inserts_old;
     size_t removals;
+    size_t removals_old;
 
 #ifdef HAVE_LIBMEMKIND
     struct memkind *pmem_kind;

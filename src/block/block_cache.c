@@ -68,19 +68,25 @@ __blkcache_high_churn(WT_SESSION_IMPL *session)
     static uint64_t counter = 0;
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE *blkcache;
+    double ratio;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
-    if (counter++ % 1000000 == 0)
+    ratio = (double)(blkcache->removals - blkcache->removals_old) /
+	(double)(blkcache->inserts - blkcache->inserts_old + 1);
+
+    if (counter++ % 500000 == 0) {
+	blkcache->removals_old = blkcache->removals;
+	blkcache->inserts_old = blkcache->inserts;
+
 	printf("inserts=%ld, removals=%ld, ratio = %.2f, thrshold = %.2f\n",
-	       blkcache->inserts, blkcache->removals,
-	       (double)blkcache->removals/(double)blkcache->inserts,
+	       blkcache->inserts, blkcache->removals, ratio,
 	       blkcache->overhead_pct);
+    }
 
-    if ((double)blkcache->removals/(double)blkcache->inserts > blkcache->overhead_pct)
+    if (ratio > blkcache->overhead_pct)
 	return true;
-
     return false;
 }
 
