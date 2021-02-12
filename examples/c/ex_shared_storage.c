@@ -152,6 +152,11 @@ static DEMO_FILE_HANDLE *demo_handle_search(
 #define DEMO_FILE_SIZE_INCREMENT 32768
 
 /*
+ * Saved version of the shared storage interface for direct testing.
+ */
+static WT_SHARED_STORAGE *saved_shared_storage;
+
+/*
  * string_match --
  *     Return if a string matches a byte string of len bytes.
  */
@@ -251,6 +256,12 @@ demo_shared_storage_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
           wtext, NULL, "WT_CONNECTION.set_shared_storage: %s", wtext->strerror(wtext, NULL, ret));
         goto err;
     }
+
+    /*
+     * The WiredTiger API does not have a direct way to use the shared_storage API. Save the
+     * structure so we can call it directly.
+     */
+    saved_shared_storage = shared_storage;
     return (0);
 
 err:
@@ -272,6 +283,9 @@ demo_ss_open(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     DEMO_SHARED_STORAGE *demo_ss;
     WT_EXTENSION_API *wtext;
     WT_FILE_HANDLE *file_handle;
+    const char *location;
+    char *full_name;
+    size_t name_len;
     int ret = 0;
 
     (void)flags; /* Unused */
@@ -321,12 +335,18 @@ demo_ss_open(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     demo_fh->bufsize = DEMO_FILE_SIZE_INCREMENT;
     demo_fh->size = 0;
 
-    /* Initialize public information. */
-    file_handle = (WT_FILE_HANDLE *)demo_fh;
-    if ((file_handle->name = strdup(name)) == NULL) {
+    /* Construct the public name. */
+    location = (const char *)location_handle;
+    name_len = strlen(location) + strlen(name) + 1;
+    full_name = calloc(1, name_len);
+    if (snprintf(full_name, name_len, "%s%s", location, name) != (ssize_t)(name_len - 1)) {
         ret = ENOMEM;
         goto err;
     }
+
+    /* Initialize public information. */
+    file_handle = (WT_FILE_HANDLE *)demo_fh;
+    file_handle->name = full_name;
 
     /*
      * Setup the function call table for our custom shared storage. Set the function pointer to NULL
@@ -385,8 +405,10 @@ demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
         return (EINVAL);
     len = strlen(location_info) + 2;
     p = malloc(len);
-    strncpy(p, location_info, len);
-    strncat(p, "/", len);
+    if (snprintf(p, len, "%s/", location_info) != (ssize_t)(len - 1)) {
+        free(p);
+        return (ENOMEM);
+    }
     *location_handlep = (WT_LOCATION_HANDLE *)p;
     return (0);
 }
@@ -419,7 +441,8 @@ demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     size_t len;
     uint32_t allocated, count;
     int ret = 0;
-    char *location, *name, **entries;
+    const char *location;
+    char *name, **entries;
     void *p;
 
     (void)session; /* Unused */
@@ -431,7 +454,7 @@ demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
 
     entries = NULL;
     allocated = count = 0;
-    location = (char *)location_handle;
+    location = (const char *)location_handle;
     len = strlen(location);
 
     lock_shared_storage(&demo_ss->lock);
@@ -854,15 +877,191 @@ demo_handle_search(
 
 static const char *home;
 
+static int
+demo_test_create(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *location,
+  const char *objname, const char *content)
+{
+    WT_FILE_HANDLE *fh;
+    const char *op;
+    size_t len;
+    int ret, t_ret;
+
+    fh = NULL;
+    len = strlen(content) + 1;
+    op = "open";
+    if ((ret = ss->ss_open_object(ss, session, location, objname, WT_SS_OPEN_CREATE, &fh)) != 0)
+        goto err;
+    op = "write";
+    if (fh->fh_write(fh, session, 0, len, content) != (ssize_t)len) {
+        ret = EINVAL;
+        goto err;
+    }
+
+err:
+    if (fh != NULL && (t_ret = fh->close(fh, session)) != 0 && ret == 0) {
+        op = "close";
+        ret = t_ret;
+    }
+    if (ret != 0)
+        fprintf(stderr, "demo failed during %s: %s\n", op, wiredtiger_strerror(ret));
+    else
+        printf("demo succeeded create %s\n", objname);
+
+    return (ret);
+}
+
+static int
+demo_test_read(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *location,
+  const char *objname, const char *content)
+{
+    WT_FILE_HANDLE *fh;
+    char buf[100];
+    const char *op;
+    size_t len;
+    int ret, t_ret;
+
+    fh = NULL;
+    len = strlen(content) + 1;
+    op = "open";
+    if ((ret = ss->ss_open_object(ss, session, location, objname, WT_SS_OPEN_READONLY, &fh)) != 0)
+        goto err;
+    op = "read";
+    if (fh->fh_read(fh, session, 0, sizeof(buf), buf) != (ssize_t)len) {
+        ret = EINVAL;
+        goto err;
+    }
+    op = "read-compare";
+    if (strcmp(buf, content) != 0) {
+        ret = EINVAL;
+        goto err;
+    }
+
+err:
+    if (fh != NULL && (t_ret = fh->close(fh, session)) != 0 && ret == 0) {
+        op = "close";
+        ret = t_ret;
+    }
+    if (ret != 0)
+        fprintf(stderr, "demo failed during %s: %s\n", op, wiredtiger_strerror(ret));
+    else
+        printf("demo succeeded read %s\n", objname);
+
+    return (ret);
+}
+
+static int
+demo_test_list(
+  WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *location, uint32_t expect)
+{
+    char **obj_list;
+    const char *op;
+    uint32_t i, obj_count;
+    int ret, t_ret;
+
+    obj_list = NULL;
+    op = "location_list";
+    if ((ret = ss->ss_location_list(ss, session, location, &obj_list, &obj_count)) != 0)
+        goto err;
+    op = "location_list count";
+    if (obj_count != expect) {
+        ret = EINVAL;
+        goto err;
+    }
+    printf("list: %s:\n", (const char *)location);
+    for (i = 0; i < obj_count; i++) {
+        printf("  %s\n", obj_list[i]);
+    }
+
+err:
+    if (obj_list != NULL &&
+      (t_ret = ss->ss_location_list_free(ss, session, obj_list, obj_count)) != 0 && ret == 0) {
+        op = "location_list_free";
+        ret = t_ret;
+    }
+    if (ret != 0)
+        fprintf(stderr, "demo failed during %s: %s\n", op, wiredtiger_strerror(ret));
+    else
+        printf("demo succeeded location_list %s\n", (const char *)location);
+
+    return (ret);
+}
+
+static int
+demo_test_shared_storage(WT_SHARED_STORAGE *ss, WT_SESSION *session)
+{
+    WT_LOCATION_HANDLE *location1, *location2;
+    const char *op;
+    int ret, t_ret;
+    bool exist;
+
+    location1 = location2 = NULL;
+    op = "location_handle";
+    if ((ret = ss->ss_location_handle(ss, session, "location-one", &location1)) != 0)
+        goto err;
+    if ((ret = ss->ss_location_handle(ss, session, "location-two", &location2)) != 0)
+        goto err;
+
+    /* Create and existence checks. */
+    op = "create/exist checks";
+    if ((ret = demo_test_create(ss, session, location1, "A", "location-one-A")) != 0)
+        goto err;
+
+    if ((ret = ss->ss_exist(ss, session, location1, "A", &exist)) != 0)
+        goto err;
+    if (!exist) {
+        fprintf(stderr, "Exist test failed for A\n");
+        ret = EINVAL;
+        goto err;
+    }
+    if ((ret = ss->ss_exist(ss, session, location2, "A", &exist)) != 0)
+        goto err;
+    if (exist) {
+        fprintf(stderr, "Exist test failed for A in location2\n");
+        ret = EINVAL;
+        goto err;
+    }
+
+    if ((ret = demo_test_create(ss, session, location2, "A", "location-two-A")) != 0)
+        goto err;
+    if ((ret = demo_test_create(ss, session, location2, "B", "location-two-B")) != 0)
+        goto err;
+
+    op = "read checks";
+    if ((ret = demo_test_read(ss, session, location1, "A", "location-one-A")) != 0)
+        goto err;
+    if ((ret = demo_test_read(ss, session, location2, "A", "location-two-A")) != 0)
+        goto err;
+    if ((ret = demo_test_read(ss, session, location2, "B", "location-two-B")) != 0)
+        goto err;
+
+    op = "list checks";
+    if ((ret = demo_test_list(ss, session, location1, 1)) != 0)
+        goto err;
+    if ((ret = demo_test_list(ss, session, location2, 2)) != 0)
+        goto err;
+
+err:
+    if (location1 != NULL && (t_ret = ss->ss_location_handle_free(ss, session, location1)) != 0 &&
+      ret == 0)
+        ret = t_ret;
+    if (location2 != NULL && (t_ret = ss->ss_location_handle_free(ss, session, location2)) != 0 &&
+      ret == 0)
+        ret = t_ret;
+    if (ret != 0)
+        fprintf(stderr, "demo failed during %s: %s\n", op, wiredtiger_strerror(ret));
+
+    return (ret);
+}
+
 int
 main(void)
 {
     WT_CONNECTION *conn;
     const char *open_config;
     int ret = 0;
+    WT_SESSION *session;
 #if 0
     WT_CURSOR *cursor;
-    WT_SESSION *session;
     const char *key, *tier0_uri, *tier1_uri, *uri;
     int i;
     char kbuf[64];
@@ -896,14 +1095,19 @@ main(void)
     }
     /*! [WT_SHARED_STORAGE register] */
 
-    /*
-     * At the moment, the infrastructure that would use the shared storage extension does not exist.
-     */
-#if 0
     if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
         fprintf(stderr, "WT_CONNECTION.open_session: %s\n", wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }
+    if ((ret = demo_test_shared_storage(saved_shared_storage, session)) != 0) {
+        fprintf(stderr, "shared storage test failed: %s\n", wiredtiger_strerror(ret));
+        return (EXIT_FAILURE);
+    }
+    /*
+     * At the moment, the infrastructure withing WiredTiger that would use the shared storage
+     * extension does not exist. So we will call the interface directly.
+     */
+#if 0
     uri = "table:ss";
     tier0_uri = "file:ss_tier0.wt";
     tier1_uri = "shared:demo:ss_tier1";
