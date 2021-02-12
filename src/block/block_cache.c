@@ -73,6 +73,10 @@ __blkcache_high_churn(WT_SESSION_IMPL *session)
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
+
+    if (++counter % 500000 == 0)
+	printf("inserts=%ld, removals=%ld\n", blkcache->inserts, blkcache->removals);
+
     /* We want to begin taking into account this ratio when
      * the workload begins removing blocks. So we wait until
      * the time when the number of removals goes above zero,
@@ -83,18 +87,14 @@ __blkcache_high_churn(WT_SESSION_IMPL *session)
      */
     if (blkcache->removals == 0) {
 	blkcache->inserts_baseline = blkcache->inserts;
-	printf("inserts=%ld, removals=%ld\n", blkcache->inserts, blkcache->removals);
 	return false;
     }
 
     ratio = (double)blkcache->removals /
 	(double)(blkcache->inserts - blkcache->inserts_baseline);
 
-    if (counter++ % 500000 == 0) {
-	printf("inserts=%ld, removals=%ld, ratio = %.2f, thrshold = %.2f\n",
-	       blkcache->inserts, blkcache->removals, ratio,
-	       blkcache->overhead_pct);
-    }
+    if (counter % 500000 == 0)
+	printf("ratio = %.2f, thrshold = %.2f\n", ratio, blkcache->overhead_pct);
 
     if (ratio > blkcache->overhead_pct)
 	return true;
