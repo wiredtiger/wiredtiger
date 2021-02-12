@@ -683,7 +683,7 @@ demo_file_read(
         ret = EIO; /* EOF */
     unlock_shared_storage(&demo_ss->lock);
     if (ret == 0)
-        return (len);
+        return (0);
 
     (void)wtext->err_printf(wtext, session,
       "%s: handle-read: failed to read %zu bytes at offset %zu: %s", demo_fh->iface.name, len, off,
@@ -811,7 +811,7 @@ demo_file_write(
     }
     unlock_shared_storage(&demo_ss->lock);
     if (ret == 0)
-        return (len);
+        return (0);
 
     (void)wtext->err_printf(wtext, session,
       "%s: handle-write: failed to write %zu bytes at offset %zu: %s", demo_fh->iface.name, len,
@@ -892,10 +892,8 @@ demo_test_create(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE 
     if ((ret = ss->ss_open_object(ss, session, location, objname, WT_SS_OPEN_CREATE, &fh)) != 0)
         goto err;
     op = "write";
-    if (fh->fh_write(fh, session, 0, len, content) != (ssize_t)len) {
-        ret = EINVAL;
+    if ((ret = fh->fh_write(fh, session, 0, len, content)) != 0)
         goto err;
-    }
 
 err:
     if (fh != NULL && (t_ret = fh->close(fh, session)) != 0 && ret == 0) {
@@ -918,6 +916,7 @@ demo_test_read(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *l
     char buf[100];
     const char *op;
     size_t len;
+    wt_off_t size;
     int ret, t_ret;
 
     fh = NULL;
@@ -925,13 +924,19 @@ demo_test_read(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *l
     op = "open";
     if ((ret = ss->ss_open_object(ss, session, location, objname, WT_SS_OPEN_READONLY, &fh)) != 0)
         goto err;
-    op = "read";
-    if (fh->fh_read(fh, session, 0, sizeof(buf), buf) != (ssize_t)len) {
+    op = "size";
+    if ((ret = fh->fh_size(fh, session, &size)) != 0)
+        goto err;
+    op = "size-compare";
+    if ((size_t)size != len || (size_t)size > sizeof(buf)) {
         ret = EINVAL;
         goto err;
     }
+    op = "read";
+    if ((ret = fh->fh_read(fh, session, 0, len, buf)) != 0)
+        goto err;
     op = "read-compare";
-    if (strcmp(buf, content) != 0) {
+    if (strncmp(buf, content, len) != 0) {
         ret = EINVAL;
         goto err;
     }
