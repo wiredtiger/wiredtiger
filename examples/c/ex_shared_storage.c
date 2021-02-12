@@ -683,7 +683,7 @@ demo_file_read(
         ret = EIO; /* EOF */
     unlock_shared_storage(&demo_ss->lock);
     if (ret == 0)
-        return (0);
+        return (len);
 
     (void)wtext->err_printf(wtext, session,
       "%s: handle-read: failed to read %zu bytes at offset %zu: %s", demo_fh->iface.name, len, off,
@@ -811,7 +811,7 @@ demo_file_write(
     }
     unlock_shared_storage(&demo_ss->lock);
     if (ret == 0)
-        return (0);
+        return (len);
 
     (void)wtext->err_printf(wtext, session,
       "%s: handle-write: failed to write %zu bytes at offset %zu: %s", demo_fh->iface.name, len,
