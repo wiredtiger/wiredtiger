@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest, shutil
+import wttest
 from suite_subprocess import suite_subprocess
-from wtscenario import make_scenarios
 from helper import compare_files
 
 def timestamp_str(t):
