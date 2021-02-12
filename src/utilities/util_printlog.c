@@ -65,6 +65,7 @@ util_printlog(WT_SESSION *session, int argc, char *argv[])
             break;
         case 'm': /* messages only */
             LF_SET(WT_TXN_PRINTLOG_MSG);
+            break;
         case 'u': /* print user data, don't redact */
             LF_SET(WT_TXN_PRINTLOG_UNREDACT);
             break;
