@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 # test_backup13.py
 # Test cursor backup with a block-based incremental cursor and force_stop.
 class test_backup13(backup_base):
-    conn_config='cache_size=1G,log=(enabled,file_max=100K)'
+    conn_config='cache_size=1G,log=(enabled,archive=false,file_max=100K)'
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
     uri="table:test"
