@@ -374,6 +374,9 @@ demo_ss_location_handle(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     size_t len;
     char *p;
 
+    (void)shared_storage; /* Unused */
+    (void)session;        /* Unused */
+
     /*
      * Our "handle" is nothing more than the location string followed by a slash delimiter. We won't
      * allow slashes in the location info parameter.
@@ -745,6 +748,7 @@ demo_file_truncate(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t of
 
     (void)file_handle; /* Unused */
     (void)session;     /* Unused */
+    (void)offset;      /* Unused */
 
     demo_fh = (DEMO_FILE_HANDLE *)file_handle;
     demo_ss = demo_fh->demo_ss;
