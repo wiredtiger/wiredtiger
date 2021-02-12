@@ -81,8 +81,6 @@ __rollback_abort_newer_insert(
 {
     WT_INSERT *ins;
 
-    printf("Aborting newer insert\n");
-
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
             __rollback_abort_newer_update(
@@ -151,47 +149,64 @@ err:
 
 static int
 __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
-  wt_timestamp_t rollback_timestamp, bool replace)
+  wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
+    // WT_UPDATE *hs_upd, *tombstone, *upd;
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
-    WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
+    // WT_CURSOR *hs_cursor;
+    // WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_CELL *kcell;
+    WT_CELL* kcell;
     WT_ITEM full_value;
-    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
-   
+    // wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
+    uint16_t *p;
 
-    kcell = WT_COL_PTR(page, cip);
-
+    WT_CLEAR(full_value);
+    WT_UNUSED(rollback_timestamp);
+    WT_UNUSED(replace);
 
     /* Allocate buffers for the data store and history store key. */
     WT_RET(__wt_scr_alloc(session, 0, &key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    // a line missing here
-    // WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-    
-
     /* Get the full update value from the data store. */
     unpack = &_unpack;
+    kcell = WT_COL_PTR(page, cip);
     __wt_cell_unpack_kv(session, page->dsk, kcell, unpack);
     WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
     WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
-    newer_hs_durable_ts = unpack->tw.durable_start_ts;
+    p = (uint16_t*) full_value.data;
+    printf("%"PRIu64 ": %"PRIu16 "\n", recno, *p);
+    // newer_hs_durable_ts = unpack->tw.durable_start_ts;
 
-     /* Open a history store table cursor. */
-    WT_ERR(__wt_hs_cursor_open(session));
-    hs_cursor = session->hs_cursor;
-    cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    // /* Open a history store table cursor. */
+    // WT_ERR(__wt_hs_cursor_open(session));
+    // hs_cursor = session->hs_cursor;
+    // cbt = (WT_CURSOR_BTREE *)hs_cursor;
+
+    // p = key->mem;
+    // WT_ERR(__wt_vpack_uint(&p, 0,recno);
+    // key->size = WT_PTRDIFF(p, key->data);
 
 
+
+    if (0) {
 err:
-
+    printf("error!");
+        // WT_ASSERT(session, tombstone == NULL || upd == tombstone);
+        // __wt_free_update_list(session, &upd);
+        // __wt_free_update_list(session, &hs_upd);
+    }
+    __wt_scr_free(session, &hs_key);
+    __wt_scr_free(session, &hs_value);
+    __wt_scr_free(session, &key);
+    __wt_buf_free(session, &full_value);
+    // WT_TRET(__wt_hs_cursor_close(session));
+    return (ret);
 
 }
 /*
@@ -199,6 +214,7 @@ err:
  *     Abort updates in the history store and replace the on-disk value with an update that
  *     satisfies the given timestamp.
  */
+      
 static int
 __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
   wt_timestamp_t rollback_timestamp, bool replace)
@@ -469,7 +485,7 @@ err:
  */
 static int
 __rollback_abort_col_ondisk_kv(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, wt_timestamp_t rollback_timestamp)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
     // WT_CELL_UNPACK_KV *vpack, _vpack;
     // WT_DECL_RET;
@@ -477,7 +493,7 @@ __rollback_abort_col_ondisk_kv(
     // WT_UPDATE *upd;
     // char ts_string[5][WT_TS_INT_STRING_SIZE];
     // bool prepared;
-
+    static int func_called = 1;
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
     WT_UPDATE *upd;
@@ -489,10 +505,9 @@ __rollback_abort_col_ondisk_kv(
     WT_UNUSED(cip);
     WT_UNUSED(rollback_timestamp);
 
-    printf("rollback_abort_col_ondisk\n");
-
     kcell = WT_COL_PTR(page, cip);
-
+    printf("__rollback_abort_col_ondisk_kv func called: %d\n", func_called);
+    func_called++;
     // WT_CLEAR(buf);
     // upd = NULL;
 
@@ -542,7 +557,7 @@ __rollback_abort_col_ondisk_kv(
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
             printf("fixup\n");
-            return (__rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true));
+            return (__rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
         }
         else {
             /*
@@ -664,18 +679,32 @@ static void
 __rollback_abort_newer_col_var(
   WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
+    static int func_called =1;
     WT_COL *cip;
     WT_INSERT_HEAD *ins;
     uint32_t i;
     bool stable_update_found;
+    WT_CELL *kcell;
+    uint64_t recno, rle;
+    WT_CELL_UNPACK_KV unpack;
 
+    printf("__rollback_abort_newer_col_var loop called:\n");
+    recno = page->dsk->recno;
     /* Review the changes to the original on-page data items */
     WT_COL_FOREACH (page, cip, i){
+         printf("__rollback_abort_newer_col_var loop called: %d\n", func_called);
+         func_called++;
+        stable_update_found = false;
+        kcell = WT_COL_PTR(page, cip);
+        __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
+        rle = __wt_cell_rle(&unpack);
+
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
             __rollback_abort_newer_insert(session, ins, rollback_timestamp, &stable_update_found);
 
         if (!stable_update_found)
-            __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp);
+            __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
+        recno += rle;
     }
 
     /* Review the append list */
