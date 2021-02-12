@@ -77,7 +77,11 @@ struct __wt_file_system;    typedef struct __wt_file_system WT_FILE_SYSTEM;
 struct __wt_item;	    typedef struct __wt_item WT_ITEM;
 struct __wt_modify;	    typedef struct __wt_modify WT_MODIFY;
 struct __wt_session;	    typedef struct __wt_session WT_SESSION;
+#if !defined(SWIG)
+#if !defined(DOXYGEN)
 struct __wt_shared_storage; typedef struct __wt_shared_storage WT_SHARED_STORAGE;
+#endif
+#endif
 
 #if defined(SWIGJAVA)
 #define	WT_HANDLE_NULLABLE(typename)	typename##_NULLABLE
@@ -2535,6 +2539,8 @@ struct __wt_connection {
 	int __F(set_file_system)(
 	    WT_CONNECTION *connection, WT_FILE_SYSTEM *fs, const char *config);
 
+#if !defined(SWIG)
+#if !defined(DOXYGEN)
 	/*!
 	 * Add a shared storage implementation.
 	 *
@@ -2552,6 +2558,8 @@ struct __wt_connection {
 	 */
 	int __F(add_shared_storage)(WT_CONNECTION *connection, const char *name,
             WT_SHARED_STORAGE *shared_storage, const char *config);
+#endif
+#endif
 
 	/*!
 	 * Return a reference to the WiredTiger extension functions.
