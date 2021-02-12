@@ -835,17 +835,14 @@ struct __wt_session {
 	 * applications need to cache cursors at all cost.
 	 *
 	 * @param session the session handle
-	 * @param uri
-	 * \parblock
-	 *  the data source on which the cursor operates; cursors
+	 * @param uri the data source on which the cursor operates; cursors
 	 *  are usually opened on tables, however, cursors can be opened on
 	 *  any data source, regardless of whether it is ultimately stored
 	 *  in a table.  Some cursor types may have limited functionality
 	 *  (for example, they may be read-only or not support transactional
 	 *  updates).  See @ref data_sources for more information.
-	 *
+	 *  <br>
 	 *  @copydoc doc_cursor_types
-	 * \endparblock
 	 * @param to_dup a cursor to duplicate or gather statistics on
 	 * @configstart{WT_SESSION.open_cursor, see dist/api_data.py}
 	 * @config{append, append the value as a new record\, creating a new record number key;
@@ -1327,9 +1324,7 @@ struct __wt_session {
 	 * @param join_cursor a cursor that was opened using a
 	 * \c "join:" URI. It may not have been used for any operations
 	 * other than other join calls.
-	 * @param ref_cursor
-	 * \parblock
-	 * an index cursor having the same base table
+	 * @param ref_cursor an index cursor having the same base table
 	 * as the join_cursor, or a table cursor open on the same base table,
 	 * or another join cursor. Unless the ref_cursor is another join
 	 * cursor, it must be positioned.
@@ -1351,7 +1346,7 @@ struct __wt_session {
 	 * join_cursor is closed, the ref_cursor is made available for
 	 * general use again. The application should close ref_cursor when
 	 * finished with it, although not before the join_cursor is closed.
-	 * \endparblock
+	 *
 	 * @configstart{WT_SESSION.join, see dist/api_data.py}
 	 * @config{bloom_bit_count, the number of bits used per item for the bloom filter., an
 	 * integer between 2 and 1000; default \c 16.}
