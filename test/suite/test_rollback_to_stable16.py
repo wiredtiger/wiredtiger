@@ -39,7 +39,7 @@ def timestamp_str(t):
 # Test that roll back to stable handles updates present on disk for variable length column store.
 # Attempt to evict to test on disk values.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
+    conn_config = 'cache_size=5MB,statistics=(all)'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -49,7 +49,8 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         # Fixed length
         # ('fixed', dict(value_format='8t')),
         # Variable length
-        ('variable', dict(value_format='i')),
+        ('variable', dict(value_format='S')),
+
     ]
     scenarios = make_scenarios(key_format_values, value_format_values)
 
@@ -62,7 +63,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            self.assertEqual(v, check_value)
+            self.assertEqual(v, check_value + str(count +1))
             count += 1
         session.commit_transaction()
         self.assertEqual(count, nrows)
@@ -70,7 +71,7 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
     def test_rollback_to_stable(self):
         # Create a table.
         uri = "table:rollback_to_stable15"
-        nrows = 2000
+        nrows = 200
         create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
         cursor =  self.session.open_cursor(uri)
@@ -79,46 +80,46 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
              
-        value20 = 0x20
-        value30 = 0x30
-        value40 = 0x40
-        value50 = 0x50
+        value20 = "aaaa"
+        value30 = "bbbb"
+        value40 = "cccc"
+        value50 = "dddd"
 
         #Insert value20 at timestamp 2
         for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[i] = value20
+            cursor[i] = value20 + str(i)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
 
         #First Update to value 30 at timestamp 5
         for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[i] = value30
+            cursor[i] = value30 + str(i)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
 
         #Second Update to value40 at timestamp 7
         for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[i] = value40
+            cursor[i] = value40 + str(i)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
 
-        #Third Update to value50 at timestamp 9
+        # Third Update to value50 at timestamp 9
         for i in range(1, nrows):
             self.session.begin_transaction()
-            cursor[i] = value50
+            cursor[i] = value50 + str(i)
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
 
 
         self.session.checkpoint()
         #Set stable timestamp to 7
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         self.conn.rollback_to_stable()
         #Check that only value30 is available
-        self.check(value30, uri, nrows - 1, 5)
+    #    self.check(value20, uri, nrows - 1, 5)
         self.check(value20, uri, nrows - 1, 2)
         
-        self.check(value30, uri, nrows - 1, 7)
-        self.check(value30, uri, nrows - 1, 9)
+        self.check(value20, uri, nrows - 1, 7)
+        self.check(value20, uri, nrows - 1, 9)
 
 
         # stat_cursor = self.session.open_cursor('statistics:', None, None)
