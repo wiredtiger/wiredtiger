@@ -536,6 +536,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
      * To achieve that, use the last checkpointed run write generation number as base write
      * generation number. The transaction ids are retained only on the pages that are written after
      * the restart.
+     *
+     * Rollback to stable does not operate on logged tables and metadata, so it is skipped.
      */
     if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
       __wt_btree_immediately_durable(session))

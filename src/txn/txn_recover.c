@@ -783,7 +783,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
          * earlier time.
          */
         WT_ERR(__recovery_file_scan(&r));
-
         /*
          * The array can be re-allocated in recovery_file_scan. Reset our pointer after scanning all
          * the files.
@@ -799,9 +798,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
         goto done;
     }
 
-    __wt_verbose(
-      session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", " Start");
-
     /*
      * First, do a pass through the log to recover the metadata, and establish the last checkpoint
      * LSN. Skip this when opening a hot backup: we already have the correct metadata in that case.
@@ -812,8 +808,6 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * recovery can continue. Other errors remain errors.
      */
     if (!was_backup) {
-        __wt_verbose(
-          session, WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS, "txn-recover : %s", "!was_backup");
         r.metadata_only = true;
         /*
          * If this is a read-only connection, check if the checkpoint LSN in the metadata file is up
