@@ -7,7 +7,9 @@
 
 #include <cstdint>
 
+extern "C" {
 #include "test_util.h"
+}
 
 #include "random_generator.h"
 #include "configuration_settings.h"
@@ -21,8 +23,6 @@
 // How to store things locally and what to store ?
 // map of sessions, each session has a map of cursors ? Or list of cursors
 
-// Do we
-
 // Random, there is a rand.c file in support
 // Can we go through a random inset key/value example ?
 
@@ -30,31 +30,15 @@ namespace test_workload {
 class workload {
 
     public:
-    workload(const char *name, const char *cfg)
+    workload(test_harness::configuration *configuration)
     {
-        // TODO: process the configuration
-        // TODO: Set _home here ?
-        // const char *name = "poc_test";
-        // _configuration = new configuration(name, cfg);
-        test_harness::configuration *configuration = new test_harness::configuration(name, cfg);
         _configuration = configuration;
-        std::cout << configuration->get_config() << std::endl;
-
-        int64_t value;
-        if (configuration->get_int("collection_count", value) == 0) {
-            std::cout << "Value collection_count is " << value << std::endl;
-        } else {
-            std::cout << "No value for collection_count" << std::endl;
-        }
-        if (configuration->get_int("key_size", value) == 0) {
-            std::cout << "Value key_size is " << value << std::endl;
-        } else {
-            std::cout << "No value for key_size" << std::endl;
-        }
+        std::cout << "Cfg is " << _configuration->get_config() << std::endl;
     }
 
     ~workload()
     {
+        std::cout << "Destr workload" << std::endl;
         // TODO delete all dyn var
         // delete _conn;
         // delete _home;
@@ -66,48 +50,53 @@ class workload {
     int
     load()
     {
-        // TODO
-        // Open connection
-        // Create collection
-        // Save sessions, cursors, etc
-        // Populate collections
-        int64_t collection_count;
-        int64_t key_count;
-
-        collection_count = 0;
-        key_count = 0;
+        int64_t collection_count = 0;
+        int64_t key_count = 0;
+        std::string collection_name_tmp = "";
+        WT_CURSOR *cursor = nullptr;
 
         // Create the working dir
         testutil_make_work_dir(DEFAULT_DIR);
 
         // Open connection
-        WT_RET(wiredtiger_open(DEFAULT_DIR, NULL, NULL, &_conn));
+        WT_RET(wiredtiger_open(DEFAULT_DIR, NULL, "create", &_conn));
+        std::cout << "wiredtiger_open" << std::endl;
 
-        // Create collection/s
+        // Open session
         WT_RET(_conn->open_session(_conn, NULL, NULL, &_session));
+        std::cout << "open_session" << std::endl;
 
         WT_RET(_configuration->get_int("collection_count", collection_count));
+        std::cout << "get_int collection_count is " << collection_count << std::endl;
         for (int i = 0; i < collection_count; ++i) {
-            const char *collection_name = ("table:collection_" + std::to_string(i)).c_str();
+            collection_name_tmp = "table:collection" + std::to_string(i);
+            const char *collection_name = collection_name_tmp.c_str();
+            std::cout << "Creating collection " << collection_name_tmp << std::endl;
             WT_RET(_session->create(_session, collection_name, DEFAULT_TABLE_SCHEMA));
-            collection_names.push_back(collection_name);
+            collection_names.push_back(collection_name_tmp);
         }
+        std::cout << collection_count << " collections created" << std::endl;
 
-        WT_RET(_configuration->get_int("key_count", key_count));
+        _configuration->get_int("key_count", key_count);
+        std::cout << "key count is " << key_count << std::endl;
 
-        // TODO
-        // auto
-        WT_CURSOR *cursor;
-        cursor = NULL;
-        
-        for (size_t i = 0; i < collection_names.size(); i++) {
-            WT_RET(_session->open_cursor(_session, collection_names[i], NULL, NULL, &cursor));
+        // // for (const char *collection_name : collection_names) {
+        for (const auto &collection_name : collection_names) {
+                printf("name is %s\n", collection_name);
+            
+            std::cout << "Opening cursor on " << collection_name << std::endl;
+            WT_RET(_session->open_cursor(_session, collection_name.c_str(), NULL, NULL, &cursor));
             for (size_t j = 0; j < key_count; ++j) {
                 cursor->set_key(cursor, j);
-                cursor->set_value(cursor, random_generator::random_generator::getInstance()->generate_string());
+                std::string str_tmp = random_generator::random_generator::getInstance()->generate_string();
+                const char *str = str_tmp.c_str();
+                cursor->set_value(cursor, str);
                 WT_RET(cursor->insert(cursor));
+                std::cout << "Key done " << j << std::endl;
             }
         }
+
+        std::cout << "Returning from load" << std::endl;
 
         return 0;
     }
@@ -249,11 +238,11 @@ class workload {
 
     private:
     const char *_home;
-    WT_CONNECTION *_conn;
-    WT_SESSION *_session;
+    WT_CONNECTION *_conn = nullptr;
+    WT_SESSION *_session = nullptr;
     test_harness::configuration *_configuration;
 
-    std::vector<const char *> collection_names;
+    std::vector<std::string> collection_names;
 
     // TODO
     // Save sessions and cursors

@@ -13,12 +13,12 @@ namespace random_generator {
 class random_generator {
 
     static random_generator *instance;
-    std::random_device _rd;
+    std::random_device _random_device;
     std::mt19937 _generator;
 
     random_generator()
     {
-        _generator = std::mt19937(_rd());
+        _generator = std::mt19937(_random_device());
     }
 
     public:
@@ -31,15 +31,20 @@ class random_generator {
     }
 
     std::string
-    generate_string(std::size_t len = 20)
+    generate_string(std::size_t length = 20)
     {
-        // TODO
-        // To improve
-        std::string str("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz");
+        const std::string CHARACTERS =
+          "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-        std::shuffle(str.begin(), str.end(), _generator);
+        std::uniform_int_distribution<> distribution(0, CHARACTERS.size() - 1);
 
-        return str.substr(0, len);
+        std::string random_string;
+
+        for (std::size_t i = 0; i < length; ++i) {
+            random_string += CHARACTERS[distribution(_generator)];
+        }
+
+        return random_string;
     }
 };
 random_generator *random_generator::instance = 0;
