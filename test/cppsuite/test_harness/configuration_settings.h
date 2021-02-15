@@ -36,7 +36,6 @@ class configuration {
 
     ~configuration()
     {
-        std::cout << "Inside desr configuration" << std::endl;
         if (_config_parser != nullptr) {
             _config_parser->close(_config_parser);
             _config_parser = nullptr;

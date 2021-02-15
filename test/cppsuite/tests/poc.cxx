@@ -5,51 +5,69 @@
 
 class poc_test : public test_harness::test {
 
+    private:
+    test_workload::workload *_wl = nullptr;
+
     public:
+    poc_test(const char *config, int64_t trace_level) : test(config)
+    {
+        test_workload::workload::_trace_level = trace_level;
+        _wl = new test_workload::workload(_configuration);
+    }
+
+    ~poc_test()
+    {
+        delete _wl;
+        _wl = nullptr;
+    }
 
     int
     run()
     {
-        test_workload::workload wl(_configuration);
-        if (wl.load() != 0) {
+        if (_wl->load() != 0) {
+        } else if (_wl->run() != 0) {
         }
-        else if (wl.run() != 0) {
-        }
-
     }
-
-    poc_test(const char *config) : test(config) {}
 };
 
 const char *poc_test::test::_name = "poc_test";
-const char *poc_test::test::_default_config = "collection_count=2,key_count=5";
+const char *poc_test::test::_default_config = "collection_count=2,key_count=5,value_size=20";
+int64_t test_workload::workload::_trace_level = 0;
 
 int
 main(int argc, char *argv[])
 {
-    // Configuration
     std::string cfg = "";
+    int64_t trace_level = 0;
 
     // Parse args
+    // -C   : Configuration
+    // -t   : Trace level
     for (int i = 1; i < argc; ++i) {
-        std::cout << "Arg is " << argv[i] << std::endl;
-        if (strcmp(argv[i], "-F") == 0) {
+        if (strcmp(argv[i], "-C") == 0) {
             if (i + 1 < argc) {
-                std::cout << "There is a value for " << argv[i++] << std::endl;
-                std::cout << "The value is " << argv[i] << std::endl;
-                cfg = argv[i];
+                cfg = argv[++i];
             } else {
+                throw std::invalid_argument("No value given for option " + std::string(argv[i]));
                 std::cout << "No value given for option " << argv[i] << std::endl;
+            }
+        } else if (strcmp(argv[i], "-t") == 0) {
+            if (i + 1 < argc) {
+                trace_level = std::stoi(argv[++i]);
+            } else {
+                throw std::invalid_argument("No value given for option " + std::string(argv[i]));
             }
         }
     }
 
     // Check if default configuration should be used
     if (cfg.compare("") == 0) {
-        std::cout << "Setting configuration to default" << std::endl;
+        std::cout << "Using default configuration" << std::endl;
         cfg = poc_test::test::_default_config;
     }
 
-    return poc_test(cfg.c_str()).run();
+    std::cout << "Configuration\t:" << cfg << std::endl;
+    std::cout << "Tracel level\t:" << trace_level << std::endl;
 
+    return poc_test(cfg.c_str(), trace_level).run();
 }

@@ -15,7 +15,7 @@ namespace test_harness {
 class test {
 
     public:
-    configuration *_configuration;
+    configuration *_configuration = nullptr;
     static const char *_name;
     static const char *_default_config;
 
@@ -32,8 +32,8 @@ class test {
 
     ~test()
     {
-        std::cout << "Destr test" << std::endl;
         delete _configuration;
+        _configuration = nullptr;
     }
 };
 } // namespace test_harness

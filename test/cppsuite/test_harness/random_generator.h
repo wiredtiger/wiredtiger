@@ -2,11 +2,10 @@
 #ifndef RANDOM_GENERATOR_H
 #define RANDOM_GENERATOR_H
 
+#include <algorithm>
 #include <cstddef>
-
 #include <random>
 #include <string>
-#include <algorithm>
 
 namespace random_generator {
 
@@ -31,7 +30,7 @@ class random_generator {
     }
 
     std::string
-    generate_string(std::size_t length = 20)
+    generate_string(std::size_t length)
     {
         const std::string CHARACTERS =
           "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
