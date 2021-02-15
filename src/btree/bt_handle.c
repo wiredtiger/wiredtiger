@@ -529,13 +529,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         btree->run_write_gen = ckpt->run_write_gen;
 
     /*
-     * Don't reset the transaction ids in recovery because rollback to stable in addition to stable
-     * timestamp also depends on transaction ids from the page that are read into cache to decide if
-     * an update needs to be rolled back.
-     *
-     * To achieve that, use the last checkpointed run write generation number as base write
-     * generation number. The transaction ids are retained only on the pages that are written after
-     * the restart.
+     * In recovery use the last checkpointed run write generation number as base write generation
+     * number to reset the transaction ids of the pages that were modified before the restart. The
+     * transaction ids are retained only on the pages that are written after the restart.
      *
      * Rollback to stable does not operate on logged tables and metadata, so it is skipped.
      */
