@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+
 #include "test_harness/test_harness.h"
 #include "test_harness/workload_generator.h"
 
@@ -24,9 +25,14 @@ class poc_test : public test_harness::test {
     int
     run()
     {
-        if (_wl->load() != 0) {
-        } else if (_wl->run() != 0) {
-        }
+        int return_code = _wl->load();
+        if (return_code != 0)
+            throw std::runtime_error(
+              "Load stage failed with error code: " + std::to_string(return_code));
+        return_code = _wl->run();
+        if (return_code != 0)
+            throw std::runtime_error(
+              "Run stage failed with error code: " + std::to_string(return_code));
     }
 };
 

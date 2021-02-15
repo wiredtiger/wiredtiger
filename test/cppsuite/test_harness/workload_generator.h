@@ -11,8 +11,8 @@ extern "C" {
 }
 
 #include "api_const.h"
-#include "random_generator.h"
 #include "configuration_settings.h"
+#include "random_generator.h"
 
 #define DEBUG_ERROR 0
 #define DEBUG_INFO 1
@@ -96,7 +96,7 @@ class workload_generator {
                 /* Generation of a random string value using the size defined in the test
                  * configuration. */
                 std::string generated_value =
-                  random_generator::random_generator::getInstance()->generate_string(value_size);
+                  random_generator::random_generator::get_instance()->generate_string(value_size);
                 cursor->set_value(cursor, generated_value.c_str());
                 WT_RET(cursor->insert(cursor));
             }

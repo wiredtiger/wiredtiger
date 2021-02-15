@@ -9,25 +9,11 @@
 
 namespace test_harness {
 
-/* Generate random values. */
+/* Helper class to generate random values. */
 class random_generator {
-
-    static random_generator *instance;
-    std::uniform_int_distribution<> distribution;
-    std::mt19937 _generator;
-    std::random_device _random_device;
-
-    const std::string CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-    random_generator()
-    {
-        _generator = std::mt19937(_random_device());
-        distribution = std::uniform_int_distribution<>(0, CHARACTERS.size() - 1);
-    }
-
     public:
     static random_generator *
-    getInstance()
+    get_instance()
     {
         if (!instance)
             instance = new random_generator;
@@ -43,10 +29,24 @@ class random_generator {
             throw std::invalid_argument("random_generator.generate_string: 0 is an invalid length");
 
         for (std::size_t i = 0; i < length; ++i)
-            random_string += CHARACTERS[distribution(_generator)];
+            random_string += _characters[distribution(_generator)];
 
         return (random_string);
     }
+
+    private:
+    random_generator()
+    {
+        _generator = std::mt19937(_random_device());
+        distribution = std::uniform_int_distribution<>(0, _characters.size() - 1);
+    }
+
+    static random_generator *instance;
+    std::mt19937 _generator;
+    std::random_device _random_device;
+    std::uniform_int_distribution<> distribution;
+    const std::string _characters =
+      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 };
 random_generator *random_generator::instance = 0;
 } // namespace test_harness

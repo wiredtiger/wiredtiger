@@ -46,10 +46,12 @@ key_config=[
     Config('key_size', 0, r'''
         The size of the keys to be created''', min=0, max=10000),
 ]
+
 value_config = [
     Config('value_size', 0, r'''
         The size of the values to be created''', min=0, max=10000),
 ]
+
 scale_config = [
     Config('collection_count', 1, r'''
         The number of colections the workload generator operates over''', min=0, max=200000),

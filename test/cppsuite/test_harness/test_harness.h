@@ -6,19 +6,14 @@
 #include <cinttypes>
 
 /* Include various wiredtiger libs. */
+#include "configuration_settings.h"
 #include "wiredtiger.h"
 #include "wt_internal.h"
-
-#include "configuration_settings.h"
 
 namespace test_harness {
 class test {
 
     public:
-    configuration *_configuration = nullptr;
-    static const char *_name;
-    static const char *_default_config;
-
     /*
      * All tests will implement this initially, the return value from it will indicate whether the
      * test was successful or not.
@@ -35,6 +30,10 @@ class test {
         delete _configuration;
         _configuration = nullptr;
     }
+
+    configuration *_configuration = nullptr;
+    static const char *_name;
+    static const char *_default_config;
 };
 } // namespace test_harness
 

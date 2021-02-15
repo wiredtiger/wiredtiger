@@ -2,16 +2,13 @@
 #ifndef CONFIGURATION_SETTINGS_H
 #define CONFIGURATION_SETTINGS_H
 
-#include "wt_internal.h"
 #include <string>
 #include <stdexcept>
 
+#include "wt_internal.h"
+
 namespace test_harness {
 class configuration {
-    private:
-    std::string _config;
-    WT_CONFIG_PARSER *_config_parser;
-
     public:
     configuration(const char *test_config_name, const char *config) : _config(config)
     {
@@ -101,6 +98,10 @@ class configuration {
     {
         return (_config_parser->get(_config_parser, key, value));
     }
+
+    private:
+    std::string _config;
+    WT_CONFIG_PARSER *_config_parser;
 };
 } // namespace test_harness
 
