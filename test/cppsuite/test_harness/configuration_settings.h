@@ -45,7 +45,7 @@ class configuration {
     std::string
     get_config()
     {
-        return _config;
+        return (_config);
     }
 
     /*
@@ -93,13 +93,13 @@ class configuration {
     int
     next(WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
     {
-        return _config_parser->next(_config_parser, key, value);
+        return (_config_parser->next(_config_parser, key, value));
     }
 
     int
     get(const char *key, WT_CONFIG_ITEM *value)
     {
-        return _config_parser->get(_config_parser, key, value);
+        return (_config_parser->get(_config_parser, key, value));
     }
 };
 } // namespace test_harness

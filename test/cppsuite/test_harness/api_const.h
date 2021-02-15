@@ -2,6 +2,7 @@
 #ifndef API_CONST_H
 #define API_CONST_H
 
+/* Define all constants related to WiredTiger APIs and testing. */
 namespace test_harness {
 namespace api_const {
 

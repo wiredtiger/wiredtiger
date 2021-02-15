@@ -7,17 +7,22 @@
 #include <random>
 #include <string>
 
-namespace random_generator {
+namespace test_harness {
 
+/* Generate random values. */
 class random_generator {
 
     static random_generator *instance;
-    std::random_device _random_device;
+    std::uniform_int_distribution<> distribution;
     std::mt19937 _generator;
+    std::random_device _random_device;
+
+    const std::string CHARACTERS = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
     random_generator()
     {
         _generator = std::mt19937(_random_device());
+        distribution = std::uniform_int_distribution<>(0, CHARACTERS.size() - 1);
     }
 
     public:
@@ -26,27 +31,24 @@ class random_generator {
     {
         if (!instance)
             instance = new random_generator;
-        return instance;
+        return (instance);
     }
 
     std::string
     generate_string(std::size_t length)
     {
-        const std::string CHARACTERS =
-          "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-
-        std::uniform_int_distribution<> distribution(0, CHARACTERS.size() - 1);
-
         std::string random_string;
 
-        for (std::size_t i = 0; i < length; ++i) {
-            random_string += CHARACTERS[distribution(_generator)];
-        }
+        if (length == 0)
+            throw std::invalid_argument("random_generator.generate_string: 0 is an invalid length");
 
-        return random_string;
+        for (std::size_t i = 0; i < length; ++i)
+            random_string += CHARACTERS[distribution(_generator)];
+
+        return (random_string);
     }
 };
 random_generator *random_generator::instance = 0;
-} // namespace random_generator
+} // namespace test_harness
 
 #endif

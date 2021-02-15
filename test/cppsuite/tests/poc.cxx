@@ -1,18 +1,18 @@
 #include <iostream>
 #include <cstdlib>
 #include "test_harness/test_harness.h"
-#include "test_harness/test_workload.h"
+#include "test_harness/workload_generator.h"
 
 class poc_test : public test_harness::test {
 
     private:
-    test_workload::workload *_wl = nullptr;
+    test_harness::workload_generator *_wl = nullptr;
 
     public:
     poc_test(const char *config, int64_t trace_level) : test(config)
     {
-        test_workload::workload::_trace_level = trace_level;
-        _wl = new test_workload::workload(_configuration);
+        test_harness::workload_generator::_trace_level = trace_level;
+        _wl = new test_harness::workload_generator(_configuration);
     }
 
     ~poc_test()
@@ -32,7 +32,7 @@ class poc_test : public test_harness::test {
 
 const char *poc_test::test::_name = "poc_test";
 const char *poc_test::test::_default_config = "collection_count=2,key_count=5,value_size=20";
-int64_t test_workload::workload::_trace_level = 0;
+int64_t test_harness::workload_generator::_trace_level = 0;
 
 int
 main(int argc, char *argv[])
@@ -69,5 +69,5 @@ main(int argc, char *argv[])
     std::cout << "Configuration\t:" << cfg << std::endl;
     std::cout << "Tracel level\t:" << trace_level << std::endl;
 
-    return poc_test(cfg.c_str(), trace_level).run();
+    return (poc_test(cfg.c_str(), trace_level).run());
 }
