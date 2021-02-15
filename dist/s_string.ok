@@ -216,6 +216,8 @@ LAS
 LF
 LLLLLL
 LLLLLLL
+LLVM
+LLVMFuzzerTestOneInput
 LOGREC
 LOGSCAN
 LOOKASIDE
@@ -231,6 +233,7 @@ LZO
 LeafGreen
 LevelDB
 Levyx
+LibFuzzer
 LmRrSVv
 LmsT
 LoadLoad
@@ -627,6 +630,7 @@ create's
 createCStream
 crypto
 cryptobad
+cstring
 csuite
 csv
 ctime
@@ -810,6 +814,9 @@ fsyncs
 ftruncate
 func
 funcid
+fuzz
+fuzzer
+fuzzutil
 fvisibility
 fwrite
 gc
@@ -1040,7 +1047,7 @@ multithreaded
 munmap
 mutex
 mutexes
-mx
+mux
 mytable
 mytxn
 namespace
@@ -1124,6 +1131,7 @@ pcpu
 perf
 pfx
 pluggable
+poc
 popen
 poptable
 popthreads
@@ -1458,6 +1466,7 @@ wtperf's
 wts
 wtstats
 xF
+xdeadbeef
 xff
 xxxx
 xxxxx
