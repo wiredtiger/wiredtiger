@@ -488,7 +488,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           # We don't compile C++ for memory sanitized testing as it creates false positives
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=skip PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb" CXXFLAGS="-fsanitize=memory -ggdb"
+          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=skip PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=memory -ggdb"
           posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
       - func: "upload artifact"
       - func: "cleanup"
