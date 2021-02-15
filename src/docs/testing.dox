@@ -5,12 +5,13 @@ WiredTiger uses a combination of several different tools and test
 programs for testing WiredTiger.
 
 WiredTiger testing is done automatically using the <a
-href="http://jenkins-ci.org/">Jenkins</a> continuous integration testing
-framework.  This allows us to be confident we don't introduce problems
+href="http://jenkins-ci.org/">Jenkins</a> and <a href="https://github.com/evergreen-ci/evergreen/wiki">Evergreen</a> continuous integration testing
+frameworks. This allows us to be confident we don't introduce problems
 in a non-standard configuration, or performance regressions.
 
 @section test_suite Unit Test Suite
 
+@subsection test_python Python
 WiredTiger's primary functionality and regression testing is done in a
 Python unit test suite (found in the source tree under \c test/suite).
 
@@ -32,6 +33,14 @@ least Python version 2.6).
 The WiredTiger test suite automatically runs as part of every commit
 into the WiredTiger GitHub source tree.
 
+@subsection test_csuite CSuite
+@subsection test_cppsuite CPPSuite
+@subsection test_format Format
+@subsection test_perf WT Perf
+@subsection test_workgen Workgen
+
+@section testing_compatibility Compatibility Testing
+@section testing_correctness Correctness Testing
 @section testing_performance Performance Testing
 
 Performance testing is primarily done using the \c bench/wtperf utility.
@@ -41,6 +50,8 @@ bench/wtperf/runners.
 WiredTiger performance tests are automatically run as part of each
 commit into the \c develop branch of the WiredTiger GitHub source tree
 and compared against previous runs to detect performance regressions.
+
+Performance testing is also done using the \c bench/workgen utility.
 
 @section testing_stress Stress Testing
 
@@ -56,6 +67,9 @@ Concurrency testing is primarily done using the \c test/format utility.
 Additionally, the \c test/thread and \c test/fops test utilities test
 specific heavily threaded operations.  WiredTiger concurrency testing
 is run continuously on the WiredTiger GitHub \c develop branch.
+
+@section testing_runtime Runtime correctness checking
+ASAN, MSAN, UBSAN, Valgrind
 
 @section testing_static Static analysis
 
@@ -73,5 +87,42 @@ of the UNIX lint tool.
 
 - The University of Illinois LLVM project's <a
 href="http://clang-analyzer.llvm.org/">Clang Static Analyzer</a>.
+
+@section testing_coverage Coverage
+
+@subsection coverage_tests Tests
+The <a href="https://github.com/wiredtiger/wiredtiger/blob/develop/test/test_coverage.md">test coverage documentation</a> is generated from tags that are present in each test file (main.c and *.py)
+
+@subsection coverage_tags Tagging scheme
+Each test file shall contain a tag using the following scheme:
+
+@code{.console}
+[TEST_TAGS]
+<COMPONENT>:<TESTING_TYPE>:<TESTING_AREA>
+[END_TAGS]
+@endcode
+
+One test file can have multiple tags:
+
+@code{.console}
+[TEST_TAGS]
+backup:correctness:full_backup
+checkpoints:correctness:checkpoint_data
+caching_eviction:correctness:written_data
+[END_TAGS]
+`@endcode
+
+If a test file shall be ignored, the following tag can be used:
+
+@code{.console}
+[TEST_TAGS]
+ignored_file
+[END_TAGS]
+@endcode
+
+@subsection coverage_code Code
+WiredTiger code coverage is measured by gcov.
+
+@subsection coverage_cyclomatic Cyclomatic Complexity
 
  */
