@@ -367,8 +367,9 @@ Here is another example program, @ex_ref{ex_call_center.c}.
 - WiredTiger writes records to the log for each transaction when logging is enabled
   using the log=(enabled) configuration to wiredtiger_open.
 - WiredTiger supports checkpoint durability on non-logged tables and logging
-  is disabled by default.
-- WiredTiger supports commit-level durability on logged tables.
+  is disabled by default. See @ref checkpoint for information on checkpoint durability.
+- WiredTiger supports commit-level durability on logged tables. See @ref durability for
+  information on commit-level durability.
 - Rollback to stable does not operate on logged tables as the updates on these
   tables are stable when the transaction gets committed.
 - Prepared updates can only be done on the non-logged tables.
