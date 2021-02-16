@@ -578,6 +578,8 @@ struct __wt_connection_stats {
     int64_t perf_hist_opwrite_latency_lt1000;
     int64_t perf_hist_opwrite_latency_lt10000;
     int64_t perf_hist_opwrite_latency_gt10000;
+    int64_t rec_overflow_key_internal;
+    int64_t rec_overflow_key_leaf;
     int64_t rec_maximum_seconds;
     int64_t rec_pages_with_prepare;
     int64_t rec_pages_with_ts;
@@ -892,11 +894,9 @@ struct __wt_dsrc_stats {
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
     int64_t rec_overflow_key_internal;
-    int64_t rec_overflow_key_internal_hs;
     int64_t rec_prefix_compression;
     int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
-    int64_t rec_overflow_key_leaf_hs;
     int64_t rec_multiblock_max;
     int64_t rec_overflow_value;
     int64_t rec_page_match;

@@ -101,11 +101,9 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: internal page key bytes discarded using suffix compression",
   "reconciliation: internal page multi-block writes",
   "reconciliation: internal-page overflow keys",
-  "reconciliation: internal-page overflow keys in history store",
   "reconciliation: leaf page key bytes discarded using prefix compression",
   "reconciliation: leaf page multi-block writes",
   "reconciliation: leaf-page overflow keys",
-  "reconciliation: leaf-page overflow keys in history store",
   "reconciliation: maximum blocks required for a page",
   "reconciliation: overflow values written",
   "reconciliation: page checksum matches",
@@ -353,11 +351,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_suffix_compression = 0;
     stats->rec_multiblock_internal = 0;
     stats->rec_overflow_key_internal = 0;
-    stats->rec_overflow_key_internal_hs = 0;
     stats->rec_prefix_compression = 0;
     stats->rec_multiblock_leaf = 0;
     stats->rec_overflow_key_leaf = 0;
-    stats->rec_overflow_key_leaf_hs = 0;
     stats->rec_multiblock_max = 0;
     stats->rec_overflow_value = 0;
     stats->rec_page_match = 0;
@@ -589,11 +585,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_suffix_compression += from->rec_suffix_compression;
     to->rec_multiblock_internal += from->rec_multiblock_internal;
     to->rec_overflow_key_internal += from->rec_overflow_key_internal;
-    to->rec_overflow_key_internal_hs += from->rec_overflow_key_internal_hs;
     to->rec_prefix_compression += from->rec_prefix_compression;
     to->rec_multiblock_leaf += from->rec_multiblock_leaf;
     to->rec_overflow_key_leaf += from->rec_overflow_key_leaf;
-    to->rec_overflow_key_leaf_hs += from->rec_overflow_key_leaf_hs;
     if (from->rec_multiblock_max > to->rec_multiblock_max)
         to->rec_multiblock_max = from->rec_multiblock_max;
     to->rec_overflow_value += from->rec_overflow_value;
@@ -821,11 +815,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_suffix_compression += WT_STAT_READ(from, rec_suffix_compression);
     to->rec_multiblock_internal += WT_STAT_READ(from, rec_multiblock_internal);
     to->rec_overflow_key_internal += WT_STAT_READ(from, rec_overflow_key_internal);
-    to->rec_overflow_key_internal_hs += WT_STAT_READ(from, rec_overflow_key_internal_hs);
     to->rec_prefix_compression += WT_STAT_READ(from, rec_prefix_compression);
     to->rec_multiblock_leaf += WT_STAT_READ(from, rec_multiblock_leaf);
     to->rec_overflow_key_leaf += WT_STAT_READ(from, rec_overflow_key_leaf);
-    to->rec_overflow_key_leaf_hs += WT_STAT_READ(from, rec_overflow_key_leaf_hs);
     if ((v = WT_STAT_READ(from, rec_multiblock_max)) > to->rec_multiblock_max)
         to->rec_multiblock_max = v;
     to->rec_overflow_value += WT_STAT_READ(from, rec_overflow_value);
@@ -1223,6 +1215,8 @@ static const char *const __stats_connection_desc[] = {
   "perf: operation write latency histogram (bucket 3) - 500-999us",
   "perf: operation write latency histogram (bucket 4) - 1000-9999us",
   "perf: operation write latency histogram (bucket 5) - 10000us+",
+  "reconciliation: internal-page overflow keys",
+  "reconciliation: leaf-page overflow keys",
   "reconciliation: maximum seconds spent in a reconciliation call",
   "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
   "metadata",
@@ -1743,6 +1737,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opwrite_latency_lt1000 = 0;
     stats->perf_hist_opwrite_latency_lt10000 = 0;
     stats->perf_hist_opwrite_latency_gt10000 = 0;
+    stats->rec_overflow_key_internal = 0;
+    stats->rec_overflow_key_leaf = 0;
     /* not clearing rec_maximum_seconds */
     stats->rec_pages_with_prepare = 0;
     stats->rec_pages_with_ts = 0;
@@ -2256,6 +2252,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_opwrite_latency_lt1000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt1000);
     to->perf_hist_opwrite_latency_lt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt10000);
     to->perf_hist_opwrite_latency_gt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_gt10000);
+    to->rec_overflow_key_internal += WT_STAT_READ(from, rec_overflow_key_internal);
+    to->rec_overflow_key_leaf += WT_STAT_READ(from, rec_overflow_key_leaf);
     to->rec_maximum_seconds += WT_STAT_READ(from, rec_maximum_seconds);
     to->rec_pages_with_prepare += WT_STAT_READ(from, rec_pages_with_prepare);
     to->rec_pages_with_ts += WT_STAT_READ(from, rec_pages_with_ts);

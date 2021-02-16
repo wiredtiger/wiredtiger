@@ -463,6 +463,8 @@ connection_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
+    RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
+    RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_pages_with_prepare', 'page reconciliation calls that resulted in values with prepared transaction metadata'),
     RecStat('rec_pages_with_ts', 'page reconciliation calls that resulted in values with timestamps'),
     RecStat('rec_pages_with_txn', 'page reconciliation calls that resulted in values with transaction ids'),
@@ -723,9 +725,7 @@ dsrc_stats = [
     RecStat('rec_multiblock_leaf', 'leaf page multi-block writes'),
     RecStat('rec_multiblock_max', 'maximum blocks required for a page', 'max_aggregate,no_scale'),
     RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
-    RecStat('rec_overflow_key_internal_hs', 'internal-page overflow keys in history store'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
-    RecStat('rec_overflow_key_leaf_hs', 'leaf-page overflow keys in history store'),
     RecStat('rec_overflow_value', 'overflow values written'),
     RecStat('rec_page_match', 'page checksum matches'),
     RecStat('rec_prefix_compression', 'leaf page key bytes discarded using prefix compression', 'size'),
