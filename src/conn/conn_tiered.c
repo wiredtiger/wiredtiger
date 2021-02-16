@@ -61,9 +61,14 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool forc
     WT_ERR(__wt_snprintf(newfile, len, "file:%s", filename));
 
     /*
-     * If the file:URI of the tiered object does not exist there is nothing to do.
+     * If the file:URI of the tiered object does not exist, there is nothing to do.
      */
-    WT_ERR(__wt_metadata_search(session, newfile, &config));
+    ret = __wt_metadata_search(session, newfile, &config);
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto err;
+    }
+    WT_ERR(ret);
 
     /*
      * We have a local version of this tiered data. Check its metadata for when it expires and
