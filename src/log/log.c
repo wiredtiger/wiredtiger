@@ -2169,7 +2169,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
          * more information about that.
          */
         if (start_lsnp->l.offset % allocsize != 0) {
-            if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
+            if (LF_ISSET(WT_LOGSCAN_RECOVER))
                 WT_ERR_MSG(session, WT_NOTFOUND, "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
                   start_lsnp->l.file, start_lsnp->l.offset);
             else
@@ -2181,7 +2181,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, ui
          * so give more information about that.
          */
         if (start_lsnp->l.file > lastlog) {
-            if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
+            if (LF_ISSET(WT_LOGSCAN_RECOVER))
                 WT_ERR_MSG(session, WT_NOTFOUND,
                   "__wt_log_scan LSN %" PRIu32 "/%" PRIu32 " larger than biggest log file %" PRIu32,
                   start_lsnp->l.file, start_lsnp->l.offset, lastlog);

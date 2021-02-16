@@ -599,8 +599,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session)
              * checkpoint while scanning, we will change the full scan to start from there.
              */
             WT_ASSIGN_LSN(&r.ckpt_lsn, &metafile->ckpt_lsn);
-            ret = __wt_log_scan(session, &metafile->ckpt_lsn, NULL, WT_LOGSCAN_RECOVER_METADATA,
-              __txn_log_recover, &r);
+            ret = __wt_log_scan(session, &metafile->ckpt_lsn, NULL, 0, __txn_log_recover, &r);
         }
         if (F_ISSET(conn, WT_CONN_SALVAGE))
             ret = 0;
