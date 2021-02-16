@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-#include "stat.h"
 
 /* Enable rollback to stable verbose messaging during recovery. */
 #define WT_VERB_RECOVERY_RTS(session) \
@@ -101,6 +100,66 @@ __rollback_abort_newer_insert(
 }
 
 /*
+ * __rollback_col_add_update --
+ *     Add the provided update to the head of the update list.
+ */
+static inline int
+__rollback_col_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
+{
+    WT_DECL_RET;
+    WT_PAGE_MODIFY *mod;
+    WT_INSERT_HEAD *ins_head, **ins_headp;
+    WT_INSERT *ins;
+    size_t ins_size, upd_size;
+    u_int skipdepth;
+    WT_INSERT **ins_stack[WT_SKIP_MAXDEPTH];
+
+    upd_size = WT_UPDATE_MEMSIZE(upd);
+
+    // last_upd = NULL;
+    /* If we don't yet have a modify structure, we'll need one. */
+    WT_RET(__wt_page_modify_init(session, page));
+    mod = page->modify;
+
+    /* Allocate an update array as necessary. */
+    // WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+    WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, page->entries);
+
+    /* Set the WT_UPDATE array reference. */
+    ins_headp = &mod->mod_col_update[WT_COL_SLOT(page, cip)];
+    WT_PAGE_ALLOC_AND_SWAP(session, page, *ins_headp, ins_head, 1);
+    ins_head = *ins_headp;
+    // upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
+
+    // printf("Choosing depth\n");
+    // skipdepth = __wt_skip_choose_depth(session);
+    skipdepth = 1;
+
+    WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
+
+    upd_size = __wt_update_list_memsize(upd);
+    ins->upd = upd;
+    ins_size += upd_size;
+
+    ins_stack[0] = &ins;
+    // for (i = 0; i < skipdepth; i++) {
+    //     ins_stack[i] = &ins_head->head[i];
+    //     ins->next[i] = next_stack[i] = NULL;
+    // }
+
+    WT_ERR(__wt_insert_serial(
+        session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
+        
+    // printf("__wt_append_serial\n");
+    // WT_ERR(__wt_col_append_serial(session, page, ins_head, ins_stack, &ins,
+    //     ins_size, &recno, skipdepth, true));
+
+    if (0) {
+err:
+    return (ret);
+}
+
+/*
  * __rollback_row_add_update --
  *     Add the provided update to the head of the update list.
  */
@@ -157,6 +216,26 @@ err:
             last_upd->next = NULL;
     }
 
+    return (ret);
+}
+
+/* Allocate tombstone and calls function add update to head of insert list. */
+static int
+__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
+  wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
+{
+    WT_UPDATE *tombstone, *upd;
+    WT_DECL_RET;
+    WT_CELL* kcell;
+
+    WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+    WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+
+    WT_ERR(__rollback_col_add_update(session, page, cip, upd, recno));
+
+    if (0) {
+err:
+    }
     return (ret);
 }
 
@@ -498,8 +577,11 @@ __rollback_abort_col_ondisk_kv(
         /* Stable version according to the timestamp. */
         return (0);
 
-
-    return (0);
+err:
+    __wt_buf_free(session, &buf);
+    __wt_free(session, upd);
+    return (ret);
+    // return (0);
 }
 
 /*
