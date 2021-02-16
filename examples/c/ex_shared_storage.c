@@ -30,6 +30,17 @@
  */
 #include <test_util.h>
 
+#ifdef __GNUC__
+#if __GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ > 0)
+/*
+ * !!!
+ * GCC with -Wformat-truncation complains about calls to snprintf in this file.
+ * There's nothing wrong, this makes the warning go away.
+ */
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+#endif
+
 /*
  * This example code uses pthread functions for portable locking, we ignore errors for simplicity.
  */
