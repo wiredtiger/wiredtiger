@@ -1115,77 +1115,14 @@ main(void)
         fprintf(stderr, "WT_CONNECTION.open_session: %s\n", wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }
+    /*
+     * At the moment, the infrastructure withing WiredTiger that would use the shared storage
+     * extension does not exist. So call the interface directly as a demonstration.
+     */
     if ((ret = demo_test_shared_storage(saved_shared_storage, session)) != 0) {
         fprintf(stderr, "shared storage test failed: %s\n", wiredtiger_strerror(ret));
         return (EXIT_FAILURE);
     }
-    /*
-     * At the moment, the infrastructure withing WiredTiger that would use the shared storage
-     * extension does not exist. So we will call the interface directly.
-     */
-#if 0
-    uri = "table:ss";
-    tier0_uri = "file:ss_tier0.wt";
-    tier1_uri = "shared:demo:ss_tier1";
-
-    if ((ret = session->create(session, tier0_uri, "key_format=S,value_format=S")) != 0) {
-        fprintf(stderr, "WT_SESSION.create: %s: %s\n", tier_uri, wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-    if ((ret = session->create(session, tier1_uri,
-          "shared=(location=encoded_bucket_and_authorization),key_format=S,value_format=S")) != 0) {
-        fprintf(stderr, "WT_SESSION.create: %s: %s\n", tier_uri, wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-
-    if ((ret = session->create(session, uri, "key_format=S,value_format=S,"
-          "type=tiered=(tiers=(\"file:ss_tier0.wt\",\"shared:demo:ss_tier1\")")) != 0) {
-        fprintf(stderr, "WT_SESSION.create: %s: %s\n", uri, wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-    if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
-        fprintf(stderr, "WT_SESSION.open_cursor: %s: %s\n", uri, wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-    for (i = 0; i < 1000; ++i) {
-        (void)snprintf(kbuf, sizeof(kbuf), "%010d KEY -----", i);
-        cursor->set_key(cursor, kbuf);
-        cursor->set_value(cursor, "--- VALUE ---");
-        if ((ret = cursor->insert(cursor)) != 0) {
-            fprintf(stderr, "WT_CURSOR.insert: %s: %s\n", kbuf, wiredtiger_strerror(ret));
-            return (EXIT_FAILURE);
-        }
-    }
-    if ((ret = cursor->close(cursor)) != 0) {
-        fprintf(stderr, "WT_CURSOR.close: %s\n", wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-    if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
-        fprintf(stderr, "WT_SESSION.open_cursor: %s: %s\n", uri, wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-    for (i = 0; i < 1000; ++i) {
-        if ((ret = cursor->next(cursor)) != 0) {
-            fprintf(stderr, "WT_CURSOR.insert: %s: %s\n", kbuf, wiredtiger_strerror(ret));
-            return (EXIT_FAILURE);
-        }
-        (void)snprintf(kbuf, sizeof(kbuf), "%010d KEY -----", i);
-        if ((ret = cursor->get_key(cursor, &key)) != 0) {
-            fprintf(stderr, "WT_CURSOR.get_key: %s\n", wiredtiger_strerror(ret));
-            return (EXIT_FAILURE);
-        }
-        if (strcmp(kbuf, key) != 0) {
-            fprintf(stderr, "Key mismatch: %s, %s\n", kbuf, key);
-            return (EXIT_FAILURE);
-        }
-    }
-    if ((ret = cursor->next(cursor)) != WT_NOTFOUND) {
-        fprintf(
-          stderr, "WT_CURSOR.insert: expected WT_NOTFOUND, got %s\n", wiredtiger_strerror(ret));
-        return (EXIT_FAILURE);
-    }
-#endif
-
     if ((ret = conn->close(conn, NULL)) != 0) {
         fprintf(stderr, "Error closing connection to %s: %s\n", home == NULL ? "." : home,
           wiredtiger_strerror(ret));
