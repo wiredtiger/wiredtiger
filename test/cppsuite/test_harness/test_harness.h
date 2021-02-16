@@ -12,7 +12,6 @@
 
 namespace test_harness {
 class test {
-
     public:
     /*
      * All tests will implement this initially, the return value from it will indicate whether the

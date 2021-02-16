@@ -5,10 +5,6 @@
 #include "test_harness/workload_generator.h"
 
 class poc_test : public test_harness::test {
-
-    private:
-    test_harness::workload_generator *_wl = nullptr;
-
     public:
     poc_test(const char *config, int64_t trace_level) : test(config)
     {
@@ -34,6 +30,9 @@ class poc_test : public test_harness::test {
             throw std::runtime_error(
               "Run stage failed with error code: " + std::to_string(return_code));
     }
+
+    private:
+    test_harness::workload_generator *_wl = nullptr;
 };
 
 const char *poc_test::test::_name = "poc_test";
