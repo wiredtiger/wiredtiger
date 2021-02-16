@@ -5,9 +5,10 @@ It is a central resource recording changes made to different tables, by differen
 threads, into a file on disk. Its purpose is so that changes made since the most recent
 checkpoint are not lost and can be recovered on restart after a crash (unclean shutdown).
 
-@subsection log_files Log-related files in the database directory
+@section log_files Log-related files in the database directory
 
-There are three log-related files that users can see in the database directory.
+There are three log-related file variants that users can see in the database directory:
+\c WiredTigerLog.*, \c WiredTigerPreplog.* and \c WiredTigerTmplog.*.
 The actual write-ahead log files are prepended with the string \c WiredTigerLog.
 followed by ten digits of log file number. For example, \c WiredTigerLog.0000000001.
 The other two log-related filenames are for log file pre-allocation. When pre-allocation
@@ -19,11 +20,18 @@ synced to disk and closed, it is renamed to a prepared log file that other threa
 the system can rename to use as the next real log file. Prepared pre-allocated log files
 that are ready to use have the prefix \c WiredTigerPreplog.
 
-There varying number of temporary and prepared log files in the directory. They
+Only the numbering of the actual \c WiredTigerLog.* files is significant. There is
+no relation between the numbers on those files and the number of the pre-allocated
+files. For pre-allocation, unique names are needed to avoid any possibility of naming
+collision and the numbering mechanism exists, so the code reuses it. But there is
+no meaning to the numbers on the two pre-allocated file types.
+
+There are a varying number of temporary and prepared log files in the directory. They
 are removed immediately on startup. Old pre-allocated log files cannot be reused
 on a restart because the log file version number could have changed in between runs.
+See \ref log_threads for a discussion of pre-allocation.
 
-@subsection log_configuration Configuration choices and their implications
+@section log_configuration Configuration choices and their implications
 
 Once the logging subsystem is enabled for the system, then other configuration settings
 control the finer details of the logging subsystem. The \c archive=true setting turns
@@ -48,7 +56,7 @@ backup has a contract that all files that existed when the backup cursor was ope
 continue to exist for the lifetime of the backup cursor. Renaming pre-allocated log
 files would violate that contract.
 
-@subsection log_records Log operations and records
+@section log_records Log operations and records
 
 The unit written to the write-ahead log is a log record. Some log records are made up
 of log operations. The most common log record containing operations is the transaction
@@ -67,7 +75,8 @@ is active. The other implication of using this operations buffer is that it is
 simply freed if the transaction is rolled back and there is nothing to record or
 do for a rolled back transaction.
 
-@subsection Logging subsystem data structures and algorithms
+@section log_subsystem Logging subsystem data structures and algorithms
+
 A log sequence number (LSN) identifies the location of a log record. In WiredTiger
 LSNs is a 64-bit number containing two values, a 32-bit file number and a 32-bit offset.
 The file number portion of the LSN maps to the number in the \c WiredTigerLog. file name.
@@ -109,7 +118,7 @@ default synchronization setting of memory-only the path of writing its record in
 the write-ahead log becomes essentially two atomic operations and memory copies. The
 common path does not require acquiring locks.
 
-@subsection log_threads Internal Threads
+@section log_threads Internal Threads
 There are several internal logging-related threads that perform housekeeping on the
 logging subsystem. The main thread, called \c log_server, is a general thread. It
 flushes out the current slot to the file system. It does this every 50 milliseconds
@@ -139,7 +148,7 @@ will coalesce adjacent LSNs of slots in order to advance the LSN in larger incre
 This thread will then clean up and mark the state of the processed slots
 as \c WT_LOG_SLOT_FREE.
 
-@subsection log_usage Using the log
+@section log_usage Using the log
 
 In addition to storing a record of the operations performed to data in the write-ahead
 log, users can write their own strings into the logs via the \c WT_SESSION::log_printf
