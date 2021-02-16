@@ -1273,21 +1273,11 @@ static const char *const __stats_connection_desc[] = {
   "thread-yield: page delete rollback time sleeping for state change (usecs)",
   "thread-yield: page reconciliation yielded due to child modification",
   "transaction: Number of prepared updates",
-  "transaction: durable timestamp queue entries walked",
-  "transaction: durable timestamp queue insert to empty",
-  "transaction: durable timestamp queue inserts to head",
-  "transaction: durable timestamp queue inserts total",
-  "transaction: durable timestamp queue length",
   "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
   "transaction: prepared transactions rolled back",
   "transaction: query timestamp calls",
-  "transaction: read timestamp queue entries walked",
-  "transaction: read timestamp queue insert to empty",
-  "transaction: read timestamp queue inserts to head",
-  "transaction: read timestamp queue inserts total",
-  "transaction: read timestamp queue length",
   "transaction: rollback to stable calls",
   "transaction: rollback to stable pages visited",
   "transaction: rollback to stable tree walk skipping pages",
@@ -1796,21 +1786,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->page_del_rollback_blocked = 0;
     stats->child_modify_blocked_page = 0;
     stats->txn_prepared_updates_count = 0;
-    stats->txn_durable_queue_walked = 0;
-    stats->txn_durable_queue_empty = 0;
-    stats->txn_durable_queue_head = 0;
-    stats->txn_durable_queue_inserts = 0;
-    stats->txn_durable_queue_len = 0;
     stats->txn_prepare = 0;
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
     stats->txn_prepare_rollback = 0;
     stats->txn_query_ts = 0;
-    stats->txn_read_queue_walked = 0;
-    stats->txn_read_queue_empty = 0;
-    stats->txn_read_queue_head = 0;
-    stats->txn_read_queue_inserts = 0;
-    stats->txn_read_queue_len = 0;
     stats->txn_rts = 0;
     stats->txn_rts_pages_visited = 0;
     stats->txn_rts_tree_walk_skip_pages = 0;
@@ -2313,21 +2293,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_del_rollback_blocked += WT_STAT_READ(from, page_del_rollback_blocked);
     to->child_modify_blocked_page += WT_STAT_READ(from, child_modify_blocked_page);
     to->txn_prepared_updates_count += WT_STAT_READ(from, txn_prepared_updates_count);
-    to->txn_durable_queue_walked += WT_STAT_READ(from, txn_durable_queue_walked);
-    to->txn_durable_queue_empty += WT_STAT_READ(from, txn_durable_queue_empty);
-    to->txn_durable_queue_head += WT_STAT_READ(from, txn_durable_queue_head);
-    to->txn_durable_queue_inserts += WT_STAT_READ(from, txn_durable_queue_inserts);
-    to->txn_durable_queue_len += WT_STAT_READ(from, txn_durable_queue_len);
     to->txn_prepare += WT_STAT_READ(from, txn_prepare);
     to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
     to->txn_prepare_rollback += WT_STAT_READ(from, txn_prepare_rollback);
     to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
-    to->txn_read_queue_walked += WT_STAT_READ(from, txn_read_queue_walked);
-    to->txn_read_queue_empty += WT_STAT_READ(from, txn_read_queue_empty);
-    to->txn_read_queue_head += WT_STAT_READ(from, txn_read_queue_head);
-    to->txn_read_queue_inserts += WT_STAT_READ(from, txn_read_queue_inserts);
-    to->txn_read_queue_len += WT_STAT_READ(from, txn_read_queue_len);
     to->txn_rts += WT_STAT_READ(from, txn_rts);
     to->txn_rts_pages_visited += WT_STAT_READ(from, txn_rts_pages_visited);
     to->txn_rts_tree_walk_skip_pages += WT_STAT_READ(from, txn_rts_tree_walk_skip_pages);
