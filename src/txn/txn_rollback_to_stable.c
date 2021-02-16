@@ -156,6 +156,7 @@ __rollback_col_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, 
 
     if (0) {
 err:
+
     return (ret);
 }
 
