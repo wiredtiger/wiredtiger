@@ -90,7 +90,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure_statistics_log_su
   {"sources", "list", NULL, NULL, NULL, 0}, {"timestamp", "string", NULL, NULL, NULL, 0},
   {"wait", "int", NULL, "min=0,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
-static const WT_CONFIG_CHECK confchk_wiredtiger_open_tiered_manager_subconfigs[] = {
+static const WT_CONFIG_CHECK confchk_tiered_manager_subconfigs[] = {
   {"threads_max", "int", NULL, "min=1,max=20", NULL, 0},
   {"threads_min", "int", NULL, "min=1,max=20", NULL, 0},
   {"wait", "int", NULL, "min=0,max=100000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
@@ -133,7 +133,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     NULL, 0},
   {"statistics_log", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_statistics_log_subconfigs, 5},
-  {"tiered_manager", "category", NULL, NULL, confchk_wiredtiger_open_tiered_manager_subconfigs, 3},
+  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
   {"tiered_storage", "category", NULL, NULL,
     confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 3},
   {"timing_stress_for_test", "list", NULL,
@@ -617,7 +617,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_statistics_log_subconfigs[]
   {"timestamp", "string", NULL, NULL, NULL, 0}, {"wait", "int", NULL, "min=0,max=100000", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
-static const WT_CONFIG_CHECK confchk_wiredtiger_open_tiered_storage_subconfigs[] = {
+static const WT_CONFIG_CHECK confchk_tiered_storage_subconfigs[] = {
   {"auth_token", "string", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
   {"local_retention", "int", NULL, "min=0,max=10000", NULL, 0},
   {"name", "string", NULL, NULL, NULL, 0},
@@ -678,8 +678,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_wiredtiger_open_tiered_manager_subconfigs, 3},
-  {"tiered_storage", "category", NULL, NULL, confchk_wiredtiger_open_tiered_storage_subconfigs, 5},
+  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
+  {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 5},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
@@ -756,8 +756,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_wiredtiger_open_tiered_manager_subconfigs, 3},
-  {"tiered_storage", "category", NULL, NULL, confchk_wiredtiger_open_tiered_storage_subconfigs, 5},
+  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
+  {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 5},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
@@ -831,8 +831,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_wiredtiger_open_tiered_manager_subconfigs, 3},
-  {"tiered_storage", "category", NULL, NULL, confchk_wiredtiger_open_tiered_storage_subconfigs, 5},
+  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
+  {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 5},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
@@ -904,8 +904,8 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"clear\",\"tree_walk\"]",
     NULL, 0},
   {"statistics_log", "category", NULL, NULL, confchk_wiredtiger_open_statistics_log_subconfigs, 6},
-  {"tiered_manager", "category", NULL, NULL, confchk_wiredtiger_open_tiered_manager_subconfigs, 3},
-  {"tiered_storage", "category", NULL, NULL, confchk_wiredtiger_open_tiered_storage_subconfigs, 5},
+  {"tiered_manager", "category", NULL, NULL, confchk_tiered_manager_subconfigs, 3},
+  {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 5},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
     "\"checkpoint_slow\",\"history_store_checkpoint_delay\","

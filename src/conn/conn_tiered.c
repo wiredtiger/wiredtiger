@@ -54,7 +54,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool forc
     if (uri == NULL)
         return (0);
     __wt_verbose(session, WT_VERB_TIERED, "Removing tree %s", uri);
-    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "tiered:"));
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "tiered:");
     len = strlen("file:") + strlen(filename) + 1;
@@ -62,7 +61,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool forc
     WT_ERR(__wt_snprintf(newfile, len, "file:%s", filename));
 
     /*
-     * If the file version of the tiered object does not exist there is nothing to do.
+     * If the file:URI of the tiered object does not exist there is nothing to do.
      */
     WT_ERR(__wt_metadata_search(session, newfile, &config));
 

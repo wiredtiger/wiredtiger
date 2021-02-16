@@ -723,7 +723,7 @@ connection_runtime_config = [
         ]),
     Config('tiered_manager', '', r'''
         tiered storage manager configuration options''',
-        type='category', subconfig=[
+        type='category', undoc=True, subconfig=[
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help manage
                 tiered storage maintenance. Each worker thread uses a session
@@ -952,7 +952,7 @@ wiredtiger_open_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
         enable tiered storage. Enabling tiered storage may use one session from the
         configured session_max''',
-        type='category', subconfig=
+        type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
         Config('enabled', 'false', r'''
             enable tiered storage subsystem''',
