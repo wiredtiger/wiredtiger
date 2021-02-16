@@ -78,14 +78,14 @@ class workload_generator {
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
             WT_RET(_session->create(_session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
-            collection_names.push_back(collection_name);
+            _collection_names.push_back(collection_name);
         }
         debug_info(std::to_string(collection_count) + " collections created", DEBUG_INFO);
 
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         WT_RET(_configuration->get_int(test_harness::KEY_COUNT, key_count));
         WT_RET(_configuration->get_int(test_harness::VALUE_SIZE, value_size));
-        for (const auto &collection_name : collection_names) {
+        for (const auto &collection_name : _collection_names) {
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
             WT_RET(_session->open_cursor(_session, collection_name.c_str(), NULL, NULL, &cursor));
@@ -156,7 +156,7 @@ class workload_generator {
             std::cout << str << std::endl;
     }
 
-    std::vector<std::string> collection_names;
+    std::vector<std::string> _collection_names;
     test_harness::configuration *_configuration = nullptr;
     WT_CONNECTION *_conn = nullptr;
     WT_SESSION *_session = nullptr;
