@@ -791,6 +791,19 @@ struct __wt_session {
 	 */
 	int __F(reconfigure)(WT_SESSION *session, const char *config);
 
+#ifndef DOXYGEN
+	/*!
+	 * Initiate a single operation to manage tiered storage.
+	 *
+	 * @param session the session handle
+	 * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
+	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
+	 * @configend
+	 * @errors
+	 */
+	int __F(flush_tier)(WT_SESSION *session, const char *config);
+#endif
+
 	/*!
 	 * Return information about an error as a string.
 	 *
@@ -2196,6 +2209,18 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the log
 	 * records; setting this value above 0 configures statistics logging., an integer between 0
 	 * and 100000; default \c 0.}
+	 * @config{ ),,}
+	 * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
+	 * session from the configured session_max., a set of related configuration options defined
+	 * below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token, authentication token string., a
+	 * string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds
+	 * to retain data on tiered storage on the local tier for faster read access., an integer
+	 * between 0 and 10000; default \c 300.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size,
+	 * the approximate size of objects before creating them on the tiered storage tier., an
+	 * integer between 100K and 10TB; default \c 10M.}
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
@@ -5867,31 +5892,35 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS		1464
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN		1465
+/*! session: flush_tier operation calls */
+#define	WT_STAT_CONN_FLUSH_TIER				1466
+/*! session: tiered storage local retention time (secs) */
+#define	WT_STAT_CONN_TIERED_RETENTION			1467
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1466
+#define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1468
 /*!
  * transaction: rollback to stable hs records with stop timestamps older
  * than newer records
  */
-#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1467
+#define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1469
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1468
+#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1470
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1469
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1471
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1470
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1472
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1471
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1473
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1472
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1474
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1473
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1475
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1474
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1476
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1475
+#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1477
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1476
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1478
 
 /*!
  * @}
@@ -6482,31 +6511,35 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2196
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2197
+/*! session: flush_tier operation calls */
+#define	WT_STAT_DSRC_FLUSH_TIER				2198
+/*! session: tiered storage local retention time (secs) */
+#define	WT_STAT_DSRC_TIERED_RETENTION			2199
 /*! transaction: race to read prepared update retry */
-#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2198
+#define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2200
 /*!
  * transaction: rollback to stable hs records with stop timestamps older
  * than newer records
  */
-#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2199
+#define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2201
 /*! transaction: rollback to stable inconsistent checkpoint */
-#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2200
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2202
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2201
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2203
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2202
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2204
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2203
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2205
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2204
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2206
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2205
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2207
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2206
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2208
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2207
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2209
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2208
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2210
 
 /*!
  * @}
