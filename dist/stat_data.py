@@ -861,7 +861,7 @@ conn_dsrc_stats = [
     ##########################################
     # Tiered storage statistics
     ##########################################
-    StorageStat('tier_storage', 'tier_storage operation calls'),
+    StorageStat('flush_tier', 'flush_tier operation calls'),
     StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
 
     ##########################################

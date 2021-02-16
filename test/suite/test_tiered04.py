@@ -51,22 +51,22 @@ class test_tiered04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    # Test calling the tier_storage API.
+    # Test calling the flush_tier API.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
         # The retention is in minutes. The stat is in seconds.
         retain = self.get_stat(stat.conn.tiered_retention)
         self.assertEqual(retain, self.retention)
-        self.session.tier_storage(None)
-        self.session.tier_storage('force=true')
-        calls = self.get_stat(stat.conn.tier_storage)
+        self.session.flush_tier(None)
+        self.session.flush_tier('force=true')
+        calls = self.get_stat(stat.conn.flush_tier)
         self.assertEqual(calls, 2)
         new = self.retention * 2
         config = 'tiered_storage=(local_retention=%d)' % new
         self.conn.reconfigure(config)
-        self.session.tier_storage(None)
+        self.session.flush_tier(None)
         retain = self.get_stat(stat.conn.tiered_retention)
-        calls = self.get_stat(stat.conn.tier_storage)
+        calls = self.get_stat(stat.conn.flush_tier)
         self.assertEqual(retain, new)
         self.assertEqual(calls, 3)
 

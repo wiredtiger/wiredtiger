@@ -1932,18 +1932,18 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
 }
 
 /*
- * __session_tier_storage --
- *     Wrapper for the tier_storage method.
+ * __session_flush_tier --
+ *     Wrapper for the flush_tier method.
  */
 static int
-__session_tier_storage(WT_SESSION *wt_session, const char *config)
+__session_flush_tier(WT_SESSION *wt_session, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, tier_storage);
-    ret = __wt_tier_storage(session, config);
+    SESSION_API_CALL_NOCONF(session, flush_tier);
+    ret = __wt_flush_tier(session, config);
 err:
     API_END_RET(session, ret);
 }
@@ -1969,7 +1969,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
   WT_SESSION_IMPL **sessionp)
 {
     static const WT_SESSION
-      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_tier_storage,
+      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter, __session_create,
         __wt_session_compact, __session_drop, __session_join, __session_log_flush,
         __session_log_printf, __session_rename, __session_reset, __session_salvage,
@@ -1978,7 +1978,7 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
         __session_checkpoint, __session_transaction_pinned_range, __session_transaction_sync,
         __wt_session_breakpoint},
-      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_tier_storage,
+      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
         __session_join, __session_log_flush_readonly, __session_log_printf_readonly,

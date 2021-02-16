@@ -20,11 +20,11 @@
 #endif
 
 /*
- * __tier_storage_once --
+ * __flush_tier_once --
  *     Perform one iteration of tiered storage maintenance.
  */
 static void
-__tier_storage_once(WT_SESSION_IMPL *session, bool force)
+__flush_tier_once(WT_SESSION_IMPL *session, bool force)
 {
     WT_UNUSED(session);
     WT_UNUSED(force);
@@ -38,11 +38,11 @@ __tier_storage_once(WT_SESSION_IMPL *session, bool force)
 }
 
 /*
- * __tier_storage_remove_tree --
+ * __tier_storage_remove_local --
  *     Perform one iteration of tiered storage local tier removal.
  */
 static int
-__tier_storage_remove_tree(WT_SESSION_IMPL *session, const char *uri, bool force)
+__tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool force)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
@@ -100,33 +100,33 @@ __tier_storage_remove(WT_SESSION_IMPL *session, bool force)
      * We want to walk the metadata perhaps and for each tiered URI, call remove on its file:URI
      * version.
      */
-    WT_RET(__tier_storage_remove_tree(session, NULL, force));
+    WT_RET(__tier_storage_remove_local(session, NULL, force));
     return (0);
 }
 
 /*
- * __wt_tier_storage --
- *     Entry function for tier_storage method.
+ * __wt_flush_tier --
+ *     Entry function for flush_tier method.
  */
 int
-__wt_tier_storage(WT_SESSION_IMPL *session, const char *config)
+__wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
     const char *cfg[3];
     bool force;
 
-    WT_STAT_CONN_INCR(session, tier_storage);
+    WT_STAT_CONN_INCR(session, flush_tier);
     if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED))
         WT_RET_MSG(
-          session, EINVAL, "Cannot call tier_storage when storage manager thread is configured");
+          session, EINVAL, "Cannot call flush_tier when storage manager thread is configured");
 
-    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_tier_storage);
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_flush_tier);
     cfg[1] = (char *)config;
     cfg[2] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     force = cval.val != 0;
 
-    __tier_storage_once(session, force);
+    __flush_tier_once(session, force);
     return (0);
 }
 
@@ -193,6 +193,8 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     conn->tiered_retain_secs = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, tiered_retention, conn->tiered_retain_secs);
 
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
+    conn->tiered_object_size = (uint64_t)cval.val;
     return (__tiered_manager_config(session, cfg, runp));
 }
 
@@ -242,7 +244,7 @@ __tiered_server(void *arg)
          * Here is where we do work. Work we expect to do:
          *
          */
-        __tier_storage_once(session, false);
+        __flush_tier_once(session, false);
         WT_ERR(__tier_storage_remove(session, false));
     }
 

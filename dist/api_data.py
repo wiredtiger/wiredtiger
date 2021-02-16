@@ -724,10 +724,6 @@ connection_runtime_config = [
     Config('tiered_manager', '', r'''
         tiered storage manager configuration options''',
         type='category', subconfig=[
-            Config('object_target_size', '10M', r'''
-                the approximate size of objects before creating them on the
-                tiered storage tier''',
-                min='100K', max='10TB'),
             Config('threads_max', '8', r'''
                 maximum number of threads WiredTiger will start to help manage
                 tiered storage maintenance. Each worker thread uses a session
@@ -940,6 +936,10 @@ tiered_storage_configuration_common = [
         time in seconds to retain data on tiered storage on the local tier for
         faster read access''',
         min='0', max='10000'),
+    Config('object_target_size', '10M', r'''
+        the approximate size of objects before creating them on the
+        tiered storage tier''',
+        min='100K', max='10TB'),
 ]
 connection_reconfigure_tiered_storage_configuration = [
     Config('tiered_storage', '', r'''
@@ -1504,7 +1504,7 @@ methods = {
         type='boolean'),
 ]),
 
-'WT_SESSION.tier_storage' : Method([
+'WT_SESSION.flush_tier' : Method([
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),

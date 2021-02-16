@@ -39,17 +39,17 @@ class test_tiered05(wttest.WiredTigerTestCase):
     def conn_config(self):
         return \
           'statistics=(fast),' + \
-          'tiered_manager=(object_target_size=20M,wait=10),' + \
-          'tiered_storage=(enabled,' + \
+          'tiered_manager=(wait=10),' + \
+          'tiered_storage=(enabled,object_target_size=20M,' + \
           'name=%s,' % self.extension_name + \
           'auth_token=%s)' % self.auth_token
 
-    # Test calling the tier_storage API.
+    # Test calling the flush_tier API.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
         msg = "/storage manager thread is configured/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.assertEquals(self.session.tier_storage(None), 0), msg)
+            lambda:self.assertEquals(self.session.flush_tier(None), 0), msg)
 
 if __name__ == '__main__':
     wttest.run()

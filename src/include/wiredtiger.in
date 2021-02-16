@@ -796,12 +796,12 @@ struct __wt_session {
 	 * Initiate a single operation to manage tiered storage.
 	 *
 	 * @param session the session handle
-	 * @configstart{WT_SESSION.tier_storage, see dist/api_data.py}
+	 * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
 	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
 	 * @configend
 	 * @errors
 	 */
-	int __F(tier_storage)(WT_SESSION *session, const char *config);
+	int __F(flush_tier)(WT_SESSION *session, const char *config);
 #endif
 
 	/*!
@@ -2205,28 +2205,24 @@ struct __wt_connection {
 	 * data sources of a particular type ("table:")., a list of strings; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;timestamp, a timestamp prepended to each log record\, may
 	 * contain strftime conversion specifications\, when \c json is configured\, defaults to \c
-	 * "%FT%Y.000Z"., a string; default \c "%b %d %H:%M:%S".}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * wait, seconds to wait between each write of the log records; setting this value above 0
-	 * configures statistics logging., an integer between 0 and 100000; default \c 0.}
-	 * @config{
-	 * ),,}
+	 * "%Y-%m-%dT%H:%M:%S.000Z"., a string; default \c "%b %d %H:%M:%S".}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each write of the log
+	 * records; setting this value above 0 configures statistics logging., an integer between 0
+	 * and 100000; default \c 0.}
+	 * @config{ ),,}
 	 * @config{tiered_manager = (, tiered storage manager configuration options., a set of
 	 * related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * object_target_size, the approximate size of objects before creating them on the tiered
-	 * storage tier., an integer between 100K and 10TB; default \c 10M.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger will
-	 * start to help manage tiered storage maintenance.  Each worker thread uses a session from
-	 * the configured session_max., an integer between 1 and 20; default \c 8.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will
-	 * start to help manage tiered storage maintenance., an integer between 1 and 20; default \c
-	 * 1.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each periodic
-	 * housekeeping of tiered storage.  Setting this value above 0 configures periodic
-	 * management inside WiredTiger., an integer between 0 and 100000; default \c 0.}
-	 * @config{
-	 * ),,}
+	 * threads_max, maximum number of threads WiredTiger will start to help manage tiered
+	 * storage maintenance.  Each worker thread uses a session from the configured session_max.,
+	 * an integer between 1 and 20; default \c 8.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min,
+	 * minimum number of threads WiredTiger will start to help manage tiered storage
+	 * maintenance., an integer between 1 and 20; default \c 1.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each periodic housekeeping
+	 * of tiered storage.  Setting this value above 0 configures periodic management inside
+	 * WiredTiger., an integer between 0 and 100000; default \c 0.}
+	 * @config{ ),,}
 	 * @config{tiered_storage = (, enable tiered storage.  Enabling tiered storage may use one
 	 * session from the configured session_max., a set of related configuration options defined
 	 * below.}
@@ -2235,6 +2231,9 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds
 	 * to retain data on tiered storage on the local tier for faster read access., an integer
 	 * between 0 and 10000; default \c 300.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size,
+	 * the approximate size of objects before creating them on the tiered storage tier., an
+	 * integer between 100K and 10TB; default \c 10M.}
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
@@ -2941,12 +2940,9 @@ struct __wt_connection {
  * @config{ ),,}
  * @config{tiered_manager = (, tiered storage manager configuration options., a set of related
  * configuration options defined below.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the
- * approximate size of objects before creating them on the tiered storage tier., an integer between
- * 100K and 10TB; default \c 10M.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of
- * threads WiredTiger will start to help manage tiered storage maintenance.  Each worker thread uses
- * a session from the configured session_max., an integer between 1 and 20; default \c 8.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number
+ * of threads WiredTiger will start to help manage tiered storage maintenance.  Each worker thread
+ * uses a session from the configured session_max., an integer between 1 and 20; default \c 8.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_min, minimum number of threads WiredTiger will start to
  * help manage tiered storage maintenance., an integer between 1 and 20; default \c 1.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;wait, seconds to wait between each periodic housekeeping of
@@ -2964,6 +2960,8 @@ struct __wt_connection {
  * 10000; default \c 300.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or
  * custom storage name created with WT_CONNECTION::add_tiered_storage., a string; default \c none.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the approximate size of objects before
+ * creating them on the tiered storage tier., an integer between 100K and 10TB; default \c 10M.}
  * @config{ ),,}
  * @config{transaction_sync = (, how to sync log records when the transaction commits., a set of
  * related configuration options defined below.}
@@ -5932,8 +5930,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS		1464
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN		1465
-/*! session: tier_storage operation calls */
-#define	WT_STAT_CONN_TIER_STORAGE			1466
+/*! session: flush_tier operation calls */
+#define	WT_STAT_CONN_FLUSH_TIER				1466
 /*! session: tiered storage local retention time (secs) */
 #define	WT_STAT_CONN_TIERED_RETENTION			1467
 /*! transaction: race to read prepared update retry */
@@ -6549,8 +6547,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2196
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2197
-/*! session: tier_storage operation calls */
-#define	WT_STAT_DSRC_TIER_STORAGE			2198
+/*! session: flush_tier operation calls */
+#define	WT_STAT_DSRC_FLUSH_TIER				2198
 /*! session: tiered storage local retention time (secs) */
 #define	WT_STAT_DSRC_TIERED_RETENTION			2199
 /*! transaction: race to read prepared update retry */
