@@ -24,30 +24,29 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest, unittest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
+
 def timestamp_str(t):
     return '%x' % t
+
 # test_rollback_to_stable17.py
-# Test that rollback to stable handles updates present on disk for variable length column store.
-# Ensure values from the data store are deleted.
-class test_rollback_to_stable15(wttest.WiredTigerTestCase):
+# Test that rollback to stable removes updates present on disk for variable length column store.
+class test_rollback_to_stable17(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=5MB,statistics=(all)'
     session_config = 'isolation=snapshot'
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        # ('integer', dict(key_format='i')),
-    ]
-    value_format_values = [
-        # Fixed length
-        # ('fixed', dict(value_format='8t')),
-        # Variable length
-        ('variable', dict(value_format='S')),
-    ]
-    scenarios = make_scenarios(key_format_values, value_format_values)
+
+    def insert_update_data_at_given_timestamp(self, uri, value, nrows, timestamp):
+        cursor =  self.session.open_cursor(uri)
+        for i in range(1, nrows):
+            self.session.begin_transaction()
+            cursor[i] = value + str(i)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
+
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
         if read_ts == 0:
@@ -61,48 +60,35 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
             count += 1
         session.commit_transaction()
         self.assertEqual(count, nrows)
+
     def test_rollback_to_stable(self):
         # Create a table.
         uri = "table:rollback_to_stable17"
         nrows = 200
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'key_format=r,value_format=S'
+
         self.session.create(uri, create_params)
-        cursor =  self.session.open_cursor(uri)
+
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
+
         value20 = "aaaa"
         value30 = "bbbb"
         value40 = "cccc"
         value50 = "dddd"
-        #Insert value20 at timestamp 2
-        for i in range(1, nrows):
-            self.session.begin_transaction()
-            cursor[i] = value20 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
-        #First Update to value 30 at timestamp 5
-        for i in range(1, nrows):
-            self.session.begin_transaction()
-            cursor[i] = value30 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
-        #Second Update to value40 at timestamp 7
-        for i in range(1, nrows):
-            self.session.begin_transaction()
-            cursor[i] = value40 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(7))
-        # Third Update to value50 at timestamp 9
-        for i in range(1, nrows):
-            self.session.begin_transaction()
-            cursor[i] = value50 + str(i)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(9))
+
+        self.insert_update_data_at_given_timestamp(uri, value20, nrows, 2)
+        self.insert_update_data_at_given_timestamp(uri, value30, nrows, 5)
+        self.insert_update_data_at_given_timestamp(uri, value40, nrows, 7)
+        self.insert_update_data_at_given_timestamp(uri, value50, nrows, 9)
+
         self.session.checkpoint()
 
-        #Set stable timestamp to 1
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(4))
         self.conn.rollback_to_stable()
 
-        #Check that value is deleted and is none
-        self.check(None, uri, 0, 9)
+        self.check(value20, uri, 199, 2)
 
         self.session.close()
 if __name__ == '__main__':

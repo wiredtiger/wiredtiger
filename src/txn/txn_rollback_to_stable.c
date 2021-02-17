@@ -71,9 +71,13 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
     }
 }
 
+/*
+ * __rollback_abort_col_newer_insert_update --
+ *     Apply the update abort check to each entry in an insert skip list.
+ */
 static void
-__rollback_abort_col_newer_insert_update(
-  WT_SESSION_IMPL *session, WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp, bool* stable_update_found)
+__rollback_abort_col_newer_insert_update(WT_SESSION_IMPL *session, WT_INSERT_HEAD *head,
+  wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
     WT_INSERT *ins;
     WT_SKIP_FOREACH (ins, head)
@@ -127,55 +131,44 @@ __col_insert_alloc(
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_col_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
+__rollback_col_add_update(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
 {
     WT_DECL_RET;
-    WT_PAGE_MODIFY *mod;
+    WT_INSERT *ins, **ins_stack[WT_SKIP_MAXDEPTH];
     WT_INSERT_HEAD *ins_head, **ins_headp;
-    WT_INSERT *ins;
+    WT_PAGE_MODIFY *mod;
     size_t ins_size, upd_size;
     u_int skipdepth;
-    WT_INSERT **ins_stack[WT_SKIP_MAXDEPTH];
 
     upd_size = WT_UPDATE_MEMSIZE(upd);
+    skipdepth = 1;
 
-    // last_upd = NULL;
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;
 
     /* Allocate an update array as necessary. */
-    // WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
     WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, page->entries);
 
-    /* Set the WT_UPDATE array reference. */
+    /* Set the WT_INSERT head array reference. */
     ins_headp = &mod->mod_col_update[WT_COL_SLOT(page, cip)];
     WT_PAGE_ALLOC_AND_SWAP(session, page, *ins_headp, ins_head, 1);
     ins_head = *ins_headp;
-    // upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
 
-    // printf("Choosing depth\n");
-    // skipdepth = __wt_skip_choose_depth(session);
-    skipdepth = 1;
-
+    /* Allocate an empty WT_INSERT for a recno. */
     WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
 
+    /* Assign the update to the WT_INSERT. */
     upd_size = __wt_update_list_memsize(upd);
     ins->upd = upd;
     ins_size += upd_size;
 
     ins_stack[0] = &ins;
-    // for (i = 0; i < skipdepth; i++) {
-    //     ins_stack[i] = &ins_head->head[i];
-    //     ins->next[i] = next_stack[i] = NULL;
-    // }
 
-    WT_ERR(__wt_insert_serial(
-        session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
-        
-    // printf("__wt_append_serial\n");
-    // WT_ERR(__wt_col_append_serial(session, page, ins_head, ins_stack, &ins,
-    //     ins_size, &recno, skipdepth, true));
+    /* Insert the new update at the head of the update list. */
+    WT_ERR(__wt_insert_serial(session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
+
 err:
     return (ret);
 }
@@ -240,20 +233,23 @@ err:
     return (ret);
 }
 
-
-/* Allocate tombstone and calls function add update to head of insert list. */
+/*
+ * __rollback_col_ondisk_fixup_key --
+ *     Allocate tombstone and calls function add update to head of insert list.
+ */
 static int
 __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
   wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
-    WT_UPDATE *upd;
     WT_DECL_RET;
+    WT_UPDATE *upd;
+
     WT_UNUSED(rollback_timestamp);
     WT_UNUSED(replace);
 
+    /* Allocate tombstone to update to remove the unstable value. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
     WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-
     WT_ERR(__rollback_col_add_update(session, page, cip, upd, recno));
 
 err:
@@ -517,16 +513,16 @@ err:
 
 /*
  * __rollback_abort_col_ondisk_kv --
- *     Fix the on-disk row K/V version according to the given timestamp.
+ *     Fix the on-disk col version according to the given timestamp.
  */
 static int
-__rollback_abort_col_ondisk_kv(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, wt_timestamp_t rollback_timestamp, uint64_t recno)
+__rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
+  wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
+    WT_CELL *kcell;
+    WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_RET;
     WT_ITEM buf;
-    WT_CELL_UNPACK_KV *vpack, _vpack;
-    WT_CELL *kcell;
     WT_UPDATE *upd;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool prepared;
@@ -536,62 +532,59 @@ __rollback_abort_col_ondisk_kv(
     upd = NULL;
 
     kcell = WT_COL_PTR(page, cip);
-
     __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
-
     prepared = vpack->tw.prepare;
 
     if (vpack->tw.durable_start_ts > rollback_timestamp ||
-        (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
-            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-            "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
-            "prepared: %s and stable timestamp: %s",
-            __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
-            __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
-            __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
-            if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                return (__rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
-            else {
-                /*
-                * In-memory database don't have a history store to provide a stable update, so remove
-                * the key.
-                */     
-                WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
-                WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-            }
-        } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
-        (vpack->tw.durable_stop_ts > rollback_timestamp || prepared)) {
+      (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
+          "prepared: %s and stable timestamp: %s",
+          __wt_timestamp_to_string(vpack->tw.durable_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
+        if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            return (
+              __rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
+        else {
             /*
-            * Clear the remove operation from the key by inserting the original on-disk value as a
-            * standard update.
-            */
-            WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
+             * In-memory database don't have a history store to provide a stable update, so remove
+             * the key.
+             */
+            WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+        }
+    } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
+      (vpack->tw.durable_stop_ts > rollback_timestamp || prepared)) {
+        /*
+         * Clear the remove operation from the key by inserting the original on-disk value as a
+         * standard update.
+         */
+        WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
 
-            WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
-            upd->txnid = vpack->tw.start_txn;
-            upd->durable_ts = vpack->tw.durable_start_ts;
-            upd->start_ts = vpack->tw.start_ts;
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
-            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-            "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
-            "and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
-            ", prepared: %s",
-            __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-            __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->txnid,
-            __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
-            __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
-            prepared ? "true" : "false");
-        } else
-            /* Stable version according to the timestamp. */
-            return (0);
-
+        WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
+        upd->txnid = vpack->tw.start_txn;
+        upd->durable_ts = vpack->tw.durable_start_ts;
+        upd->start_ts = vpack->tw.start_ts;
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
+        WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_restored);
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "key restored with commit timestamp: %s, durable timestamp: %s txnid: %" PRIu64
+          "and removed commit timestamp: %s, durable timestamp: %s, txnid: %" PRIu64
+          ", prepared: %s",
+          __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]), upd->txnid,
+          __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
+          __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
+          prepared ? "true" : "false");
+    } else
+        /* Stable version according to the timestamp. */
+        return (0);
 
 err:
     __wt_buf_free(session, &buf);
     __wt_free(session, upd);
     return (ret);
-    // return (0);
 }
 
 /*
@@ -697,38 +690,43 @@ static void
 __rollback_abort_newer_col_var(
   WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
-    WT_COL *cip;
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
+    WT_COL *cip;
     WT_INSERT_HEAD *ins;
-    uint32_t i;
     uint64_t recno, rle;
+    uint32_t i;
     bool stable_update_found;
-    /* Review the changes to the original on-page data items */
-    if(page->dsk != NULL) 
+
+    /* Check whether the page is on the disk. */
+    if (page->dsk != NULL)
         recno = page->dsk->recno;
-    else 
+    else
         recno = 0;
+
+    /* Review the changes to the original on-page data items. */
     WT_COL_FOREACH (page, cip, i) {
         stable_update_found = false;
+
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
-            __rollback_abort_col_newer_insert_update(session, ins, rollback_timestamp, &stable_update_found);   
-        if (!stable_update_found && page->dsk != NULL) { 
+            __rollback_abort_col_newer_insert_update(
+              session, ins, rollback_timestamp, &stable_update_found);
+
+        if (!stable_update_found && page->dsk != NULL) {
             kcell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
             __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
-            recno += rle; 
-        }  
-        else {
+            recno += rle;
+        } else {
             recno++;
         }
     }
+
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
         __rollback_abort_newer_insert(session, ins, rollback_timestamp);
 }
-
 
 /*
  * __rollback_abort_newer_col_fix --
