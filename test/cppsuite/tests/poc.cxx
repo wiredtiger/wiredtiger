@@ -29,6 +29,7 @@ class poc_test : public test_harness::test {
         if (return_code != 0)
             throw std::runtime_error(
               "Run stage failed with error code: " + std::to_string(return_code));
+        return return_code;
     }
 
     private:

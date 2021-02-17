@@ -1227,6 +1227,8 @@ static const char *const __stats_connection_desc[] = {
   "perf: operation write latency histogram (bucket 3) - 500-999us",
   "perf: operation write latency histogram (bucket 4) - 1000-9999us",
   "perf: operation write latency histogram (bucket 5) - 10000us+",
+  "reconciliation: internal-page overflow keys",
+  "reconciliation: leaf-page overflow keys",
   "reconciliation: maximum seconds spent in a reconciliation call",
   "reconciliation: page reconciliation calls that resulted in values with prepared transaction "
   "metadata",
@@ -1750,6 +1752,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->perf_hist_opwrite_latency_lt1000 = 0;
     stats->perf_hist_opwrite_latency_lt10000 = 0;
     stats->perf_hist_opwrite_latency_gt10000 = 0;
+    stats->rec_overflow_key_internal = 0;
+    stats->rec_overflow_key_leaf = 0;
     /* not clearing rec_maximum_seconds */
     stats->rec_pages_with_prepare = 0;
     stats->rec_pages_with_ts = 0;
@@ -2266,6 +2270,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->perf_hist_opwrite_latency_lt1000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt1000);
     to->perf_hist_opwrite_latency_lt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_lt10000);
     to->perf_hist_opwrite_latency_gt10000 += WT_STAT_READ(from, perf_hist_opwrite_latency_gt10000);
+    to->rec_overflow_key_internal += WT_STAT_READ(from, rec_overflow_key_internal);
+    to->rec_overflow_key_leaf += WT_STAT_READ(from, rec_overflow_key_leaf);
     to->rec_maximum_seconds += WT_STAT_READ(from, rec_maximum_seconds);
     to->rec_pages_with_prepare += WT_STAT_READ(from, rec_pages_with_prepare);
     to->rec_pages_with_ts += WT_STAT_READ(from, rec_pages_with_ts);
