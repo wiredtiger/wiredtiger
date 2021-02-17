@@ -135,3 +135,15 @@ def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
                 cmd_list = ['dd', inpf, outf, 'bs=300']
                 a = subprocess.Popen(cmd_list)
                 a.wait()
+
+# Simulate a crash from olddir and restart in newdir.
+def simulate_crash_restart(self, olddir, newdir):
+    # with the connection still open, copy files to new directory.
+    copy_wiredtiger_home(self, olddir, newdir)
+    # close the original connection and open to new directory.
+    # NOTE:  This really cannot test the difference between the
+    # write-no-sync (off) version of log_flush and the sync
+    # version since we're not crashing the system itself.
+    self.close_conn()
+    self.conn = self.setUpConnectionOpen(newdir)
+    self.session = self.setUpSessionOpen(self.conn)
