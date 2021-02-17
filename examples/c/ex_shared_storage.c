@@ -131,8 +131,8 @@ static int demo_ss_open(WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *,
 static int demo_ss_location_handle(
   WT_SHARED_STORAGE *, WT_SESSION *, const char *, WT_LOCATION_HANDLE **);
 static int demo_ss_location_handle_free(WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *);
-static int demo_ss_location_list(
-  WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, char ***, uint32_t *);
+static int demo_ss_location_list(WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *,
+  const char *, uint32_t, char ***, uint32_t *);
 static int demo_ss_location_list_free(WT_SHARED_STORAGE *, WT_SESSION *, char **, uint32_t);
 static int demo_ss_exist(
   WT_SHARED_STORAGE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, bool *);
@@ -445,11 +445,12 @@ demo_ss_location_handle_free(
  */
 static int
 demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
-  WT_LOCATION_HANDLE *location_handle, char ***dirlistp, uint32_t *countp)
+  WT_LOCATION_HANDLE *location_handle, const char *prefix, uint32_t limit, char ***dirlistp,
+  uint32_t *countp)
 {
     DEMO_FILE_HANDLE *demo_fh;
     DEMO_SHARED_STORAGE *demo_ss;
-    size_t len;
+    size_t location_len, prefix_len;
     uint32_t allocated, count;
     int ret = 0;
     const char *location;
@@ -466,14 +467,17 @@ demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
     entries = NULL;
     allocated = count = 0;
     location = (const char *)location_handle;
-    len = strlen(location);
+    location_len = strlen(location);
+    prefix_len = (prefix == NULL ? 0 : strlen(prefix));
 
     lock_shared_storage(&demo_ss->lock);
     TAILQ_FOREACH (demo_fh, &demo_ss->fileq, q) {
         name = demo_fh->iface.name;
-        if (strncmp(name, location, len) != 0)
+        if (strncmp(name, location, location_len) != 0)
             continue;
-        name += len;
+        name += location_len;
+        if (prefix != NULL && strncmp(name, prefix, prefix_len) != 0)
+            continue;
 
         /*
          * Increase the list size in groups of 10, it doesn't matter if the list is a bit longer
@@ -491,6 +495,8 @@ demo_ss_location_list(WT_SHARED_STORAGE *shared_storage, WT_SESSION *session,
             allocated += 10;
         }
         entries[count++] = strdup(name);
+        if (limit > 0 && count >= limit)
+            break;
     }
 
     *dirlistp = entries;
@@ -966,8 +972,8 @@ err:
 }
 
 static int
-demo_test_list(
-  WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *location, uint32_t expect)
+demo_test_list(WT_SHARED_STORAGE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *location,
+  const char *prefix, uint32_t limit, uint32_t expect)
 {
     char **obj_list;
     const char *op;
@@ -976,7 +982,8 @@ demo_test_list(
 
     obj_list = NULL;
     op = "location_list";
-    if ((ret = ss->ss_location_list(ss, session, location, &obj_list, &obj_count)) != 0)
+    if ((ret = ss->ss_location_list(ss, session, location, prefix, limit, &obj_list, &obj_count)) !=
+      0)
         goto err;
     op = "location_list count";
     if (obj_count != expect) {
@@ -1041,6 +1048,8 @@ demo_test_shared_storage(WT_SHARED_STORAGE *ss, WT_SESSION *session)
         goto err;
     if ((ret = demo_test_create(ss, session, location2, "B", "location-two-B")) != 0)
         goto err;
+    if ((ret = demo_test_create(ss, session, location2, "AA", "location-two-AA")) != 0)
+        goto err;
 
     op = "read checks";
     if ((ret = demo_test_read(ss, session, location1, "A", "location-one-A")) != 0)
@@ -1051,9 +1060,15 @@ demo_test_shared_storage(WT_SHARED_STORAGE *ss, WT_SESSION *session)
         goto err;
 
     op = "list checks";
-    if ((ret = demo_test_list(ss, session, location1, 1)) != 0)
+    if ((ret = demo_test_list(ss, session, location1, NULL, 0, 1)) != 0)
         goto err;
-    if ((ret = demo_test_list(ss, session, location2, 2)) != 0)
+    if ((ret = demo_test_list(ss, session, location2, NULL, 0, 3)) != 0)
+        goto err;
+    if ((ret = demo_test_list(ss, session, location2, NULL, 2, 2)) != 0)
+        goto err;
+    if ((ret = demo_test_list(ss, session, location2, "A", 0, 2)) != 0)
+        goto err;
+    if ((ret = demo_test_list(ss, session, location2, "A", 1, 1)) != 0)
         goto err;
 
 err:
