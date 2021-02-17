@@ -4810,9 +4810,6 @@ struct __wt_shared_storage {
 	 * The method should return EACCES if the object cannot be opened given
 	 * permissions by the location.
 	 *
-	 * The method should return EEXIST if the object is being created and
-	 * it already exists.
-	 *
 	 * @errors
 	 *
 	 * @param shared_storage the WT_SHARED_STORAGE
