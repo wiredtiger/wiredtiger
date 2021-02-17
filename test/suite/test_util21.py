@@ -33,9 +33,9 @@ from helper import compare_files
 def timestamp_str(t):
     return '%x' % t
 
-# test_util18.py
+# test_util21.py
 # Ensure that wt dump can dump obsolete data in the history store.
-class test_hs11(wttest.WiredTigerTestCase, suite_subprocess):
+class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
@@ -49,7 +49,7 @@ class test_hs11(wttest.WiredTigerTestCase, suite_subprocess):
         cursor.close()
 
     def test_dump_obsolete_data(self):
-        uri = 'table:test_util18'
+        uri = 'table:test_util21'
         create_params = 'key_format=S,value_format=S'
         self.session.create(uri, create_params)
 
@@ -64,13 +64,21 @@ class test_hs11(wttest.WiredTigerTestCase, suite_subprocess):
         self.add_data_with_timestamp(uri, value2, 3)
         self.add_data_with_timestamp(uri, value3, 5)
         self.add_data_with_timestamp(uri, value4, 7)
+        # Perform checkpoint, to clean the dirty pages and place values on disk.
         self.session.checkpoint()
 
-        # Set stable timestamp, so we don't lose data when closing/opening connection when using wt dump
+        # Set stable timestamp, so we don't lose data when closing/opening connection when using wt dump.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+
+        # Call dump on the values before the oldest timestamp is set
         self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename="before_oldest")
+
+        # Set oldest timestamp, and checkpoint, the obsolete data should not removed as
+        # the pages are clean.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(6))
+        self.session.checkpoint()
         self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename="after_oldest")
+
         self.assertEqual(True, compare_files(self, "before_oldest", "after_oldest"))
 
 if __name__ == '__main__':
