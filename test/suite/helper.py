@@ -99,7 +99,7 @@ def confirm_empty(self, uri):
     cursor.close()
 
 # copy a WT home directory
-def copy_wiredtiger_home(olddir, newdir, aligned=True):
+def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
     # unaligned copy requires 'dd', which may not be available on Windows
     if not aligned and os.name == "nt":
         raise AssertionError(
@@ -115,7 +115,19 @@ def copy_wiredtiger_home(olddir, newdir, aligned=True):
             "WiredTigerPreplog" not in fullname:
             # Use a dd command that does not align on a block boundary.
             if aligned:
-                shutil.copy(fullname, newdir)
+                try:
+                    shutil.copy(fullname, newdir)
+                except OSError as e:
+                    # If the copy failed it means the file was removed underneath us in the
+                    # short time after we verified the files existence. This can happen if we
+                    # are copying wiredtiger log files at the same time they are getting
+                    # archived by the background log server thread. To avoid failing in this case
+                    # we can log/print the removed file and continue.
+                    if "WiredTigerLog" not in fullname:
+                        raise e
+                    else:
+                        self.printVerbose(2, 'Skipping logfile %s: No longer exists' % fname)
+                        continue
             else:
                 fullname = os.path.join(olddir, fname)
                 inpf = 'if=' + fullname
