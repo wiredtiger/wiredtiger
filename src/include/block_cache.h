@@ -21,7 +21,7 @@
 
 #define BLKCACHE_TRACE 0
 
-#define BLKCACHE_OVERHEAD_THRESHOLD 0.8
+#define BLKCACHE_OVERHEAD_THRESHOLD 0.1
 
 #define WT_BLKCACHE_FULL   -2
 #define WT_BLKCACHE_BYPASS -3
@@ -83,7 +83,6 @@ struct __wt_blkcache {
      */
     size_t lookups;
     size_t inserts;
-    size_t inserts_baseline;
     size_t removals;
 
 #ifdef HAVE_LIBMEMKIND
