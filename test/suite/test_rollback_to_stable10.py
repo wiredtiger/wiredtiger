@@ -317,7 +317,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             ckpt.join()
 
         # Simulate a crash by copying to a new directory(RESTART).
-        copy_wiredtiger_home(".", "RESTART")
+        copy_wiredtiger_home(self, ".", "RESTART")
 
         # Commit the prepared transaction.
         session_p1.commit_transaction('commit_timestamp=' + timestamp_str(70) + ',durable_timestamp=' + timestamp_str(71))
