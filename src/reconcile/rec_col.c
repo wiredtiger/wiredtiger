@@ -731,8 +731,10 @@ record_loop:
 
                     if (deleted)
                         goto compare;
-                } else
+                } else {
+                    __cell_pack_kv_window_cleanup(session, page->dsk, vpack);
                     WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
+                }
 
                 /*
                  * If we are handling overflow items, use the overflow item itself exactly once,
