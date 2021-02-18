@@ -535,6 +535,15 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *
     __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
     prepared = vpack->tw.prepare;
 
+    // printf("\n=== __rollback_abort_col_ondisk_kv ===\n");
+    // printf("start durable/commit timestamp: %s, %s, stop durable/commit "
+    //     "timestamp: %s, %s and stable timestamp: %s",
+    //     __wt_timestamp_to_string(_vpack.tw.durable_start_ts, ts_string[0]),
+    //     __wt_timestamp_to_string(_vpack.tw.start_ts, ts_string[1]),
+    //     __wt_timestamp_to_string(_vpack.tw.durable_stop_ts, ts_string[2]),
+    //     __wt_timestamp_to_string(_vpack.tw.stop_ts, ts_string[3]),
+    //     __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
+
     if (vpack->tw.durable_start_ts > rollback_timestamp ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
