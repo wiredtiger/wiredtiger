@@ -52,8 +52,8 @@ class configuration {
 
     /*
      * Wrapper functions for retrieving basic configuration values. Ideally the tests can avoid
-     * using the config item struct provided by wiredtiger. However if they still wish to use it
-     * the get and next functions can be used.
+     * using the config item struct provided by wiredtiger. However if they still wish to use it the
+     * get and next functions can be used.
      */
     int
     get_string(const std::string &key, std::string &value) const
