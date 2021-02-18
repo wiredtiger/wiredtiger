@@ -126,7 +126,7 @@ def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
                     if "WiredTigerLog" not in fullname:
                         raise e
                     else:
-                        self.printVerbose(2, 'Skipping logfile %s: No longer exists' % fname)
+                        self.pr('Skipping logfile %s: No longer exists' % fname)
                         continue
             else:
                 fullname = os.path.join(olddir, fname)
