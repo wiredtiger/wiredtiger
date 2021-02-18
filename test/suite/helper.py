@@ -32,7 +32,7 @@ import wiredtiger
 
 from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 
-# python has a filecmp.cmp function, but different versions of python approach
+# Python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
 # we define it here.
 def compare_files(self, filename1, filename2):
@@ -50,7 +50,7 @@ def compare_files(self, filename1, filename2):
                 b2 = fp2.read(bufsize)
                 if b1 != b2:
                     return False
-                # files are identical size
+                # Files are identical size.
                 if not b1:
                     return True
 
@@ -78,7 +78,7 @@ def compare_tables(self, session, uris, config=None):
         for c in cursors:
             c.close()
 
-# confirm a URI doesn't exist.
+# Confirm a URI doesn't exist.
 def confirm_does_not_exist(self, uri):
     self.pr('confirm_does_not_exist: ' + uri)
     self.assertRaises(wiredtiger.WiredTigerError,
@@ -87,7 +87,7 @@ def confirm_does_not_exist(self, uri):
         'confirm_does_not_exist: URI exists, file name matching \"' +
         uri.split(":")[1] + '\" found')
 
-# confirm a URI exists and is empty.
+# Confirm a URI exists and is empty.
 def confirm_empty(self, uri):
     self.pr('confirm_empty: ' + uri)
     cursor = self.session.open_cursor(uri, None)
@@ -98,9 +98,9 @@ def confirm_empty(self, uri):
         self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
-# copy a WT home directory
+# Copy a WT home directory.
 def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
-    # unaligned copy requires 'dd', which may not be available on Windows
+    # Unaligned copy requires 'dd', which may not be available on Windows.
     if not aligned and os.name == "nt":
         raise AssertionError(
             'copy_wiredtiger_home: unaligned copy impossible on Windows')
@@ -138,9 +138,9 @@ def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
 
 # Simulate a crash from olddir and restart in newdir.
 def simulate_crash_restart(self, olddir, newdir):
-    # with the connection still open, copy files to new directory.
+    # With the connection still open, copy files to new directory.
     copy_wiredtiger_home(self, olddir, newdir)
-    # close the original connection and open to new directory.
+    # Close the original connection and open to new directory.
     # NOTE:  This really cannot test the difference between the
     # write-no-sync (off) version of log_flush and the sync
     # version since we're not crashing the system itself.
