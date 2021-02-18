@@ -4817,8 +4817,8 @@ struct __wt_storage_source {
 	 * @param name the name of the object within the location.
 	 * @param flags flags indicating how to open the object, exactly one of
 	 *    ::WT_SS_OPEN_CREATE, ::WT_SS_OPEN_READONLY.
-	 * @param[out] file_handlep the handle to the newly opened object. Shared
-	 *    storage implementations must allocate memory for the handle and
+	 * @param[out] file_handlep the handle to the newly opened object. Storage
+	 *    source implementations must allocate memory for the handle and
 	 *    the WT_FILE_HANDLE::name field, and fill in the WT_FILE_HANDLE::
 	 *    fields. Applications wanting to associate private information
 	 *    with the WT_FILE_HANDLE:: structure should declare and allocate
