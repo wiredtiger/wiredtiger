@@ -102,14 +102,14 @@ struct __wt_named_extractor {
 };
 
 /*
- * WT_NAMED_SHARED_STORAGE --
+ * WT_NAMED_STORAGE_SOURCE --
  *	A shared storage list entry
  */
-struct __wt_named_shared_storage {
+struct __wt_named_storage_source {
     const char *name;                  /* Name of shared storage */
-    WT_SHARED_STORAGE *shared_storage; /* User supplied callbacks */
+    WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
     /* Linked list of compressors */
-    TAILQ_ENTRY(__wt_named_shared_storage) q;
+    TAILQ_ENTRY(__wt_named_storage_source) q;
 };
 
 /*
@@ -467,7 +467,7 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
 
     /* Locked: shared storage list */
-    TAILQ_HEAD(__wt_shared_storage_qh, __wt_named_shared_storage) shstorageqh;
+    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 
     void *lang_private; /* Language specific private storage */
 

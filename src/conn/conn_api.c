@@ -664,88 +664,88 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
- * __conn_add_shared_storage --
- *     WT_CONNECTION->add_shared_storage method.
+ * __conn_add_storage_source --
+ *     WT_CONNECTION->add_storage_source method.
  */
 static int
-__conn_add_shared_storage(
-  WT_CONNECTION *wt_conn, const char *name, WT_SHARED_STORAGE *shared_storage, const char *config)
+__conn_add_storage_source(
+  WT_CONNECTION *wt_conn, const char *name, WT_STORAGE_SOURCE *storage_source, const char *config)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_NAMED_SHARED_STORAGE *nshared_storage;
+    WT_NAMED_STORAGE_SOURCE *nstorage_source;
     WT_SESSION_IMPL *session;
 
-    nshared_storage = NULL;
+    nstorage_source = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
-    CONNECTION_API_CALL(conn, session, add_shared_storage, config, cfg);
+    CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
     WT_UNUSED(cfg);
 
-    WT_ERR(__wt_calloc_one(session, &nshared_storage));
-    WT_ERR(__wt_strdup(session, name, &nshared_storage->name));
-    nshared_storage->shared_storage = shared_storage;
+    WT_ERR(__wt_calloc_one(session, &nstorage_source));
+    WT_ERR(__wt_strdup(session, name, &nstorage_source->name));
+    nstorage_source->storage_source = storage_source;
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->shstorageqh, nshared_storage, q);
-    nshared_storage = NULL;
+    TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage_source, q);
+    nstorage_source = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
 err:
-    if (nshared_storage != NULL) {
-        __wt_free(session, nshared_storage->name);
-        __wt_free(session, nshared_storage);
+    if (nstorage_source != NULL) {
+        __wt_free(session, nstorage_source->name);
+        __wt_free(session, nstorage_source);
     }
 
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 
 /*
- * __shared_storage_confchk --
- *     Check for a valid custom shared_storage.
+ * __storage_source_confchk --
+ *     Check for a valid custom storage_source.
  */
 static int
-__shared_storage_confchk(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_SHARED_STORAGE **shared_storagep)
+__storage_source_confchk(
+  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_STORAGE_SOURCE **storage_sourcep)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_NAMED_SHARED_STORAGE *nshared_storage;
+    WT_NAMED_STORAGE_SOURCE *nstorage_source;
 
-    *shared_storagep = NULL;
+    *storage_sourcep = NULL;
 
     conn = S2C(session);
-    TAILQ_FOREACH (nshared_storage, &conn->shstorageqh, q)
-        if (WT_STRING_MATCH(nshared_storage->name, cname->str, cname->len)) {
-            *shared_storagep = nshared_storage->shared_storage;
+    TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
+        if (WT_STRING_MATCH(nstorage_source->name, cname->str, cname->len)) {
+            *storage_sourcep = nstorage_source->storage_source;
             return (0);
         }
-    WT_RET_MSG(session, EINVAL, "unknown shared_storage '%.*s'", (int)cname->len, cname->str);
+    WT_RET_MSG(session, EINVAL, "unknown storage_source '%.*s'", (int)cname->len, cname->str);
 }
 
 /*
- * __wt_shared_storage_config --
- *     Given a configuration, configure the shared_storage.
+ * __wt_storage_source_config --
+ *     Given a configuration, configure the storage_source.
  */
 int
-__wt_shared_storage_config(
-  WT_SESSION_IMPL *session, const char *config, WT_SHARED_STORAGE **shared_storagep, int *ownp)
+__wt_storage_source_config(
+  WT_SESSION_IMPL *session, const char *config, WT_STORAGE_SOURCE **storage_sourcep, int *ownp)
 {
     WT_CONFIG_ITEM cname;
-    WT_SHARED_STORAGE *shared_storage;
+    WT_STORAGE_SOURCE *storage_source;
 
-    *shared_storagep = NULL;
+    *storage_sourcep = NULL;
     *ownp = 0;
 
-    WT_RET_NOTFOUND_OK(__wt_config_getones_none(session, config, "shared_storage", &cname));
+    WT_RET_NOTFOUND_OK(__wt_config_getones_none(session, config, "storage_source", &cname));
     if (cname.len == 0)
         return (0);
 
-    WT_RET(__shared_storage_confchk(session, &cname, &shared_storage));
-    if (shared_storage == NULL)
+    WT_RET(__storage_source_confchk(session, &cname, &storage_source));
+    if (storage_source == NULL)
         return (0);
 
-    if (*shared_storagep == NULL)
-        *shared_storagep = shared_storage;
+    if (*storage_sourcep == NULL)
+        *storage_sourcep = storage_source;
     else
         *ownp = 1;
 
@@ -753,28 +753,28 @@ __wt_shared_storage_config(
 }
 
 /*
- * __wt_conn_remove_shared_storage --
- *     Remove shared_storage added by WT_CONNECTION->add_shared_storage, only used internally.
+ * __wt_conn_remove_storage_source --
+ *     Remove storage_source added by WT_CONNECTION->add_storage_source, only used internally.
  */
 int
-__wt_conn_remove_shared_storage(WT_SESSION_IMPL *session)
+__wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_NAMED_SHARED_STORAGE *nshared_storage;
+    WT_NAMED_STORAGE_SOURCE *nstorage_source;
 
     conn = S2C(session);
 
-    while ((nshared_storage = TAILQ_FIRST(&conn->shstorageqh)) != NULL) {
+    while ((nstorage_source = TAILQ_FIRST(&conn->storagesrcqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
-        TAILQ_REMOVE(&conn->shstorageqh, nshared_storage, q);
+        TAILQ_REMOVE(&conn->storagesrcqh, nstorage_source, q);
         /* Call any termination method. */
-        if (nshared_storage->shared_storage->terminate != NULL)
-            WT_TRET(nshared_storage->shared_storage->terminate(
-              nshared_storage->shared_storage, (WT_SESSION *)session));
+        if (nstorage_source->storage_source->terminate != NULL)
+            WT_TRET(nstorage_source->storage_source->terminate(
+              nstorage_source->storage_source, (WT_SESSION *)session));
 
-        __wt_free(session, nshared_storage->name);
-        __wt_free(session, nshared_storage);
+        __wt_free(session, nstorage_source->name);
+        __wt_free(session, nstorage_source);
     }
 
     return (ret);
@@ -2430,7 +2430,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
       __conn_get_home, __conn_configure_method, __conn_is_new, __conn_open_session,
       __conn_query_timestamp, __conn_set_timestamp, __conn_rollback_to_stable,
       __conn_load_extension, __conn_add_data_source, __conn_add_collator, __conn_add_compressor,
-      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_shared_storage,
+      __conn_add_encryptor, __conn_add_extractor, __conn_set_file_system, __conn_add_storage_source,
       __conn_get_extension_api};
     static const WT_NAME_FLAG file_types[] = {{"checkpoint", WT_DIRECT_IO_CHECKPOINT},
       {"data", WT_DIRECT_IO_DATA}, {"log", WT_DIRECT_IO_LOG}, {NULL, 0}};

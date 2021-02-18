@@ -56,7 +56,7 @@ struct __wt_config_parser_impl {
 #define WT_CONFIG_ENTRY_WT_CONNECTION_add_data_source 2
 #define WT_CONFIG_ENTRY_WT_CONNECTION_add_encryptor 3
 #define WT_CONFIG_ENTRY_WT_CONNECTION_add_extractor 4
-#define WT_CONFIG_ENTRY_WT_CONNECTION_add_shared_storage 5
+#define WT_CONFIG_ENTRY_WT_CONNECTION_add_storage_source 5
 #define WT_CONFIG_ENTRY_WT_CONNECTION_close 6
 #define WT_CONFIG_ENTRY_WT_CONNECTION_debug_info 7
 #define WT_CONFIG_ENTRY_WT_CONNECTION_load_extension 8
