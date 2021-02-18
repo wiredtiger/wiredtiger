@@ -36,12 +36,11 @@ class random_generator {
     private:
     random_generator()
     {
-        _generator = std::mt19937(_random_device());
+        _generator = std::mt19937(std::random_device{}());
         _distribution = std::uniform_int_distribution<>(0, _characters.size() - 1);
     }
 
     std::mt19937 _generator;
-    std::random_device _random_device;
     std::uniform_int_distribution<> _distribution;
     const std::string _characters =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";

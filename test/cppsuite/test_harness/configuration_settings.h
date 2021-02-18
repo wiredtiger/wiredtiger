@@ -45,7 +45,7 @@ class configuration {
     }
 
     const std::string &
-    get_config()
+    get_config() const
     {
         return (_config);
     }
@@ -56,7 +56,7 @@ class configuration {
      * the get and next functions can be used.
      */
     int
-    get_string(const std::string &key, std::string &value)
+    get_string(const std::string &key, std::string &value) const
     {
         WT_CONFIG_ITEM temp_value;
         testutil_check(_config_parser->get(_config_parser, key.c_str(), &temp_value));
@@ -68,7 +68,7 @@ class configuration {
     }
 
     int
-    get_bool(const std::string &key, bool &value)
+    get_bool(const std::string &key, bool &value) const
     {
         WT_CONFIG_ITEM temp_value;
         testutil_check(_config_parser->get(_config_parser, key.c_str(), &temp_value));
@@ -79,7 +79,7 @@ class configuration {
     }
 
     int
-    get_int(const std::string &key, int64_t &value)
+    get_int(const std::string &key, int64_t &value) const
     {
         WT_CONFIG_ITEM temp_value;
         testutil_check(_config_parser->get(_config_parser, key.c_str(), &temp_value));
@@ -93,13 +93,13 @@ class configuration {
      * Basic configuration parsing helper functions.
      */
     int
-    next(WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value)
+    next(WT_CONFIG_ITEM *key, WT_CONFIG_ITEM *value) const
     {
         return (_config_parser->next(_config_parser, key, value));
     }
 
     int
-    get(const std::string &key, WT_CONFIG_ITEM *value)
+    get(const std::string &key, WT_CONFIG_ITEM *value) const
     {
         return (_config_parser->get(_config_parser, key.c_str(), value));
     }

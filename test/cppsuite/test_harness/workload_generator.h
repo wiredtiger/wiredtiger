@@ -145,8 +145,6 @@ class workload_generator {
     static int64_t _trace_level;
 
     private:
-    /* Check the given error code is 0, otherwise the program is exited. */
-
     /* Used to print out traces for debugging purpose. */
     static void
     debug_info(const std::string &str, int64_t trace_level)
