@@ -35,8 +35,8 @@ from wtdataset import SimpleDataSet, SimpleIndexDataSet, ComplexDataSet
 # Python has a filecmp.cmp function, but different versions of python approach
 # file comparison differently.  To make sure we get byte for byte comparison,
 # we define it here.
-def compare_files(self, filename1, filename2):
-    self.pr('compare_files: ' + filename1 + ', ' + filename2)
+def compare_files(testcase, filename1, filename2):
+    testcase.pr('compare_files: ' + filename1 + ', ' + filename2)
     bufsize = 4096
     if os.path.getsize(filename1) != os.path.getsize(filename2):
         print('file comparison failed: ' + filename1 + ' size ' +\
@@ -55,7 +55,7 @@ def compare_files(self, filename1, filename2):
                     return True
 
 # Iterate over a set of tables, ensuring that they have identical contents
-def compare_tables(self, session, uris, config=None):
+def compare_tables(testcase, session, uris, config=None):
     cursors = list()
     for next_uri in uris:
         cursors.append(session.open_cursor(next_uri, None, config))
@@ -79,27 +79,27 @@ def compare_tables(self, session, uris, config=None):
             c.close()
 
 # Confirm a URI doesn't exist.
-def confirm_does_not_exist(self, uri):
-    self.pr('confirm_does_not_exist: ' + uri)
-    self.assertRaises(wiredtiger.WiredTigerError,
-        lambda: self.session.open_cursor(uri, None))
-    self.assertEqual(glob.glob('*' + uri.split(":")[-1] + '*'), [],
+def confirm_does_not_exist(testcase, uri):
+    testcase.pr('confirm_does_not_exist: ' + uri)
+    testcase.assertRaises(wiredtiger.WiredTigerError,
+        lambda: testcase.session.open_cursor(uri, None))
+    testcase.assertEqual(glob.glob('*' + uri.split(":")[-1] + '*'), [],
         'confirm_does_not_exist: URI exists, file name matching \"' +
         uri.split(":")[1] + '\" found')
 
 # Confirm a URI exists and is empty.
-def confirm_empty(self, uri):
-    self.pr('confirm_empty: ' + uri)
-    cursor = self.session.open_cursor(uri, None)
+def confirm_empty(testcase, uri):
+    testcase.pr('confirm_empty: ' + uri)
+    cursor = testcase.session.open_cursor(uri, None)
     if cursor.value_format == '8t':
         for key,val in cursor:
-            self.assertEqual(val, 0)
+            testcase.assertEqual(val, 0)
     else:
-        self.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
+        testcase.assertEqual(cursor.next(), wiredtiger.WT_NOTFOUND)
     cursor.close()
 
 # Copy a WT home directory.
-def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
+def copy_wiredtiger_home(testcase, olddir, newdir, aligned=True):
     # Unaligned copy requires 'dd', which may not be available on Windows.
     if not aligned and os.name == "nt":
         raise AssertionError(
@@ -126,7 +126,7 @@ def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
                     if "WiredTigerLog" not in fullname:
                         raise e
                     else:
-                        self.pr('Skipping logfile %s: No longer exists' % fname)
+                        testcase.pr('Skipping logfile %s: No longer exists' % fname)
                         continue
             else:
                 fullname = os.path.join(olddir, fname)
@@ -137,13 +137,13 @@ def copy_wiredtiger_home(self, olddir, newdir, aligned=True):
                 a.wait()
 
 # Simulate a crash from olddir and restart in newdir.
-def simulate_crash_restart(self, olddir, newdir):
+def simulate_crash_restart(testcase, olddir, newdir):
     # With the connection still open, copy files to new directory.
-    copy_wiredtiger_home(self, olddir, newdir)
+    copy_wiredtiger_home(testcase, olddir, newdir)
     # Close the original connection and open to new directory.
     # NOTE:  This really cannot test the difference between the
     # write-no-sync (off) version of log_flush and the sync
     # version since we're not crashing the system itself.
-    self.close_conn()
-    self.conn = self.setUpConnectionOpen(newdir)
-    self.session = self.setUpSessionOpen(self.conn)
+    testcase.close_conn()
+    testcase.conn = testcase.setUpConnectionOpen(newdir)
+    testcase.session = testcase.setUpSessionOpen(testcase.conn)
