@@ -1070,9 +1070,8 @@ __cell_pack_kv_window_cleanup(
      * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
      *                        durable_ts=NONE               durable_ts=NONE
      */
-    if (dsk->write_gen == 0 ||
-      (dsk->write_gen > S2BT(session)->base_write_gen &&
-        dsk->write_gen < S2BT(session)->run_write_gen))
+    if (dsk->write_gen > S2BT(session)->base_write_gen &&
+      dsk->write_gen < S2BT(session)->run_write_gen)
         __cell_kv_window_cleanup(session, unpack_kv);
 }
 
