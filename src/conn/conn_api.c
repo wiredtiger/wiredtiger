@@ -701,58 +701,6 @@ err:
 }
 
 /*
- * __storage_source_confchk --
- *     Check for a valid custom storage_source.
- */
-static int
-__storage_source_confchk(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_STORAGE_SOURCE **storage_sourcep)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_NAMED_STORAGE_SOURCE *nstorage_source;
-
-    *storage_sourcep = NULL;
-
-    conn = S2C(session);
-    TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
-        if (WT_STRING_MATCH(nstorage_source->name, cname->str, cname->len)) {
-            *storage_sourcep = nstorage_source->storage_source;
-            return (0);
-        }
-    WT_RET_MSG(session, EINVAL, "unknown storage_source '%.*s'", (int)cname->len, cname->str);
-}
-
-/*
- * __wt_storage_source_config --
- *     Given a configuration, configure the storage_source.
- */
-int
-__wt_storage_source_config(
-  WT_SESSION_IMPL *session, const char *config, WT_STORAGE_SOURCE **storage_sourcep, int *ownp)
-{
-    WT_CONFIG_ITEM cname;
-    WT_STORAGE_SOURCE *storage_source;
-
-    *storage_sourcep = NULL;
-    *ownp = 0;
-
-    WT_RET_NOTFOUND_OK(__wt_config_getones_none(session, config, "storage_source", &cname));
-    if (cname.len == 0)
-        return (0);
-
-    WT_RET(__storage_source_confchk(session, &cname, &storage_source));
-    if (storage_source == NULL)
-        return (0);
-
-    if (*storage_sourcep == NULL)
-        *storage_sourcep = storage_source;
-    else
-        *ownp = 1;
-
-    return (0);
-}
-
-/*
  * __wt_conn_remove_storage_source --
  *     Remove storage_source added by WT_CONNECTION->add_storage_source, only used internally.
  */

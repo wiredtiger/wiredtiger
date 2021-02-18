@@ -1091,12 +1091,6 @@ main(void)
     const char *open_config;
     int ret = 0;
     WT_SESSION *session;
-#if 0
-    WT_CURSOR *cursor;
-    const char *key, *tier0_uri, *tier1_uri, *uri;
-    int i;
-    char kbuf[64];
-#endif
 
     fprintf(stderr, "ex_storage_source: starting\n");
     /*
@@ -1131,7 +1125,7 @@ main(void)
         return (EXIT_FAILURE);
     }
     /*
-     * At the moment, the infrastructure withing WiredTiger that would use the storage source
+     * At the moment, the infrastructure within WiredTiger that would use the storage source
      * extension does not exist. So call the interface directly as a demonstration.
      */
     if ((ret = demo_test_storage_source(saved_storage_source, session)) != 0) {
