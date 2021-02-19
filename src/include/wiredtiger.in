@@ -64,7 +64,8 @@ extern "C" {
 struct __wt_collator;	    typedef struct __wt_collator WT_COLLATOR;
 struct __wt_compressor;	    typedef struct __wt_compressor WT_COMPRESSOR;
 struct __wt_config_item;    typedef struct __wt_config_item WT_CONFIG_ITEM;
-struct __wt_config_parser;  typedef struct __wt_config_parser WT_CONFIG_PARSER;
+struct __wt_config_parser;
+	typedef struct __wt_config_parser WT_CONFIG_PARSER;
 struct __wt_connection;	    typedef struct __wt_connection WT_CONNECTION;
 struct __wt_cursor;	    typedef struct __wt_cursor WT_CURSOR;
 struct __wt_data_source;    typedef struct __wt_data_source WT_DATA_SOURCE;

@@ -82,9 +82,9 @@ typedef struct {
      */
     pthread_rwlock_t lock; /* Lock */
 
+    int closed_object_count;
     int opened_object_count;
     int opened_unique_object_count;
-    int closed_object_count;
     int read_ops;
     int write_ops;
 
@@ -124,18 +124,18 @@ __declspec(dllexport)
   int demo_storage_source_create(WT_CONNECTION *, WT_CONFIG_ARG *);
 
 /*
- * Forward function declarations for storage source API implementation
+ * Forward function declarations for storage source API implementation.
  */
-static int demo_ss_open(WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *,
-  uint32_t, WT_FILE_HANDLE **);
+static int demo_ss_exist(
+  WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, bool *);
 static int demo_ss_location_handle(
   WT_STORAGE_SOURCE *, WT_SESSION *, const char *, WT_LOCATION_HANDLE **);
 static int demo_ss_location_handle_free(WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *);
 static int demo_ss_location_list(WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *,
   const char *, uint32_t, char ***, uint32_t *);
 static int demo_ss_location_list_free(WT_STORAGE_SOURCE *, WT_SESSION *, char **, uint32_t);
-static int demo_ss_exist(
-  WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, bool *);
+static int demo_ss_open(WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *,
+  uint32_t, WT_FILE_HANDLE **);
 static int demo_ss_remove(
   WT_STORAGE_SOURCE *, WT_SESSION *, WT_LOCATION_HANDLE *, const char *, uint32_t);
 static int demo_ss_size(
@@ -143,7 +143,7 @@ static int demo_ss_size(
 static int demo_ss_terminate(WT_STORAGE_SOURCE *, WT_SESSION *);
 
 /*
- * Forward function declarations for file handle API implementation
+ * Forward function declarations for file handle API implementation.
  */
 static int demo_file_close(WT_FILE_HANDLE *, WT_SESSION *);
 static int demo_file_lock(WT_FILE_HANDLE *, WT_SESSION *, bool);
@@ -154,7 +154,7 @@ static int demo_file_truncate(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t);
 static int demo_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /*
- * Forward function declarations for internal functions
+ * Forward function declarations for internal functions.
  */
 static int demo_handle_remove(WT_SESSION *, DEMO_FILE_HANDLE *);
 static DEMO_FILE_HANDLE *demo_handle_search(
@@ -179,7 +179,7 @@ byte_string_match(const char *str, const char *bytes, size_t len)
 
 /*
  * demo_storage_source_create --
- *     Initialization point for demo storage source
+ *     Initialize the demo storage source.
  */
 int
 demo_storage_source_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
@@ -252,11 +252,11 @@ demo_storage_source_create(WT_CONNECTION *conn, WT_CONFIG_ARG *config)
     allocate_storage_source_lock(&demo_ss->lock);
 
     /* Initialize the in-memory jump table. */
+    storage_source->ss_exist = demo_ss_exist;
     storage_source->ss_location_handle = demo_ss_location_handle;
     storage_source->ss_location_handle_free = demo_ss_location_handle_free;
     storage_source->ss_location_list = demo_ss_location_list;
     storage_source->ss_location_list_free = demo_ss_location_list_free;
-    storage_source->ss_exist = demo_ss_exist;
     storage_source->ss_open_object = demo_ss_open;
     storage_source->ss_remove = demo_ss_remove;
     storage_source->ss_size = demo_ss_size;
@@ -283,7 +283,7 @@ err:
 
 /*
  * demo_ss_open --
- *     fopen for our demo storage source
+ *     fopen for our demo storage source.
  */
 static int
 demo_ss_open(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -323,9 +323,7 @@ demo_ss_open(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         }
 
         demo_fh->ref = 1;
-
         *file_handlep = (WT_FILE_HANDLE *)demo_fh;
-
         unlock_storage_source(&demo_ss->lock);
         return (0);
     }
@@ -371,12 +369,12 @@ demo_ss_open(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     file_handle->fh_map = NULL;
     file_handle->fh_map_discard = NULL;
     file_handle->fh_map_preload = NULL;
-    file_handle->fh_unmap = NULL;
     file_handle->fh_read = demo_file_read;
     file_handle->fh_size = demo_file_size;
     file_handle->fh_sync = demo_file_sync;
     file_handle->fh_sync_nowait = NULL;
     file_handle->fh_truncate = demo_file_truncate;
+    file_handle->fh_unmap = NULL;
     file_handle->fh_write = demo_file_write;
 
     TAILQ_INSERT_HEAD(&demo_ss->fileq, demo_fh, q);
@@ -454,7 +452,7 @@ demo_ss_location_list(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     uint32_t allocated, count;
     int ret = 0;
     const char *location;
-    char *name, **entries;
+    char **entries, *name;
     void *p;
 
     (void)session; /* Unused */
@@ -607,7 +605,7 @@ demo_ss_size(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
 /*
  * demo_ss_terminate --
- *     Discard any resources on termination
+ *     Discard any resources on termination.
  */
 static int
 demo_ss_terminate(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session)
@@ -938,6 +936,8 @@ demo_test_read(WT_STORAGE_SOURCE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *l
 
     fh = NULL;
     len = strlen(content) + 1;
+
+    /* Set the op string so that on error we know what failed. */
     op = "open";
     if ((ret = ss->ss_open_object(ss, session, location, objname, WT_SS_OPEN_READONLY, &fh)) != 0)
         goto err;
@@ -981,6 +981,7 @@ demo_test_list(WT_STORAGE_SOURCE *ss, WT_SESSION *session, WT_LOCATION_HANDLE *l
     int ret, t_ret;
 
     obj_list = NULL;
+    /* Set the op string so that on error we know what failed. */
     op = "location_list";
     if ((ret = ss->ss_location_list(ss, session, location, prefix, limit, &obj_list, &obj_count)) !=
       0)
@@ -1018,13 +1019,18 @@ demo_test_storage_source(WT_STORAGE_SOURCE *ss, WT_SESSION *session)
     bool exist;
 
     location1 = location2 = NULL;
+
+    /* Create two locations. Set the op string so that on error we know what failed. */
     op = "location_handle";
     if ((ret = ss->ss_location_handle(ss, session, "location-one", &location1)) != 0)
         goto err;
     if ((ret = ss->ss_location_handle(ss, session, "location-two", &location2)) != 0)
         goto err;
 
-    /* Create and existence checks. */
+    /*
+     * Create and existence checks. In location-one, create "A". In location-two, create "A", "B",
+     * "AA". We'll do simple lists of both locations, and a list of location-two with a prefix.
+     */
     op = "create/exist checks";
     if ((ret = demo_test_create(ss, session, location1, "A", "location-one-A")) != 0)
         goto err;
@@ -1051,6 +1057,7 @@ demo_test_storage_source(WT_STORAGE_SOURCE *ss, WT_SESSION *session)
     if ((ret = demo_test_create(ss, session, location2, "AA", "location-two-AA")) != 0)
         goto err;
 
+    /* Make sure the objects contain the expected data. */
     op = "read checks";
     if ((ret = demo_test_read(ss, session, location1, "A", "location-one-A")) != 0)
         goto err;
@@ -1059,15 +1066,34 @@ demo_test_storage_source(WT_STORAGE_SOURCE *ss, WT_SESSION *session)
     if ((ret = demo_test_read(ss, session, location2, "B", "location-two-B")) != 0)
         goto err;
 
+    /*
+     * List the locations. For location-one, we expect just one object.
+     */
     op = "list checks";
     if ((ret = demo_test_list(ss, session, location1, NULL, 0, 1)) != 0)
         goto err;
+
+    /*
+     * For location-two, we expect three objects.
+     */
     if ((ret = demo_test_list(ss, session, location2, NULL, 0, 3)) != 0)
         goto err;
+
+    /*
+     * If we limit the number of objects received to 2, we should only see 2.
+     */
     if ((ret = demo_test_list(ss, session, location2, NULL, 2, 2)) != 0)
         goto err;
+
+    /*
+     * With a prefix of "A", and no limit, we'll see two objects.
+     */
     if ((ret = demo_test_list(ss, session, location2, "A", 0, 2)) != 0)
         goto err;
+
+    /*
+     * With a prefix of "A", and a limit of one, we'll see just one object.
+     */
     if ((ret = demo_test_list(ss, session, location2, "A", 1, 1)) != 0)
         goto err;
 
