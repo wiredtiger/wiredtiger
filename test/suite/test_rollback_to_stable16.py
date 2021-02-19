@@ -92,7 +92,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         # self.assertEqual(count, nrows)
         cursor.close()
 
-    def test_rollback_to_stable16(self):
+    def test_rollback_to_stable(self):
         # Create a table.
         uri = "table:rollback_to_stable16"
         nrows = 200

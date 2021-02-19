@@ -175,8 +175,6 @@ __rollback_col_add_update(
     return (ret);
 
 err:
-    __wt_free(session, ins);
-    __wt_free(session, upd);
     return (ret);
 }
 
@@ -248,19 +246,19 @@ static int
 __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
   wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
-    WT_UPDATE *hs_upd, *tombstone, *upd;
+    WT_CELL *kcell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
-    WT_DECL_ITEM(hs_key);
-    WT_DECL_ITEM(hs_value);
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(hs_key);
+    WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_CELL* kcell;
     WT_ITEM full_value;
+    WT_UPDATE *hs_upd, *tombstone, *upd;
+    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
     uint64_t hs_counter, type_full;
     uint32_t hs_btree_id;
-    wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
     uint8_t *p;
     uint8_t type;
     int cmp;
@@ -294,9 +292,10 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL 
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
     ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
-    
+
     for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
+
         /* Stop before crossing over to the next btree */
         if (hs_btree_id != S2BT(session)->id)
             break;
@@ -307,6 +306,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL 
         WT_ERR(__wt_compare(session, NULL, hs_key, key, &cmp));
         if (cmp != 0)
             break;
+
         /*
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
@@ -316,6 +316,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL 
             continue;
         }
         cbt->compare = 0;
+
         /* Get current value and convert to full update if it is a modify. */
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &hs_stop_durable_ts, &hs_durable_ts, &type_full, hs_value));
