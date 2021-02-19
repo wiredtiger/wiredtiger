@@ -75,24 +75,24 @@
         if ((config) != NULL)                                             \
     WT_ERR(__wt_config_check((s), WT_CONFIG_REF(session, h##_##n), (config), 0))
 
-#define API_END(s, ret)                                                            \
-    if ((s) != NULL) {                                                             \
-        WT_TRACK_OP_END(s);                                                        \
-        WT_SINGLE_THREAD_CHECK_STOP(s);                                            \
-        if ((ret) != 0)                                                            \
-            __wt_txn_err_set(s, ret);                                              \
-        if ((s)->api_call_counter == 1 && !F_ISSET(session, WT_SESSION_INTERNAL))  \
-            __wt_op_timer_stop(s);                                                 \
-        /* We should not leave any hs cursor open when return from an api call. */ \
-        if ((s)->api_call_counter == 1)                                            \
-            WT_ASSERT(s, (s)->hs_cursor_count == 0);                               \
-        /*                                                                         \
-         * No code after this line, otherwise error handling                       \
-         * won't be correct.                                                       \
-         */                                                                        \
-        API_SESSION_POP(s);                                                        \
-    }                                                                              \
-    }                                                                              \
+#define API_END(s, ret)                                                                \
+    if ((s) != NULL) {                                                                 \
+        WT_TRACK_OP_END(s);                                                            \
+        WT_SINGLE_THREAD_CHECK_STOP(s);                                                \
+        if ((ret) != 0)                                                                \
+            __wt_txn_err_set(s, ret);                                                  \
+        if ((s)->api_call_counter == 1 && !F_ISSET(session, WT_SESSION_INTERNAL)) {    \
+            __wt_op_timer_stop(s);                                                     \
+            /* We should not leave any hs cursor open when return from an api call. */ \
+            WT_ASSERT(s, (s)->hs_cursor_count == 0);                                   \
+        }                                                                              \
+        /*                                                                             \
+         * No code after this line, otherwise error handling                           \
+         * won't be correct.                                                           \
+         */                                                                            \
+        API_SESSION_POP(s);                                                            \
+    }                                                                                  \
+    }                                                                                  \
     while (0)
 
 /* An API call wrapped in a transaction if necessary. */
