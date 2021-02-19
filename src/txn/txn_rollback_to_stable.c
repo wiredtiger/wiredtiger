@@ -143,7 +143,6 @@ __rollback_col_add_update(
     size_t ins_size, upd_size;
     u_int skipdepth;
 
-    upd_size = WT_UPDATE_MEMSIZE(upd);
     skipdepth = 1;
 
     /* If we don't yet have a modify structure, we'll need one. */
@@ -175,8 +174,6 @@ __rollback_col_add_update(
     return (ret);
 
 err:
-    __wt_free(session, ins);
-    __wt_free(session, upd);
     return (ret);
 }
 
