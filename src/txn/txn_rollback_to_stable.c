@@ -102,6 +102,7 @@ __rollback_abort_newer_insert(
             __rollback_abort_newer_update(
               session, ins->upd, rollback_timestamp, &stable_update_found);
 }
+
 /*
  * __col_insert_alloc --
  *     Column-store insert: allocate a WT_INSERT structure and fill it in.
@@ -126,6 +127,7 @@ __col_insert_alloc(
     *ins_sizep = ins_size;
     return (0);
 }
+
 /*
  * __rollback_col_add_update --
  *     Add the provided update to the head of the update list.
@@ -164,12 +166,17 @@ __rollback_col_add_update(
     ins->upd = upd;
     ins_size += upd_size;
 
-    ins_stack[0] = &ins;
+    ins_stack[0] = &ins_head->head[0];
+    ins->next[0] = NULL;
 
     /* Insert the new update at the head of the update list. */
     WT_ERR(__wt_insert_serial(session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
 
+    return (ret);
+
 err:
+    __wt_free(session, ins);
+    __wt_free(session, upd);
     return (ret);
 }
 
@@ -251,6 +258,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL 
     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
     WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
     WT_ERR(__rollback_col_add_update(session, page, cip, upd, recno));
+    return (ret);
 
 err:
     return (ret);
@@ -535,15 +543,6 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *
     __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
     prepared = vpack->tw.prepare;
 
-    // printf("\n=== __rollback_abort_col_ondisk_kv ===\n");
-    // printf("start durable/commit timestamp: %s, %s, stop durable/commit "
-    //     "timestamp: %s, %s and stable timestamp: %s",
-    //     __wt_timestamp_to_string(_vpack.tw.durable_start_ts, ts_string[0]),
-    //     __wt_timestamp_to_string(_vpack.tw.start_ts, ts_string[1]),
-    //     __wt_timestamp_to_string(_vpack.tw.durable_stop_ts, ts_string[2]),
-    //     __wt_timestamp_to_string(_vpack.tw.stop_ts, ts_string[3]),
-    //     __wt_timestamp_to_string(rollback_timestamp, ts_string[4]));
-
     if (vpack->tw.durable_start_ts > rollback_timestamp ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
@@ -707,7 +706,6 @@ __rollback_abort_newer_col_var(
     uint32_t i;
     bool stable_update_found;
 
-    /* Check whether the page is on the disk. */
     if (page->dsk != NULL)
         recno = page->dsk->recno;
     else

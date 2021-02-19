@@ -25,6 +25,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import fnmatch, os, shutil, threading, time
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest, unittest
 from wiredtiger import stat
@@ -33,11 +34,34 @@ from wtdataset import SimpleDataSet
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable17.py
+# test_rollback_to_stable16.py
 # Test that rollback to stable removes updates present on disk for variable length column store.
-class test_rollback_to_stable17(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
+class test_rollback_to_stable16(wttest.WiredTigerTestCase):
+    conn_config = 'cache_size=200MB,statistics=(all)'
     session_config = 'isolation=snapshot'
+
+    def simulate_crash_restart(self, olddir, newdir):
+        ''' Simulate a crash from olddir and restart in newdir. '''
+        # with the connection still open, copy files to new directory
+        shutil.rmtree(newdir, ignore_errors=True)
+        os.mkdir(newdir)
+        for fname in os.listdir(olddir):
+            fullname = os.path.join(olddir, fname)
+            # Skip lock file on Windows since it is locked
+            if os.path.isfile(fullname) and \
+                "WiredTiger.lock" not in fullname and \
+                "Tmplog" not in fullname and \
+                "Preplog" not in fullname:
+                shutil.copy(fullname, newdir)
+        #
+        # close the original connection and open to new directory
+        # NOTE:  This really cannot test the difference between the
+        # write-no-sync (off) version of log_flush and the sync
+        # version since we're not crashing the system itself.
+        #
+        self.close_conn()
+        self.conn = self.setUpConnectionOpen(newdir)
+        self.session = self.setUpSessionOpen(self.conn)
 
     def insert_update_data_at_given_timestamp(self, uri, value, start_row, end_row, timestamp):
         cursor =  self.session.open_cursor(uri)
@@ -56,19 +80,21 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         for i in range(start_row, end_row):
             cursor.set_key(i)
             ret = cursor.search()
-            self.tty(f'value = {cursor.get_value()}')
-            # if check_value is None:
-            #     self.assertTrue(ret == wiredtiger.WT_NOTFOUND)
-            # else:
-            #     self.assertEqual(cursor.get_value(), check_value + str(count + start_row))
-            #     count += 1
+            # self.tty(f'value = {cursor.get_value()}')
+            if check_value is None:
+                if ret != wiredtiger.WT_NOTFOUND:
+                    self.tty(f'value = {cursor.get_value()}')
+                    self.assertTrue(ret == wiredtiger.WT_NOTFOUND)
+            else:
+                self.assertEqual(cursor.get_value(), check_value + str(count + start_row))
+                count += 1
         session.commit_transaction()
         # self.assertEqual(count, nrows)
         cursor.close()
 
-    def test_rollback_to_stable(self):
+    def test_rollback_to_stable16(self):
         # Create a table.
-        uri = "table:rollback_to_stable17"
+        uri = "table:rollback_to_stable16"
         nrows = 200
         create_params = 'key_format=r,value_format=S'
 
@@ -86,22 +112,18 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         self.insert_update_data_at_given_timestamp(uri, value20, 1, 200, 2)
         self.insert_update_data_at_given_timestamp(uri, value30, 200, 400, 5)
         self.insert_update_data_at_given_timestamp(uri, value40, 400, 600, 7)
-        self.insert_update_data_at_given_timestamp(uri, value50, 600, 800, 9)  
+        self.insert_update_data_at_given_timestamp(uri, value50, 600, 800, 9)
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 
         self.session.checkpoint()
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
-        self.conn.rollback_to_stable()
+        # rollback to stable done as part of recovery
+        self.simulate_crash_restart(".", "RESTART")
 
         self.check(value20, uri, nrows - 1, 1, 200, 2)
         self.check(value30, uri, nrows - 1, 201, 400, 5)
         self.check(None, uri, 0, 401, 600, 7)
-        self.check(None, uri, 0, 601, 800, 9)      
-
-        # self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
-        # self.conn.rollback_to_stable()  
-        # self.check(value20, uri, nrows - 1, 1, 200, 2)
-        # self.check(value30, uri, nrows - 1, 201, 400, 5)
+        self.check(None, uri, 0, 601, 800, 9)
 
         self.session.close()
 if __name__ == '__main__':
