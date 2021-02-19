@@ -36,9 +36,7 @@
     WT_DATA_HANDLE *__olddh = (s)->dhandle;                                                  \
     const char *__oldname;                                                                   \
     /* If this isn't an API reentry, the name should be NULL and the counter should be 0. */ \
-    WT_ASSERT(session,                                                                       \
-      ((s)->name != NULL && (s)->api_call_counter > 0) ||                                    \
-        ((s)->name == NULL && (s)->api_call_counter == 0));                                  \
+    WT_ASSERT(session, (s)->name != NULL || (s)->api_call_counter == 0);                     \
     __oldname = (s)->name;                                                                   \
     ++(s)->api_call_counter;                                                                 \
     (s)->dhandle = (dh);                                                                     \
