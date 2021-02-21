@@ -8,14 +8,29 @@
 #include "api_const.h"
 #include "configuration_settings.h"
 #include "random_generator.h"
+#include "thread_manager.h"
 
 #define DEBUG_ERROR 0
 #define DEBUG_INFO 1
 
 namespace test_harness {
+class workload_thread_context : public thread_context {
+    public:
+    workload_thread_context(
+      WT_SESSION *session, std::vector<std::string> collection_names, thread_operation type)
+        : session(session), collection_names(collection_names), thread_context(type)
+    {
+    }
+    workload_thread_context() : thread_context(thread_operation::UNINITIALIZED) {}
+    std::vector<std::string> collection_names;
+    WT_SESSION *session;
+
+    private:
+};
+
 class workload_generator {
     public:
-    workload_generator(test_harness::configuration *configuration)
+    workload_generator(configuration *configuration)
     {
         _configuration = configuration;
     }
@@ -63,13 +78,13 @@ class workload_generator {
         testutil_make_work_dir(home);
 
         /* Open connection. */
-        testutil_check(wiredtiger_open(home, NULL, test_harness::CONNECTION_CREATE, &_conn));
+        testutil_check(wiredtiger_open(home, NULL, CONNECTION_CREATE, &_conn));
 
         /* Open session. */
         testutil_check(_conn->open_session(_conn, NULL, NULL, &_session));
 
         /* Create n collections as per the configuration and store each collection name. */
-        testutil_check(_configuration->get_int(test_harness::COLLECTION_COUNT, collection_count));
+        testutil_check(_configuration->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
             testutil_check(
@@ -79,8 +94,8 @@ class workload_generator {
         debug_info(std::to_string(collection_count) + " collections created", DEBUG_INFO);
 
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
-        testutil_check(_configuration->get_int(test_harness::KEY_COUNT, key_count));
-        testutil_check(_configuration->get_int(test_harness::VALUE_SIZE, value_size));
+        testutil_check(_configuration->get_int(KEY_COUNT, key_count));
+        testutil_check(_configuration->get_int(VALUE_SIZE, value_size));
         for (const auto &collection_name : _collection_names) {
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
@@ -104,8 +119,68 @@ class workload_generator {
     int
     run()
     {
-        /* Empty until thread management lib is implemented. */
-        return (0);
+        WT_SESSION *session;
+        int64_t duration_seconds, read_threads;
+
+        session = nullptr;
+        duration_seconds = read_threads = 0;
+
+        testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
+        testutil_check(_configuration->get_int(READ_THREADS, read_threads));
+
+        /* Create a separate read thread for each collection. It's likely that this will change. */
+        for (int i = 0; i < read_threads; ++i) {
+            testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
+            workload_thread_context &wtc =
+              *new workload_thread_context(session, _collection_names, thread_operation::READ);
+            thread_manager::get_instance().create_thread(read_operation, wtc);
+            _workers.push_back(&wtc);
+        }
+
+        /*
+         * Spin until duration seconds has expired. If the call to run() returns we destroy the
+         * test and the workload generator.
+         */
+        std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
+        finish();
+        return 0;
+    }
+
+    /* Cleanup the workload after the run duration has been exceeded. */
+    void
+    finish()
+    {
+        for (const auto &it : _workers) {
+            it->join();
+            delete it;
+        }
+    }
+
+    /* Workload threaded operations. */
+    static void
+    read_operation(thread_context &context)
+    {
+        WT_CURSOR *cursor;
+        std::vector<WT_CURSOR *> cursors;
+        workload_thread_context* wtc;
+        try {
+            wtc = dynamic_cast<workload_thread_context*>(&context);
+        } catch (std::bad_cast e) {
+            testutil_die(-1, "Invalid thread context passed to read_operation");
+        }
+
+        /* Get a cursor for each collection in collection_names. */
+        for (const auto &it : wtc->collection_names) {
+            testutil_check(wtc->session->open_cursor(wtc->session, it.c_str(), NULL, NULL, &cursor));
+            cursors.push_back(cursor);
+        }
+
+        while (wtc->running()) {
+            /* Walk each cursor. */
+            for (const auto &it : cursors) {
+                it->next(it);
+            }
+        }
     }
 
     /* WiredTiger APIs wrappers for single operations. */
@@ -154,9 +229,10 @@ class workload_generator {
     }
 
     std::vector<std::string> _collection_names;
-    test_harness::configuration *_configuration = nullptr;
+    configuration *_configuration = nullptr;
     WT_CONNECTION *_conn = nullptr;
     WT_SESSION *_session = nullptr;
+    std::vector<workload_thread_context *> _workers;
 };
 } // namespace test_harness
 
