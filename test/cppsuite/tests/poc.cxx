@@ -3,6 +3,7 @@
 
 #include "test_harness/test_harness.h"
 #include "test_harness/workload_generator.h"
+#include "test_harness/runtime_monitor.h"
 
 class poc_test : public test_harness::test {
     public:
@@ -10,12 +11,15 @@ class poc_test : public test_harness::test {
     {
         test_harness::workload_generator::_trace_level = trace_level;
         _wl = new test_harness::workload_generator(_configuration);
+        _rm = new test_harness::runtime_monitor();
     }
 
     ~poc_test()
     {
         delete _wl;
         _wl = nullptr;
+        delete _rm;
+        _rm = nullptr;
     }
 
     int
@@ -30,6 +34,7 @@ class poc_test : public test_harness::test {
     }
 
     private:
+    test_harness::runtime_monitor *_rm = nullptr;
     test_harness::workload_generator *_wl = nullptr;
 };
 

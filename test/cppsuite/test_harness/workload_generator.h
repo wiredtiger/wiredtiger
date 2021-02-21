@@ -21,7 +21,6 @@ class workload_thread_context : public thread_context {
         : session(session), collection_names(collection_names), thread_context(type)
     {
     }
-    workload_thread_context() : thread_context(thread_operation::UNINITIALIZED) {}
     std::vector<std::string> collection_names;
     WT_SESSION *session;
 
@@ -133,13 +132,12 @@ class workload_generator {
             testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
             workload_thread_context &wtc =
               *new workload_thread_context(session, _collection_names, thread_operation::READ);
-            thread_manager::get_instance().create_thread(read_operation, wtc);
-            _workers.push_back(&wtc);
+            _thread_manager.create_thread(read_operation, wtc);
         }
 
         /*
-         * Spin until duration seconds has expired. If the call to run() returns we destroy the
-         * test and the workload generator.
+         * Spin until duration seconds has expired. If the call to run() returns we destroy the test
+         * and the workload generator.
          */
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
         finish();
@@ -150,7 +148,7 @@ class workload_generator {
     void
     finish()
     {
-        for (const auto &it : _workers) {
+        for (const auto &it : _thread_manager.thread_workers) {
             it->join();
             delete it;
         }
@@ -158,24 +156,19 @@ class workload_generator {
 
     /* Workload threaded operations. */
     static void
-    read_operation(thread_context &context)
+    read_operation(workload_thread_context &context)
     {
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
-        workload_thread_context* wtc;
-        try {
-            wtc = dynamic_cast<workload_thread_context*>(&context);
-        } catch (std::bad_cast e) {
-            testutil_die(-1, "Invalid thread context passed to read_operation");
-        }
 
         /* Get a cursor for each collection in collection_names. */
-        for (const auto &it : wtc->collection_names) {
-            testutil_check(wtc->session->open_cursor(wtc->session, it.c_str(), NULL, NULL, &cursor));
+        for (const auto &it : context.collection_names) {
+            testutil_check(
+              context.session->open_cursor(context.session, it.c_str(), NULL, NULL, &cursor));
             cursors.push_back(cursor);
         }
 
-        while (wtc->running()) {
+        while (context.running()) {
             /* Walk each cursor. */
             for (const auto &it : cursors) {
                 it->next(it);
@@ -232,7 +225,7 @@ class workload_generator {
     configuration *_configuration = nullptr;
     WT_CONNECTION *_conn = nullptr;
     WT_SESSION *_session = nullptr;
-    std::vector<workload_thread_context *> _workers;
+    thread_manager<workload_thread_context> _thread_manager;
 };
 } // namespace test_harness
 
