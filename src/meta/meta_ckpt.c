@@ -100,8 +100,10 @@ int
 __wt_meta_checkpoint(
   WT_SESSION_IMPL *session, const char *fname, const char *checkpoint, WT_CKPT *ckpt)
 {
+    //WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     char *config;
+    //conn = S2C(session);
 
     config = NULL;
 
@@ -111,8 +113,15 @@ __wt_meta_checkpoint(
     /* Retrieve the metadata entry for the file. */
     WT_ERR(__wt_metadata_search(session, fname, &config));
 
-    /* Check the major/minor version numbers. */
-    WT_ERR(__ckpt_version_chk(session, fname, config));
+/* 
+ * Check for the version mismatch in wiredtiger standlone release and when
+ * compatibility has not been configured.
+ */
+#ifdef WT_STANDALONE_BUILD
+    if (!F_ISSET(S2C(session), WT_CONN_COMPATIBILITY))
+        /* Check the major/minor version numbers. */
+        WT_ERR(__ckpt_version_chk(session, fname, config));
+#endif
 
     /*
      * Retrieve the named checkpoint or the last checkpoint.
