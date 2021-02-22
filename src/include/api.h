@@ -83,7 +83,6 @@
             __wt_txn_err_set(s, ret);                                             \
         if ((s)->api_call_counter == 1 && !F_ISSET(session, WT_SESSION_INTERNAL)) \
             __wt_op_timer_stop(s);                                                \
-        \
         /*                                                                        \
          * No code after this line, otherwise error handling                      \
          * won't be correct.                                                      \
