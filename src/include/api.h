@@ -156,12 +156,12 @@
 #define API_END_RET(s, ret)                                                    \
     API_END(s, ret);                                                           \
     /* We should not leave any hs cursor open when return from an api call. */ \
-    WT_ASSERT(s, (s)->api_call_counter != 0 || (s)->hs_cursor_counter == 0);   \
+    WT_ASSERT(s, (s) == NULL || (s)->api_call_counter != 0 || (s)->hs_cursor_counter == 0);   \
     return (ret)
 #define API_END_RET_NOTFOUND_MAP(s, ret)                                       \
     API_END(s, ret);                                                           \
     /* We should not leave any hs cursor open when return from an api call. */ \
-    WT_ASSERT(s, (s)->api_call_counter != 0 || (s)->hs_cursor_counter == 0);   \
+    WT_ASSERT(s, (s) == NULL || (s)->api_call_counter != 0 || (s)->hs_cursor_counter == 0);   \
     return ((ret) == WT_NOTFOUND ? ENOENT : (ret))
 
 /*
