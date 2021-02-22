@@ -137,14 +137,19 @@ __rollback_col_add_update(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
 {
     WT_DECL_RET;
-    WT_INSERT *ins, **ins_stack[WT_SKIP_MAXDEPTH];
+    WT_INSERT *ins, **ins_stack[WT_SKIP_MAXDEPTH], *next_stack[WT_SKIP_MAXDEPTH];
     WT_INSERT_HEAD *ins_head, **ins_headp;
     WT_PAGE_MODIFY *mod;
+    WT_UPDATE *last_upd, *old_upd, **upd_entry;
     size_t ins_size, upd_size;
     u_int skipdepth;
 
     upd_size = WT_UPDATE_MEMSIZE(upd);
     skipdepth = 1;
+    ins = NULL;
+
+    memset(ins_stack, NULL, WT_SKIP_MAXDEPTH);
+    memset(next_stack, NULL, WT_SKIP_MAXDEPTH);
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
@@ -155,22 +160,75 @@ __rollback_col_add_update(
 
     /* Set the WT_INSERT head array reference. */
     ins_headp = &mod->mod_col_update[WT_COL_SLOT(page, cip)];
-    WT_PAGE_ALLOC_AND_SWAP(session, page, *ins_headp, ins_head, 1);
-    ins_head = *ins_headp;
 
-    /* Allocate an empty WT_INSERT for a recno. */
-    WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
 
-    /* Assign the update to the WT_INSERT. */
-    upd_size = __wt_update_list_memsize(upd);
-    ins->upd = upd;
-    ins_size += upd_size;
+    if (*ins_headp != NULL) {
+        ins_head = *ins_headp;
+        ins = __col_insert_search(ins_head, ins_stack, next_stack, recno);
+        if (ins != NULL) {
+            if (WT_INSERT_RECNO(ins) == recno){
+                upd_entry = &ins->upd;
+                upd_size = WT_UPDATE_MEMSIZE(upd);
 
-    ins_stack[0] = &ins_head->head[0];
-    ins->next[0] = NULL;
+                /* If there are existing updates, append them after the new updates. */
+                for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                    ;
+                last_upd->next = *upd_entry;
 
-    /* Insert the new update at the head of the update list. */
-    WT_ERR(__wt_insert_serial(session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
+                /*
+                * We can either put a tombstone plus an update or a single update on the update chain.
+                *
+                * Set the "old" entry to the second update in the list so that the serialization function
+                * succeeds in swapping the first update into place.
+                */
+                if (upd->next != NULL)
+                    *upd_entry = upd->next;
+                old_upd = *upd_entry;
+
+                /*
+                * Point the new WT_UPDATE item to the next element in the list. The serialization function acts
+                * as our memory barrier to flush this write.
+                */
+                upd->next = old_upd;
+
+                /*
+                * Serialize the update. Rollback to stable doesn't need to check the visibility of the on page
+                * value to detect conflict.
+                */
+                WT_ERR(__wt_update_serial(session, NULL, page, upd_entry, &upd, upd_size, true));
+            } else {
+                /*
+                 * The test below is for cursor.compare set to 0 and cursor.ins set: cursor.compare
+                 * wasn't set by the search we just did, and has an unknown value. Clear cursor.ins
+                 * to avoid the test.
+                 */
+                ins = NULL;
+            }
+        }
+    }
+
+    if (ins == NULL ){
+        WT_PAGE_ALLOC_AND_SWAP(session, page, *ins_headp, ins_head, 1);
+        ins_head = *ins_headp;
+        /* Allocate an empty WT_INSERT for a recno. */
+        WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
+
+        /* Assign the update to the WT_INSERT. */
+        upd_size = __wt_update_list_memsize(upd);
+        ins->upd = upd;
+        ins_size += upd_size;
+
+        if (ins_stack[0] == NULL) {
+            ins_stack[0] = &ins_head->head[0];
+            ins->next[0] = NULL;
+        } else {
+            ins->next[0] = next_stack[0];
+        }
+
+         /* Insert the new update at the head of the update list. */
+        WT_ERR(__wt_insert_serial(session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
+    }
+
 
     return (ret);
 
@@ -856,7 +914,7 @@ __rollback_abort_newer_col_var(
     WT_COL *cip;
     WT_INSERT_HEAD *ins;
     uint64_t recno, rle;
-    uint32_t i;
+    uint32_t i, j;
     bool stable_update_found;
 
     if (page->dsk != NULL)
@@ -864,8 +922,10 @@ __rollback_abort_newer_col_var(
     else
         recno = 0;
 
+    printf("=== __rollback_abort_newer_col_var ===\n");
     /* Review the changes to the original on-page data items. */
     WT_COL_FOREACH (page, cip, i) {
+        printf("recno: %" PRIu64 "\n", recno);
         stable_update_found = false;
 
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
@@ -876,8 +936,13 @@ __rollback_abort_newer_col_var(
             kcell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
+            // __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
+            for (j = 0; j < rle; j++){
+                __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno + j);
+                printf("recno: %" PRIu64 "\n", recno+j);
+            }
             recno += rle;
+            printf("recno + rle: %" PRIu64 "\n", recno);
         } else {
             recno++;
         }
