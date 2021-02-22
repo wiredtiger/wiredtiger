@@ -782,7 +782,6 @@ __verify_key_hs(
     wt_timestamp_t older_start_ts, older_stop_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    int cmp;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
@@ -805,11 +804,6 @@ __verify_key_hs(
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
-
-        WT_RET(__wt_compare(session, NULL, tmp1, vs->tmp2, &cmp));
-        if (cmp != 0)
-            break;
-
         /* Verify the newer record's start is later than the older record's stop. */
         if (newer_start_ts < older_stop_ts) {
             WT_RET_MSG(session, WT_ERROR,
