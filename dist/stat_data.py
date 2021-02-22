@@ -104,6 +104,10 @@ class SessionOpStat(Stat):
     prefix = 'session'
     def __init__(self, name, desc, flags=''):
         Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
+class StorageStat(Stat):
+    prefix = 'session'
+    def __init__(self, name, desc, flags=''):
+        Stat.__init__(self, name, SessionOpStat.prefix, desc, flags)
 class ThreadStat(Stat):
     prefix = 'thread-state'
     def __init__(self, name, desc, flags=''):
@@ -334,6 +338,7 @@ connection_stats = [
     DhandleStat('dh_sweep_close', 'connection sweep dhandles closed'),
     DhandleStat('dh_sweep_ref', 'connection sweep candidate became referenced'),
     DhandleStat('dh_sweep_remove', 'connection sweep dhandles removed from hash list'),
+    DhandleStat('dh_sweep_skip_ckpt', 'connection sweeps skipped due to checkpoint gathering handles'),
     DhandleStat('dh_sweep_tod', 'connection sweep time-of-death sets'),
     DhandleStat('dh_sweeps', 'connection sweeps'),
 
@@ -462,6 +467,8 @@ connection_stats = [
     # Reconciliation statistics
     ##########################################
     RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
+    RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
+    RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
     RecStat('rec_pages_with_prepare', 'page reconciliation calls that resulted in values with prepared transaction metadata'),
     RecStat('rec_pages_with_ts', 'page reconciliation calls that resulted in values with timestamps'),
     RecStat('rec_pages_with_txn', 'page reconciliation calls that resulted in values with transaction ids'),
@@ -854,10 +861,18 @@ conn_dsrc_stats = [
     RecStat('rec_time_window_stop_txn', 'records written including a stop transaction ID'),
 
     ##########################################
+    # Tiered storage statistics
+    ##########################################
+    StorageStat('flush_tier', 'flush_tier operation calls'),
+    StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
+
+    ##########################################
     # Transaction statistics
     ##########################################
+    TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
+    TxnStat('txn_rts_hs_restore_updates', 'rollback to stable restored updates from history store'),
     TxnStat('txn_rts_hs_restore_tombstones', 'rollback to stable restored tombstones from history store'),
     TxnStat('txn_rts_hs_stop_older_than_newer_start', 'rollback to stable hs records with stop timestamps older than newer records'),
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
