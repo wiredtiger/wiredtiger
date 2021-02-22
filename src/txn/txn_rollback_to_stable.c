@@ -148,8 +148,10 @@ __rollback_col_add_update(
     skipdepth = 1;
     ins = NULL;
 
-    memset(ins_stack, NULL, WT_SKIP_MAXDEPTH);
-    memset(next_stack, NULL, WT_SKIP_MAXDEPTH);
+    for (uint32_t i = 0; i < WT_SKIP_MAXDEPTH; i++){
+        ins_stack[i] = NULL;
+        next_stack[i] = NULL;
+    }
 
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
