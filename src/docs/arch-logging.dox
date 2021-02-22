@@ -28,7 +28,7 @@ no meaning to the numbers on the two pre-allocated file types.
 
 There are a varying number of temporary and prepared log files in the directory. They
 are removed immediately on startup. Old pre-allocated log files cannot be reused
-on a restart because the log file version number could have changed in between runs.
+on a restart because the log format and WiredTiger software could have changed in between runs.
 See \ref log_threads for a discussion of pre-allocation.
 
 @section log_configuration Configuration choices and their implications
@@ -38,10 +38,12 @@ control the finer details of the logging subsystem. The \c archive=true setting 
 on log file archiving. That means that log files earlier than the most recently
 completed checkpoint can be removed. (In this use, archive means removal not a form
 of cold storage.) There are times, even when configured on, that log archiving is
-temporarily disabled inside the WiredTiger library. Those times are:
-* When a backup cursor is open - WiredTiger must guarantee that any log file name that may have
-been returned to a backup cursor remains in existence for the lifetime of that cursor.
-* When a log cursor is open - this cursor could be positioned anywhere in the log that
+temporarily disabled inside the WiredTiger library.
+
+Log archiving is disabled when a backup cursor is open, WiredTiger must guarantee
+that any log file name that may have been returned to a backup cursor remains in
+existence for the lifetime of that cursor. Log archiving is also disabled when
+a log cursor is open. This cursor could be positioned anywhere in the log that
 existed when the cursor was opened and walking the records, so all log files that
 existed at open must continue to exist.
 
@@ -49,8 +51,8 @@ The (default) log file pre-allocation setting \c prealloc=true allows the system
 pre-allocate log files so that when application threads are writing their log
 records, on the critical path, they do not incur the penalties of file creation
 and having to sync the header or directory to the disk. Similar to archiving,
-there are times when log file pre-allocation is disabled internally. Those times are:
-* When a backup cursor is open - The user may not walk the list of files returned in
+there are times when log file pre-allocation is disabled internally. Pre-allocation is
+disabled when a backup cursor is open. The user may not walk the list of files returned in
 the backup cursor, but can, instead, copy the directory contents itself. Therefore,
 backup has a contract that all files that existed when the backup cursor was opened will
 continue to exist for the lifetime of the backup cursor. Renaming pre-allocated log
@@ -77,8 +79,8 @@ do for a rolled back transaction.
 
 @section log_subsystem Logging subsystem data structures and algorithms
 
-A log sequence number (LSN) identifies the location of a log record. In WiredTiger
-LSNs is a 64-bit number containing two values, a 32-bit file number and a 32-bit offset.
+A log sequence number (LSN) identifies the location of a log record. In WiredTiger,
+the LSN is a 64-bit number containing two values, a 32-bit file number and a 32-bit offset.
 The file number portion of the LSN maps to the number in the \c WiredTigerLog. file name.
 The offset portion of the LSN is the byte offset within that file where the log record starts.
 
@@ -86,10 +88,11 @@ There is a \c WT_LOG structure that contains the live information about the stat
 the logging subsystem. This document does not itemize every field. It contains some
 locks and condition variables for synchronization and a large set of LSNs for keeping
 track of the state of the system. Some of the important LSNs maintained are:
-* alloc_lsn: This is the LSN for the next log record allocation.
-* ckpt_lsn: This is the LSN of the last checkpoint.
-* sync_lsn: this is the LSN of the last record synced to disk.
-* write_lsn: this is the end of the last LSN written to the operating system.
+- alloc_lsn: This is the LSN for the next log record allocation.
+- ckpt_lsn: This is the LSN of the last checkpoint.
+- sync_lsn: This is the LSN of the last record synced to disk.
+- write_lsn: This is the LSN of the end of the last record written to the operating system.
+- write_start_lsn: This is the LSN of the start of the last record written to the operating system.
 
 As mentioned earlier, all log records are a multiple of 128 bytes, and that means
 they also have a 128 byte minimum record size. If a buffer is not a multiple, the
@@ -114,31 +117,35 @@ next thread to use until a flush is forced, the memory fills or a
 timer expires.
 
 This means that for the common case of a user committing a transaction with the
-default synchronization setting of memory-only the path of writing its record into
-the write-ahead log becomes essentially two atomic operations and memory copies. The
+default synchronization setting of memory-only, the path of writing its record into
+the write-ahead log becomes, essentially, two atomic operations and memory copies. The
 common path does not require acquiring locks.
 
 @section log_threads Internal Threads
-There are several internal logging-related threads that perform housekeeping on the
-logging subsystem. The main thread, called \c log_server, is a general thread. It
-flushes out the current slot to the file system. It does this every 50 milliseconds
-and this is done so that if a system becomes idle, buffered log records in the memory
-of a slot do not languish. The thread also performs log archiving to remove any log
-files that are no longer needed based on the checkpoint LSN. Finally the main thread
-performs log file pre-allocation, if configured. The pre-allocation algorithm is
-adaptable. If the thread did not make sufficient numbers of pre-allocated log files
-the system then makes more. If too few were used, then later pre-allocation will
-create fewer of them.
+There are several internal logging-related threads that perform
+housekeeping on the logging subsystem. The main thread, called \c
+log_server, is a general thread, meaning it performs several unrelated
+tas. It flushes out the current slot to the file system. It does
+this flush every 50 milliseconds and this is done so that if a
+system becomes idle, buffered log records in the memory of a slot
+do not languish. The thread also performs log archiving to remove
+any log files that are no longer needed based on the checkpoint
+LSN. Finally the main thread performs log file pre-allocation, if
+configured. The pre-allocation algorithm is adaptable. If the thread
+did not make sufficient numbers of pre-allocated log files the
+system then makes more. If too few were used, then later pre-allocation
+will create fewer of them.
 
 There is another internal thread dedicated to managing operations on log files. This
 is the \c log_file_server thread. I/O operations can be slow and costly so this
 thread takes the burden of closing and syncing files to disk off of user application threads.
 If a log file needs to be closed, then the application thread moves its file handle to the
 \c log->log_close_fh field and signals this thread. This thread will fsync the file
-handle, and then close it. Updating the \c log_close_lsn and the \c sync_lsn values.
+handle, and then close it. Updating the \c log_close_lsn and the \c sync_lsn values when
+those I/O operations are complete.
 
-The third internal thread manages advancing the \c write_lsn in proper LSN order.
-That LSN must be advanced in order. Therefore it becomes a point of single threading
+The third internal thread manages advancing the \c write_lsn. As the \c write_lsn must
+be advanced in proper LSN order, it becomes a point of single threading
 in the path of writing a log record. The goal is to avoid single threading application
 threads. So after a log slot is written to the file system, the application thread
 only needs to set the slot's state to a special state \c WT_LOG_SLOT_WRITTEN and
@@ -161,8 +168,8 @@ run recovery. If the system previously shutdown cleanly, then recovery determine
 the log does not need to be replayed. Otherwise, recovery replays all operations from
 the LSN of the most recent checkpoint. When timestamps are in use, recovery also
 performs a rollback-to-stable operation on tables that are not logged.
-# Remove this line and the comment marker for the next line after the rollback to stable page exists.
-# This aspect of recovery is discussed in @ref rollback_to_stable.
+/// Remove this line and the comment marker for the next line after the rollback to stable page exists.
+/// This aspect of recovery is discussed in @ref rollback_to_stable.
 
 Users can access and view the records in the log using one of two methods. The most
 common method is via the \c wt printlog command. The command utility will print the
