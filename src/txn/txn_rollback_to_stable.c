@@ -578,8 +578,8 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *
               __rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
         else {
             /*
-             * In-memory database don't have a history store to provide a stable update, so remove
-             * the key.
+             * In-memory database does not have a history store to provide a stable update, so
+             * remove the key.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
