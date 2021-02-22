@@ -543,7 +543,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     WT_DECL_RET;
 
     /* We should not open other cursors when there are open hs cursors in the session. */
-    WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_count == 0);
+    WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0);
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {
