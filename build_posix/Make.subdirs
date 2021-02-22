@@ -17,6 +17,7 @@ ext/encryptors/nop
 ext/encryptors/rotn
 ext/extractors/csv
 ext/test/fail_fs
+ext/test/local_store
 .
 lang/python PYTHON
 
@@ -34,6 +35,7 @@ test/csuite
 test/cursor_order
 test/fops
 test/format
+test/fuzz POSIX_HOST LIBFUZZER
 test/huge
 test/import
 test/manydbs
