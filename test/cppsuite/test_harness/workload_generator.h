@@ -115,7 +115,7 @@ class workload_generator {
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
         testutil_check(_configuration->get_int(READ_THREADS, read_threads));
 
-        /* Create a separate read thread for each collection. It's likely that this will change. */
+        /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
             testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
             thread_context *tc =
@@ -145,7 +145,6 @@ class workload_generator {
 
         if (context.get_session() == nullptr) {
             testutil_die(DEBUG_ABORT, "system: execute_operation : Session is NULL");
-            return;
         }
 
         /* Get a cursor for each collection in collection_names. */
@@ -155,8 +154,8 @@ class workload_generator {
             cursors.push_back(cursor);
         }
 
+        /* Walk each cursor. */
         while (context.is_running()) {
-            /* Walk each cursor. */
             for (const auto &it : cursors) {
                 switch (operation) {
                 case thread_operation::INSERT:

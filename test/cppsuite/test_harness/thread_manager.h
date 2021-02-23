@@ -4,7 +4,6 @@
 #include "thread_context.h"
 
 namespace test_harness {
-
 class thread_manager {
     public:
     ~thread_manager()
@@ -16,7 +15,7 @@ class thread_manager {
         }
     }
 
-    template <typename Callable, typename... Args>
+    template <typename Callable>
     void
     add_thread(thread_context *tc, Callable &&fct)
     {
