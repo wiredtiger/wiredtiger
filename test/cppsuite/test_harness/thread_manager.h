@@ -19,6 +19,7 @@ class thread_manager {
     void
     add_thread(thread_context *tc, Callable &&fct)
     {
+        tc->set_running(true);
         std::thread *t = new std::thread(fct, std::ref(*tc));
         tc->set_thread(t);
         _workers.push_back(tc);

@@ -11,16 +11,14 @@ class thread_context {
     public:
     thread_context(
       WT_SESSION *session, std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _running(false), _type(type)
+        : _collection_names(collection_names), _running(false), _session(session), _thread(nullptr),
+          _type(type)
     {
-        _session = session;
-        _thread = nullptr;
     }
 
     thread_context(thread_operation type) : _running(false), _type(type)
     {
-        _session = nullptr;
-        _thread = nullptr;
+        thread_context(nullptr, {}, type);
     }
 
     ~thread_context()
@@ -75,15 +73,20 @@ class thread_context {
     set_thread(std::thread *thread)
     {
         _thread = thread;
-        _running = true;
+    }
+
+    void
+    set_running(bool running)
+    {
+        _running = running;
     }
 
     private:
-    std::vector<std::string> _collection_names;
+    const std::vector<std::string> _collection_names;
     bool _running;
     WT_SESSION *_session;
     std::thread *_thread;
-    thread_operation _type;
+    const thread_operation _type;
 };
 } // namespace test_harness
 
