@@ -26,8 +26,9 @@ class thread_context {
     ~thread_context()
     {
         if (_session != nullptr)
-            testutil_die(DEBUG_ABORT, "Session should've been cleaned up already. Did you forget to"
-            "call finish on the thread_manager?");
+            testutil_die(DEBUG_ABORT,
+              "Session should've been cleaned up already. Did you forget to"
+              "call finish on the thread_manager?");
         delete _thread;
         _thread = nullptr;
     }

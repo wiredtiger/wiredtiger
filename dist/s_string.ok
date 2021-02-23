@@ -107,6 +107,7 @@ DeadStores
 Decrement
 Decrypt
 DeleteFileW
+Destructor
 Dh
 EACCES
 EAGAIN
@@ -1412,6 +1413,7 @@ usercfg
 usr
 utf
 util
+utils
 uu
 vN
 vW
