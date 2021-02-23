@@ -162,14 +162,15 @@ class workload_generator {
             break;
         default:
             testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
-                static_cast<int>(thread_operation::UPDATE));
+              static_cast<int>(thread_operation::UPDATE));
             break;
         }
     }
 
     /* Basic read operation that walks a cursors across all collections. */
     static void
-    read_operation(thread_context &context) {
+    read_operation(thread_context &context)
+    {
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
 
@@ -183,7 +184,7 @@ class workload_generator {
         while (context.is_running()) {
             /* Walk each cursor. */
             for (const auto &it : cursors)
-                    it->next(it);
+                it->next(it);
         }
     }
 
