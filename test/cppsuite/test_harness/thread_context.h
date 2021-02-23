@@ -25,26 +25,24 @@ class thread_context {
 
     ~thread_context()
     {
-        if (_session != nullptr) {
-            /* Seg fault here. */
-            std::cout << "need to delete the session" << std::endl;
-            if (_session->close(_session, NULL) != 0) {
-                debug_info("Failed to close session for current thread", _trace_level, DEBUG_ERROR);
-            }
-            _session = nullptr;
-            std::cout << "Session deleted" << std::endl;
-        }
-
+        if (_session != nullptr)
+            testutil_die(DEBUG_ABORT, "Session should've been cleaned up already. Did you forget to"
+            "call finish on the thread_manager?");
         delete _thread;
         _thread = nullptr;
     }
 
+    /* Cleanup state. */
     void
     finish()
     {
         _running = false;
-        if (_thread != nullptr && _thread->joinable()) {
+        if (_thread != nullptr && _thread->joinable())
             _thread->join();
+        if (_session != nullptr) {
+            if (_session->close(_session, NULL) != 0)
+                debug_info("Failed to close session for current thread", _trace_level, DEBUG_ERROR);
+            _session = nullptr;
         }
     }
 
