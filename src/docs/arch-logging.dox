@@ -125,7 +125,7 @@ common path does not require acquiring locks.
 There are several internal logging-related threads that perform
 housekeeping on the logging subsystem. The main thread, called \c
 log_server, is a general thread, meaning it performs several unrelated
-tas. It flushes out the current slot to the file system. It does
+tasks. It flushes out the current slot to the file system. It does
 this flush every 50 milliseconds and this is done so that if a
 system becomes idle, buffered log records in the memory of a slot
 do not languish. The thread also performs log archiving to remove
