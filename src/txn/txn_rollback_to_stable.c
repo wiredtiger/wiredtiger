@@ -104,29 +104,29 @@ __rollback_abort_newer_insert(
 }
 
 /*
- * __col_insert_alloc --
+ * __wt_col_insert_alloc --
  *     Column-store insert: allocate a WT_INSERT structure and fill it in.
  */
-static int
-__col_insert_alloc(
-  WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
-{
-    WT_INSERT *ins;
-    size_t ins_size;
+// static int
+// __col_insert_alloc(
+//   WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
+// {
+//     WT_INSERT *ins;
+//     size_t ins_size;
 
-    /*
-     * Allocate the WT_INSERT structure and skiplist pointers, then copy the record number into
-     * place.
-     */
-    ins_size = sizeof(WT_INSERT) + skipdepth * sizeof(WT_INSERT *);
-    WT_RET(__wt_calloc(session, 1, ins_size, &ins));
+//     /*
+//      * Allocate the WT_INSERT structure and skiplist pointers, then copy the record number into
+//      * place.
+//      */
+//     ins_size = sizeof(WT_INSERT) + skipdepth * sizeof(WT_INSERT *);
+//     WT_RET(__wt_calloc(session, 1, ins_size, &ins));
 
-    WT_INSERT_RECNO(ins) = recno;
+//     WT_INSERT_RECNO(ins) = recno;
 
-    *insp = ins;
-    *ins_sizep = ins_size;
-    return (0);
-}
+//     *insp = ins;
+//     *ins_sizep = ins_size;
+//     return (0);
+// }
 
 /*
  * __rollback_col_add_update --
@@ -158,7 +158,7 @@ __rollback_col_add_update(
     ins_head = *ins_headp;
 
     /* Allocate an empty WT_INSERT for a recno. */
-    WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
+    WT_ERR(__wt_col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
 
     /* Assign the update to the WT_INSERT. */
     upd_size = __wt_update_list_memsize(upd);
@@ -174,6 +174,7 @@ __rollback_col_add_update(
     return (ret);
 
 err:
+    __wt_free(session, ins);
     return (ret);
 }
 
@@ -574,6 +575,7 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            /* Allocate tombstone and calls function add update to head of insert list. */
             return (
               __rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
         else {
@@ -728,6 +730,9 @@ __rollback_abort_newer_col_var(
     uint32_t i;
     bool stable_update_found;
 
+    /*
+     * If a disk image exists, start from the provided recno; or else start from 0.
+     */
     if (page->dsk != NULL)
         recno = page->dsk->recno;
     else
