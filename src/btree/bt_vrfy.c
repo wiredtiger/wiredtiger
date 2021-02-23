@@ -775,7 +775,7 @@ static int
 __verify_key_hs(
   WT_SESSION_IMPL *session, WT_ITEM *tmp1, wt_timestamp_t newer_start_ts, WT_VSTUFF *vs)
 {
-//#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
+#ifdef WT_VERIFY_VALIDATE_HISTORY_STORE
     WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_RET;
@@ -786,6 +786,8 @@ __verify_key_hs(
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));  
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED); 
 
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since
@@ -798,7 +800,6 @@ __verify_key_hs(
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));    
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
     ret = __wt_hs_cursor_search_near_before(session, hs_cursor);
 
@@ -826,13 +827,13 @@ __verify_key_hs(
     }
 
     return (ret == WT_NOTFOUND ? 0 : ret);
-// #else
-//     WT_UNUSED(session);
-//     WT_UNUSED(tmp1);
-//     WT_UNUSED(newer_start_ts);
-//     WT_UNUSED(vs);
-//     return (0);
-// #endif
+#else
+    WT_UNUSED(session);
+    WT_UNUSED(tmp1);
+    WT_UNUSED(newer_start_ts);
+    WT_UNUSED(vs);
+    return (0);
+#endif
 }
 
 /*
