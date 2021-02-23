@@ -900,6 +900,7 @@ static int
 __curtable_open_indices(WT_CURSOR_TABLE *ctable)
 {
     WT_CURSOR **cp, *primary;
+    WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TABLE *table;
     u_int i;
@@ -918,9 +919,24 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
 
     WT_RET(__wt_calloc_def(session, table->nindices, &ctable->idx_cursors));
     for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)
-        WT_RET(
+        WT_ERR(
           __wt_open_cursor(session, table->indices[i]->source, &ctable->iface, ctable->cfg, cp));
-    return (0);
+
+    if (0) {
+err:
+        /*
+         * On failure, we can't leave a subset of the indices open, since the table cursor is still
+         * open. It's all or nothing, so we need to close them all, and leave things as they were
+         * before the first cursor operation.
+         */
+        for (i = 0, cp = ctable->idx_cursors; i < ctable->table->nindices; i++, cp++)
+            if (*cp != NULL) {
+                WT_TRET((*cp)->close(*cp));
+                *cp = NULL;
+            }
+        __wt_free(session, ctable->idx_cursors);
+    }
+    return (ret);
 }
 
 /*
