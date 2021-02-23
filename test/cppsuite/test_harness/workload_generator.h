@@ -8,7 +8,6 @@
 #include "thread_manager.h"
 
 namespace test_harness {
-
 class workload_generator {
     public:
     workload_generator(configuration *configuration)
@@ -137,8 +136,6 @@ class workload_generator {
     static void
     execute_operation(thread_context &context)
     {
-        WT_CURSOR *cursor;
-        std::vector<WT_CURSOR *> cursors;
         thread_operation operation;
 
         operation = context.get_thread_operation();
@@ -147,6 +144,35 @@ class workload_generator {
             testutil_die(DEBUG_ABORT, "system: execute_operation : Session is NULL");
         }
 
+        switch (operation) {
+        case thread_operation::INSERT:
+            /* Sleep until it is implemented. */
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            break;
+        case thread_operation::READ:
+            read_operation(context);
+            break;
+        case thread_operation::REMOVE:
+            /* Sleep until it is implemented. */
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            break;
+        case thread_operation::UPDATE:
+            /* Sleep until it is implemented. */
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            break;
+        default:
+            testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
+                static_cast<int>(thread_operation::UPDATE));
+            break;
+        }
+    }
+
+    /* Basic read operation that walks a cursors across all collections. */
+    static void
+    read_operation(thread_context &context) {
+        WT_CURSOR *cursor;
+        std::vector<WT_CURSOR *> cursors;
+
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : context.get_collection_names()) {
             testutil_check(context.get_session()->open_cursor(
@@ -154,33 +180,10 @@ class workload_generator {
             cursors.push_back(cursor);
         }
 
-        /* Walk each cursor. */
         while (context.is_running()) {
-            for (const auto &it : cursors) {
-                switch (operation) {
-                case thread_operation::INSERT:
-                    /* Sleep until it is implemented. */
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    break;
-                case thread_operation::READ:
+            /* Walk each cursor. */
+            for (const auto &it : cursors)
                     it->next(it);
-                    break;
-                case thread_operation::REMOVE:
-                    /* Sleep until it is implemented. */
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    break;
-                case thread_operation::UPDATE:
-                    /* Sleep until it is implemented. */
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-                    break;
-
-                default:
-                    testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
-                      static_cast<int>(thread_operation::UPDATE));
-                    break;
-                }
-                it->next(it);
-            }
         }
     }
 
