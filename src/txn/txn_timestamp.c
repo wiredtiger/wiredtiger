@@ -69,8 +69,7 @@ __wt_txn_parse_timestamp(
 
 /*
  * __txn_get_read_timestamp --
- *     Get the read timestamp from the transaction. Additionally return bool to specify whether the
- *     transaction has set the clear read queue flag.
+ *     Get the read timestamp from the transaction.
  */
 static void
 __txn_get_read_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *read_timestampp)
@@ -133,8 +132,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
 
 /*
  * __txn_get_durable_timestamp --
- *     Get the durable timestamp from the transaction. Additionally return bool to specify whether
- *     the transaction has set the clear durable queue flag.
+ *     Get the durable timestamp from the transaction.
  */
 static void
 __txn_get_durable_timestamp(WT_TXN_SHARED *txn_shared, wt_timestamp_t *durable_timestampp)
