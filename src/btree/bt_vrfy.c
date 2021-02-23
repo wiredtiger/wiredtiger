@@ -786,8 +786,8 @@ __verify_key_hs(
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
-    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));  
-    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED); 
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since

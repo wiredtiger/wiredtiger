@@ -75,7 +75,7 @@ class test_util21(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Set oldest timestamp, and checkpoint, the obsolete data should not removed as
         # the pages are clean.
-        #self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(6))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(6))
         self.session.checkpoint()
         self.runWt(['dump', 'file:WiredTigerHS.wt'], outfilename="after_oldest")
 
