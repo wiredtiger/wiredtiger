@@ -67,7 +67,7 @@ class test_bug025(wttest.WiredTigerTestCase):
         # The cursor remains open.
         with self.expectedStderrPattern('.*No such file or directory'):
             try:
-        	    cursor[newkey] = newval
+                cursor[newkey] = newval
             except Exception as e:
                 self.pr('Exception in first access: ' + str(e))
 
@@ -75,7 +75,7 @@ class test_bug025(wttest.WiredTigerTestCase):
         # Before the associated fix was made, the insert crashed.
         with self.expectedStderrPattern('.*No such file or directory'):
             try:
-        	    cursor[newkey] = newval    # point of crash
+                cursor[newkey] = newval    # point of crash
             except Exception as e:
                 self.pr('Exception in second access: ' + str(e))
 
