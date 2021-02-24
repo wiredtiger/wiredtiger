@@ -8,14 +8,13 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, txnid) \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
+#define WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, txnid, durablets)           \
+    (durablets == WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_RECOVERING) && \
+      (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session)                                \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                     \
-        WT_VERB_RECOVERY | WT_VERB_RECOVERY_PROGRESS | WT_VERB_RTS : \
-        WT_VERB_RTS)
+#define WT_VERB_RECOVERY_RTS(session) \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY | WT_VERB_RTS : WT_VERB_RTS)
 
 /*
  * __rollback_abort_newer_update --
@@ -353,7 +352,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * any newer version than the current version for the key.
          */
         if (!replace &&
-          (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
+          (hs_stop_durable_ts != WT_TS_NONE ||
+            !__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
           (hs_stop_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "history store update valid with stop timestamp: %s, stable timestamp: %s, txnid: "
@@ -368,7 +368,8 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn) &&
+        if ((hs_durable_ts != WT_TS_NONE ||
+              !__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn)) &&
           (hs_durable_ts <= rollback_timestamp)) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
@@ -552,7 +553,8 @@ __rollback_abort_row_ondisk_kv(
         } else
             return (0);
     } else if (((vpack->tw.durable_start_ts > rollback_timestamp) ||
-                 __rollback_check_if_txnid_non_committed(session, vpack->tw.start_txn)) ||
+                 (vpack->tw.durable_start_ts == WT_TS_NONE &&
+                   __rollback_check_if_txnid_non_committed(session, vpack->tw.start_txn))) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
@@ -572,7 +574,8 @@ __rollback_abort_row_ondisk_kv(
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (((vpack->tw.durable_stop_ts > rollback_timestamp) ||
-         __rollback_check_if_txnid_non_committed(session, vpack->tw.stop_txn)) ||
+         (vpack->tw.durable_stop_ts == WT_TS_NONE &&
+           __rollback_check_if_txnid_non_committed(session, vpack->tw.stop_txn))) ||
         prepared)) {
         /*
          * Clear the remove operation from the key by inserting the original on-disk value as a
@@ -603,8 +606,8 @@ __rollback_abort_row_ondisk_kv(
           __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
           __wt_timestamp_to_string(upd->durable_ts, ts_string[1]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), upd->txnid,
-          __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[2]),
-          __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[3]), vpack->tw.stop_txn,
+          __wt_timestamp_to_string(vpack->tw.stop_ts, ts_string[3]),
+          __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[4]), vpack->tw.stop_txn,
           prepared ? "true" : "false");
     } else
         /* Stable version according to the timestamp. */
@@ -902,14 +905,14 @@ __rollback_page_needs_abort(
         prepared = vpack.ta.prepare;
         newest_txn = vpack.ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, newest_txn, durable_ts);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         newest_txn = addr->ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, newest_txn, durable_ts);
     }
 
     __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
@@ -1364,7 +1367,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         }
         max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
         has_txn_updates_gt_than_ckpt_snap =
-          WT_CHECK_RECOVERY_FLAG_TXNID_CKPT_SNAPMIN(session, rollback_txnid);
+          WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, rollback_txnid, max_durable_ts);
 
         /* Increment the inconsistent checkpoint stats counter. */
         if (has_txn_updates_gt_than_ckpt_snap)
@@ -1425,9 +1428,9 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
         } else
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "tree skipped with durable timestamp: %s and stable timestamp: %s",
+              "tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]));
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
         /*
          * Truncate history store entries for the non-timestamped table.

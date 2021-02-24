@@ -48,7 +48,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     nrows = 1000
 
     def conn_config(self):
-        config = 'cache_size=5MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
 
     def large_updates(self, uri, value, ds, nrows):
@@ -89,41 +89,27 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session1 = self.conn.open_session()
         session1.begin_transaction()
         cursor1 = session1.open_cursor(self.uri)
-        cursor1.set_key(ds.key(0))
-        cursor1.set_value(valueb)
-        self.assertEqual(cursor1.insert(), 0)
+
+        for i in range(self.nrows, self.nrows*2):
+            cursor1.set_key(ds.key(i))
+            cursor1.set_value(valuea)
+            self.assertEqual(cursor1.insert(), 0)
 
         # Create a checkpoint thread
         done = threading.Event()
         ckpt = checkpoint_thread(self.conn, done)
         try:
             ckpt.start()
-
-            # Check for the value to wait for checkpoint to start.
-            cursor = self.session.open_cursor(self.uri)
-            count = 0
-            for k, v in cursor:
-                self.assertEqual(v, valuea)
-                count += 1
-            self.assertEqual(count, self.nrows)
-
-            # Insert some data from the transaction which is running before
-            # checkpoint started
-            for i in range(0, self.nrows):
-                cursor1.set_key(ds.key(i))
-                cursor1.set_value(valueb)
-                self.assertEqual(cursor1.insert(), 0)
+            # Sleep for sometime so that checkpoint starts before committing last transaction.
+            time.sleep(2)
             session1.commit_transaction()
-
-            self.large_updates(self.uri, valuec, ds, self.nrows)
-            self.large_updates(self.uri, valued, ds, self.nrows)
 
         finally:
             done.set()
             ckpt.join()
 
         #Simulate a crash by copying to a new directory(RESTART).
-        copy_wiredtiger_home(".", "RESTART")
+        copy_wiredtiger_home(self, ".", "RESTART")
 
         # Open the new directory.
         self.conn = self.setUpConnectionOpen("RESTART")
@@ -134,7 +120,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
@@ -142,9 +127,8 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         stat_cursor.close()
 
         self.assertGreater(inconsistent_ckpt, 0)
-        self.assertGreater(hs_removed, 0)
         self.assertEqual(upd_aborted, 0)
-        self.assertEqual(keys_removed, 0)
+        self.assertGreaterEqual(keys_removed, 0)
         self.assertEqual(keys_restored, 0)
         self.assertGreaterEqual(pages_visited, 0)
 
