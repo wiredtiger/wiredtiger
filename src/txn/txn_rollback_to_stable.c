@@ -111,8 +111,8 @@ static inline int
 __rollback_col_add_update(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
 {
-    WT_DECL_RET;
     WT_CURSOR_BTREE cbt;
+    WT_DECL_RET;
 
     WT_UNUSED(cip);
 
@@ -530,8 +530,8 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             /* Allocate tombstone and calls function add update to head of insert list. */
-            return (
-              __rollback_col_ondisk_fixup_key(session, page, ref, cip, rollback_timestamp, true, recno));
+            return (__rollback_col_ondisk_fixup_key(
+              session, page, ref, cip, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database does not have a history store to provide a stable update, so
