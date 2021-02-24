@@ -929,7 +929,7 @@ err:
          * open. It's all or nothing, so we need to close them all, and leave things as they were
          * before the first cursor operation.
          */
-        for (i = 0, cp = ctable->idx_cursors; i < ctable->table->nindices; i++, cp++)
+        for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)
             if (*cp != NULL) {
                 WT_TRET((*cp)->close(*cp));
                 *cp = NULL;
