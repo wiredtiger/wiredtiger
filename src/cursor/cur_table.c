@@ -925,9 +925,13 @@ __curtable_open_indices(WT_CURSOR_TABLE *ctable)
     if (0) {
 err:
         /*
-         * On failure, we can't leave a subset of the indices open, since the table cursor is still
-         * open. It's all or nothing, so we need to close them all, and leave things as they were
-         * before the first cursor operation.
+         * On failure, we can't leave a subset of the indices open, since the table cursor is
+         * already open and will remain open after this call. It's all or nothing, so we need to
+         * close them all, and leave things as they were before the first cursor operation.
+         *
+         * The column group open code does not need to do this. Unlike indices, column groups are
+         * opened when the table cursor is opened, and a failure there cannot result in an open
+         * table cursor.
          */
         for (i = 0, cp = ctable->idx_cursors; i < table->nindices; i++, cp++)
             if (*cp != NULL) {
