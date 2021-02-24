@@ -104,77 +104,30 @@ __rollback_abort_newer_insert(
 }
 
 /*
- * __wt_col_insert_alloc --
- *     Column-store insert: allocate a WT_INSERT structure and fill it in.
- */
-// static int
-// __col_insert_alloc(
-//   WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
-// {
-//     WT_INSERT *ins;
-//     size_t ins_size;
-
-//     /*
-//      * Allocate the WT_INSERT structure and skiplist pointers, then copy the record number into
-//      * place.
-//      */
-//     ins_size = sizeof(WT_INSERT) + skipdepth * sizeof(WT_INSERT *);
-//     WT_RET(__wt_calloc(session, 1, ins_size, &ins));
-
-//     WT_INSERT_RECNO(ins) = recno;
-
-//     *insp = ins;
-//     *ins_sizep = ins_size;
-//     return (0);
-// }
-
-/*
  * __rollback_col_add_update --
  *     Add the provided update to the head of the update list.
  */
 static inline int
 __rollback_col_add_update(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
+  WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
 {
     WT_DECL_RET;
-    WT_INSERT *ins, **ins_stack[WT_SKIP_MAXDEPTH];
-    WT_INSERT_HEAD *ins_head, **ins_headp;
-    WT_PAGE_MODIFY *mod;
-    size_t ins_size, upd_size;
-    u_int skipdepth;
+    WT_CURSOR_BTREE cbt;
 
-    skipdepth = 1;
+    WT_UNUSED(cip);
 
-    /* If we don't yet have a modify structure, we'll need one. */
-    WT_RET(__wt_page_modify_init(session, page));
-    mod = page->modify;
+    __wt_btcur_init(session, &cbt);
+    __wt_btcur_open(&cbt);
 
-    /* Allocate an update array as necessary. */
-    WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_update, ins_headp, page->entries);
+    /* Search the page. */
+    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
-    /* Set the WT_INSERT head array reference. */
-    ins_headp = &mod->mod_col_update[WT_COL_SLOT(page, cip)];
-    WT_PAGE_ALLOC_AND_SWAP(session, page, *ins_headp, ins_head, 1);
-    ins_head = *ins_headp;
-
-    /* Allocate an empty WT_INSERT for a recno. */
-    WT_ERR(__wt_col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
-
-    /* Assign the update to the WT_INSERT. */
-    upd_size = __wt_update_list_memsize(upd);
-    ins->upd = upd;
-    ins_size += upd_size;
-
-    ins_stack[0] = &ins_head->head[0];
-    ins->next[0] = NULL;
-
-    /* Insert the new update at the head of the update list. */
-    WT_ERR(__wt_insert_serial(session, page, ins_head, ins_stack, &ins, ins_size, skipdepth, true));
+    /* Apply the modification. */
+    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
 
     return (ret);
 
 err:
-    __wt_free(session, ins);
     return (ret);
 }
 
@@ -243,7 +196,7 @@ err:
  *     Allocate tombstone and calls function add update to head of insert list.
  */
 static int
-__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
+__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref, WT_COL *cip,
   wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
     WT_DECL_RET;
@@ -251,11 +204,12 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL 
 
     WT_UNUSED(rollback_timestamp);
     WT_UNUSED(replace);
+    WT_UNUSED(page);
 
     /* Allocate tombstone to update to remove the unstable value. */
     WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
     WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-    WT_ERR(__rollback_col_add_update(session, page, cip, upd, recno));
+    WT_ERR(__rollback_col_add_update(session, ref, cip, upd, recno));
     return (ret);
 
 err:
@@ -547,7 +501,7 @@ err:
  *     Fix the on-disk col version according to the given timestamp.
  */
 static int
-__rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *cip,
+__rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref, WT_COL *cip,
   wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
     WT_CELL *kcell;
@@ -577,7 +531,7 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_PAGE *page, WT_COL *
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             /* Allocate tombstone and calls function add update to head of insert list. */
             return (
-              __rollback_col_ondisk_fixup_key(session, page, cip, rollback_timestamp, true, recno));
+              __rollback_col_ondisk_fixup_key(session, page, ref, cip, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database does not have a history store to provide a stable update, so
@@ -720,7 +674,7 @@ err:
  */
 static void
 __rollback_abort_newer_col_var(
-  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
@@ -750,7 +704,7 @@ __rollback_abort_newer_col_var(
             kcell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
+            __rollback_abort_col_ondisk_kv(session, page, ref, cip, rollback_timestamp, recno);
             recno += rle;
         } else {
             recno++;
@@ -1072,7 +1026,7 @@ __rollback_abort_newer_updates(
         __rollback_abort_newer_col_fix(session, page, rollback_timestamp);
         break;
     case WT_PAGE_COL_VAR:
-        __rollback_abort_newer_col_var(session, page, rollback_timestamp);
+        __rollback_abort_newer_col_var(session, page, ref, rollback_timestamp);
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
