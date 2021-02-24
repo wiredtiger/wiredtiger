@@ -40,7 +40,7 @@ completed checkpoint can be removed. (In this use, archive means removal not a f
 of cold storage.) There are times, even when configured on, that log archiving is
 temporarily disabled inside the WiredTiger library.
 
-Log archiving is disabled when a backup cursor is open, WiredTiger must guarantee
+Log archiving is disabled when a backup cursor is open. WiredTiger must guarantee
 that any log file name that may have been returned to a backup cursor remains in
 existence for the lifetime of that cursor. Log archiving is also disabled when
 a log cursor is open. This cursor could be positioned anywhere in the log that
