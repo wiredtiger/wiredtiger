@@ -786,10 +786,9 @@ __wt_rec_row_leaf(
          * pair information, else take the time window from the cell.
          */
         if (upd == NULL) {
-            if (!salvage) {
-                __cell_pack_kv_window_cleanup(session, page->dsk, vpack);
+            if (!salvage)
                 WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
-            } else
+            else
                 WT_TIME_WINDOW_INIT(&tw);
         } else
             WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
