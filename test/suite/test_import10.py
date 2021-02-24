@@ -26,76 +26,58 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from suite_subprocess import suite_subprocess
-import wiredtiger, wttest, shutil, os
+import wiredtiger
 from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
 # test_import10.py
 #    Run live import/export while backup cursor is open
 class test_import10(test_import_base):
-    tablename = 'test_import10.wt'
-    nentries = 1000
+    uri = 'file:test_import10.wt'
     create_config = 'allocation_size=512,key_format=i,value_format=i'
-
-    def test_backup_with_live_export(self):
-            """
-            Test live export in a 'wt' process while backup cursor is open.
-            """
-            # Create and populate the table.
-            uri = 'file:' + self.tablename
-            self.session.create(uri, self.create_config)
-            cursor = self.session.open_cursor(uri)
-            for i in range(1, 1000):
-                cursor[i] = i
-            cursor.close()
-
-            self.session.checkpoint()
-            
-            # Open backup cursor
-            bkup_c = self.session.open_cursor('backup:', None, None)
-
-            # Export the metadata for the file.
-            c = self.session.open_cursor('metadata:', None, None)
-            original_db_file_config = c[uri]
-            c.close()
-
-            bkup_c.close()
+    scenarios = make_scenarios([
+        ('file_metadata', dict(repair=False)),
+        ('repair', dict(repair=True)),
+    ])
 
     def test_backup_with_live_import(self):
         """
         Test live import in a 'wt' process while backup cursor is open.
         """
-
         # Create and populate the table.
-        uri = 'file:' + self.tablename
-        self.session.create(uri, self.create_config)
-        cursor = self.session.open_cursor(uri)
+        self.session.create(self.uri, self.create_config)
+        cursor = self.session.open_cursor(self.uri)
         for i in range(1, 1000):
             cursor[i] = i
         cursor.close()
         self.session.checkpoint()
 
-        self.session.drop(uri, 'remove_files=false')
+        # Export the metadata for the file.
+        c = self.session.open_cursor('metadata:', None, None)
+        original_db_file_config = c[self.uri]
+        c.close()
+
+        self.session.drop(self.uri, 'remove_files=false')
 
         # Can't open the cursor on the file anymore since we dropped it.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(uri))
+            lambda: self.session.open_cursor(self.uri))
 
         # Open backup cursor
         bkup_c = self.session.open_cursor('backup:', None, None)
 
-        # Contruct the config string.
-        import_config = 'import=(enabled,repair=true)'
-
-        # Import the file.
-        self.session.create(uri, import_config)
+        # Import file with the associated file metadata AND no metadata, wish to repair it.
+        if self.repair:
+            import_config = 'import=(enabled,repair=true)'
+        else:
+            import_config = 'import=(enabled,repair=false,file_metadata=({}))'.format(original_db_file_config)
+        self.session.create(self.uri, import_config)
 
         # Verify object.
-        self.session.verify(uri)
+        self.session.verify(self.uri)
 
         # Check that the data got imported correctly.
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
         for i in range(1, 1000):
             self.assertEqual(cursor[i], i)
         cursor.close()
