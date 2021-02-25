@@ -428,7 +428,7 @@ main(int argc, char *argv[])
     simple_walk_log(session);
 
     /*
-     * Create and open some table. Also use column store and compression for some tables. Create
+     * Create and open some tables. Also use column store and compression for some tables. Create
      * some tables with their own keyid, a table using the default system encryptor and a table that
      * is not encrypted, using the reserved name of none.
      */
