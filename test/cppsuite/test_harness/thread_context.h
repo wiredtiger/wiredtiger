@@ -6,7 +6,9 @@
 #include "wiredtiger.h"
 
 namespace test_harness {
+/* Define the different thread operations. */
 enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR };
+/* Define a thread that can be used to operate on collections */
 class thread_context {
     public:
     thread_context(
