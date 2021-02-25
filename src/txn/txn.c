@@ -151,6 +151,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t oldest_id;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
     bool active;
 
@@ -168,8 +169,9 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
     }
 
     /* Walk the array of concurrent transactions. */
+    time_start = __wt_clock(session);
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* If the transaction is in the list, it is uncommitted. */
         if (s->id == txnid)
@@ -178,6 +180,9 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
 
     active = false;
 done:
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
     __wt_readunlock(session, &txn_global->rwlock);
     return (active);
 }
@@ -194,6 +199,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s, *txn_shared;
     uint64_t commit_gen, current_id, id, prev_oldest_id, pinned_id;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, n, session_cnt;
 
     conn = S2C(session);
@@ -240,8 +246,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     }
 
     /* Walk the array of concurrent transactions. */
+    time_start = __wt_clock(session);
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /*
          * Build our snapshot of any concurrent transaction IDs.
@@ -291,6 +298,9 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 done:
     if (publish)
         txn_shared->pinned_id = pinned_id;
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 }
@@ -328,6 +338,7 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id, last_running, metadata_pinned, oldest_id, prev_oldest_id;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
@@ -341,8 +352,9 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
         metadata_pinned = oldest_id;
 
     /* Walk the array of concurrent transactions. */
+    time_start = __wt_clock(session);
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Update the last running transaction ID. */
         while ((id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
@@ -392,6 +404,10 @@ __txn_oldest_scan(WT_SESSION_IMPL *session, uint64_t *oldest_idp, uint64_t *last
     /* The metadata pinned ID can't move past the oldest ID. */
     if (WT_TXNID_LT(oldest_id, metadata_pinned))
         metadata_pinned = oldest_id;
+
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
 
     *last_runningp = last_running;
     *metadata_pinnedp = metadata_pinned;
@@ -2335,6 +2351,7 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     uint64_t id;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
     char ts_string[WT_TS_INT_STRING_SIZE];
 
@@ -2385,7 +2402,8 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
      * handles is not thread safe, so some information may change while traversing if other threads
      * are active at the same time, which is OK since this is diagnostic code.
      */
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    time_start = __wt_clock(session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         /* Skip sessions with no active transaction */
         if ((id = s->id) == WT_TXN_NONE && s->pinned_id == WT_TXN_NONE)
@@ -2396,6 +2414,10 @@ __wt_verbose_dump_txn(WT_SESSION_IMPL *session)
           s->pinned_id, s->metadata_pinned, sess->name == NULL ? "EMPTY" : sess->name));
         WT_RET(__wt_verbose_dump_txn_one(session, sess, 0, NULL));
     }
+
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
 
     return (0);
 }

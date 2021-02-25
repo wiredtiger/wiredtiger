@@ -88,6 +88,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_read_ts, tmp_ts;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
     bool include_oldest, txn_has_write_lock;
 
@@ -110,8 +111,9 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         tmp_ts = txn_global->checkpoint_timestamp;
 
     /* Walk the array of concurrent transactions. */
+    time_start = __wt_clock(session);
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
@@ -120,6 +122,10 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
         if (tmp_ts == 0 || (tmp_read_ts != WT_TS_NONE && tmp_read_ts < tmp_ts))
             tmp_ts = tmp_read_ts;
     }
+
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
 
     if (!txn_has_write_lock)
         __wt_readunlock(session, &txn_global->rwlock);
@@ -153,6 +159,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t ts, tmpts;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
 
     conn = S2C(session);
@@ -169,13 +176,18 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         __wt_readlock(session, &txn_global->rwlock);
 
         /* Walk the array of concurrent transactions. */
+        time_start = __wt_clock(session);
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
-        WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+        WT_STAT_CONN_INCR(session, txn_walk_sessions);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != WT_TS_NONE && --tmpts < ts)
                 ts = tmpts;
         }
+
+        time_stop = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
 
         __wt_readunlock(session, &txn_global->rwlock);
 
@@ -494,6 +506,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *s;
     wt_timestamp_t tmp_timestamp;
+    uint64_t time_diff, time_start, time_stop;
     uint32_t i, session_cnt;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
@@ -501,8 +514,9 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
 
     __wt_readlock(session, &txn_global->rwlock);
     /* Walk the array of concurrent transactions. */
+    time_start = __wt_clock(session);
     WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_concurrent_session);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
         __txn_get_read_timestamp(s, &tmp_timestamp);
         if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
@@ -513,6 +527,9 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
               __wt_timestamp_to_string(tmp_timestamp, ts_string[1]));
         }
     }
+    time_stop = __wt_clock(session);
+    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
     __wt_readunlock(session, &txn_global->rwlock);
 #else
     WT_UNUSED(session);

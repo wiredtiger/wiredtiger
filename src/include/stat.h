@@ -677,7 +677,8 @@ struct __wt_connection_stats {
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
     int64_t txn_sync;
-    int64_t txn_walk_concurrent_session;
+    int64_t txn_walk_sessions;
+    int64_t txn_walk_sessions_total_time;
     int64_t txn_commit;
     int64_t txn_rollback;
     int64_t lsm_checkpoint_throttle;

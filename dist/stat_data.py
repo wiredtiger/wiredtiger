@@ -564,7 +564,8 @@ connection_stats = [
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
     TxnStat('txn_sync', 'transaction sync calls'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
-    TxnStat('txn_walk_concurrent_session', 'transaction walk of concurrent sessions'),
+    TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),
+    TxnStat('txn_walk_sessions_total_time', 'transaction walk of concurrent sessions total time (usecs)', 'no_clear,no_scale'),
 
     ##########################################
     # Yield statistics
