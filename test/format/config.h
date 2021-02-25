@@ -222,7 +222,10 @@ static CONFIG c[] = {
     NULL},
 
   /* 10% */
-  {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0, &g.c_alter, NULL},
+  {"ops.alter", "configure table alterations", C_BOOL, 100, 0, 0, &g.c_alter, NULL},
+
+  /* 100% */
+  {"ops.import", "import table", C_BOOL, 100, 0, 0, &g.c_import, NULL},
 
   /* 10% */
   {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0, &g.c_compact, NULL},

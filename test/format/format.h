@@ -172,6 +172,7 @@ typedef struct {
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
     uint32_t c_huffman_value;
+    uint32_t c_import;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
@@ -386,6 +387,7 @@ WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
+WT_THREAD_RET import(void *);
 
 void config_clear(void);
 void config_compat(const char **);
