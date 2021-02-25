@@ -174,7 +174,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
          * Allocate a WT_INSERT/WT_UPDATE pair and transaction ID, and update the cursor to
          * reference it (the WT_INSERT_HEAD might be allocated, the WT_INSERT was allocated).
          */
-        WT_ERR(__wt_col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
+        WT_ERR(__col_insert_alloc(session, recno, skipdepth, &ins, &ins_size));
         cbt->ins_head = ins_head;
         cbt->ins = ins;
 
@@ -255,11 +255,11 @@ err:
 }
 
 /*
- * __wt_col_insert_alloc --
+ * __col_insert_alloc --
  *     Column-store insert: allocate a WT_INSERT structure and fill it in.
  */
 int
-__wt_col_insert_alloc(
+__col_insert_alloc(
   WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
 {
     WT_INSERT *ins;
