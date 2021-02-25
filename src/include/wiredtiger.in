@@ -6097,22 +6097,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * than newer records
  */
 #define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1463
+/*! transaction: rollback to stable inconsistent checkpoint */
+#define	WT_STAT_CONN_TXN_RTS_INCONSISTENT_CKPT		1464
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1464
+#define	WT_STAT_CONN_TXN_RTS_KEYS_REMOVED		1465
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1465
+#define	WT_STAT_CONN_TXN_RTS_KEYS_RESTORED		1466
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1466
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_TOMBSTONES	1467
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1467
+#define	WT_STAT_CONN_TXN_RTS_HS_RESTORE_UPDATES		1468
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1468
+#define	WT_STAT_CONN_TXN_RTS_SWEEP_HS_KEYS		1469
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1469
+#define	WT_STAT_CONN_TXN_RTS_HS_REMOVED			1470
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1470
+#define	WT_STAT_CONN_TXN_CHECKPOINT_OBSOLETE_APPLIED	1471
 /*! transaction: update conflicts */
-#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1471
+#define	WT_STAT_CONN_TXN_UPDATE_CONFLICT		1472
 
 /*!
  * @}
@@ -6714,22 +6716,24 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * than newer records
  */
 #define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2201
+/*! transaction: rollback to stable inconsistent checkpoint */
+#define	WT_STAT_DSRC_TXN_RTS_INCONSISTENT_CKPT		2202
 /*! transaction: rollback to stable keys removed */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2202
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_REMOVED		2203
 /*! transaction: rollback to stable keys restored */
-#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2203
+#define	WT_STAT_DSRC_TXN_RTS_KEYS_RESTORED		2204
 /*! transaction: rollback to stable restored tombstones from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2204
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_TOMBSTONES	2205
 /*! transaction: rollback to stable restored updates from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2205
+#define	WT_STAT_DSRC_TXN_RTS_HS_RESTORE_UPDATES		2206
 /*! transaction: rollback to stable sweeping history store keys */
-#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2206
+#define	WT_STAT_DSRC_TXN_RTS_SWEEP_HS_KEYS		2207
 /*! transaction: rollback to stable updates removed from history store */
-#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2207
+#define	WT_STAT_DSRC_TXN_RTS_HS_REMOVED			2208
 /*! transaction: transaction checkpoints due to obsolete pages */
-#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2208
+#define	WT_STAT_DSRC_TXN_CHECKPOINT_OBSOLETE_APPLIED	2209
 /*! transaction: update conflicts */
-#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2209
+#define	WT_STAT_DSRC_TXN_UPDATE_CONFLICT		2210
 
 /*!
  * @}
