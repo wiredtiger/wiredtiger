@@ -421,7 +421,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
     uint32_t hs_btree_id;
     char time_string[WT_TIME_STRING_SIZE];
 
-    cbt = (WT_CURSOR_BTREE *)hs_cursor;
+    cbt = __wt_hs_cbt(hs_cursor);
     session = ds->session;
 
     WT_TIME_WINDOW_INIT(&tw);
@@ -1016,6 +1016,7 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
             WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
             WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
         }
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
 
     /* Dump the page metadata. */
