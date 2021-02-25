@@ -8,6 +8,8 @@
 
 #include "wt_internal.h"
 
+static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, size_t *);
+
 /*
  * __wt_col_modify --
  *     Column-store delete, insert, and update.
