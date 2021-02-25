@@ -58,8 +58,7 @@ class test_bug025(wttest.WiredTigerTestCase):
         # We will get error output, but not always in the same API calls from run to run,
         # in particular the open connection doesn't always report the missing file, as
         # index files are usually lazily loaded. As long as the missing file is reported
-        # at least once in the following code, it's good.  We're doing a pretty bad thing
-        # by removing the index file, whether we get two messages or three is not important.
+        # at least once in the following code, it's good.
         with self.expectedStderrPattern('.*No such file or directory.*'):
             self.open_conn()
 
