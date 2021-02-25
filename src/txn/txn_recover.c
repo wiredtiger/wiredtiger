@@ -906,8 +906,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Recovery can touch more data than fits in cache, so it relies on regular eviction to manage
-     * paging. Start eviction threads if not already started for recovery without history store
-     * cursors.
+     * paging. Start eviction threads for recovery without history store cursors.
      */
     WT_ERR(__wt_evict_create(session));
     eviction_started = true;
