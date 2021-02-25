@@ -108,13 +108,10 @@ __rollback_abort_newer_insert(
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_col_add_update(
-  WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_UPDATE *upd, uint64_t recno)
+__rollback_col_add_update(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
-
-    WT_UNUSED(cip);
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
@@ -197,7 +194,7 @@ err:
  *     Allocate tombstone and calls function add update to head of insert list.
  */
 static int
-__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip,
+__rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref,
   wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
     WT_DECL_RET;
@@ -209,7 +206,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     /* Allocate tombstone to update to remove the unstable value. */
     WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
     WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-    WT_ERR(__rollback_col_add_update(session, ref, cip, upd, recno));
+    WT_ERR(__rollback_col_add_update(session, ref, upd, recno));
     return (ret);
 
 err:
@@ -534,8 +531,7 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *ci
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             /* Allocate tombstone and calls function add update to head of insert list. */
-            return (
-              __rollback_col_ondisk_fixup_key(session, ref, cip, rollback_timestamp, true, recno));
+            return (__rollback_col_ondisk_fixup_key(session, ref, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database does not have a history store to provide a stable update, so

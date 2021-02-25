@@ -260,7 +260,7 @@ err:
  * __col_insert_alloc --
  *     Column-store insert: allocate a WT_INSERT structure and fill it in.
  */
-int
+static int
 __col_insert_alloc(
   WT_SESSION_IMPL *session, uint64_t recno, u_int skipdepth, WT_INSERT **insp, size_t *ins_sizep)
 {
