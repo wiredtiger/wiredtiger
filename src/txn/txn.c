@@ -157,6 +157,7 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
 
     conn = S2C(session);
     txn_global = &conn->txn_global;
+    time_start = 0;
     active = true;
 
     /* We're going to scan the table: wait for the lock. */
@@ -180,9 +181,11 @@ __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
 
     active = false;
 done:
-    time_stop = __wt_clock(session);
-    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
+    if (time_start) {
+        time_stop = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
+    }
     __wt_readunlock(session, &txn_global->rwlock);
     return (active);
 }
@@ -206,6 +209,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
+    time_start = 0;
     n = 0;
 
     /* Fast path if we already have the current snapshot. */
@@ -298,9 +302,11 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
 done:
     if (publish)
         txn_shared->pinned_id = pinned_id;
-    time_stop = __wt_clock(session);
-    time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
-    WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
+    if (time_start) {
+        time_stop = __wt_clock(session);
+        time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
+        WT_STAT_CONN_INCRV(session, txn_walk_sessions_total_time, time_diff);
+    }
     __wt_readunlock(session, &txn_global->rwlock);
     __txn_sort_snapshot(session, n, current_id);
 }
