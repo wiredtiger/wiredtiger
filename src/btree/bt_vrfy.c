@@ -782,11 +782,12 @@ __verify_key_hs(
     wt_timestamp_t older_start_ts, older_stop_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since
@@ -799,32 +800,19 @@ __verify_key_hs(
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
-    ret = hs_cursor->search_near(hs_cursor, &exact);
-
-    /* If we jumped to the next key, go back to the previous key. */
-    if (ret == 0 && exact > 0)
-        ret = hs_cursor->prev(hs_cursor);
+    hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
+    ret = __wt_hs_cursor_search_near_before(session, hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
-
-        if (hs_btree_id != btree->id)
-            break;
-
-        WT_RET(__wt_compare(session, NULL, tmp1, vs->tmp2, &cmp));
-        if (cmp != 0)
-            break;
-
         /* Verify the newer record's start is later than the older record's stop. */
         if (newer_start_ts < older_stop_ts) {
             WT_RET_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
               __wt_buf_set_printable(session, tmp1->data, tmp1->size, vs->tmp2),
-              __verify_timestamp_to_pretty_string(older_stop_ts, ts_string[0]),
-              __verify_timestamp_to_pretty_string(newer_start_ts, ts_string[1]));
+              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
         if (vs->stable_timestamp != WT_TS_NONE)
