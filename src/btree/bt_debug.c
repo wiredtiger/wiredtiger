@@ -285,9 +285,6 @@ __debug_wrapup(WT_DBG *ds)
     session = ds->session;
     msg = ds->msg;
 
-    if (session->hs_cursor != NULL)
-        WT_TRET(__wt_hs_cursor_close(session));
-
     __wt_scr_free(session, &ds->key);
     __wt_scr_free(session, &ds->hs_key);
     __wt_scr_free(session, &ds->hs_value);

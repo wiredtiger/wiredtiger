@@ -60,13 +60,12 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 int
 __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
+    WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
-
     *hs_btreep = NULL;
 
-    WT_RET(__wt_hs_cursor_open(session));
-
-    *hs_btreep = CUR2BT(session->hs_cursor);
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    *hs_btreep = CUR2BT(hs_cursor->file_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
 
     WT_TRET(__wt_hs_cursor_close(session));
