@@ -5,9 +5,12 @@
 
 /* Default schema for tracking table
  * key_format : Collection name / Key
- * value_format : Operation type / Value / Time
+ * value_format : Operation type / Value / Timestamp
  */
-#define DEFAULT_TRACKING_TABLE_SCHEMA "key_format=Si,value_format=iSi"
+#define DEFAULT_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Si)
+#define DEFAULT_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iSi)
+#define DEFAULT_TRACKING_TABLE_SCHEMA \
+    "key_format=" DEFAULT_TRACKING_KEY_FORMAT ",value_format=" DEFAULT_TRACKING_VALUE_FORMAT
 
 namespace test_harness {
 /* Tracking operations. */
