@@ -260,6 +260,7 @@ err:
     if (file_cursor != NULL)
         WT_TRET(file_cursor->close(file_cursor));
     __wt_cursor_close(cursor);
+    --session->hs_cursor_counter;
 
     API_END_RET(session, ret);
 }
@@ -986,11 +987,13 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_DECL_RET;
 
     WT_RET(__wt_calloc_one(session, &hs_cursor));
+    ++session->hs_cursor_counter;
     cursor = (WT_CURSOR *)hs_cursor;
     *cursor = iface;
     cursor->session = (WT_SESSION *)session;
     cursor->key_format = WT_HS_KEY_FORMAT;
     cursor->value_format = WT_HS_VALUE_FORMAT;
+    WT_ERR(__wt_strdup(session, WT_HS_URI, &cursor->uri));
 
     /* Open the file cursor for operations on the regular history store .*/
     WT_ERR(__hs_cursor_open_int(session, &hs_cursor->file_cursor));
@@ -1005,7 +1008,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
 
     if (0) {
 err:
-        WT_TRET(__curhs_close(cursor));
+        WT_TRET(cursor->close(cursor));
         *cursorp = NULL;
     }
     return (ret);
