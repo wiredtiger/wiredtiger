@@ -3,8 +3,6 @@
 
 #include <iostream>
 
-#include "time_utils.h"
-
 /* Default schema for tracking table
  * key_format : Collection name / Key
  * value_format : Operation type / Value / Time
@@ -13,13 +11,13 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class tracking_operation { INSERT };
+enum class tracking_operation { CREATE, INSERT };
 /* Class used to track operations performed on collections */
 class workload_tracking {
 
     public:
     workload_tracking(WT_CONNECTION *conn, const std::string &collection_name)
-        : _collection_name(collection_name), _conn(conn)
+        : _collection_name(collection_name), _conn(conn), _timestamp(0U)
     {
     }
 
@@ -35,7 +33,7 @@ class workload_tracking {
     }
 
     int
-    start(const std::string &table_schema = DEFAULT_TRACKING_TABLE_SCHEMA)
+    load(const std::string &table_schema = DEFAULT_TRACKING_TABLE_SCHEMA)
     {
         /* Open session. */
         testutil_check(_conn->open_session(_conn, NULL, NULL, &_session));
@@ -57,7 +55,7 @@ class workload_tracking {
         int error_code;
 
         _cursor->set_key(_cursor, collection_name.c_str(), key);
-        _cursor->set_value(_cursor, static_cast<int>(operation), value, get_time());
+        _cursor->set_value(_cursor, static_cast<int>(operation), value, _timestamp++);
         error_code = _cursor->insert(_cursor);
 
         if (error_code == 0) {
@@ -71,9 +69,10 @@ class workload_tracking {
 
     private:
     WT_CONNECTION *_conn = nullptr;
-    std::string _collection_name;
+    const std::string _collection_name;
     WT_CURSOR *_cursor = nullptr;
     WT_SESSION *_session = nullptr;
+    uint64_t _timestamp;
 };
 } // namespace test_harness
 

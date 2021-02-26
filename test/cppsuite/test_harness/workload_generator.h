@@ -67,8 +67,8 @@ class workload_generator {
 
         /* Create the activity tracker if required. */
         if (_enable_tracking) {
-            _workload_tracking = new workload_tracking(_conn, "table:tracking");
-            _workload_tracking->start();
+            _workload_tracking = new workload_tracking(_conn, TRACKING_COLLECTION);
+            _workload_tracking->load();
         }
 
         /* Open session. */
@@ -80,6 +80,9 @@ class workload_generator {
             collection_name = "table:collection" + std::to_string(i);
             testutil_check(
               _session->create(_session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
+            if (_enable_tracking)
+                testutil_check(
+                  _workload_tracking->save(tracking_operation::CREATE, collection_name, "", ""));
             _collection_names.push_back(collection_name);
         }
         debug_info(
