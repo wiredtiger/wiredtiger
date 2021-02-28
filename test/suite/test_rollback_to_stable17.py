@@ -86,6 +86,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         simulate_crash_restart(self, ".", "RESTART")
 
         self.check(values[0], uri, nrows - 1, 2)
+        self.check(values[0], uri, nrows - 1, 5)
         self.check(values[0], uri, nrows - 1, 7)
         self.check(values[0], uri, nrows - 1, 9)
 

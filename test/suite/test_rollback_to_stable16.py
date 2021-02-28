@@ -100,5 +100,6 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         self.check(None, uri, 0, 601, 9)
 
         self.session.close()
+
 if __name__ == '__main__':
     wttest.run()
