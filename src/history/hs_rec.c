@@ -797,7 +797,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * we should preserve the stop transaction id.
          */
         hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts;
-        hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.start_txn;
+        hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
         /* Extract the underlying value for reinsertion. */
         WT_ERR(hs_cursor->get_value(
