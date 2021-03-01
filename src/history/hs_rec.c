@@ -808,13 +808,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         insert_cursor->set_value(insert_cursor, &hs_insert_tw, hs_insert_tw.durable_stop_ts,
           hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type, &hs_value);
         WT_ERR(insert_cursor->insert(insert_cursor));
-
-        WT_ERR(ret);
         ++(*counter);
 
         /* Delete the entry with higher timestamp. */
-        hs_cursor->remove(hs_cursor);
-        WT_ERR(ret);
+        WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
         WT_STAT_DATA_INCR(session, cache_hs_order_fixup_move);
     }
@@ -904,7 +901,6 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
             WT_STAT_DATA_INCR(session, cache_hs_insert);
 
             hs_insert_counter++;
-            WT_ERR(ret);
         }
 
         /*
