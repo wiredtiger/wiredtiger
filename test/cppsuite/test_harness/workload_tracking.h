@@ -1,8 +1,6 @@
 #ifndef WORKLOAD_TRACKING_H
 #define WORKLOAD_TRACKING_H
 
-#include <iostream>
-
 /* Default schema for tracking table
  * key_format : Collection name / Key
  * value_format : Operation type / Value / Timestamp

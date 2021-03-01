@@ -8,7 +8,7 @@
 #include "workload_tracking.h"
 
 namespace test_harness {
-/* Class that can execute operation based on a given configuration. */
+/* Class that can execute operations based on a given configuration. */
 class workload_generator {
     public:
     workload_generator(configuration *configuration, bool enable_tracking)

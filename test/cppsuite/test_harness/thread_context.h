@@ -8,7 +8,7 @@
 namespace test_harness {
 /* Define the different thread operations. */
 enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR };
-/* Define a thread that can be used to operate on collections */
+/* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
     thread_context(
