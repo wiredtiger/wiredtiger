@@ -721,7 +721,6 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
     va_list ap;
-
     wt_timestamp_t stop_ts;
     wt_timestamp_t start_ts;
     uint64_t type;
