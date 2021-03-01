@@ -1,5 +1,5 @@
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,8 +26,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, shutil
-from helper import copy_wiredtiger_home, simulate_crash_restart
-import wiredtiger, wttest, unittest
+from helper import simulate_crash_restart
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
