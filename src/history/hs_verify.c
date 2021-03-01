@@ -188,8 +188,6 @@ __wt_hs_verify(WT_SESSION_IMPL *session)
         WT_ERR_NOTFOUND_OK(ret, false);
     }
 err:
-    WT_TRET(__wt_hs_cursor_close(session));
-
     __wt_scr_free(session, &buf);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_free(session, uri_data);

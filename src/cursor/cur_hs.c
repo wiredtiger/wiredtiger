@@ -77,34 +77,6 @@ __wt_hs_cursor_cache(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_hs_cursor_open --
- *     Open a new history store table cursor wrapper function.
- */
-int
-__wt_hs_cursor_open(WT_SESSION_IMPL *session)
-{
-    /* Not allowed to open a cursor if you already have one */
-    WT_ASSERT(session, session->hs_cursor == NULL);
-
-    return (__hs_cursor_open_int(session, &session->hs_cursor));
-}
-
-/*
- * __wt_hs_cursor_close --
- *     Discard a history store cursor.
- */
-int
-__wt_hs_cursor_close(WT_SESSION_IMPL *session)
-{
-    /* Should only be called when session has an open history store cursor */
-    WT_ASSERT(session, session->hs_cursor != NULL);
-
-    WT_RET(session->hs_cursor->close(session->hs_cursor));
-    session->hs_cursor = NULL;
-    return (0);
-}
-
-/*
  * __wt_hs_cursor_next --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
  */
