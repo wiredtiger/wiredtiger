@@ -145,7 +145,7 @@ __curhs_copy_value(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 
 /*
  * __curhs_next --
- *     WT_CURSOR->next method for the hs cursor type.
+ *     WT_CURSOR->next method for the history store cursor type.
  */
 static int
 __curhs_next(WT_CURSOR *cursor)
@@ -179,7 +179,7 @@ err:
 
 /*
  * __curhs_prev --
- *     WT_CURSOR->prev method for the hs cursor type.
+ *     WT_CURSOR->prev method for the history store cursor type.
  */
 static int
 __curhs_prev(WT_CURSOR *cursor)
@@ -213,7 +213,7 @@ err:
 
 /*
  * __curhs_close --
- *     WT_CURSOR->close method for the hs cursor type.
+ *     WT_CURSOR->close method for the history store cursor type.
  */
 static int
 __curhs_close(WT_CURSOR *cursor)
@@ -272,7 +272,7 @@ err:
 
 /*
  * __curhs_set_key --
- *     WT_CURSOR->set_key method for the hs cursor type.
+ *     WT_CURSOR->set_key method for the history store cursor type.
  */
 static void
 __curhs_set_key(WT_CURSOR *cursor, ...)
@@ -576,7 +576,7 @@ err:
 
 /*
  * __curhs_search_near --
- *     WT_CURSOR->search_near method for the hs cursor type.
+ *     WT_CURSOR->search_near method for the history store cursor type.
  */
 static int
 __curhs_search_near(WT_CURSOR *cursor, int *exactp)
@@ -752,7 +752,7 @@ err:
 
 /*
  * __curhs_set_value --
- *     WT_CURSOR->set_value method for the hs cursor type.
+ *     WT_CURSOR->set_value method for the history store cursor type.
  */
 static void
 __curhs_set_value(WT_CURSOR *cursor, ...)
@@ -783,7 +783,7 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
 
 /*
  * __curhs_insert --
- *     WT_CURSOR->insert method for the hs cursor type.
+ *     WT_CURSOR->insert method for the history store cursor type.
  */
 static int
 __curhs_insert(WT_CURSOR *cursor)
@@ -856,7 +856,7 @@ err:
 
 /*
  * __curhs_remove --
- *     WT_CURSOR->remove method for the hs cursor type.
+ *     WT_CURSOR->remove method for the history store cursor type.
  */
 static int
 __curhs_remove(WT_CURSOR *cursor)
@@ -916,7 +916,7 @@ err:
 
 /*
  * __curhs_update --
- *     WT_CURSOR->update method for the hs cursor type.
+ *     WT_CURSOR->update method for the history store cursor type.
  */
 static int
 __curhs_update(WT_CURSOR *cursor)

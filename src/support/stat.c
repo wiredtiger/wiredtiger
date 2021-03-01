@@ -208,7 +208,8 @@ static const char *const __stats_dsrc_desc[] = {
   "session: flush_tier operation calls",
   "session: tiered storage local retention time (secs)",
   "transaction: race to read prepared update retry",
-  "transaction: rollback to stable hs records with stop timestamps older than newer records",
+  "transaction: rollback to stable history store records with stop timestamps older than newer "
+  "records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
@@ -1433,7 +1434,8 @@ static const char *const __stats_connection_desc[] = {
   "session: flush_tier operation calls",
   "session: tiered storage local retention time (secs)",
   "transaction: race to read prepared update retry",
-  "transaction: rollback to stable hs records with stop timestamps older than newer records",
+  "transaction: rollback to stable history store records with stop timestamps older than newer "
+  "records",
   "transaction: rollback to stable inconsistent checkpoint",
   "transaction: rollback to stable keys removed",
   "transaction: rollback to stable keys restored",
