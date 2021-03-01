@@ -28,13 +28,15 @@
 
 import wiredtiger
 from wtscenario import make_scenarios
-from test_import01 import test_import_base
+from wtbackup import backup_base
 
 # test_import10.py
 #    Run import/export while backup cursor is open.
-class test_import10(test_import_base):
-    uri = 'test_import10'
+class test_import10(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=i'
+    dir='backup.dir'                    # Backup directory name
+    uri = 'test_import10'
+
     scenarios = make_scenarios([
         ('import_with_metadata', dict(repair=False)),
         ('import_repair', dict(repair=True)),
@@ -83,6 +85,9 @@ class test_import10(test_import_base):
         for i in range(1, 1000):
             self.assertEqual(cursor[i], i)
         cursor.close()
+
+        all_files = self.take_full_backup(self.dir, bkup_c)
+        self.assertTrue(self.uri + "wt" not in all_files)
         bkup_c.close()
 
 if __name__ == '__main__':
