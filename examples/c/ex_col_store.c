@@ -467,10 +467,10 @@ main(int argc, char *argv[])
                       "wind,feels_like_temp,location)"));
 
     /* Create the colgroups */
-    error_check(session->create(session, "colgroup:weather:day_time", "columns=(day,hour)"));
+    error_check(session->create(session, "colgroup:weather:day_time", "columns=(hour,day)"));
     error_check(session->create(session, "colgroup:weather:temperature", "columns=(temp)"));
     error_check(session->create(
-      session, "colgroup:weather:humidity_pressure", "columns=(humidity,pressure)"));
+      session, "colgroup:weather:humidity_pressure", "columns=(pressure,humidity)"));
     error_check(session->create(session, "colgroup:weather:wind", "columns=(wind)"));
     error_check(
       session->create(session, "colgroup:weather:feels_like_temp", "columns=(feels_like_temp)"));
