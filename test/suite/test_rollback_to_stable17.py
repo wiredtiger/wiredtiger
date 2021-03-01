@@ -56,12 +56,14 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         else:
             session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
+
         count = 0
         for k, v in cursor:
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
-        # self.assertEqual(count, nrows)
+        self.assertEqual(count, nrows)
+        cursor.close()
 
     def test_rollback_to_stable(self):
         # Create a table.
@@ -81,14 +83,14 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         for i in range(len(values)):
             self.insert_update_data(uri, values[i], start_row, nrows, ts[i])
 
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
         self.session.checkpoint()
         simulate_crash_restart(self, ".", "RESTART")
 
         self.check(values[0], uri, nrows - 1, 2)
-        self.check(values[0], uri, nrows - 1, 5)
-        self.check(values[0], uri, nrows - 1, 7)
-        self.check(values[0], uri, nrows - 1, 9)
+        self.check(values[1], uri, nrows - 1, 5)
+        self.check(values[1], uri, nrows - 1, 7)
+        self.check(values[1], uri, nrows - 1, 9)
 
         self.session.close()
 if __name__ == '__main__':

@@ -206,12 +206,12 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
-    WT_PAGE *page;
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_ITEM full_value;
+    WT_PAGE *page;
     WT_UPDATE *hs_upd, *tombstone, *upd;
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
     uint64_t hs_counter, type_full;
@@ -219,6 +219,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     uint8_t *p;
     uint8_t type;
     int cmp;
+    char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool valid_update_found;
 
     page = ref->page;
@@ -317,17 +318,36 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
          * list. Otherwise remove the key by adding a tombstone.
          */
         if (valid_update_found) {
-            WT_ASSERT(session, cbt->upd_value->tw.start_ts < unpack->tw.start_ts);
+            WT_ASSERT(session,
+              cbt->upd_value->tw.start_ts < unpack->tw.start_ts ||
+                cbt->upd_value->tw.start_txn < unpack->tw.start_txn);
             WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
-            upd->txnid = cbt->upd_value->tw.start_txn;
+
+            /*
+             * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
+             * the connections write generation will be initialized after rollback to stable and the
+             * updates in the cache will be problematic. The transaction id of pages which are in
+             * disk will be automatically reset as part of unpacking cell when loaded to cache.
+             */
+            if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+                upd->txnid = WT_TXN_NONE;
+            else
+                upd->txnid = cbt->upd_value->tw.start_txn;
             upd->durable_ts = cbt->upd_value->tw.durable_start_ts;
             upd->start_ts = cbt->upd_value->tw.start_ts;
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "update restored from history store txnid: %" PRIu64
+              ", start_ts: %s and durable_ts: %s",
+              upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+              __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+
             /*
              * Set the flag to indicate that this update has been restored from history store for
              * the rollback to stable operation.
              */
             F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
-            // WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+
             /*
              * We have a tombstone on the original update chain and it is behind the stable
              * timestamp, we need to restore that as well.
@@ -335,14 +355,31 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
             if (hs_stop_durable_ts <= rollback_timestamp &&
               hs_stop_durable_ts < newer_hs_durable_ts) {
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-                tombstone->txnid = cbt->upd_value->tw.stop_txn;
+                /*
+                 * Set the transaction id of updates to WT_TXN_NONE when called from recovery,
+                 * because the connections write generation will be initialized after rollback to
+                 * stable and the updates in the cache will be problematic. The transaction id of
+                 * pages which are in disk will be automatically reset as part of unpacking cell
+                 * when loaded to cache.
+                 */
+                if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+                    tombstone->txnid = WT_TXN_NONE;
+                else
+                    tombstone->txnid = cbt->upd_value->tw.stop_txn;
                 tombstone->durable_ts = cbt->upd_value->tw.durable_stop_ts;
                 tombstone->start_ts = cbt->upd_value->tw.stop_ts;
+                __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+                  "tombstone restored from history store txnid: %" PRIu64
+                  ", start_ts: %s, durable_ts: %s",
+                  tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
+                  __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
+
                 /*
                  * Set the flag to indicate that this update has been restored from history store
                  * for the rollback to stable operation.
                  */
                 F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
+
                 tombstone->next = upd;
                 upd = tombstone;
                 WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
@@ -352,8 +389,10 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
         }
+
         WT_ERR(__rollback_col_add_update(session, ref, upd, recno));
     }
+
     /* Finally remove that update from history store. */
     if (valid_update_found) {
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
@@ -771,7 +810,8 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *ci
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             /* Allocate tombstone and calls function add update to head of insert list. */
-            return (__rollback_col_ondisk_fixup_key(session, ref, cip, rollback_timestamp, true, recno));
+            return (
+              __rollback_col_ondisk_fixup_key(session, ref, cip, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database does not have a history store to provide a stable update, so
@@ -965,9 +1005,9 @@ __rollback_abort_newer_col_var(
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
             // __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
-            for (j = 0; j < rle; j++){
+            for (j = 0; j < rle; j++) {
                 __rollback_abort_col_ondisk_kv(session, ref, cip, rollback_timestamp, recno + j);
-                printf("recno: %" PRIu64 "\n", recno+j);
+                printf("recno: %" PRIu64 "\n", recno + j);
             }
             recno += rle;
             printf("recno + rle: %" PRIu64 "\n", recno);
