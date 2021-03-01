@@ -566,21 +566,31 @@ __hs_cursor_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &cmp));
     if (before) {
+        /*
+         * If we want to land on a key that is smaller or equal to the specified key, keep walking
+         * backwards as there may be content inserted concurrently.
+         */
         if (cmp > 0) {
             while ((ret = cursor->prev(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+                /* We find a key that is smaller or equal to the specified key. */
                 if (cmp <= 0)
                     break;
             }
         }
     } else {
+        /*
+         * If we want to land on a key that is larger or equal to the specified key, keep walking
+         * forwards as there may be content inserted concurrently.
+         */
         if (cmp < 0) {
             while ((ret = cursor->next(cursor)) == 0) {
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
+                /* We find a key that is smaller or equal to the specified key. */
                 if (cmp >= 0)
                     break;
             }
@@ -625,68 +635,123 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__wt_hs_cursor_search_near(session, file_cursor, &exact));
 
     if (exact >= 0) {
+        /*
+         * We placed the file cursor before the search key. Try first to walk forwards to see if we
+         * can find a visible record. If nothing is visible, try to walk backwards.
+         */
         WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
             /*
-             * Keep walking backwards to the specified btree or key space as there may be content
+             * When walking backwards, first ensure we walk back to the specified btree or key space
+             * as we may have crossed the boundary. Do that in a loop as there may be content
              * inserted concurrently.
              */
             while ((ret = __wt_hs_cursor_prev(session, file_cursor)) == 0) {
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
+                /* We are back in the specified btree range. */
                 if (btree_id == hs_cursor->btree_id && F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                     WT_ERR(
                       __wt_compare(session, NULL, datastore_key, hs_cursor->datastore_key, &cmp));
+
+                    /* We are back in the specified key range. */
                     if (cmp == 0)
                         break;
 
+                    /*
+                     * We are now smaller than the key range, which indicates nothing is visible to
+                     * us in the specified key range.
+                     */
                     if (cmp < 0) {
                         ret = WT_NOTFOUND;
                         goto err;
                     }
                 }
+
+                /*
+                 * We are now smaller than the btree range, which indicates nothing is visible to us
+                 * in the specified btree range.
+                 */
                 if (btree_id < hs_cursor->btree_id) {
                     ret = WT_NOTFOUND;
                     goto err;
                 }
             }
             WT_ERR(ret);
+            /*
+             * Keeping looking for the first visible update in the specified range when walking
+             * backwards.
+             */
             WT_ERR(__curhs_prev_visible(session, hs_cursor));
+            /*
+             * We can't find anything visible when first walking forwards so we must have found an
+             * update that is smaller than the specified key.
+             */
             *exactp = -1;
         } else {
             WT_ERR(ret);
+            /*
+             * We find an update when walking forwards. If initially we land on the same key as the
+             * specified key, exact will be 0 and we should return that. If it is not visible, we
+             * must have found a key that is larger than the specified key.
+             */
             *exactp = exact;
         }
     } else {
+        /*
+         * We placed the file cursor after the search key. Try first to walk backwards to see if we
+         * can find a visible record. If nothing is visible, try to walk forwards.
+         */
         WT_ERR_NOTFOUND_OK(__curhs_prev_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
             /*
-             * Keep walking forward to the specified btree or key space as there may be content
+             * When walking forwards, first ensure we walk back to the specified btree or key space
+             * as we may have crossed the boundary. Do that in a loop as there may be content
              * inserted concurrently.
              */
             while ((ret = __wt_hs_cursor_next(session, file_cursor)) == 0) {
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
+                /* We are back in the specified btree range. */
                 if (btree_id == hs_cursor->btree_id && F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                     WT_ERR(
                       __wt_compare(session, NULL, datastore_key, hs_cursor->datastore_key, &cmp));
+
+                    /* We are back in the specified key range. */
                     if (cmp == 0)
                         break;
 
+                    /*
+                     * We are now larger than the key range, which indicates nothing is visible to
+                     * us in the specified key range.
+                     */
                     if (cmp > 0) {
                         ret = WT_NOTFOUND;
                         goto err;
                     }
                 }
+
+                /*
+                 * We are now larger than the btree range, which indicates nothing is visible to us
+                 * in the specified btree range.
+                 */
                 if (btree_id > hs_cursor->btree_id) {
                     ret = WT_NOTFOUND;
                     goto err;
                 }
             }
             WT_ERR(ret);
+            /*
+             * Keeping looking for the first visible update in the specified range when walking
+             * forwards.
+             */
             WT_ERR(__curhs_next_visible(session, hs_cursor));
+            /*
+             * We can't find anything visible when first walking backwards so we must have found an
+             * update that is larger than the specified key.
+             */
             *exactp = 1;
         } else {
             WT_ERR(ret);
