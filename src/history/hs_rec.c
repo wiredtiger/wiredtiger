@@ -124,6 +124,11 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
             WT_ERR(cursor->get_value(cursor, &hs_stop_durable_ts_diag, &durable_timestamp_diag,
               &upd_type_full_diag, existing_val));
             WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
+            /*
+             * We shouldn't be inserting the same value again for the key unless coming from a
+             * different transaction. If the updates are from the same transaction, the start
+             * timestamp for each update should be different.
+             */
             if (cmp == 0)
                 WT_ASSERT(session,
                   tw->start_txn == WT_TXN_NONE ||
