@@ -500,6 +500,7 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 
     btree = S2BT_SAFE(session);
     txn_global = &S2C(session)->txn_global;
+    *pinned_tsp = WT_TS_NONE;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
@@ -561,8 +562,6 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 {
     wt_timestamp_t pinned_ts;
 
-    pinned_ts = 0U;
-
     /*
      * When shutting down, the transactional system has finished running and all we care about is
      * eviction, make everything visible.
@@ -579,10 +578,8 @@ __wt_txn_visible_all(WT_SESSION_IMPL *session, uint64_t id, wt_timestamp_t times
 
     /* If no oldest timestamp has been supplied, updates have to stay in cache. */
     __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if ((pinned_ts > 0U) && (timestamp <= pinned_ts))
-        return (true);
 
-    return (false);
+    return (pinned_ts != WT_TS_NONE && timestamp <= pinned_ts);
 }
 
 /*

@@ -1401,7 +1401,6 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t pinned_ts;
 
-    pinned_ts = 0U;
     txn_global = &S2C(session)->txn_global;
 
     /*
@@ -1425,11 +1424,13 @@ __wt_page_evict_retry(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /*
      * It is possible that we have not started using the timestamps just yet. So, check for the last
-     * time we evicted.
+     * time we evicted only if there is a timestamp set.
      */
-    __wt_txn_pinned_timestamp(session, &pinned_ts);
-    if (pinned_ts > mod->last_eviction_timestamp)
-        return (true);
+    if (mod->last_eviction_timestamp != WT_TS_NONE) {
+        __wt_txn_pinned_timestamp(session, &pinned_ts);
+        if (pinned_ts > mod->last_eviction_timestamp)
+            return (true);
+    }
 
     return (false);
 }
