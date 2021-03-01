@@ -30,12 +30,11 @@
 #define THREAD_CONTEXT_H
 
 #include <thread>
-
 #include "wiredtiger.h"
 
 namespace test_harness {
 /* Define the different thread operations. */
-enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR };
+enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR, COMPONENT };
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:

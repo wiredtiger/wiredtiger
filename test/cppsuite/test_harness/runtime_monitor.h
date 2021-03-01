@@ -29,34 +29,29 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
-#include "thread_manager.h"
+#include "component.h"
 
 namespace test_harness {
-class runtime_monitor {
+/*
+ * The runtime monitor class is designed to track various statistics or other runtime signals
+ * relevant to the given workload.
+ */
+class runtime_monitor : public component {
     public:
-    runtime_monitor()
-    {
-        thread_context *tc = new thread_context(thread_operation::MONITOR);
-        _thread_manager.add_thread(tc, &monitor);
+    void
+    load() {
+        /* Empty for now. */
     }
 
-    ~runtime_monitor()
-    {
-        _thread_manager.finish();
-        /* Destructor of thread manager will be called automatically here. */
+    void
+    run() {
+        /* Empty for now. */
     }
 
-    private:
-    static void
-    monitor(thread_context &context)
-    {
-        while (context.is_running()) {
-            /* Junk operation to demonstrate thread_contexts. */
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-        }
+    void
+    finish() {
+        /* Empty for now. */
     }
-
-    thread_manager _thread_manager;
 };
 } // namespace test_harness
 

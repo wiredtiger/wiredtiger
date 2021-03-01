@@ -29,41 +29,20 @@
 #include <iostream>
 #include <cstdlib>
 
-#include "test_harness/test_harness.h"
-#include "test_harness/workload_generator.h"
-#include "test_harness/runtime_monitor.h"
+#include "test_harness/test.h"
 
 class poc_test : public test_harness::test {
     public:
     poc_test(const std::string &config, int64_t trace_level, bool enable_tracking) : test(config)
     {
         test_harness::_trace_level = trace_level;
-        _wl = new test_harness::workload_generator(_configuration, enable_tracking);
-        _rm = new test_harness::runtime_monitor();
     }
 
-    ~poc_test()
-    {
-        delete _wl;
-        _wl = nullptr;
-        delete _rm;
-        _rm = nullptr;
-    }
-
-    int
+    void
     run()
     {
-        int return_code = _wl->load();
-        if (return_code != 0)
-            return (return_code);
-
-        return_code = _wl->run();
-        return (return_code);
+        test::run();
     }
-
-    private:
-    test_harness::runtime_monitor *_rm = nullptr;
-    test_harness::workload_generator *_wl = nullptr;
 };
 
 const std::string poc_test::test::_name = "poc_test";
@@ -106,8 +85,8 @@ main(int argc, char *argv[])
     std::cout << "Configuration\t:" << cfg << std::endl;
     std::cout << "Tracel level\t:" << trace_level << std::endl;
 
-    error_code = poc_test(cfg, trace_level, true).run();
-
+    poc_test(cfg, trace_level).run();
+    error_code = 0;
     if (error_code == 0)
         std::cout << "SUCCESS" << std::endl;
     else
