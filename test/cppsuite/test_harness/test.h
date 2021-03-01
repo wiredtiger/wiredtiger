@@ -78,7 +78,6 @@ class test {
         for (const auto &it : _components) {
             it->finish();
         }
-        _thread_manager->finish();
     }
 
     /*

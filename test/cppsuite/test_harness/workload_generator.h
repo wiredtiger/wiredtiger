@@ -155,6 +155,7 @@ class workload_generator : public component {
             testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
             thread_context *tc =
               new thread_context(session, _collection_names, thread_operation::READ);
+            _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
     }
@@ -162,7 +163,9 @@ class workload_generator : public component {
     void
     finish() {
         debug_info("Run stage done", _trace_level, DEBUG_INFO);
-        _thread_manager.finish();
+        for (const auto& it : _workers) {
+            it->finish();
+        }
     }
 
     /* Workload threaded operations. */
@@ -277,6 +280,7 @@ class workload_generator : public component {
     bool _enable_tracking = false;
     WT_SESSION *_session = nullptr;
     thread_manager _thread_manager;
+    std::vector<thread_context*> _workers;
     workload_tracking *_workload_tracking;
 };
 } // namespace test_harness

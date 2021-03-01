@@ -37,10 +37,8 @@ class thread_manager {
     public:
     ~thread_manager()
     {
-        for (auto *worker : _workers) {
-            /* Make sure the worker is done before deleting it. */
-            worker->finish();
-            delete worker;
+        for (const auto& it : _workers) {
+            delete it;
         }
     }
 
@@ -54,8 +52,7 @@ class thread_manager {
     {
         tc->set_running(true);
         std::thread *t = new std::thread(fct, std::ref(*tc));
-        tc->set_thread(t);
-        _workers.push_back(tc);
+        _workers.push_back(t);
     }
 
     /*
@@ -66,27 +63,12 @@ class thread_manager {
     void
     add_thread(Callable &&fct, Args&& args)
     {
-        thread_context *tc =
-            new thread_context(thread_operation::COMPONENT);
-        tc->set_running(true);
         std::thread *t = new std::thread(fct, args);
-        tc->set_thread(t);
-        _workers.push_back(tc);
-    }
-
-    void
-    finish()
-    {
-        for (auto *worker : _workers) {
-            if (worker == nullptr)
-                debug_info("finish : worker is NULL", _trace_level, DEBUG_ERROR);
-            else
-                worker->finish();
-        }
+        _workers.push_back(t);
     }
 
     private:
-    std::vector<thread_context *> _workers;
+    std::vector<std::thread *> _workers;
 };
 } // namespace test_harness
 
