@@ -142,7 +142,6 @@ class workload_generator : public component {
     void
     run()
     {
-
         WT_SESSION *session;
         int64_t duration_seconds, read_threads;
 

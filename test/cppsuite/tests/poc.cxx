@@ -45,10 +45,9 @@ class poc_test : public test_harness::test {
     }
 };
 
-const std::string poc_test::test::_name = "poc_test";
-const std::string poc_test::test::_default_config =
-  "collection_count=2,key_count=5,value_size=20,"
-  "read_threads=1,duration_seconds=1";
+const std::string poc_test::test::name = "poc_test";
+const std::string poc_test::test::default_config = "collection_count=2,key_count=5,value_size=20,"
+                "read_threads=1,duration_seconds=1";
 
 int
 main(int argc, char *argv[])
@@ -80,16 +79,11 @@ main(int argc, char *argv[])
 
     // Check if default configuration should be used
     if (cfg.empty())
-        cfg = poc_test::test::_default_config;
+        cfg = poc_test::test::default_config;
 
     std::cout << "Configuration\t:" << cfg << std::endl;
     std::cout << "Tracel level\t:" << trace_level << std::endl;
 
     poc_test(cfg, trace_level).run();
-    error_code = 0;
-    if (error_code == 0)
-        std::cout << "SUCCESS" << std::endl;
-    else
-        std::cerr << "FAILED (Error code: " << error_code << ")" << std::endl;
-    return error_code;
+    return (0);
 }

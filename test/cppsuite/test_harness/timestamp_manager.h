@@ -10,16 +10,11 @@ namespace test_harness {
  */
 class timestamp_manager : public component  {
     public:
-    void load(){
-        /* Empty for now. */
-    }
-
-    void run(){
-        /* Empty for now. */
-    }
-
-    void finish(){
-        /* Empty for now. */
+    void
+    run(){
+        while (_running) {
+            /* Do something. */
+        }
     }
 };
 }

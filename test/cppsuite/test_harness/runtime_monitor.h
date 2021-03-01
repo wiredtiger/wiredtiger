@@ -39,18 +39,10 @@ namespace test_harness {
 class runtime_monitor : public component {
     public:
     void
-    load() {
-        /* Empty for now. */
-    }
-
-    void
     run() {
-        /* Empty for now. */
-    }
-
-    void
-    finish() {
-        /* Empty for now. */
+        while (_running) {
+            /* Do something. */
+        }
     }
 };
 } // namespace test_harness

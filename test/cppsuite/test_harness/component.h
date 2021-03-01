@@ -3,8 +3,11 @@
 
 namespace test_harness {
 /*
- * This is an interface intended to be implemented by most test framework classes. Defining some
- * standard functions which can then be called in sequence by the top level test class.
+ * A component is a class that defines 3 unique stages in its life-cycle.
+ *  - Load: In this stage the component should be setting up its members, and creating anything it
+ *  needs as part of the run stage. An example would be populating a database.
+ *  - Run: This is the primary stage of the component, most if not all of the workload occurs at
+ *  this point.
  */
 class component {
     public:
@@ -12,7 +15,9 @@ class component {
      * The load function should perform all tasked required to setup the component for the main
      * phase of the test.
      */
-    virtual void load() = 0;
+    virtual void load() {
+        _running = true;
+    }
 
     /*
      * The run phase encompases all operations that occur during the primary phase of the workload.
@@ -24,7 +29,12 @@ class component {
      * requirements can be performed in this phase. An example could be the verifcation of the
      * database. Or checking some relevant statistics.
      */
-    virtual void finish() = 0;
+    virtual void finish() {
+        _running = false;
+    }
+
+protected:
+    volatile bool _running;
 };
 }
 #endif

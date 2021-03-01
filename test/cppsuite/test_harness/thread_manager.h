@@ -64,8 +64,10 @@ class thread_manager {
      */
     template <typename Callable, typename Args>
     void
-    add_thread(thread_context *tc, Callable &&fct, Args&& args)
+    add_thread(Callable &&fct, Args&& args)
     {
+        thread_context *tc =
+            new thread_context(thread_operation::COMPONENT);
         tc->set_running(true);
         std::thread *t = new std::thread(fct, args);
         tc->set_thread(t);
