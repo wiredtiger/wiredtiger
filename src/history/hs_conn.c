@@ -66,7 +66,7 @@ __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
     *hs_btreep = NULL;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    cbt = __wt_hs_cbt(hs_cursor);
+    cbt = __wt_curhs_cbt(hs_cursor);
     *hs_btreep = CUR2BT(cbt);
     WT_ASSERT(session, *hs_btreep != NULL);
     WT_TRET(hs_cursor->close(hs_cursor));
