@@ -1050,9 +1050,8 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
     }
 
 err:
-    if (hs_cursor != NULL) {
+    if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
-    }
     return (ret);
 }
 

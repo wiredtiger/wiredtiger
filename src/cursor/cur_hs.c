@@ -720,11 +720,11 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
 {
     WT_CURSOR *file_cursor;
     WT_CURSOR_HS *hs_cursor;
-    va_list ap;
-    wt_timestamp_t stop_ts;
-    wt_timestamp_t start_ts;
-    uint64_t type;
     WT_ITEM *hs_val;
+    wt_timestamp_t start_ts;
+    wt_timestamp_t stop_ts;
+    uint64_t type;
+    va_list ap;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
