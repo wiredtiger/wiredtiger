@@ -536,7 +536,7 @@ err:
 int
 __wt_hs_cursor_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    return __hs_cursor_search_near_helper(session, cursor, true);
+    return (__hs_cursor_search_near_helper(session, cursor, true));
 }
 
 /*
@@ -546,7 +546,7 @@ __wt_hs_cursor_search_near_before(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 int
 __wt_hs_cursor_search_near_after(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
-    return __hs_cursor_search_near_helper(session, cursor, false);
+    return (__hs_cursor_search_near_helper(session, cursor, false));
 }
 
 /*
