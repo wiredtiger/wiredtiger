@@ -458,6 +458,8 @@ extern int __wt_conn_remove_encryptor(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_statistics_config(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_connection_close(WT_CONNECTION_IMPL *conn)
@@ -1686,6 +1688,7 @@ extern void __wt_curstat_cache_walk(WT_SESSION_IMPL *session);
 extern void __wt_curstat_dsrc_final(WT_CURSOR_STAT *cst);
 extern void __wt_curtable_set_key(WT_CURSOR *cursor, ...);
 extern void __wt_curtable_set_value(WT_CURSOR *cursor, ...);
+extern void __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session);
 extern void __wt_encrypt_size(
   WT_SESSION_IMPL *session, WT_KEYED_ENCRYPTOR *kencryptor, size_t incoming_size, size_t *sizep);
 extern void __wt_err_func(
