@@ -498,9 +498,10 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
     wt_timestamp_t checkpoint_ts, pinned_ts;
     bool include_checkpoint_txn;
 
+    *pinned_tsp = WT_TS_NONE;
+
     btree = S2BT_SAFE(session);
     txn_global = &S2C(session)->txn_global;
-    *pinned_tsp = WT_TS_NONE;
 
     /*
      * There is no need to go further if no pinned timestamp has been set yet.
