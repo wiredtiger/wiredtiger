@@ -80,7 +80,6 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
     return (0);
 }
 
-
 /*
  * __curhs_next_int --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
