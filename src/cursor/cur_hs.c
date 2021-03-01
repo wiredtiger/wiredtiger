@@ -146,11 +146,11 @@ __wt_hs_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exa
 }
 
 /*
- * __curhs_key_return --
- *     return hs key
+ * __curhs_copy_key --
+ *     Copy the key from file cursor to the history store cursor.
  */
 static inline void
-__curhs_key_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+__curhs_copy_key(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->key.data = file_cursor->key.data;
     hs_cursor->key.size = file_cursor->key.size;
@@ -159,11 +159,11 @@ __curhs_key_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 }
 
 /*
- * __curhs_value_return --
- *     return hs value
+ * __curhs_copy_value --
+ *     Copy the value from file cursor to the history store cursor.
  */
 static inline void
-__curhs_value_return(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+__curhs_copy_value(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->value.data = file_cursor->value.data;
     hs_cursor->value.size = file_cursor->value.size;
@@ -195,8 +195,8 @@ __curhs_next(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
-    __curhs_key_return(cursor, file_cursor);
-    __curhs_value_return(cursor, file_cursor);
+    __curhs_copy_key(cursor, file_cursor);
+    __curhs_copy_value(cursor, file_cursor);
 
     if (0) {
 err:
@@ -229,8 +229,8 @@ __curhs_prev(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
-    __curhs_key_return(cursor, file_cursor);
-    __curhs_value_return(cursor, file_cursor);
+    __curhs_copy_key(cursor, file_cursor);
+    __curhs_copy_value(cursor, file_cursor);
 
     if (0) {
 err:
@@ -356,7 +356,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     file_cursor->set_key(
       file_cursor, hs_cursor->btree_id, hs_cursor->datastore_key, start_ts, counter);
 
-    __curhs_key_return(cursor, file_cursor);
+    __curhs_copy_key(cursor, file_cursor);
 }
 
 /*
@@ -698,8 +698,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
       session, (cmp == 0 && *exactp == 0) || (cmp < 0 && *exactp < 0) || (cmp > 0 && *exactp > 0));
 #endif
 
-    __curhs_key_return(cursor, file_cursor);
-    __curhs_value_return(cursor, file_cursor);
+    __curhs_copy_key(cursor, file_cursor);
+    __curhs_copy_value(cursor, file_cursor);
 
     if (0) {
 err:
@@ -739,7 +739,7 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
     file_cursor->set_value(file_cursor, stop_ts, start_ts, type, hs_val);
     va_end(ap);
 
-    __curhs_value_return(cursor, file_cursor);
+    __curhs_copy_value(cursor, file_cursor);
 }
 
 /*
@@ -942,8 +942,8 @@ __curhs_update(WT_CURSOR *cursor)
         WT_TRET(ret);
     }
 
-    __curhs_key_return(cursor, file_cursor);
-    __curhs_value_return(cursor, file_cursor);
+    __curhs_copy_key(cursor, file_cursor);
+    __curhs_copy_value(cursor, file_cursor);
 
     if (0) {
 err:
