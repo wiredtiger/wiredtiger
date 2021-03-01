@@ -88,7 +88,7 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
 
 /*
  * __wt_hs_upd_time_window --
- *     Get the underlying time window of the hs cursor.
+ *     Get the underlying time window of the update history store cursor is positioned at.
  */
 void
 __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
