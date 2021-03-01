@@ -40,7 +40,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    def insert_update_data(self, uri, value, start_row, nrows , timestamp):
+    def insert_update_data(self, uri, value, start_row, nrows, timestamp):
         cursor =  self.session.open_cursor(uri)
         for i in range(start_row, start_row + nrows):
             self.session.begin_transaction()
@@ -64,8 +64,12 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             else:
                 self.assertEqual(cursor.get_value(), check_value + str(count + start_row))
                 count += 1
+
         session.commit_transaction()
-        self.assertEqual(count, nrows)
+        if check_value is None:
+            self.assertEqual(count, 0)
+        else:
+            self.assertEqual(count, nrows)
         cursor.close()
 
     def test_rollback_to_stable16(self):
@@ -94,10 +98,10 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         # Rollback to stable done as part of recovery.
         simulate_crash_restart(self,".", "RESTART")
 
-        self.check(values[0], uri, nrows - 1, 1, 2)
-        self.check(values[1], uri, nrows - 1, 201, 5)
-        self.check(None, uri, 0, 401, 7)
-        self.check(None, uri, 0, 601, 9)
+        self.check(values[0], uri, nrows, 1, 2)
+        self.check(values[1], uri, nrows, 201, 5)
+        self.check(None, uri, nrows, 401, 7)
+        self.check(None, uri, nrows, 601, 9)
 
         self.session.close()
 

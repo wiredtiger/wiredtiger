@@ -109,11 +109,11 @@ __rollback_abort_newer_insert(
 }
 
 /*
- * __rollback_col_add_update --
+ * __rollback_col_modify --
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_col_add_update(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
+__rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -211,7 +211,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref,
     /* Allocate tombstone to update to remove the unstable value. */
     WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
     WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-    WT_ERR(__rollback_col_add_update(session, ref, upd, recno));
+    WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     return (ret);
 
 err:
