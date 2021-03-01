@@ -80,14 +80,9 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
     return (0);
 }
 
-<<<<<<< HEAD
-/*
- * __wt_hs_cursor_next --
-=======
 
 /*
  * __curhs_next_int --
->>>>>>> Inital change to cleaning the PR
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
  */
 static int
