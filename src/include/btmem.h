@@ -1111,14 +1111,13 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
-#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
-#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
+#define WT_UPDATE_CLEARED_HS 0x01u               /* Update that cleared the history store. */
+#define WT_UPDATE_DS 0x02u                       /* Update has been written to the data store. */
+#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x10u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x20u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x40u         /* Update restored from history store. */
                                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 
