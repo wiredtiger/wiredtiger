@@ -31,53 +31,55 @@ from wtscenario import make_scenarios
 from test_import01 import test_import_base
 
 # test_import10.py
-#    Run live import/export while backup cursor is open
+#    Run import/export while backup cursor is open.
 class test_import10(test_import_base):
-    uri = 'file:test_import10.wt'
+    uri = 'test_import10'
     create_config = 'allocation_size=512,key_format=i,value_format=i'
     scenarios = make_scenarios([
-        ('file_metadata', dict(repair=False)),
-        ('repair', dict(repair=True)),
+        ('import_with_metadata', dict(repair=False)),
+        ('import_repair', dict(repair=True)),
     ])
 
-    def test_backup_with_live_import(self):
-        """
-        Test live import in a 'wt' process while backup cursor is open.
-        """
+    def test_import_with_open_backup_cursor(self):
         # Create and populate the table.
-        self.session.create(self.uri, self.create_config)
-        cursor = self.session.open_cursor(self.uri)
+        table_uri = 'table:' + self.uri
+        self.session.create(table_uri, self.create_config)
+        cursor = self.session.open_cursor(table_uri)
         for i in range(1, 1000):
             cursor[i] = i
         cursor.close()
         self.session.checkpoint()
 
         # Export the metadata for the file.
+        file_uri = 'file:' + self.uri + '.wt'
         c = self.session.open_cursor('metadata:', None, None)
-        original_db_file_config = c[self.uri]
+        original_db_table_config = c[table_uri]
+        original_db_file_config = c[file_uri]
         c.close()
 
-        self.session.drop(self.uri, 'remove_files=false')
+        self.session.drop(table_uri, 'remove_files=false')
 
-        # Can't open the cursor on the file anymore since we dropped it.
+        # Verify the table no longer exists in the database by attempting to open a cursor.
         self.assertRaisesException(wiredtiger.WiredTigerError,
-            lambda: self.session.open_cursor(self.uri))
+            lambda: self.session.open_cursor(table_uri))
 
-        # Open backup cursor
+        # Open backup cursor.
         bkup_c = self.session.open_cursor('backup:', None, None)
 
-        # Import file with the associated file metadata AND no metadata, wish to repair it.
+        # First construct the config string for the default or repair import scenario,
+        # then call create to import the table.
         if self.repair:
             import_config = 'import=(enabled,repair=true)'
         else:
-            import_config = 'import=(enabled,repair=false,file_metadata=({}))'.format(original_db_file_config)
-        self.session.create(self.uri, import_config)
+            import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
+                original_db_table_config, original_db_file_config)
+        self.session.create(table_uri, import_config)
 
         # Verify object.
-        self.session.verify(self.uri)
+        self.session.verify(table_uri)
 
         # Check that the data got imported correctly.
-        cursor = self.session.open_cursor(self.uri)
+        cursor = self.session.open_cursor(table_uri)
         for i in range(1, 1000):
             self.assertEqual(cursor[i], i)
         cursor.close()
