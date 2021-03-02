@@ -8,9 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_HS_CBT(std_cur) ((WT_CURSOR_BTREE *)(((WT_CURSOR_HS *)std_cur)->file_cursor))
-#define WT_HS_BT(std_cur) (CUR2BT(((WT_CURSOR_HS *)std_cur)->file_cursor))
-
 static int __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
   uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, uint64_t *hs_counter);
 
@@ -150,7 +147,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
     else {
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
-        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_after(session, cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
     }
     if (ret == 0)
         WT_ERR(__hs_fixup_out_of_order_from_pos(
