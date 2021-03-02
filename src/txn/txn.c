@@ -1091,7 +1091,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * the search point to the last version of the key.
          */
         hs_cursor->set_key(hs_cursor, 4, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, UINT64_MAX);
-        WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_before(session, hs_cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
              * Allocate a tombstone and prepend it to the row so when we reconcile the update chain

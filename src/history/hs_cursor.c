@@ -93,25 +93,10 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
 void
 __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
 {
-    WT_CURSOR *file_cursor;
     WT_CURSOR_BTREE *hs_cbt;
 
-    file_cursor = ((WT_CURSOR_HS *)hs_cursor)->file_cursor;
-    hs_cbt = (WT_CURSOR_BTREE *)file_cursor;
+    hs_cbt = __wt_curhs_cbt(hs_cursor);
     *twp = &hs_cbt->upd_value->tw;
-}
-
-/*
- * __wt_hs_cbt --
- *     Convert a history store cursor to the underlying btree cursor
- */
-WT_CURSOR_BTREE *
-__wt_hs_cbt(WT_CURSOR *cursor)
-{
-    WT_CURSOR_HS *hs_cursor;
-    hs_cursor = (WT_CURSOR_HS *)cursor;
-
-    return (WT_CURSOR_BTREE *)hs_cursor->file_cursor;
 }
 
 /*
@@ -174,7 +159,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
       txn_shared->read_timestamp == WT_TS_NONE ? WT_TS_MAX : txn_shared->read_timestamp;
 
     hs_cursor->set_key(hs_cursor, 4, btree_id, key, read_timestamp, UINT64_MAX);
-    WT_ERR_NOTFOUND_OK(__wt_hs_cursor_search_near_before(session, hs_cursor), true);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;

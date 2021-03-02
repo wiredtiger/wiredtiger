@@ -269,7 +269,7 @@ __rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW 
      * the given timestamp, the key is removed from data store.
      */
     hs_cursor->set_key(hs_cursor, 4, hs_btree_id, key, WT_TS_MAX, UINT64_MAX);
-    ret = __wt_hs_cursor_search_near_before(session, hs_cursor);
+    ret = __wt_curhs_search_near_before(session, hs_cursor);
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -1126,7 +1126,7 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
     /* Walk the history store for the given btree. */
     hs_cursor->set_key(hs_cursor, 1, btree_id);
-    ret = __wt_hs_cursor_search_near_after(session, hs_cursor);
+    ret = __wt_curhs_search_near_after(session, hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
