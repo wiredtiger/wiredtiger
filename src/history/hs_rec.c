@@ -315,7 +315,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ERR(__wt_illegal_value(session, page->type));
         }
 
-        first_globally_visible_upd = min_ts_upd = NULL;
+        first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
         enable_reverse_modify = true;
 
         __wt_modify_vector_clear(&modifies);
@@ -431,8 +431,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_CLEARED_HS)) {
                 /* We can only delete history store entries that have timestamps. */
-                WT_ERR(__wt_hs_delete_key_from_ts(session, cursor, btree->id, key,
-                  fix_ts_upd->start_ts + 1, &fix_ts_upd->start_ts));
+                WT_ERR(__wt_hs_delete_key_from_ts(
+                  session, cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
                 WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
                 WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
                 F_SET(fix_ts_upd, WT_UPDATE_CLEARED_HS);
