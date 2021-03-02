@@ -233,7 +233,7 @@ int
 __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
-    WT_CURSOR *cursor;
+    WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -262,8 +262,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     insert_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
 
-    WT_RET(__wt_curhs_open(session, NULL, &cursor));
-    F_SET(cursor, WT_CURSTD_HS_READ_COMMITTED);
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_modify_vector_init(session, &modifies);
 
@@ -449,13 +449,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         if (oldest_upd->type == WT_UPDATE_TOMBSTONE && oldest_upd == first_non_ts_upd &&
           !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS)) {
             /* We can only delete history store entries that have timestamps. */
-            WT_ERR(__wt_hs_delete_key_from_ts(session, cursor, btree->id, key, 1, true));
+            WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
             WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
         } else if (first_non_ts_upd != NULL && !F_ISSET(first_non_ts_upd, WT_UPDATE_CLEARED_HS) &&
           (list->ins == NULL || ts_updates_in_hs)) {
-            WT_ERR(__wt_hs_delete_key_from_ts(session, cursor, btree->id, key, 1, true));
+            WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key, 1, true));
             WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
             WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
             F_SET(first_non_ts_upd, WT_UPDATE_CLEARED_HS);
@@ -595,13 +595,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
-                WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(
-                  session, cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
+                  session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
             } else
                 WT_ERR(__hs_insert_record(
-                  session, cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+                  session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
@@ -621,7 +621,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-    hs_btree = __wt_curhs_btree(cursor);
+    hs_btree = __wt_curhs_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
@@ -640,7 +640,7 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
-    WT_TRET(cursor->close(cursor));
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -861,8 +861,8 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          * inserting.
          */
         WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
-        F_SET(insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
         WT_ERR(ret);
+        F_SET(insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
         insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, insert_cursor), true);
 

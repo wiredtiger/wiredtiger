@@ -721,6 +721,7 @@ __wt_rec_row_leaf(
     void *copy;
 
     btree = S2BT(session);
+    hs_cursor = NULL;
     page = pageref->page;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
     WT_TIME_WINDOW_INIT(&tw);
@@ -925,6 +926,7 @@ __wt_rec_row_leaf(
                         WT_ERR(__wt_hs_delete_key_from_ts(
                           session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
                         WT_ERR(hs_cursor->close(hs_cursor));
+                        hs_cursor = NULL;
                         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
                         WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                     }
@@ -1042,6 +1044,8 @@ leaf_insert:
     ret = __wt_rec_split_finish(session, r);
 
 err:
+    if (hs_cursor != NULL)
+        WT_RET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }
