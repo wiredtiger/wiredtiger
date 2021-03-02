@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os, shutil
-from helper import copy_wiredtiger_home, simulate_crash_restart
-import wiredtiger, wttest, unittest
+from helper import simulate_crash_restart
+import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
@@ -36,9 +36,10 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable17.py
-# Test that rollback to stable handles updates present on history store and data store for variable length column store.
+# Test that rollback to stable handles updates present on history store and data store for variable 
+# length column store.
 class test_rollback_to_stable17(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=20MB,statistics=(all)'
+    conn_config = 'cache_size=200MB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
     def insert_update_data(self, uri, value, start_row, end_row, timestamp):
@@ -51,16 +52,14 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        if read_ts == 0:
-            session.begin_transaction()
-        else:
-            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
 
         count = 0
         for k, v in cursor:
             self.assertEqual(v, check_value)
             count += 1
+
         session.commit_transaction()
         self.assertEqual(count, nrows)
         cursor.close()
@@ -84,7 +83,10 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
             self.insert_update_data(uri, values[i], start_row, nrows, ts[i])
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
+
         self.session.checkpoint()
+
+        # Rollback to stable done as part of recovery.
         simulate_crash_restart(self, ".", "RESTART")
 
         self.check(values[0], uri, nrows - 1, 2)
@@ -93,5 +95,6 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         self.check(values[1], uri, nrows - 1, 9)
 
         self.session.close()
+
 if __name__ == '__main__':
     wttest.run()
