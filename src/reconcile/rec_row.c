@@ -1045,7 +1045,7 @@ leaf_insert:
 
 err:
     if (hs_cursor != NULL)
-        WT_RET(hs_cursor->close(hs_cursor));
+        WT_TRET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }
