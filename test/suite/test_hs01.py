@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -82,7 +82,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Checkpoint and backup so as to simulate recovery
         self.session.checkpoint()
         newdir = "BACKUP"
-        copy_wiredtiger_home('.', newdir, True)
+        copy_wiredtiger_home(self, '.', newdir, True)
 
         conn = self.setUpConnectionOpen(newdir)
         session = self.setUpSessionOpen(conn)
