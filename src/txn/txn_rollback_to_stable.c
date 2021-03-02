@@ -219,6 +219,53 @@ err:
 }
 
 /*
+ * __rollback_check_if_txnid_non_committed --
+ *     Check if the transaction id is non committed.
+ */
+static bool
+__rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+{
+    WT_CONNECTION_IMPL *conn;
+    bool found;
+
+    conn = S2C(session);
+
+    /* If not recovery then assume all the data as committed. */
+    if (!F_ISSET(conn, WT_CONN_RECOVERING))
+        return (false);
+
+    /*
+     * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
+     * details are zero then return false i.e, updates are committed.
+     */
+    if (conn->recovery_ckpt_snap_min == 0 && conn->recovery_ckpt_snap_max == 0)
+        return (false);
+
+    /*
+     * Snapshot data:
+     *	ids < recovery_ckpt_snap_min are committed,
+     *	ids > recovery_ckpt_snap_max are non committed,
+     *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
+     */
+    if (txnid < conn->recovery_ckpt_snap_min)
+        return (false);
+    else if (txnid > conn->recovery_ckpt_snap_max)
+        return (true);
+
+    /*
+     * Return false when the recovery snapshot count is 0, which means there is no uncommitted
+     * transaction ids.
+     */
+    if (conn->recovery_ckpt_snapshot_count == 0)
+        return (false);
+
+    WT_BINARY_SEARCH(
+      txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
+
+    return (found);
+}
+
+/*
  * __rollback_col_ondisk_fixup_key --
  *     Allocate tombstone and calls function add update to head of insert list.
  */
@@ -245,6 +292,9 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     int cmp;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
     bool valid_update_found;
+#ifdef HAVE_DIAGNOSTIC
+    bool first_record;
+#endif
 
     page = ref->page;
     hs_upd = upd = tombstone = NULL;
@@ -253,6 +303,9 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     hs_btree_id = S2BT(session)->id;
     WT_CLEAR(full_value);
     valid_update_found = false;
+#ifdef HAVE_DIAGNOSTIC
+    first_record = true;
+#endif
 
     /* Allocate buffers for the data store and history store key. */
     WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -274,8 +327,15 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
     WT_ERR(__wt_hs_cursor_open(session));
     hs_cursor = session->hs_cursor;
     cbt = (WT_CURSOR_BTREE *)hs_cursor;
-    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
 
+    /*
+     * Scan the history store for the given btree and key with maximum start timestamp to let the
+     * search point to the last version of the key and start traversing backwards to find out the
+     * satisfying record according the given timestamp. Any satisfying history store record is moved
+     * into data store and removed from history store. If none of the history store records satisfy
+     * the given timestamp, the key is removed from data store.
+     */
+    ret = __wt_hs_cursor_position(session, hs_cursor, hs_btree_id, key, WT_TS_MAX, NULL);
     for (; ret == 0; ret = __wt_hs_cursor_prev(session, hs_cursor)) {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -298,6 +358,14 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
             WT_STAT_CONN_INCR(session, cursor_prev_hs_tombstone_rts);
             continue;
         }
+
+        /*
+         * As part of the history store search, we never get an exact match based on our search
+         * criteria as we always search for a maximum record for that key. Make sure that we set the
+         * comparison result as an exact match to remove this key as part of rollback to stable. In
+         * case if we don't mark the comparison result as same, later the __wt_row_modify function
+         * will not properly remove the update from history store.
+         */
         cbt->compare = 0;
 
         /* Get current value and convert to full update if it is a modify. */
@@ -308,10 +376,15 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
 
         /*
          * Do not include history store updates greater than on-disk data store version to construct
-         * a full update to restore. Comparing with timestamps here has no problem unlike in search
-         * flow where the timestamps may be reset during reconciliation. RTS detects an on-disk
-         * update is unstable based on the written proper timestamp, so comparing against it with
-         * history store shouldn't have any problem.
+         * a full update to restore. Include the most recent updates than the on-disk version
+         * shouldn't be problem as the on-disk version in history store is always a full update. It
+         * is better to not to include those updates as it unnecessarily increases the rollback to
+         * stable time.
+         *
+         * Comparing with timestamps here has no problem unlike in search flow where the timestamps
+         * may be reset during reconciliation. RTS detects an on-disk update is unstable based on
+         * the written proper timestamp, so comparing against it with history store shouldn't have
+         * any problem.
          */
         if (hs_start_ts <= unpack->tw.start_ts) {
             if (type == WT_UPDATE_MODIFY)
@@ -321,21 +394,91 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
                 WT_ASSERT(session, type == WT_UPDATE_STANDARD);
                 WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
             }
+        } else
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "history store update more recent than on-disk update with start timestamp: %s,"
+              " durable timestamp: %s, stop timestamp: %s and type: %" PRIu8,
+              __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
+              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]), type);
+
+        /*
+         * Verify the history store timestamps are in order. The start timestamp may be equal to the
+         * stop timestamp if the original update's commit timestamp is out of order. We may see
+         * records newer than or equal to the onpage value if eviction runs concurrently with
+         * checkpoint. In that case, don't verify the first record.
+         */
+        WT_ASSERT(session,
+          hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
+            first_record);
+
+        if (hs_stop_durable_ts < newer_hs_durable_ts)
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
+
+        /*
+         * Stop processing when we find the newer version value of this key is stable according to
+         * the current version stop timestamp and transaction id when it is not appending the
+         * selected update to the update chain. Also it confirms that history store doesn't contains
+         * any newer version than the current version for the key.
+         */
+        if (!replace &&
+          (hs_stop_durable_ts != WT_TS_NONE ||
+            !__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.stop_txn)) &&
+          (hs_stop_durable_ts <= rollback_timestamp)) {
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "history store update valid with stop timestamp: %s, stable timestamp: %s, txnid: "
+              "%" PRIu64 " and type: %" PRIu8,
+              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]),
+              cbt->upd_value->tw.stop_txn, type);
+            break;
         }
 
-        /* Stop processing when we find a stable update according to the given timestamp. */
-        if (hs_durable_ts <= rollback_timestamp) {
-            WT_ASSERT(session, cbt->upd_value->tw.start_ts < unpack->tw.start_ts);
+        /*
+         * Stop processing when we find a stable update according to the given timestamp and
+         * transaction id.
+         */
+        if ((hs_durable_ts != WT_TS_NONE ||
+              !__rollback_check_if_txnid_non_committed(session, cbt->upd_value->tw.start_txn)) &&
+          (hs_durable_ts <= rollback_timestamp)) {
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+              "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
+              "timestamp: %s, stable timestamp: %s, txnid: %" PRIu64 " and type: %" PRIu8,
+              __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+              __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
+              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
+              __wt_timestamp_to_string(rollback_timestamp, ts_string[3]),
+              cbt->upd_value->tw.start_txn, type);
             valid_update_found = true;
             break;
         }
 
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "history store update aborted with start timestamp: %s, durable timestamp: %s, stop "
+          "timestamp: %s, stable timestamp: %s, start txnid: %" PRIu64 ", stop txnid: %" PRIu64
+          " and type: %" PRIu8,
+          __wt_timestamp_to_string(hs_start_ts, ts_string[0]),
+          __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
+          __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
+          __wt_timestamp_to_string(rollback_timestamp, ts_string[3]), cbt->upd_value->tw.start_txn,
+          cbt->upd_value->tw.stop_txn, type);
+
+        /*
+         * Start time point of the current record may be used as stop time point of the previous
+         * record. Save it to verify against the previous record and check if we need to append the
+         * stop time point as a tombstone when we rollback the history store record.
+         */
         newer_hs_durable_ts = hs_durable_ts;
+#ifdef HAVE_DIAGNOSTIC
+        first_record = false;
+#endif
+
         WT_ERR(__wt_upd_alloc_tombstone(session, &hs_upd, NULL));
         WT_ERR(__wt_hs_modify(cbt, hs_upd));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
+
     if (replace) {
         /*
          * If we found a history value that satisfied the given timestamp, add it to the update
@@ -414,7 +557,7 @@ __rollback_col_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *c
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
         }
 
-        WT_ERR(__rollback_col_add_update(session, ref, upd, recno));
+        WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     }
 
     /* Finally remove that update from history store. */
@@ -437,53 +580,6 @@ err:
     WT_TRET(__wt_hs_cursor_close(session));
 
     return (ret);
-}
-
-/*
- * __rollback_check_if_txnid_non_committed --
- *     Check if the transaction id is non committed.
- */
-static bool
-__rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid)
-{
-    WT_CONNECTION_IMPL *conn;
-    bool found;
-
-    conn = S2C(session);
-
-    /* If not recovery then assume all the data as committed. */
-    if (!F_ISSET(conn, WT_CONN_RECOVERING))
-        return (false);
-
-    /*
-     * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
-     * details are zero then return false i.e, updates are committed.
-     */
-    if (conn->recovery_ckpt_snap_min == 0 && conn->recovery_ckpt_snap_max == 0)
-        return (false);
-
-    /*
-     * Snapshot data:
-     *	ids < recovery_ckpt_snap_min are committed,
-     *	ids > recovery_ckpt_snap_max are non committed,
-     *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
-     */
-    if (txnid < conn->recovery_ckpt_snap_min)
-        return (false);
-    else if (txnid > conn->recovery_ckpt_snap_max)
-        return (true);
-
-    /*
-     * Return false when the recovery snapshot count is 0, which means there is no uncommitted
-     * transaction ids.
-     */
-    if (conn->recovery_ckpt_snapshot_count == 0)
-        return (false);
-
-    WT_BINARY_SEARCH(
-      txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
-
-    return (found);
 }
 
 /*
