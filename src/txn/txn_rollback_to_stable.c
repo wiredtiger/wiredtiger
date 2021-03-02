@@ -133,32 +133,6 @@ err:
 }
 
 /*
- * __rollback_col_add_update --
- *     Add the provided update to the head of the update list.
- */
-static inline int
-__rollback_col_add_update(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
-{
-    WT_CURSOR_BTREE cbt;
-    WT_DECL_RET;
-
-    __wt_btcur_init(session, &cbt);
-    __wt_btcur_open(&cbt);
-
-    /* Search the page. */
-    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
-
-    /* Apply the modification. */
-    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
-
-err:
-    /* Free any resources that may have been cached in the cursor. */
-    WT_TRET(__wt_btcur_close(&cbt, true));
-
-    return (ret);
-}
-
-/*
  * __rollback_row_add_update --
  *     Add the provided update to the head of the update list.
  */
