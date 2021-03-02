@@ -8,18 +8,6 @@ WT_CONNECTION *_conn_conn = nullptr;
 std::mutex _conn_mutex;
 
 static void
-conn_api_open()
-{
-    std::string home;
-    home = DEFAULT_DIR;
-    /* Create the working dir. */
-    testutil_make_work_dir(home.c_str());
-
-    /* Open connection. */
-    testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn_conn));
-}
-
-static void
 conn_api_close()
 {
     if (_conn_conn != nullptr) {
@@ -29,6 +17,18 @@ conn_api_close()
               "Failed to close connection, shutting down uncleanly", _trace_level, DEBUG_ERROR);
         _conn_conn = nullptr;
     }
+}
+
+static void
+conn_api_open()
+{
+    std::string home;
+    home = DEFAULT_DIR;
+    /* Create the working dir. */
+    testutil_make_work_dir(home.c_str());
+
+    /* Open connection. */
+    testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn_conn));
 }
 
 static WT_SESSION *

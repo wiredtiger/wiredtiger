@@ -23,10 +23,10 @@ namespace test_harness {
  */
 class test {
     public:
-    test(const std::string &config)
+    test(const std::string &config, bool enable_tracking)
     {
         _configuration = new configuration(name, config);
-        _workload_generator = new workload_generator(_configuration);
+        _workload_generator = new workload_generator(_configuration, enable_tracking);
         _runtime_monitor = new runtime_monitor();
         _timestamp_manager = new timestamp_manager();
         _thread_manager = new thread_manager();
