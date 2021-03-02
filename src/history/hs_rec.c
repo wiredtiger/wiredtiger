@@ -454,15 +454,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             tombstone = NULL;
             __wt_modify_vector_peek(&modifies, &prev_upd);
 
-            WT_ERR(
-              __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
-
-            /* Squash the updates from the same transaction. */
-            if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
-                squashed = true;
-                continue;
-            }
-
             if (out_of_order_ts_updates.size > 0) {
                 __wt_modify_vector_peek(&out_of_order_ts_updates, &out_of_order_ts_upd);
             } else
@@ -513,6 +504,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
                 if (prev_upd->type == WT_UPDATE_TOMBSTONE)
                     tombstone = prev_upd;
+            }
+
+            WT_ERR(
+              __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
+
+            /* Squash the updates from the same transaction. */
+            if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
+                squashed = true;
+                continue;
             }
 
             /* Skip updates that are already in the history store. */
