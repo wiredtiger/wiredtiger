@@ -9,19 +9,19 @@
 
 #include "wt_internal.h"
 
+static int __curhs_file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
+static int __curhs_file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR **);
+static int __curhs_file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
+static int __curhs_file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
-static int __file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
-static int __file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR **);
-static int __file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
-static int __file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 /*
- * __file_cursor_open --
+ * __curhs_file_cursor_open --
  *     Open a new history store table cursor, internal function.
  */
 static int
-__file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
+__curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -75,17 +75,17 @@ __wt_curhs_cache(WT_SESSION_IMPL *session)
       (session->dhandle != NULL && WT_IS_METADATA(S2BT(session)->dhandle)) ||
       session == conn->default_session)
         return (0);
-    WT_RET(__file_cursor_open(session, &cursor));
+    WT_RET(__curhs_file_cursor_open(session, &cursor));
     WT_RET(cursor->close(cursor));
     return (0);
 }
 
 /*
- * __file_cursor_next --
+ * __curhs_file_cursor_next --
  *     Execute a next operation on a history store cursor with the appropriate isolation level.
  */
 static int
-__file_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__curhs_file_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
@@ -94,11 +94,11 @@ __file_cursor_next(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 }
 
 /*
- * __file_cursor_prev --
+ * __curhs_file_cursor_prev --
  *     Execute a prev operation on a history store cursor with the appropriate isolation level.
  */
 static int
-__file_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
+__curhs_file_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 {
     WT_DECL_RET;
 
@@ -107,12 +107,12 @@ __file_cursor_prev(WT_SESSION_IMPL *session, WT_CURSOR *cursor)
 }
 
 /*
- * __file_cursor_search_near --
+ * __curhs_file_cursor_search_near --
  *     Execute a search near operation on a history store cursor with the appropriate isolation
  *     level.
  */
 static int
-__file_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
+__curhs_file_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int *exactp)
 {
     WT_DECL_RET;
 
@@ -163,7 +163,7 @@ __curhs_next(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, next, CUR2BT(file_cursor));
 
-    WT_ERR(__file_cursor_next(session, file_cursor));
+    WT_ERR(__curhs_file_cursor_next(session, file_cursor));
     /*
      * We need to check if the history store record is visible to the current session. If not, the
      * __curhs_next_visible() will also keep iterating forward through the records until it finds a
@@ -197,7 +197,7 @@ __curhs_prev(WT_CURSOR *cursor)
     file_cursor = hs_cursor->file_cursor;
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, prev, CUR2BT(file_cursor));
 
-    WT_ERR(__file_cursor_prev(session, file_cursor));
+    WT_ERR(__curhs_file_cursor_prev(session, file_cursor));
     /*
      * We need to check if the history store record is visible to the current session. If not, the
      * __curhs_prev_visible() will also keep iterating backwards through the records until it finds
@@ -359,7 +359,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = __file_cursor_prev(session, file_cursor)) {
+    for (; ret == 0; ret = __curhs_file_cursor_prev(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -448,7 +448,7 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
     WT_ERR(__wt_scr_alloc(session, 0, &datastore_key));
 
-    for (; ret == 0; ret = __file_cursor_next(session, file_cursor)) {
+    for (; ret == 0; ret = __curhs_file_cursor_next(session, file_cursor)) {
         WT_ERR(file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
         /* Stop before crossing over to the next btree. */
@@ -608,7 +608,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET));
     WT_ERR(__wt_buf_set(session, srch_key, file_cursor->key.data, file_cursor->key.size));
     /* Reset cursor if we get WT_NOTFOUND. */
-    WT_ERR(__file_cursor_search_near(session, file_cursor, &exact));
+    WT_ERR(__curhs_file_cursor_search_near(session, file_cursor, &exact));
 
     if (exact >= 0) {
         /*
@@ -622,7 +622,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * as we may have crossed the boundary. Do that in a loop as there may be content
              * inserted concurrently.
              */
-            while ((ret = __file_cursor_prev(session, file_cursor)) == 0) {
+            while ((ret = __curhs_file_cursor_prev(session, file_cursor)) == 0) {
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
@@ -686,7 +686,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * as we may have crossed the boundary. Do that in a loop as there may be content
              * inserted concurrently.
              */
-            while ((ret = __file_cursor_next(session, file_cursor)) == 0) {
+            while ((ret = __curhs_file_cursor_next(session, file_cursor)) == 0) {
                 WT_ERR(
                   file_cursor->get_key(file_cursor, &btree_id, datastore_key, &start_ts, &counter));
 
@@ -1038,7 +1038,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_ERR(__wt_strdup(session, WT_HS_URI, &cursor->uri));
 
     /* Open the file cursor for operations on the regular history store .*/
-    WT_ERR(__file_cursor_open(session, &hs_cursor->file_cursor));
+    WT_ERR(__curhs_file_cursor_open(session, &hs_cursor->file_cursor));
 
     WT_ERR(__wt_cursor_init(cursor, WT_HS_URI, owner, NULL, cursorp));
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
