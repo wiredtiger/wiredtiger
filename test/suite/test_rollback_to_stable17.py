@@ -36,7 +36,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable17.py
-# Test that rollback to stable handles updates present on history store and data store for variable 
+# Test that rollback to stable handles updates present on history store and data store for variable
 # length column store.
 class test_rollback_to_stable17(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=200MB,statistics=(all)'
