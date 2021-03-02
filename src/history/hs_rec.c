@@ -685,7 +685,7 @@ static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_BTREE *btree,
   const WT_ITEM *key, wt_timestamp_t ts, uint64_t *counter)
 {
-    WT_CURSOR *insert_cursor;
+    WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
@@ -698,7 +698,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
 #endif
     char ts_string[5][WT_TS_INT_STRING_SIZE];
 
-    insert_cursor = NULL;
+    hs_insert_cursor = NULL;
     hs_cbt = __wt_curhs_cbt(hs_cursor);
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
@@ -771,8 +771,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
          * Don't incur the overhead of opening this new cursor unless we need it. In the regular
          * case, we'll never get here.
          */
-        if (insert_cursor == NULL)
-            WT_ERR(__wt_curhs_open(session, NULL, &insert_cursor));
+        if (hs_insert_cursor == NULL)
+            WT_ERR(__wt_curhs_open(session, NULL, &hs_insert_cursor));
 
         /*
          * If these history store records are resolved prepared updates, their durable timestamps
@@ -807,10 +807,10 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
           hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
 
         /* Insert the value back with different timestamps. */
-        insert_cursor->set_key(insert_cursor, 4, btree->id, &hs_key, ts, *counter);
-        insert_cursor->set_value(insert_cursor, &hs_insert_tw, hs_insert_tw.durable_stop_ts,
+        hs_insert_cursor->set_key(hs_insert_cursor, 4, btree->id, &hs_key, ts, *counter);
+        hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw, hs_insert_tw.durable_stop_ts,
           hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type, &hs_value);
-        WT_ERR(insert_cursor->insert(insert_cursor));
+        WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
         ++(*counter);
 
         /* Delete the entry with higher timestamp. */
@@ -821,8 +821,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    if (insert_cursor != NULL)
-        insert_cursor->close(insert_cursor);
+    if (hs_insert_cursor != NULL)
+        hs_insert_cursor->close(hs_insert_cursor);
     return (ret);
 }
 
@@ -836,7 +836,7 @@ static int
 __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, bool reinsert)
 {
-    WT_CURSOR *insert_cursor;
+    WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
@@ -850,7 +850,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
 
-    insert_cursor = NULL;
+    hs_insert_cursor = NULL;
     if (reinsert) {
         /*
          * Determine the starting value of our counter, i.e. highest counter value of the timestamp
@@ -860,18 +860,18 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
          * The cursor will also be positioned at the start of the range that we wish to start
          * inserting.
          */
-        WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &insert_cursor));
+        WT_WITHOUT_DHANDLE(session, ret = __wt_curhs_open(session, NULL, &hs_insert_cursor));
         WT_ERR(ret);
-        F_SET(insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
-        insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, UINT64_MAX);
-        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, insert_cursor), true);
+        F_SET(hs_insert_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        hs_insert_cursor->set_key(hs_insert_cursor, 4, btree_id, key, WT_TS_NONE, UINT64_MAX);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_insert_cursor), true);
 
         if (ret == WT_NOTFOUND) {
             hs_insert_counter = 0;
             ret = 0;
         } else {
-            WT_ERR(insert_cursor->get_key(
-              insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
+            WT_ERR(hs_insert_cursor->get_key(
+              hs_insert_cursor, &hs_btree_id, &hs_key, &hs_start_ts, &hs_insert_counter));
             WT_ASSERT(session, hs_start_ts == WT_TS_NONE);
             /*
              * Increment the history store counter that we'll be using to insert with to avoid
@@ -896,10 +896,11 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
             hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = WT_TS_NONE;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
-            insert_cursor->set_key(insert_cursor, 4, btree_id, key, WT_TS_NONE, hs_insert_counter);
-            insert_cursor->set_value(insert_cursor, &hs_insert_tw, WT_TS_NONE, WT_TS_NONE,
+            hs_insert_cursor->set_key(
+              hs_insert_cursor, 4, btree_id, key, WT_TS_NONE, hs_insert_counter);
+            hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw, WT_TS_NONE, WT_TS_NONE,
               (uint64_t)hs_upd_type, &hs_value);
-            WT_ERR(insert_cursor->insert(insert_cursor));
+            WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             WT_STAT_CONN_INCR(session, cache_hs_insert);
             WT_STAT_DATA_INCR(session, cache_hs_insert);
 
@@ -926,7 +927,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    if (insert_cursor != NULL)
-        insert_cursor->close(insert_cursor);
+    if (hs_insert_cursor != NULL)
+        hs_insert_cursor->close(hs_insert_cursor);
     return (ret);
 }
