@@ -103,7 +103,7 @@ __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
 
 /*
  * __wt_hs_cbt --
- *     Convert a hs cursor to the underlying btree cursor
+ *     Convert a history store cursor to the underlying btree cursor
  */
 WT_CURSOR_BTREE *
 __wt_hs_cbt(WT_CURSOR *cursor)

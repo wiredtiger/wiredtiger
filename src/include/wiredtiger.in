@@ -6096,8 +6096,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: race to read prepared update retry */
 #define	WT_STAT_CONN_TXN_READ_RACE_PREPARE_UPDATE	1468
 /*!
- * transaction: rollback to stable hs records with stop timestamps older
- * than newer records
+ * transaction: rollback to stable history store records with stop
+ * timestamps older than newer records
  */
 #define	WT_STAT_CONN_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	1469
 /*! transaction: rollback to stable inconsistent checkpoint */
@@ -6715,8 +6715,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: race to read prepared update retry */
 #define	WT_STAT_DSRC_TXN_READ_RACE_PREPARE_UPDATE	2200
 /*!
- * transaction: rollback to stable hs records with stop timestamps older
- * than newer records
+ * transaction: rollback to stable history store records with stop
+ * timestamps older than newer records
  */
 #define	WT_STAT_DSRC_TXN_RTS_HS_STOP_OLDER_THAN_NEWER_START	2201
 /*! transaction: rollback to stable inconsistent checkpoint */
