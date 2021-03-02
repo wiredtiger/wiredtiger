@@ -29,15 +29,13 @@
 #ifndef WORKLOAD_GENERATOR_H
 #define WORKLOAD_GENERATOR_H
 
-#include "api_const.h"
-#include "component.h"
-#include "configuration_settings.h"
 #include "random_generator.h"
-#include "debug_utils.h"
-#include "thread_manager.h"
 #include "workload_tracking.h"
 
 namespace test_harness {
+/*
+ * Class that can execute operations based on a given configuration.
+ */
 class workload_generator : public component {
     public:
     workload_generator(configuration *configuration, bool enable_tracking)
@@ -48,21 +46,8 @@ class workload_generator : public component {
     ~workload_generator()
     {
         delete _workload_tracking;
-        if (_session != nullptr) {
-            if (_session->close(_session, NULL) != 0)
-                /* Failing to close session is not blocking. */
-                debug_info(
-                  "Failed to close session, shutting down uncleanly", _trace_level, DEBUG_ERROR);
-            _session = nullptr;
-        }
-
-        if (_conn != nullptr) {
-            if (_conn->close(_conn, NULL) != 0)
-                /* Failing to close connection is not blocking. */
-                debug_info(
-                  "Failed to close connection, shutting down uncleanly", _trace_level, DEBUG_ERROR);
-            _conn = nullptr;
-        }
+        for (auto &it : _workers)
+            delete it;
     }
 
     /*
@@ -80,35 +65,28 @@ class workload_generator : public component {
     load()
     {
         WT_CURSOR *cursor;
+        WT_SESSION *session;
         int64_t collection_count, key_count, value_size;
         std::string collection_name, home;
 
         cursor = nullptr;
         collection_count = key_count = value_size = 0;
         collection_name = "";
-        home = DEFAULT_DIR;
-
-        /* Create the working dir. */
-        testutil_make_work_dir(home.c_str());
-
-        /* Open connection. */
-        testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn));
 
         /* Create the activity tracker if required. */
         if (_enable_tracking) {
-            _workload_tracking = new workload_tracking(_conn, TRACKING_COLLECTION);
+            _workload_tracking = new workload_tracking(TRACKING_COLLECTION);
             _workload_tracking->load();
         }
 
-        /* Open session. */
-        testutil_check(_conn->open_session(_conn, NULL, NULL, &_session));
+        /* Get a session. */
+        session = conn_api_get_session();
 
         /* Create n collections as per the configuration and store each collection name. */
         testutil_check(_configuration->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            testutil_check(
-              _session->create(_session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
+            testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
             if (_enable_tracking)
                 testutil_check(
                   _workload_tracking->save(tracking_operation::CREATE, collection_name, "", ""));
@@ -124,7 +102,7 @@ class workload_generator : public component {
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
             testutil_check(
-              _session->open_cursor(_session, collection_name.c_str(), NULL, NULL, &cursor));
+              session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
             for (size_t j = 0; j < key_count; ++j) {
                 /* Generation of a random string value using the size defined in the test
                  * configuration. */
@@ -151,18 +129,17 @@ class workload_generator : public component {
         testutil_check(_configuration->get_int(READ_THREADS, read_threads));
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
-            thread_context *tc =
-              new thread_context(session, _collection_names, thread_operation::READ);
+            thread_context *tc = new thread_context(_collection_names, thread_operation::READ);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
     }
 
     void
-    finish() {
-        debug_info("Run stage done", _trace_level, DEBUG_INFO);
-        for (const auto& it : _workers) {
+    finish()
+    {
+        debug_info("Workload generator stage done", _trace_level, DEBUG_INFO);
+        for (const auto &it : _workers) {
             it->finish();
         }
         _thread_manager.join();
@@ -174,32 +151,32 @@ class workload_generator : public component {
     {
         thread_operation operation;
 
+        // Set up work
         operation = context.get_thread_operation();
 
-        if (context.get_session() == nullptr) {
-            testutil_die(DEBUG_ABORT, "system: execute_operation : Session is NULL");
-        }
-
-        switch (operation) {
-        case thread_operation::INSERT:
-            /* Sleep until it is implemented. */
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            break;
-        case thread_operation::READ:
-            read_operation(context);
-            break;
-        case thread_operation::REMOVE:
-            /* Sleep until it is implemented. */
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            break;
-        case thread_operation::UPDATE:
-            /* Sleep until it is implemented. */
-            std::this_thread::sleep_for(std::chrono::seconds(1));
-            break;
-        default:
-            testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
-              static_cast<int>(thread_operation::UPDATE));
-            break;
+        // Main loop
+        while (context.is_running()) {
+            switch (operation) {
+            case thread_operation::INSERT:
+                /* Sleep until it is implemented. */
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                break;
+            case thread_operation::READ:
+                read_operation(context);
+                break;
+            case thread_operation::REMOVE:
+                /* Sleep until it is implemented. */
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                break;
+            case thread_operation::UPDATE:
+                /* Sleep until it is implemented. */
+                std::this_thread::sleep_for(std::chrono::seconds(1));
+                break;
+            default:
+                testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
+                  static_cast<int>(thread_operation::UPDATE));
+                break;
+            }
         }
     }
 
@@ -208,12 +185,14 @@ class workload_generator : public component {
     read_operation(thread_context &context)
     {
         WT_CURSOR *cursor;
+        WT_SESSION *session;
         std::vector<WT_CURSOR *> cursors;
+
+        session = conn_api_get_session();
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : context.get_collection_names()) {
-            testutil_check(context.get_session()->open_cursor(
-              context.get_session(), it.c_str(), NULL, NULL, &cursor));
+            testutil_check(session->open_cursor(session, it.c_str(), NULL, NULL, &cursor));
             cursors.push_back(cursor);
         }
 
@@ -276,11 +255,9 @@ class workload_generator : public component {
     private:
     std::vector<std::string> _collection_names;
     configuration *_configuration = nullptr;
-    WT_CONNECTION *_conn = nullptr;
     bool _enable_tracking = false;
-    WT_SESSION *_session = nullptr;
     thread_manager _thread_manager;
-    std::vector<thread_context*> _workers;
+    std::vector<thread_context *> _workers;
     workload_tracking *_workload_tracking;
 };
 } // namespace test_harness

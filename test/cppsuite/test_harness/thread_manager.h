@@ -29,6 +29,8 @@
 #ifndef THREAD_MANAGER_H
 #define THREAD_MANAGER_H
 
+#include <thread>
+
 #include "thread_context.h"
 
 namespace test_harness {
@@ -37,24 +39,16 @@ class thread_manager {
     public:
     ~thread_manager()
     {
-        for (auto& it : _workers) {
+        for (auto &it : _workers) {
             if (it != nullptr && it->joinable()) {
-                debug_info("You should've called join on the thread manager", DEBUG_ERROR, _trace_level);
+                debug_info(
+                  "You should've called join on the thread manager", _trace_level, DEBUG_ERROR);
                 it->join();
             }
             delete it;
             it = nullptr;
         }
         _workers.clear();
-    }
-
-    void
-    join()
-    {
-        for (const auto& it : _workers) {
-            if (it->joinable())
-                it->join();
-        }
     }
 
     /*
@@ -76,10 +70,22 @@ class thread_manager {
      */
     template <typename Callable, typename Args>
     void
-    add_thread(Callable &&fct, Args&& args)
+    add_thread(Callable &&fct, Args &&args)
     {
         std::thread *t = new std::thread(fct, args);
         _workers.push_back(t);
+    }
+
+    /*
+     * Complete the operations for all threads.
+     */
+    void
+    join()
+    {
+        for (const auto &it : _workers) {
+            if (it->joinable())
+                it->join();
+        }
     }
 
     private:

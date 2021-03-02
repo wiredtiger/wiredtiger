@@ -29,57 +29,39 @@
 #ifndef THREAD_CONTEXT_H
 #define THREAD_CONTEXT_H
 
-#include <thread>
-#include "wiredtiger.h"
-
 namespace test_harness {
 /* Define the different thread operations. */
-enum class thread_operation { INSERT, UPDATE, READ, REMOVE, CHECKPOINT, TIMESTAMP, MONITOR, COMPONENT };
+enum class thread_operation {
+    INSERT,
+    UPDATE,
+    READ,
+    REMOVE,
+    CHECKPOINT,
+    TIMESTAMP,
+    MONITOR,
+    COMPONENT
+};
+
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(
-      WT_SESSION *session, std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _running(false), _session(session),
-          _type(type)
+    thread_context(std::vector<std::string> collection_names, thread_operation type)
+        : _collection_names(collection_names), _running(false), _type(type)
     {
     }
 
-    thread_context(thread_operation type)
-        : _running(false), _session(nullptr), _type(type)
-    {
-    }
+    thread_context(thread_operation type) : _running(false), _type(type) {}
 
-    ~thread_context()
-    {
-        if (_session != nullptr)
-            testutil_die(DEBUG_ABORT,
-              "Session should've been cleaned up already. Did you forget to"
-              "call finish on the thread_manager?");
-    }
-
-    /* Cleanup state which isn't relevant to the  */
     void
     finish()
     {
         _running = false;
-        if (_session != nullptr) {
-            if (_session->close(_session, NULL) != 0)
-                debug_info("Failed to close session for current thread", _trace_level, DEBUG_ERROR);
-            _session = nullptr;
-        }
     }
 
     const std::vector<std::string> &
     get_collection_names() const
     {
         return _collection_names;
-    }
-
-    WT_SESSION *
-    get_session() const
-    {
-        return _session;
     }
 
     thread_operation
@@ -103,7 +85,6 @@ class thread_context {
     private:
     const std::vector<std::string> _collection_names;
     bool _running;
-    WT_SESSION *_session;
     const thread_operation _type;
 };
 } // namespace test_harness

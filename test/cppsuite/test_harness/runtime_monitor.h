@@ -29,8 +29,6 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
-#include "component.h"
-
 namespace test_harness {
 /*
  * The runtime monitor class is designed to track various statistics or other runtime signals
@@ -39,7 +37,8 @@ namespace test_harness {
 class runtime_monitor : public component {
     public:
     void
-    run() {
+    run()
+    {
         while (_running) {
             /* Do something. */
         }

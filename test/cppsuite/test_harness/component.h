@@ -15,7 +15,9 @@ class component {
      * The load function should perform all tasked required to setup the component for the main
      * phase of the test.
      */
-    virtual void load() {
+    virtual void
+    load()
+    {
         _running = true;
     }
 
@@ -29,12 +31,14 @@ class component {
      * requirements can be performed in this phase. An example could be the verifcation of the
      * database. Or checking some relevant statistics.
      */
-    virtual void finish() {
+    virtual void
+    finish()
+    {
         _running = false;
     }
 
-protected:
+    protected:
     volatile bool _running;
 };
-}
+} // namespace test_harness
 #endif

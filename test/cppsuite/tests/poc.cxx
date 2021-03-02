@@ -27,8 +27,9 @@
  */
 
 #include <iostream>
-#include <cstdlib>
+#include <string>
 
+#include "test_harness/debug_utils.h"
 #include "test_harness/test.h"
 
 class poc_test : public test_harness::test {

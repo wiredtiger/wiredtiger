@@ -1,9 +1,9 @@
 #ifndef WORKLOAD_TRACKING_H
 #define WORKLOAD_TRACKING_H
 
-/* Default schema for tracking table
- * key_format : Collection name / Key
- * value_format : Operation type / Value / Timestamp
+/*
+ * Default schema for tracking table key_format : Collection name / Key value_format : Operation
+ * type / Value / Timestamp
  */
 #define DEFAULT_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Si)
 #define DEFAULT_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iSi)
@@ -17,32 +17,21 @@ enum class tracking_operation { CREATE, INSERT };
 class workload_tracking {
 
     public:
-    workload_tracking(WT_CONNECTION *conn, const std::string &collection_name)
-        : _collection_name(collection_name), _conn(conn), _timestamp(0U)
+    workload_tracking(const std::string &collection_name)
+        : _collection_name(collection_name), _timestamp(0U)
     {
-    }
-
-    ~workload_tracking()
-    {
-        if (_session != nullptr) {
-            if (_session->close(_session, NULL) != 0)
-                /* Failing to close session is not blocking. */
-                debug_info(
-                  "Failed to close session, shutting down uncleanly", _trace_level, DEBUG_ERROR);
-            _session = nullptr;
-        }
     }
 
     int
     load(const std::string &table_schema = DEFAULT_TRACKING_TABLE_SCHEMA)
     {
-        /* Open session. */
-        testutil_check(_conn->open_session(_conn, NULL, NULL, &_session));
+        WT_SESSION *session;
 
         /* Create tracking collection. */
-        testutil_check(_session->create(_session, _collection_name.c_str(), table_schema.c_str()));
+        session = conn_api_get_session();
+        testutil_check(session->create(session, _collection_name.c_str(), table_schema.c_str()));
         testutil_check(
-          _session->open_cursor(_session, _collection_name.c_str(), NULL, NULL, &_cursor));
+          session->open_cursor(session, _collection_name.c_str(), NULL, NULL, &_cursor));
         debug_info("Tracking collection created", _trace_level, DEBUG_INFO);
 
         return (0);
@@ -69,10 +58,8 @@ class workload_tracking {
     }
 
     private:
-    WT_CONNECTION *_conn = nullptr;
     const std::string _collection_name;
     WT_CURSOR *_cursor = nullptr;
-    WT_SESSION *_session = nullptr;
     uint64_t _timestamp;
 };
 } // namespace test_harness
