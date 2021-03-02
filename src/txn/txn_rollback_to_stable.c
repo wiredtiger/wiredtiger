@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -17,12 +17,12 @@
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? WT_VERB_RECOVERY | WT_VERB_RTS : WT_VERB_RTS)
 
 /*
- * __rollback_abort_newer_update --
+ * __rollback_abort_update --
  *     Abort updates in an update change with timestamps newer than the rollback timestamp. Also,
  *     clear the history store flag for the first stable update in the update.
  */
 static void
-__rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
+__rollback_abort_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
     WT_UPDATE *upd;
@@ -77,26 +77,25 @@ __rollback_abort_newer_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
 }
 
 /*
- * __rollback_abort_col_newer_insert_update --
+ * __rollback_abort_col_insert_list --
  *     Apply the update abort check to each entry in an insert skip list.
  */
 static void
-__rollback_abort_col_newer_insert_update(WT_SESSION_IMPL *session, WT_INSERT_HEAD *head,
+__rollback_abort_col_insert_list(WT_SESSION_IMPL *session, WT_INSERT_HEAD *head,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
     WT_INSERT *ins;
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
-            __rollback_abort_newer_update(
-              session, ins->upd, rollback_timestamp, stable_update_found);
+            __rollback_abort_update(session, ins->upd, rollback_timestamp, stable_update_found);
 }
 
 /*
- * __rollback_abort_newer_insert --
+ * __rollback_abort_insert_list --
  *     Apply the update abort check to each entry in an insert skip list.
  */
 static void
-__rollback_abort_newer_insert(
+__rollback_abort_insert_list(
   WT_SESSION_IMPL *session, WT_INSERT_HEAD *head, wt_timestamp_t rollback_timestamp)
 {
     WT_INSERT *ins;
@@ -104,8 +103,33 @@ __rollback_abort_newer_insert(
 
     WT_SKIP_FOREACH (ins, head)
         if (ins->upd != NULL)
-            __rollback_abort_newer_update(
-              session, ins->upd, rollback_timestamp, &stable_update_found);
+            __rollback_abort_update(session, ins->upd, rollback_timestamp, &stable_update_found);
+}
+
+/*
+ * __rollback_col_modify --
+ *     Add the provided update to the head of the update list.
+ */
+static inline int
+__rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uint64_t recno)
+{
+    WT_CURSOR_BTREE cbt;
+    WT_DECL_RET;
+
+    __wt_btcur_init(session, &cbt);
+    __wt_btcur_open(&cbt);
+
+    /* Search the page. */
+    WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
+
+    /* Apply the modification. */
+    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+
+err:
+    /* Free any resources that may have been cached in the cursor. */
+    WT_TRET(__wt_btcur_close(&cbt, true));
+
+    return (ret);
 }
 
 /*
@@ -964,13 +988,12 @@ err:
 }
 
 /*
- * __rollback_abort_newer_col_var --
+ * __rollback_abort_col_var --
  *     Abort updates on a variable length col leaf page with timestamps newer than the rollback
  *     timestamp.
  */
 static void
-__rollback_abort_newer_col_var(
-  WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV unpack;
@@ -990,27 +1013,22 @@ __rollback_abort_newer_col_var(
     else
         recno = 0;
 
-    printf("=== __rollback_abort_newer_col_var ===\n");
     /* Review the changes to the original on-page data items. */
     WT_COL_FOREACH (page, cip, i) {
-        printf("recno: %" PRIu64 "\n", recno);
         stable_update_found = false;
 
         if ((ins = WT_COL_UPDATE(page, cip)) != NULL)
-            __rollback_abort_col_newer_insert_update(
+            __rollback_abort_col_insert_list(
               session, ins, rollback_timestamp, &stable_update_found);
 
         if (!stable_update_found && page->dsk != NULL) {
             kcell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            // __rollback_abort_col_ondisk_kv(session, page, cip, rollback_timestamp, recno);
             for (j = 0; j < rle; j++) {
                 __rollback_abort_col_ondisk_kv(session, ref, cip, rollback_timestamp, recno + j);
-                printf("recno: %" PRIu64 "\n", recno + j);
             }
             recno += rle;
-            printf("recno + rle: %" PRIu64 "\n", recno);
         } else {
             recno++;
         }
@@ -1018,27 +1036,26 @@ __rollback_abort_newer_col_var(
 
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_insert_list(session, ins, rollback_timestamp);
 }
 
 /*
- * __rollback_abort_newer_col_fix --
+ * __rollback_abort_col_fix --
  *     Abort updates on a fixed length col leaf page with timestamps newer than the rollback
  *     timestamp.
  */
 static void
-__rollback_abort_newer_col_fix(
-  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
+__rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
     WT_INSERT_HEAD *ins;
 
     /* Review the changes to the original on-page data items */
     if ((ins = WT_COL_UPDATE_SINGLE(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_insert_list(session, ins, rollback_timestamp);
 
     /* Review the append list */
     if ((ins = WT_COL_APPEND(page)) != NULL)
-        __rollback_abort_newer_insert(session, ins, rollback_timestamp);
+        __rollback_abort_insert_list(session, ins, rollback_timestamp);
 }
 
 /*
@@ -1157,11 +1174,11 @@ __rollback_abort_row_reconciled_page(
 }
 
 /*
- * __rollback_abort_newer_row_leaf --
+ * __rollback_abort_row_leaf --
  *     Abort updates on a row leaf page with timestamps newer than the rollback timestamp.
  */
 static int
-__rollback_abort_newer_row_leaf(
+__rollback_abort_row_leaf(
   WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
 {
     WT_INSERT_HEAD *insert;
@@ -1174,7 +1191,7 @@ __rollback_abort_newer_row_leaf(
      * Review the insert list for keys before the first entry on the disk page.
      */
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
-        __rollback_abort_newer_insert(session, insert, rollback_timestamp);
+        __rollback_abort_insert_list(session, insert, rollback_timestamp);
 
     /*
      * Review updates that belong to keys that are on the disk image, as well as for keys inserted
@@ -1183,10 +1200,10 @@ __rollback_abort_newer_row_leaf(
     WT_ROW_FOREACH (page, rip, i) {
         stable_update_found = false;
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)
-            __rollback_abort_newer_update(session, upd, rollback_timestamp, &stable_update_found);
+            __rollback_abort_update(session, upd, rollback_timestamp, &stable_update_found);
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
-            __rollback_abort_newer_insert(session, insert, rollback_timestamp);
+            __rollback_abort_insert_list(session, insert, rollback_timestamp);
 
         /*
          * If there is no stable update found in the update list, abort any on-disk value.
@@ -1300,12 +1317,11 @@ __rollback_page_needs_abort(
 }
 
 /*
- * __rollback_abort_newer_updates --
+ * __rollback_abort_updates --
  *     Abort updates on this page newer than the timestamp.
  */
 static int
-__rollback_abort_newer_updates(
-  WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
+__rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     WT_PAGE *page;
 
@@ -1336,10 +1352,10 @@ __rollback_abort_newer_updates(
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
-        __rollback_abort_newer_col_fix(session, page, rollback_timestamp);
+        __rollback_abort_col_fix(session, page, rollback_timestamp);
         break;
     case WT_PAGE_COL_VAR:
-        __rollback_abort_newer_col_var(session, ref, rollback_timestamp);
+        __rollback_abort_col_var(session, ref, rollback_timestamp);
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
@@ -1350,7 +1366,7 @@ __rollback_abort_newer_updates(
          */
         break;
     case WT_PAGE_ROW_LEAF:
-        WT_RET(__rollback_abort_newer_row_leaf(session, page, rollback_timestamp));
+        WT_RET(__rollback_abort_row_leaf(session, page, rollback_timestamp));
         break;
     default:
         WT_RET(__wt_illegal_value(session, page->type));
@@ -1427,7 +1443,7 @@ __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollbac
             }
             WT_INTL_FOREACH_END;
         } else
-            WT_RET(__rollback_abort_newer_updates(session, ref, rollback_timestamp));
+            WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp));
 
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
     return (ret);
