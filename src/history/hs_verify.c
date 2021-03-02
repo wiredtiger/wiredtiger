@@ -109,7 +109,7 @@ __wt_hs_verify_one(WT_SESSION_IMPL *session)
     btree_id = S2BT(session)->id;
 
     hs_cursor->set_key(hs_cursor, 1, btree_id);
-    WT_ERR(__wt_hs_cursor_search_near_after(session, hs_cursor));
+    WT_ERR(__wt_curhs_search_near_after(session, hs_cursor));
 
     /*
      * If we positioned the cursor there is something to verify.
