@@ -547,7 +547,9 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-                /* We find a key that is smaller or equal to the specified key. */
+                /*
+                 * Exit if we have found a key that is smaller than or equal to the specified key.
+                 */
                 if (cmp <= 0)
                     break;
             }
@@ -562,7 +564,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
                 WT_STAT_CONN_INCR(session, cursor_skip_hs_cur_position);
                 WT_STAT_DATA_INCR(session, cursor_skip_hs_cur_position);
                 WT_ERR(__wt_compare(session, NULL, &cursor->key, srch_key, &cmp));
-                /* We find a key that is smaller or equal to the specified key. */
+                /* Exit if we have found a key that is larger than or equal to the specified key. */
                 if (cmp >= 0)
                     break;
             }
