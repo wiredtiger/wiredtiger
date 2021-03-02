@@ -40,13 +40,13 @@ class thread_context {
     public:
     thread_context(
       WT_SESSION *session, std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _running(false), _session(session), _thread(nullptr),
+        : _collection_names(collection_names), _running(false), _session(session),
           _type(type)
     {
     }
 
     thread_context(thread_operation type)
-        : _running(false), _session(nullptr), _thread(nullptr), _type(type)
+        : _running(false), _session(nullptr), _type(type)
     {
     }
 
@@ -56,17 +56,13 @@ class thread_context {
             testutil_die(DEBUG_ABORT,
               "Session should've been cleaned up already. Did you forget to"
               "call finish on the thread_manager?");
-        delete _thread;
-        _thread = nullptr;
     }
 
-    /* Cleanup state. */
+    /* Cleanup state which isn't relevant to the  */
     void
     finish()
     {
         _running = false;
-        if (_thread != nullptr && _thread->joinable())
-            _thread->join();
         if (_session != nullptr) {
             if (_session->close(_session, NULL) != 0)
                 debug_info("Failed to close session for current thread", _trace_level, DEBUG_ERROR);
@@ -99,12 +95,6 @@ class thread_context {
     }
 
     void
-    set_thread(std::thread *thread)
-    {
-        _thread = thread;
-    }
-
-    void
     set_running(bool running)
     {
         _running = running;
@@ -114,7 +104,6 @@ class thread_context {
     const std::vector<std::string> _collection_names;
     bool _running;
     WT_SESSION *_session;
-    std::thread *_thread;
     const thread_operation _type;
 };
 } // namespace test_harness

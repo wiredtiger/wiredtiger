@@ -48,7 +48,6 @@ class workload_generator : public component {
     ~workload_generator()
     {
         delete _workload_tracking;
-
         if (_session != nullptr) {
             if (_session->close(_session, NULL) != 0)
                 /* Failing to close session is not blocking. */
@@ -166,6 +165,7 @@ class workload_generator : public component {
         for (const auto& it : _workers) {
             it->finish();
         }
+        _thread_manager.join();
     }
 
     /* Workload threaded operations. */

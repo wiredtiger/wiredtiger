@@ -37,8 +37,23 @@ class thread_manager {
     public:
     ~thread_manager()
     {
-        for (const auto& it : _workers) {
+        for (auto& it : _workers) {
+            if (it != nullptr && it->joinable()) {
+                debug_info("You should've called join on the thread manager", DEBUG_ERROR, _trace_level);
+                it->join();
+            }
             delete it;
+            it = nullptr;
+        }
+        _workers.clear();
+    }
+
+    void
+    join()
+    {
+        for (const auto& it : _workers) {
+            if (it->joinable())
+                it->join();
         }
     }
 
