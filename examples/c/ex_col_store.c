@@ -53,9 +53,7 @@ typedef struct {
 } WEATHER;
 
 static void update_celsius_to_fahrenheit(WT_SESSION *session);
-static void print_temp_column(WT_SESSION *session);
 static void print_all_columns(WT_SESSION *session);
-static void chance_of_rain(WT_SESSION *session);
 static void generate_data(WEATHER *w_array);
 static void remove_country(WT_SESSION *session);
 static void average_data(WT_SESSION *session);
@@ -78,48 +76,31 @@ print_all_columns(WT_SESSION *session)
         error_check(cursor->get_value(cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
           &humidity, &wind, &feels_like_temp, &day, &country));
 
-        // printf(
-        //   "{\n"
-        //   "    ID: %" PRIu64
-        //   "\n"
-        //   "    day: %s\n"
-        //   "    hour: %" PRIu16
-        //   "\n"
-        //   "    temp: %" PRIu8
-        //   "\n"
-        //   "    humidity: %" PRIu8
-        //   "\n"
-        //   "    pressure: %" PRIu16
-        //   "\n"
-        //   "    wind: %" PRIu8
-        //   "\n"
-        //   "    feels like: %" PRIu8
-        //   "\n"
-        //   "    lat: %" PRIu16
-        //   "\n"
-        //   "    long: %" PRIu16
-        //   "\n"
-        //   "    country: %s\n"
-        //   "}\n\n",
-        //   recno, day, hour, temp, humidity, pressure, wind, feels_like_temp, loc_lat, loc_long,
-        //   country);
-    }
-    scan_end_check(ret == WT_NOTFOUND);
-    error_check(cursor->close(cursor));
-}
-
-static void
-print_temp_column(WT_SESSION *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    uint8_t temp;
-
-    error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
-    // printf("Temperature: \n");
-    while ((ret = cursor->next(cursor)) == 0) {
-        error_check(cursor->get_value(cursor, &temp));
-        // printf("%d\n", temp);
+        printf(
+          "{\n"
+          "    ID: %" PRIu64
+          "\n"
+          "    day: %s\n"
+          "    hour: %" PRIu16
+          "\n"
+          "    temp: %" PRIu8
+          "\n"
+          "    humidity: %" PRIu8
+          "\n"
+          "    pressure: %" PRIu16
+          "\n"
+          "    wind: %" PRIu8
+          "\n"
+          "    feels like: %" PRIu8
+          "\n"
+          "    lat: %" PRIu16
+          "\n"
+          "    long: %" PRIu16
+          "\n"
+          "    country: %s\n"
+          "}\n\n",
+          recno, day, hour, temp, humidity, pressure, wind, feels_like_temp, loc_lat, loc_long,
+          country);
     }
     scan_end_check(ret == WT_NOTFOUND);
     error_check(cursor->close(cursor));
@@ -150,29 +131,6 @@ update_celsius_to_fahrenheit(WT_SESSION *session)
 }
 
 static void
-chance_of_rain(WT_SESSION *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    uint64_t recno;
-    uint16_t pressure;
-    uint8_t humidity;
-
-    error_check(
-      session->open_cursor(session, "colgroup:weather:humidity_pressure", NULL, NULL, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
-        error_check(cursor->get_key(cursor, &recno));
-        error_check(cursor->get_value(cursor, &pressure, &humidity));
-        // if (humidity > 70 && pressure < 1000)
-        //     printf("Rain likely\n");
-        // else
-        //     printf("Rain unlikely\n");
-    }
-    scan_end_check(ret == WT_NOTFOUND);
-    error_check(cursor->close(cursor));
-}
-
-static void
 remove_country(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
@@ -189,7 +147,6 @@ remove_country(WT_SESSION *session)
         error_check(cursor->get_key(cursor, &recno));
         error_check(cursor->get_value(cursor, &loc_lat, &loc_long, &country));
         if (strcmp("AUS", country) == 0) {
-            // printf("Removing %s\n", country);
             error_check(cursor->remove(cursor));
         }
     }
@@ -421,22 +378,19 @@ average_data(WT_SESSION *session)
     scan_end_check(ret == WT_NOTFOUND);
     error_check(loc_cursor->close(loc_cursor));
 
-    /* For debugging purposes. */
-    // printf("Number of matching entries: %u \n", count);
-
     /* Get the average values by dividing with the total number of records. */
     for (int i = 0; i < NUM_REC; i++)
         rec_arr[i] = rec_arr[i] / count;
 
     /* List the average records */
-    // printf(
-    //   "Average records for location RUS : \nTemp: %u"
-    //   ", Humidity: %u"
-    //   ", Pressure: %u"
-    //   ", Wind: %u"
-    //   ", Feels like: %u"
-    //   "\n",
-    //   rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
+    printf(
+      "Average records for location RUS : \nTemp: %u"
+      ", Humidity: %u"
+      ", Pressure: %u"
+      ", Wind: %u"
+      ", Feels like: %u"
+      "\n",
+      rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
 }
 
 int
@@ -495,12 +449,8 @@ main(int argc, char *argv[])
     /* Prints all the data in the database. */
     print_all_columns(session);
 
-    print_temp_column(session);
-
     /* Update the temperature from Celsius to Fahrenheit. */
     update_celsius_to_fahrenheit(session);
-
-    print_temp_column(session);
 
     /* Create indexes for searching */
     error_check(session->create(session, "index:weather:hour", "columns=(hour)"));
@@ -519,15 +469,13 @@ main(int argc, char *argv[])
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
     if (ret == 0) {
-    //     printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
-    //       starting_time, ending_time, min_temp_result);
-    //     printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
-    //       starting_time, ending_time, max_temp_result);
+        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+          starting_time, ending_time, min_temp_result);
+        printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+          starting_time, ending_time, max_temp_result);
     }
 
-    chance_of_rain(session);
     remove_country(session);
-    print_all_columns(session);
     average_data(session);
 
     /* Close the connection. */
