@@ -9,12 +9,12 @@
 
 #include "wt_internal.h"
 
-static int __file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR **);
-static int __file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_prev_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
-static int __file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __curhs_next_visible(WT_SESSION_IMPL *, WT_CURSOR_HS *);
 static int __curhs_search_near_helper(WT_SESSION_IMPL *, WT_CURSOR *, bool);
+static int __file_cursor_next(WT_SESSION_IMPL *, WT_CURSOR *);
+static int __file_cursor_open(WT_SESSION_IMPL *, WT_CURSOR **);
+static int __file_cursor_prev(WT_SESSION_IMPL *, WT_CURSOR *);
 static int __file_cursor_search_near(WT_SESSION_IMPL *, WT_CURSOR *, int *);
 /*
  * __file_cursor_open --
