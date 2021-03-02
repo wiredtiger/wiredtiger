@@ -393,8 +393,8 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
 
         /*
-         * If we are using history store cursor and do not have a snapshot, we should set the flag
-         * WT_CURSTD_HS_READ_COMMITTED on the cursor.
+         * If we are using a history store cursor and haven't set the WT_CURSTD_HS_READ_COMMITTED
+         * flag then we must have a snapshot, assert that we do.
          */
         WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
@@ -482,8 +482,8 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             break;
 
         /*
-         * If we are using history store cursor and do not have a snapshot, we should set the flag
-         * WT_CURSTD_HS_READ_COMMITTED on the cursor.
+         * If we are using a history store cursor and haven't set the WT_CURSTD_HS_READ_COMMITTED
+         * flag then we must have a snapshot, assert that we do.
          */
         WT_ASSERT(session, F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
