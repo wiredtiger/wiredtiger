@@ -952,15 +952,15 @@ int
 __wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_BTREE *hs_btree;
     WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)session_arg;
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    cbt = __wt_curhs_cbt(hs_cursor);
-    WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
+    hs_btree = __wt_curhs_btree(hs_cursor);
+    WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
     WT_TRET(hs_cursor->close(hs_cursor));
 
     return (ret);
