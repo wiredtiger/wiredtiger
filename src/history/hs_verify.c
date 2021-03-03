@@ -44,17 +44,17 @@ __hs_verify_id(
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
-
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
          * up for the next tree and call us, if they choose. For a full history store walk, the
          * caller sends in WT_BTREE_ID_INVALID and this function will set and use the first btree id
          * it finds and will return once it walks off that tree, leaving the cursor set to the first
          * key of that new tree.
+         *
+         * We should never cross the btree id, assert if we do so.
          */
-        if (btree_id != this_btree_id)
-            break;
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
+        WT_ASSERT(session, btree_id == this_btree_id);
 
         /*
          * If we have already checked against this key, keep going to the next key. We only need to
