@@ -55,20 +55,18 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 
 /*
  * __wt_hs_get_btree --
- *     Get the history store btree. Open a history store cursor if needed to get the btree.
+ *     Get the history store btree by opening a history store cursor.
  */
 int
 __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
     WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
 
     *hs_btreep = NULL;
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    cbt = __wt_curhs_cbt(hs_cursor);
-    *hs_btreep = CUR2BT(cbt);
+    *hs_btreep = __wt_curhs_btree(hs_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
     WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
