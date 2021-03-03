@@ -41,18 +41,18 @@ when configuring a storage source for ::wiredtiger_open to allow the possibility
 of varying the location according to different names and buckets.
 
 The configuration parameter
-<code>tiered_storage=(bucket=<em>identifier<em>)</code>
+<code>tiered_storage=(bucket=<em>identifier</em>)</code>
 may be used in ::wiredtiger_open or WT_SESSION::create calls. This is intended
 to reference a location in the storage source for where to find or place objects.
 
-The configuration parameter <code>cluster=<em>identifier<em></code> is used
+The configuration parameter <code>cluster=<em>identifier</em></code> is used
 only in the ::wiredtiger_open call. The value of the cluster is unchanging
 for this database. Its intent is to identify the objects belonging to this
 database so that they are unique in case multiple databases share an
 object-storage bucket. It must always be provided
 when WiredTiger is reopened (again, with the ::wiredtiger_open call).
 
-Similarly, the configuration parameter <code>member=<em>identifier<em></code> is used
+Similarly, the configuration parameter <code>member=<em>identifier</em></code> is used
 only in the ::wiredtiger_open call. There may be multiple nodes accessing the
 same cluster's database objects in the storage source. The member id will make
 the names of objects it creates unique from objects potentially created by other
