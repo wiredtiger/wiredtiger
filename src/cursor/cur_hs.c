@@ -122,11 +122,11 @@ __curhs_file_cursor_search_near(WT_SESSION_IMPL *session, WT_CURSOR *cursor, int
 }
 
 /*
- * __curhs_copy_key_ptr --
+ * __curhs_set_key_ptr --
  *     Copy the key buffer pointer from file cursor to the history store cursor.
  */
 static inline void
-__curhs_copy_key_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+__curhs_set_key_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->key.data = file_cursor->key.data;
     hs_cursor->key.size = file_cursor->key.size;
@@ -135,11 +135,11 @@ __curhs_copy_key_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 }
 
 /*
- * __curhs_copy_value_ptr --
+ * __curhs_set_value_ptr --
  *     Copy the value buffer pointer from file cursor to the history store cursor.
  */
 static inline void
-__curhs_copy_value_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
+__curhs_set_value_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 {
     hs_cursor->value.data = file_cursor->value.data;
     hs_cursor->value.size = file_cursor->value.size;
@@ -171,8 +171,8 @@ __curhs_next(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_next_visible(session, hs_cursor));
 
-    __curhs_copy_key_ptr(cursor, file_cursor);
-    __curhs_copy_value_ptr(cursor, file_cursor);
+    __curhs_set_key_ptr(cursor, file_cursor);
+    __curhs_set_value_ptr(cursor, file_cursor);
 
     if (0) {
 err:
@@ -205,8 +205,8 @@ __curhs_prev(WT_CURSOR *cursor)
      */
     WT_ERR(__curhs_prev_visible(session, hs_cursor));
 
-    __curhs_copy_key_ptr(cursor, file_cursor);
-    __curhs_copy_value_ptr(cursor, file_cursor);
+    __curhs_set_key_ptr(cursor, file_cursor);
+    __curhs_set_value_ptr(cursor, file_cursor);
 
     if (0) {
 err:
@@ -263,10 +263,10 @@ __curhs_reset(WT_CURSOR *cursor)
     hs_cursor->datastore_key->data = NULL;
     hs_cursor->datastore_key->size = 0;
     hs_cursor->flags = 0;
-    cursor->key.data = cursor->key.mem;
-    cursor->key.size = cursor->key.memsize;
-    cursor->value.data = cursor->value.mem;
-    cursor->value.size = cursor->value.memsize;
+    cursor->key.data = NULL;
+    cursor->key.size = 0;
+    cursor->value.data = NULL;
+    cursor->value.size = 0;
     F_CLR(cursor, WT_CURSTD_KEY_SET);
     F_CLR(cursor, WT_CURSTD_VALUE_SET);
 
@@ -332,7 +332,7 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
     file_cursor->set_key(
       file_cursor, hs_cursor->btree_id, hs_cursor->datastore_key, start_ts, counter);
 
-    __curhs_copy_key_ptr(cursor, file_cursor);
+    __curhs_set_key_ptr(cursor, file_cursor);
 }
 
 /*
@@ -743,8 +743,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
       session, (cmp == 0 && *exactp == 0) || (cmp < 0 && *exactp < 0) || (cmp > 0 && *exactp > 0));
 #endif
 
-    __curhs_copy_key_ptr(cursor, file_cursor);
-    __curhs_copy_value_ptr(cursor, file_cursor);
+    __curhs_set_key_ptr(cursor, file_cursor);
+    __curhs_set_value_ptr(cursor, file_cursor);
 
     if (0) {
 err:
@@ -784,7 +784,7 @@ __curhs_set_value(WT_CURSOR *cursor, ...)
     file_cursor->set_value(file_cursor, stop_ts, start_ts, type, hs_val);
     va_end(ap);
 
-    __curhs_copy_value_ptr(cursor, file_cursor);
+    __curhs_set_value_ptr(cursor, file_cursor);
 }
 
 /*
@@ -987,8 +987,8 @@ __curhs_update(WT_CURSOR *cursor)
         WT_TRET(ret);
     }
 
-    __curhs_copy_key_ptr(cursor, file_cursor);
-    __curhs_copy_value_ptr(cursor, file_cursor);
+    __curhs_set_key_ptr(cursor, file_cursor);
+    __curhs_set_value_ptr(cursor, file_cursor);
 
     if (0) {
 err:
