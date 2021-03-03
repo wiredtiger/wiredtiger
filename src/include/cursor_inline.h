@@ -16,7 +16,7 @@ __wt_curhs_btree(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
     hs_cursor = (WT_CURSOR_HS *)cursor;
 
-    return CUR2BT(hs_cursor->file_cursor);
+    return (CUR2BT(hs_cursor->file_cursor));
 }
 
 /*
@@ -29,7 +29,7 @@ __wt_curhs_cbt(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
     hs_cursor = (WT_CURSOR_HS *)cursor;
 
-    return (WT_CURSOR_BTREE *)hs_cursor->file_cursor;
+    return ((WT_CURSOR_BTREE *)hs_cursor->file_cursor);
 }
 
 /*
