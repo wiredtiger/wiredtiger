@@ -1030,6 +1030,7 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_CURSOR_HS *hs_cursor;
     WT_DECL_RET;
 
+    *cursorp = NULL;
     WT_RET(__wt_calloc_one(session, &hs_cursor));
     ++session->hs_cursor_counter;
     cursor = (WT_CURSOR *)hs_cursor;
