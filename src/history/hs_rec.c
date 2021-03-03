@@ -93,7 +93,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 #ifdef HAVE_DIAGNOSTIC
     /* Allocate buffer for the existing history store value for the same key. */
     WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
-    hs_cbt = __wt_curhs_cbt(cursor);
+    hs_cbt = __wt_curhs_get_cbt(cursor);
 #endif
 
     /* Sanity check that the btree is not a history store btree. */
@@ -622,7 +622,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-    hs_btree = __wt_curhs_btree(hs_cursor);
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
@@ -700,7 +700,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     char ts_string[5][WT_TS_INT_STRING_SIZE];
 
     hs_insert_cursor = NULL;
-    hs_cbt = __wt_curhs_cbt(hs_cursor);
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
 
@@ -846,7 +846,7 @@ __hs_delete_key_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_
     uint64_t hs_counter, hs_insert_counter, hs_upd_type;
     uint32_t hs_btree_id;
 
-    hs_cbt = __wt_curhs_cbt(hs_cursor);
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
     hs_insert_counter = 0;
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);

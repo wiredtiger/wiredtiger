@@ -95,7 +95,7 @@ __wt_hs_upd_time_window(WT_CURSOR *hs_cursor, WT_TIME_WINDOW **twp)
 {
     WT_CURSOR_BTREE *hs_cbt;
 
-    hs_cbt = __wt_curhs_cbt(hs_cursor);
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
     *twp = &hs_cbt->upd_value->tw;
 }
 

@@ -7,11 +7,11 @@
  */
 
 /*
- * __wt_curhs_btree --
+ * __wt_curhs_get_btree --
  *     Convert a history store cursor to the underlying btree.
  */
 static inline WT_BTREE *
-__wt_curhs_btree(WT_CURSOR *cursor)
+__wt_curhs_get_btree(WT_CURSOR *cursor)
 {
     WT_CURSOR_HS *hs_cursor;
     hs_cursor = (WT_CURSOR_HS *)cursor;
@@ -20,11 +20,11 @@ __wt_curhs_btree(WT_CURSOR *cursor)
 }
 
 /*
- * __wt_curhs_cbt --
+ * __wt_curhs_get_cbt --
  *     Convert a history store cursor to the underlying btree cursor.
  */
 static inline WT_CURSOR_BTREE *
-__wt_curhs_cbt(WT_CURSOR *cursor)
+__wt_curhs_get_cbt(WT_CURSOR *cursor)
 {
     WT_CURSOR_HS *hs_cursor;
     hs_cursor = (WT_CURSOR_HS *)cursor;
