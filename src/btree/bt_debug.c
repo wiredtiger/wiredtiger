@@ -1009,10 +1009,10 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
      * doesn't work, we may be running in-memory.
      */
     if (!WT_IS_HS(session->dhandle)) {
-        if (__wt_curhs_open(session, NULL, &hs_cursor) == 0) {
-            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
-            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
-        }
+        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
 
