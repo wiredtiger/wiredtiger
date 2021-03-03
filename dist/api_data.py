@@ -420,7 +420,7 @@ file_config = format_meta + file_runtime_config + [
             Permitted values are \c "none"
             or custom storage source engine name created with
             WT_CONNECTION::add_storage_source.
-            See @ref storage_source for more information'''),
+            See @ref custom_storage_sources for more information'''),
         Config('bucket', '', r'''
             The bucket indicating the location for this table'''),
         Config('local_retention', '300', r'''

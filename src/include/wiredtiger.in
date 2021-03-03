@@ -1272,7 +1272,7 @@ struct __wt_session {
 	 * default \c 300.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or
 	 * custom storage source engine name created with WT_CONNECTION::add_storage_source.  See
-	 * @ref storage_source for more information., a string; default \c none.}
+	 * @ref custom_storage_sources for more information., a string; default \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the approximate size of objects
 	 * before creating them on the tiered storage tier., an integer between 100K and 10TB;
 	 * default \c 10M.}
