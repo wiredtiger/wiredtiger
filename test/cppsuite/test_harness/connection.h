@@ -39,9 +39,11 @@ extern "C" {
 #include "api_const.h"
 #include "debug_utils.h"
 
-/* Define common resource access functions. */
 namespace test_harness {
-
+/*
+ * Singleton class owning the database connection, provides access to sessions and any other
+ * required connection API calls.
+ */
 class connection {
     public:
     /* No copies of the singleton allowed. */
@@ -67,6 +69,11 @@ class connection {
     void
     create(std::string home = DEFAULT_DIR)
     {
+        if (_conn != nullptr) {
+            debug_info("Connection is not NULL, cannot be re-opened.", _trace_level, DEBUG_ERROR);
+            testutil_die(EINVAL, "Connection is not NULL");
+        }
+
         /* Create the working dir. */
         testutil_make_work_dir(home.c_str());
 
@@ -82,7 +89,7 @@ class connection {
         if (_conn == nullptr) {
             debug_info("Connection is NULL, did you forget to call conn_api_open ?", _trace_level,
               DEBUG_ERROR);
-            testutil_die(CONNECTION_NULL, "Connection is NULL");
+            testutil_die(EINVAL, "Connection is NULL");
         }
 
         _conn_mutex.lock();

@@ -40,8 +40,6 @@ static const char *READ_THREADS = "read_threads";
 static const char *VALUE_SIZE = "value_size";
 static const char *TRACKING_COLLECTION = "table:tracking";
 
-static int CONNECTION_NULL = -1;
-
 } // namespace test_harness
 
 #endif
