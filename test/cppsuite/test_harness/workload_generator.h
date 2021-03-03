@@ -149,20 +149,24 @@ class workload_generator : public component {
     static void
     execute_operation(thread_context &context)
     {
+        WT_SESSION *session;
         thread_operation operation;
 
-        // Set up work
-        operation = context.get_thread_operation();
+        session = connection::instance().get_session();
 
-        // Main loop
+        /* Main loop for worker threads. */
         while (context.is_running()) {
-            switch (operation) {
+            switch (context.get_thread_operation()) {
             case thread_operation::INSERT:
                 /* Sleep until it is implemented. */
                 std::this_thread::sleep_for(std::chrono::seconds(1));
                 break;
             case thread_operation::READ:
-                read_operation(context);
+                /*
+                 * This is a bit weird because read operation itself loops on the context running.
+                 * Will be improved later.
+                 */
+                read_operation(context, session);
                 break;
             case thread_operation::REMOVE:
                 /* Sleep until it is implemented. */
@@ -182,13 +186,10 @@ class workload_generator : public component {
 
     /* Basic read operation that walks a cursors across all collections. */
     static void
-    read_operation(thread_context &context)
+    read_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
-        WT_SESSION *session;
         std::vector<WT_CURSOR *> cursors;
-
-        session = connection::instance().get_session();
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : context.get_collection_names()) {
