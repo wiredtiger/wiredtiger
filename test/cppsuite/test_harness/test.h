@@ -39,7 +39,7 @@ extern "C" {
 #include "api_const.h"
 #include "component.h"
 #include "configuration_settings.h"
-#include "conn_api.h"
+#include "connection.h"
 #include "runtime_monitor.h"
 #include "timestamp_manager.h"
 #include "thread_manager.h"
@@ -92,7 +92,7 @@ class test {
         duration_seconds = 0;
 
         /* Set up the test environment. */
-        conn_api_open();
+        connection::instance().create();
 
         /* Initiate the load stage of each component. */
         for (const auto &it : _components) {
@@ -113,7 +113,7 @@ class test {
             it->finish();
         }
         _thread_manager->join();
-        conn_api_close();
+        connection::instance().close();
     }
 
     /*

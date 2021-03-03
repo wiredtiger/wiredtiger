@@ -80,7 +80,7 @@ class workload_generator : public component {
         }
 
         /* Get a session. */
-        session = conn_api_get_session();
+        session = connection::instance().get_session();
 
         /* Create n collections as per the configuration and store each collection name. */
         testutil_check(_configuration->get_int(COLLECTION_COUNT, collection_count));
@@ -107,7 +107,7 @@ class workload_generator : public component {
                 /* Generation of a random string value using the size defined in the test
                  * configuration. */
                 std::string generated_value =
-                  random_generator::random_generator::get_instance().generate_string(value_size);
+                  random_generator::random_generator::instance().generate_string(value_size);
                 testutil_check(
                   insert(cursor, collection_name, j, generated_value.c_str(), _enable_tracking));
             }
@@ -188,7 +188,7 @@ class workload_generator : public component {
         WT_SESSION *session;
         std::vector<WT_CURSOR *> cursors;
 
-        session = conn_api_get_session();
+        session = connection::instance().get_session();
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : context.get_collection_names()) {

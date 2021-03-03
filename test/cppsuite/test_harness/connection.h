@@ -29,54 +29,74 @@
 #ifndef CONN_API_H
 #define CONN_API_H
 
+#include <mutex>
+
+extern "C" {
+#include "test_util.h"
+#include "wiredtiger.h"
+}
+
+#include "api_const.h"
+#include "debug_utils.h"
+
 /* Define common resource access functions. */
 namespace test_harness {
 
-WT_CONNECTION *_conn_conn = nullptr;
-std::mutex _conn_mutex;
+class connection {
+    public:
+    /* No copies of the singleton allowed. */
+    connection(connection const &) = delete;
+    void operator=(connection const &) = delete;
 
-static void
-conn_api_close()
-{
-    if (_conn_conn != nullptr) {
-        if (_conn_conn->close(_conn_conn, NULL) != 0)
-            /* Failing to close connection is not blocking. */
-            debug_info(
-              "Failed to close connection, shutting down uncleanly", _trace_level, DEBUG_ERROR);
-        _conn_conn = nullptr;
-    }
-}
-
-static void
-conn_api_open()
-{
-    std::string home;
-    home = DEFAULT_DIR;
-    /* Create the working dir. */
-    testutil_make_work_dir(home.c_str());
-
-    /* Open connection. */
-    testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn_conn));
-}
-
-static WT_SESSION *
-conn_api_get_session()
-{
-    WT_SESSION *session;
-
-    if (_conn_conn == nullptr) {
-        debug_info(
-          "Connection is NULL, did you forget to call conn_api_open ?", _trace_level, DEBUG_ERROR);
-        testutil_die(CONNECTION_NULL, "Connection is NULL");
+    static connection &
+    instance()
+    {
+        static connection _instance;
+        return _instance;
     }
 
-    _conn_mutex.lock();
-    testutil_check(_conn_conn->open_session(_conn_conn, NULL, NULL, &session));
-    _conn_mutex.unlock();
+    void
+    close()
+    {
+        if (_conn != nullptr) {
+            testutil_check(_conn->close(_conn, NULL));
+            _conn = nullptr;
+        }
+    }
 
-    return session;
-}
+    void
+    create(std::string home = DEFAULT_DIR)
+    {
+        /* Create the working dir. */
+        testutil_make_work_dir(home.c_str());
 
+        /* Open conn. */
+        testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn));
+    }
+
+    WT_SESSION *
+    get_session()
+    {
+        WT_SESSION *session;
+
+        if (_conn == nullptr) {
+            debug_info("Connection is NULL, did you forget to call conn_api_open ?", _trace_level,
+              DEBUG_ERROR);
+            testutil_die(CONNECTION_NULL, "Connection is NULL");
+        }
+
+        _conn_mutex.lock();
+        testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
+        _conn_mutex.unlock();
+
+        return session;
+    }
+
+    private:
+    connection() {}
+    WT_CONNECTION *_conn = nullptr;
+    std::mutex _conn_mutex;
+};
 } // namespace test_harness
 
 #endif

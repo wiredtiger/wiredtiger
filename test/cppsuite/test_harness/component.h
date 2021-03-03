@@ -31,17 +31,15 @@
 
 namespace test_harness {
 /*
- * A component is a class that defines 3 unique stages in its life-cycle.
- *  - Load: In this stage the component should be setting up its members, and creating anything it
- *  needs as part of the run stage. An example would be populating a database.
- *  - Run: This is the primary stage of the component, most if not all of the workload occurs at
- *  this point.
+ * A component is a class that defines 3 unique stages in its life-cycle, the stages are expected to
+ * be run in sequence.
  */
 class component {
     public:
     /*
      * The load function should perform all tasked required to setup the component for the main
-     * phase of the test.
+     * phase of the test. An example operation performed in the load phase would be populating a
+     * database.
      */
     virtual void
     load()

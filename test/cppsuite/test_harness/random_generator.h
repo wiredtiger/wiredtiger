@@ -41,7 +41,7 @@ class random_generator {
     void operator=(random_generator const &) = delete;
 
     static random_generator &
-    get_instance()
+    instance()
     {
         static random_generator _instance;
         return _instance;

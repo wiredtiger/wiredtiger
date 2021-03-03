@@ -56,7 +56,7 @@ class workload_tracking {
         WT_SESSION *session;
 
         /* Create tracking collection. */
-        session = conn_api_get_session();
+        session = connection::instance().get_session();
         testutil_check(session->create(session, _collection_name.c_str(), table_schema.c_str()));
         testutil_check(
           session->open_cursor(session, _collection_name.c_str(), NULL, NULL, &_cursor));
