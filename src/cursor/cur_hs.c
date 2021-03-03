@@ -538,7 +538,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
     WT_DECL_RET;
     int cmp;
 
-    WT_ERR(__wt_scr_alloc(session, 0, &srch_key));
+    WT_RET(__wt_scr_alloc(session, 0, &srch_key));
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     WT_ERR(cursor->search_near(cursor, &cmp));
     if (before) {
