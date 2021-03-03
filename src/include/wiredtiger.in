@@ -2583,7 +2583,7 @@ struct __wt_connection {
 	 * @errors
 	 */
 	int __F(add_storage_source)(WT_CONNECTION *connection, const char *name,
-            WT_STORAGE_SOURCE *storage_source, const char *config);
+	    WT_STORAGE_SOURCE *storage_source, const char *config);
 
 	/*!
 	 * Get a storage source implementation.
@@ -4787,7 +4787,7 @@ struct __wt_storage_source {
 	 */
 	int (*ss_location_list)(WT_STORAGE_SOURCE *storage_source,
 	    WT_SESSION *session, WT_LOCATION_HANDLE *location_handle, const char *prefix,
-            uint32_t limit, char ***object_list, uint32_t *countp);
+	    uint32_t limit, char ***object_list, uint32_t *countp);
 
 	/*!
 	 * Free memory allocated by WT_STORAGE_SOURCE::location_list.
@@ -4839,8 +4839,8 @@ struct __wt_storage_source {
 	 * Objects created are not deemed to "exist" and be visible to other APIs
 	 * like WT_STORAGE_SOURCE::ss_exist until the new handle has been closed.
 	 * Objects once created are immutable. That is, only objects that do not already
-         * exist can be opened with the create flag, and objects that already exist can
-         * only be opened with the readonly flag.
+	 * exist can be opened with the create flag, and objects that already exist can
+	 * only be opened with the readonly flag.
 	 *
 	 * Only objects that exist can be transferred to and made visible in the underlying
 	 * shared object store.  However, they don't need to be transferred immediately when
