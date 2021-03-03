@@ -146,7 +146,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     if (tw->start_ts != WT_TS_NONE) {
         /*
          * If there were no keys equal to or less than our target key, we would have received
-         * WT_NOT_FOUND. In that case we need to search again with a higher timestamp.
+         * WT_NOTFOUND. In that case we need to search again with a higher timestamp as the cursor
+         * would not be positioned correctly.
          */
         if (ret == 0)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
