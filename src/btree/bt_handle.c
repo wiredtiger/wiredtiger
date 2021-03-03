@@ -297,6 +297,32 @@ __wt_btree_config_encryptor(
 }
 
 /*
+ * __btree_config_tiered --
+ *     Return a storage source handle based on the configuration.
+ */
+static int
+__btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
+{
+    WT_CONFIG_ITEM bucket, cval;
+
+    /*
+     * We do not use __wt_config_gets_none here because "none" and the empty string have different
+     * meanings. The empty string means inherit the system tiered storage setting and "none" means
+     * this table is not using tiered storage.
+     */
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
+    if (cval.len == 0)
+        *bstoragep = S2C(session)->bstorage;
+    else if (WT_STRING_MATCH("none", cval.str, cval.len))
+        *bstoragep = NULL;
+    else {
+        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
+        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
+    }
+    return (0);
+}
+
+/*
  * __btree_conf --
  *     Configure a WT_BTREE structure.
  */
@@ -480,6 +506,9 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_SET(btree, WT_BTREE_NO_LOGGING);
     }
+
+    /* Configure tiered storage. */
+    WT_RET(__btree_config_tiered(session, cfg, &btree->bstorage));
 
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));

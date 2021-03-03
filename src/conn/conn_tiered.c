@@ -177,19 +177,14 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 static int
 __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM bucket, cval;
     WT_CONNECTION_IMPL *conn;
-    bool enabled;
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.enabled", &cval));
-    enabled = cval.val != 0;
-
-    if (enabled)
-        FLD_SET(conn->tiered_flags, WT_CONN_TIERED_ENABLED);
-    else
-        FLD_CLR(conn->tiered_flags, WT_CONN_TIERED_ENABLED);
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+    WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
     conn->tiered_auth_token = cval.str;

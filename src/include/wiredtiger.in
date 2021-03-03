@@ -802,6 +802,9 @@ struct __wt_session {
 	 *
 	 * @param session the session handle
 	 * @configstart{WT_SESSION.flush_tier, see dist/api_data.py}
+	 * @config{flush_timestamp, flush objects to all storage sources using the specified
+	 * timestamp.  The supplied value must not be older than the current oldest timestamp and it
+	 * must not be newer than the stable timestamp., a string; default empty.}
 	 * @config{force, force sharing of all data., a boolean flag; default \c false.}
 	 * @configend
 	 * @errors
@@ -1259,6 +1262,20 @@ struct __wt_session {
 	 * default \c 1GB.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;tiers, list of data sources to combine
 	 * into a tiered storage structure., a list of strings; default empty.}
+	 * @config{ ),,}
+	 * @config{tiered_storage = (, configure an storage source for this table., a set of related
+	 * configuration options defined below.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket, The bucket
+	 * indicating the location for this table., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds to retain data on tiered
+	 * storage on the local tier for faster read access., an integer between 0 and 10000;
+	 * default \c 300.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or
+	 * custom storage source engine name created with WT_CONNECTION::add_storage_source.  See
+	 * @ref storage_source for more information., a string; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the approximate size of objects
+	 * before creating them on the tiered storage tier., an integer between 100K and 10TB;
+	 * default \c 10M.}
 	 * @config{ ),,}
 	 * @config{type, set the type of data source used to store a column group\, index or simple
 	 * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type

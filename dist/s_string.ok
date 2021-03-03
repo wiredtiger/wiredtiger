@@ -940,6 +940,7 @@ keycmp
 keyid
 keylen
 keyv
+kmsid
 kv
 kvraw
 kvs

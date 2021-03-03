@@ -32,6 +32,20 @@ struct __wt_process {
 extern WT_PROCESS __wt_process;
 
 /*
+ * WT_BUCKET_STORAGE --
+ *	A list entry for a storage source with a unique (name, bucket).
+ */
+struct __wt_bucket_storage {
+    const char *bucket;                /* Bucket location */
+    int owned;                         /* Storage needs to be terminated */
+    size_t obj_size;                   /* Object size for this bucket */
+    WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
+    /* Linked list of storage sources */
+    TAILQ_ENTRY(__wt_bucket_storage) hashq;
+    TAILQ_ENTRY(__wt_bucket_storage) q;
+};
+
+/*
  * WT_KEYED_ENCRYPTOR --
  *	A list entry for an encryptor with a unique (name, keyid).
  */
@@ -108,7 +122,9 @@ struct __wt_named_extractor {
 struct __wt_named_storage_source {
     const char *name;                  /* Name of storage source */
     WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
-    /* Linked list of compressors */
+    TAILQ_HEAD(__wt_buckethash, __wt_bucket_storage) * buckethashqh;
+    TAILQ_HEAD(__wt_bucket_qh, __wt_bucket_storage) bucketqh;
+    /* Linked list of storage sources */
     TAILQ_ENTRY(__wt_named_storage_source) q;
 };
 
@@ -354,6 +370,8 @@ struct __wt_connection_impl {
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
+    WT_BUCKET_STORAGE *bstorage; /* Bucket storage for metadata and log */
+
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
     bool evict_server_running; /* Eviction server operating */
@@ -467,6 +485,7 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
 
     /* Locked: storage source list */
+    WT_SPINLOCK storage_lock; /* Storage source list lock */
     TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 
     void *lang_private; /* Language specific private storage */
