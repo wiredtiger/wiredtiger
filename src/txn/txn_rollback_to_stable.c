@@ -481,7 +481,8 @@ err:
     __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &key);
     __wt_buf_free(session, &full_value);
-    WT_TRET(hs_cursor->close(hs_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -1146,7 +1147,8 @@ __rollback_to_stable_btree_hs_truncate(WT_SESSION_IMPL *session, uint32_t btree_
 
 err:
     __wt_scr_free(session, &hs_key);
-    WT_TRET(hs_cursor->close(hs_cursor));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
 
     return (ret);
 }

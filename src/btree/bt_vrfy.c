@@ -820,8 +820,7 @@ __verify_key_hs(
         newer_start_ts = older_start_ts;
     }
 err:
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
 #else
     WT_UNUSED(session);
