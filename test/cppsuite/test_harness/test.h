@@ -82,7 +82,7 @@ class test {
     }
 
     /*
-     * The primary run function that most tests will be able to utilise without much other code.
+     * The primary run function that most tests will be able to utilize without much other code.
      */
     void
     run()
@@ -91,7 +91,7 @@ class test {
 
         duration_seconds = 0;
 
-        /* Set up the test environement. */
+        /* Set up the test environment. */
         conn_api_open();
 
         /* Initiate the load stage of each component. */
@@ -150,7 +150,6 @@ class test {
     private:
     std::vector<component *> _components;
     configuration *_configuration;
-    std::mutex mtx;
     runtime_monitor *_runtime_monitor;
     timestamp_manager *_timestamp_manager;
     thread_manager *_thread_manager;

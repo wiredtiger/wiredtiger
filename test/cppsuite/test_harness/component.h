@@ -50,13 +50,13 @@ class component {
     }
 
     /*
-     * The run phase encompases all operations that occur during the primary phase of the workload.
+     * The run phase encompasses all operations that occur during the primary phase of the workload.
      */
     virtual void run() = 0;
 
     /*
      * The finish phase is a cleanup phase, created objects are destroyed here and any final testing
-     * requirements can be performed in this phase. An example could be the verifcation of the
+     * requirements can be performed in this phase. An example could be the verification of the
      * database. Or checking some relevant statistics.
      */
     virtual void
