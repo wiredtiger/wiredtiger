@@ -119,6 +119,9 @@ __wt_meta_checkpoint(
     if (!F_ISSET(S2C(session), WT_CONN_COMPATIBILITY))
         /* Check the major/minor version numbers. */
         WT_ERR(__ckpt_version_chk(session, fname, config));
+#else
+    /* Check the major/minor version numbers. */
+    WT_ERR(__ckpt_version_chk(session, fname, config));
 #endif
 
     /*

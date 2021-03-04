@@ -247,6 +247,20 @@ no)	wt_cv_crc32_hardware=no
 	AC_MSG_RESULT(no);;
 esac
 
+AH_TEMPLATE(WIREDTIGER_STANDALONE_BUILD,
+    [Define to 1 by default to support standalone release.])
+AC_MSG_CHECKING(if --disable-standalone-release option specified)
+AC_ARG_ENABLE(standalone-release,
+       [AS_HELP_STRING([--disable-standalone-release],
+           [Disable standalone release support.])], r=$enableval, r=yes)
+case "$r" in
+no)    wt_cv_disable_standalone_release=no
+       AC_MSG_RESULT(yes);;
+*)     wt_cv_disable_standalone_release=yes
+       AC_DEFINE(WIREDTIGER_STANDALONE_BUILD)
+       AC_MSG_RESULT(no);;
+esac
+
 AC_MSG_CHECKING(if --enable-llvm option specified)
 AC_ARG_ENABLE(llvm,
 	[AS_HELP_STRING([--enable-llvm],
