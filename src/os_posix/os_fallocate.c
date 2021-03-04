@@ -24,10 +24,8 @@
     do {                                                                       \
         WT_DECL_RET;                                                           \
         WT_FILE_HANDLE_POSIX *pfh;                                             \
-        WT_SESSION_IMPL *session;                                              \
         bool remap;                                                            \
                                                                                \
-        session = (WT_SESSION_IMPL *)wt_session;                               \
         pfh = (WT_FILE_HANDLE_POSIX *)file_handle;                             \
                                                                                \
         remap = (offset != pfh->mmap_size);                                    \
@@ -40,7 +38,7 @@
                 __wt_remap_resize_file(file_handle, wt_session);               \
             else {                                                             \
                 __wt_release_without_remap(file_handle);                       \
-                WT_RET_MSG(session, ret, "%s: fallocate:", file_handle->name); \
+                WT_RET(ret);                                          \
             }                                                                  \
         }                                                                      \
         return (0);                                                            \
