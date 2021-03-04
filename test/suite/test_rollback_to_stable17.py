@@ -79,18 +79,24 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 
+        # Make a series of updates for the same keys with different values at different timestamps.
         for i in range(len(values)):
             self.insert_update_data(uri, values[i], start_row, nrows, ts[i])
 
+        # Set the stable timestamp to 5.
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 
+        # Checkpoint to ensure that all the updates are flushed to disk.
         self.session.checkpoint()
 
         # Rollback to stable done as part of recovery.
         simulate_crash_restart(self, ".", "RESTART")
 
+        # Check that keys at timestamps 2 and 5 have the correct values they were updated with.
         self.check(values[0], uri, nrows - 1, 2)
         self.check(values[1], uri, nrows - 1, 5)
+        # Check that the keys at timestamps 7 and 9 were rolled back to contain the value at the
+        # stable timestamp 5.
         self.check(values[1], uri, nrows - 1, 7)
         self.check(values[1], uri, nrows - 1, 9)
 
