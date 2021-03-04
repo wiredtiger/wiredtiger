@@ -1186,17 +1186,17 @@ struct __wt_update_value {
  * avoid heap allocation, add a few additional slots to that array.
  */
 #define WT_MAX_MODIFY_UPDATE 10
-#define WT_MODIFY_VECTOR_STACK_SIZE (WT_MAX_MODIFY_UPDATE + 10)
+#define WT_UPDATE_VECTOR_STACK_SIZE 20
 
 /*
- * WT_MODIFY_VECTOR --
- * 	A resizable array for storing modify updates. The allocation strategy is similar to that of
+ * WT_UPDATE_VECTOR --
+ * 	A resizable array for storing updates. The allocation strategy is similar to that of
  *	llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
  *	dynamic allocation as needed.
  */
-struct __wt_modify_vector {
+struct __wt_update_vector {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *list[WT_MODIFY_VECTOR_STACK_SIZE];
+    WT_UPDATE *list[WT_UPDATE_VECTOR_STACK_SIZE];
     WT_UPDATE **listp;
     size_t allocated_bytes;
     size_t size;

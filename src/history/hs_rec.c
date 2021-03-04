@@ -188,21 +188,21 @@ err:
  *     Get the next update and its full value.
  */
 static inline int
-__hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
+__hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
   WT_ITEM *older_full_value, WT_ITEM *full_value, WT_UPDATE **updp)
 {
     WT_UPDATE *upd;
     *updp = NULL;
 
-    __wt_modify_vector_pop(modifies, &upd);
+    __wt_update_vector_pop(updates, &upd);
     if (upd->type == WT_UPDATE_TOMBSTONE) {
-        if (modifies->size == 0) {
+        if (updates->size == 0) {
             WT_ASSERT(session, older_full_value == NULL);
             *updp = upd;
             return (0);
         }
 
-        __wt_modify_vector_pop(modifies, &upd);
+        __wt_update_vector_pop(updates, &upd);
         WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD);
         full_value->data = upd->data;
         full_value->size = upd->size;
@@ -237,8 +237,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 /* If the limit is exceeded, we will insert a full update to the history store */
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
-    WT_MODIFY_VECTOR modifies;
-    WT_MODIFY_VECTOR out_of_order_ts_updates;
+    WT_UPDATE_VECTOR updates;
+    WT_UPDATE_VECTOR out_of_order_ts_updates;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *fix_ts_upd, *min_ts_upd, *out_of_order_ts_upd;
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
@@ -258,8 +258,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
-    __wt_modify_vector_init(session, &modifies);
-    __wt_modify_vector_init(session, &out_of_order_ts_updates);
+    __wt_update_vector_init(session, &updates);
+    __wt_update_vector_init(session, &out_of_order_ts_updates);
 
     if (!btree->hs_entries)
         btree->hs_entries = true;
@@ -315,7 +315,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
         enable_reverse_modify = true;
 
-        __wt_modify_vector_clear(&modifies);
+        __wt_update_vector_clear(&updates);
         WT_ASSERT(session, out_of_order_ts_updates.size == 0);
 
         /*
@@ -358,12 +358,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     /* Always insert full update to the history store if we detect out of order
                      * timestamp update. */
                     enable_reverse_modify = false;
-                    WT_ERR(__wt_modify_vector_push(&out_of_order_ts_updates, min_ts_upd));
+                    WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
                     out_of_order_ts_upd = min_ts_upd;
                 } else {
                     WT_ASSERT(session, out_of_order_ts_upd != NULL);
                     if (min_ts_upd->start_ts < out_of_order_ts_upd->start_ts) {
-                        WT_ERR(__wt_modify_vector_push(&out_of_order_ts_updates, min_ts_upd));
+                        WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
                         out_of_order_ts_upd = min_ts_upd;
                     }
                 }
@@ -371,7 +371,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             } else if (min_ts_upd == NULL && upd->prepare_state != WT_PREPARE_INPROGRESS)
                 min_ts_upd = upd;
 
-            WT_ERR(__wt_modify_vector_push(&modifies, upd));
+            WT_ERR(__wt_update_vector_push(&updates, upd));
 
             /* Track the first update that is globally visible. */
             if (first_globally_visible_upd == NULL && __wt_txn_upd_visible_all(session, upd))
@@ -407,9 +407,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
         prev_upd = upd = NULL;
 
         /* Construct the oldest full update. */
-        WT_ASSERT(session, modifies.size > 0);
+        WT_ASSERT(session, updates.size > 0);
 
-        __wt_modify_vector_peek(&modifies, &oldest_upd);
+        __wt_update_vector_peek(&updates, &oldest_upd);
 
         WT_ASSERT(session,
           oldest_upd->type == WT_UPDATE_STANDARD || oldest_upd->type == WT_UPDATE_TOMBSTONE);
@@ -436,15 +436,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
         }
 
-        WT_ERR(__hs_next_upd_full_value(session, &modifies, NULL, full_value, &upd));
+        WT_ERR(__hs_next_upd_full_value(session, &updates, NULL, full_value, &upd));
 
         hs_inserted = squashed = false;
 
         /*
          * Flush the updates on stack. Stopping once we run out or we reach the onpage upd start
-         * time point, we can squash modifies with the same start time point as the onpage upd away.
+         * time point, we can squash updates with the same start time point as the onpage update away.
          */
-        for (; modifies.size > 0 &&
+        for (; updates.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                upd->start_ts == list->onpage_upd->start_ts);
              tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
@@ -452,10 +452,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             tombstone = NULL;
-            __wt_modify_vector_peek(&modifies, &prev_upd);
+            __wt_update_vector_peek(&updates, &prev_upd);
 
             if (out_of_order_ts_updates.size > 0) {
-                __wt_modify_vector_peek(&out_of_order_ts_updates, &out_of_order_ts_upd);
+                __wt_update_vector_peek(&out_of_order_ts_updates, &out_of_order_ts_upd);
             } else
                 out_of_order_ts_upd = NULL;
 
@@ -489,7 +489,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
                 if (out_of_order_ts_upd != NULL && out_of_order_ts_upd->txnid == prev_upd->txnid &&
                   out_of_order_ts_upd->start_ts == prev_upd->start_ts) {
-                    __wt_modify_vector_pop(&out_of_order_ts_updates, &out_of_order_ts_upd);
+                    __wt_update_vector_pop(&out_of_order_ts_updates, &out_of_order_ts_upd);
                 }
 
                 if (out_of_order_ts_upd != NULL &&
@@ -507,7 +507,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
 
             WT_ERR(
-              __hs_next_upd_full_value(session, &modifies, full_value, prev_full_value, &prev_upd));
+              __hs_next_upd_full_value(session, &updates, full_value, prev_full_value, &prev_upd));
 
             /* Squash the updates from the same transaction. */
             if (upd->start_ts == prev_upd->start_ts && upd->txnid == prev_upd->txnid) {
@@ -585,7 +585,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             }
         }
 
-        if (modifies.size > 0)
+        if (updates.size > 0)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
     }
 
@@ -606,8 +606,8 @@ err:
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
     if (modify_value != NULL)
         __wt_scr_free(session, &modify_value);
-    __wt_modify_vector_free(&modifies);
-    __wt_modify_vector_free(&out_of_order_ts_updates);
+    __wt_update_vector_free(&updates);
+    __wt_update_vector_free(&out_of_order_ts_updates);
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
