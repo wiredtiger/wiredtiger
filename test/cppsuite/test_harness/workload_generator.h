@@ -80,7 +80,7 @@ class workload_generator : public component {
         }
 
         /* Get a session. */
-        session = connection::instance().get_session();
+        session = connection_manager::instance().create_session();
 
         /* Create n collections as per the configuration and store each collection name. */
         testutil_check(_configuration->get_int(COLLECTION_COUNT, collection_count));
@@ -152,7 +152,7 @@ class workload_generator : public component {
         WT_SESSION *session;
         thread_operation operation;
 
-        session = connection::instance().get_session();
+        session = connection_manager::instance().create_session();
 
         /* Main loop for worker threads. */
         while (context.is_running()) {

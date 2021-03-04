@@ -44,16 +44,16 @@ namespace test_harness {
  * Singleton class owning the database connection, provides access to sessions and any other
  * required connection API calls.
  */
-class connection {
+class connection_manager {
     public:
     /* No copies of the singleton allowed. */
-    connection(connection const &) = delete;
-    void operator=(connection const &) = delete;
+    connection_manager(connection_manager const &) = delete;
+    void operator=(connection_manager const &) = delete;
 
-    static connection &
+    static connection_manager &
     instance()
     {
-        static connection _instance;
+        static connection_manager _instance;
         return _instance;
     }
 
@@ -70,8 +70,8 @@ class connection {
     create(std::string home = DEFAULT_DIR)
     {
         if (_conn != nullptr) {
-            debug_info("Connection is not NULL, cannot be re-opened.", _trace_level, DEBUG_ERROR);
-            testutil_die(EINVAL, "Connection is not NULL");
+            debug_info("connection is not NULL, cannot be re-opened.", _trace_level, DEBUG_ERROR);
+            testutil_die(EINVAL, "connection is not NULL");
         }
 
         /* Create the working dir. */
@@ -82,14 +82,14 @@ class connection {
     }
 
     WT_SESSION *
-    get_session()
+    create_session()
     {
         WT_SESSION *session;
 
         if (_conn == nullptr) {
-            debug_info("Connection is NULL, did you forget to call conn_api_open ?", _trace_level,
+            debug_info("connection is NULL, did you forget to call conn_api_open ?", _trace_level,
               DEBUG_ERROR);
-            testutil_die(EINVAL, "Connection is NULL");
+            testutil_die(EINVAL, "connection_wrap is NULL");
         }
 
         _conn_mutex.lock();
@@ -100,7 +100,7 @@ class connection {
     }
 
     private:
-    connection() {}
+    connection_manager() {}
     WT_CONNECTION *_conn = nullptr;
     std::mutex _conn_mutex;
 };
