@@ -1,6 +1,7 @@
 /*! @page custom_storage_sources Custom Tiered Storage sources
 
 @section storage_overview Overview of Tiered Storage in WiredTiger
+
 Applications can implement their own custom storage sources underneath
 WiredTiger does not currently offer builtin support for any particular
 storage source. The expected usage of a storage source is to implement and
