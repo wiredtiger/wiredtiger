@@ -240,12 +240,12 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
 }
 
 /*
- * __rollback_row_ondisk_fixup_key --
+ * __rollback_ondisk_fixup_key --
  *     Abort updates in the history store and replace the on-disk value with an update that
  *     satisfies the given timestamp.
  */
 static int
-__rollback_row_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, WT_COL *cip,
+__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, WT_COL *cip,
   WT_ROW *rip, wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
 {
     WT_CELL *kcell;
@@ -584,7 +584,7 @@ __rollback_abort_col_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *ci
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rollback_row_ondisk_fixup_key(
+            return (__rollback_ondisk_fixup_key(
               session, ref, NULL, cip, NULL, rollback_timestamp, true, recno));
         //   __rollback_col_ondisk_fixup_key(session, ref, cip, rollback_timestamp, true, recno));
         else {
@@ -696,7 +696,7 @@ __rollback_abort_row_ondisk_kv(
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rollback_row_ondisk_fixup_key(
+            return (__rollback_ondisk_fixup_key(
               session, NULL, page, NULL, rip, rollback_timestamp, true, 0));
         else {
             /*
@@ -863,7 +863,7 @@ __rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const vo
     WT_ERR(__wt_page_inmem(session, NULL, image_local, page_flags, &mod_page));
     tmp.mem = NULL;
     WT_ROW_FOREACH (mod_page, rip, i)
-        WT_ERR_NOTFOUND_OK(__rollback_row_ondisk_fixup_key(
+        WT_ERR_NOTFOUND_OK(__rollback_ondisk_fixup_key(
                              session, NULL, mod_page, NULL, rip, rollback_timestamp, false, 0),
           false);
 
