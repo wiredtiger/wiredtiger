@@ -297,7 +297,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
         newer_hs_durable_ts = unpack->tw.durable_start_ts;
         // Unpack a column cell.
-    } else if (cip != NULL) {
+    } else {
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
         /* Get the full update value from the data store. */
         unpack = &_unpack;
