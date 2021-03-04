@@ -1326,7 +1326,6 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction read timestamp of the oldest active reader",
   "transaction: transaction sync calls",
   "transaction: transaction walk of concurrent sessions",
-  "transaction: transaction walk of concurrent sessions total time (usecs)",
   "transaction: transactions committed",
   "transaction: transactions rolled back",
   "LSM: sleep for LSM checkpoint throttle",
@@ -1840,7 +1839,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_timestamp_oldest_active_read */
     stats->txn_sync = 0;
     stats->txn_walk_sessions = 0;
-    /* not clearing txn_walk_sessions_total_time */
     stats->txn_commit = 0;
     stats->txn_rollback = 0;
     stats->lsm_checkpoint_throttle = 0;
@@ -2351,7 +2349,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_timestamp_oldest_active_read += WT_STAT_READ(from, txn_timestamp_oldest_active_read);
     to->txn_sync += WT_STAT_READ(from, txn_sync);
     to->txn_walk_sessions += WT_STAT_READ(from, txn_walk_sessions);
-    to->txn_walk_sessions_total_time += WT_STAT_READ(from, txn_walk_sessions_total_time);
     to->txn_commit += WT_STAT_READ(from, txn_commit);
     to->txn_rollback += WT_STAT_READ(from, txn_rollback);
     to->lsm_checkpoint_throttle += WT_STAT_READ(from, lsm_checkpoint_throttle);
