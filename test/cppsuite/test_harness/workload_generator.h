@@ -189,7 +189,7 @@ class workload_generator : public component {
             /* Walk each cursor. */
             for (const auto &it : cursors) {
                 if ((ret = it->next(it)) != 0)
-                    it->reset();
+                    it->reset(it);
             }
         }
     }
