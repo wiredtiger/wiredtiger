@@ -31,7 +31,7 @@
 
 namespace test_harness {
 /*
- * The timestamp monitor class managers global timestamp state for all components in the test
+ * The timestamp monitor class manages global timestamp state for all components in the test
  * harness. It also manages the global timestamps within WiredTiger.
  */
 class timestamp_manager : public component {

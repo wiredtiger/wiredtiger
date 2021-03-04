@@ -87,8 +87,8 @@ class connection_manager {
         WT_SESSION *session;
 
         if (_conn == nullptr) {
-            debug_info("connection is NULL, did you forget to call conn_api_open ?", _trace_level,
-              DEBUG_ERROR);
+            debug_info("connection is NULL, did you forget to call connection_manager::create ?",
+              _trace_level, DEBUG_ERROR);
             testutil_die(EINVAL, "connection is NULL");
         }
 
