@@ -248,7 +248,7 @@ no)	wt_cv_crc32_hardware=no
 esac
 
 AH_TEMPLATE(WT_STANDALONE_BUILD,
-    [Define to 1 to support standalone release.])
+    [Define to 1 to support standalone build.])
 AC_MSG_CHECKING(if --disable-standalone-release option specified)
 AC_ARG_ENABLE(standalone-release,
        [AS_HELP_STRING([--disable-standalone-release],
