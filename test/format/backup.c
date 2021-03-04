@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -291,6 +291,11 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 tmp = drealloc(tmp, this_size);
                 tmp_sz = this_size;
             }
+            /*
+             * Don't use the system checker for lseek. The system check macro uses an int which is
+             * often 4 bytes and checks for any negative value. The offset returned from lseek is 8
+             * bytes and we can have a false positive error check.
+             */
             if (lseek(rfd, (wt_off_t)offset, SEEK_SET) == -1)
                 testutil_die(errno, "backup-read: lseek");
             if (lseek(wfd1, (wt_off_t)offset, SEEK_SET) == -1)
@@ -299,11 +304,6 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 testutil_die(errno, "backup-write2: lseek");
             total = 0;
             while (total < size) {
-                /*
-                 * Don't use the system checker for lseek. The system check macro uses an int which
-                 * is often 4 bytes and checks for any negative value. The offset returned from
-                 * lseek is 8 bytes and we can have a false positive error check.
-                 */
                 /* Use the read size since we may have read less than the granularity. */
                 error_sys_check(rdsize = read(rfd, tmp, this_size));
                 /* If we get EOF, we're done. */

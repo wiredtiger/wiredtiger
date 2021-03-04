@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -30,6 +30,10 @@ __hs_verify_id(
 
     WT_ERR(__wt_scr_alloc(session, 0, &prev_key));
 
+#ifndef HAVE_DIAGNOSTIC
+    WT_UNUSED(this_btree_id);
+#endif
+
     /*
      * If using standard cursors, we need to skip the non-globally visible tombstones in the data
      * table to verify the corresponding entries in the history store are too present in the data
@@ -44,17 +48,17 @@ __hs_verify_id(
      * cursor there or deciding they're done.
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
-
         /*
          * If the btree id does not match the preview one, we're done. It is up to the caller to set
          * up for the next tree and call us, if they choose. For a full history store walk, the
          * caller sends in WT_BTREE_ID_INVALID and this function will set and use the first btree id
          * it finds and will return once it walks off that tree, leaving the cursor set to the first
          * key of that new tree.
+         *
+         * We should never cross the btree id, assert if we do so.
          */
-        if (btree_id != this_btree_id)
-            break;
+        WT_ERR(hs_cursor->get_key(hs_cursor, &btree_id, &key, &hs_start_ts, &hs_counter));
+        WT_ASSERT(session, btree_id == this_btree_id);
 
         /*
          * If we have already checked against this key, keep going to the next key. We only need to

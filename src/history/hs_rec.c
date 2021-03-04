@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -91,7 +91,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 #ifdef HAVE_DIAGNOSTIC
     /* Allocate buffer for the existing history store value for the same key. */
     WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
-    hs_cbt = __wt_curhs_cbt(cursor);
+    hs_cbt = __wt_curhs_get_cbt(cursor);
 #endif
 
     /* Sanity check that the btree is not a history store btree. */
@@ -227,7 +227,7 @@ int
 __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
-    WT_CURSOR *cursor;
+    WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
     WT_DECL_ITEM(modify_value);
@@ -255,8 +255,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
     insert_cnt = 0;
     WT_TIME_WINDOW_INIT(&tw);
 
-    WT_RET(__wt_curhs_open(session, NULL, &cursor));
-    F_SET(cursor, WT_CURSTD_HS_READ_COMMITTED);
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_modify_vector_init(session, &modifies);
     __wt_modify_vector_init(session, &out_of_order_ts_updates);
@@ -429,7 +429,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_CLEARED_HS)) {
                 /* We can only delete history store entries that have timestamps. */
                 WT_ERR(__wt_hs_delete_key_from_ts(
-                  session, cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
+                  session, hs_cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
                 WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
                 WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
                 F_SET(fix_ts_upd, WT_UPDATE_CLEARED_HS);
@@ -565,13 +565,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
-                WT_ERR(__wt_modify_pack(cursor, entries, nentries, &modify_value));
+                WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(
-                  session, cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
+                  session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
             } else
                 WT_ERR(__hs_insert_record(
-                  session, cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+                  session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
@@ -591,7 +591,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-    hs_btree = __wt_curhs_btree(cursor);
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
     if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
         WT_ERR_PANIC(session, WT_PANIC,
@@ -611,7 +611,7 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &prev_full_value);
 
-    WT_TRET(cursor->close(cursor));
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -666,7 +666,7 @@ static int
 __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
   const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, uint64_t *counter)
 {
-    WT_CURSOR *insert_cursor;
+    WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
@@ -679,8 +679,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
 #endif
     char ts_string[5][WT_TS_INT_STRING_SIZE];
 
-    insert_cursor = NULL;
-    hs_cbt = __wt_curhs_cbt(hs_cursor);
+    hs_insert_cursor = NULL;
+    hs_cbt = __wt_curhs_get_cbt(hs_cursor);
     WT_CLEAR(hs_key);
     WT_CLEAR(hs_value);
 
@@ -756,8 +756,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
              * Don't incur the overhead of opening this new cursor unless we need it. In the regular
              * case, we'll never get here.
              */
-            if (insert_cursor == NULL)
-                WT_ERR(__wt_curhs_open(session, NULL, &insert_cursor));
+            if (hs_insert_cursor == NULL)
+                WT_ERR(__wt_curhs_open(session, NULL, &hs_insert_cursor));
 
             /*
              * If these history store records are resolved prepared updates, their durable
@@ -794,11 +794,12 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
               hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
 
             /* Insert the value back with different timestamps. */
-            insert_cursor->set_key(
-              insert_cursor, 4, btree_id, &hs_key, hs_insert_tw.start_ts, *counter);
-            insert_cursor->set_value(insert_cursor, &hs_insert_tw, hs_insert_tw.durable_stop_ts,
-              hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type, &hs_value);
-            WT_ERR(insert_cursor->insert(insert_cursor));
+            hs_insert_cursor->set_key(
+              hs_insert_cursor, 4, btree_id, &hs_key, hs_insert_tw.start_ts, *counter);
+            hs_insert_cursor->set_value(hs_insert_cursor, &hs_insert_tw,
+              hs_insert_tw.durable_stop_ts, hs_insert_tw.durable_start_ts, (uint64_t)hs_upd_type,
+              &hs_value);
+            WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
         }
 
@@ -810,7 +811,7 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
     if (ret == WT_NOTFOUND)
         ret = 0;
 err:
-    if (insert_cursor != NULL)
-        insert_cursor->close(insert_cursor);
+    if (hs_insert_cursor != NULL)
+        hs_insert_cursor->close(hs_insert_cursor);
     return (ret);
 }

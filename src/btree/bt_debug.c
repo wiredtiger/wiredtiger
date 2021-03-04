@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -418,7 +418,7 @@ __debug_hs_cursor(WT_DBG *ds, WT_CURSOR *hs_cursor)
     uint32_t hs_btree_id;
     char time_string[WT_TIME_STRING_SIZE];
 
-    cbt = __wt_curhs_cbt(hs_cursor);
+    cbt = __wt_curhs_get_cbt(hs_cursor);
     session = ds->session;
 
     WT_TIME_WINDOW_INIT(&tw);
@@ -952,15 +952,15 @@ int
 __wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_BTREE *hs_btree;
     WT_CURSOR *hs_cursor;
-    WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)session_arg;
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
-    cbt = __wt_curhs_cbt(hs_cursor);
-    WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
+    WT_WITH_BTREE(session, hs_btree, ret = __wt_debug_tree_all(session, NULL, NULL, ofile));
     WT_TRET(hs_cursor->close(hs_cursor));
 
     return (ret);
@@ -1009,10 +1009,10 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
      * doesn't work, we may be running in-memory.
      */
     if (!WT_IS_HS(session->dhandle)) {
-        if (__wt_curhs_open(session, NULL, &hs_cursor) == 0) {
-            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
-            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
-        }
+        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
 
