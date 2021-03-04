@@ -150,37 +150,24 @@ class workload_generator : public component {
     execute_operation(thread_context &context)
     {
         WT_SESSION *session;
-        thread_operation operation;
 
         session = connection_manager::instance().create_session();
 
-        /* Main loop for worker threads. */
-        while (context.is_running()) {
-            switch (context.get_thread_operation()) {
-            case thread_operation::INSERT:
-                /* Sleep until it is implemented. */
+        switch (context.get_thread_operation()) {
+        case thread_operation::READ:
+            read_operation(context, session);
+            break;
+        case thread_operation::REMOVE:
+        case thread_operation::INSERT:
+        case thread_operation::UPDATE:
+            /* Sleep until it is implemented. */
+            while (context.is_running())
                 std::this_thread::sleep_for(std::chrono::seconds(1));
-                break;
-            case thread_operation::READ:
-                /*
-                 * This is a bit weird because read operation itself loops on the context running.
-                 * Will be improved later.
-                 */
-                read_operation(context, session);
-                break;
-            case thread_operation::REMOVE:
-                /* Sleep until it is implemented. */
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                break;
-            case thread_operation::UPDATE:
-                /* Sleep until it is implemented. */
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-                break;
-            default:
-                testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
-                  static_cast<int>(thread_operation::UPDATE));
-                break;
-            }
+            break;
+        default:
+            testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
+              static_cast<int>(thread_operation::UPDATE));
+            break;
         }
     }
 
@@ -189,6 +176,7 @@ class workload_generator : public component {
     read_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
+        WT_DECL_RET;
         std::vector<WT_CURSOR *> cursors;
 
         /* Get a cursor for each collection in collection_names. */
@@ -199,8 +187,10 @@ class workload_generator : public component {
 
         while (context.is_running()) {
             /* Walk each cursor. */
-            for (const auto &it : cursors)
-                it->next(it);
+            for (const auto &it : cursors) {
+                if ((ret = it->next(it)) != 0)
+                    it->reset();
+            }
         }
     }
 
