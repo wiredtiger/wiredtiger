@@ -555,7 +555,7 @@ err:
 
 /*
  * __rollback_abort_ondisk_kv --
- *     Fix the on-disk row K/V version according to the given timestamp.
+ *     Fix the on-disk K/V version according to the given timestamp.
  */
 static int
 __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_ROW *rip,
