@@ -269,9 +269,12 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     bool first_record;
 #endif
 
-    if (page == NULL)
+    WT_ASSERT(session, rip != NULL || cip != NULL);
+
+    if (page == NULL) {
         WT_ASSERT(session, ref != NULL);
         page = ref->page;
+    }
     hs_cursor = NULL;
     tombstone = upd = NULL;
     hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
@@ -572,7 +575,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
     WT_CLEAR(buf);
     upd = NULL;
 
-    if (rip != NULL){
+    WT_ASSERT(session, rip != NULL || cip != NULL);
+
+    if (rip != NULL) {
         WT_ASSERT(session, cip == NULL);
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     } else {
@@ -612,7 +617,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rollback_ondisk_fixup_key(session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
+            return (__rollback_ondisk_fixup_key(
+              session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
