@@ -133,11 +133,11 @@ err:
 }
 
 /*
- * __rollback_row_add_update --
+ * __rollback_row_modify --
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_row_add_update(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
+__rollback_row_modify(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
 {
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
@@ -289,8 +289,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    /* Unpack a row cell. */
     if (rip != NULL) {
+        /* Unpack a row cell. */
         WT_ASSERT(session, cip == NULL);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
@@ -298,8 +298,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         /* Get the full update value from the data store. */
         unpack = &_unpack;
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
-        /* Unpack a column cell. */
     } else {
+        /* Unpack a column cell. */
         WT_ASSERT(session, rip == NULL);
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
@@ -527,7 +527,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         }
 
         if (rip != NULL)
-            WT_ERR(__rollback_row_add_update(session, page, rip, upd));
+            WT_ERR(__rollback_row_modify(session, page, rip, upd));
         else
             WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     }
@@ -669,7 +669,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
         return (0);
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_add_update(session, page, rip, upd));
+        WT_ERR(__rollback_row_modify(session, page, rip, upd));
     else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     upd = NULL;
