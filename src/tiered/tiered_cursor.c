@@ -1112,8 +1112,8 @@ __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
 
     WT_STATIC_ASSERT(offsetof(WT_CURSOR_TIERED, iface) == 0);
 
-    curtiered = NULL;
     cursor = NULL;
+    curtiered = NULL;
     tiered = NULL;
 
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
@@ -1121,7 +1121,7 @@ __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
 
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len != 0)
-        WT_RET_MSG(session, EINVAL, "LSM does not support opening by checkpoint");
+        WT_RET_MSG(session, EINVAL, "Tiered does not support opening by checkpoint");
 
     WT_RET(__wt_config_gets_def(session, cfg, "bulk", 0, &cval));
     bulk = cval.val != 0;
@@ -1170,7 +1170,7 @@ err:
         else if (tiered != NULL)
             WT_WITH_DHANDLE(
               session, (WT_DATA_HANDLE *)tiered, WT_TRET(__wt_session_release_dhandle(session)));
-
+        __wt_free(session, cursor->uri);
         *cursorp = NULL;
     }
 
