@@ -38,7 +38,8 @@ static const char *DURATION_SECONDS = "duration_seconds";
 static const char *KEY_COUNT = "key_count";
 static const char *READ_THREADS = "read_threads";
 static const char *VALUE_SIZE = "value_size";
-static const char *TRACKING_COLLECTION = "table:tracking";
+static const char *TRACKING_COLLECTION = "table:tracking_collection";
+static const char *TRACKING_OPERATIONS = "table:tracking_operations";
 
 } // namespace test_harness
 

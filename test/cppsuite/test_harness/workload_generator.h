@@ -29,8 +29,12 @@
 #ifndef WORKLOAD_GENERATOR_H
 #define WORKLOAD_GENERATOR_H
 
+#include <algorithm>
+#include <map>
+
 #include "random_generator.h"
 #include "workload_tracking.h"
+#include "workload_validation.h"
 
 namespace test_harness {
 /*
@@ -46,6 +50,7 @@ class workload_generator : public component {
     ~workload_generator()
     {
         delete _workload_tracking;
+        _workload_tracking = nullptr;
         for (auto &it : _workers)
             delete it;
     }
@@ -89,7 +94,7 @@ class workload_generator : public component {
             testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
             if (_enable_tracking)
                 testutil_check(
-                  _workload_tracking->save(tracking_operation::CREATE, collection_name, "", ""));
+                  _workload_tracking->save(tracking_operation::CREATE, collection_name, 0, ""));
             _collection_names.push_back(collection_name);
         }
         debug_info(
@@ -108,8 +113,8 @@ class workload_generator : public component {
                  * configuration. */
                 std::string generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
-                testutil_check(
-                  insert(cursor, collection_name, j, generated_value.c_str(), _enable_tracking));
+                testutil_check(insert(
+                  cursor, collection_name, j + 1, generated_value.c_str(), _enable_tracking));
             }
         }
         debug_info("Load stage done", _trace_level, DEBUG_INFO);
@@ -138,11 +143,19 @@ class workload_generator : public component {
     void
     finish()
     {
+        int error_code = 0;
+
         debug_info("Workload generator stage done", _trace_level, DEBUG_INFO);
         for (const auto &it : _workers) {
             it->finish();
         }
         _thread_manager.join();
+
+        /* Validation stage. */
+        if (!_enable_tracking || validate())
+            std::cout << "SUCCESS" << std::endl;
+        else
+            std::cout << "FAILED" << std::endl;
     }
 
     /* Workload threaded operations. */
@@ -166,7 +179,7 @@ class workload_generator : public component {
             break;
         default:
             testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
-              static_cast<int>(thread_operation::UPDATE));
+              static_cast<int>(static_cast<int>(context.get_thread_operation())));
             break;
         }
     }
@@ -241,6 +254,162 @@ class workload_generator : public component {
         if (cursor == nullptr)
             throw std::invalid_argument("Failed to call update, invalid cursor");
         return (cursor->update(cursor));
+    }
+
+    bool
+    validate()
+    {
+        WT_CURSOR *cursor;
+        WT_SESSION *session;
+
+        std::string collection_name;
+        /* Collections which have not been dropped. */
+        std::vector<std::string> active_collections;
+
+        int key;
+        const char *key_collection_name;
+        int key_timestamp;
+        const char *value;
+        int value_operation_type;
+
+        workload_validation wv;
+        /* Container used to store all operations performed on the collections. */
+        std::map<std::string, std::map<int, std::string *> *> collections;
+
+        bool my_ret = false;
+
+        session = connection_manager::instance().create_session();
+
+        /* Parse the tracking collection that stores the state of each collection. */
+        collection_name = _workload_tracking->get_collection_operations_name();
+        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+
+        while (cursor->next(cursor) == 0) {
+            error_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
+            error_check(cursor->get_value(cursor, &value_operation_type));
+
+            debug_info(
+              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);
+            debug_info("Timestamp is " + key_timestamp, _trace_level, DEBUG_INFO);
+            debug_info("Operation type is " + value_operation_type, _trace_level, DEBUG_INFO);
+
+            if (static_cast<tracking_operation>(value_operation_type) ==
+              tracking_operation::CREATE) {
+                active_collections.push_back(key_collection_name);
+                /* Creation in memory of the container that will hold the operations executed on the
+                 * collection. */
+                std::map<int, std::string *> *map = new std::map<int, std::string *>();
+                collections[key_collection_name] = map;
+            } else if (static_cast<tracking_operation>(value_operation_type) ==
+              tracking_operation::DELETE_COLLECTION) {
+                active_collections.erase(std::remove(active_collections.begin(),
+                                           active_collections.end(), key_collection_name),
+                  active_collections.end());
+                /* Delete the container associated to this collection. */
+                delete collections[key_collection_name];
+                collections[key_collection_name] = nullptr;
+            }
+        }
+
+        /* Replay of the operations executed on each collection. */
+        collection_name = _workload_tracking->get_collection_name();
+        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+        while (cursor->next(cursor) == 0) {
+            error_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
+            error_check(cursor->get_value(cursor, &value_operation_type, &value));
+
+            debug_info(
+              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);
+            debug_info("Key is " + key, _trace_level, DEBUG_INFO);
+            debug_info("Timestamp is " + key_timestamp, _trace_level, DEBUG_INFO);
+            debug_info("Operation type is " + value_operation_type, _trace_level, DEBUG_INFO);
+            debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
+
+            /* Discard operations that are associated to a dropped collection. */
+            if (std::find(active_collections.begin(), active_collections.end(),
+                  key_collection_name) == active_collections.end()) {
+                continue;
+            }
+
+            /* Replay the current operation. */
+            switch (static_cast<tracking_operation>(value_operation_type)) {
+
+                break;
+            case tracking_operation::DELETE_KEY: {
+                /* Check if the collection exists. */
+                if (collections.count(key_collection_name) < 1)
+                    testutil_die(DEBUG_ABORT,
+                      "Collection %s does not exist! The key %d cannot be removed.",
+                      key_collection_name, key);
+                /* The collection should not be null. */
+                else if (collections[key_collection_name] == nullptr)
+                    testutil_die(DEBUG_ABORT, "Collection %s is null!", key_collection_name);
+                else {
+                    delete (*(collections[key_collection_name]))[key];
+                    (*(collections[key_collection_name]))[key] = nullptr;
+                }
+            } break;
+            case tracking_operation::INSERT:
+                (*(collections[key_collection_name]))[key] = new std::string(value);
+                break;
+            case tracking_operation::CREATE:
+            case tracking_operation::DELETE_COLLECTION:
+                testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
+                  static_cast<tracking_operation>(value_operation_type));
+            default:
+                testutil_die(
+                  DEBUG_ABORT, "tracking operation is unknown : %d", value_operation_type);
+                break;
+            }
+        }
+
+        /* Check all operations. */
+        for (const auto &it_collections : collections) {
+            /* Check the collection is in the correct state. */
+            my_ret = wv.verify_database_state(
+              session, it_collections.first, collections[it_collections.first] != nullptr);
+
+            if (my_ret && (collections[it_collections.first] != nullptr)) {
+                std::map<int, std::string *> *operations = collections[it_collections.first];
+                for (const auto &it_operations : *operations) {
+                    /* The key has been deleted. */
+                    if ((*operations)[it_operations.first] == nullptr)
+                        my_ret = (wv.is_key_present(
+                                    session, it_collections.first, it_operations.first) != 0);
+                    /* The key/value pair exists. */
+                    else
+                        my_ret = (wv.is_key_present(
+                                    session, it_collections.first, it_operations.first) == 0);
+
+                    /* Check the associated value is valid. */
+                    if (my_ret && ((*operations)[it_operations.first] != nullptr)) {
+                        my_ret = (wv.verify_value(session, it_collections.first,
+                          it_operations.first, *((*operations)[it_operations.first])));
+                    }
+
+                    if (!my_ret)
+                        break;
+                }
+            }
+
+            if (!my_ret)
+                break;
+        }
+
+        /* Clean the allocated memory. */
+        for (const auto &it_collections : collections) {
+            if (collections[it_collections.first] != nullptr) {
+                std::map<int, std::string *> *operations = collections[it_collections.first];
+                for (const auto &it_operations : *operations) {
+                    delete (*operations)[it_operations.first];
+                    (*operations)[it_operations.first] = nullptr;
+                }
+                delete collections[it_collections.first];
+                collections[it_collections.first] = nullptr;
+            }
+        }
+
+        return my_ret;
     }
 
     private:
