@@ -285,15 +285,15 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
-    // Unpack a row cell.
+    /* Unpack a row cell. */
     if (rip != NULL) {
-        WT_RET(__wt_scr_alloc(session, 0, &key));
+        WT_ERR(__wt_scr_alloc(session, 0, &key));
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
         /* Get the full update value from the data store. */
         unpack = &_unpack;
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
-        // Unpack a column cell.
+        /* Unpack a column cell. */
     } else {
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
@@ -519,6 +519,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
         }
+
         if (rip != NULL)
             WT_ERR(__rollback_row_add_update(session, page, rip, upd));
         else
