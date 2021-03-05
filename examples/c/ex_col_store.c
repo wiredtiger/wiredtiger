@@ -36,6 +36,7 @@
 #define NUM_ENTRIES 100
 #define TABLE_NAME "table:weather"
 #define NUM_REC 5
+#define NUM_COUNTRIES 7
 
 static const char *home;
 
@@ -56,7 +57,7 @@ static void update_celsius_to_fahrenheit(WT_SESSION *session);
 static void print_all_columns(WT_SESSION *session);
 static void generate_data(WEATHER *w_array);
 static void remove_country(WT_SESSION *session);
-static void average_data(WT_SESSION *session);
+static void average_data(WT_SESSION *session, char *country_average);
 static int find_min_and_max_temp(
   WT_SESSION *session, uint16_t start_time, uint16_t end_time, int *min_temp, int *max_temp);
 
@@ -113,6 +114,8 @@ update_celsius_to_fahrenheit(WT_SESSION *session)
     WT_DECL_RET;
     uint8_t temp, temp_in_fahrenheit;
 
+    printf("\nConverting temperature from celsius to fahrenheit.\n");
+
     error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_value(cursor, &temp));
@@ -139,6 +142,7 @@ remove_country(WT_SESSION *session)
     uint16_t loc_lat, loc_long;
     const char *country;
 
+    printf("Removing all data for country AUS.\n");
     error_check(session->open_cursor(session, "colgroup:weather:location", NULL, NULL, &cursor));
     /*
      * All Australian data is being removed, to test if deletion works.
@@ -326,7 +330,7 @@ find_min_and_max_temp(
  *     Obtains the average data across all fields given a specific location.
  */
 void
-average_data(WT_SESSION *session)
+average_data(WT_SESSION *session, char *country_average)
 {
     WT_CURSOR *loc_cursor;
     WT_DECL_RET;
@@ -339,7 +343,7 @@ average_data(WT_SESSION *session)
 
     /* Open a cursor to search for the location, currently RUS. */
     error_check(session->open_cursor(session, "index:weather:country", NULL, NULL, &loc_cursor));
-    loc_cursor->set_key(loc_cursor, "RUS");
+    loc_cursor->set_key(loc_cursor, country_average);
     ret = loc_cursor->search(loc_cursor);
 
     /*
@@ -359,7 +363,7 @@ average_data(WT_SESSION *session)
         error_check(loc_cursor->get_value(loc_cursor, &hour, &pressure, &loc_lat, &loc_long, &temp,
           &humidity, &wind, &feels_like_temp, &day, &country));
 
-        if (strcmp(country, "RUS") != 0) {
+        if (strcmp(country, country_average) != 0) {
             ret = loc_cursor->next(loc_cursor);
             continue;
         }
@@ -384,13 +388,13 @@ average_data(WT_SESSION *session)
 
     /* List the average records */
     printf(
-      "Average records for location RUS : \nTemp: %u"
+      "Average records for location %s : \nTemp: %u"
       ", Humidity: %u"
       ", Pressure: %u"
       ", Wind: %u"
       ", Feels like: %u"
       "\n",
-      rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
+      country_average, rec_arr[0], rec_arr[1], rec_arr[2], rec_arr[3], rec_arr[4]);
 }
 
 int
@@ -400,6 +404,7 @@ main(int argc, char *argv[])
     WT_CURSOR *cursor;
     WT_SESSION *session;
     WEATHER weather_data[NUM_ENTRIES];
+    char countries[][NUM_COUNTRIES - 1] = {"AUS", "GBR", "USA", "NZD", "IND", "CHI", "RUS"};
     int max_temp_result, min_temp_result, ret;
     uint16_t ending_time, starting_time;
 
@@ -449,9 +454,6 @@ main(int argc, char *argv[])
     /* Prints all the data in the database. */
     print_all_columns(session);
 
-    /* Update the temperature from Celsius to Fahrenheit. */
-    update_celsius_to_fahrenheit(session);
-
     /* Create indexes for searching */
     error_check(session->create(session, "index:weather:hour", "columns=(hour)"));
     error_check(session->create(session, "index:weather:country", "columns=(country)"));
@@ -469,14 +471,43 @@ main(int argc, char *argv[])
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
     if (ret == 0) {
-        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+        printf("\nThe minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, min_temp_result);
         printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, max_temp_result);
     }
 
+    /* Update the temperature from Celsius to Fahrenheit. */
+    update_celsius_to_fahrenheit(session);
+
+    /*
+     * Start and end points for time range for finding min/max temperature, in 24 hour format.
+     * Example uses 10am - 8pm but can change the values for desired start and end times.
+     */
+    starting_time = 1000;
+    ending_time = 2000;
+    min_temp_result = 0;
+    max_temp_result = 0;
+    ret = find_min_and_max_temp(
+      session, starting_time, ending_time, &min_temp_result, &max_temp_result);
+
+    /* If the min/max temperature is not found due to some error, there is no result to print. */
+    if (ret == 0) {
+        printf("\nThe minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+          starting_time, ending_time, min_temp_result);
+        printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+          starting_time, ending_time, max_temp_result);
+    }
+
+    printf("\nAverage for all countries:\n");
+    for (int i = 0; i < NUM_COUNTRIES; i++)
+        average_data(session, countries[i]);
+
     remove_country(session);
-    average_data(session);
+
+    printf("\nAverage for all countries:\n");
+    for (int i = 0; i < NUM_COUNTRIES; i++)
+        average_data(session, countries[i]);
 
     /* Close the connection. */
     error_check(conn->close(conn, NULL));
