@@ -269,7 +269,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     bool first_record;
 #endif
 
-    if (page == NULL && ref != NULL)
+    if (page == NULL)
+        WT_ASSERT(session, ref != NULL);
         page = ref->page;
     hs_cursor = NULL;
     tombstone = upd = NULL;
@@ -287,6 +288,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
 
     /* Unpack a row cell. */
     if (rip != NULL) {
+        WT_ASSERT(session, cip == NULL);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
@@ -295,6 +297,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
         /* Unpack a column cell. */
     } else {
+        WT_ASSERT(session, rip == NULL);
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
         /* Get the full update value from the data store. */
@@ -569,9 +572,11 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
     WT_CLEAR(buf);
     upd = NULL;
 
-    if (rip != NULL)
+    if (rip != NULL){
+        WT_ASSERT(session, cip == NULL);
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-    else {
+    } else {
+        WT_ASSERT(session, rip == NULL);
         kcell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
     }
@@ -607,12 +612,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            if (rip != NULL)
-                return (__rollback_ondisk_fixup_key(
-                  session, ref, NULL, NULL, rip, rollback_timestamp, true, 0));
-            else
-                return (__rollback_ondisk_fixup_key(
-                  session, ref, NULL, cip, NULL, rollback_timestamp, true, recno));
+            return (__rollback_ondisk_fixup_key(session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
