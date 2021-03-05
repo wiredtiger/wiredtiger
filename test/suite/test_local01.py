@@ -32,7 +32,9 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 # test_local01.py
 #    Test the local storage source.
 class test_local01(wttest.WiredTigerTestCase):
+    # Load the local store extension, but skip the test if it is missing.
     def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
         #extlist.extension('storage_sources', 'local_store=(config=\"(verbose=1)\")')
         extlist.extension('storage_sources', 'local_store')
 
