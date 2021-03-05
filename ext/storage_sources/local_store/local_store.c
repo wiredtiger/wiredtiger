@@ -45,6 +45,17 @@
  * as local files.
  */
 
+#ifdef __GNUC__
+#if __GNUC__ > 7 || (__GNUC__ == 7 && __GNUC_MINOR__ > 0)
+/*
+ * !!!
+ * GCC with -Wformat-truncation complains about calls to snprintf in this file.
+ * There's nothing wrong, this makes the warning go away.
+ */
+#pragma GCC diagnostic ignored "-Wformat-truncation"
+#endif
+#endif
+
 /* Local storage source structure. */
 typedef struct {
     WT_STORAGE_SOURCE storage_source; /* Must come first */
