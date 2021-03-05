@@ -272,7 +272,7 @@ local_configure_int(LOCAL_STORAGE *local, WT_CONFIG_ARG *config, const char *key
         if (v.len == 0 || v.type != WT_CONFIG_ITEM_NUM)
             ret = local_err(local, NULL, EINVAL, "force_error config arg: integer required");
         else
-            *valuep = v.val;
+            *valuep = (uint32_t)v.val;
     } else if (ret == WT_NOTFOUND)
         ret = 0;
     else
