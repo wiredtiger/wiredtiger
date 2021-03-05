@@ -134,6 +134,7 @@ static int local_config_dup(
   LOCAL_STORAGE *, WT_SESSION *, WT_CONFIG_ITEM *, const char *, const char *, char **);
 static int local_configure(LOCAL_STORAGE *, WT_CONFIG_ARG *);
 static int local_configure_int(LOCAL_STORAGE *, WT_CONFIG_ARG *, const char *, uint32_t *);
+static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static void local_flush_free(LOCAL_FLUSH_ITEM *);
 static int local_location_decode(LOCAL_STORAGE *, WT_LOCATION_HANDLE *, char **, char **, char **);
 static int local_location_path(
@@ -174,17 +175,8 @@ static int local_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int local_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
-/*
- * Report the error using the extension API, and return ret.
- */
-#define local_err_base(local, session, ret, fmt0, arg0, fmt, ...)                             \
-    ((local)->wt_api->err_printf((local)->wt_api, session, "local_storage: " fmt0 "%s: " fmt, \
-       arg0, (local)->wt_api->strerror((local)->wt_api, session, (ret)), ##__VA_ARGS__),      \
-      ret)
-#define local_err(local, session, ret, fmt, ...) \
-    local_err_base(local, session, ret, "%s", "", fmt, ##__VA_ARGS__)
-#define local_file_err(fh, session, ret, fmt, ...) \
-    local_err_base((fh)->local, session, ret, "\"%s\": ", fh->iface.name, fmt, ##__VA_ARGS__)
+#define local_file_err(fh, session, ret, str) \
+    local_err((fh)->local, session, ret, "\"%s\": %s", fh->iface.name, str)
 
 #define VERBOSE(local, ...)               \
     do {                                  \
@@ -285,6 +277,28 @@ local_configure_int(LOCAL_STORAGE *local, WT_CONFIG_ARG *config, const char *key
         ret = 0;
     else
         ret = local_err(local, NULL, EINVAL, "WT_API->config_get");
+
+    return (ret);
+}
+
+/*
+ * local_err --
+ *     Print errors from the interface.
+ */
+static int
+local_err(LOCAL_STORAGE *local, WT_SESSION *session, int ret, const char *format, ...)
+{
+    va_list ap;
+    WT_EXTENSION_API *wt_api;
+    char buf[1000];
+
+    va_start(ap, format);
+    wt_api = local->wt_api;
+    if (vsnprintf(buf, sizeof(buf), format, ap) > (int)sizeof(buf))
+        wt_api->err_printf(wt_api, session, "local_storage: error overflow");
+    wt_api->err_printf(
+      wt_api, session, "local_storage: %s: %s", wt_api->strerror(wt_api, session, ret), buf);
+    va_end(ap);
 
     return (ret);
 }

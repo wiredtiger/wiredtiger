@@ -73,6 +73,7 @@ class test_local01(wttest.WiredTigerTestCase):
         fh.fh_read(session, 0, inbytes)  # read into the buffer
         self.assertEquals(outbytes[0:1000000], inbytes)
         self.assertEquals(local.ss_size(session, location, 'foobar'), len(outbytes))
+        self.assertEquals(fh.fh_size(session), len(outbytes))
         fh.close(session)
 
         # The fh_lock call doesn't do anything in the local store implementation.
