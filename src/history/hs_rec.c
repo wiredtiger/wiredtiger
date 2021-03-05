@@ -149,9 +149,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
     }
-    if (ret == 0)
+    if (ret == 0) {
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, &counter));
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -426,14 +427,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             else
                 fix_ts_upd = oldest_upd;
 
-            if (!F_ISSET(fix_ts_upd, WT_UPDATE_CLEARED_HS)) {
+            if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp.
                  */
                 WT_ERR(__wt_hs_delete_reinsert_key_from_ts(
                   session, hs_cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
                 WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
                 WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
-                F_SET(fix_ts_upd, WT_UPDATE_CLEARED_HS);
+                F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
         }
 
