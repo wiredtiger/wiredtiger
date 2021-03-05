@@ -87,9 +87,7 @@ class test {
     void
     run()
     {
-        int64_t duration_seconds;
-
-        duration_seconds = 0;
+        int64_t duration_seconds = 0;
 
         /* Set up the test environment. */
         connection_manager::instance().create();

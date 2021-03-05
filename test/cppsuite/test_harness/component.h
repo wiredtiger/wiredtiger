@@ -31,8 +31,8 @@
 
 namespace test_harness {
 /*
- * A component is a class that defines 3 unique stages in its life-cycle, the stages are expected to
- * be run in sequence.
+ * A component is a class that defines 3 unique stages in its life-cycle, the stages must be run in
+ * the following order: load, run, finish.
  */
 class component {
     public:
@@ -52,9 +52,9 @@ class component {
     virtual void run() = 0;
 
     /*
-     * The finish phase is a cleanup phase, created objects are destroyed here and any final testing
+     * The finish phase is a cleanup phase. Created objects are destroyed here and any final testing
      * requirements can be performed in this phase. An example could be the verification of the
-     * database. Or checking some relevant statistics.
+     * database, or checking some relevant statistics.
      */
     virtual void
     finish()
