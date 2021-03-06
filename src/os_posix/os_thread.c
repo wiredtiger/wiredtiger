@@ -14,7 +14,7 @@
  */
 int
 __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
-  WT_THREAD_CALLBACK (*func)(void *), void *arg) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
+  WT_THREAD_CALLBACK (*func)(void *), void *arg, const char *name) WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
     WT_DECL_RET;
 
@@ -28,6 +28,10 @@ __wt_thread_create(WT_SESSION_IMPL *session, wt_thread_t *tidret,
     WT_SYSCALL_RETRY(pthread_create(&tidret->id, NULL, func, arg), ret);
     if (ret == 0) {
         tidret->created = true;
+        #if (2 < __GLIBC__) ||  ((2 == __GLIBC__) && (12 <= __GLIBC_MINOR__))
+            /* Thread names were added in glibc 2.12 */
+            pthread_setname_np(tidret->id, name);
+        #endif
         return (0);
     }
     WT_RET_MSG(session, ret, "pthread_create");

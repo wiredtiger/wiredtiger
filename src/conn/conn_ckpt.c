@@ -153,7 +153,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
     /*
      * Start the thread.
      */
-    WT_RET(__wt_thread_create(session, &conn->ckpt_tid, __ckpt_server, session));
+    WT_RET(__wt_thread_create(session, &conn->ckpt_tid, __ckpt_server, session, "wtCheckpointServer"));
     conn->ckpt_tid_set = true;
 
     return (0);

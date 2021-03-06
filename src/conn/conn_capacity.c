@@ -142,7 +142,7 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
     /*
      * Start the thread.
      */
-    WT_RET(__wt_thread_create(session, &conn->capacity_tid, __capacity_server, session));
+    WT_RET(__wt_thread_create(session, &conn->capacity_tid, __capacity_server, session, "wtCapacityServer"));
     conn->capacity_tid_set = true;
 
     return (0);

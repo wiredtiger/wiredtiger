@@ -22,7 +22,7 @@ __wt_lsm_worker_start(WT_SESSION_IMPL *session, WT_LSM_WORKER_ARGS *args)
       session, WT_VERB_LSM_MANAGER, "Start LSM worker %u type %#" PRIx32, args->id, args->type);
 
     args->running = true;
-    WT_RET(__wt_thread_create(session, &args->tid, __lsm_worker, args));
+    WT_RET(__wt_thread_create(session, &args->tid, __lsm_worker, args, "wtLSMWorker"));
     args->tid_set = true;
     return (0);
 }

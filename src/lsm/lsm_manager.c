@@ -217,7 +217,7 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
 
     /* Start the LSM manager thread. */
     WT_ERR(__wt_thread_create(session, &manager->lsm_worker_cookies[0].tid, __lsm_worker_manager,
-      &manager->lsm_worker_cookies[0]));
+      &manager->lsm_worker_cookies[0], "wtLSMWorkerManager"));
 
     if (0) {
 err:

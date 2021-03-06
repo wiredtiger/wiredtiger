@@ -149,7 +149,7 @@ start_idle_table_cycle(WTPERF *wtperf, wt_thread_t *idle_table_cycle_thread)
         return;
 
     wtperf->idle_cycle_run = true;
-    testutil_check(__wt_thread_create(NULL, &thread_id, cycle_idle_tables, wtperf));
+    testutil_check(__wt_thread_create(NULL, &thread_id, cycle_idle_tables, wtperf, "wtCycleIdleTable"));
     *idle_table_cycle_thread = thread_id;
 }
 

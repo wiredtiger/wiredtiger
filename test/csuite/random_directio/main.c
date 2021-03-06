@@ -592,7 +592,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
         td[i].datasize = datasize;
         td[i].id = i;
         td[i].flags = flags;
-        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
+        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i], "wtWriter"));
     }
     printf("Spawned %" PRIu32 " writer threads\n", nth);
     fflush(stdout);

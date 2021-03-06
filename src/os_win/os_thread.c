@@ -14,7 +14,7 @@
  */
 int
 __wt_thread_create(
-  WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_THREAD_CALLBACK (*func)(void *), void *arg)
+  WT_SESSION_IMPL *session, wt_thread_t *tidret, WT_THREAD_CALLBACK (*func)(void *), void *arg, const char *name)
 {
     /*
      * Creating a thread isn't a memory barrier, but WiredTiger commonly sets flags and or state and

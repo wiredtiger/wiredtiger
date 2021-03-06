@@ -264,7 +264,7 @@ __wt_conn_cache_pool_open(WT_SESSION_IMPL *session)
      */
     F_SET(cp, WT_CACHE_POOL_ACTIVE);
     FLD_SET(cache->pool_flags, WT_CACHE_POOL_RUN);
-    WT_RET(__wt_thread_create(session, &cache->cp_tid, __wt_cache_pool_server, cache->cp_session));
+    WT_RET(__wt_thread_create(session, &cache->cp_tid, __wt_cache_pool_server, cache->cp_session, "wtCachePoolServer"));
 
     /* Wake up the cache pool server to get our initial chunk. */
     __wt_cond_signal(session, cp->cache_pool_cond);

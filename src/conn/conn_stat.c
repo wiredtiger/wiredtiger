@@ -647,7 +647,7 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
      * have more than one thread, I just didn't feel like writing the code
      * to figure out the scheduling.
      */
-    WT_RET(__wt_thread_create(session, &conn->stat_tid, __statlog_server, session));
+    WT_RET(__wt_thread_create(session, &conn->stat_tid, __statlog_server, session, "wtStatlog"));
     conn->stat_tid_set = true;
 
     return (0);

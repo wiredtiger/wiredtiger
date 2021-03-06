@@ -198,7 +198,7 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         __wt_verbose(session, WT_VERB_THREAD_GROUP, "Starting utility thread: %s:%" PRIu32,
           group->name, thread->id);
         F_SET(thread, WT_THREAD_RUN);
-        WT_ERR(__wt_thread_create(thread->session, &thread->tid, __thread_run, thread));
+        WT_ERR(__wt_thread_create(thread->session, &thread->tid, __thread_run, thread, group->name));
 
         WT_ASSERT(session, group->threads[i] == NULL);
         group->threads[i] = thread;

@@ -181,7 +181,7 @@ fill_db(uint32_t nth)
         td[i].conn = conn;
         td[i].start = WT_BILLION * (uint64_t)i;
         td[i].id = i;
-        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
+        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i], "wtWriter"));
     }
     printf("Spawned %" PRIu32 " writer threads\n", nth);
     fflush(stdout);

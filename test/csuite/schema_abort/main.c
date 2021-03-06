@@ -818,20 +818,20 @@ run_workload(uint32_t nth)
     td[ckpt_id].conn = conn;
     td[ckpt_id].info = nth;
     printf("Create checkpoint thread\n");
-    testutil_check(__wt_thread_create(NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id]));
+    testutil_check(__wt_thread_create(NULL, &thr[ckpt_id], thread_ckpt_run, &td[ckpt_id], "wtCheckpoint"));
     ts_id = nth + 1;
     if (use_ts) {
         td[ts_id].conn = conn;
         td[ts_id].info = nth;
         printf("Create timestamp thread\n");
-        testutil_check(__wt_thread_create(NULL, &thr[ts_id], thread_ts_run, &td[ts_id]));
+        testutil_check(__wt_thread_create(NULL, &thr[ts_id], thread_ts_run, &td[ts_id], "wtTimestamp"));
     }
     printf("Create %" PRIu32 " writer threads\n", nth);
     for (i = 0; i < nth; ++i) {
         td[i].conn = conn;
         td[i].start = WT_BILLION * (uint64_t)i;
         td[i].info = i;
-        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i]));
+        testutil_check(__wt_thread_create(NULL, &thr[i], thread_run, &td[i], "wtWriter"));
     }
     /*
      * The threads never exit, so the child will just wait here until it is killed.

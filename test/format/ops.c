@@ -167,24 +167,24 @@ wts_ops(bool lastrun)
             __wt_random_init(&tinfo->rnd);
 
         tinfo->state = TINFO_RUNNING;
-        testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
+        testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo, "wtOps"));
     }
 
     /*
      * If a multi-threaded run, start optional backup, compaction and long-running reader threads.
      */
     if (g.c_alter)
-        testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL));
+        testutil_check(__wt_thread_create(NULL, &alter_tid, alter, NULL, "wtAlter"));
     if (g.c_backups)
-        testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL));
+        testutil_check(__wt_thread_create(NULL, &backup_tid, backup, NULL, "wtBackup"));
     if (g.c_checkpoint_flag == CHECKPOINT_ON)
-        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL));
+        testutil_check(__wt_thread_create(NULL, &checkpoint_tid, checkpoint, NULL, "wtCheckpoint"));
     if (g.c_compact)
-        testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL));
+        testutil_check(__wt_thread_create(NULL, &compact_tid, compact, NULL, "wtCompact"));
     if (!SINGLETHREADED && g.c_long_running_txn)
-        testutil_check(__wt_thread_create(NULL, &lrt_tid, lrt, NULL));
+        testutil_check(__wt_thread_create(NULL, &lrt_tid, lrt, NULL, "wtLRT"));
     if (g.c_txn_timestamps)
-        testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list));
+        testutil_check(__wt_thread_create(NULL, &timestamp_tid, timestamp, tinfo_list, "wtTimestamp"));
 
     /* Spin on the threads, calculating the totals. */
     for (;;) {

@@ -45,7 +45,7 @@ static WT_THREAD_RET scan_worker(void *);
 static int start_all_runs(WTPERF *);
 static int start_run(WTPERF *);
 static void start_threads(
-  WTPERF *, WORKLOAD *, WTPERF_THREAD *, u_int, WT_THREAD_CALLBACK (*)(void *));
+  WTPERF *, WORKLOAD *, WTPERF_THREAD *, u_int, WT_THREAD_CALLBACK (*)(void *), const char *);
 static void stop_threads(u_int, WTPERF_THREAD *);
 static WT_THREAD_RET thread_run_wtperf(void *);
 static void update_value_delta(WTPERF_THREAD *, int64_t);
@@ -1703,7 +1703,7 @@ execute_populate(WTPERF *wtperf)
         pfunc = populate_async;
     } else
         pfunc = populate_thread;
-    start_threads(wtperf, NULL, wtperf->popthreads, opts->populate_threads, pfunc);
+    start_threads(wtperf, NULL, wtperf->popthreads, opts->populate_threads, pfunc, "wtPerfPopulate");
 
     __wt_epoch(NULL, &start);
     for (elapsed = 0, interval = 0, last_ops = 0; wtperf->insert_key < max_key && !wtperf->error;) {
@@ -1915,7 +1915,7 @@ execute_workload(WTPERF *wtperf)
             goto err;
 
         /* Start the workload's threads. */
-        start_threads(wtperf, workp, threads, (u_int)workp->threads, pfunc);
+        start_threads(wtperf, workp, threads, (u_int)workp->threads, pfunc, "wtPerfWorkload");
         threads += workp->threads;
     }
 
@@ -2324,7 +2324,7 @@ start_all_runs(WTPERF *wtperf)
         if (opts->create != 0 && strcmp(next_wtperf->home, next_wtperf->monitor_dir) != 0)
             recreate_dir(next_wtperf->monitor_dir);
 
-        testutil_check(__wt_thread_create(NULL, &threads[i], thread_run_wtperf, next_wtperf));
+        testutil_check(__wt_thread_create(NULL, &threads[i], thread_run_wtperf, next_wtperf, "wtPerf"));
     }
 
     /* Wait for threads to finish. */
@@ -2385,7 +2385,7 @@ start_run(WTPERF *wtperf)
 
     /* Start the monitor thread. */
     if (opts->sample_interval != 0) {
-        testutil_check(__wt_thread_create(NULL, &monitor_thread, monitor, wtperf));
+        testutil_check(__wt_thread_create(NULL, &monitor_thread, monitor, wtperf, "wtPerfMonitor"));
         monitor_created = 1;
     }
 
@@ -2411,13 +2411,13 @@ start_run(WTPERF *wtperf)
               wtperf, 0, 1, "Starting %" PRIu32 " checkpoint thread(s)", opts->checkpoint_threads);
             wtperf->ckptthreads = dcalloc(opts->checkpoint_threads, sizeof(WTPERF_THREAD));
             start_threads(
-              wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker);
+              wtperf, NULL, wtperf->ckptthreads, opts->checkpoint_threads, checkpoint_worker, "wtPerfCheckpoint");
         }
         /* Start the scan thread. */
         if (opts->scan_interval != 0) {
             lprintf(wtperf, 0, 1, "Starting 1 scan thread");
             wtperf->scanthreads = dcalloc(1, sizeof(WTPERF_THREAD));
-            start_threads(wtperf, NULL, wtperf->scanthreads, 1, scan_worker);
+            start_threads(wtperf, NULL, wtperf->scanthreads, 1, scan_worker, "wtPerfScan");
         }
         if (opts->pre_load_data)
             pre_load_data(wtperf);
@@ -2803,7 +2803,7 @@ err:
 
 static void
 start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
-  WT_THREAD_CALLBACK (*func)(void *))
+  WT_THREAD_CALLBACK (*func)(void *), const char *name)
 {
     CONFIG_OPTS *opts;
     WTPERF_THREAD *thread;
@@ -2849,7 +2849,7 @@ start_threads(WTPERF *wtperf, WORKLOAD *workp, WTPERF_THREAD *base, u_int num,
 
     /* Start the threads. */
     for (i = 0, thread = base; i < num; ++i, ++thread)
-        testutil_check(__wt_thread_create(NULL, &thread->handle, func, thread));
+        testutil_check(__wt_thread_create(NULL, &thread->handle, func, thread, name));
 }
 
 static void

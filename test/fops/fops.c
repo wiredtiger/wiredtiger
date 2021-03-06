@@ -64,7 +64,7 @@ fop_start(u_int nthreads)
 
     /* Create threads. */
     for (i = 0; i < nthreads; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], fop, (void *)(uintptr_t)i));
+        testutil_check(__wt_thread_create(NULL, &tids[i], fop, (void *)(uintptr_t)i, "wtFop"));
 
     /* Wait for the threads. */
     for (i = 0; i < nthreads; ++i)

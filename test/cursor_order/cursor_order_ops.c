@@ -106,9 +106,9 @@ ops_start(SHARED_CONFIG *cfg)
 
     /* Create threads. */
     for (i = 0; i < cfg->reverse_scanners; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], reverse_scan, (void *)(uintptr_t)i));
+        testutil_check(__wt_thread_create(NULL, &tids[i], reverse_scan, (void *)(uintptr_t)i, "wtReverseScan"));
     for (; i < cfg->reverse_scanners + cfg->append_inserters; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], append_insert, (void *)(uintptr_t)i));
+        testutil_check(__wt_thread_create(NULL, &tids[i], append_insert, (void *)(uintptr_t)i, "wtAppendInsert"));
 
     /* Wait for the threads. */
     for (i = 0; i < cfg->reverse_scanners + cfg->append_inserters; ++i)

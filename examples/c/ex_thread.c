@@ -87,7 +87,7 @@ main(int argc, char *argv[])
     error_check(session->close(session, NULL));
 
     for (i = 0; i < NUM_THREADS; i++)
-        error_check(__wt_thread_create(NULL, &threads[i], scan_thread, conn));
+        error_check(__wt_thread_create(NULL, &threads[i], scan_thread, conn, "wtScan"));
 
     for (i = 0; i < NUM_THREADS; i++)
         error_check(__wt_thread_join(NULL, &threads[i]));

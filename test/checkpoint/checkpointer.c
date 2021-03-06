@@ -42,10 +42,10 @@ static int verify_consistency(WT_SESSION *, bool);
 void
 start_checkpoints(void)
 {
-    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL));
+    testutil_check(__wt_thread_create(NULL, &g.checkpoint_thread, checkpointer, NULL, "wtCheckpointer"));
     if (g.use_timestamps) {
         testutil_check(__wt_rwlock_init(NULL, &g.clock_lock));
-        testutil_check(__wt_thread_create(NULL, &g.clock_thread, clock_thread, NULL));
+        testutil_check(__wt_thread_create(NULL, &g.clock_thread, clock_thread, NULL, "wtClock"));
     }
 }
 

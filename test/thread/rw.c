@@ -104,9 +104,9 @@ rw_start(u_int readers, u_int writers)
 
     /* Create threads. */
     for (i = 0; i < readers; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], reader, (void *)(uintptr_t)i));
+        testutil_check(__wt_thread_create(NULL, &tids[i], reader, (void *)(uintptr_t)i, "wtReader"));
     for (; i < readers + writers; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], writer, (void *)(uintptr_t)i));
+        testutil_check(__wt_thread_create(NULL, &tids[i], writer, (void *)(uintptr_t)i, "wtWriter"));
 
     /* Wait for the threads. */
     for (i = 0; i < readers + writers; ++i)

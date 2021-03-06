@@ -106,7 +106,7 @@ start_workers(table_type type)
 
     /* Create threads. */
     for (i = 0; i < g.nworkers; ++i)
-        testutil_check(__wt_thread_create(NULL, &tids[i], worker, &g.cookies[i]));
+        testutil_check(__wt_thread_create(NULL, &tids[i], worker, &g.cookies[i], "wtWorker"));
 
     /* Wait for the threads. */
     for (i = 0; i < g.nworkers; ++i)
