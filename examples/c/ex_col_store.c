@@ -114,7 +114,7 @@ update_celsius_to_fahrenheit(WT_SESSION *session)
     WT_DECL_RET;
     uint8_t temp, temp_in_fahrenheit;
 
-    printf("\nConverting temperature from celsius to fahrenheit.\n");
+    printf("Converting temperature from celsius to fahrenheit.\n");
 
     error_check(session->open_cursor(session, "colgroup:weather:temperature", NULL, NULL, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
@@ -471,7 +471,7 @@ main(int argc, char *argv[])
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
     if (ret == 0) {
-        printf("\nThe minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, min_temp_result);
         printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, max_temp_result);
@@ -493,19 +493,19 @@ main(int argc, char *argv[])
 
     /* If the min/max temperature is not found due to some error, there is no result to print. */
     if (ret == 0) {
-        printf("\nThe minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
+        printf("The minimum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, min_temp_result);
         printf("The maximum temperature between %" PRIu16 " and %" PRIu16 " is %d.\n",
           starting_time, ending_time, max_temp_result);
     }
 
-    printf("\nAverage for all countries:\n");
+    printf("Average for all countries:\n");
     for (int i = 0; i < NUM_COUNTRIES; i++)
         average_data(session, countries[i]);
 
     remove_country(session);
 
-    printf("\nAverage for all countries:\n");
+    printf("Average for all countries:\n");
     for (int i = 0; i < NUM_COUNTRIES; i++)
         average_data(session, countries[i]);
 
