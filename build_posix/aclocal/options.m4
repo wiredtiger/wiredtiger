@@ -249,17 +249,16 @@ esac
 
 AH_TEMPLATE(WT_STANDALONE_BUILD,
     [Define to 1 to support standalone build.])
-AC_MSG_CHECKING(if --disable-standalone-release option specified)
-AC_ARG_ENABLE(standalone-release,
-       [AS_HELP_STRING([--disable-standalone-release],
-           [Disable standalone release support.])], r=$enableval, r=yes)
+AC_MSG_CHECKING(if --disable-standalone-build option specified)
+AC_ARG_ENABLE(standalone-build,
+       [AS_HELP_STRING([--disable-standalone-build],
+           [Disable standalone build support.])], r=$disableval, r=no)
 case "$r" in
-no)    wt_cv_disable_standalone_release=no
-       AC_MSG_RESULT(yes);;
-*)     wt_cv_disable_standalone_release=yes
-       AC_DEFINE(WT_STANDALONE_BUILD)
-       AC_MSG_RESULT(no);;
+no)    wt_cv_disable_standalone_build=no
+       AC_DEFINE(WT_STANDALONE_BUILD);;
+*)     wt_cv_disable_standalone_build=yes;;
 esac
+AC_MSG_RESULT($wt_cv_disable_standalone_build)
 
 AC_MSG_CHECKING(if --enable-llvm option specified)
 AC_ARG_ENABLE(llvm,
