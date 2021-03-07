@@ -269,7 +269,11 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     bool first_record;
 #endif
 
-    WT_ASSERT(session, rip != NULL || cip != NULL);
+    /*
+     * Assert an exclusive or for rip and cip such that either only a cip for a column store or a
+     * rip for a row store are passed into the function.
+     */
+    WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
 
     if (page == NULL) {
         WT_ASSERT(session, ref != NULL);
@@ -291,7 +295,6 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
 
     if (rip != NULL) {
         /* Unpack a row cell. */
-        WT_ASSERT(session, cip == NULL);
         WT_ERR(__wt_scr_alloc(session, 0, &key));
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
 
@@ -300,7 +303,6 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
     } else {
         /* Unpack a column cell. */
-        WT_ASSERT(session, rip == NULL);
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
 
         /* Get the full update value from the data store. */
@@ -575,13 +577,15 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
     WT_CLEAR(buf);
     upd = NULL;
 
-    WT_ASSERT(session, rip != NULL || cip != NULL);
+    /*
+     * Assert an exclusive or for rip and cip such that either only a cip for a column store or a
+     * rip for a row store are passed into the function.
+     */
+    WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
 
     if (rip != NULL) {
-        WT_ASSERT(session, cip == NULL);
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
     } else {
-        WT_ASSERT(session, rip == NULL);
         kcell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
     }
