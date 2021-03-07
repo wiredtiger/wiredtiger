@@ -432,8 +432,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                  */
                 WT_ERR(__wt_hs_delete_reinsert_key_from_ts(
                   session, hs_cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
-                WT_STAT_CONN_INCR(session, cache_hs_key_truncate_non_ts);
-                WT_STAT_DATA_INCR(session, cache_hs_key_truncate_non_ts);
                 F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
         }
@@ -801,12 +799,14 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               &hs_value);
             WT_ERR(hs_insert_cursor->insert(hs_insert_cursor));
             ++(*counter);
+            WT_STAT_CONN_INCR(session, cache_hs_order_reinsert);
+            WT_STAT_DATA_INCR(session, cache_hs_order_reinsert);
         }
 
         /* Delete the out-of-order entry. */
         WT_ERR(hs_cursor->remove(hs_cursor));
-        WT_STAT_CONN_INCR(session, cache_hs_order_fixup_move);
-        WT_STAT_DATA_INCR(session, cache_hs_order_fixup_move);
+        WT_STAT_CONN_INCR(session, cache_hs_order_remove);
+        WT_STAT_DATA_INCR(session, cache_hs_order_remove);
     }
     if (ret == WT_NOTFOUND)
         ret = 0;
