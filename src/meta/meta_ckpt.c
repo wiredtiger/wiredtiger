@@ -112,7 +112,7 @@ __wt_meta_checkpoint(
     WT_ERR(__wt_metadata_search(session, fname, &config));
 
 /*
- * Check for the version mismatch in wiredtiger standalone release when compatibility has not been
+ * Check for the version mismatch in wiredtiger standalone build when compatibility has not been
  * configured.
  */
 #ifdef WT_STANDALONE_BUILD
