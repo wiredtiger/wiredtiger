@@ -974,7 +974,17 @@ done:
          */
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
-    /* Update the connection's base write generation after rollback to stable. */
+    /*
+     * To support rollback to stable operation to fix the possible inconsistent checkpoint data on
+     * disk that is possible to be written when eviction runs in parallel to the checkpoint with a
+     * newer transaction snapshot than the checkpoint thread. To do that the transaction ids that
+     * are saved on disk doesn't get reset until the rollback to stable operation to fix the
+     * inconsistent data.
+     *
+     * Upon successful completion of rollback to stable, need to update the connection base write
+     * generation number with the latest write generation from all the checkpointed files to let the
+     * existing transaction ids to reset to avoid transaction visible failures.
+     */
     WT_ERR(__wt_metadata_update_all_base_write_gen(session));
 
     /*

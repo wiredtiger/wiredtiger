@@ -36,7 +36,7 @@ from wtscenario import make_scenarios
 #   Test backup restore when the checkpoint contains data greater than the
 #   checkpoint snapshot.
 class test_checkpoint_snapshot04(backup_base):
-    dir='backup.dir'
+    dir = 'backup.dir'
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot04"
@@ -107,7 +107,6 @@ class test_checkpoint_snapshot04(backup_base):
             ret = cursor.next()
             if ret != 0:
                 break
-            #print 'Copy from: ' + cursor.get_key() + ' to ' + self.dir
             shutil.copy(cursor.get_key(), self.dir)
         self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
         cursor.close()
