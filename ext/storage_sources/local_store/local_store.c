@@ -175,6 +175,10 @@ static int local_file_size(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t *);
 static int local_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
+/*
+ * Report an error for a file operation.  Note that local_err returns its third argument,
+ * and this macro will too.
+ */
 #define local_file_err(fh, session, ret, str) \
     local_err((fh)->local, session, ret, "\"%s\": %s", fh->iface.name, str)
 
@@ -283,7 +287,7 @@ local_configure_int(LOCAL_STORAGE *local, WT_CONFIG_ARG *config, const char *key
 
 /*
  * local_err --
- *     Print errors from the interface.
+ *     Print errors from the interface.  Returns "ret", the third argument.
  */
 static int
 local_err(LOCAL_STORAGE *local, WT_SESSION *session, int ret, const char *format, ...)
@@ -453,7 +457,7 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
      * implementation, we'll want some way to not hold the lock while transferring data.
      */
     if ((ret = pthread_rwlock_wrlock(&local->flush_lock)) != 0) {
-        ret = local_err(local, session, ret, "flush: pthread_rwlock_wrlock");
+        (void)local_err(local, session, ret, "flush: pthread_rwlock_wrlock");
         goto err;
     }
 
@@ -477,7 +481,7 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     }
 
     if ((t_ret = pthread_rwlock_unlock(&local->flush_lock)) != 0) {
-        t_ret = local_err(local, session, t_ret, "flush: pthread_rwlock_unlock");
+        (void)local_err(local, session, t_ret, "flush: pthread_rwlock_unlock");
         if (ret == 0)
             ret = t_ret;
     }
@@ -962,7 +966,7 @@ local_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
      * file handle list without it.
      */
     if ((ret = pthread_rwlock_destroy(&local->file_handle_lock)) != 0)
-        ret = local_err(local, session, ret, "terminate: pthread_rwlock_destroy");
+        (void)local_err(local, session, ret, "terminate: pthread_rwlock_destroy");
 
     TAILQ_FOREACH_SAFE(local_fh, &local->fileq, q, safe_fh)
     local_file_close_internal(local, session, local_fh, false);
@@ -995,21 +999,21 @@ local_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
     TAILQ_REMOVE(&local->fileq, local_fh, q);
 
     if ((ret = pthread_rwlock_unlock(&local->file_handle_lock)) != 0)
-        ret = local_err(local, session, ret, "file handle close: pthread_rwlock_unlock");
+        (void)local_err(local, session, ret, "file handle close: pthread_rwlock_unlock");
 
     /*
      * If we need to track flushes for this file, save the flush item on our queue.
      */
     if (ret == 0 && ((flush = local_fh->flush)) != NULL) {
         if ((ret = pthread_rwlock_wrlock(&local->flush_lock)) != 0)
-            ret = local_err(local, session, ret, "file handle close: pthread_rwlock_wrlock2");
+            (void)local_err(local, session, ret, "file handle close: pthread_rwlock_wrlock2");
 
         if (ret == 0) {
             TAILQ_INSERT_HEAD(&local->flushq, flush, q);
             local_fh->flush = NULL;
 
             if ((ret = pthread_rwlock_unlock(&local->flush_lock)) != 0)
-                ret = local_err(local, session, ret, "file handle close: pthread_rwlock_unlock2");
+                (void)local_err(local, session, ret, "file handle close: pthread_rwlock_unlock2");
             if (ret == 0 && ((flush->src_path = strdup(local_fh->path)) == NULL))
                 ret = ENOMEM;
         }
