@@ -545,9 +545,14 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     btree = S2BT(session);
     tombstone = upd = NULL;
-    best_prefix_count = prefix_count = 0;
     last_slot = 0;
     size = total_size = 0;
+
+    /* The code depends on the prefix count variables, other initialization shouldn't matter. */
+    best_prefix_count = prefix_count = 0;
+    first_prefix = last_prefix = 0;           /* [-Wconditional-uninitialized] */
+    prefix_start = prefix_stop = 0;           /* [-Wconditional-uninitialized] */
+    best_prefix_start = best_prefix_stop = 0; /* [-Wconditional-uninitialized] */
 
     /*
      * Optionally instantiate prepared updates. In-memory databases restore non-obsolete updates on
