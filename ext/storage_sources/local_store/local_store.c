@@ -79,9 +79,9 @@ typedef struct {
     /*
      * Statistics are collected but not yet exposed.
      */
-    uint64_t cloud_flushes; /* (What would be) writes to the cloud */
-    uint64_t fh_ops;        /* Non-read/write operations in file handles */
-    uint64_t op_count;      /* Number of operations done on local */
+    uint64_t object_flushes; /* (What would be) writes to the cloud */
+    uint64_t fh_ops;         /* Non-read/write operations in file handles */
+    uint64_t op_count;       /* Number of operations done on local */
     uint64_t read_ops;
     uint64_t write_ops;
 
@@ -248,11 +248,11 @@ local_configure(LOCAL_STORAGE *local, WT_CONFIG_ARG *config)
 {
     int ret;
 
-    if ((ret = local_configure_int(local, config, "force_error", &local->force_error)) != 0)
+    if ((ret = local_configure_int(local, config, "delay_ms", &local->delay_ms)) != 0)
         return (ret);
     if ((ret = local_configure_int(local, config, "force_delay", &local->force_delay)) != 0)
         return (ret);
-    if ((ret = local_configure_int(local, config, "delay_ms", &local->delay_ms)) != 0)
+    if ((ret = local_configure_int(local, config, "force_error", &local->force_error)) != 0)
         return (ret);
     if ((ret = local_configure_int(local, config, "verbose", &local->verbose)) != 0)
         return (ret);
@@ -315,10 +315,10 @@ static void
 local_flush_free(LOCAL_FLUSH_ITEM *flush)
 {
     if (flush != NULL) {
-        free(flush->src_path);
-        free(flush->marker_path);
         free(flush->bucket);
         free(flush->kmsid);
+        free(flush->marker_path);
+        free(flush->src_path);
         free(flush);
     }
 }
@@ -464,7 +464,15 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     TAILQ_FOREACH_SAFE(flush, &local->flushq, q, safe_flush)
     {
         if (match != NULL) {
-            /* Make sure the location matches. */
+            /*
+             * We must match against the bucket and the name if given.
+             * Our match string is of the form:
+             *   <bucket_name>/<cluster_prefix><name>
+             *
+             * If name is given, we must match the entire path.
+             * If name is not given, we must match up to the beginning
+             * of the name.
+             */
             if (name != NULL) {
                 /* Exact name match required. */
                 if (strcmp(flush->src_path, match) != 0)
@@ -511,9 +519,9 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
         object_name++;
 
         /* Here's where we would copy the file to a cloud object. */
-        VERBOSE(local, "Cloud flush: from=%s, bucket=%s, object=%s, kmsid=%s, \n", flush->src_path,
+        VERBOSE(local, "Flush object: from=%s, bucket=%s, object=%s, kmsid=%s, \n", flush->src_path,
           flush->bucket, object_name, flush->kmsid);
-        local->cloud_flushes++;
+        local->object_flushes++;
     }
     /* When we're done with flushing this file, remove the flush marker file. */
     if (ret == 0 && (ret = unlink(flush->marker_path)) < 0)
@@ -877,7 +885,7 @@ local_open(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     if (0) {
 err:
-        local_file_close_internal(local, session, local_fh, false);
+        local_file_close_internal(local, session, local_fh, true);
     }
     return (ret);
 }
@@ -969,7 +977,7 @@ local_terminate(WT_STORAGE_SOURCE *storage, WT_SESSION *session)
         (void)local_err(local, session, ret, "terminate: pthread_rwlock_destroy");
 
     TAILQ_FOREACH_SAFE(local_fh, &local->fileq, q, safe_fh)
-    local_file_close_internal(local, session, local_fh, false);
+    local_file_close_internal(local, session, local_fh, true);
 
     free(local);
     return (ret);
@@ -1019,7 +1027,7 @@ local_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
         }
     }
 
-    if ((t_ret = local_file_close_internal(local, session, local_fh, true)) != 0) {
+    if ((t_ret = local_file_close_internal(local, session, local_fh, false)) != 0) {
         if (ret == 0)
             ret = t_ret;
     }
@@ -1033,7 +1041,7 @@ local_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
  */
 static int
 local_file_close_internal(
-  LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FILE_HANDLE *local_fh, bool normal)
+  LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FILE_HANDLE *local_fh, bool final)
 {
     int ret;
 
@@ -1045,7 +1053,7 @@ local_file_close_internal(
      * If this is a normal close (not a termination cleanup), and this handle creates an object,
      * move the temp file to its final position.
      */
-    if (normal && ret == 0 && local_fh->temp_path != NULL) {
+    if (!final && ret == 0 && local_fh->temp_path != NULL) {
         if ((ret = rename(local_fh->temp_path, local_fh->path)) < 0)
             ret = local_err(local, session, errno, "FILE_HANDLE->close: rename");
     }
@@ -1097,9 +1105,9 @@ local_file_read(
         if (nbytes < 0)
             ret = local_file_err(local_fh, session, errno, "pread");
         else {
+            addr += nbytes;
             len -= (size_t)nbytes;
             offset += nbytes;
-            addr += nbytes;
         }
     }
     return (ret);
@@ -1169,9 +1177,9 @@ local_file_write(
         if (nbytes < 0)
             ret = local_file_err(local_fh, session, errno, "pwrite");
         else {
+            addr += nbytes;
             len -= (size_t)nbytes;
             offset += nbytes;
-            addr += nbytes;
         }
     }
     return (ret);
@@ -1195,11 +1203,11 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
      * Allocate a local storage structure, with a WT_STORAGE structure as the first field, allowing
      * us to treat references to either type of structure as a reference to the other type.
      */
+    local->storage_source.ss_exist = local_exist;
+    local->storage_source.ss_flush = local_flush;
     local->storage_source.ss_location_handle = local_location_handle;
     local->storage_source.ss_location_list = local_location_list;
     local->storage_source.ss_location_list_free = local_location_list_free;
-    local->storage_source.ss_exist = local_exist;
-    local->storage_source.ss_flush = local_flush;
     local->storage_source.ss_open_object = local_open;
     local->storage_source.ss_remove = local_remove;
     local->storage_source.ss_size = local_size;
