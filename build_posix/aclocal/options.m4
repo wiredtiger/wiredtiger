@@ -252,13 +252,14 @@ AH_TEMPLATE(WT_STANDALONE_BUILD,
 AC_MSG_CHECKING(if --disable-standalone-build option specified)
 AC_ARG_ENABLE(standalone-build,
        [AS_HELP_STRING([--disable-standalone-build],
-           [Disable standalone build support.])], r=$disableval, r=no)
+           [Disable standalone build support.])], r=$enableval, r=yes)
 case "$r" in
 no)    wt_cv_disable_standalone_build=no
-       AC_DEFINE(WT_STANDALONE_BUILD);;
-*)     wt_cv_disable_standalone_build=yes;;
+	   AC_MSG_RESULT(yes);;
+*)     wt_cv_disable_standalone_build=yes
+	   AC_DEFINE(WT_STANDALONE_BUILD)
+	   AC_MSG_RESULT(no);;
 esac
-AC_MSG_RESULT($wt_cv_disable_standalone_build)
 
 AC_MSG_CHECKING(if --enable-llvm option specified)
 AC_ARG_ENABLE(llvm,
