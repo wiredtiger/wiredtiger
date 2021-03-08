@@ -355,21 +355,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
 
             /* Detect out of order timestamp update. */
             if (min_ts_upd != NULL && min_ts_upd->start_ts < upd->start_ts) {
-                if (out_of_order_ts_updates.size == 0) {
-                    /* Always insert full update to the history store if we detect out of order
-                     * timestamp update. */
-                    enable_reverse_modify = false;
-                    WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
-                    out_of_order_ts_upd = min_ts_upd;
-                } else {
-                    WT_ASSERT(session, out_of_order_ts_upd != NULL);
-                    if (min_ts_upd->start_ts < out_of_order_ts_upd->start_ts) {
-                        WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
-                        out_of_order_ts_upd = min_ts_upd;
-                    }
-                }
-                min_ts_upd = NULL;
-            } else if (upd->prepare_state != WT_PREPARE_INPROGRESS)
+                /* Always insert full update to the history store if we detect out of order
+                 * timestamp update. */
+                enable_reverse_modify = false;
+                WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
+                out_of_order_ts_upd = min_ts_upd;
+            } else if (upd->prepare_state != WT_PREPARE_INPROGRESS &&
+              (min_ts_upd == NULL || upd->start_ts < min_ts_upd->start_ts))
                 min_ts_upd = upd;
 
             WT_ERR(__wt_update_vector_push(&updates, upd));
