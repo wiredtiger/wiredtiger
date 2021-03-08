@@ -451,6 +451,13 @@ connection_runtime_config = [
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='1024GB'),
+               Config('simulated_size', '0', r'''
+                   track blocks that wouldn't have been in the cache if the
+                   cache size were set to similated size. This is a tracing
+                   feature used for the development of the eviction protocol.
+                   The simulated cache size must be smaller than the actual,
+                   or zero, if no tracing is to be performed.''',
+                   min='0', max='1024GB'),
                Config('hashsize', '0', r'''
                    size of the hashtable that keeps track of blocks.''',
                    min='512', max='1073741824'),

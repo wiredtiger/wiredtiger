@@ -127,6 +127,30 @@ __blkcache_free(WT_SESSION_IMPL *session, void *ptr)
 }
 
 /*
+ * __blkcache_update_ref_histogram --
+ *      Update the histogram of block accesses when the block is freed or on exit.
+ */
+static void
+__blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item)
+{
+
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+    int bucket;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    bucket = blkcache_item->num_references / BLKCACHE_HIST_BOUNDARY;
+    if (bucket > BLKCACHE_HIST_BUCKETS - 1)
+	bucket =  BLKCACHE_HIST_BUCKETS - 1;
+
+    if (blkcache_item->present_in_sim_cache)
+	blkcache->sim_cache_references[bucket]++;
+    blkcache->real_cache_references[bucket]++;
+}
+
+/*
  * __wt_blkcache_get_or_check --
  *     Get a block from the cache or check if one exists.
  */
@@ -180,6 +204,8 @@ __wt_blkcache_get_or_check(
 #endif
             if (data_ptr != NULL)
                 memcpy(data_ptr, blkcache_item->data, size);
+
+	    blkcache_item->num_references++;
 
 #if BLKCACHE_TRACE == 1
 	    time_stop = __wt_clock(session);
@@ -287,6 +313,10 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     WT_ERR(__wt_calloc_one(session, &blkcache_item));
     blkcache_item->id = id;
     blkcache_item->data = data_ptr;
+    /* Would this block be inserted in the cache if the cache were smaller,
+     * as indicated by the simulated cache size? */
+    if (blkcache->bytes_used < blkcache->max_bytes_sim)
+	blkcache_item-> present_in_sim_cache = true;
 
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);
@@ -378,6 +408,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= size;
+	    __blkcache_update_ref_histogram(session, blkcache_item);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
@@ -400,7 +431,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  *     Initialize the block cache.
  */
 static int
-__blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
+__blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t sim_cache_size,
+		size_t hash_size,
 		int type, char *nvram_device_path, size_t system_ram,
 		int percent_file_in_dram, bool write_allocate,
 		double overhead_pct)
@@ -413,12 +445,14 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
     conn = S2C(session);
     blkcache = &conn->blkcache;
     blkcache->hash_size = hash_size;
-    blkcache->system_ram = system_ram;
     blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
+    blkcache->max_bytes = cache_size;
+    blkcache->max_bytes_sim = sim_cache_size;
     blkcache->overhead_pct = overhead_pct;
+    blkcache->system_ram = system_ram;
+    blkcache->type = type;
     blkcache->write_allocate = write_allocate;
 
-    printf("Set overhead percent to %f\n", blkcache->overhead_pct);
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -442,13 +476,10 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t size, size_t hash_size,
         WT_RET(__wt_spin_init(session, &blkcache->hash_locks[i], "block cache bucket locks"));
     }
 
-    blkcache->type = type;
-    blkcache->max_bytes = size;
-
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialized: "
 		 "type=%s, size=%" PRIu32 " path=%s",
 		 (type == BLKCACHE_NVRAM)?"nvram":(type == BLKCACHE_DRAM)?"dram":"unconfigured",
-		 (uint32_t)size, (nvram_device_path == NULL)?"--":nvram_device_path);
+		 (uint32_t)cache_size, (nvram_device_path == NULL)?"--":nvram_device_path);
 
     return (ret);
 }
@@ -463,6 +494,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
+    int j;
     uint64_t i;
 
     conn = S2C(session);
@@ -481,6 +513,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
             TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
             __blkcache_free(session, blkcache_item->data);
+	    __blkcache_update_ref_histogram(session, blkcache_item);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= blkcache_item->id.size;
             __wt_free(session, blkcache_item);
@@ -489,6 +522,15 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     }
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
+
+    /* Print reference histograms */
+    printf("Bucket \t Real \t Simulated:\n");
+    printf("-----------------------------\n");
+    for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
+	printf("[%d - %d] \t %d \t %d \n", j * BLKCACHE_HIST_BOUNDARY,
+	       (j + 1) * BLKCACHE_HIST_BOUNDARY, blkcache->real_cache_references[j],
+	       blkcache->sim_cache_references[j]);
+    }
 
 done:
 #ifdef HAVE_LIBMEMKIND
@@ -520,7 +562,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     char *nvram_device_path = NULL;
     double overhead_pct;
     int cache_type = BLKCACHE_UNCONFIGURED, percent_file_in_dram;
-    size_t cache_size, hash_size, system_ram;
+    size_t cache_size, hash_size, sim_cache_size, system_ram;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -539,6 +581,11 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
     if ((cache_size = (uint64_t)cval.val) <= 0)
         WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.simulated_size", &cval));
+    if ((sim_cache_size = (uint64_t)cval.val) >= cache_size)
+        WT_RET_MSG(session, EINVAL,
+		   "block cache simulated size must be smaller than the actual size");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
     if ((hash_size = (uint64_t)cval.val) == 0)
@@ -579,7 +626,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     else
 	overhead_pct = (double)cval.val/(double)100;
 
-    return __blkcache_init(session, cache_size, hash_size, cache_type,
+    return __blkcache_init(session, cache_size, sim_cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram,
 			   percent_file_in_dram, write_allocate,
 			   overhead_pct);
