@@ -354,9 +354,12 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
             non_aborted_upd = upd;
 
             /* Detect out of order timestamp update. */
-            if (min_ts_upd != NULL && min_ts_upd->start_ts < upd->start_ts) {
-                /* Always insert full update to the history store if we detect out of order
-                 * timestamp update. */
+            if (min_ts_upd != NULL && min_ts_upd->start_ts < upd->start_ts &&
+              out_of_order_ts_upd != min_ts_upd) {
+                /*
+                 * Always insert full update to the history store if we detect out of order
+                 * timestamp update.
+                 */
                 enable_reverse_modify = false;
                 WT_ERR(__wt_update_vector_push(&out_of_order_ts_updates, min_ts_upd));
                 out_of_order_ts_upd = min_ts_upd;
