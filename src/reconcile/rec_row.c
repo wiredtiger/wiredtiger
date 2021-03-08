@@ -143,18 +143,27 @@ __rec_cell_build_leaf_key(
                     break;
 
             /*
-             * Prefix compression may cost us CPU and memory when the page is re-loaded, don't do it
-             * unless there's reasonable gain.
+             * Prefix compression costs CPU and memory when the page is re-loaded, skip unless
+             * there's a reasonable gain. Also, if the previous key was prefix compressed, don't
+             * increase the prefix compression if we aren't getting a reasonable gain. (Groups of
+             * keys with the same prefix can be quickly built without needing to roll forward
+             * through intermediate keys or allocating memory so they can be built faster in the
+             * future, for that reason try and create big groups of keys with the same prefix.)
              */
             if (pfx < btree->prefix_compression_min)
                 pfx = 0;
-            else
+            else if (r->key_pfx_last != 0 && pfx > r->key_pfx_last &&
+              pfx < r->key_pfx_last + WT_KEY_PREFIX_PREVIOUS_MINIMUM)
+                pfx = r->key_pfx_last;
+
+            if (pfx != 0)
                 WT_STAT_DATA_INCRV(session, rec_prefix_compression, pfx);
         }
 
         /* Copy the non-prefix bytes into the key buffer. */
         WT_RET(__wt_buf_set(session, &key->buf, (uint8_t *)data + pfx, size - pfx));
     }
+    r->key_pfx_last = pfx;
 
     /* Create an overflow object if the data won't fit. */
     if (key->buf.size > btree->maxleafkey) {
@@ -214,6 +223,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
          */
         if (r->key_pfx_compress_conf) {
             r->key_pfx_compress = false;
+            r->key_pfx_last = 0;
             if (!ovfl_key)
                 WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
         }
@@ -582,6 +592,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Turn off prefix and suffix compression until a full key is written into the new page.
              */
             r->key_pfx_compress = r->key_sfx_compress = false;
+            r->key_pfx_last = 0;
             continue;
         }
 
@@ -633,6 +644,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
+                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
@@ -1012,6 +1024,7 @@ build:
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
+                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }

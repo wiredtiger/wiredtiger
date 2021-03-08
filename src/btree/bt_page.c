@@ -538,10 +538,15 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_RET;
     WT_ROW *rip;
     WT_UPDATE *tombstone, *upd;
+    uint8_t first_prefix, last_prefix;
+    uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
+    uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     size_t size, total_size;
 
     btree = S2BT(session);
     tombstone = upd = NULL;
+    best_prefix_count = prefix_count = 0;
+    last_slot = 0;
     size = total_size = 0;
 
     /*
@@ -557,19 +562,87 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     rip = page->pg_row;
     WT_CELL_FOREACH_KV (session, page->dsk, unpack) {
         switch (unpack.type) {
-        case WT_CELL_KEY_OVFL:
-            __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
-            ++rip;
-            continue;
         case WT_CELL_KEY:
             /*
              * Simple keys without prefix compression can be directly referenced on the page to
              * avoid repeatedly unpacking their cells.
+             *
+             * Review groups of prefix-compressed keys, and track the biggest group as the page's
+             * prefix. What we're finding is the biggest group of prefix-compressed keys we can
+             * immediately build using a previous key plus their suffix bytes, without rolling
+             * forward through intermediate keys. We save that information on the page and then
+             * never physically instantiate those keys, avoiding memory amplification for pages with
+             * a page-wide prefix. On the first of a group of prefix-compressed keys, track the slot
+             * of the original key and the current key's prefix length. On subsequent keys, if the
+             * key can be built from the original key plus the current key's suffix bytes, update
+             * the maximum slot to which the prefix applies and the current prefix length.
+             *
+             * Groups of prefix-compressed keys end when a key is not prefix-compressed or when a
+             * key's prefix length first decreases below the first prefix length and then a
+             * subsequent key's prefix length grows, we must roll forward through intermediate keys
+             * to build those keys. The key's prefix length decreasing is OK, it only means fewer
+             * bytes taken from the original key. The key's prefix length increasing does not end a
+             * group of prefix-compressed keys as we might be able to build a subsequent key using
+             * the original key and the key's suffix bytes, that is the prefix length can increase
+             * and then subsequently decrease. However, a key cannot be built without rolling
+             * forward through intermediate keys if the key's prefix length is longer than the
+             * original key, so while we don't end the group in that case, we don't count it as a
+             * useful entry for the purpose of finding the best group of prefix-compressed keys,
+             * either.
              */
-            if (unpack.prefix == 0)
+            if (unpack.prefix == 0) {
                 __wt_row_leaf_key_set(page, rip, &unpack);
-            else
+
+                /* If the last prefix group was the best, track it. */
+                if (prefix_count > best_prefix_count) {
+                    best_prefix_start = prefix_start;
+                    best_prefix_stop = prefix_stop;
+                    best_prefix_count = prefix_count;
+                    prefix_count = 0;
+                }
+            } else {
                 __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
+
+                /* Check for starting or continuing a prefix group. */
+                slot = WT_ROW_SLOT(page, rip);
+                if (prefix_count == 0) {
+                    first_prefix = last_prefix = unpack.prefix;
+                    prefix_start = slot - 1;
+                    last_slot = prefix_stop = slot;
+                    prefix_count = 1;
+                } else if (last_slot == slot - 1 &&
+                  (unpack.prefix > first_prefix || unpack.prefix <= last_prefix)) {
+                    /*
+                     * The last prefix and the last slot are what we use to determine if we've hit
+                     * the end of a prefix-compressed group (see comment immediately above). The
+                     * prefix count and the prefix stop are the count of, and last slot of, the
+                     * group of keys we may be able to build without rolling forward. They are
+                     * different from the last prefix and last slot because the prefix may increase
+                     * and never decrease, that is, the prefix group may end after lots of entries
+                     * we can't build without rolling intermediate keys forward and we don't want to
+                     * waste work on them when doing the search.
+                     */
+                    last_prefix = unpack.prefix;
+                    last_slot = slot;
+                    if (unpack.prefix <= first_prefix) {
+                        prefix_stop = slot;
+                        ++prefix_count;
+                    }
+                }
+            }
+
+            ++rip;
+            continue;
+        case WT_CELL_KEY_OVFL:
+            __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
+
+            /*
+             * Prefix compression skips overflow items, ignore this slot. The last slot value is
+             * only used inside a group of prefix-compressed keys, so blindly increment it, it's not
+             * used unless the count of prefix-compressed keys is non-zero.
+             */
+            ++last_slot;
+
             ++rip;
             continue;
         case WT_CELL_VALUE:
@@ -659,6 +732,14 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         tombstone = upd = NULL;
     }
     WT_CELL_FOREACH_END;
+
+    /* If the last prefix group was the best, track it. Save the best prefix group for the page. */
+    if (prefix_count > best_prefix_count) {
+        best_prefix_start = prefix_start;
+        best_prefix_stop = prefix_stop;
+    }
+    page->prefix_start = best_prefix_start;
+    page->prefix_stop = best_prefix_stop;
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 

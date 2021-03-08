@@ -1083,7 +1083,12 @@ static inline int
 __wt_row_leaf_key(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, bool instantiate)
 {
-    void *copy;
+    WT_CELL *cell;
+    WT_CELL_UNPACK_KV unpack;
+    size_t pp_size;
+    uint32_t slot;
+    bool pp_key_found;
+    void *copy, *pp_key;
 
     /*
      * A front-end for __wt_row_leaf_key_work, here to inline fast paths.
@@ -1093,12 +1098,37 @@ __wt_row_leaf_key(
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * All we handle here are on-page keys (which should be a common case), and instantiated keys
-     * (which start out rare, but become more common as a leaf page is searched, instantiating
-     * prefix-compressed keys).
+     * Handle on-page keys (which should be a common case), keys built using the page-wide prefix,
+     * and instantiated keys (which are rare initially, but become more common as leaf pages are
+     * searched, instantiating prefix-compressed keys).
      */
-    if (__wt_row_leaf_key_info(page, copy, NULL, NULL, &key->data, &key->size))
+    if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &key->data, &key->size))
         return (0);
+
+    /*
+     * The longest group of compressed key prefixes on the page was tracked when it was read. Build
+     * keys within that group by appending this key's bytes to the key from which it was compressed.
+     * Note the check if the key's prefix is less than or equal to the starting key's length: it's
+     * possible for the prefix to grow and shrink within the group, and we can't build keys with a
+     * prefix larger than the original key's length.
+     */
+    slot = WT_ROW_SLOT(page, rip);
+    if (cell != NULL && slot > page->prefix_start && slot <= page->prefix_stop) {
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+        WT_RET_PANIC_ASSERT(session, unpack.prefix != 0, WT_PANIC,
+          "key without prefix found in prefix-compressed key group");
+        pp_key_found = __wt_row_leaf_key_info(
+          page, WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]), NULL, NULL, &pp_key, &pp_size);
+        WT_RET_PANIC_ASSERT(
+          session, pp_key_found, WT_PANIC, "starting key of prefix-compressed key group not found");
+        if (unpack.prefix <= pp_size) {
+            WT_RET(__wt_buf_grow(session, key, unpack.prefix + unpack.size));
+            memcpy((uint8_t *)key->data, pp_key, unpack.prefix);
+            memcpy((uint8_t *)key->data + unpack.prefix, unpack.data, unpack.size);
+            key->size = unpack.prefix + unpack.size;
+            return (0);
+        }
+    }
 
     /*
      * The alternative is an on-page cell with some kind of compressed or overflow key that's never
