@@ -583,9 +583,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
      */
     WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
 
-    if (rip != NULL) {
+    if (rip != NULL)
         __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
-    } else {
+    else {
         kcell = WT_COL_PTR(page, cip);
         __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
     }
