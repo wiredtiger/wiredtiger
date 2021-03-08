@@ -1198,8 +1198,8 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     if ((local = calloc(1, sizeof(LOCAL_STORAGE))) == NULL)
         return (errno);
     local->wt_api = connection->get_extension_api(connection);
-    if ((ret = pthread_rwlock_init(&local->file_handle_lock, NULL)) == 0 ||
-      (ret = pthread_rwlock_init(&local->flush_lock, NULL)) == 0) {
+    if ((ret = pthread_rwlock_init(&local->file_handle_lock, NULL)) != 0 ||
+      (ret = pthread_rwlock_init(&local->flush_lock, NULL)) != 0) {
         (void)local_err(local, NULL, ret, "pthread_rwlock_init");
         free(local);
     }
