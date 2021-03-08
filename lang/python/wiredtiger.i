@@ -56,8 +56,9 @@ from packing import pack, unpack
 %}
 
 /*
- * Tell SWIG about types that won't see.  We don't need to be exact in our typing here,
- * SWIG just needs hints so it knows what Python types to map to.
+ * For some reason, SWIG doesn't import some types from stdint.h.  We need to tell SWIG something
+ * about those type we use.  We don't need to be exact in our typing here, SWIG just needs hints
+ * so it knows what Python types to map to.
  */
 %inline %{
     typedef unsigned int uint32_t;

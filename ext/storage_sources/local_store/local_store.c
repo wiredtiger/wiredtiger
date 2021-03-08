@@ -176,8 +176,8 @@ static int local_file_sync(WT_FILE_HANDLE *, WT_SESSION *);
 static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, const void *);
 
 /*
- * Report an error for a file operation.  Note that local_err returns its third argument,
- * and this macro will too.
+ * Report an error for a file operation. Note that local_err returns its third argument, and this
+ * macro will too.
  */
 #define local_file_err(fh, session, ret, str) \
     local_err((fh)->local, session, ret, "\"%s\": %s", fh->iface.name, str)
@@ -287,7 +287,7 @@ local_configure_int(LOCAL_STORAGE *local, WT_CONFIG_ARG *config, const char *key
 
 /*
  * local_err --
- *     Print errors from the interface.  Returns "ret", the third argument.
+ *     Print errors from the interface. Returns "ret", the third argument.
  */
 static int
 local_err(LOCAL_STORAGE *local, WT_SESSION *session, int ret, const char *format, ...)
