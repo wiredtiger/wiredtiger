@@ -369,7 +369,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi)
                     }
                 }
                 min_ts_upd = NULL;
-            } else if (min_ts_upd == NULL && upd->prepare_state != WT_PREPARE_INPROGRESS)
+            } else if (upd->prepare_state != WT_PREPARE_INPROGRESS)
                 min_ts_upd = upd;
 
             WT_ERR(__wt_update_vector_push(&updates, upd));
