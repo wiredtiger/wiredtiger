@@ -51,15 +51,16 @@ class workload_validation {
     }
 
     template <typename K>
-    int
+    bool
     is_key_present(WT_SESSION *session, const std::string &collection_name, const K &key)
     {
         WT_CURSOR *cursor;
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
-        return (cursor->search(cursor));
+        return (cursor->search(cursor) == 0);
     }
 
+    /* Verify the given expected value is the same on disk. */
     template <typename K, typename V>
     bool
     verify_value(WT_SESSION *session, const std::string &collection_name, const K &key,
