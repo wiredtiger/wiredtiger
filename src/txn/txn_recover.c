@@ -597,7 +597,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen based on this file's configuration. */
-    return (__wt_metadata_update_base_write_gen(r->session, config));
+    return (__wt_conn_base_write_gen_update(r->session, config));
 }
 
 /*
@@ -985,7 +985,8 @@ done:
      * generation number with the latest write generation from all the checkpointed files to let the
      * existing transaction ids to reset to avoid transaction visible failures.
      */
-    WT_ERR(__wt_metadata_update_all_base_write_gen(session));
+    if (rts_executed)
+        WT_ERR(__wt_conn_base_write_gen_correction(session));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's

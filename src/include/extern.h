@@ -414,6 +414,12 @@ extern int __wt_config_subgets(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cfg, co
 extern int __wt_configure_method(WT_SESSION_IMPL *session, const char *method, const char *uri,
   const char *config, const char *type, const char *check)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_base_write_gen_correction(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_base_write_gen_init(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_conn_base_write_gen_update(WT_SESSION_IMPL *session, const char *config)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
   int (*file_func)(WT_SESSION_IMPL *, const char *[]),
   int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[])
@@ -1089,8 +1095,6 @@ extern int __wt_metadata_cursor_release(WT_SESSION_IMPL *session, WT_CURSOR **cu
 extern int __wt_metadata_get_ckptlist(WT_SESSION *session, const char *name, WT_CKPT **ckptbasep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
     WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_insert(WT_SESSION_IMPL *session, const char *key, const char *value)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_remove(WT_SESSION_IMPL *session, const char *key)
@@ -1100,10 +1104,6 @@ extern int __wt_metadata_search(WT_SESSION_IMPL *session, const char *key, char 
 extern int __wt_metadata_turtle_rewrite(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_metadata_update(WT_SESSION_IMPL *session, const char *key, const char *value)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_metadata_update_all_base_write_gen(WT_SESSION_IMPL *session)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_modify_apply_api(WT_CURSOR *cursor, WT_MODIFY *entries, int nentries)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")))
