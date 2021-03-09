@@ -127,7 +127,8 @@ class test {
         /* Validation stage. */
         if (enable_tracking) {
             workload_validation wv;
-            is_success = wv.validate();
+            is_success = wv.validate(_workload_tracking->get_collection_operations_name(),
+              _workload_tracking->get_collection_schema_name());
         }
 
         if (is_success)

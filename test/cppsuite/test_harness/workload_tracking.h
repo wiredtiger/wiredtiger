@@ -30,24 +30,22 @@
 #define WORKLOAD_TRACKING_H
 
 /*
- * Default schema for tracking table key_format : Collection name / Key / Timestamp value_format :
- * Operation type / Value
+ * Default schema for tracking operations on collections (key_format: Collection name / Key /
+ * Timestamp, value_format: Operation type / Value)
  */
-#define DEFAULT_TRACKING_COLLECTION_KEY_FORMAT WT_UNCHECKED_STRING(Sii)
-#define DEFAULT_TRACKING_COLLECTION_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
-#define DEFAULT_TRACKING_COLLECTION_TABLE_SCHEMA         \
-    "key_format=" DEFAULT_TRACKING_COLLECTION_KEY_FORMAT \
-    ",value_format=" DEFAULT_TRACKING_COLLECTION_VALUE_FORMAT
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Sii)
+#define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
+#define DEFAULT_OPERATION_TRACKING \
+    "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
 
 /*
- * Default schema for tracking operation on collection table key_format : Collection name /
- * Timestamp value_format : Operation type
+ * Default schema for tracking schema operations on collections (key_format: Collection name /
+ * Timestamp, value_format: Operation type)
  */
-#define DEFAULT_TRACKING_OPERATION_KEY_FORMAT WT_UNCHECKED_STRING(Si)
-#define DEFAULT_TRACKING_OPERATION_VALUE_FORMAT WT_UNCHECKED_STRING(i)
-#define DEFAULT_TRACKING_OPERATION_TABLE_SCHEMA         \
-    "key_format=" DEFAULT_TRACKING_OPERATION_KEY_FORMAT \
-    ",value_format=" DEFAULT_TRACKING_OPERATION_VALUE_FORMAT
+#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Si)
+#define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
+#define DEFAULT_SCHEMA_TRACKING \
+    "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
 
 namespace test_harness {
 /* Tracking operations. */
@@ -56,29 +54,28 @@ enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
 class workload_tracking : public component {
 
     public:
-    workload_tracking(
-      const std::string &collections_schema = DEFAULT_TRACKING_COLLECTION_TABLE_SCHEMA,
-      const std::string &collection_tracking_name = TABLE_SCHEMA_TRACKING,
-      const std::string &collection_tracking_operations_name = TABLE_OPERATION_TRACKING,
-      const std::string &operations_schema = DEFAULT_TRACKING_OPERATION_TABLE_SCHEMA)
-        : _collections_schema(collections_schema),
-          _collection_tracking_name(collection_tracking_name),
-          _collection_tracking_operations_name(collection_tracking_operations_name),
-          _operations_schema(operations_schema), _cursor_collections(nullptr),
-          _cursor_operations(nullptr), _timestamp(0U)
+    workload_tracking(const std::string &collections_schema_format = DEFAULT_SCHEMA_TRACKING,
+      const std::string &collection_operations_name = TABLE_OPERATION_TRACKING,
+      const std::string &collection_schema_name = TABLE_SCHEMA_TRACKING,
+      const std::string &collections_operations_format = DEFAULT_OPERATION_TRACKING)
+        : _cursor_operations(nullptr), _cursor_schema(nullptr),
+          _collections_operations_format(collections_operations_format),
+          _collection_operations_name(collection_operations_name),
+          _collections_schema_format(collections_schema_format),
+          _collection_schema_name(collection_schema_name), _timestamp(0U)
     {
     }
 
     const std::string &
-    get_collection_tracking_name() const
+    get_collection_schema_name() const
     {
-        return _collection_tracking_name;
+        return _collection_schema_name;
     }
 
     const std::string &
-    get_collection_tracking_operations_name() const
+    get_collection_operations_name() const
     {
-        return _collection_tracking_operations_name;
+        return _collection_operations_name;
     }
 
     void
@@ -86,20 +83,20 @@ class workload_tracking : public component {
     {
         WT_SESSION *session;
 
-        /* Create tracking collection for collection states. */
+        /* Initiate schema tracking. */
         session = connection_manager::instance().create_session();
         testutil_check(
-          session->create(session, _collection_tracking_name.c_str(), _collections_schema.c_str()));
+          session->create(session, _collection_schema_name.c_str(), _collections_schema_format.c_str()));
         testutil_check(session->open_cursor(
-          session, _collection_tracking_name.c_str(), NULL, NULL, &_cursor_collections));
-        debug_info("Tracking collection states created", _trace_level, DEBUG_INFO);
+          session, _collection_schema_name.c_str(), NULL, NULL, &_cursor_schema));
+        debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
 
-        /* Create tracking collection operations. */
+        /* Initiate operations tracking. */
         testutil_check(session->create(
-          session, _collection_tracking_operations_name.c_str(), _operations_schema.c_str()));
+          session, _collection_operations_name.c_str(), _collections_operations_format.c_str()));
         testutil_check(session->open_cursor(
-          session, _collection_tracking_operations_name.c_str(), NULL, NULL, &_cursor_operations));
-        debug_info("Tracking operations created", _trace_level, DEBUG_INFO);
+          session, _collection_operations_name.c_str(), NULL, NULL, &_cursor_operations));
+        debug_info("Operations tracking created", _trace_level, DEBUG_INFO);
     }
 
     void
@@ -120,13 +117,13 @@ class workload_tracking : public component {
         switch (operation) {
         case tracking_operation::CREATE:
         case tracking_operation::DELETE_COLLECTION:
-            cursor = _cursor_operations;
+            cursor = _cursor_schema;
             cursor->set_key(cursor, collection_name.c_str(), _timestamp++);
             cursor->set_value(cursor, static_cast<int>(operation));
             break;
 
         default:
-            cursor = _cursor_collections;
+            cursor = _cursor_operations;
             cursor->set_key(cursor, collection_name.c_str(), key, _timestamp++);
             cursor->set_value(cursor, static_cast<int>(operation), value);
             break;
@@ -144,11 +141,11 @@ class workload_tracking : public component {
     }
 
     private:
-    const std::string _collections_schema;
-    const std::string _collection_tracking_name;
-    const std::string _collection_tracking_operations_name;
-    const std::string _operations_schema;
-    WT_CURSOR *_cursor_collections = nullptr;
+    const std::string _collections_operations_format;
+    const std::string _collections_schema_format;
+    const std::string _collection_schema_name;
+    const std::string _collection_operations_name;
+    WT_CURSOR *_cursor_schema = nullptr;
     WT_CURSOR *_cursor_operations = nullptr;
     uint64_t _timestamp;
 };

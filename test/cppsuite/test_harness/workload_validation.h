@@ -46,10 +46,14 @@ class workload_validation {
      * replay the tracked operations so a representation in memory of the collections is created.
      * This representation is then compared to what is on disk. The second step is to go through
      * what has been saved on disk and make sure the memory representation has the same data.
+     * collection_operations_name is the collection that contains all the operations about the
+     * key/value pairs in the different collections used during the test. collection_schema_name is
+     * the collection that contains all the operations about the creation or deletion of collections
+     * during the test.
      */
     bool
-    validate(const std::string &collection_tracking_operations = TABLE_OPERATION_TRACKING,
-      const std::string &collection_tracking = TABLE_SCHEMA_TRACKING)
+    validate(
+      const std::string &collection_operations_name, const std::string &collection_schema_name)
     {
         WT_SESSION *session;
         std::string collection_name;
@@ -69,8 +73,8 @@ class workload_validation {
         session = connection_manager::instance().create_session();
 
         /* Retrieve the created collections that need to be checked. */
-        collection_name = collection_tracking_operations;
-        created_collections = parse_operations_on_collections(session, collection_name);
+        collection_name = collection_schema_name;
+        created_collections = parse_collections_schema(session, collection_name);
 
         /* Allocate memory to the operations performed on the created collections. */
         for (auto const &it : created_collections) {
@@ -82,9 +86,9 @@ class workload_validation {
          * Build in memory the final state of each created collection according to the tracked
          * operations.
          */
-        collection_name = collection_tracking;
+        collection_name = collection_operations_name;
         for (auto const &active_collection : created_collections)
-            parse_reference(session, collection_name, active_collection, collections);
+            parse_collections_operations(session, collection_name, active_collection, collections);
 
         /* Check all tracked operations in memory against the database on disk. */
         is_valid = check_reference(session, collections);
@@ -136,8 +140,8 @@ class workload_validation {
 
         /* Read the collection on disk. */
         while (is_valid && (cursor->next(cursor) == 0)) {
-            error_check(cursor->get_key(cursor, &key));
-            error_check(cursor->get_value(cursor, &value));
+            testutil_check(cursor->get_key(cursor, &key));
+            testutil_check(cursor->get_value(cursor, &value));
 
             debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_INFO);
             debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
@@ -181,7 +185,7 @@ class workload_validation {
      * during the test.
      */
     const std::vector<std::string>
-    parse_operations_on_collections(WT_SESSION *session, const std::string &collection_name)
+    parse_collections_schema(WT_SESSION *session, const std::string &collection_name)
     {
         WT_CURSOR *cursor;
 
@@ -193,8 +197,8 @@ class workload_validation {
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
 
         while (cursor->next(cursor) == 0) {
-            error_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
-            error_check(cursor->get_value(cursor, &value_operation_type));
+            testutil_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
+            testutil_check(cursor->get_value(cursor, &value_operation_type));
 
             debug_info(
               "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);
@@ -223,7 +227,7 @@ class workload_validation {
      * that needs to be represented in memory.
      */
     void
-    parse_reference(WT_SESSION *session, const std::string &tracking_collection_name,
+    parse_collections_operations(WT_SESSION *session, const std::string &tracking_collection_name,
       const std::string &collection_name,
       std::map<std::string, std::map<int, std::string *> *> &collections)
     {
@@ -241,8 +245,8 @@ class workload_validation {
         error_code = cursor->search_near(cursor, &exact);
 
         while (error_code == 0) {
-            error_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
-            error_check(cursor->get_value(cursor, &value_operation_type, &value));
+            testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
+            testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
 
             debug_info(
               "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);

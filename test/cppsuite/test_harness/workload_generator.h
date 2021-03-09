@@ -142,7 +142,9 @@ class workload_generator : public component {
     void
     set_tracker(workload_tracking *tracking)
     {
-        _enable_tracking = (tracking != nullptr);
+        /* Tracking cannot be NULL. */
+        testutil_check(tracking == nullptr);
+        _enable_tracking = true;
         _workload_tracking = tracking;
     }
 
@@ -246,7 +248,7 @@ class workload_generator : public component {
 
     private:
     std::vector<std::string> _collection_names;
-    configuration *_configuration = nullptr;
+    const configuration *_configuration = nullptr;
     bool _enable_tracking = false;
     thread_manager _thread_manager;
     std::vector<thread_context *> _workers;
