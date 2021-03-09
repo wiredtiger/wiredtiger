@@ -45,12 +45,23 @@ class test_tiered06(wttest.WiredTigerTestCase):
         sys.stderr = open('/dev/tty', 'w')
         pdb.set_trace()
 
+    def get_local_storage_source(self):
+        local = self.conn.get_storage_source('local_store')
+
+        # Note: do not call local.terminate() .
+        # Since the local_storage extension has been loaded by as a consequence of the
+        # wiredtiger_open call, WiredTiger already knows to call terminate when the connection
+        # closes.  Calling it twice would attempt to free the same memory twice.
+        local.terminate = None
+        return local
+
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling
         # each supported method in the API at least once.
 
         session = self.session
-        local = self.conn.get_storage_source('local_store')
+        local = self.get_local_storage_source()
+
         os.mkdir("objects")
         location = local.ss_location_handle(session,
             'cluster="cluster1",bucket="./objects",kmsid="Secret"')
@@ -104,13 +115,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(local.ss_location_list(session, location, '', 0), ['foobar'])
 
         location.close(session)
-        local.terminate(session)
 
     def test_local_write_read(self):
         # Write and read to a file non-sequentially.
 
         session = self.session
-        local = self.conn.get_storage_source('local_store')
+        local = self.get_local_storage_source()
+
         os.mkdir("objects")
         location = local.ss_location_handle(session,
             'cluster="cluster1",bucket="./objects",kmsid="Secret"')
