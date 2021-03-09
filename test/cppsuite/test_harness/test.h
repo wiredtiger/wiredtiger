@@ -44,6 +44,7 @@ extern "C" {
 #include "timestamp_manager.h"
 #include "thread_manager.h"
 #include "workload_generator.h"
+#include "workload_validation.h"
 
 namespace test_harness {
 /*
@@ -72,11 +73,13 @@ class test {
         delete _timestamp_manager;
         delete _thread_manager;
         delete _workload_generator;
+        delete _workload_tracking;
         _configuration = nullptr;
         _runtime_monitor = nullptr;
         _timestamp_manager = nullptr;
         _thread_manager = nullptr;
         _workload_generator = nullptr;
+        _workload_tracking = nullptr;
 
         _components.clear();
     }
@@ -88,29 +91,50 @@ class test {
     run()
     {
         int64_t duration_seconds = 0;
+        bool enable_tracking = false, is_success = true;
 
         /* Set up the test environment. */
         connection_manager::instance().create();
 
+        /* Create the activity tracker if required. */
+        testutil_check(_configuration->get_bool(ENABLE_TRACKING, enable_tracking));
+        if (enable_tracking) {
+            _workload_tracking = new workload_tracking();
+            /* Make sure the tracking component is loaded first to track all activities. */
+            _components.insert(_components.begin(), _workload_tracking);
+        } else
+            _workload_tracking = nullptr;
+        /* Tell the workload generator whether tracking is enabled. */
+        _workload_generator->set_tracker(_workload_tracking);
+
         /* Initiate the load stage of each component. */
-        for (const auto &it : _components) {
+        for (const auto &it : _components)
             it->load();
-        }
 
         /* Spawn threads for all component::run() functions. */
-        for (const auto &it : _components) {
+        for (const auto &it : _components)
             _thread_manager->add_thread(&component::run, it);
-        }
 
         /* Sleep duration seconds. */
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test. */
-        for (const auto &it : _components) {
+        for (const auto &it : _components)
             it->finish();
-        }
         _thread_manager->join();
+
+        /* Validation stage. */
+        if (enable_tracking) {
+            workload_validation wv;
+            is_success = wv.validate();
+        }
+
+        if (is_success)
+            std::cout << "SUCCESS" << std::endl;
+        else
+            std::cout << "FAILED" << std::endl;
+
         connection_manager::instance().close();
     }
 
@@ -152,6 +176,7 @@ class test {
     timestamp_manager *_timestamp_manager;
     thread_manager *_thread_manager;
     workload_generator *_workload_generator;
+    workload_tracking *_workload_tracking;
 };
 } // namespace test_harness
 

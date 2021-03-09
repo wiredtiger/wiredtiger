@@ -53,14 +53,19 @@ namespace test_harness {
 /* Tracking operations. */
 enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
 /* Class used to track operations performed on collections */
-class workload_tracking {
+class workload_tracking : public component {
 
     public:
-    workload_tracking(const std::string &collection_tracking_name = TABLE_SCHEMA_TRACKING,
-      const std::string &collection_tracking_operations_name = TABLE_OPERATION_TRACKING)
-        : _collection_tracking_name(collection_tracking_name),
+    workload_tracking(
+      const std::string &collections_schema = DEFAULT_TRACKING_COLLECTION_TABLE_SCHEMA,
+      const std::string &collection_tracking_name = TABLE_SCHEMA_TRACKING,
+      const std::string &collection_tracking_operations_name = TABLE_OPERATION_TRACKING,
+      const std::string &operations_schema = DEFAULT_TRACKING_OPERATION_TABLE_SCHEMA)
+        : _collections_schema(collections_schema),
+          _collection_tracking_name(collection_tracking_name),
           _collection_tracking_operations_name(collection_tracking_operations_name),
-          _cursor_collections(nullptr), _cursor_operations(nullptr), _timestamp(0U)
+          _operations_schema(operations_schema), _cursor_collections(nullptr),
+          _cursor_operations(nullptr), _timestamp(0U)
     {
     }
 
@@ -76,28 +81,31 @@ class workload_tracking {
         return _collection_tracking_operations_name;
     }
 
-    int
-    load(const std::string &collections_schema = DEFAULT_TRACKING_COLLECTION_TABLE_SCHEMA,
-      const std::string &operations_schema = DEFAULT_TRACKING_OPERATION_TABLE_SCHEMA)
+    void
+    load()
     {
         WT_SESSION *session;
 
         /* Create tracking collection for collection states. */
         session = connection_manager::instance().create_session();
         testutil_check(
-          session->create(session, _collection_tracking_name.c_str(), collections_schema.c_str()));
+          session->create(session, _collection_tracking_name.c_str(), _collections_schema.c_str()));
         testutil_check(session->open_cursor(
           session, _collection_tracking_name.c_str(), NULL, NULL, &_cursor_collections));
         debug_info("Tracking collection states created", _trace_level, DEBUG_INFO);
 
         /* Create tracking collection operations. */
         testutil_check(session->create(
-          session, _collection_tracking_operations_name.c_str(), operations_schema.c_str()));
+          session, _collection_tracking_operations_name.c_str(), _operations_schema.c_str()));
         testutil_check(session->open_cursor(
           session, _collection_tracking_operations_name.c_str(), NULL, NULL, &_cursor_operations));
         debug_info("Tracking operations created", _trace_level, DEBUG_INFO);
+    }
 
-        return (0);
+    void
+    run()
+    {
+        /* Does not do anything. */
     }
 
     template <typename K, typename V>
@@ -136,8 +144,10 @@ class workload_tracking {
     }
 
     private:
+    const std::string _collections_schema;
     const std::string _collection_tracking_name;
     const std::string _collection_tracking_operations_name;
+    const std::string _operations_schema;
     WT_CURSOR *_cursor_collections = nullptr;
     WT_CURSOR *_cursor_operations = nullptr;
     uint64_t _timestamp;
