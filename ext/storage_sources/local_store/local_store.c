@@ -72,15 +72,15 @@ typedef struct {
      * Configuration values are set at startup.
      */
     uint32_t delay_ms;    /* Average length of delay when simulated */
-    uint32_t force_error; /* Force a simulated network error every N operations */
     uint32_t force_delay; /* Force a simulated network delay every N operations */
+    uint32_t force_error; /* Force a simulated network error every N operations */
     uint32_t verbose;     /* Verbose level */
 
     /*
      * Statistics are collected but not yet exposed.
      */
-    uint64_t object_flushes; /* (What would be) writes to the cloud */
     uint64_t fh_ops;         /* Non-read/write operations in file handles */
+    uint64_t object_flushes; /* (What would be) writes to the cloud */
     uint64_t op_count;       /* Number of operations done on local */
     uint64_t read_ops;
     uint64_t write_ops;
