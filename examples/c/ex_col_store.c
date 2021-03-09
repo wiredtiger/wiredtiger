@@ -447,7 +447,7 @@ main(int argc, char *argv[])
       session->create(session, "colgroup:weather:feels_like_temp", "columns=(feels_like_temp)"));
     error_check(
       session->create(session, "colgroup:weather:location", "columns=(loc_lat,loc_long,country)"));
-    
+
     /* Generating random data to populate the weather table. */
     generate_data(weather_data);
 

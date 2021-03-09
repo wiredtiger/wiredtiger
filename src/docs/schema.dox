@@ -372,7 +372,7 @@ on a column-store where the index key is the record number).
 The code included above was taken from the complete example program
 @ex_ref{ex_schema.c}.
 
-Here are other example programs, @ex_ref{ex_call_center.c}, 
+Here are other example programs, @ex_ref{ex_call_center.c},
 
 @snippet ex_call_center.c call-center decl
 @snippet ex_call_center.c call-center work
