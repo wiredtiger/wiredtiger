@@ -737,37 +737,6 @@ __wt_conn_base_write_gen_update(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
- * __wt_conn_base_write_gen_correction --
- *     Update the connection's base write generation from all files in metadata. This function must
- *     not be called other than at the end of recovery after rollback to stable is finished.
- */
-int
-__wt_conn_base_write_gen_correction(WT_SESSION_IMPL *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    char *config, *uri;
-
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    while ((ret = cursor->next(cursor)) == 0) {
-        WT_ERR(cursor->get_key(cursor, &uri));
-
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            continue;
-
-        WT_ERR(cursor->get_value(cursor, &config));
-
-        /* Update base write gen to the write gen. */
-        WT_ERR(__wt_conn_base_write_gen_update(session, config));
-    }
-    WT_ERR_NOTFOUND_OK(ret, false);
-
-err:
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    return (ret);
-}
-
-/*
  * __wt_conn_base_write_gen_init --
  *     Initialize the connection's base write generation.
  */

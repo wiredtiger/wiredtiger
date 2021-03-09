@@ -548,6 +548,37 @@ err:
 }
 
 /*
+ * __recovery_correct_write_gen --
+ *     Update the connection's base write generation from all files in metadata. This function must
+ *     not be called other than at the end of recovery after rollback to stable is finished.
+ */
+static int
+__recovery_correct_write_gen(WT_SESSION_IMPL *session)
+{
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    char *config, *uri;
+
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while ((ret = cursor->next(cursor)) == 0) {
+        WT_ERR(cursor->get_key(cursor, &uri));
+
+        if (!WT_PREFIX_MATCH(uri, "file:"))
+            continue;
+
+        WT_ERR(cursor->get_value(cursor, &config));
+
+        /* Update base write gen to the write gen. */
+        WT_ERR(__wt_conn_base_write_gen_update(session, config));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
+}
+
+/*
  * __recovery_setup_file --
  *     Set up the recovery slot for a file, track the largest file ID, and update the base write gen
  *     based on the file's configuration.
@@ -986,7 +1017,7 @@ done:
      * existing transaction ids to reset to avoid transaction visible failures.
      */
     if (rts_executed)
-        WT_ERR(__wt_conn_base_write_gen_correction(session));
+        WT_ERR(__recovery_correct_write_gen(session));
 
     /*
      * Update the open dhandles write generations and base write generation with the connection's
