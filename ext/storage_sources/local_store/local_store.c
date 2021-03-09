@@ -484,8 +484,8 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         }
         if ((t_ret = local_flush_one(local, session, flush)) != 0 && ret == 0)
             ret = t_ret;
-        local_flush_free(flush);
         TAILQ_REMOVE(&local->flushq, flush, q);
+        local_flush_free(flush);
     }
 
     if ((t_ret = pthread_rwlock_unlock(&local->flush_lock)) != 0) {
@@ -1017,6 +1017,11 @@ local_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
             (void)local_err(local, session, ret, "file handle close: pthread_rwlock_wrlock2");
 
         if (ret == 0) {
+            /*
+             * Move the flush object from the file handle and to the flush queue.
+             * It is now owned by the flush queue and will be freed when that item
+             * is flushed.
+             */
             TAILQ_INSERT_HEAD(&local->flushq, flush, q);
             local_fh->flush = NULL;
 
