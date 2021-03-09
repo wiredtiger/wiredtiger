@@ -134,6 +134,7 @@ static int local_config_dup(
   LOCAL_STORAGE *, WT_SESSION *, WT_CONFIG_ITEM *, const char *, const char *, char **);
 static int local_configure(LOCAL_STORAGE *, WT_CONFIG_ARG *);
 static int local_configure_int(LOCAL_STORAGE *, WT_CONFIG_ARG *, const char *, uint32_t *);
+static int local_delay(LOCAL_STORAGE *);
 static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static void local_flush_free(LOCAL_FLUSH_ITEM *);
 static int local_location_decode(LOCAL_STORAGE *, WT_LOCATION_HANDLE *, char **, char **, char **);
@@ -281,6 +282,34 @@ local_configure_int(LOCAL_STORAGE *local, WT_CONFIG_ARG *config, const char *key
         ret = 0;
     else
         ret = local_err(local, NULL, EINVAL, "WT_API->config_get");
+
+    return (ret);
+}
+
+/*
+ * local_delay --
+ *     Add any artificial delay or simulated network error during an object transfer.
+ */
+static int
+local_delay(LOCAL_STORAGE *local)
+{
+    struct timeval tv;
+    int ret;
+
+    ret = 0;
+    if (local->force_delay != 0 && local->object_flushes % local->force_delay == 0) {
+        VERBOSE(local,
+          "Artificial delay %" PRIu32 " milliseconds after %" PRIu64 " object flushes\n",
+          local->delay_ms, local->object_flushes);
+        tv.tv_sec = local->delay_ms / 1000;
+        tv.tv_usec = (local->delay_ms % 1000) * 1000;
+        (void)select(0, NULL, NULL, NULL, &tv);
+    }
+    if (local->force_error != 0 && local->object_flushes % local->force_error == 0) {
+        VERBOSE(local, "Artificial error returned after %" PRIu64 " object flushes\n",
+          local->object_flushes);
+        ret = ENETUNREACH;
+    }
 
     return (ret);
 }
@@ -522,6 +551,9 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
         VERBOSE(local, "Flush object: from=%s, bucket=%s, object=%s, kmsid=%s, \n", flush->src_path,
           flush->bucket, object_name, flush->kmsid);
         local->object_flushes++;
+
+        if ((ret = local_delay(local)) != 0)
+            return (ret);
     }
     /* When we're done with flushing this file, remove the flush marker file. */
     if (ret == 0 && (ret = unlink(flush->marker_path)) < 0)
