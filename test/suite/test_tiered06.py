@@ -92,7 +92,8 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # Sync merely syncs to the local disk.
         fh.fh_sync(session)
         fh.close(session)    # zero length
-        self.assertEquals(local.ss_location_list(session, location, '', 0), ['foobar', 'zzz'])
+        self.assertEquals(sorted(local.ss_location_list(session, location, '', 0)),
+          ['foobar', 'zzz'])
 
         # See that we can remove objects.
         local.ss_remove(session, location, 'zzz', 0)
