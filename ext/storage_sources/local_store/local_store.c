@@ -1018,9 +1018,8 @@ local_file_close(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 
         if (ret == 0) {
             /*
-             * Move the flush object from the file handle and to the flush queue.
-             * It is now owned by the flush queue and will be freed when that item
-             * is flushed.
+             * Move the flush object from the file handle and to the flush queue. It is now owned by
+             * the flush queue and will be freed when that item is flushed.
              */
             TAILQ_INSERT_HEAD(&local->flushq, flush, q);
             local_fh->flush = NULL;
