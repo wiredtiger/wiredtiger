@@ -75,7 +75,6 @@ class test_checkpoint_snapshot04(backup_base):
         self.assertEqual(count, nrows)
 
     def test_checkpoint_snapshot(self):
-
         ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S")
         ds.populate()
         valuea = "aaaaa" * 100
@@ -113,7 +112,6 @@ class test_checkpoint_snapshot04(backup_base):
 
         session1.rollback_transaction()
 
-        # compare backups internally close connection and opens it with wt utility.
         self.compare_backups(self.uri, self.dir, './')
 
 if __name__ == '__main__':

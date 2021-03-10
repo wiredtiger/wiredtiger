@@ -549,8 +549,7 @@ err:
 
 /*
  * __recovery_correct_write_gen --
- *     Update the connection's base write generation from all files in metadata. This function must
- *     not be called other than at the end of recovery after rollback to stable is finished.
+ *     Update the connection's base write generation from all files in metadata.
  */
 static int
 __recovery_correct_write_gen(WT_SESSION_IMPL *session)
@@ -569,7 +568,7 @@ __recovery_correct_write_gen(WT_SESSION_IMPL *session)
         WT_ERR(cursor->get_value(cursor, &config));
 
         /* Update base write gen to the write gen. */
-        WT_ERR(__wt_conn_base_write_gen_update(session, config));
+        WT_ERR(__wt_metadata_update_base_write_gen(session, config));
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
@@ -628,7 +627,7 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
         WT_ASSIGN_LSN(&r->max_ckpt_lsn, &lsn);
 
     /* Update the base write gen based on this file's configuration. */
-    return (__wt_conn_base_write_gen_update(r->session, config));
+    return (__wt_metadata_update_base_write_gen(r->session, config));
 }
 
 /*
@@ -1006,15 +1005,8 @@ done:
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
     /*
-     * To support rollback to stable operation to fix the possible inconsistent checkpoint data on
-     * disk that is possible to be written when eviction runs in parallel to the checkpoint with a
-     * newer transaction snapshot than the checkpoint thread. To do that the transaction ids that
-     * are saved on disk doesn't get reset until the rollback to stable operation to fix the
-     * inconsistent data.
-     *
-     * Upon successful completion of rollback to stable, need to update the connection base write
-     * generation number with the latest write generation from all the checkpointed files to let the
-     * existing transaction ids to reset to avoid transaction visible failures.
+     * Rollback to stable may have updated inconsistent transaction ids. Update the connection base
+     * write generation based on these new ids that may have been reset.
      */
     if (rts_executed)
         WT_ERR(__recovery_correct_write_gen(session));

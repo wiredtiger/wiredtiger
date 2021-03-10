@@ -724,11 +724,11 @@ format:
 }
 
 /*
- * __wt_conn_base_write_gen_update --
+ * __wt_metadata_update_base_write_gen --
  *     Update the connection's base write generation from the config string.
  */
 int
-__wt_conn_base_write_gen_update(WT_SESSION_IMPL *session, const char *config)
+__wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CKPT ckpt;
     WT_CONNECTION_IMPL *conn;
@@ -747,11 +747,11 @@ __wt_conn_base_write_gen_update(WT_SESSION_IMPL *session, const char *config)
 }
 
 /*
- * __wt_conn_base_write_gen_init --
+ * __wt_metadata_init_base_write_gen --
  *     Initialize the connection's base write generation.
  */
 int
-__wt_conn_base_write_gen_init(WT_SESSION_IMPL *session)
+__wt_metadata_init_base_write_gen(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     char *config;
@@ -761,7 +761,7 @@ __wt_conn_base_write_gen_init(WT_SESSION_IMPL *session)
     /* Retrieve the metadata entry for the metadata file. */
     WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
     /* Update base write gen to the write gen of metadata. */
-    WT_ERR(__wt_conn_base_write_gen_update(session, config));
+    WT_ERR(__wt_metadata_update_base_write_gen(session, config));
 
 err:
     __wt_free(session, config);
