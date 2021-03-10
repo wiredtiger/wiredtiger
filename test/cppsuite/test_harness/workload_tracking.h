@@ -35,7 +35,7 @@
  */
 #define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Sii)
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
-#define DEFAULT_OPERATION_TRACKING \
+#define OPERATION_TRACKING_TABLE_CONFIG \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
 
 /*
@@ -44,7 +44,7 @@
  */
 #define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Si)
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
-#define DEFAULT_SCHEMA_TRACKING \
+#define SCHEMA_TRACKING_TABLE_CONFIG \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
 
 namespace test_harness {
@@ -54,28 +54,26 @@ enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
 class workload_tracking : public component {
 
     public:
-    workload_tracking(const std::string &collection_operations_name = TABLE_OPERATION_TRACKING,
-      const std::string &collection_schema_name = TABLE_SCHEMA_TRACKING,
-      const std::string &collections_operations_format = DEFAULT_OPERATION_TRACKING,
-      const std::string &collections_schema_format = DEFAULT_SCHEMA_TRACKING)
-        : _collection_operations_name(collection_operations_name),
-          _collection_schema_name(collection_schema_name),
-          _collections_operations_format(collections_operations_format),
-          _collections_schema_format(collections_schema_format), _cursor_operations(nullptr),
-          _cursor_schema(nullptr), _timestamp(0U)
+    workload_tracking(const std::string &operation_table_format,
+      const std::string &operation_table_name, const std::string &schema_table_format,
+      const std::string &schema_table_name)
+        : _cursor_operations(nullptr), _cursor_schema(nullptr),
+          _operation_table_format(operation_table_format),
+          _operation_table_name(operation_table_name), _schema_table_format(schema_table_format),
+          _schema_table_name(schema_table_name), _timestamp(0U)
     {
     }
 
     const std::string &
-    get_collection_schema_name() const
+    get_schema_table_name() const
     {
-        return _collection_schema_name;
+        return _schema_table_name;
     }
 
     const std::string &
-    get_collection_operations_name() const
+    get_operation_table_name() const
     {
-        return _collection_operations_name;
+        return _operation_table_name;
     }
 
     void
@@ -85,17 +83,17 @@ class workload_tracking : public component {
 
         /* Initiate schema tracking. */
         session = connection_manager::instance().create_session();
-        testutil_check(session->create(
-          session, _collection_schema_name.c_str(), _collections_schema_format.c_str()));
-        testutil_check(session->open_cursor(
-          session, _collection_schema_name.c_str(), NULL, NULL, &_cursor_schema));
+        testutil_check(
+          session->create(session, _schema_table_name.c_str(), _schema_table_format.c_str()));
+        testutil_check(
+          session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
         debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
 
         /* Initiate operations tracking. */
-        testutil_check(session->create(
-          session, _collection_operations_name.c_str(), _collections_operations_format.c_str()));
+        testutil_check(
+          session->create(session, _operation_table_name.c_str(), _operation_table_format.c_str()));
         testutil_check(session->open_cursor(
-          session, _collection_operations_name.c_str(), NULL, NULL, &_cursor_operations));
+          session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
         debug_info("Operations tracking created", _trace_level, DEBUG_INFO);
     }
 
@@ -141,10 +139,10 @@ class workload_tracking : public component {
     }
 
     private:
-    const std::string _collection_operations_name;
-    const std::string _collection_schema_name;
-    const std::string _collections_operations_format;
-    const std::string _collections_schema_format;
+    const std::string _operation_table_format;
+    const std::string _operation_table_name;
+    const std::string _schema_table_format;
+    const std::string _schema_table_name;
     WT_CURSOR *_cursor_operations;
     WT_CURSOR *_cursor_schema;
     uint64_t _timestamp;

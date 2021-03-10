@@ -46,14 +46,13 @@ class workload_validation {
      * replay the tracked operations so a representation in memory of the collections is created.
      * This representation is then compared to what is on disk. The second step is to go through
      * what has been saved on disk and make sure the memory representation has the same data.
-     * collection_operations_name is the collection that contains all the operations about the
-     * key/value pairs in the different collections used during the test. collection_schema_name is
-     * the collection that contains all the operations about the creation or deletion of collections
-     * during the test.
+     * operation_table_name is the collection that contains all the operations about the key/value
+     * pairs in the different collections used during the test. schema_table_name is the collection
+     * that contains all the operations about the creation or deletion of collections during the
+     * test.
      */
     bool
-    validate(
-      const std::string &collection_operations_name, const std::string &collection_schema_name)
+    validate(const std::string &operation_table_name, const std::string &schema_table_name)
     {
         WT_SESSION *session;
         std::string collection_name;
@@ -73,7 +72,7 @@ class workload_validation {
         session = connection_manager::instance().create_session();
 
         /* Retrieve the created collections that need to be checked. */
-        collection_name = collection_schema_name;
+        collection_name = schema_table_name;
         created_collections = parse_collections_schema(session, collection_name);
 
         /* Allocate memory to the operations performed on the created collections. */
@@ -86,7 +85,7 @@ class workload_validation {
          * Build in memory the final state of each created collection according to the tracked
          * operations.
          */
-        collection_name = collection_operations_name;
+        collection_name = operation_table_name;
         for (auto const &active_collection : created_collections)
             parse_collections_operations(session, collection_name, active_collection, collections);
 
