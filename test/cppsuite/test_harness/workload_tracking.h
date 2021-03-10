@@ -54,15 +54,15 @@ enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
 class workload_tracking : public component {
 
     public:
-    workload_tracking(const std::string &collections_schema_format = DEFAULT_SCHEMA_TRACKING,
-      const std::string &collection_operations_name = TABLE_OPERATION_TRACKING,
+    workload_tracking(const std::string &collection_operations_name = TABLE_OPERATION_TRACKING,
       const std::string &collection_schema_name = TABLE_SCHEMA_TRACKING,
-      const std::string &collections_operations_format = DEFAULT_OPERATION_TRACKING)
-        : _cursor_operations(nullptr), _cursor_schema(nullptr),
+      const std::string &collections_operations_format = DEFAULT_OPERATION_TRACKING,
+      const std::string &collections_schema_format = DEFAULT_SCHEMA_TRACKING)
+        : _collection_operations_name(collection_operations_name),
+          _collection_schema_name(collection_schema_name),
           _collections_operations_format(collections_operations_format),
-          _collection_operations_name(collection_operations_name),
-          _collections_schema_format(collections_schema_format),
-          _collection_schema_name(collection_schema_name), _timestamp(0U)
+          _collections_schema_format(collections_schema_format), _cursor_operations(nullptr),
+          _cursor_schema(nullptr), _timestamp(0U)
     {
     }
 
@@ -141,12 +141,12 @@ class workload_tracking : public component {
     }
 
     private:
+    const std::string _collection_operations_name;
+    const std::string _collection_schema_name;
     const std::string _collections_operations_format;
     const std::string _collections_schema_format;
-    const std::string _collection_schema_name;
-    const std::string _collection_operations_name;
-    WT_CURSOR *_cursor_schema = nullptr;
-    WT_CURSOR *_cursor_operations = nullptr;
+    WT_CURSOR *_cursor_operations;
+    WT_CURSOR *_cursor_schema;
     uint64_t _timestamp;
 };
 } // namespace test_harness

@@ -41,7 +41,10 @@ namespace test_harness {
  */
 class workload_generator : public component {
     public:
-    workload_generator(configuration *configuration) : _configuration(configuration) {}
+    workload_generator(configuration *configuration)
+        : _configuration(configuration), _enable_tracking(false), _workload_tracking(nullptr)
+    {
+    }
 
     ~workload_generator()
     {
@@ -130,8 +133,6 @@ class workload_generator : public component {
     void
     finish()
     {
-        int error_code = 0;
-
         debug_info("Workload generator stage done", _trace_level, DEBUG_INFO);
         for (const auto &it : _workers) {
             it->finish();
@@ -248,11 +249,11 @@ class workload_generator : public component {
 
     private:
     std::vector<std::string> _collection_names;
-    const configuration *_configuration = nullptr;
-    bool _enable_tracking = false;
+    const configuration *_configuration;
+    bool _enable_tracking;
     thread_manager _thread_manager;
     std::vector<thread_context *> _workers;
-    workload_tracking *_workload_tracking = nullptr;
+    workload_tracking *_workload_tracking;
 };
 } // namespace test_harness
 
