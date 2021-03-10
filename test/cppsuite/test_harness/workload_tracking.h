@@ -85,8 +85,8 @@ class workload_tracking : public component {
 
         /* Initiate schema tracking. */
         session = connection_manager::instance().create_session();
-        testutil_check(
-          session->create(session, _collection_schema_name.c_str(), _collections_schema_format.c_str()));
+        testutil_check(session->create(
+          session, _collection_schema_name.c_str(), _collections_schema_format.c_str()));
         testutil_check(session->open_cursor(
           session, _collection_schema_name.c_str(), NULL, NULL, &_cursor_schema));
         debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
