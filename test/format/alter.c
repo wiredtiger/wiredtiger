@@ -65,8 +65,6 @@ alter(void *arg)
          */
         while ((ret = session->alter(session, g.uri, buf)) != 0 && ret != EBUSY)
             testutil_die(ret, "session.alter");
-        fprintf(stdout, "PERFORMED ALTER %d\n", ret);
-        if (ret != EBUSY) testutil_die(ret, "session.alter");
         while (period > 0 && !g.workers_finished) {
             --period;
             __wt_sleep(1, 0);

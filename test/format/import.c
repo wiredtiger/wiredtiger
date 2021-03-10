@@ -46,15 +46,19 @@ WT_THREAD_RET
 import(void *arg)
 {
     WT_CONNECTION *conn, *import_conn;
-    WT_CURSOR *cursor;
+    WT_CURSOR *cursor, *metadata_cursor;
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
     u_int period;
-    char buf[32], *cmd;
+    u_int64_t counter;
+    char buf[2048], *cmd;
+    const char *table_config, *file_config;
     size_t len;
+    bool import_value;
 
     (void)(arg);
     conn = g.wts_conn;
+    import_value = false;
 
     len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
     cmd = dmalloc(len);
@@ -85,18 +89,57 @@ import(void *arg)
             __wt_yield();
         testutil_check(ret);
 
+        // Check if insert operation is re-usable from test/format
+        // Validate the cursor inserts
         for (int i = 0; i < 1000; i++) {
-            testutil_check(cursor_insert(cursor, i, i));
+            testutil_check(cursor_insert(cursor, counter + i, i));
         }
+
+        fprintf(stdout, "Performing checkpoint...\n");
+        testutil_check(import_session->checkpoint(import_session, NULL));
 
         copy_file(import_session, "import.wt");
         
-        fprintf(stdout, "Performing import...\n");
-        memset(buf, 0, sizeof(buf));
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
-        while ((ret = session->create(session, "file:import.wt", buf)) != 0)
-            testutil_die(ret, "session.import");
-        fprintf(stdout, "Finished import...\n");
+        if (import_value) {
+            fprintf(stdout, "(repair) Performing import...\n");
+            memset(buf, 0, sizeof(buf));
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
+            while ((ret = session->create(session, "file:import.wt", buf)) != 0) {
+                fprintf(stdout, "session import %d\n", ret);
+                testutil_die(ret, "session.import", ret);
+            }
+            fprintf(stdout, "(repair) Finished import...\n");
+        } else {
+            while ((ret = import_session->open_cursor(import_session, "metadata:", NULL, NULL, &metadata_cursor)) == EBUSY)
+                __wt_yield();
+            fprintf(stdout, "(non-repair) Performing import...\n");
+            metadata_cursor->set_key(metadata_cursor, IMPORT_URI);
+            metadata_cursor->search(metadata_cursor);
+            metadata_cursor->get_value(metadata_cursor, &table_config);
+
+            metadata_cursor->set_key(metadata_cursor, "file:import.wt");
+            metadata_cursor->search(metadata_cursor);
+            metadata_cursor->get_value(metadata_cursor, &file_config);
+
+            memset(buf, 0, sizeof(buf));
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s,import=(enabled,repair=false,file_metadata=(%s))", 
+                table_config, file_config));
+            while ((ret = session->create(session, "file:import.wt", buf)) != 0) {
+                fprintf(stdout, "session import %d\n", ret);
+                testutil_die(ret, "session.import", ret);
+            }
+            fprintf(stdout, "(non-repair) Finished import...\n");
+
+            metadata_cursor->close(metadata_cursor);
+        }
+
+        while ((ret = session->drop(session, "file:import.wt", NULL)) == EBUSY)
+            __wt_yield();
+
+        fprintf(stdout, "Finished drop... %d\n", ret);
+        cursor->close(cursor);
+
+        import_value = !import_value;
         while (period > 0 && !g.workers_finished) {
             --period;
             __wt_sleep(1, 0);
@@ -104,6 +147,8 @@ import(void *arg)
     }
 
     testutil_check(import_session->close(import_session, NULL));
+    testutil_check(import_conn->close(import_conn, NULL));
+    testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
 }
 

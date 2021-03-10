@@ -277,6 +277,10 @@ typedef struct {
 #define ISOLATION_SNAPSHOT 4
     u_int c_isolation_flag; /* Isolation flag value */
 
+#define IMPORT_REPAIR 1
+#define IMPORT_METADATA 2
+    u_int c_import_flag; /* Import flag value */
+
 /* The page must be a multiple of the allocation size, and 512 always works. */
 #define BLOCK_ALLOCATION_SIZE 512
     uint32_t intl_page_max; /* Maximum page sizes */
