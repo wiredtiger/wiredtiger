@@ -50,7 +50,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local = self.conn.get_storage_source('local_store')
 
         # Note: do not call local.terminate() .
-        # Since the local_storage extension has been loaded by as a consequence of the
+        # Since the local_storage extension has been loaded as a consequence of the
         # wiredtiger_open call, WiredTiger already knows to call terminate when the connection
         # closes.  Calling it twice would attempt to free the same memory twice.
         local.terminate = None
