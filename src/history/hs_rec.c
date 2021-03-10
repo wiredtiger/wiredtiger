@@ -228,7 +228,8 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_MODIFY_VECTOR *modifies,
 
 /*
  * __wt_hs_insert_updates --
- *     Copy one set of saved updates into the database's history store table.
+ *     Copy one set of saved updates into the database's history store table. Whether the function
+ *     fails or succeeds, if there is a successful write to history, cache_write_hs is set to true.
  */
 int
 __wt_hs_insert_updates(
@@ -635,6 +636,7 @@ err:
     if (ret == 0 && insert_cnt > 0)
         __hs_verbose_cache_stats(session, btree);
 
+    /* cache_write_hs is set to true as there was at least one successful write to history. */
     if (insert_cnt > 0)
         *cache_write_hs = true;
 
