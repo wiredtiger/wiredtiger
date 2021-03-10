@@ -423,7 +423,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
               __wt_timestamp_to_string(hs_durable_ts, ts_string[1]),
               __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[2]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[3]), hs_tw->start_txn, type);
-            WT_ASSERT(session, hs_tw->start_ts < unpack->tw.start_ts);
+            WT_ASSERT(session, hs_tw->start_ts <= unpack->tw.start_ts);
             valid_update_found = true;
             break;
         }

@@ -50,6 +50,93 @@ class test_hs21(wttest.WiredTigerTestCase):
     ]
     scenarios = make_scenarios(timestamps, update_types)
 
+    def test_onpage_update_fix_out_of_order(self):
+        uri = 'table:test_hs21'
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+        self.conn.set_timestamp(
+            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+
+        largerValue = 'a' * 1000
+        values = ['a', 'b', 'c', 'd', 'e']
+
+        # Update a value at 10
+        self.session.begin_transaction()
+        cursor[str(0)] = values[0]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Update a value at 20
+        self.session.begin_transaction()
+        cursor[str(0)] = values[1]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
+
+        # Update a value at 30
+        self.session.begin_transaction()
+        cursor[str(0)] = values[2]
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        # Do a checkpoint to ensure we move value1 and value2 to the history store
+        self.session.checkpoint()
+
+        # Large updates to evict the page
+        for i in range(1, 1000):
+            self.session.begin_transaction()
+            cursor[str(i)] = largerValue
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        self.session.begin_transaction()
+        if self.isDelete:
+            cursor.set_key(str(0))
+            self.assertEqual(cursor.remove(), 0)
+        else:
+            cursor[str(0)] = values[3]
+        if self.ts == 0:
+            self.session.commit_transaction()
+        else:
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(self.ts))
+
+        # Make the out of order update globally visible
+        if self.ts != 0:
+            self.conn.set_timestamp(
+                'oldest_timestamp=' + timestamp_str(self.ts) + ',stable_timestamp=' + timestamp_str(self.ts))
+
+        # Do a checkpoint to trigger reconcilation
+        self.session.checkpoint()
+
+        # Get the stats
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        hs_removed = stat_cursor[stat.conn.cache_hs_order_remove][2]
+        hs_reinserted = stat_cursor[stat.conn.cache_hs_order_reinsert][2]
+        stat_cursor.close()
+
+        if self.isDelete and self.ts == 0:
+            # For a globally visible tombstone with timestamp 0, we expect it immdiately triggers the deletion of all the history store record of the key and nothing should be reinserted.
+            removed = (30 - self.ts)/10 - 1 if (30 - self.ts)/10 - 1 > 0 else 0
+            self.assertEqual(hs_removed, removed)
+            self.assertEqual(hs_reinserted, 0)
+        else:
+            # For standard update, we expect the history store updates to be removed in the next reconciliation
+            self.assertEqual(hs_removed, 0)
+            self.assertEqual(hs_reinserted, 0)
+
+            # Do another update
+            self.session.begin_transaction()
+            cursor[str(0)] = values[4]
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(40))
+
+            # Do a checkpoint to trigger reconcilation
+            self.session.checkpoint()
+
+            # Check the stats that history store records have been fixed.
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            hs_removed = stat_cursor[stat.conn.cache_hs_order_remove][2]
+            hs_reinserted = stat_cursor[stat.conn.cache_hs_order_reinsert][2]
+            stat_cursor.close()
+
+            removed = (30 - self.ts)/10 - 1 if (30 - self.ts)/10 - 1 > 0 else 0
+            self.assertEqual(hs_removed, removed)
+            self.assertEqual(hs_reinserted, removed)
+
     def test_oldest_update_fix_out_of_order(self):
         uri = 'table:test_hs21'
         self.session.create(uri, 'key_format=S,value_format=S')
