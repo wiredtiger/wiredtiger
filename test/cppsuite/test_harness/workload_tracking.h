@@ -54,12 +54,12 @@ enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
 class workload_tracking : public component {
 
     public:
-    workload_tracking(const std::string &operation_table_format,
-      const std::string &operation_table_name, const std::string &schema_table_format,
+    workload_tracking(const std::string &operation_table_config,
+      const std::string &operation_table_name, const std::string &schema_table_config,
       const std::string &schema_table_name)
         : _cursor_operations(nullptr), _cursor_schema(nullptr),
-          _operation_table_format(operation_table_format),
-          _operation_table_name(operation_table_name), _schema_table_format(schema_table_format),
+          _operation_table_config(operation_table_config),
+          _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
           _schema_table_name(schema_table_name), _timestamp(0U)
     {
     }
@@ -84,14 +84,14 @@ class workload_tracking : public component {
         /* Initiate schema tracking. */
         session = connection_manager::instance().create_session();
         testutil_check(
-          session->create(session, _schema_table_name.c_str(), _schema_table_format.c_str()));
+          session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
         testutil_check(
           session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
         debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
 
         /* Initiate operations tracking. */
         testutil_check(
-          session->create(session, _operation_table_name.c_str(), _operation_table_format.c_str()));
+          session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
         testutil_check(session->open_cursor(
           session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
         debug_info("Operations tracking created", _trace_level, DEBUG_INFO);
@@ -108,8 +108,8 @@ class workload_tracking : public component {
     save(const tracking_operation &operation, const std::string &collection_name, const K &key,
       const V &value)
     {
-        int error_code;
         WT_CURSOR *cursor;
+        int error_code;
 
         /* Select the correct cursor to save in the collection associated to specific operations. */
         switch (operation) {
@@ -129,19 +129,18 @@ class workload_tracking : public component {
 
         error_code = cursor->insert(cursor);
 
-        if (error_code == 0) {
+        if (error_code == 0)
             debug_info("Workload tracking saved operation.", _trace_level, DEBUG_INFO);
-        } else {
+        else
             debug_info("Workload tracking failed to save operation !", _trace_level, DEBUG_ERROR);
-        }
 
         return error_code;
     }
 
     private:
-    const std::string _operation_table_format;
+    const std::string _operation_table_config;
     const std::string _operation_table_name;
-    const std::string _schema_table_format;
+    const std::string _schema_table_config;
     const std::string _schema_table_name;
     WT_CURSOR *_cursor_operations;
     WT_CURSOR *_cursor_schema;

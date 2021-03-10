@@ -73,7 +73,7 @@ class workload_validation {
 
         /* Retrieve the created collections that need to be checked. */
         collection_name = schema_table_name;
-        created_collections = parse_collections_schema(session, collection_name);
+        created_collections = parse_schema_tracking_table(session, collection_name);
 
         /* Allocate memory to the operations performed on the created collections. */
         for (auto const &it : created_collections) {
@@ -87,7 +87,8 @@ class workload_validation {
          */
         collection_name = operation_table_name;
         for (auto const &active_collection : created_collections)
-            parse_collections_operations(session, collection_name, active_collection, collections);
+            parse_operation_tracking_table(
+              session, collection_name, active_collection, collections);
 
         /* Check all tracked operations in memory against the database on disk. */
         is_valid = check_reference(session, collections);
@@ -108,56 +109,6 @@ class workload_validation {
 
         /* Clean the allocated memory. */
         clean_memory(collections);
-
-        return is_valid;
-    }
-
-    /* Check what is present on disk against what has been tracked. */
-    bool
-    check_disk_state(WT_SESSION *session, const std::string &collection_name,
-      std::map<std::string, std::map<int, std::string *> *> &collections)
-    {
-        WT_CURSOR *cursor;
-        int key;
-        const char *value;
-        bool is_valid;
-        std::string *value_str;
-        std::map<int, std::string *> *collection;
-
-        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
-
-        /* Check the collection has been tracked and contains data. */
-        is_valid =
-          ((collections.count(collection_name) > 0) && (collections[collection_name] != nullptr));
-
-        if (!is_valid)
-            debug_info(
-              "Collection " + collection_name + " has not been tracked or has been deleted",
-              _trace_level, DEBUG_INFO);
-        else
-            collection = collections[collection_name];
-
-        /* Read the collection on disk. */
-        while (is_valid && (cursor->next(cursor) == 0)) {
-            testutil_check(cursor->get_key(cursor, &key));
-            testutil_check(cursor->get_value(cursor, &value));
-
-            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_INFO);
-            debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
-
-            value_str = (*collection)[key];
-
-            /* Check the key/value pair on disk matches the one in memory from the tracked
-             * operations. */
-            is_valid = (value_str != nullptr) && (*value_str == std::string(value));
-
-            if (!is_valid)
-                debug_info(" Key/Value pair mismatch.\n Disk key: " + std::to_string(key) +
-                    "\n Disk value: " + std ::string(value) +
-                    "\n Tracking table key: " + std::to_string(key) +
-                    "\n Tracking table value: " + (value_str == nullptr ? "NULL" : *value_str),
-                  _trace_level, DEBUG_INFO);
-        }
 
         return is_valid;
     }
@@ -184,13 +135,11 @@ class workload_validation {
      * during the test.
      */
     const std::vector<std::string>
-    parse_collections_schema(WT_SESSION *session, const std::string &collection_name)
+    parse_schema_tracking_table(WT_SESSION *session, const std::string &collection_name)
     {
         WT_CURSOR *cursor;
-
         const char *key_collection_name;
         int key_timestamp, value_operation_type;
-
         std::vector<std::string> created_collections;
 
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
@@ -226,15 +175,13 @@ class workload_validation {
      * that needs to be represented in memory.
      */
     void
-    parse_collections_operations(WT_SESSION *session, const std::string &tracking_collection_name,
+    parse_operation_tracking_table(WT_SESSION *session, const std::string &tracking_collection_name,
       const std::string &collection_name,
       std::map<std::string, std::map<int, std::string *> *> &collections)
     {
         WT_CURSOR *cursor;
-        int exact;
-        int error_code;
+        int error_code, exact, key, key_timestamp, value_operation_type;
         const char *key_collection_name, *value;
-        int key, key_timestamp, value_operation_type;
 
         testutil_check(
           session->open_cursor(session, tracking_collection_name.c_str(), NULL, NULL, &cursor));
@@ -242,6 +189,9 @@ class workload_validation {
         /* Our keys start at 0. */
         cursor->set_key(cursor, collection_name.c_str(), 0);
         error_code = cursor->search_near(cursor, &exact);
+
+        /* As we don't support deletion, exact needs to be true. */
+        testutil_check(exact == false);
 
         while (error_code == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
@@ -255,13 +205,15 @@ class workload_validation {
               DEBUG_INFO);
             debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
 
+            /*
+             * If the cursor is reading an operation for a different collection, we know all the
+             * operations have been parsed for the collection we were interested in.
+             */
             if (std::string(key_collection_name) != collection_name)
                 break;
 
             /* Replay the current operation. */
             switch (static_cast<tracking_operation>(value_operation_type)) {
-
-                break;
             case tracking_operation::DELETE_KEY: {
                 /* Check if the collection exists. */
                 if (collections.count(key_collection_name) < 1)
@@ -272,6 +224,7 @@ class workload_validation {
                 else if (collections[key_collection_name] == nullptr)
                     testutil_die(DEBUG_ABORT, "Collection %s is null!", key_collection_name);
                 else {
+                    /* Remove data related to the key. */
                     delete (*(collections[key_collection_name]))[key];
                     (*(collections[key_collection_name]))[key] = nullptr;
                 }
@@ -352,6 +305,67 @@ class workload_validation {
         return is_valid;
     }
 
+    /* Check what is present on disk against what has been tracked. */
+    bool
+    check_disk_state(WT_SESSION *session, const std::string &collection_name,
+      std::map<std::string, std::map<int, std::string *> *> &collections)
+    {
+        WT_CURSOR *cursor;
+        int key;
+        const char *value;
+        bool is_valid;
+        std::string *value_str;
+        std::map<int, std::string *> *collection;
+
+        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+
+        /* Check the collection has been tracked and contains data. */
+        is_valid =
+          ((collections.count(collection_name) > 0) && (collections[collection_name] != nullptr));
+
+        if (!is_valid)
+            debug_info(
+              "Collection " + collection_name + " has not been tracked or has been deleted",
+              _trace_level, DEBUG_INFO);
+        else
+            collection = collections[collection_name];
+
+        /* Read the collection on disk. */
+        while (is_valid && (cursor->next(cursor) == 0)) {
+            testutil_check(cursor->get_key(cursor, &key));
+            testutil_check(cursor->get_value(cursor, &value));
+
+            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_INFO);
+            debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
+
+            if (collection->count(key) > 0) {
+                value_str = collection->at(key);
+                /*
+                 * Check the key/value pair on disk matches the one in memory from the tracked
+                 * operations.
+                 */
+                is_valid = (value_str != nullptr) && (*value_str == std::string(value));
+                if (!is_valid)
+                    debug_info(" Key/Value pair mismatch.\n Disk key: " + std::to_string(key) +
+                        "\n Disk value: " + std ::string(value) +
+                        "\n Tracking table key: " + std::to_string(key) +
+                        "\n Tracking table value: " + (value_str == nullptr ? "NULL" : *value_str),
+                      _trace_level, DEBUG_INFO);
+            } else {
+                is_valid = false;
+                debug_info(
+                  "The key " + std::to_string(key) + " present on disk has not been tracked",
+                  _trace_level, DEBUG_INFO);
+            }
+        }
+
+        return is_valid;
+    }
+
+    /*
+     * Check whether a collection exists on disk. collection_name is the collection to check. exists
+     * needs to be set to true if the collection is expected to be existing, false otherwise.
+     */
     bool
     verify_database_state(
       WT_SESSION *session, const std::string &collection_name, bool exists) const
