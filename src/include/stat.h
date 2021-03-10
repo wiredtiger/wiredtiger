@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -451,10 +451,8 @@ struct __wt_connection_stats {
     int64_t cursor_modify_bytes;
     int64_t cursor_modify_bytes_touch;
     int64_t cursor_next;
-    int64_t cursor_next_hs_tombstone_rts;
     int64_t cursor_restart;
     int64_t cursor_prev;
-    int64_t cursor_prev_hs_tombstone_rts;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;
@@ -627,21 +625,11 @@ struct __wt_connection_stats {
     int64_t page_del_rollback_blocked;
     int64_t child_modify_blocked_page;
     int64_t txn_prepared_updates_count;
-    int64_t txn_durable_queue_walked;
-    int64_t txn_durable_queue_empty;
-    int64_t txn_durable_queue_head;
-    int64_t txn_durable_queue_inserts;
-    int64_t txn_durable_queue_len;
     int64_t txn_prepare;
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
     int64_t txn_query_ts;
-    int64_t txn_read_queue_walked;
-    int64_t txn_read_queue_empty;
-    int64_t txn_read_queue_head;
-    int64_t txn_read_queue_inserts;
-    int64_t txn_read_queue_len;
     int64_t txn_rts;
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_tree_walk_skip_pages;
@@ -687,6 +675,7 @@ struct __wt_connection_stats {
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
     int64_t txn_sync;
+    int64_t txn_walk_sessions;
     int64_t txn_commit;
     int64_t txn_rollback;
     int64_t lsm_checkpoint_throttle;

@@ -55,4 +55,7 @@ Shows how to extend WiredTiger with a custom file-system implementation.
 @example ex_storage_source.c
 Shows how to extend WiredTiger with a custom storage source implementation.
 
+@example ex_col_store.c
+Shows how to use a column-store with column groups using example operations.
+
  */

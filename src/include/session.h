@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -92,7 +92,7 @@ struct __wt_session_impl {
     WT_COMPACT_STATE *compact; /* Compaction information */
     enum { WT_COMPACT_NONE = 0, WT_COMPACT_RUNNING, WT_COMPACT_SUCCESS } compact_state;
 
-    WT_CURSOR *hs_cursor; /* History store table cursor */
+    u_int hs_cursor_counter; /* Number of open history store cursors */
 
     WT_CURSOR *meta_cursor;  /* Metadata file */
     void *meta_track;        /* Metadata operation tracking */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -12,7 +12,13 @@
 #define WT_BTREE_MAJOR_VERSION_MIN 1 /* Oldest version supported */
 #define WT_BTREE_MINOR_VERSION_MIN 1
 
+/* Increase the version number for standalone build. */
+#ifdef WT_STANDALONE_BUILD
+#define WT_BTREE_MAJOR_VERSION_MAX 2 /* Newest version supported */
+#else
 #define WT_BTREE_MAJOR_VERSION_MAX 1 /* Newest version supported */
+#endif
+
 #define WT_BTREE_MINOR_VERSION_MAX 1
 
 #define WT_BTREE_MIN_ALLOC_SIZE 512
