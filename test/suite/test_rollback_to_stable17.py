@@ -31,6 +31,7 @@ from helper import simulate_crash_restart
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t

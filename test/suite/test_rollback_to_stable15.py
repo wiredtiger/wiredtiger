@@ -40,7 +40,6 @@ def timestamp_str(t):
 # update-list for both fixed length and variable length column store.
 # Eviction is set to false, so that everything persists in memory.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    # conn_config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false),in_memory=true'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -133,13 +132,13 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         #Check that only value30 is available
         self.check(value30, uri, nrows - 1, 7)
 
-        if not self.in_memory:
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
-            calls = stat_cursor[stat.conn.txn_rts][2]
-            upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-            stat_cursor.close()
-            self.assertEqual(upd_aborted, (nrows*2) - 2)
-            self.assertEqual(calls, 2)
+        # if not self.in_memory:
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        stat_cursor.close()
+        self.assertEqual(upd_aborted, (nrows*2) - 2)
+        self.assertEqual(calls, 2)
 
         self.session.close()
 

@@ -41,12 +41,28 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
     # conn_config = 'cache_size=200MB,statistics=(all),in_memory=true'
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        # ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
+    value_format_values = [
+        # Fixed length
+        #FIXME: Fixed length column store failing on rollback on disk values
+        # ('fixed', dict(value_format='8t')),
+        # Variable length
+        ('variable', dict(value_format='S')),
+    ]
+
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
+        #FIXME: All tests failing on in_memory = True. New keys not being rolled back.
+        #       * Row store in memory is not calling __rollback_abort_updates, should
+        #           we expect this?
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values)
+    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values)
 
     def conn_config(self):
         config = 'cache_size=200MB,statistics=(all)'
@@ -61,7 +77,10 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         cursor =  self.session.open_cursor(uri)
         for i in range(start_row, start_row + nrows):
             self.session.begin_transaction()
-            cursor[i] = value + str(i)
+            if self.value_format == 'S':
+                cursor[i] = value + str(i)
+            else:
+                cursor[i] = value
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(timestamp))
         cursor.close()
 
@@ -80,10 +99,13 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             ret = cursor.search()
             if check_value is None:
                 if ret != wiredtiger.WT_NOTFOUND:
-                    self.tty(f'value = {cursor.get_value()}')
+                    # self.tty(f'value = {cursor.get_value()}')
                     self.assertTrue(ret == wiredtiger.WT_NOTFOUND)
             else:
-                self.assertEqual(cursor.get_value(), check_value + str(count + start_row))
+                if self.value_format == 'S':
+                    self.assertEqual(cursor.get_value(), check_value + str(count + start_row))
+                else:
+                    self.assertEqual(cursor.get_value(), check_value)
                 count += 1
 
         session.commit_transaction()
@@ -99,9 +121,12 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         nrows = 200
         start_row = 1
         ts = [2,5,7,9]
-        values = ["aaaa", "bbbb", "cccc", "dddd"]
+        if self.value_format == 'S':
+            values = ["aaaa", "bbbb", "cccc", "dddd"]
+        else:
+            values = [0x01, 0x02, 0x03, 0x04]
 
-        create_params = 'key_format=r,value_format=S'
+        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
         # Pin oldest and stable to timestamp 1.
@@ -114,17 +139,27 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 
-        # Checkpoint to ensure that all the updates are flushed to disk.
         if not self.in_memory:
+            # Checkpoint to ensure that all the updates are flushed to disk.
             self.session.checkpoint()
-
-        # Rollback to stable done as part of recovery.
-        simulate_crash_restart(self,".", "RESTART")
+            # Rollback to stable done as part of recovery.
+            simulate_crash_restart(self,".", "RESTART")
+        # else:
+        # Manually call rollback_to_stable for in memory k/v's.
+        self.conn.rollback_to_stable()
 
         self.check(values[0], uri, nrows, 1, 2)
         self.check(values[1], uri, nrows, 201, 5)
         self.check(None, uri, nrows, 401, 7)
         self.check(None, uri, nrows, 601, 9)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        calls = stat_cursor[stat.conn.txn_rts][2]
+        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
+        stat_cursor.close()
+        # self.tty(f'upd aborted = {upd_aborted}')
+        # self.tty(f'key aborted = {keys_removed}')
 
         self.session.close()
 
