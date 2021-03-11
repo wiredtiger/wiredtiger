@@ -1115,18 +1115,19 @@ __wt_row_leaf_key(
     slot = WT_ROW_SLOT(page, rip);
     if (cell != NULL && slot > page->prefix_start && slot <= page->prefix_stop) {
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-        WT_RET_PANIC_ASSERT(session, unpack.prefix != 0, WT_PANIC,
-          "key without prefix found in prefix-compressed key group");
-        pp_key_found = __wt_row_leaf_key_info(
-          page, WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]), NULL, NULL, &pp_key, &pp_size);
-        WT_RET_PANIC_ASSERT(
-          session, pp_key_found, WT_PANIC, "starting key of prefix-compressed key group not found");
-        if (unpack.prefix <= pp_size) {
-            WT_RET(__wt_buf_grow(session, key, unpack.prefix + unpack.size));
-            memcpy((uint8_t *)key->data, pp_key, unpack.prefix);
-            memcpy((uint8_t *)key->data + unpack.prefix, unpack.data, unpack.size);
-            key->size = unpack.prefix + unpack.size;
-            return (0);
+        if (!F_ISSET(&unpack, WT_CELL_UNPACK_OVERFLOW)) {
+            WT_RET_PANIC_ASSERT(session, unpack.prefix != 0, WT_PANIC,
+              "key without prefix found in prefix-compressed key group");
+            pp_key_found = __wt_row_leaf_key_info(page,
+              WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]), NULL, NULL, &pp_key, &pp_size);
+            WT_RET_PANIC_ASSERT(session, pp_key_found, WT_PANIC,
+              "starting key of prefix-compressed key group not found");
+            if (unpack.prefix <= pp_size) {
+                WT_RET(__wt_buf_initsize(session, key, unpack.prefix + unpack.size));
+                memcpy(key->mem, pp_key, unpack.prefix);
+                memcpy((uint8_t *)key->mem + unpack.prefix, unpack.data, unpack.size);
+                return (0);
+            }
         }
     }
 
