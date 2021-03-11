@@ -44,12 +44,17 @@ def timestamp_str(t):
 class test_rollback_to_stable07(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        # ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(prepare_values)
+    scenarios = make_scenarios(key_format_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=5MB,statistics=(all),log=(enabled=true)'
@@ -61,7 +66,7 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         # Create a table without logging.
         uri = "table:rollback_to_stable07"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.

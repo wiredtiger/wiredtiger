@@ -43,7 +43,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
+        for i in range(1, nrows+1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             if commit_ts == 0:
@@ -62,7 +62,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
-        for i in range(0, nrows):
+        for i in range(1, nrows+1):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -82,7 +82,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         # Remove a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
+        for i in range(1, nrows+1):
             session.begin_transaction()
             cursor.set_key(i)
             cursor.remove()
@@ -115,6 +115,11 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
         ('inmem', dict(in_memory=True))
@@ -125,7 +130,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values, prepare_values)
+    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all)'
@@ -141,7 +146,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Create a table without logging.
         uri = "table:rollback_to_stable01"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
