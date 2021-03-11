@@ -39,7 +39,7 @@ static void copy_file(WT_SESSION *session, const char *name);
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_CONFIG "key_format=i,value_format=i"
 /*
- * import  --
+ * import --
  *     Periodically import table.
  */
 WT_THREAD_RET
@@ -59,11 +59,11 @@ import(void *arg)
     (void)(arg);
     conn = g.wts_conn;
     import_value = false;
+    counter = 0;
 
     len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
     cmd = dmalloc(len);
-    testutil_check(
-        __wt_snprintf(cmd, len, HOME_IMPORT_INIT_CMD, g.home, g.home));
+    testutil_check(__wt_snprintf(cmd, len, HOME_IMPORT_INIT_CMD, g.home, g.home));
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
     free(cmd);
 
@@ -78,28 +78,30 @@ import(void *arg)
     /* Open a session */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_checkfmt(import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
+    testutil_checkfmt(
+      import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
 
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
         /*
-        * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-        */
-        while ((ret = import_session->open_cursor(import_session, IMPORT_URI, NULL, NULL, &cursor)) == EBUSY)
+         * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
+         */
+        while ((ret = import_session->open_cursor(
+                  import_session, IMPORT_URI, NULL, NULL, &cursor)) == EBUSY)
             __wt_yield();
         testutil_check(ret);
 
         // Check if insert operation is re-usable from test/format
         // Validate the cursor inserts
-        for (int i = 0; i < 1000; i++) {
-            testutil_check(cursor_insert(cursor, counter + i, i));
+        for (int i = 0; i < 1000; ++i, ++counter) {
+            testutil_check(cursor_insert(cursor, counter + (uint64_t)i, i));
         }
 
         fprintf(stdout, "Performing checkpoint...\n");
         testutil_check(import_session->checkpoint(import_session, NULL));
 
         copy_file(import_session, "import.wt");
-        
+
         if (import_value) {
             fprintf(stdout, "(repair) Performing import...\n");
             memset(buf, 0, sizeof(buf));
@@ -110,7 +112,8 @@ import(void *arg)
             }
             fprintf(stdout, "(repair) Finished import...\n");
         } else {
-            while ((ret = import_session->open_cursor(import_session, "metadata:", NULL, NULL, &metadata_cursor)) == EBUSY)
+            while ((ret = import_session->open_cursor(
+                      import_session, "metadata:", NULL, NULL, &metadata_cursor)) == EBUSY)
                 __wt_yield();
             fprintf(stdout, "(non-repair) Performing import...\n");
             metadata_cursor->set_key(metadata_cursor, IMPORT_URI);
@@ -122,8 +125,8 @@ import(void *arg)
             metadata_cursor->get_value(metadata_cursor, &file_config);
 
             memset(buf, 0, sizeof(buf));
-            testutil_check(__wt_snprintf(buf, sizeof(buf), "%s,import=(enabled,repair=false,file_metadata=(%s))", 
-                table_config, file_config));
+            testutil_check(__wt_snprintf(buf, sizeof(buf),
+              "%s,import=(enabled,repair=false,file_metadata=(%s))", table_config, file_config));
             while ((ret = session->create(session, "file:import.wt", buf)) != 0) {
                 fprintf(stdout, "session import %d\n", ret);
                 testutil_die(ret, "session.import", ret);
