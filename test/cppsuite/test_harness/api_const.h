@@ -36,13 +36,19 @@ namespace test_harness {
 static const char *CACHE_SIZE_MB = "cache_size_mb";
 static const char *COLLECTION_COUNT = "collection_count";
 static const char *DURATION_SECONDS = "duration_seconds";
-static const char *ENABLE_TRACKING = "enable_tracking";
 static const char *ENABLED = "enabled";
+static const char *ENABLE_TIMESTAMP = "enable_timestamp";
+static const char *ENABLE_TRACKING = "enable_tracking";
 static const char *KEY_COUNT = "key_count";
 static const char *LIMIT = "limit";
+static const char *MAX_OPERATION_PER_TRANSACTION = "max_operation_per_transaction";
+static const char *MIN_OPERATION_PER_TRANSACTION = "min_operation_per_transaction";
+static const char *OLDEST_TIMESTAMP = "oldest_timestamp";
 static const char *RATE_PER_SECOND = "rate_per_second";
 static const char *READ_THREADS = "read_threads";
+static const char *STABLE_TIMESTAMP = "stable_timestamp";
 static const char *STAT_CACHE_SIZE = "stat_cache_size";
+static const char *TIMESTAMP_WINDOW_SECONDS = "timestamp_window_seconds";
 static const char *VALUE_SIZE = "value_size";
 
 /* WiredTiger API consts. */

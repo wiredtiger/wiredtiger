@@ -60,7 +60,7 @@ class workload_tracking : public component {
         : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr),
           _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-          _schema_table_name(schema_table_name), _timestamp(0U)
+          _schema_table_name(schema_table_name)
     {
     }
 
@@ -106,7 +106,7 @@ class workload_tracking : public component {
     template <typename K, typename V>
     int
     save(const tracking_operation &operation, const std::string &collection_name, const K &key,
-      const V &value)
+      const V &value, wt_timestamp_t ts)
     {
         WT_CURSOR *cursor;
         int error_code;
@@ -116,13 +116,13 @@ class workload_tracking : public component {
         case tracking_operation::CREATE:
         case tracking_operation::DELETE_COLLECTION:
             cursor = _cursor_schema;
-            cursor->set_key(cursor, collection_name.c_str(), _timestamp++);
+            cursor->set_key(cursor, collection_name.c_str(), ts);
             cursor->set_value(cursor, static_cast<int>(operation));
             break;
 
         default:
             cursor = _cursor_operations;
-            cursor->set_key(cursor, collection_name.c_str(), key, _timestamp++);
+            cursor->set_key(cursor, collection_name.c_str(), key, ts);
             cursor->set_value(cursor, static_cast<int>(operation), value);
             break;
         }
@@ -144,7 +144,6 @@ class workload_tracking : public component {
     const std::string _schema_table_name;
     WT_CURSOR *_cursor_operations;
     WT_CURSOR *_cursor_schema;
-    uint64_t _timestamp;
 };
 } // namespace test_harness
 
