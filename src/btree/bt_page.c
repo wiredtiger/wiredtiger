@@ -595,6 +595,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * useful entry for the purpose of finding the best group of prefix-compressed keys,
              * either.
              */
+            slot = WT_ROW_SLOT(page, rip);
             if (unpack.prefix == 0) {
                 __wt_row_leaf_key_set(page, rip, &unpack);
 
@@ -603,16 +604,15 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     best_prefix_start = prefix_start;
                     best_prefix_stop = prefix_stop;
                     best_prefix_count = prefix_count;
-                    prefix_count = 0;
                 }
+                prefix_count = 0;
+                prefix_start = slot;
             } else {
                 __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
 
                 /* Check for starting or continuing a prefix group. */
-                slot = WT_ROW_SLOT(page, rip);
                 if (prefix_count == 0) {
                     first_prefix = last_prefix = unpack.prefix;
-                    prefix_start = slot - 1;
                     last_slot = prefix_stop = slot;
                     prefix_count = 1;
                 } else if (last_slot == slot - 1 &&
