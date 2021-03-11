@@ -117,16 +117,16 @@ class workload_validation {
     void
     clean_memory(std::map<std::string, std::map<int, std::string *> *> &collections)
     {
-        for (const auto &it_collections : collections) {
-            if (collections[it_collections.first] != nullptr) {
-                std::map<int, std::string *> *operations = collections[it_collections.first];
-                for (const auto &it_operations : *operations) {
-                    delete (*operations)[it_operations.first];
-                    (*operations)[it_operations.first] = nullptr;
-                }
-                delete collections[it_collections.first];
-                collections[it_collections.first] = nullptr;
+        for (auto &it_collections : collections) {
+            if (it_collections.second == nullptr)
+                continue;
+
+            for (auto &it_operations : *it_collections.second) {
+                delete it_operations.second;
+                it_operations.second = nullptr;
             }
+            delete it_collections.second;
+            it_collections.second = nullptr;
         }
     }
 
@@ -190,8 +190,11 @@ class workload_validation {
         cursor->set_key(cursor, collection_name.c_str(), 0);
         error_code = cursor->search_near(cursor, &exact);
 
-        /* As we don't support deletion, exact needs to be true. */
-        testutil_check(exact == false);
+        /*
+         * As we don't support deletion, the searched collection is expected to be found. Since the
+         * timestamp which is part of the key is not provided, exact is expected to be > 0.
+         */
+        testutil_check(exact < 1);
 
         while (error_code == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
@@ -214,24 +217,21 @@ class workload_validation {
 
             /* Replay the current operation. */
             switch (static_cast<tracking_operation>(value_operation_type)) {
-            case tracking_operation::DELETE_KEY: {
-                /* Check if the collection exists. */
-                if (collections.count(key_collection_name) < 1)
-                    testutil_die(DEBUG_ABORT,
-                      "Collection %s does not exist! The key %d cannot be removed.",
-                      key_collection_name, key);
-                /* The collection should not be null. */
-                else if (collections[key_collection_name] == nullptr)
-                    testutil_die(DEBUG_ABORT, "Collection %s is null!", key_collection_name);
-                else {
-                    /* Remove data related to the key. */
-                    delete (*(collections[key_collection_name]))[key];
-                    (*(collections[key_collection_name]))[key] = nullptr;
-                }
-            } break;
-            case tracking_operation::INSERT:
-                (*(collections[key_collection_name]))[key] = new std::string(value);
+            case tracking_operation::DELETE_KEY:
+                /*
+                 * Operations are parsed from the oldest to the most recent one. It is safe to
+                 * assume the key has been inserted previously in an existing collection and can be
+                 * deleted safely.
+                 */
+                delete collections.at(key_collection_name)->at(key);
+                collections.at(key_collection_name)->at(key) = nullptr;
                 break;
+            case tracking_operation::INSERT: {
+                /* Keys are unique, it is safe to assume the key has not been encountered before. */
+                std::pair<int, std::string *> pair(key, new std::string(value));
+                collections.at(key_collection_name)->insert(pair);
+                break;
+            }
             case tracking_operation::CREATE:
             case tracking_operation::DELETE_COLLECTION:
                 testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
