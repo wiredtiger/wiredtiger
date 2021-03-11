@@ -54,18 +54,17 @@ namespace test_harness {
  */
 class test {
     public:
-    test(const std::string &config)
+    test(const std::string &config) : _timestamp_manager(nullptr), _workload_tracking(nullptr)
     {
         _configuration = new configuration(name, config);
         _workload_generator = new workload_generator(_configuration);
         _runtime_monitor = new runtime_monitor();
-        _timestamp_manager = new timestamp_manager();
         _thread_manager = new thread_manager();
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {_workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {_workload_generator, _runtime_monitor};
     }
 
     ~test()
@@ -92,8 +91,8 @@ class test {
     void
     run()
     {
-        int64_t duration_seconds = 0;
-        bool enable_tracking = false, is_success = true;
+        int64_t duration_seconds = 0, timestamp_window_seconds = 0;
+        bool enable_tracking = false, enable_timestamp = false, is_success = true;
 
         /* Set up the test environment. */
         connection_manager::instance().create();
@@ -105,10 +104,25 @@ class test {
               TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG, TABLE_SCHEMA_TRACKING);
             /* Make sure the tracking component is loaded first to track all activities. */
             _components.insert(_components.begin(), _workload_tracking);
-        } else
-            _workload_tracking = nullptr;
-        /* Tell the workload generator whether tracking is enabled. */
-        _workload_generator->set_tracker(_workload_tracking);
+            /* Tell the workload generator whether tracking is enabled. */
+            _workload_generator->set_tracker(_workload_tracking);
+        }
+
+        /* Create the timestamp manager if required. */
+        // TODO Does it make sense to have the timestamp manager if enable_tracking is false ? See
+        // line 122
+        testutil_check(_configuration->get_bool(ENABLE_TIMESTAMP, enable_timestamp));
+        if (enable_timestamp) {
+            testutil_check(
+              _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds));
+            _timestamp_manager = new timestamp_manager(
+              connection_manager::instance().get_connection(), timestamp_window_seconds);
+            _components.push_back(_timestamp_manager);
+
+            /* Tell the workload generator whether timestamp is enabled. */
+            if (enable_tracking)
+                _workload_tracking->set_timestamp_manager(_timestamp_manager);
+        }
 
         /* Initiate the load stage of each component. */
         for (const auto &it : _components)
@@ -177,8 +191,8 @@ class test {
     std::vector<component *> _components;
     configuration *_configuration;
     runtime_monitor *_runtime_monitor;
-    timestamp_manager *_timestamp_manager;
     thread_manager *_thread_manager;
+    timestamp_manager *_timestamp_manager;
     workload_generator *_workload_generator;
     workload_tracking *_workload_tracking;
 };

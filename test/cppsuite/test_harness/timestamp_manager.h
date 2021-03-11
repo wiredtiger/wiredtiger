@@ -29,20 +29,102 @@
 #ifndef TIMESTAMP_MANAGER_H
 #define TIMESTAMP_MANAGER_H
 
+#include <chrono>
+#include <thread>
+
 namespace test_harness {
 /*
  * The timestamp monitor class manages global timestamp state for all components in the test
- * harness. It also manages the global timestamps within WiredTiger.
+ * harness. It also manages the global timestamps within WiredTiger. All timestamps are in ms.
  */
 class timestamp_manager : public component {
     public:
+    timestamp_manager(WT_CONNECTION *conn, int64_t timestamp_window_seconds)
+        : _conn(conn), _periodic_update_s(1), _timestamp_window_seconds(timestamp_window_seconds),
+          _previous_ts(0)
+    {
+        _oldest_ts = _stable_ts = get_time_now_ms();
+    }
+
     void
     run()
     {
         while (_running) {
-            /* Do something. */
+            /* Stable ts is increased every period. */
+            std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
+            _stable_ts += _periodic_update_s * 1000;
+            testutil_check(_oldest_ts > _stable_ts);
+            /*
+             * Keep a time window between the stable and oldest ts less than the max defined in the
+             * configuration.
+             */
+            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds) {
+                _oldest_ts += _periodic_update_s * 1000;
+            }
         }
     }
+
+    /* Get current stable timestamp. */
+    wt_timestamp_t
+    get_stable() const
+    {
+        return _stable_ts;
+    }
+
+    /* Get current oldest timestamp. */
+    wt_timestamp_t
+    get_oldest() const
+    {
+        return _oldest_ts;
+    }
+
+    /* Get a valid commit timestamp. */
+    int64_t
+    get_next_ts()
+    {
+        int64_t ms;
+
+        do {
+            ms = get_time_now_ms();
+        } while (_previous_ts == ms);
+        _previous_ts = ms;
+
+        return ms;
+    }
+
+    int64_t
+    get_time_now_ms() const
+    {
+        auto duration = std::chrono::system_clock::now().time_since_epoch();
+        int64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
+        return ms;
+    }
+
+    void
+    set_timestamp(const std::string &config)
+    {
+        testutil_check(_conn->set_timestamp(_conn, config.c_str()));
+    }
+
+    void
+    set_oldest_ts(wt_timestamp_t ts)
+    {
+        _oldest_ts = ts;
+    }
+
+    void
+    set_stable_ts(wt_timestamp_t ts)
+    {
+        _stable_ts = ts;
+    }
+
+    private:
+    WT_CONNECTION *_conn;
+    const wt_timestamp_t _periodic_update_s;
+    int64_t _previous_ts;
+    wt_timestamp_t _oldest_ts;
+    wt_timestamp_t _stable_ts;
+    const int64_t _timestamp_window_seconds;
 };
 } // namespace test_harness
 

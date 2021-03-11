@@ -64,8 +64,12 @@ load_config = key_config + value_config + scale_config
 workload_config = [
     Config('enable_tracking', 'true', r'''
         Enables tracking to perform validation''', type='boolean'),
+    Config('enable_timestamp', 'true', r'''
+        Enables timestamp management''', type='boolean'),
     Config('duration_seconds', 0, r'''
         The duration that the workload run phase will last''', min=0, max=1000000),
+    Config('timestamp_window_seconds', 0, r'''
+        The duration between the stable and oldest timestamp''', min=0, max=1000000),
     Config('read_threads', 0, r'''
         The number of threads performing read operations''', min=0, max=100),
     Config('insert_threads', 0, r'''

@@ -46,7 +46,7 @@ enum class thread_operation {
 class thread_context {
     public:
     thread_context(std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _running(false), _type(type)
+        : _collection_names(collection_names), _in_txn(false), _running(false), _type(type)
     {
     }
 
@@ -55,6 +55,7 @@ class thread_context {
     void
     finish()
     {
+        // TODO Check if a transaction is happening ?
         _running = false;
     }
 
@@ -82,8 +83,33 @@ class thread_context {
         _running = running;
     }
 
+    void
+    begin_txn(WT_SESSION *session, const std::string &config)
+    {
+        /* A transaction cannot be started if one has been started. */
+        testutil_check(_in_txn == true);
+        testutil_check(session->begin_transaction(session, config.c_str()));
+        _in_txn = true;
+    }
+
+    void
+    prepare_txn(WT_SESSION *session, const std::string &config)
+    {
+        /* A transaction cannot be prepared if not started. */
+        testutil_check(_in_txn == false);
+        testutil_check(session->prepare_transaction(session, config.c_str()));
+    }
+
+    void
+    stop_txn(WT_SESSION *session, const std::string &config)
+    {
+        testutil_check(session->commit_transaction(session, config.c_str()));
+        _in_txn = false;
+    }
+
     private:
     const std::vector<std::string> _collection_names;
+    bool _in_txn;
     bool _running;
     const thread_operation _type;
 };

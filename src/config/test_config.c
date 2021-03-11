@@ -5,22 +5,25 @@
 static const WT_CONFIG_CHECK confchk_poc_test[] = {
   {"collection_count", "int", NULL, "min=0,max=200000", NULL, 0},
   {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
+  {"enable_timestamp", "boolean", NULL, NULL, NULL, 0},
   {"enable_tracking", "boolean", NULL, NULL, NULL, 0},
   {"insert_config", "string", NULL, NULL, NULL, 0},
   {"insert_threads", "int", NULL, "min=0,max=20", NULL, 0},
   {"key_count", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"key_size", "int", NULL, "min=0,max=10000", NULL, 0},
   {"read_threads", "int", NULL, "min=0,max=100", NULL, 0},
+  {"timestamp_window_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"update_config", "string", NULL, NULL, NULL, 0},
   {"update_threads", "int", NULL, "min=0,max=20", NULL, 0},
   {"value_size", "int", NULL, "min=0,max=10000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_ENTRY config_entries[] = {
   {"poc_test",
-    "collection_count=1,duration_seconds=0,enable_tracking=true,"
-    "insert_config=,insert_threads=0,key_count=0,key_size=0,"
-    "read_threads=0,update_config=,update_threads=0,value_size=0",
-    confchk_poc_test, 11},
+    "collection_count=1,duration_seconds=0,enable_timestamp=true,"
+    "enable_tracking=true,insert_config=,insert_threads=0,key_count=0"
+    ",key_size=0,read_threads=0,timestamp_window_seconds=0,"
+    "update_config=,update_threads=0,value_size=0",
+    confchk_poc_test, 13},
   {NULL, NULL, NULL, 0}};
 
 /*

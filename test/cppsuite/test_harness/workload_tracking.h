@@ -57,10 +57,10 @@ class workload_tracking : public component {
     workload_tracking(const std::string &operation_table_config,
       const std::string &operation_table_name, const std::string &schema_table_config,
       const std::string &schema_table_name)
-        : _cursor_operations(nullptr), _cursor_schema(nullptr),
+        : _cursor_operations(nullptr), _cursor_schema(nullptr), _enable_timestamp(false),
           _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-          _schema_table_name(schema_table_name), _timestamp(0U)
+          _schema_table_name(schema_table_name), _timestamp(0U), _timestamp_manager(nullptr)
     {
     }
 
@@ -103,6 +103,15 @@ class workload_tracking : public component {
         /* Does not do anything. */
     }
 
+    void
+    set_timestamp_manager(timestamp_manager *manager)
+    {
+        /* Timestamp manager cannot be NULL. */
+        testutil_check(manager == nullptr);
+        _enable_timestamp = true;
+        _timestamp_manager = manager;
+    }
+
     template <typename K, typename V>
     int
     save(const tracking_operation &operation, const std::string &collection_name, const K &key,
@@ -111,18 +120,23 @@ class workload_tracking : public component {
         WT_CURSOR *cursor;
         int error_code;
 
+        if (_enable_timestamp)
+            _timestamp = _timestamp_manager->get_next_ts();
+        else
+            ++_timestamp;
+
         /* Select the correct cursor to save in the collection associated to specific operations. */
         switch (operation) {
         case tracking_operation::CREATE:
         case tracking_operation::DELETE_COLLECTION:
             cursor = _cursor_schema;
-            cursor->set_key(cursor, collection_name.c_str(), _timestamp++);
+            cursor->set_key(cursor, collection_name.c_str(), _timestamp);
             cursor->set_value(cursor, static_cast<int>(operation));
             break;
 
         default:
             cursor = _cursor_operations;
-            cursor->set_key(cursor, collection_name.c_str(), key, _timestamp++);
+            cursor->set_key(cursor, collection_name.c_str(), key, _timestamp);
             cursor->set_value(cursor, static_cast<int>(operation), value);
             break;
         }
@@ -138,6 +152,7 @@ class workload_tracking : public component {
     }
 
     private:
+    bool _enable_timestamp;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;
@@ -145,6 +160,7 @@ class workload_tracking : public component {
     WT_CURSOR *_cursor_operations;
     WT_CURSOR *_cursor_schema;
     uint64_t _timestamp;
+    timestamp_manager *_timestamp_manager;
 };
 } // namespace test_harness
 

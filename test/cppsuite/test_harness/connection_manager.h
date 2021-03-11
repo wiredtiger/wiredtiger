@@ -99,6 +99,12 @@ class connection_manager {
         return session;
     }
 
+    WT_CONNECTION *
+    get_connection() const
+    {
+        return _conn;
+    }
+
     private:
     connection_manager() {}
     WT_CONNECTION *_conn = nullptr;
