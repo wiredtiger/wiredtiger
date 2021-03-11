@@ -40,7 +40,7 @@ def timestamp_str(t):
 # update-list for both fixed length and variable length column store.
 # Eviction is set to false, so that everything persists in memory.
 class test_rollback_to_stable15(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false)'
+    # conn_config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false),in_memory=true'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
@@ -52,7 +52,19 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         # Variable length
         ('variable', dict(value_format='i')),
     ]
-    scenarios = make_scenarios(key_format_values, value_format_values)
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+    scenarios = make_scenarios(key_format_values, value_format_values, in_memory_values)
+
+    def conn_config(self):
+        config = 'cache_size=200MB,statistics=(all),debug_mode=(eviction=false)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',in_memory=false'
+        return config
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
@@ -121,12 +133,13 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         #Check that only value30 is available
         self.check(value30, uri, nrows - 1, 7)
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
-        self.assertEqual(upd_aborted, (nrows*2) - 2)
-        self.assertEqual(calls, 2)
+        if not self.in_memory:
+            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            calls = stat_cursor[stat.conn.txn_rts][2]
+            upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
+            stat_cursor.close()
+            self.assertEqual(upd_aborted, (nrows*2) - 2)
+            self.assertEqual(calls, 2)
 
         self.session.close()
 

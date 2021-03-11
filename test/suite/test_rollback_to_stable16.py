@@ -30,6 +30,7 @@ from helper import simulate_crash_restart
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -37,8 +38,24 @@ def timestamp_str(t):
 # test_rollback_to_stable16.py
 # Test that rollback to stable removes updates present on disk for variable length column store.
 class test_rollback_to_stable16(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=200MB,statistics=(all)'
+    # conn_config = 'cache_size=200MB,statistics=(all),in_memory=true'
     session_config = 'isolation=snapshot'
+
+    in_memory_values = [
+        ('no_inmem', dict(in_memory=False)),
+        ('inmem', dict(in_memory=True))
+    ]
+
+    scenarios = make_scenarios(in_memory_values)
+
+    def conn_config(self):
+        config = 'cache_size=200MB,statistics=(all)'
+        if self.in_memory:
+            config += ',in_memory=true'
+        else:
+            config += ',in_memory=false'
+        return config
+
 
     def insert_update_data(self, uri, value, start_row, nrows, timestamp):
         cursor =  self.session.open_cursor(uri)
@@ -50,7 +67,11 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
     def check(self, check_value, uri, nrows, start_row, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        if read_ts == 0:
+            session.begin_transaction()
+        else:
+            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        # session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
 
         count = 0
@@ -93,7 +114,9 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
 
-        self.session.checkpoint()
+        # Checkpoint to ensure that all the updates are flushed to disk.
+        if not self.in_memory:
+            self.session.checkpoint()
 
         # Rollback to stable done as part of recovery.
         simulate_crash_restart(self,".", "RESTART")
