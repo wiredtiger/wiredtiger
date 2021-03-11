@@ -1005,8 +1005,8 @@ done:
         WT_ERR(session->iface.checkpoint(&session->iface, "force=1"));
 
     /*
-     * Rollback to stable may have updated inconsistent transaction ids. Update the connection base
-     * write generation based on these new ids that may have been reset.
+     * Rollback to stable may have left out clearing stale transaction ids. Update the connection
+     * base write generation based on the latest checkpoint write generations to reset them.
      */
     if (rts_executed)
         WT_ERR(__recovery_correct_write_gen(session));

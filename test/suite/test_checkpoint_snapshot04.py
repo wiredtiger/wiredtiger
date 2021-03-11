@@ -33,8 +33,8 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 
 # test_checkpoint_snapshot04.py
-#   Test backup restore when the checkpoint contains data greater than the
-#   checkpoint snapshot.
+#   Test utility dump of backup and original database when the transaction ids are
+#   written to disk.
 class test_checkpoint_snapshot04(backup_base):
     dir = 'backup.dir'
 
