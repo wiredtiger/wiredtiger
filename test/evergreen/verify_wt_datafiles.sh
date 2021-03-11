@@ -60,7 +60,6 @@ do
 	echo "${d}"
 
 	# Only dump log files if they exist
-	echo "${d}/${log_file_prefix}"
 	if [ -f "${d}/${log_file_prefix}" ]; then
 		${wt_binary} -h ${d} printlog > /dev/null
 		if [ "$?" -ne "0" ]; then
