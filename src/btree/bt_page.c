@@ -538,7 +538,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_RET;
     WT_ROW *rip;
     WT_UPDATE *tombstone, *upd;
-    uint8_t first_prefix, last_prefix;
+    uint8_t smallest_prefix;
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     size_t size, total_size;
@@ -550,7 +550,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
-    first_prefix = last_prefix = 0;           /* [-Wconditional-uninitialized] */
+    smallest_prefix = 0;                      /* [-Wconditional-uninitialized] */
     prefix_start = prefix_stop = 0;           /* [-Wconditional-uninitialized] */
     best_prefix_start = best_prefix_stop = 0; /* [-Wconditional-uninitialized] */
 
@@ -578,22 +578,28 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * forward through intermediate keys. We save that information on the page and then
              * never physically instantiate those keys, avoiding memory amplification for pages with
              * a page-wide prefix. On the first of a group of prefix-compressed keys, track the slot
-             * of the original key and the current key's prefix length. On subsequent keys, if the
-             * key can be built from the original key plus the current key's suffix bytes, update
-             * the maximum slot to which the prefix applies and the current prefix length.
+             * of the fully-instantiated key from which it's derived and the current key's prefix
+             * length. On subsequent keys, if the key can be built from the original key plus the
+             * current key's suffix bytes, update the maximum slot to which the prefix applies and
+             * the smallest prefix length.
              *
-             * Groups of prefix-compressed keys end when a key is not prefix-compressed or when a
-             * key's prefix length first decreases below the first prefix length and then a
-             * subsequent key's prefix length grows, we must roll forward through intermediate keys
-             * to build those keys. The key's prefix length decreasing is OK, it only means fewer
-             * bytes taken from the original key. The key's prefix length increasing does not end a
-             * group of prefix-compressed keys as we might be able to build a subsequent key using
-             * the original key and the key's suffix bytes, that is the prefix length can increase
-             * and then subsequently decrease. However, a key cannot be built without rolling
-             * forward through intermediate keys if the key's prefix length is longer than the
-             * original key, so while we don't end the group in that case, we don't count it as a
-             * useful entry for the purpose of finding the best group of prefix-compressed keys,
-             * either.
+             * Groups of prefix-compressed keys end when a key is not prefix-compressed (ignoring
+             * overflow keys), or the key's prefix length increases. A prefix length decreasing is
+             * OK, it only means fewer bytes taken from the original key. A prefix length increasing
+             * doesn't necessarily end a group of prefix-compressed keys as we might be able to
+             * build a subsequent key using the original key and the key's suffix bytes, that is the
+             * prefix length could increase and then decrease to the same prefix length as before
+             * and those latter keys could be built without rolling forward through intermediate
+             * keys. However, it's tricky: once a key prefix grows, we can never include a prefix
+             * smaller than the smallest prefix found so far, in the group, as a subsequent key
+             * prefix larger than the smallest prefix found so far might include bytes not present
+             * in the original instantiated key. Growing and shrinking is complicated to track, so
+             * rather than code up that complexity, we close out a group whenever the prefix grows.
+             * Plus, any key with a larger prefix cannot be instantiated without rolling forward
+             * through intermediate keys, and so while such a key isn't required to close out the
+             * prefix group in all cases, it's not a useful entry for finding the best group of
+             * prefix-compressed keys, either, it's only possible keys after the prefix shrinks
+             * again that might be worth including in the group.
              */
             slot = WT_ROW_SLOT(page, rip);
             if (unpack.prefix == 0) {
@@ -611,28 +617,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
 
                 /* Check for starting or continuing a prefix group. */
-                if (prefix_count == 0) {
-                    first_prefix = last_prefix = unpack.prefix;
+                if (prefix_count == 0 ||
+                  (last_slot == slot - 1 && unpack.prefix <= smallest_prefix)) {
+                    smallest_prefix = unpack.prefix;
                     last_slot = prefix_stop = slot;
-                    prefix_count = 1;
-                } else if (last_slot == slot - 1 &&
-                  (unpack.prefix > first_prefix || unpack.prefix <= last_prefix)) {
-                    /*
-                     * The last prefix and the last slot are what we use to determine if we've hit
-                     * the end of a prefix-compressed group (see comment immediately above). The
-                     * prefix count and the prefix stop are the count of, and last slot of, the
-                     * group of keys we may be able to build without rolling forward. They are
-                     * different from the last prefix and last slot because the prefix may increase
-                     * and never decrease, that is, the prefix group may end after lots of entries
-                     * we can't build without rolling intermediate keys forward and we don't want to
-                     * waste work on them when doing the search.
-                     */
-                    last_prefix = unpack.prefix;
-                    last_slot = slot;
-                    if (unpack.prefix <= first_prefix) {
-                        prefix_stop = slot;
-                        ++prefix_count;
-                    }
+                    ++prefix_count;
                 }
             }
 
