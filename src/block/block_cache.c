@@ -136,7 +136,7 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
 
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
-    int bucket;
+    unsigned int bucket;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -523,6 +523,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
+done:
     /* Print reference histograms */
     printf("Bucket \t Real \t Simulated:\n");
     printf("-----------------------------\n");
@@ -532,7 +533,6 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 	       blkcache->sim_cache_references[j]);
     }
 
-done:
 #ifdef HAVE_LIBMEMKIND
     if (blkcache->type == BLKCACHE_NVRAM) {
         memkind_destroy_kind(blkcache->pmem_kind);
