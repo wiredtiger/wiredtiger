@@ -99,10 +99,16 @@ class connection_manager {
         return session;
     }
 
-    WT_CONNECTION *
-    get_connection() const
+    /*
+     * set_timestamp is implemented here to benefit from the mutex that protects the connection
+     * member from concurrent calls.
+     */
+    void
+    set_timestamp(const std::string &config)
     {
-        return _conn;
+        _conn_mutex.lock();
+        testutil_check(_conn->set_timestamp(_conn, config.c_str()));
+        _conn_mutex.unlock();
     }
 
     private:

@@ -109,14 +109,11 @@ class test {
         }
 
         /* Create the timestamp manager if required. */
-        // TODO Does it make sense to have the timestamp manager if enable_tracking is false ? See
-        // line 122
         testutil_check(_configuration->get_bool(ENABLE_TIMESTAMP, enable_timestamp));
         if (enable_timestamp) {
-            testutil_check(
-              _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds));
-            _timestamp_manager = new timestamp_manager(
-              connection_manager::instance().get_connection(), timestamp_window_seconds);
+            _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds);
+            testutil_assert(timestamp_window_seconds >= 0);
+            _timestamp_manager = new timestamp_manager(timestamp_window_seconds);
             _components.push_back(_timestamp_manager);
 
             /* Tell the workload generator whether timestamp is enabled. */
@@ -134,6 +131,7 @@ class test {
 
         /* Sleep duration seconds. */
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
+        testutil_assert(duration_seconds >= 0);
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test. */

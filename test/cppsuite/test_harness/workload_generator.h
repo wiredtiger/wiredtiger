@@ -93,6 +93,7 @@ class workload_generator : public component {
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         testutil_check(_configuration->get_int(KEY_COUNT, key_count));
         testutil_check(_configuration->get_int(VALUE_SIZE, value_size));
+        testutil_assert(value_size >= 0);
         for (const auto &collection_name : _collection_names) {
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
@@ -121,6 +122,7 @@ class workload_generator : public component {
         duration_seconds = read_threads = 0;
 
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
+        testutil_assert(duration_seconds >= 0);
         testutil_check(_configuration->get_int(READ_THREADS, read_threads));
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {

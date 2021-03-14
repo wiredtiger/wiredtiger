@@ -39,8 +39,8 @@ namespace test_harness {
  */
 class timestamp_manager : public component {
     public:
-    timestamp_manager(WT_CONNECTION *conn, int64_t timestamp_window_seconds)
-        : _conn(conn), _periodic_update_s(1), _timestamp_window_seconds(timestamp_window_seconds),
+    timestamp_manager(int64_t timestamp_window_seconds)
+        : _periodic_update_s(1), _timestamp_window_seconds(timestamp_window_seconds),
           _previous_ts(0)
     {
         _oldest_ts = _stable_ts = get_time_now_ms();
@@ -53,7 +53,7 @@ class timestamp_manager : public component {
             /* Stable ts is increased every period. */
             std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
             _stable_ts += _periodic_update_s * 1000;
-            testutil_check(_oldest_ts > _stable_ts);
+            testutil_assert(_stable_ts > _oldest_ts);
             /*
              * Keep a time window between the stable and oldest ts less than the max defined in the
              * configuration.
@@ -103,7 +103,7 @@ class timestamp_manager : public component {
     void
     set_timestamp(const std::string &config)
     {
-        testutil_check(_conn->set_timestamp(_conn, config.c_str()));
+        connection_manager::instance().set_timestamp(config);
     }
 
     void
@@ -119,7 +119,6 @@ class timestamp_manager : public component {
     }
 
     private:
-    WT_CONNECTION *_conn;
     const wt_timestamp_t _periodic_update_s;
     int64_t _previous_ts;
     wt_timestamp_t _oldest_ts;
