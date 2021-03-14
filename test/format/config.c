@@ -959,6 +959,10 @@ config_transaction(void)
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
     }
+    if (g.c_logging && config_is_perm("logging")) {
+        if (g.c_prepare)
+            config_single("ops.prepare=off", false);
+    }
 
     /* FIXME-WT-6431: temporarily disable salvage with timestamps. */
     if (g.c_txn_timestamps && g.c_salvage) {

@@ -50,22 +50,16 @@ num_tables_verified=0
 dirs_include_datafile=$(find ./WT_TEST.[0-9]* -type f -name WiredTiger.wt -print0 | xargs -0 dirname)
 echo -e "\n[dirs_include_datafile]:\n${dirs_include_datafile}\n"
 
-# The prefix used for log files
-log_file_prefix="WiredTigerLog.*"
-
 # Loop through each data file under the TEST_DIR
 IFS=$'\n'
 for d in ${dirs_include_datafile}
 do
 	echo "${d}"
 
-	# Only dump log files if they exist
-	if [ -f "${d}/${log_file_prefix}" ]; then
-		${wt_binary} -h ${d} printlog > /dev/null
-		if [ "$?" -ne "0" ]; then
-			echo "Failed to dump '${d}' log files, exiting ..."
-			exit 1
-		fi
+	${wt_binary} -h ${d} printlog > /dev/null
+	if [ "$?" -ne "0" ]; then
+		echo "Failed to dump '${d}' log files, exiting ..."
+		exit 1
 	fi
 
 	tables=$(${wt_binary} -h "${d}" list)
