@@ -87,7 +87,7 @@ class thread_context {
     begin_txn(WT_SESSION *session, const std::string &config)
     {
         /* A transaction cannot be started if one has been started. */
-        testutil_check(_in_txn == true);
+        testutil_assert(_in_txn == false);
         testutil_check(session->begin_transaction(session, config.c_str()));
         _in_txn = true;
     }
@@ -96,13 +96,15 @@ class thread_context {
     prepare_txn(WT_SESSION *session, const std::string &config)
     {
         /* A transaction cannot be prepared if not started. */
-        testutil_check(_in_txn == false);
+        testutil_assert(_in_txn == true);
         testutil_check(session->prepare_transaction(session, config.c_str()));
     }
 
     void
-    stop_txn(WT_SESSION *session, const std::string &config)
+    commit_txn(WT_SESSION *session, const std::string &config)
     {
+        /* A transaction cannot be commited if not started. */
+        testutil_assert(_in_txn == true);
         testutil_check(session->commit_transaction(session, config.c_str()));
         _in_txn = false;
     }

@@ -146,7 +146,7 @@ class workload_generator : public component {
     set_tracker(workload_tracking *tracking)
     {
         /* Tracking cannot be NULL. */
-        testutil_check(tracking == nullptr);
+        testutil_assert(tracking != nullptr);
         _enable_tracking = true;
         _workload_tracking = tracking;
     }

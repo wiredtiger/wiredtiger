@@ -78,26 +78,28 @@ class timestamp_manager : public component {
         return _oldest_ts;
     }
 
-    /* Get a valid commit timestamp. */
+    /* Get a valid commit timestamp based on current time. */
     int64_t
     get_next_ts()
     {
-        int64_t ms;
+        int64_t ts;
 
+        _ts_mutex.lock();
         do {
-            ms = get_time_now_ms();
-        } while (_previous_ts == ms);
-        _previous_ts = ms;
+            ts = get_time_now_ms();
+        } while (_previous_ts == ts);
+        _previous_ts = ts;
+        _ts_mutex.unlock();
 
-        return ms;
+        return ts;
     }
 
     int64_t
     get_time_now_ms() const
     {
-        auto duration = std::chrono::system_clock::now().time_since_epoch();
-        int64_t ms = std::chrono::duration_cast<std::chrono::milliseconds>(duration).count();
-        return ms;
+        auto duration_ms = std::chrono::system_clock::now().time_since_epoch();
+        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(duration_ms).count();
+        return time;
     }
 
     void
@@ -124,6 +126,7 @@ class timestamp_manager : public component {
     wt_timestamp_t _oldest_ts;
     wt_timestamp_t _stable_ts;
     const int64_t _timestamp_window_seconds;
+    std::mutex _ts_mutex;
 };
 } // namespace test_harness
 

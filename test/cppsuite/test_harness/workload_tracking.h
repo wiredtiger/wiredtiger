@@ -107,7 +107,7 @@ class workload_tracking : public component {
     set_timestamp_manager(timestamp_manager *manager)
     {
         /* Timestamp manager cannot be NULL. */
-        testutil_check(manager == nullptr);
+        testutil_assert(manager != nullptr);
         _enable_timestamp = true;
         _timestamp_manager = manager;
     }
@@ -123,6 +123,10 @@ class workload_tracking : public component {
         if (_enable_timestamp)
             _timestamp = _timestamp_manager->get_next_ts();
         else
+            /* 
+             * TODO - Add protection for concurrent calls ?
+             * Arbitrary timestamp.
+             */
             ++_timestamp;
 
         /* Select the correct cursor to save in the collection associated to specific operations. */
