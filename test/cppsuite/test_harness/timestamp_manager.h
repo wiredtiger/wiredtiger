@@ -100,6 +100,7 @@ class timestamp_manager : public component {
         return res;
     }
 
+    private:
     bool _is_enabled;
     const wt_timestamp_t _periodic_update_s;
     wt_timestamp_t _oldest_ts, _previous_ts, _stable_ts;
