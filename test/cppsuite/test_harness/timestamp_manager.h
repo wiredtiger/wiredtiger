@@ -31,6 +31,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <sstream>
 #include <thread>
 
 namespace test_harness {
@@ -40,43 +41,45 @@ namespace test_harness {
  */
 class timestamp_manager : public component {
     public:
-    timestamp_manager(int64_t timestamp_window_seconds)
-        /* _periodic_update_s is hardcoded to 1 second for now. */
-        : _periodic_update_s(1), _oldest_ts(0U), _previous_ts(0U), _stable_ts(0U),
-          _timestamp_window_seconds(timestamp_window_seconds), _ts(0U)
+    timestamp_manager(configuration *config)
+        : /* _periodic_update_s is hardcoded to 1 second for now. */
+          _config(config), _is_enabled(false), _periodic_update_s(1), _oldest_ts(0U),
+          _previous_ts(0U), _stable_ts(0U), _timestamp_window_seconds(0), _ts(0U)
 
     {
     }
 
     void
+    load()
+    {
+        testutil_assert(_config != nullptr);
+        testutil_check(_config->get_int(TIMESTAMP_WINDOW_SECONDS, _timestamp_window_seconds));
+        testutil_assert(_timestamp_window_seconds >= 0);
+        testutil_check(_config->get_bool(ENABLE_TIMESTAMP, _is_enabled));
+        component::load();
+    }
+
+    void
     run()
     {
-        while (_running) {
+        std::string config;
+
+        while (_is_enabled && _running) {
             /* Stable ts is increased every period. */
             std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
             ++_stable_ts;
+            config = std::string(STABLE_TIMESTAMP) + "=" + decimal_to_hex(_stable_ts);
             testutil_assert(_stable_ts > _oldest_ts);
             /*
              * Keep a time window between the stable and oldest ts less than the max defined in the
              * configuration.
              */
-            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds)
+            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds) {
                 ++_oldest_ts;
+                config += "," + std::string(OLDEST_TIMESTAMP) + "=" + decimal_to_hex(_oldest_ts);
+            }
+            connection_manager::instance().set_timestamp(config);
         }
-    }
-
-    /* Get current stable timestamp. */
-    wt_timestamp_t
-    get_stable() const
-    {
-        return (_stable_ts);
-    }
-
-    /* Get current oldest timestamp. */
-    wt_timestamp_t
-    get_oldest() const
-    {
-        return (_oldest_ts);
     }
 
     /* Get a valid commit timestamp based on current time. */
@@ -87,29 +90,21 @@ class timestamp_manager : public component {
         return (_ts);
     }
 
-    /* Wrapper of the set_timestamp method implemented in the connection_manager class. */
-    void
-    set_timestamp(const std::string &config)
-    {
-        connection_manager::instance().set_timestamp(config);
-    }
-
-    void
-    set_oldest_ts(wt_timestamp_t ts)
-    {
-        _oldest_ts = ts;
-    }
-
-    void
-    set_stable_ts(wt_timestamp_t ts)
-    {
-        _stable_ts = ts;
-    }
-
     private:
+    const std::string
+    decimal_to_hex(int64_t value) const
+    {
+        std::stringstream ss;
+        ss << std::hex << value;
+        std::string res(ss.str());
+        return res;
+    }
+
+    const configuration *_config;
+    bool _is_enabled;
     const wt_timestamp_t _periodic_update_s;
     wt_timestamp_t _oldest_ts, _previous_ts, _stable_ts;
-    const int64_t _timestamp_window_seconds;
+    int64_t _timestamp_window_seconds;
     std::atomic<wt_timestamp_t> _ts;
 };
 } // namespace test_harness

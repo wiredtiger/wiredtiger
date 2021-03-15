@@ -59,12 +59,13 @@ class test {
         _configuration = new configuration(name, config);
         _workload_generator = new workload_generator(_configuration);
         _runtime_monitor = new runtime_monitor();
+        _timestamp_manager = new timestamp_manager(_configuration);
         _thread_manager = new thread_manager();
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {_workload_generator, _runtime_monitor};
+        _components = {_workload_generator, _runtime_monitor, _timestamp_manager};
     }
 
     ~test()
@@ -91,7 +92,7 @@ class test {
     void
     run()
     {
-        int64_t duration_seconds = 0, timestamp_window_seconds = 0;
+        int64_t duration_seconds = 0;
         bool enable_tracking = false, enable_timestamp = false, is_success = true;
 
         /* Set up the test environment. */
@@ -108,17 +109,8 @@ class test {
             _workload_generator->set_tracker(_workload_tracking);
         }
 
-        /* Always create the timestamp manager for the workload component. */
-        _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds);
-        _timestamp_manager = new timestamp_manager(timestamp_window_seconds);
+        /* Give the workload generator access to the timestamp manager. */
         _workload_generator->set_timestamp_manager(_timestamp_manager);
-
-        /* Add the timestamp manager to the components if required. */
-        testutil_check(_configuration->get_bool(ENABLE_TIMESTAMP, enable_timestamp));
-        if (enable_timestamp) {
-            testutil_assert(timestamp_window_seconds >= 0);
-            _components.push_back(_timestamp_manager);
-        }
 
         /* Initiate the load stage of each component. */
         for (const auto &it : _components)
