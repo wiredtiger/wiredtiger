@@ -1425,6 +1425,13 @@ tasks:
   # Start of Python unit test tasks
 
   - name: unit-test
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+
+  - name: unit-test-with-compile
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
@@ -2633,7 +2640,7 @@ buildvariants:
       # macos-1012 is a more stable distro that we want to use for our PR testing task
       distros: macos-1012
     - name: make-check-test
-    - name: unit-test
+    - name: unit-test-with-compile
     - name: fops
 
 - name: little-endian
