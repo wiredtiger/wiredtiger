@@ -43,8 +43,8 @@ namespace test_harness {
 class workload_generator : public component {
     public:
     workload_generator(configuration *configuration)
-        : _configuration(configuration), _enable_timestamp(false), _enable_tracking(false),
-          _timestamp_manager(nullptr), _ts(0U), _workload_tracking(nullptr)
+        : _configuration(configuration), _enable_tracking(false), _timestamp_manager(nullptr),
+          _workload_tracking(nullptr)
     {
     }
 
@@ -86,10 +86,7 @@ class workload_generator : public component {
             collection_name = "table:collection" + std::to_string(i);
             testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
             if (_enable_tracking) {
-                if (_enable_timestamp)
-                    ts = _timestamp_manager->get_next_ts();
-                else
-                    ts = get_next_ts();
+                ts = _timestamp_manager->get_next_ts();
                 testutil_check(
                   _workload_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
             }
@@ -115,10 +112,7 @@ class workload_generator : public component {
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 testutil_check(session->begin_transaction(session, NULL));
-                if (_enable_timestamp)
-                    ts = _timestamp_manager->get_next_ts();
-                else
-                    ts = get_next_ts();
+                ts = _timestamp_manager->get_next_ts();
                 testutil_check(insert(
                   cursor, collection_name, j + 1, generated_value.c_str(), _enable_tracking, ts));
                 testutil_check(session->commit_transaction(session, NULL));
@@ -169,7 +163,6 @@ class workload_generator : public component {
     {
         /* Timestamp manager cannot be NULL. */
         testutil_assert(manager != nullptr);
-        _enable_timestamp = true;
         _timestamp_manager = manager;
     }
 
@@ -217,6 +210,7 @@ class workload_generator : public component {
         std::string config;
         std::vector<WT_CURSOR *> cursors;
 
+        testutil_assert(session != nullptr);
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : context.get_collection_names()) {
             testutil_check(session->open_cursor(session, it.c_str(), NULL, NULL, &cursor));
@@ -247,9 +241,7 @@ class workload_generator : public component {
     {
         int error_code;
 
-        if (cursor == nullptr)
-            throw std::invalid_argument("Failed to call insert, invalid cursor");
-
+        testutil_assert(cursor != nullptr);
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
         error_code = cursor->insert(cursor);
@@ -262,50 +254,39 @@ class workload_generator : public component {
         } else
             debug_info("key/value insertion failed", _trace_level, DEBUG_ERROR);
 
-        return error_code;
+        return (error_code);
     }
 
     static int
     search(WT_CURSOR *cursor)
     {
-        if (cursor == nullptr)
-            throw std::invalid_argument("Failed to call search, invalid cursor");
+
+        testutil_assert(cursor != nullptr);
         return (cursor->search(cursor));
     }
 
     static int
     search_near(WT_CURSOR *cursor, int *exact)
     {
-        if (cursor == nullptr)
-            throw std::invalid_argument("Failed to call search_near, invalid cursor");
+        testutil_assert(cursor != nullptr);
         return (cursor->search_near(cursor, exact));
     }
 
     static int
     update(WT_CURSOR *cursor)
     {
-        if (cursor == nullptr)
-            throw std::invalid_argument("Failed to call update, invalid cursor");
+        testutil_assert(cursor != nullptr);
         return (cursor->update(cursor));
     }
 
     private:
-    /* Atomic timestamp used when the timestamp manager is not available. */
-    wt_timestamp_t
-    get_next_ts()
-    {
-        _ts.fetch_add(1);
-        return _ts;
-    }
-
     std::vector<std::string> _collection_names;
     const configuration *_configuration;
-    bool _enable_tracking, _enable_timestamp;
+    bool _enable_tracking;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
     std::vector<thread_context *> _workers;
     workload_tracking *_workload_tracking;
-    std::atomic<wt_timestamp_t> _ts;
 };
 } // namespace test_harness
 

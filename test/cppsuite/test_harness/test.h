@@ -108,17 +108,16 @@ class test {
             _workload_generator->set_tracker(_workload_tracking);
         }
 
-        /* Create the timestamp manager if required. */
+        /* Always create the timestamp manager for the workload component. */
+        _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds);
+        _timestamp_manager = new timestamp_manager(timestamp_window_seconds);
+        _workload_generator->set_timestamp_manager(_timestamp_manager);
+
+        /* Add the timestamp manager to the components if required. */
         testutil_check(_configuration->get_bool(ENABLE_TIMESTAMP, enable_timestamp));
         if (enable_timestamp) {
-            _configuration->get_int(TIMESTAMP_WINDOW_SECONDS, timestamp_window_seconds);
             testutil_assert(timestamp_window_seconds >= 0);
-            _timestamp_manager = new timestamp_manager(timestamp_window_seconds);
             _components.push_back(_timestamp_manager);
-
-            /* Tell the workload generator whether timestamp is enabled. */
-            if (enable_tracking)
-                _workload_generator->set_timestamp_manager(_timestamp_manager);
         }
 
         /* Initiate the load stage of each component. */

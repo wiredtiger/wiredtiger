@@ -54,7 +54,7 @@ class connection_manager {
     instance()
     {
         static connection_manager _instance;
-        return _instance;
+        return (_instance);
     }
 
     void
@@ -96,7 +96,7 @@ class connection_manager {
         testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
         _conn_mutex.unlock();
 
-        return session;
+        return (session);
     }
 
     /*

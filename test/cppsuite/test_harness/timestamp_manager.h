@@ -29,22 +29,23 @@
 #ifndef TIMESTAMP_MANAGER_H
 #define TIMESTAMP_MANAGER_H
 
+#include <atomic>
 #include <chrono>
 #include <thread>
 
 namespace test_harness {
 /*
  * The timestamp monitor class manages global timestamp state for all components in the test
- * harness. It also manages the global timestamps within WiredTiger. All timestamps are in ms.
+ * harness. It also manages the global timestamps within WiredTiger.
  */
 class timestamp_manager : public component {
     public:
     timestamp_manager(int64_t timestamp_window_seconds)
         /* _periodic_update_s is hardcoded to 1 second for now. */
-        : _periodic_update_s(1), _timestamp_window_seconds(timestamp_window_seconds),
-          _previous_ts(0)
+        : _periodic_update_s(1), _oldest_ts(0U), _previous_ts(0U), _stable_ts(0U),
+          _timestamp_window_seconds(timestamp_window_seconds), _ts(0U)
+
     {
-        _oldest_ts = _stable_ts = get_time_now_ms();
     }
 
     void
@@ -53,15 +54,14 @@ class timestamp_manager : public component {
         while (_running) {
             /* Stable ts is increased every period. */
             std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
-            _stable_ts += _periodic_update_s * 1000;
+            ++_stable_ts;
             testutil_assert(_stable_ts > _oldest_ts);
             /*
              * Keep a time window between the stable and oldest ts less than the max defined in the
              * configuration.
              */
-            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds) {
-                _oldest_ts += _periodic_update_s * 1000;
-            }
+            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds)
+                ++_oldest_ts;
         }
     }
 
@@ -69,40 +69,25 @@ class timestamp_manager : public component {
     wt_timestamp_t
     get_stable() const
     {
-        return _stable_ts;
+        return (_stable_ts);
     }
 
     /* Get current oldest timestamp. */
     wt_timestamp_t
     get_oldest() const
     {
-        return _oldest_ts;
+        return (_oldest_ts);
     }
 
     /* Get a valid commit timestamp based on current time. */
-    int64_t
+    wt_timestamp_t
     get_next_ts()
     {
-        int64_t ts;
-
-        _ts_mutex.lock();
-        do {
-            ts = get_time_now_ms();
-        } while (_previous_ts == ts);
-        _previous_ts = ts;
-        _ts_mutex.unlock();
-
-        return ts;
+        _ts.fetch_add(1);
+        return (_ts);
     }
 
-    int64_t
-    get_time_now_ms() const
-    {
-        auto duration_ms = std::chrono::system_clock::now().time_since_epoch();
-        int64_t time = std::chrono::duration_cast<std::chrono::milliseconds>(duration_ms).count();
-        return time;
-    }
-
+    /* Wrapper of the set_timestamp method implemented in the connection_manager class. */
     void
     set_timestamp(const std::string &config)
     {
@@ -123,11 +108,9 @@ class timestamp_manager : public component {
 
     private:
     const wt_timestamp_t _periodic_update_s;
-    int64_t _previous_ts;
-    wt_timestamp_t _oldest_ts;
-    wt_timestamp_t _stable_ts;
+    wt_timestamp_t _oldest_ts, _previous_ts, _stable_ts;
     const int64_t _timestamp_window_seconds;
-    std::mutex _ts_mutex;
+    std::atomic<wt_timestamp_t> _ts;
 };
 } // namespace test_harness
 
