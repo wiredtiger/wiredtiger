@@ -29,20 +29,118 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
+#include <thread>
+
+extern "C" {
+#include "wiredtiger.h"
+}
+
+#include "api_const.h"
+#include "component.h"
+#include "connection_manager.h"
+#include "debug_utils.h"
+
 namespace test_harness {
+/* Static statistic get function. */
+static void
+get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
+{
+    const char *desc, *pvalue;
+    cursor->set_key(cursor, stat_field);
+    testutil_check(cursor->search(cursor));
+    testutil_check(cursor->get_value(cursor, &desc, &pvalue, valuep));
+}
+
+class statistic {
+    public:
+    statistic(configuration *config)
+    {
+        testutil_check(config->get_bool(ENABLED, _enabled));
+    }
+
+    /* Check that the given statistic is within bounds. */
+    virtual void check(WT_CURSOR *cursor) = 0;
+
+    bool
+    is_enabled()
+    {
+        return _enabled;
+    }
+
+    protected:
+    bool _enabled = false;
+};
+
+class cache_limit_statistic : public statistic {
+    public:
+    cache_limit_statistic(configuration *config) : statistic(config)
+    {
+        testutil_check(config->get_int(LIMIT, limit));
+    }
+
+    void
+    check(WT_CURSOR *cursor)
+    {
+        int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max, use_percent;
+        /* Three statistics are required to compute cache use percentage. */
+        get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
+        get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
+        get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
+        /* Assert that we never exceed our configured limit for cache usage. */
+        use_percent = ((cache_bytes_image + cache_bytes_other) / cache_bytes_max) * 100;
+        testutil_assert(use_percent < limit);
+    }
+
+    private:
+    int64_t limit;
+};
+
 /*
  * The runtime monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
  */
 class runtime_monitor : public component {
     public:
+    runtime_monitor(configuration *config) : component(config) {}
+
+    void
+    load()
+    {
+        WT_CONFIG_ITEM nested;
+        std::string statistic_list;
+        /* Parse the configuration for the runtime monitor. */
+        testutil_check(_config->get_int(RATE_PER_SECOND, _ops));
+
+        /* Load known statistics. */
+        testutil_check(_config->get(STAT_CACHE_SIZE, &nested));
+        configuration sub_config = configuration(&nested);
+        _stats.push_back(new cache_limit_statistic(&sub_config));
+        _running = true;
+    }
+
     void
     run()
     {
+        WT_SESSION *session = connection_manager::instance().create_session();
+        WT_CURSOR *cursor = nullptr;
+
+        /* Open a statistics cursor. */
+        testutil_check(session->open_cursor(session, STATISTICS_URI, nullptr, nullptr, &cursor));
+
         while (_running) {
-            /* Do something. */
+            /* Sleep so that we do x operations per second. To be replaced by throttles. */
+            std::this_thread::sleep_for(std::chrono::milliseconds(1000 / _ops));
+            for (const auto &it : _stats) {
+                if (!it->is_enabled())
+                    continue;
+                it->check(cursor);
+            }
         }
     }
+
+    private:
+    int64_t _ops;
+    std::vector<statistic *> _stats;
 };
 } // namespace test_harness
 

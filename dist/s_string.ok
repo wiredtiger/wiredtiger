@@ -1024,6 +1024,7 @@ maxCLevel
 maxcpu
 maxdbs
 maxdiff
+mb
 mbll
 mbss
 mem
