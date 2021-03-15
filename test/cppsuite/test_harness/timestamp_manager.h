@@ -40,6 +40,7 @@ namespace test_harness {
 class timestamp_manager : public component {
     public:
     timestamp_manager(int64_t timestamp_window_seconds)
+        /* _periodic_update_s is hardcoded to 1 second for now. */
         : _periodic_update_s(1), _timestamp_window_seconds(timestamp_window_seconds),
           _previous_ts(0)
     {

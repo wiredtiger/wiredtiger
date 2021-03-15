@@ -90,6 +90,7 @@ class thread_context {
         if (!_in_txn) {
             testutil_check(
               session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
+            /* This randomizes the number of operations in one transaction. */
             _max_op_count = random_generator::instance().generate_number(_min_op, _max_op);
             _current_op_count = 0;
             _in_txn = true;
@@ -113,8 +114,17 @@ class thread_context {
 
     private:
     const std::vector<std::string> _collection_names;
+    /*
+     * _current_op_count is the current number of operations that have been executed in the current
+     * transaction.
+     */
     uint64_t _current_op_count;
     bool _in_txn, _running;
+    /*
+     * _min_op and _max_op are the minimum and maximum number of operations within one transaction.
+     * _max_op_count is the current maximum number of operations that can be executed in the current
+     * transaction. _max_op_count will always be <= _max_op.
+     */
     int64_t _min_op, _max_op, _max_op_count;
     const thread_operation _type;
 };
