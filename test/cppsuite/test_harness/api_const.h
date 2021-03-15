@@ -33,7 +33,7 @@
 namespace test_harness {
 
 /* Configuration API consts. */
-static const char *CACHE_SIZE_MEGABYTES = "cache_size_megabytes";
+static const char *CACHE_SIZE_MB = "cache_size_mb";
 static const char *COLLECTION_COUNT = "collection_count";
 static const char *DURATION_SECONDS = "duration_seconds";
 static const char *ENABLE_TRACKING = "enable_tracking";

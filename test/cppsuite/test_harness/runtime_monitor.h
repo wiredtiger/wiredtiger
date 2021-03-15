@@ -55,6 +55,7 @@ class statistic {
     public:
     statistic(configuration *config)
     {
+        testutil_assert(config != nullptr);
         testutil_check(config->get_bool(ENABLED, _enabled));
     }
 
@@ -62,7 +63,7 @@ class statistic {
     virtual void check(WT_CURSOR *cursor) = 0;
 
     bool
-    is_enabled()
+    is_enabled() const
     {
         return _enabled;
     }
@@ -81,6 +82,7 @@ class cache_limit_statistic : public statistic {
     void
     check(WT_CURSOR *cursor)
     {
+        testutil_assert(cursor != nullptr);
         int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max, use_percent;
         /* Three statistics are required to compute cache use percentage. */
         get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
@@ -113,7 +115,7 @@ class runtime_monitor : public component {
 
         /* Load known statistics. */
         testutil_check(_config->get(STAT_CACHE_SIZE, &nested));
-        configuration sub_config = configuration(&nested);
+        configuration sub_config = configuration(nested);
         _stats.push_back(new cache_limit_statistic(&sub_config));
         _running = true;
     }
@@ -131,9 +133,9 @@ class runtime_monitor : public component {
             /* Sleep so that we do x operations per second. To be replaced by throttles. */
             std::this_thread::sleep_for(std::chrono::milliseconds(1000 / _ops));
             for (const auto &it : _stats) {
-                if (!it->is_enabled())
-                    continue;
-                it->check(cursor);
+                if (it->is_enabled())
+                    it->check(cursor);
+
             }
         }
     }

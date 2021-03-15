@@ -99,7 +99,7 @@ class test {
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
-        // testutil_check(_configuration->get_int(CACHE_SIZE_MEGABYTES, cache_size_megabytes));
+        testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
         db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
 
         /* Set up the test environment. */

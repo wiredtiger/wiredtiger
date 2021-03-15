@@ -67,7 +67,7 @@ class connection_manager {
     }
 
     void
-    create(std::string config, std::string home = DEFAULT_DIR)
+    create(const std::string config, const std::string home = DEFAULT_DIR)
     {
         if (_conn != nullptr) {
             debug_info("connection is not NULL, cannot be re-opened.", _trace_level, DEBUG_ERROR);
