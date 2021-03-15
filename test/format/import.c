@@ -81,15 +81,16 @@ import(void *arg)
     testutil_checkfmt(
       import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
 
+    /*
+    * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
+    */
+    while ((ret = import_session->open_cursor(
+                import_session, IMPORT_URI, NULL, NULL, &cursor)) == EBUSY)
+        __wt_yield();
+    testutil_check(ret);
+
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
-        /*
-         * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-         */
-        while ((ret = import_session->open_cursor(
-                  import_session, IMPORT_URI, NULL, NULL, &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_check(ret);
 
         // Check if insert operation is re-usable from test/format
         // Validate the cursor inserts
@@ -115,6 +116,8 @@ import(void *arg)
             while ((ret = import_session->open_cursor(
                       import_session, "metadata:", NULL, NULL, &metadata_cursor)) == EBUSY)
                 __wt_yield();
+            testutil_check(ret);
+
             fprintf(stdout, "(non-repair) Performing import...\n");
             metadata_cursor->set_key(metadata_cursor, IMPORT_URI);
             metadata_cursor->search(metadata_cursor);
@@ -133,14 +136,16 @@ import(void *arg)
             }
             fprintf(stdout, "(non-repair) Finished import...\n");
 
-            metadata_cursor->close(metadata_cursor);
+            testutil_check(metadata_cursor->close(metadata_cursor));
         }
 
-        while ((ret = session->drop(session, "file:import.wt", NULL)) == EBUSY)
+        while ((ret = session->drop(session, "file:import.wt", NULL)) == EBUSY) {
             __wt_yield();
+        }    
+        testutil_check(ret);
 
         fprintf(stdout, "Finished drop... %d\n", ret);
-        cursor->close(cursor);
+
 
         import_value = !import_value;
         while (period > 0 && !g.workers_finished) {
@@ -149,6 +154,7 @@ import(void *arg)
         }
     }
 
+    testutil_check(cursor->close(cursor));
     testutil_check(import_session->close(import_session, NULL));
     testutil_check(import_conn->close(import_conn, NULL));
     testutil_check(session->close(session, NULL));
