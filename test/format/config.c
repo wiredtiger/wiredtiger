@@ -959,16 +959,8 @@ config_transaction(void)
         if (g.c_txn_freq != 100 && config_is_perm("transaction.frequency"))
             testutil_die(EINVAL, "timestamps require transaction frequency set to 100");
     }
-    if (g.c_logging && config_is_perm("logging")) {
-        if (g.c_prepare)
-            config_single("ops.prepare=off", false);
-        /* Rollback-to-stable doesn't operate on logged tables. */
-        if (g.c_txn_rollback_to_stable && config_is_perm("transaction.rollback_to_stable"))
-            testutil_die(
-              EINVAL, "rollback to stable and logging can not be configured at the same time");
-        else if (g.c_txn_rollback_to_stable)
-            config_single("transaction.rollback_to_stable=off", false);
-    }
+    if (g.c_logging && config_is_perm("logging") && g.c_prepare)
+        config_single("ops.prepare=off", false);
 
     /* FIXME-WT-6431: temporarily disable salvage with timestamps. */
     if (g.c_txn_timestamps && g.c_salvage) {
@@ -1004,8 +996,6 @@ config_transaction(void)
     if (g.c_txn_rollback_to_stable) {
         if (!g.c_txn_timestamps)
             config_single("transaction.timestamps=on", false);
-        if (g.c_logging)
-            config_single("logging=off", false);
     }
     if (g.c_txn_timestamps) {
         if (g.c_isolation_flag != ISOLATION_SNAPSHOT)
