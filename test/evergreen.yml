@@ -1425,10 +1425,9 @@ tasks:
   # Start of Python unit test tasks
 
   - name: unit-test
-    depends_on:
-    - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
+      - func: "compile wiredtiger"
       - func: "unit test"
 
   - name: unit-test-long
