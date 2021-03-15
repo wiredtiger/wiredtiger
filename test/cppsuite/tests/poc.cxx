@@ -49,7 +49,8 @@ class poc_test : public test_harness::test {
 const std::string poc_test::test::name = "poc_test";
 const std::string poc_test::test::default_config =
   "enable_tracking=true,collection_count=2,key_count=5,value_size=20,"
-  "read_threads=1,duration_seconds=1,enable_timestamp=true,timestamp_window_seconds=1";
+  "read_threads=1,duration_seconds=1,enable_timestamp=true,timestamp_window_seconds=1,min_"
+  "operation_per_transaction=1,max_operation_per_transaction=1";
 
 int
 main(int argc, char *argv[])

@@ -118,7 +118,7 @@ class test {
 
             /* Tell the workload generator whether timestamp is enabled. */
             if (enable_tracking)
-                _workload_tracking->set_timestamp_manager(_timestamp_manager);
+                _workload_generator->set_timestamp_manager(_timestamp_manager);
         }
 
         /* Initiate the load stage of each component. */

@@ -29,6 +29,8 @@
 #ifndef THREAD_CONTEXT_H
 #define THREAD_CONTEXT_H
 
+#include "random_generator.h"
+
 namespace test_harness {
 /* Define the different thread operations. */
 enum class thread_operation {
@@ -45,17 +47,16 @@ enum class thread_operation {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _in_txn(false), _running(false), _type(type)
+    thread_context(std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
+      int64_t min_op)
+        : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
+          _max_op(max_op), _max_op_count(0), _min_op(min_op), _running(false), _type(type)
     {
     }
-
-    thread_context(thread_operation type) : _running(false), _type(type) {}
 
     void
     finish()
     {
-        // TODO Check if a transaction is happening ?
         _running = false;
     }
 
@@ -84,35 +85,37 @@ class thread_context {
     }
 
     void
-    begin_txn(WT_SESSION *session, const std::string &config)
+    begin_transaction(WT_SESSION *session, const std::string &config)
     {
-        /* A transaction cannot be started if one has been started. */
-        testutil_assert(_in_txn == false);
-        testutil_check(session->begin_transaction(session, config.c_str()));
-        _in_txn = true;
+        if (!_in_txn) {
+            testutil_check(
+              session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
+            _max_op_count = random_generator::instance().generate_number(_min_op, _max_op);
+            _current_op_count = 0;
+            _in_txn = true;
+        }
     }
 
-    void
-    prepare_txn(WT_SESSION *session, const std::string &config)
+    /* Returns true if the current transaction has been committed. */
+    bool
+    commit_transaction(WT_SESSION *session, const std::string &config)
     {
-        /* A transaction cannot be prepared if not started. */
-        testutil_assert(_in_txn == true);
-        testutil_check(session->prepare_transaction(session, config.c_str()));
-    }
+        /* A transaction cannot be committed if not started. */
+        testutil_assert(_in_txn);
+        if (!_running || (++_current_op_count > _max_op_count)) {
+            testutil_check(
+              session->commit_transaction(session, config.empty() ? NULL : config.c_str()));
+            _in_txn = false;
+        }
 
-    void
-    commit_txn(WT_SESSION *session, const std::string &config)
-    {
-        /* A transaction cannot be commited if not started. */
-        testutil_assert(_in_txn == true);
-        testutil_check(session->commit_transaction(session, config.c_str()));
-        _in_txn = false;
+        return !_in_txn;
     }
 
     private:
     const std::vector<std::string> _collection_names;
-    bool _in_txn;
-    bool _running;
+    uint64_t _current_op_count;
+    bool _in_txn, _running;
+    int64_t _min_op, _max_op, _max_op_count;
     const thread_operation _type;
 };
 } // namespace test_harness
