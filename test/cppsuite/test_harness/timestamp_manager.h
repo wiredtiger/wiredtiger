@@ -59,6 +59,10 @@ class timestamp_manager : public component {
         testutil_check(_config->get_bool(ENABLE_TIMESTAMP, _is_enabled));
         component::load();
     }
+<<<<<<< HEAD
+=======
+
+>>>>>>> WT-7275 Timestamp manager is always part of the compoents and its parameters are checked within its load function. Removed unused functions and call to WT API to write timestamps.
     void
     run()
     {
