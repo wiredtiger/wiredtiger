@@ -92,7 +92,11 @@ workload_config = [
     Config('update_threads', 0, r'''
         The number of threads performing update operations''', min=0, max=20),
     Config('update_config',0,r''',
-        The definition of the record being updated''', subconfig=load_config)
+        The definition of the record being updated''', subconfig=load_config),
+    Config('min_operation_per_transaction', 1, r'''
+        The minimum number of operations per transaction''', min=1, max=200000),
+    Config('max_operation_per_transaction', 1, r'''
+        The maximum number of operations per transaction''', min=1, max=200000),
 ]
 
 test_config = [

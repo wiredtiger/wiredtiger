@@ -30,6 +30,7 @@
 #define WORKLOAD_GENERATOR_H
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 
 #include "random_generator.h"
@@ -215,6 +216,7 @@ class workload_generator : public component {
             cursors.push_back(cursor);
         }
 
+        bool has_committed = true;
         while (context.is_running()) {
             /* Walk each cursor. */
             context.begin_transaction(session, config);
@@ -276,12 +278,21 @@ class workload_generator : public component {
     }
 
     private:
+    /* Atomic timestamp used when the timestamp manager is not available. */
+    wt_timestamp_t
+    get_next_ts()
+    {
+        _ts.fetch_add(1);
+        return _ts;
+    }
+
     std::vector<std::string> _collection_names;
     bool _enable_tracking;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
     std::vector<thread_context *> _workers;
     workload_tracking *_workload_tracking;
+    std::atomic<wt_timestamp_t> _ts;
 };
 } // namespace test_harness
 
