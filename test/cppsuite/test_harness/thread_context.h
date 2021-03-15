@@ -91,7 +91,7 @@ class thread_context {
             testutil_check(
               session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
             /* This randomizes the number of operations in one transaction. */
-            _max_op_count = random_generator::instance().generate_number(_min_op, _max_op);
+            _max_op_count = random_generator::instance().generate_integer(_min_op, _max_op);
             _current_op_count = 0;
             _in_txn = true;
         }
@@ -103,6 +103,12 @@ class thread_context {
     {
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
+        /* The current transaction should be committed if:
+         *  - The thread is done working. This is useful when the test is ended and the thread has
+         * not reached the maximum number of operations per transaction.
+         *  - The number of operations executed in the current transaction has exceeded the
+         * threshold.
+         */
         if (!_running || (++_current_op_count > _max_op_count)) {
             testutil_check(
               session->commit_transaction(session, config.empty() ? NULL : config.c_str()));

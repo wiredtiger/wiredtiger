@@ -100,8 +100,7 @@ class connection_manager {
     }
 
     /*
-     * set_timestamp is implemented here to benefit from the mutex that protects the connection
-     * member from concurrent calls.
+     * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
      */
     void
     set_timestamp(const std::string &config)

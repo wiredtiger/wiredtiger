@@ -59,9 +59,9 @@ class random_generator {
         return (random_string);
     }
 
-    /* Generate a random number between min and max. */
+    /* Generate a random integer between min and max. */
     int64_t
-    generate_number(int64_t min, int64_t max)
+    generate_integer(int64_t min, int64_t max)
     {
         std::uniform_int_distribution<> dis(min, max);
         return dis(_generator);

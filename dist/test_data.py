@@ -87,6 +87,20 @@ workload_config = [
         The maximum number of operations per transaction''', min=1, max=200000),
 ]
 
+transaction_config = [
+    Config('min_operation_per_transaction', 1, r'''
+        The minimum number of operations per transaction''', min=1, max=200000),
+    Config('max_operation_per_transaction', 1, r'''
+        The maximum number of operations per transaction''', min=1, max=200000),
+]
+
+timestamp_config = [
+    Config('enable_timestamp', 'true', r'''
+        Enables timestamp management''', type='boolean'),
+    Config('timestamp_window_seconds', 0, r'''
+        The duration between the stable and oldest timestamp''', min=0, max=1000000),
+]
+
 methods = {
-'poc_test' : Method(load_config + workload_config),
+'poc_test' : Method(load_config + workload_config + timestamp_config + transaction_config),
 }
