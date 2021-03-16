@@ -312,31 +312,29 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
      * different meanings. The empty string means inherit the system tiered storage setting and
      * "none" means this table is not using tiered storage.
      */
+    *bstoragep = NULL;
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
     if (cval.len == 0)
         *bstoragep = S2C(session)->bstorage;
-    else if (WT_STRING_MATCH("none", cval.str, cval.len)) {
-        /* We're done. */
-        *bstoragep = NULL;
-        goto out;
-    } else {
+    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
         WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
         WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
+	WT_ASSERT(session, *bstoragep != NULL);
     }
-    bstorage = *bstoragep;
-    /*
-     * If we get here then we have a valid bucket storage entry. Now see if the user overrides any
-     * of the other settings.
-     */
-    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.local_retention", &cval));
-    if (cval.val != 0)
-        bstorage->retain_secs = (uint64_t)cval.val;
+    if (*bstoragep != NULL) {
+        bstorage = *bstoragep;
+        /*
+         * If we get here then we have a valid bucket storage entry. Now see if the user overrides
+         * any of the other settings.
+         */
+        WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.local_retention", &cval));
+        if (cval.val != 0)
+            bstorage->retain_secs = (uint64_t)cval.val;
 
-    WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.object_target_size", &cval));
-    if (cval.val != 0)
-        bstorage->object_size = (uint64_t)cval.val;
-
-out:
+        WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.object_target_size", &cval));
+        if (cval.val != 0)
+            bstorage->object_size = (uint64_t)cval.val;
+    }
     return (0);
 err:
     /* If the bucket storage was set up with copies of the strings, free them here. */
