@@ -275,6 +275,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     bool start;
 
     conn = S2C(session);
+    start = false;
 
     /* Destroy any existing thread since we could be a reconfigure. */
     WT_RET(__wt_tiered_storage_destroy(session));
