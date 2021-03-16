@@ -62,6 +62,9 @@ class statistic {
     /* Check that the given statistic is within bounds. */
     virtual void check(WT_CURSOR *cursor) = 0;
 
+    /* Suppress warning about destructor being non-virtual. */
+    virtual ~statistic() {}
+
     bool
     is_enabled() const
     {
@@ -83,14 +86,25 @@ class cache_limit_statistic : public statistic {
     check(WT_CURSOR *cursor)
     {
         testutil_assert(cursor != nullptr);
-        int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max, use_percent;
+        int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
+        double use_percent;
         /* Three statistics are required to compute cache use percentage. */
         get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_IMAGE, &cache_bytes_image);
         get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
         get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
-        /* Assert that we never exceed our configured limit for cache usage. */
-        use_percent = ((cache_bytes_image + cache_bytes_other) / cache_bytes_max) * 100;
-        testutil_assert(use_percent < limit);
+        /*
+         * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid
+         * floating point conversion errors.
+         */
+        use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
+        if (use_percent > limit) {
+            std::string error_string =
+              "runtime_monitor: Cache usage exceeded during test! Limit: " + std::to_string(limit) +
+              " usage: " + std::to_string(use_percent);
+            debug_info(error_string, _trace_level, DEBUG_ERROR);
+            testutil_assert(use_percent < limit);
+        } else
+            debug_info("Usage: " + std::to_string(use_percent), _trace_level, DEBUG_TRACE);
     }
 
     private:
@@ -104,6 +118,16 @@ class cache_limit_statistic : public statistic {
 class runtime_monitor : public component {
     public:
     runtime_monitor(configuration *config) : component(config) {}
+
+    ~runtime_monitor()
+    {
+        for (auto &it : _stats)
+            delete it;
+        _stats.clear();
+    }
+
+    /* Delete copy constructor. */
+    runtime_monitor(const runtime_monitor &) = delete;
 
     void
     load()
@@ -135,7 +159,6 @@ class runtime_monitor : public component {
             for (const auto &it : _stats) {
                 if (it->is_enabled())
                     it->check(cursor);
-
             }
         }
     }
