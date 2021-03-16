@@ -48,8 +48,9 @@ class poc_test : public test_harness::test {
 
 const std::string poc_test::test::name = "poc_test";
 const std::string poc_test::test::default_config =
-  "enable_tracking=true,collection_count=2,key_count=5,value_size=20,"
-  "read_threads=1,duration_seconds=1";
+                "collection_count=2,key_count=5,value_size=10,"
+                "read_threads=1,duration_seconds=10,cache_size_mb=1000,"
+                "stat_cache_size=(enabled=true,limit=100),rate_per_second=10,enable_tracking=true";
 
 int
 main(int argc, char *argv[])

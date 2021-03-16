@@ -40,7 +40,7 @@ extern "C" {
 
 #include "api_const.h"
 #include "component.h"
-#include "configuration_settings.h"
+#include "configuration.h"
 #include "connection_manager.h"
 #include "runtime_monitor.h"
 #include "timestamp_manager.h"
@@ -57,15 +57,18 @@ class test {
     test(const std::string &config)
     {
         _configuration = new configuration(name, config);
-        _workload_generator = new workload_generator(_configuration);
-        _runtime_monitor = new runtime_monitor();
-        _timestamp_manager = new timestamp_manager();
+        _runtime_monitor = new runtime_monitor(_configuration);
+        _timestamp_manager = new timestamp_manager(_configuration);
+        _workload_tracking = new workload_tracking(_configuration, OPERATION_TRACKING_TABLE_CONFIG,
+          TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG, TABLE_SCHEMA_TRACKING);
+        _workload_generator = new workload_generator(_configuration, _workload_tracking);
         _thread_manager = new thread_manager();
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {_workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {
+          _workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor};
     }
 
     ~test()
@@ -92,23 +95,18 @@ class test {
     void
     run()
     {
+        int64_t cache_size_mb = 100;
         int64_t duration_seconds = 0;
         bool enable_tracking = false, is_success = true;
 
-        /* Set up the test environment. */
-        connection_manager::instance().create();
+        /* Build the database creation config string. */
+        std::string db_create_config = CONNECTION_CREATE;
 
-        /* Create the activity tracker if required. */
-        testutil_check(_configuration->get_bool(ENABLE_TRACKING, enable_tracking));
-        if (enable_tracking) {
-            _workload_tracking = new workload_tracking(OPERATION_TRACKING_TABLE_CONFIG,
-              TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG, TABLE_SCHEMA_TRACKING);
-            /* Make sure the tracking component is loaded first to track all activities. */
-            _components.insert(_components.begin(), _workload_tracking);
-        } else
-            _workload_tracking = nullptr;
-        /* Tell the workload generator whether tracking is enabled. */
-        _workload_generator->set_tracker(_workload_tracking);
+        testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
+        db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
+
+        /* Set up the test environment. */
+        connection_manager::instance().create(db_create_config);
 
         /* Initiate the load stage of each component. */
         for (const auto &it : _components)
