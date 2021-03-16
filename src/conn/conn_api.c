@@ -767,32 +767,33 @@ __conn_add_storage_source(
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage_source;
+    WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_SESSION_IMPL *session;
+    uint64_t i;
 
-    nstorage_source = NULL;
+    nstorage = NULL;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     CONNECTION_API_CALL(conn, session, add_storage_source, config, cfg);
     WT_UNUSED(cfg);
 
-    WT_ERR(__wt_calloc_one(session, &nstorage_source));
-    WT_ERR(__wt_strdup(session, name, &nstorage_source->name));
-    nstorage_source->storage_source = storage_source;
+    WT_ERR(__wt_calloc_one(session, &nstorage));
+    WT_ERR(__wt_strdup(session, name, &nstorage->name));
+    nstorage->storage_source = storage_source;
     TAILQ_INIT(&nstorage->bucketqh);
     WT_ERR(__wt_calloc_def(session, conn->hash_size, &nstorage->buckethashqh));
     for (i = 0; i < conn->hash_size; i++)
         TAILQ_INIT(&nstorage->buckethashqh[i]);
 
     __wt_spin_lock(session, &conn->api_lock);
-    TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage_source, q);
-    nstorage_source = NULL;
+    TAILQ_INSERT_TAIL(&conn->storagesrcqh, nstorage, q);
+    nstorage = NULL;
     __wt_spin_unlock(session, &conn->api_lock);
 
 err:
-    if (nstorage_source != NULL) {
-        __wt_free(session, nstorage_source->name);
-        __wt_free(session, nstorage_source);
+    if (nstorage != NULL) {
+        __wt_free(session, nstorage->name);
+        __wt_free(session, nstorage);
     }
 
     API_END_RET_NOTFOUND_MAP(session, ret);
