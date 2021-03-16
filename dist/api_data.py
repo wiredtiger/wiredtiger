@@ -414,11 +414,11 @@ file_config = format_meta + file_runtime_config + [
         percentage of the maximum Btree page size''',
         min='50', max='100'),
     Config('tiered_storage', '', r'''
-        configure an storage source for this table''',
+        configure a storage source for this table''',
         type='category', subconfig=[
         Config('name', 'none', r'''
             Permitted values are \c "none"
-            or custom storage source engine name created with
+            or custom storage source name created with
             WT_CONNECTION::add_storage_source.
             See @ref custom_storage_sources for more information'''),
         Config('bucket', '', r'''
