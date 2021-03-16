@@ -179,6 +179,7 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
 {
     WT_CONFIG_ITEM bucket, cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
 
     conn = S2C(session);
 
@@ -200,12 +201,23 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     conn->bstorage->object_size = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    if (cval.len)
-        WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->auth_token));
-    else
-        conn->bstorage->auth_token = NULL;
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->auth_token));
+
+    /* The strings for unique identification are connection level not per bucket. */
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.cluster", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_cluster));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_kmsid));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.member", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_member));
 
     return (__tiered_manager_config(session, cfg, runp));
+err:
+    __wt_free(session, conn->bstorage->auth_token);
+    __wt_free(session, conn->tiered_cluster);
+    __wt_free(session, conn->tiered_kmsid);
+    __wt_free(session, conn->tiered_member);
+    return (ret);
 }
 
 /*
@@ -317,10 +329,9 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     conn = S2C(session);
-    /*
-     * This may look a lot more like __wt_lsm_manager_destroy instead. It depends on what the final
-     * API looks like. For now handle it like a single internal worker thread.
-     */
+    __wt_free(session, conn->tiered_cluster);
+    __wt_free(session, conn->tiered_kmsid);
+    __wt_free(session, conn->tiered_member);
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);

@@ -406,6 +406,9 @@ struct __wt_connection_impl {
     bool tiered_tid_set;             /* Tiered thread set */
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
 
+    const char *tiered_cluster;       /* Tiered storage cluster name */
+    const char *tiered_kmsid;         /* Tiered storage key management id */
+    const char *tiered_member;        /* Tiered storage member name */
     WT_TIERED_MANAGER tiered_manager; /* Tiered worker thread information */
     bool tiered_server_running;       /* Internal tiered server operating */
 
