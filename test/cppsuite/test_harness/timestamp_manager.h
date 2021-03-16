@@ -59,7 +59,7 @@ class timestamp_manager : public component {
         testutil_check(_config->get_bool(ENABLE_TIMESTAMP, _is_enabled));
         component::load();
     }
-    
+
     void
     run()
     {

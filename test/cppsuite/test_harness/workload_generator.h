@@ -216,7 +216,6 @@ class workload_generator : public component {
             cursors.push_back(cursor);
         }
 
-        bool has_committed = true;
         while (context.is_running()) {
             /* Walk each cursor. */
             context.begin_transaction(session, config);

@@ -125,6 +125,6 @@ timestamp_config = [
 ]
 
 methods = {
-    'poc_test' : Method(load_config + workload_config + runtime_monitor_config + transaction_config + 
+    'poc_test' : Method(load_config + workload_config + runtime_monitor_config + transaction_config +
         timestamp_config + test_config),
 }
