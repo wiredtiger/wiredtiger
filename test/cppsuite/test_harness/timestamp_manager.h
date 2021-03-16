@@ -66,13 +66,13 @@ class timestamp_manager : public component {
     run()
     {
         std::string config;
-        /* latest_ts_s represents the time component of latest_ts_s. */
-        wt_timestamp_t latest_ts_s = (_latest_ts >> 32);
+        /* latest_ts_s represents the time component of the latest timestamp provided. */
+        wt_timestamp_t latest_ts_s;
 
         while (_is_enabled && _running) {
             /* Timestamps are checked periodically. */
             std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
-
+            latest_ts_s = (_latest_ts >> 32);
             /*
              * Keep a time window between the latest and stable ts less than the max defined in the
              * configuration.
@@ -104,8 +104,8 @@ class timestamp_manager : public component {
     }
 
     /*
-     * Get a unique commit timestamp. The first 32 bits represent the epoch time in seconds. The last
-     * 32 bits represent an increment for uniqueness.
+     * Get a unique commit timestamp. The first 32 bits represent the epoch time in seconds. The
+     * last 32 bits represent an increment for uniqueness.
      */
     wt_timestamp_t
     get_next_ts()
