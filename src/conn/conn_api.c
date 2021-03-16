@@ -834,6 +834,7 @@ __conn_get_storage_source(
 int
 __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
 {
+    WT_BUCKET_STORAGE *bstorage;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
@@ -843,6 +844,18 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
     while ((nstorage = TAILQ_FIRST(&conn->storagesrcqh)) != NULL) {
         /* Remove from the connection's list, free memory. */
         TAILQ_REMOVE(&conn->storagesrcqh, nstorage, q);
+        while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
+            /* Remove from the connection's list, free memory. */
+            TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
+            /* Call any termination method. */
+            if (bstorage->storage_source->terminate != NULL)
+                WT_TRET(bstorage->storage_source->terminate(
+                  bstorage->storage_source, (WT_SESSION *)session));
+            __wt_free(session, bstorage->auth_token);
+            __wt_free(session, bstorage->bucket);
+            __wt_free(session, bstorage);
+        }
+
         /* Call any termination method. */
         if (nstorage->storage_source->terminate != NULL)
             WT_TRET(

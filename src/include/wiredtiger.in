@@ -1262,7 +1262,7 @@ struct __wt_session {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;tiers, list of data sources to combine
 	 * into a tiered storage structure., a list of strings; default empty.}
 	 * @config{ ),,}
-	 * @config{tiered_storage = (, configure an storage source for this table., a set of related
+	 * @config{tiered_storage = (, configure a storage source for this table., a set of related
 	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket, The bucket
 	 * indicating the location for this table., a string; default empty.}
@@ -1270,8 +1270,8 @@ struct __wt_session {
 	 * storage on the local tier for faster read access., an integer between 0 and 10000;
 	 * default \c 300.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, Permitted values are \c "none" or
-	 * custom storage source engine name created with WT_CONNECTION::add_storage_source.  See
-	 * @ref custom_storage_sources for more information., a string; default \c none.}
+	 * custom storage source name created with WT_CONNECTION::add_storage_source.  See @ref
+	 * custom_storage_sources for more information., a string; default \c none.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the approximate size of objects
 	 * before creating them on the tiered storage tier., an integer between 100K and 10TB;
 	 * default \c 10M.}
