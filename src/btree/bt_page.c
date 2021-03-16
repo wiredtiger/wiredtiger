@@ -603,8 +603,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              */
             slot = WT_ROW_SLOT(page, rip);
             if (unpack.prefix == 0) {
-                __wt_row_leaf_key_set(page, rip, &unpack);
-
                 /* If the last prefix group was the best, track it. */
                 if (prefix_count > best_prefix_count) {
                     best_prefix_start = prefix_start;
@@ -614,8 +612,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                 prefix_count = 0;
                 prefix_start = slot;
             } else {
-                __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
-
                 /* Check for starting or continuing a prefix group. */
                 if (prefix_count == 0 ||
                   (last_slot == slot - 1 && unpack.prefix <= smallest_prefix)) {
@@ -624,12 +620,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
                     ++prefix_count;
                 }
             }
-
+            __wt_row_leaf_key_set(page, rip, &unpack);
             ++rip;
             continue;
         case WT_CELL_KEY_OVFL:
-            __wt_row_leaf_key_set_cell(page, rip, unpack.cell);
-
             /*
              * Prefix compression skips overflow items, ignore this slot. The last slot value is
              * only used inside a group of prefix-compressed keys, so blindly increment it, it's not
@@ -637,6 +631,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              */
             ++last_slot;
 
+            __wt_row_leaf_key_set(page, rip, &unpack);
             ++rip;
             continue;
         case WT_CELL_VALUE:

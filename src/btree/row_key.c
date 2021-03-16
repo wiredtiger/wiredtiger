@@ -6,6 +6,8 @@
  * See the file LICENSE for redistribution information.
  */
 
+/* KEITH: reformat the comments. */
+
 #include "wt_internal.h"
 
 static void __inmem_row_leaf_slots(uint8_t *, uint32_t, uint32_t, uint32_t);
@@ -135,11 +137,11 @@ __wt_row_leaf_key_work(
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_ROW *rip, *jump_rip;
-    size_t size;
-    u_int last_prefix;
-    int jump_slot_offset, slot_offset;
+    size_t key_size;
+    u_int jump_slot_offset, slot_offset;
+    uint8_t key_prefix, last_prefix;
     void *copy;
-    const void *p;
+    const void *key_data;
 
     /*
      * !!!
@@ -154,10 +156,10 @@ __wt_row_leaf_key_work(
 
     jump_rip = NULL;
     jump_slot_offset = 0;
-    last_prefix = 0;
+    last_prefix = key_prefix = 0;
 
-    p = NULL; /* -Werror=maybe-uninitialized */
-    size = 0; /* -Werror=maybe-uninitialized */
+    key_data = NULL; /* -Werror=maybe-uninitialized */
+    key_size = 0;    /* -Werror=maybe-uninitialized */
 
     direction = BACKWARD;
     for (slot_offset = 0;;) {
@@ -176,12 +178,24 @@ switch_and_jump:
         /*
          * Figure out what the key looks like.
          */
-        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, &cell, &p, &size));
+        __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
 
         /* 1: the test for a directly referenced on-page key. */
         if (cell == NULL) {
-            keyb->data = p;
-            keyb->size = size;
+            /*
+             * If there's a key without prefix compression, we're good to go. Prefix compression
+             * means we don't yet have a key, but there's a special case: if the key is part of the
+             * group of compressed key prefixes we saved when reading the page into memory, we can
+             * build a key for this slot. Otherwise we have to keep rolling forward or backward.
+             */
+            if (key_prefix == 0) {
+                keyb->data = key_data;
+                keyb->size = key_size;
+            } else if (slot_offset > page->prefix_start && slot_offset <= page->prefix_stop)
+                WT_ERR(__wt_row_leaf_key_prefix_group(
+                  session, page, keyb, key_data, key_size, key_prefix));
+            else
+                goto prefix_continue;
 
             /*
              * If this is the key we originally wanted, we don't care if we're rolling forward or
@@ -215,8 +229,8 @@ switch_and_jump:
              * The key doesn't need to be instantiated, skip past that test.
              */
             if (slot_offset == 0) {
-                keyb->data = p;
-                keyb->size = size;
+                keyb->data = key_data;
+                keyb->size = key_size;
                 goto done;
             }
 
@@ -244,8 +258,8 @@ switch_and_jump:
              * In short: if it's not an overflow key, take a copy
              * and roll forward.
              */
-            keyb->data = p;
-            keyb->size = size;
+            keyb->data = key_data;
+            keyb->size = key_size;
             direction = FORWARD;
             goto next;
         }
@@ -270,11 +284,7 @@ switch_and_jump:
              */
             if (slot_offset == 0) {
                 __wt_readlock(session, &btree->ovfl_lock);
-                copy = WT_ROW_KEY_COPY(rip);
-                if (!__wt_row_leaf_key_info(page, copy, NULL, &cell, &keyb->data, &keyb->size)) {
-                    __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
-                    ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
-                }
+                ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 __wt_readunlock(session, &btree->ovfl_lock);
                 WT_ERR(ret);
                 break;
@@ -319,6 +329,11 @@ switch_and_jump:
             goto switch_and_jump;
         }
 
+        key_data = unpack->data;
+        key_size = unpack->size;
+        key_prefix = unpack->prefix;
+
+prefix_continue:
         /*
          * 5: an on-page reference to a key that's prefix compressed.
          *	If rolling backward, keep looking for something we can
@@ -337,17 +352,14 @@ switch_and_jump:
              * find a key without a prefix.
              */
             if (slot_offset == 0)
-                last_prefix = unpack->prefix;
-            if (slot_offset == 0 || last_prefix > unpack->prefix) {
+                last_prefix = key_prefix;
+            if (slot_offset == 0 || last_prefix > key_prefix) {
                 jump_rip = rip;
                 jump_slot_offset = slot_offset;
-                last_prefix = unpack->prefix;
+                last_prefix = key_prefix;
             }
         }
         if (direction == FORWARD) {
-            p = unpack->data;
-            size = unpack->size;
-
             /*
              * Grow the buffer as necessary as well as ensure data has been copied into local buffer
              * space, then append the suffix to the prefix already in the buffer.
@@ -355,10 +367,9 @@ switch_and_jump:
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
              * data length to the prefix bytes.
              */
-            keyb->size = unpack->prefix;
-            WT_ERR(__wt_buf_grow(session, keyb, keyb->size + size));
-            memcpy((uint8_t *)keyb->data + keyb->size, p, size);
-            keyb->size += size;
+            WT_ERR(__wt_buf_grow(session, keyb, key_prefix + key_size));
+            memcpy((uint8_t *)keyb->data + key_prefix, key_data, key_size);
+            keyb->size = key_prefix + key_size;
 
             if (slot_offset == 0)
                 break;
@@ -379,31 +390,30 @@ next:
 
     /*
      * Optionally instantiate the key: there's a cost to figuring out a key value in a leaf page
-     * with prefix-compressed or Huffman encoded keys, amortize the cost by instantiating a copy of
-     * the calculated key in allocated memory. We don't instantiate keys when pages are first
-     * brought into memory because it's wasted effort if the page is only read by a cursor in sorted
-     * order. If, instead, the page is read by a cursor in reverse order, we immediately instantiate
-     * periodic keys for the page (otherwise the reverse walk would be insanely slow). If, instead,
-     * the page is randomly searched, we instantiate keys as they are accessed (meaning, for
-     * example, as long as the binary search only touches one-half of the page, the only keys we
-     * instantiate will be in that half of the page).
+     * with prefix-compressed keys, amortize the cost by instantiating a copy of the calculated key
+     * in allocated memory. We don't instantiate keys when pages are first brought into memory
+     * because it's wasted effort if the page is only read by a cursor in sorted order. If, instead,
+     * the page is read by a cursor in reverse order, we immediately instantiate periodic keys for
+     * the page (otherwise the reverse walk would be insanely slow). If, instead, the page is
+     * randomly searched, we instantiate keys as they are accessed (meaning, for example, as long as
+     * the binary search only touches one-half of the page, the only keys we instantiate will be in
+     * that half of the page).
      */
     if (instantiate) {
         copy = WT_ROW_KEY_COPY(rip_arg);
-        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL));
-        if (ikey == NULL) {
-            WT_ERR(__wt_row_ikey_alloc(
-              session, WT_PAGE_DISK_OFFSET(page, cell), keyb->data, keyb->size, &ikey));
+        __wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL, NULL);
+        WT_ASSERT(session, ikey == NULL && cell != NULL);
+        WT_ERR(__wt_row_ikey_alloc(
+          session, WT_PAGE_DISK_OFFSET(page, cell), keyb->data, keyb->size, &ikey));
 
-            /*
-             * Serialize the swap of the key into place: on success, update the page's memory
-             * footprint, on failure, free the allocated memory.
-             */
-            if (__wt_atomic_cas_ptr((void *)&WT_ROW_KEY_COPY(rip), copy, ikey))
-                __wt_cache_page_inmem_incr(session, page, sizeof(WT_IKEY) + ikey->size);
-            else
-                __wt_free(session, ikey);
-        }
+        /*
+         * Serialize the swap of the key into place: on success, update the page's memory footprint,
+         * on failure, free the allocated memory.
+         */
+        if (__wt_atomic_cas_ptr((void *)&WT_ROW_KEY_COPY(rip), copy, ikey))
+            __wt_cache_page_inmem_incr(session, page, sizeof(WT_IKEY) + ikey->size);
+        else
+            __wt_free(session, ikey);
     }
 
 done:
