@@ -26,9 +26,9 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wiredtiger, wtscenario, wttest
+import os, wiredtiger, wttest
 from wiredtiger import stat
-from wtdataset import SimpleDataSet
+StorageSource = wiredtiger.StorageSource  # easy access to constants
 
 # test_tiered04.py
 #    Basic tiered storage API test.
@@ -37,7 +37,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
 
     auth_token = "test_token"
     bucket = "mybucket"
-    extension_name = "test"
+    extension_name = "local_store"
     retention = 600
     def conn_config(self):
         return \
@@ -46,6 +46,11 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'bucket=%s,' % self.bucket + \
           'local_retention=%d,' % self.retention + \
           'name=%s)' % self.extension_name 
+
+    # Load the local store extension, but skip the test if it is missing.
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('storage_sources', self.extension_name)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
