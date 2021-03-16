@@ -47,7 +47,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
     value_format_values = [
         # Fixed length
-        #FIXME: Fixed length column store failing on rollback on disk values
+        #FIXME: WT-7304 Fixed length column store failing on rollback on disk values
         # ('fixed', dict(value_format='8t')),
         # Variable length
         ('variable', dict(value_format='S')),
