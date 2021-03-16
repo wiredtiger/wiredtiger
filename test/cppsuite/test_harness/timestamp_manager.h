@@ -44,9 +44,8 @@ class timestamp_manager : public component {
     public:
     timestamp_manager(configuration *config)
         : /* _periodic_update_s is hardcoded to 1 second for now. */
-          component(config), _is_enabled(false), _periodic_update_s(1), _oldest_ts(0U),
-          _previous_ts(0U), _stable_ts(0U), _timestamp_window_seconds(0), _ts(0U)
-
+          component(config), _is_enabled(false), _latest_ts(0U), _oldest_lag(0), _oldest_ts(0U),
+          _periodic_update_s(1), _stable_lag(0), _stable_ts(0U)
     {
     }
 
@@ -54,8 +53,10 @@ class timestamp_manager : public component {
     load()
     {
         testutil_assert(_config != nullptr);
-        testutil_check(_config->get_int(TIMESTAMP_WINDOW_SECONDS, _timestamp_window_seconds));
-        testutil_assert(_timestamp_window_seconds >= 0);
+        testutil_check(_config->get_int(OLDEST_LAG, _oldest_lag));
+        testutil_check(_config->get_int(STABLE_LAG, _stable_lag));
+        testutil_assert(_oldest_lag >= 0);
+        testutil_assert(_stable_lag >= 0);
         testutil_check(_config->get_bool(ENABLE_TIMESTAMP, _is_enabled));
         component::load();
     }
@@ -66,20 +67,36 @@ class timestamp_manager : public component {
         std::string config;
 
         while (_is_enabled && _running) {
-            /* Stable ts is increased every period. */
+            /* Timestamps are checked periodically. */
             std::this_thread::sleep_for(std::chrono::seconds(_periodic_update_s));
-            ++_stable_ts;
-            config = std::string(STABLE_TIMESTAMP) + "=" + decimal_to_hex(_stable_ts);
-            testutil_assert(_stable_ts > _oldest_ts);
+
+            /*
+             * Keep a time window between the latest and stable ts less than the max defined in the
+             * configuration.
+             */
+            testutil_assert(_latest_ts >= _stable_ts);
+            if ((_latest_ts - _stable_ts) > _stable_lag) {
+                _stable_ts = _latest_ts - _stable_lag;
+                config += std::string(STABLE_TS) + "=" + decimal_to_hex(_stable_ts);
+            }
+
             /*
              * Keep a time window between the stable and oldest ts less than the max defined in the
              * configuration.
              */
-            if ((_stable_ts - _oldest_ts) > _timestamp_window_seconds) {
-                ++_oldest_ts;
-                config += "," + std::string(OLDEST_TIMESTAMP) + "=" + decimal_to_hex(_oldest_ts);
+            testutil_assert(_stable_ts > _oldest_ts);
+            if ((_stable_ts - _oldest_ts) > _oldest_lag) {
+                _oldest_ts = _stable_ts - _oldest_lag;
+                if (!config.empty())
+                    config += ",";
+                config += std::string(OLDEST_TS) + "=" + decimal_to_hex(_oldest_ts);
             }
-            connection_manager::instance().set_timestamp(config);
+
+            /* Save the new timestamps. */
+            if (!config.empty()) {
+                connection_manager::instance().set_timestamp(config);
+                config = "";
+            }
         }
     }
 
@@ -87,8 +104,8 @@ class timestamp_manager : public component {
     wt_timestamp_t
     get_next_ts()
     {
-        _ts.fetch_add(1);
-        return (_ts);
+        _latest_ts.fetch_add(1);
+        return (_latest_ts);
     }
 
     private:
@@ -104,9 +121,13 @@ class timestamp_manager : public component {
     private:
     bool _is_enabled;
     const wt_timestamp_t _periodic_update_s;
-    wt_timestamp_t _oldest_ts, _previous_ts, _stable_ts;
-    int64_t _timestamp_window_seconds;
-    std::atomic<wt_timestamp_t> _ts;
+    std::atomic<wt_timestamp_t> _latest_ts;
+    wt_timestamp_t _oldest_ts, _stable_ts;
+    /*
+     * _oldest_lag is the time window between the stable and oldest timestamps.
+     * stable_lag is the time window between the latest and stable timestamps.
+     */
+    int64_t _oldest_lag, _stable_lag;
 };
 } // namespace test_harness
 

@@ -116,8 +116,10 @@ transaction_config = [
 timestamp_config = [
     Config('enable_timestamp', 'true', r'''
         Enables timestamp management''', type='boolean'),
-    Config('timestamp_window_seconds', 0, r'''
-        The duration between the stable and oldest timestamp''', min=0, max=1000000),
+    Config('oldest_lag', 0, r'''
+        The duration between the stable and oldest timestamps''', min=0, max=1000000),
+    Config('stable_lag', 0, r'''
+        The duration between the latest and stable timestamps''', min=0, max=1000000),
 ]
 
 methods = {
