@@ -175,16 +175,18 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
  *     Parse and setup the storage server options.
  */
 static int
-__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
+__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
 {
     WT_CONFIG_ITEM bucket, cval;
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
-    WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
+    if (!reconfig) {
+        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
+    }
     /* If the connection is not set up for tiered storage there is nothing more to do. */
     if (conn->bstorage == NULL)
         return (0);
@@ -266,7 +268,7 @@ err:
  *     Start the tiered storage server thread.
  */
 int
-__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -276,7 +278,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Destroy any existing thread since we could be a reconfigure. */
     WT_RET(__wt_tiered_storage_destroy(session));
-    WT_RET(__tiered_config(session, cfg, &start));
+    WT_RET(__tiered_config(session, cfg, &start, reconfig));
     if (!F_ISSET(conn, WT_CONN_TIERED_ENABLED) || !start)
         return (0);
 

@@ -1451,7 +1451,7 @@ extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_rename(WT_SESSION_IMPL *session, const char *olduri, const char *newuri,
   const char *cfg[]) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
