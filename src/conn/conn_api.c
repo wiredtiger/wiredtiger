@@ -847,10 +847,11 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
-            /* Call any termination method. */
+#if 0
             if (bstorage->storage_source->terminate != NULL)
                 WT_TRET(bstorage->storage_source->terminate(
                   bstorage->storage_source, (WT_SESSION *)session));
+#endif
             __wt_free(session, bstorage->auth_token);
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage);

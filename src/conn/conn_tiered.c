@@ -191,9 +191,6 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (conn->bstorage == NULL)
         return (0);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    conn->bstorage->auth_token = cval.str;
-
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
     conn->bstorage->retain_secs = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
@@ -201,6 +198,13 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
     WT_ASSERT(session, conn->bstorage != NULL);
     conn->bstorage->object_size = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
+    if (cval.len)
+        WT_RET(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->auth_token));
+    else
+        conn->bstorage->auth_token = NULL;
+
     return (__tiered_manager_config(session, cfg, runp));
 }
 
