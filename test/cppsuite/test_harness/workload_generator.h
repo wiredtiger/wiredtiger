@@ -259,10 +259,6 @@ class workload_generator : public component {
     static int
     search(WT_CURSOR *cursor)
     {
-<<<<<<< HEAD
-=======
-
->>>>>>> WT-7275 Timestamp manager is always created but only added to components if it is enabled in the configuration. Added testutil_assert to methods dealing with pointers for extra checks.
         testutil_assert(cursor != nullptr);
         return (cursor->search(cursor));
     }
