@@ -179,6 +179,8 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.session.checkpoint()
 
         self.conn.rollback_to_stable()
+        # Check that the new updates are only seen after the update timestamp.
+        self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -198,10 +200,6 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.assertEqual(upd_aborted + keys_restored, nrows)
         self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
-
-        # Check that the new updates are only seen after the update timestamp.
-        self.session.breakpoint()
-        self.check(valuea, uri, nrows, 20)
 
 if __name__ == '__main__':
     wttest.run()
