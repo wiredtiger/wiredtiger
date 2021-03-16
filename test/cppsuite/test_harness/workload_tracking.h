@@ -57,7 +57,7 @@ class workload_tracking : public component {
     workload_tracking(configuration *_config, const std::string &operation_table_config,
       const std::string &operation_table_name, const std::string &schema_table_config,
       const std::string &schema_table_name)
-        : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr),
+        : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr), _enabled(false),
           _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
           _schema_table_name(schema_table_name)
@@ -80,6 +80,10 @@ class workload_tracking : public component {
     load()
     {
         WT_SESSION *session;
+        /* Is tracking enabled? */
+        testutil_check(_config->get_bool(ENABLE_TRACKING, _enabled));
+        if (!_enabled)
+            return;
 
         /* Initiate schema tracking. */
         session = connection_manager::instance().create_session();
@@ -109,7 +113,10 @@ class workload_tracking : public component {
       const V &value, wt_timestamp_t ts)
     {
         WT_CURSOR *cursor;
-        int error_code;
+        int error_code = 0;
+
+        if (!_enabled)
+            return (error_code);
 
         /* Select the correct cursor to save in the collection associated to specific operations. */
         switch (operation) {
@@ -138,12 +145,13 @@ class workload_tracking : public component {
     }
 
     private:
+    WT_CURSOR *_cursor_operations;
+    WT_CURSOR *_cursor_schema;
+    bool _enabled;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;
     const std::string _schema_table_name;
-    WT_CURSOR *_cursor_operations;
-    WT_CURSOR *_cursor_schema;
 };
 } // namespace test_harness
 

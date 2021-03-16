@@ -42,9 +42,9 @@ namespace test_harness {
  */
 class workload_generator : public component {
     public:
-    workload_generator(configuration *configuration)
-        : component(configuration), _enable_tracking(false), _timestamp_manager(nullptr),
-          _workload_tracking(nullptr)
+    workload_generator(configuration *configuration, timestamp_manager *timestamp_manager,
+      workload_tracking *tracking)
+        : component(configuration), _timestamp_manager(timestamp_manager), _tracking(tracking)
     {
     }
 
@@ -53,6 +53,9 @@ class workload_generator : public component {
         for (auto &it : _workers)
             delete it;
     }
+
+    /* Delete the copy constructor. */
+    workload_generator(const workload_generator &) = delete;
 
     /*
      * Function that performs the following steps using the configuration that is defined by the
@@ -66,7 +69,7 @@ class workload_generator : public component {
      * defined by the configuration.
      */
     void
-    load()
+    populate()
     {
         WT_CURSOR *cursor;
         WT_SESSION *session;
@@ -85,11 +88,8 @@ class workload_generator : public component {
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
             testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
-            if (_enable_tracking) {
-                ts = _timestamp_manager->get_next_ts();
-                testutil_check(
-                  _workload_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
-            }
+            ts = _timestamp_manager->get_next_ts();
+            testutil_check(_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
             _collection_names.push_back(collection_name);
         }
         debug_info(
@@ -113,12 +113,11 @@ class workload_generator : public component {
                   random_generator::random_generator::instance().generate_string(value_size);
                 testutil_check(session->begin_transaction(session, NULL));
                 ts = _timestamp_manager->get_next_ts();
-                testutil_check(insert(
-                  cursor, collection_name, j + 1, generated_value.c_str(), _enable_tracking, ts));
+                testutil_check(insert(cursor, collection_name, j + 1, generated_value.c_str(), ts));
                 testutil_check(session->commit_transaction(session, NULL));
             }
         }
-        debug_info("Workload generator: load stage done", _trace_level, DEBUG_INFO);
+        debug_info("Populate stage done", _trace_level, DEBUG_INFO);
     }
 
     /* Do the work of the main part of the workload. */
@@ -128,6 +127,9 @@ class workload_generator : public component {
         WT_SESSION *session = nullptr;
         int64_t duration_seconds, read_threads, min_operation_per_transaction,
           max_operation_per_transaction;
+
+        /* Populate the database. */
+        populate();
 
         testutil_check(_config->get_int(DURATION_SECONDS, duration_seconds));
         testutil_assert(duration_seconds >= 0);
@@ -155,21 +157,6 @@ class workload_generator : public component {
         }
         _thread_manager.join();
         debug_info("Workload generator: run stage done", _trace_level, DEBUG_INFO);
-    }
-
-    void
-    set_timestamp_manager(timestamp_manager *manager)
-    {
-        testutil_assert(manager != nullptr);
-        _timestamp_manager = manager;
-    }
-
-    void
-    set_tracker(workload_tracking *tracking)
-    {
-        testutil_assert(tracking != nullptr);
-        _enable_tracking = true;
-        _workload_tracking = tracking;
     }
 
     /* Workload threaded operations. */
@@ -233,8 +220,7 @@ class workload_generator : public component {
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     int
-    insert(WT_CURSOR *cursor, const std::string &collection_name, K key, V value, bool save,
-      wt_timestamp_t ts)
+    insert(WT_CURSOR *cursor, const std::string &collection_name, K key, V value, wt_timestamp_t ts)
     {
         int error_code;
 
@@ -245,9 +231,8 @@ class workload_generator : public component {
 
         if (error_code == 0) {
             debug_info("key/value inserted", _trace_level, DEBUG_INFO);
-            if (save)
-                error_code = _workload_tracking->save(
-                  tracking_operation::INSERT, collection_name, key, value, ts);
+            error_code =
+              _tracking->save(tracking_operation::INSERT, collection_name, key, value, ts);
         } else
             debug_info("key/value insertion failed", _trace_level, DEBUG_ERROR);
 
@@ -277,11 +262,10 @@ class workload_generator : public component {
 
     private:
     std::vector<std::string> _collection_names;
-    bool _enable_tracking;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
+    workload_tracking *_tracking;
     std::vector<thread_context *> _workers;
-    workload_tracking *_workload_tracking;
 };
 } // namespace test_harness
 
