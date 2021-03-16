@@ -70,6 +70,10 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 10000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:rollback_to_stable02"
         ds = SimpleDataSet(
@@ -84,19 +88,19 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         valueb = "bbbbb" * 100
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
-        self.large_updates(uri, valuea, ds, nrows, 10)
+        self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
 
-        self.large_updates(uri, valueb, ds, nrows, 20)
+        self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valueb, uri, nrows, 20)
 
-        self.large_updates(uri, valuec, ds, nrows, 30)
+        self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valuec, uri, nrows, 30)
 
-        self.large_updates(uri, valued, ds, nrows, 40)
+        self.large_updates(uri, valued, ds, nrows, self.prepare, 40)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valued, uri, nrows, 40)
 

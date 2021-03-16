@@ -83,9 +83,9 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         # Create a table.
         uri = "table:rollback_to_stable15"
         nrows = 2000
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
-        cursor =  self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(uri)
 
         # Pin oldest and stable to timestamp 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
@@ -132,7 +132,6 @@ class test_rollback_to_stable15(wttest.WiredTigerTestCase):
         #Check that only value30 is available
         self.check(value30, uri, nrows - 1, 7)
 
-        # if not self.in_memory:
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]

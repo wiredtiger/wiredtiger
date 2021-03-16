@@ -39,7 +39,7 @@ def timestamp_str(t):
 # test_rollback_to_stable01.py
 # Shared base class used by rollback to stable tests.
 class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
+    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
@@ -48,7 +48,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor[ds.key(i)] = value
             if commit_ts == 0:
                 session.commit_transaction()
-            elif self.prepare:
+            elif prepare:
                 session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
                 session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
                 session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
@@ -57,7 +57,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                 session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
-    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, prepare, commit_ts):
         # Load a slight modification.
         session = self.session
         cursor = session.open_cursor(uri)
@@ -69,7 +69,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
 
         if commit_ts == 0:
             session.commit_transaction()
-        elif self.prepare:
+        elif prepare:
             session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
             session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
             session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
@@ -78,7 +78,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
-    def large_removes(self, uri, ds, nrows, commit_ts):
+    def large_removes(self, uri, ds, nrows, prepare, commit_ts):
         # Remove a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
@@ -88,7 +88,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             cursor.remove()
             if commit_ts == 0:
                 session.commit_transaction()
-            elif self.prepare:
+            elif prepare:
                 session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
                 session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
                 session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
@@ -106,6 +106,8 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
+            #print('key:' +str(k))
+            #print('value:'+v)
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
@@ -143,6 +145,10 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 10000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:rollback_to_stable01"
         ds = SimpleDataSet(
@@ -154,12 +160,12 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             ',stable_timestamp=' + timestamp_str(1))
 
         valuea = "aaaaa" * 100
-        self.large_updates(uri, valuea, ds, nrows, 10)
+        self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
 
         # Remove all keys with newer timestamp.
-        self.large_removes(uri, ds, nrows, 20)
+        self.large_removes(uri, ds, nrows, self.prepare, 20)
         # Check that the no keys should be visible.
         self.check(valuea, uri, 0, 20)
 
@@ -173,8 +179,6 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.session.checkpoint()
 
         self.conn.rollback_to_stable()
-        # Check that the new updates are only seen after the update timestamp.
-        self.check(valuea, uri, nrows, 20)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
@@ -194,6 +198,10 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
             self.assertEqual(upd_aborted + keys_restored, nrows)
         self.assertGreaterEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
+
+        # Check that the new updates are only seen after the update timestamp.
+        self.session.breakpoint()
+        self.check(valuea, uri, nrows, 20)
 
 if __name__ == '__main__':
     wttest.run()

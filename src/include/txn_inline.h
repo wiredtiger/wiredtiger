@@ -983,6 +983,7 @@ retry:
         WT_ASSERT(session, !WT_IS_HS(session->dhandle));
         cbt->upd_value->buf.data = restored_upd->data;
         cbt->upd_value->buf.size = restored_upd->size;
+        printf("Base restored update: %s\n", (char *)cbt->upd_value->buf.data);
     } else {
         /*
          * When we inspected the update list we may have seen a tombstone leaving us with a valid
@@ -1044,6 +1045,7 @@ retry:
     /* If there's no visible update in the update chain or ondisk, check the history store file. */
     if (F_ISSET(S2C(session), WT_CONN_HS_OPEN) && !F_ISSET(session->dhandle, WT_DHANDLE_HS)) {
         __wt_timing_stress(session, WT_TIMING_STRESS_HS_SEARCH);
+        printf("Base update: %s\n", (char *)cbt->upd_value->buf.data);
         WT_RET(__wt_hs_find_upd(session, S2BT(session)->id, key, cbt->iface.value_format, recno,
           cbt->upd_value, &cbt->upd_value->buf));
     }

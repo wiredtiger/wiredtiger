@@ -70,6 +70,10 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 1000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create two tables without logging.
         uri_1 = "table:rollback_to_stable05_1"
         ds_1 = SimpleDataSet(
@@ -85,33 +89,33 @@ class test_rollback_to_stable05(test_rollback_to_stable_base):
         valueb = "bbbbb" * 100
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
-        self.large_updates(uri_1, valuea, ds_1, nrows, 0)
+        self.large_updates(uri_1, valuea, ds_1, nrows, self.prepare, 0)
         self.check(valuea, uri_1, nrows, 0)
 
-        self.large_updates(uri_2, valuea, ds_2, nrows, 0)
+        self.large_updates(uri_2, valuea, ds_2, nrows, self.prepare, 0)
         self.check(valuea, uri_2, nrows, 0)
 
         # Start a long running transaction and keep it open.
         session_2 = self.conn.open_session()
         session_2.begin_transaction('isolation=snapshot')
 
-        self.large_updates(uri_1, valueb, ds_1, nrows, 0)
+        self.large_updates(uri_1, valueb, ds_1, nrows, self.prepare, 0)
         self.check(valueb, uri_1, nrows, 0)
 
-        self.large_updates(uri_1, valuec, ds_1, nrows, 0)
+        self.large_updates(uri_1, valuec, ds_1, nrows, self.prepare, 0)
         self.check(valuec, uri_1, nrows, 0)
 
-        self.large_updates(uri_1, valued, ds_1, nrows, 0)
+        self.large_updates(uri_1, valued, ds_1, nrows, self.prepare, 0)
         self.check(valued, uri_1, nrows, 0)
 
         # Add updates to the another table.
-        self.large_updates(uri_2, valueb, ds_2, nrows, 0)
+        self.large_updates(uri_2, valueb, ds_2, nrows, self.prepare, 0)
         self.check(valueb, uri_2, nrows, 0)
 
-        self.large_updates(uri_2, valuec, ds_2, nrows, 0)
+        self.large_updates(uri_2, valuec, ds_2, nrows, self.prepare, 0)
         self.check(valuec, uri_2, nrows, 0)
 
-        self.large_updates(uri_2, valued, ds_2, nrows, 0)
+        self.large_updates(uri_2, valued, ds_2, nrows, self.prepare, 0)
         self.check(valued, uri_2, nrows, 0)
 
         # Checkpoint to ensure that all the data is flushed.

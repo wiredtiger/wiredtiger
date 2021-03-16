@@ -36,13 +36,12 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable16.py
-# Test that rollback to stable removes updates present on disk for variable length column store.
+# Test that rollback to stable removes updates present on disk for column store.
 class test_rollback_to_stable16(wttest.WiredTigerTestCase):
-    # conn_config = 'cache_size=200MB,statistics=(all),in_memory=true'
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        # ('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer_row', dict(key_format='i')),
     ]
 
@@ -56,9 +55,6 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
-        #FIXME: All tests failing on in_memory = True. New keys not being rolled back.
-        #       * Row store in memory is not calling __rollback_abort_updates, should
-        #           we expect this?
         ('inmem', dict(in_memory=True))
     ]
 
@@ -71,7 +67,6 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         else:
             config += ',in_memory=false'
         return config
-
 
     def insert_update_data(self, uri, value, start_row, nrows, timestamp):
         cursor =  self.session.open_cursor(uri)
@@ -99,6 +94,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             ret = cursor.search()
             if check_value is None:
                 if ret != wiredtiger.WT_NOTFOUND:
+                    # self.tty(f'key = {cursor.get_key()}')
                     # self.tty(f'value = {cursor.get_value()}')
                     self.assertTrue(ret == wiredtiger.WT_NOTFOUND)
             else:
@@ -126,7 +122,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         else:
             values = [0x01, 0x02, 0x03, 0x04]
 
-        create_params = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        create_params = 'log=(enabled=false),key_format={},value_format={}'.format(self.key_format, self.value_format)
         self.session.create(uri, create_params)
 
         # Pin oldest and stable to timestamp 1.
@@ -144,9 +140,9 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             self.session.checkpoint()
             # Rollback to stable done as part of recovery.
             simulate_crash_restart(self,".", "RESTART")
-        # else:
-        # Manually call rollback_to_stable for in memory k/v's.
-        self.conn.rollback_to_stable()
+        else:
+            # Manually call rollback_to_stable for in memory k/v's.
+            self.conn.rollback_to_stable()
 
         self.check(values[0], uri, nrows, 1, 2)
         self.check(values[1], uri, nrows, 201, 5)
@@ -154,12 +150,11 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
         self.check(None, uri, nrows, 601, 9)
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
-        calls = stat_cursor[stat.conn.txn_rts][2]
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         stat_cursor.close()
-        # self.tty(f'upd aborted = {upd_aborted}')
-        # self.tty(f'key aborted = {keys_removed}')
+
+        self.assertGreaterEqual(upd_aborted + keys_removed, (nrows*2) - 2)
 
         self.session.close()
 

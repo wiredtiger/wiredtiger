@@ -71,6 +71,10 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 1000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:rollback_to_stable04"
         ds = SimpleDataSet(
@@ -96,19 +100,19 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         value_modZ = mod_val(value_modY, 'Z', 7)
 
         # Perform a combination of modifies and updates.
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_modifies(uri, 'Q', ds, 0, 1, nrows, 30)
-        self.large_modifies(uri, 'R', ds, 1, 1, nrows, 40)
-        self.large_modifies(uri, 'S', ds, 2, 1, nrows, 50)
-        self.large_updates(uri, value_b, ds, nrows, 60)
-        self.large_updates(uri, value_c, ds, nrows, 70)
-        self.large_modifies(uri, 'T', ds, 3, 1, nrows, 80)
-        self.large_updates(uri, value_d, ds, nrows, 90)
-        self.large_modifies(uri, 'W', ds, 4, 1, nrows, 100)
-        self.large_updates(uri, value_a, ds, nrows, 110)
-        self.large_modifies(uri, 'X', ds, 5, 1, nrows, 120)
-        self.large_modifies(uri, 'Y', ds, 6, 1, nrows, 130)
-        self.large_modifies(uri, 'Z', ds, 7, 1, nrows, 140)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_modifies(uri, 'Q', ds, 0, 1, nrows, self.prepare, 30)
+        self.large_modifies(uri, 'R', ds, 1, 1, nrows, self.prepare, 40)
+        self.large_modifies(uri, 'S', ds, 2, 1, nrows, self.prepare, 50)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 60)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 70)
+        self.large_modifies(uri, 'T', ds, 3, 1, nrows, self.prepare, 80)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 90)
+        self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 100)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 110)
+        self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 120)
+        self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 130)
+        self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 140)
 
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
@@ -155,13 +159,10 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertEqual(keys_restored, 0)
         self.assertGreater(pages_visited, 0)
         if self.in_memory:
-            self.assertGreaterEqual(upd_aborted, nrows * 11)
-            self.assertGreaterEqual(hs_removed, 0)
+            self.assertEqual(upd_aborted, nrows * 11)
+            self.assertEqual(hs_removed, 0)
         else:
-            # FIXME: This statistic is failing on rolling back column store on disk
-            # the values seem fine but this stat isn't being updated.
-            self.assertGreaterEqual(upd_aborted, 0)
-            self.assertGreaterEqual(hs_removed, nrows * 11)
+            self.assertGreaterEqual(upd_aborted + hs_removed, nrows * 11)
 
 if __name__ == '__main__':
     wttest.run()

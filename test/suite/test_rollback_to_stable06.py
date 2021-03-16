@@ -68,6 +68,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 1000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:rollback_to_stable06"
         ds = SimpleDataSet(
@@ -84,10 +88,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         value_d = "ddddd" * 100
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_b, ds, nrows, 30)
-        self.large_updates(uri, value_c, ds, nrows, 40)
-        self.large_updates(uri, value_d, ds, nrows, 50)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
@@ -123,8 +127,7 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             self.assertEqual(upd_aborted, nrows * 4)
             self.assertEqual(hs_removed, 0)
         else:
-            self.assertGreaterEqual(upd_aborted, 0)
-            self.assertGreaterEqual(hs_removed, nrows * 3)
+            self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
 
 if __name__ == '__main__':
     wttest.run()

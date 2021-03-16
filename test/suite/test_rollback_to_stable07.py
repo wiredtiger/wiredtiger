@@ -45,7 +45,7 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        # ('column', dict(key_format='r')),
+        ('column', dict(key_format='r')),
         ('integer_row', dict(key_format='i')),
     ]
 
@@ -63,6 +63,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
     def test_rollback_to_stable(self):
         nrows = 1000
 
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:rollback_to_stable07"
         ds = SimpleDataSet(
@@ -79,10 +83,10 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
         value_d = "ddddd" * 100
 
         # Perform several updates.
-        self.large_updates(uri, value_d, ds, nrows, 20)
-        self.large_updates(uri, value_c, ds, nrows, 30)
-        self.large_updates(uri, value_b, ds, nrows, 40)
-        self.large_updates(uri, value_a, ds, nrows, 50)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 40)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
         self.check(value_d, uri, nrows, 20)
@@ -97,9 +101,9 @@ class test_rollback_to_stable07(test_rollback_to_stable_base):
             self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
 
         # Perform additional updates.
-        self.large_updates(uri, value_b, ds, nrows, 60)
-        self.large_updates(uri, value_c, ds, nrows, 70)
-        self.large_updates(uri, value_d, ds, nrows, 80)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 60)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 70)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 80)
 
         # Checkpoint to ensure the data is flushed to disk.
         self.session.checkpoint()
