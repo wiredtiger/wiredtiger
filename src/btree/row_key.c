@@ -34,22 +34,18 @@ __wt_row_leaf_keys(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
 
     /*
-     * Row-store leaf pages are written as one big prefix-compressed chunk,
-     * that is, only the first key on the page is not prefix-compressed, and
-     * to instantiate the last key on the page, you have to take the first
-     * key on the page and roll it forward to the end of the page.  We don't
-     * want to do that on every page access, of course, so we instantiate a
-     * set of keys, essentially creating prefix chunks on the page, where we
-     * can roll forward from the closest, previous, instantiated key.  The
-     * complication is that not all keys on a page are equal: we're doing a
-     * binary search on the  page, which means there are keys we look at a
-     * lot (every time we search the page), and keys we never look at unless
-     * they are actually being searched for.  This function figures out the
-     * "interesting" keys on a page, and then we sequentially walk that list
-     * instantiating those keys.
+     * Row-store leaf pages are written as one big prefix-compressed chunk, that is, only the first
+     * key on the page is not prefix-compressed, and to instantiate the last key on the page, you
+     * have to take the first key on the page and roll it forward to the end of the page. We don't
+     * want to do that on every page access, of course, so we instantiate a set of keys, essentially
+     * creating prefix chunks on the page, where we can roll forward from the closest, previous,
+     * instantiated key. The complication is that not all keys on a page are equal: we're doing a
+     * binary search on the page, which means there are keys we look at a lot (every time we search
+     * the page), and keys we never look at unless they are actually being searched for. This
+     * function figures out the "interesting" keys on a page, and then we sequentially walk that
+     * list instantiating those keys.
      *
-     * Allocate a bit array and figure out the set of "interesting" keys,
-     * marking up the array.
+     * Allocate a bit array and figure out the set of "interesting" keys, marking up the array.
      */
     WT_RET(__wt_scr_alloc(session, 0, &key));
     WT_RET(__wt_scr_alloc(session, (uint32_t)__bitstr_size(page->entries), &tmp));
@@ -85,13 +81,10 @@ __inmem_row_leaf_slots(uint8_t *list, uint32_t base, uint32_t entries, uint32_t 
         return;
 
     /*
-     * !!!
-     * Don't clean this code up -- it deliberately looks like the binary
-     * search code.
+     * Don't clean this code up -- it deliberately looks like the binary search code.
      *
-     * !!!
-     * There's got to be a function that would give me this information, but
-     * I don't see any performance reason we can't just do this recursively.
+     * There's got to be a function that would give me this information, but I don't see any
+     * performance reason we can't just do this recursively.
      */
     limit = entries;
     indx = base + (limit >> 1);
@@ -144,10 +137,8 @@ __wt_row_leaf_key_work(
     const void *key_data;
 
     /*
-     * !!!
-     * It is unusual to call this function: most code should be calling the
-     * front-end, __wt_row_leaf_key, be careful if you're calling this code
-     * directly.
+     * It is unusual to call this function: most code should be calling the front-end,
+     * __wt_row_leaf_key, be careful if you're calling this code directly.
      */
 
     btree = S2BT(session);
@@ -209,12 +200,13 @@ switch_and_jump:
                 goto done;
 
             /*
-             * This key is not an overflow key by definition and
-             * isn't compressed in any way, we can use it to roll
-             * forward.
-             *	If rolling backward, switch directions.
-             *	If rolling forward: there's a bug somewhere,
-             * we should have hit this key when rolling backward.
+             * This key is not an overflow key by definition and isn't compressed in any way, we can
+             * use it to roll forward.
+             *
+             * If rolling backward, switch directions.
+             *
+             * If rolling forward: there's a bug somewhere, we should have hit this key when rolling
+             * backward.
              */
             goto switch_and_jump;
         }
@@ -235,28 +227,28 @@ switch_and_jump:
             }
 
             /*
-             * If we wanted a different key and this key is an
-             * overflow key:
-             *	If we're rolling backward, this key is useless
-             * to us because it doesn't have a valid prefix: keep
-             * rolling backward.
-             *	If we're rolling forward, there's no work to be
-             * done because prefixes skip overflow keys: keep
-             * rolling forward.
+             * If we wanted a different key and this key is an overflow key:
+             *
+             * If we're rolling backward, this key is useless to us because it doesn't have a valid
+             * prefix: keep rolling backward.
+             *
+             * If we're rolling forward, there's no work to be done because prefixes skip overflow
+             * keys: keep rolling forward.
              */
             if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL)
                 goto next;
 
             /*
-             * If we wanted a different key and this key is not an
-             * overflow key, it has a valid prefix, we can use it.
-             *	If rolling backward, take a copy of the key and
-             * switch directions, we can roll forward from this key.
-             *	If rolling forward, replace the key we've been
-             * building with this key, it's what we would have built
-             * anyway.
-             * In short: if it's not an overflow key, take a copy
-             * and roll forward.
+             * If we wanted a different key and this key is not an overflow key, it has a valid
+             * prefix, we can use it.
+             *
+             * If rolling backward, take a copy of the key and switch directions, we can roll
+             * forward from this key.
+             *
+             * If rolling forward, replace the key we've been building with this key, it's what we
+             * would have built anyway.
+             *
+             * In short: if it's not an overflow key, take a copy and roll forward.
              */
             keyb->data = key_data;
             keyb->size = key_size;
@@ -292,12 +284,12 @@ switch_and_jump:
 
             /*
              * If we wanted a different key:
-             *	If we're rolling backward, this key is useless
-             * to us because it doesn't have a valid prefix: keep
-             * rolling backward.
-             *	If we're rolling forward, there's no work to be
-             * done because prefixes skip overflow keys: keep
-             * rolling forward.
+             *
+             * If we're rolling backward, this key is useless to us because it doesn't have a valid
+             * prefix: keep rolling backward.
+             *
+             * If we're rolling forward, there's no work to be done because prefixes skip overflow
+             * keys: keep rolling forward.
              */
             goto next;
         }
@@ -308,20 +300,18 @@ switch_and_jump:
          */
         if (unpack->prefix == 0) {
             /*
-             * If this is the key we originally wanted, we don't
-             * care if we're rolling forward or backward, it's
-             * what we want.  Take a copy and wrap up.
+             * If this is the key we originally wanted, we don't care if we're rolling forward or
+             * backward, it's what we want. Take a copy and wrap up.
              *
-             * If we wanted a different key, this key has a valid
-             * prefix, we can use it.
-             *	If rolling backward, take a copy of the key and
-             * switch directions, we can roll forward from this key.
-             *	If rolling forward there's a bug, we should have
-             * found this key while rolling backwards and switched
-             * directions then.
+             * If we wanted a different key, this key has a valid prefix, we can use it.
              *
-             * The key doesn't need to be instantiated, skip past
-             * that test.
+             * If rolling backward, take a copy of the key and switch directions, we can roll
+             * forward from this key.
+             *
+             * If rolling forward there's a bug, we should have found this key while rolling
+             * backwards and switched directions then.
+             *
+             * The key doesn't need to be instantiated, skip past that test.
              */
             WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb));
             if (slot_offset == 0)
@@ -336,10 +326,10 @@ switch_and_jump:
 prefix_continue:
         /*
          * 5: an on-page reference to a key that's prefix compressed.
-         *	If rolling backward, keep looking for something we can
-         * use.
-         *	If rolling forward, build the full key and keep rolling
-         * forward.
+         *
+         * If rolling backward, keep looking for something we can use.
+         *
+         * If rolling forward, build the full key and keep rolling forward.
          */
         if (direction == BACKWARD) {
             /*
