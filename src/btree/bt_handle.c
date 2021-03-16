@@ -319,7 +319,7 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
     else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
         WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
         WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
-	WT_ASSERT(session, *bstoragep != NULL);
+        WT_ASSERT(session, *bstoragep != NULL);
     }
     if (*bstoragep != NULL) {
         bstorage = *bstoragep;
