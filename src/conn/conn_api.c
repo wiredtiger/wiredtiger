@@ -696,7 +696,7 @@ int
 __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_ITEM *bucket,
   WT_BUCKET_STORAGE **bstoragep)
 {
-    WT_BUCKET_STORAGE *bstorage;
+    WT_BUCKET_STORAGE *bstorage, *new;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
@@ -705,7 +705,7 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
 
     *bstoragep = NULL;
 
-    bstorage = NULL;
+    bstorage = new = NULL;
     conn = S2C(session);
 
     __wt_spin_lock(session, &conn->storage_lock);
@@ -731,22 +731,27 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
         if (WT_STRING_MATCH(bstorage->bucket, bucket->str, bucket->len))
             goto out;
 
-    WT_ERR(__wt_calloc_one(session, &bstorage));
-    WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &bstorage->bucket));
+    WT_ERR(__wt_calloc_one(session, &new));
+    WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
     storage = nstorage->storage_source;
-    bstorage->storage_source = storage;
-    TAILQ_INSERT_HEAD(&nstorage->bucketqh, bstorage, q);
-    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], bstorage, hashq);
+    new->storage_source = storage;
+    new->object_size = bstorage->object_size;
+    new->retain_secs = bstorage->retain_secs;
+    WT_ERR(__wt_strdup(session, bstorage->auth_token, &new->auth_token));
+    TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
+    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
+    F_SET(new, WT_BUCKET_FREE);
 
 out:
     __wt_spin_unlock(session, &conn->storage_lock);
-    *bstoragep = bstorage;
+    *bstoragep = new;
     return (0);
 
 err:
     if (bstorage != NULL) {
-        __wt_free(session, bstorage->bucket);
-        __wt_free(session, bstorage);
+        __wt_free(session, new->auth_token);
+        __wt_free(session, new->bucket);
+        __wt_free(session, new);
     }
     __wt_spin_unlock(session, &conn->storage_lock);
     return (ret);

@@ -77,9 +77,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool forc
      */
     cfg[0] = config;
     cfg[1] = NULL;
-    WT_ERR(__wt_config_gets(session, cfg, "local_retain", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "local_retention", &cval));
     __wt_seconds(session, &now);
-    if (force || (uint64_t)cval.val + S2C(session)->tiered_retain_secs >= now)
+    if (force || (uint64_t)cval.val + S2C(session)->bstorage->retain_secs >= now)
         /*
          * We want to remove the entry and the file. Probably do a schema_drop on the file:uri.
          */
@@ -185,16 +185,20 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
     WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
+    /* If the connection is not set up for tiered storage there is nothing more to do. */
+    if (conn->bstorage == NULL)
+        return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    conn->tiered_auth_token = cval.str;
+    conn->bstorage->auth_token = cval.str;
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
-    conn->tiered_retain_secs = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, tiered_retention, conn->tiered_retain_secs);
+    conn->bstorage->retain_secs = (uint64_t)cval.val;
+    WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
-    conn->tiered_object_size = (uint64_t)cval.val;
+    WT_ASSERT(session, conn->bstorage != NULL);
+    conn->bstorage->object_size = (uint64_t)cval.val;
     return (__tiered_manager_config(session, cfg, runp));
 }
 

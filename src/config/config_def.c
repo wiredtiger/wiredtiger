@@ -1037,8 +1037,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "prefix_compression=false,prefix_compression_min=4,readonly=false"
     ",source=,split_deepen_min_child=0,split_deepen_per_child=0,"
     "split_pct=90,tiered=(chunk_size=1GB,tiers=),"
-    "tiered_storage=(bucket=,local_retention=300,name=,"
-    "object_target_size=10M),type=file,value_format=u,verbose=[],"
+    "tiered_storage=(bucket=,local_retention=,name=,"
+    "object_target_size=),type=file,value_format=u,verbose=[],"
     "write_timestamp_usage=none",
     confchk_WT_SESSION_create, 50},
   {"WT_SESSION.drop",
@@ -1104,8 +1104,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,tiered_storage=(bucket=,"
-    "local_retention=300,name=,object_target_size=10M),value_format=u"
-    ",verbose=[],write_timestamp_usage=none",
+    "local_retention=,name=,object_target_size=),value_format=u,"
+    "verbose=[],write_timestamp_usage=none",
     confchk_file_config, 41},
   {"file.meta",
     "access_pattern_hint=none,allocation_size=4KB,app_metadata=,"
@@ -1123,8 +1123,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "os_cache_dirty_max=0,os_cache_max=0,prefix_compression=false,"
     "prefix_compression_min=4,readonly=false,split_deepen_min_child=0"
     ",split_deepen_per_child=0,split_pct=90,tiered_storage=(bucket=,"
-    "local_retention=300,name=,object_target_size=10M),value_format=u"
-    ",verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
+    "local_retention=,name=,object_target_size=),value_format=u,"
+    "verbose=[],version=(major=0,minor=0),write_timestamp_usage=none",
     confchk_file_meta, 46},
   {"index.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
@@ -1153,8 +1153,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "os_cache_max=0,prefix_compression=false,prefix_compression_min=4"
     ",readonly=false,split_deepen_min_child=0,"
     "split_deepen_per_child=0,split_pct=90,tiered_storage=(bucket=,"
-    "local_retention=300,name=,object_target_size=10M),value_format=u"
-    ",verbose=[],write_timestamp_usage=none",
+    "local_retention=,name=,object_target_size=),value_format=u,"
+    "verbose=[],write_timestamp_usage=none",
     confchk_lsm_meta, 45},
   {"table.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
