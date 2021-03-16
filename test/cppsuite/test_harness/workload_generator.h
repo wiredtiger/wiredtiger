@@ -52,8 +52,8 @@ class workload_generator : public component {
             delete it;
     }
 
-    /* Delete the copy contructor. */
-    workload_generator(const workload_generator&) = delete;
+    /* Delete the copy constructor. */
+    workload_generator(const workload_generator &) = delete;
 
     /*
      * Function that performs the following steps using the configuration that is defined by the

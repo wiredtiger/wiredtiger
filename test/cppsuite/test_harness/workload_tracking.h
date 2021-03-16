@@ -60,7 +60,7 @@ class workload_tracking : public component {
         : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr),
           _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-          _schema_table_name(schema_table_name), _timestamp(0U)
+          _schema_table_name(schema_table_name), _timestamp(0U), _enabled(false)
     {
     }
 
