@@ -38,14 +38,15 @@
 namespace test_harness {
 /*
  * The timestamp monitor class manages global timestamp state for all components in the test
- * harness. It also manages the global timestamps within WiredTiger.
+ * harness. It also manages the global timestamps within WiredTiger. All timestamps are in seconds
+ * unless specified otherwise.
  */
 class timestamp_manager : public component {
     public:
     timestamp_manager(configuration *config)
         : /* _periodic_update_s is hardcoded to 1 second for now. */
-          component(config), _is_enabled(false), _latest_ts(0U), _oldest_lag(0), _oldest_ts(0U),
-          _periodic_update_s(1), _stable_lag(0), _stable_ts(0U)
+          component(config), _increment_ts(0U), _is_enabled(false), _latest_ts(0U), _oldest_lag(0),
+          _oldest_ts(0U), _periodic_update_s(1), _stable_lag(0), _stable_ts(0U)
     {
     }
 
@@ -54,8 +55,8 @@ class timestamp_manager : public component {
     {
         testutil_assert(_config != nullptr);
         testutil_check(_config->get_int(OLDEST_LAG, _oldest_lag));
-        testutil_check(_config->get_int(STABLE_LAG, _stable_lag));
         testutil_assert(_oldest_lag >= 0);
+        testutil_check(_config->get_int(STABLE_LAG, _stable_lag));
         testutil_assert(_stable_lag >= 0);
         testutil_check(_config->get_bool(ENABLE_TIMESTAMP, _is_enabled));
         component::load();
@@ -65,6 +66,8 @@ class timestamp_manager : public component {
     run()
     {
         std::string config;
+        /* latest_ts_s represents the time component of latest_ts_s. */
+        wt_timestamp_t latest_ts_s = (_latest_ts >> 32);
 
         while (_is_enabled && _running) {
             /* Timestamps are checked periodically. */
@@ -74,9 +77,9 @@ class timestamp_manager : public component {
              * Keep a time window between the latest and stable ts less than the max defined in the
              * configuration.
              */
-            testutil_assert(_latest_ts >= _stable_ts);
-            if ((_latest_ts - _stable_ts) > _stable_lag) {
-                _stable_ts = _latest_ts - _stable_lag;
+            testutil_assert(latest_ts_s >= _stable_ts);
+            if ((latest_ts_s - _stable_ts) > _stable_lag) {
+                _stable_ts = latest_ts_s - _stable_lag;
                 config += std::string(STABLE_TS) + "=" + decimal_to_hex(_stable_ts);
             }
 
@@ -100,11 +103,19 @@ class timestamp_manager : public component {
         }
     }
 
-    /* Get a valid commit timestamp. */
+    /*
+     * Get a unique commit timestamp. The first 32 bits represent the epoch time in seconds. The last
+     * 32 bits represent an increment for uniqueness.
+     */
     wt_timestamp_t
     get_next_ts()
     {
-        _latest_ts.fetch_add(1);
+        uint64_t current_time = get_time_now_s();
+        _increment_ts.fetch_add(1);
+
+        current_time = (current_time << 32) | (_increment_ts & 0x00000000FFFFFFFF);
+        _latest_ts = current_time;
+
         return (_latest_ts);
     }
 
@@ -115,17 +126,26 @@ class timestamp_manager : public component {
         std::stringstream ss;
         ss << std::hex << value;
         std::string res(ss.str());
-        return res;
+        return (res);
+    }
+
+    uint64_t
+    get_time_now_s() const
+    {
+        auto now = std::chrono::system_clock::now().time_since_epoch();
+        uint64_t current_time_s =
+          static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count());
+        return (current_time_s);
     }
 
     private:
     bool _is_enabled;
     const wt_timestamp_t _periodic_update_s;
-    std::atomic<wt_timestamp_t> _latest_ts;
-    wt_timestamp_t _oldest_ts, _stable_ts;
+    std::atomic<wt_timestamp_t> _increment_ts;
+    wt_timestamp_t _latest_ts, _oldest_ts, _stable_ts;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
-     * stable_lag is the time window between the latest and stable timestamps.
+     * _stable_lag is the time window between the latest and stable timestamps.
      */
     int64_t _oldest_lag, _stable_lag;
 };

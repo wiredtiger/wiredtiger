@@ -65,8 +65,7 @@ class test {
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {
-          _timestamp_manager, _workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {_timestamp_manager, _workload_generator, _runtime_monitor};
     }
 
     ~test()
