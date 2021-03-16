@@ -45,7 +45,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'local_retention=%d,' % self.retention + \
-          'name=%s)' % self.extension_name 
+          'name=%s)' % self.extension_name
 
     # Load the local store extension, but skip the test if it is missing.
     def conn_extensions(self, extlist):
