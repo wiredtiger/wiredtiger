@@ -36,14 +36,16 @@ class test_tiered04(wttest.WiredTigerTestCase):
     uri = "table:test_tiered04"
 
     auth_token = "test_token"
+    bucket = "mybucket"
     extension_name = "test"
     retention = 600
     def conn_config(self):
         return \
           'statistics=(fast),' + \
-          'tiered_storage=(enabled,local_retention=%d,' % self.retention + \
-          'name=%s,' % self.extension_name + \
-          'auth_token=%s)' % self.auth_token
+          'tiered_storage=(auth_token=%s,' % self.auth_token + \
+          'bucket=%s,' % self.bucket + \
+          'local_retention=%d,' % self.retention + \
+          'name=%s)' % self.extension_name 
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')

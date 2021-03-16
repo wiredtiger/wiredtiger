@@ -40,9 +40,9 @@ class test_tiered05(wttest.WiredTigerTestCase):
         return \
           'statistics=(fast),' + \
           'tiered_manager=(wait=10),' + \
-          'tiered_storage=(enabled,object_target_size=20M,' + \
+          'tiered_storage=(auth_token=%s)' % self.auth_token + \
           'name=%s,' % self.extension_name + \
-          'auth_token=%s)' % self.auth_token
+          'object_target_size=20M)'
 
     # Test calling the flush_tier API.
     def test_tiered(self):
