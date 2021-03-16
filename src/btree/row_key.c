@@ -6,8 +6,6 @@
  * See the file LICENSE for redistribution information.
  */
 
-/* KEITH: reformat the comments. */
-
 #include "wt_internal.h"
 
 static void __inmem_row_leaf_slots(uint8_t *, uint32_t, uint32_t, uint32_t);
