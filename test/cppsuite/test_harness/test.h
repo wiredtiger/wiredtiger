@@ -54,7 +54,7 @@ namespace test_harness {
  */
 class test {
     public:
-    test(const std::string &config)
+    test(const std::string &config) : _workload_tracking(nullptr)
     {
         _configuration = new configuration(name, config);
         _workload_generator = new workload_generator(_configuration);
@@ -65,7 +65,8 @@ class test {
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {_workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {
+          _timestamp_manager, _workload_generator, _timestamp_manager, _runtime_monitor};
     }
 
     ~test()
@@ -92,8 +93,7 @@ class test {
     void
     run()
     {
-        int64_t cache_size_mb = 100;
-        int64_t duration_seconds = 0;
+        int64_t cache_size_mb = 100, duration_seconds = 0;
         bool enable_tracking = false, is_success = true;
 
         /* Build the database creation config string. */
@@ -113,10 +113,11 @@ class test {
                 TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG, TABLE_SCHEMA_TRACKING);
             /* Make sure the tracking component is loaded first to track all activities. */
             _components.insert(_components.begin(), _workload_tracking);
-        } else
-            _workload_tracking = nullptr;
-        /* Tell the workload generator whether tracking is enabled. */
-        _workload_generator->set_tracker(_workload_tracking);
+            /* Give the workload generator access to the tracker. */
+            _workload_generator->set_tracker(_workload_tracking);
+        }
+        /* Give the workload generator access to the timestamp manager. */
+        _workload_generator->set_timestamp_manager(_timestamp_manager);
 
         /* Initiate the load stage of each component. */
         for (const auto &it : _components)
@@ -128,6 +129,7 @@ class test {
 
         /* Sleep duration seconds. */
         testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
+        testutil_assert(duration_seconds >= 0);
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test. */
@@ -185,8 +187,8 @@ class test {
     std::vector<component *> _components;
     configuration *_configuration;
     runtime_monitor *_runtime_monitor;
-    timestamp_manager *_timestamp_manager;
     thread_manager *_thread_manager;
+    timestamp_manager *_timestamp_manager;
     workload_generator *_workload_generator;
     workload_tracking *_workload_tracking;
 };

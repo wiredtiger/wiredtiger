@@ -29,6 +29,8 @@
 #ifndef THREAD_CONTEXT_H
 #define THREAD_CONTEXT_H
 
+#include "random_generator.h"
+
 namespace test_harness {
 /* Define the different thread operations. */
 enum class thread_operation {
@@ -45,12 +47,12 @@ enum class thread_operation {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(std::vector<std::string> collection_names, thread_operation type)
-        : _collection_names(collection_names), _running(false), _type(type)
+    thread_context(std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
+      int64_t min_op)
+        : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
+          _max_op(max_op), _max_op_count(0), _min_op(min_op), _running(false), _type(type)
     {
     }
-
-    thread_context(thread_operation type) : _running(false), _type(type) {}
 
     void
     finish()
@@ -82,9 +84,54 @@ class thread_context {
         _running = running;
     }
 
+    void
+    begin_transaction(WT_SESSION *session, const std::string &config)
+    {
+        if (!_in_txn) {
+            testutil_check(
+              session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
+            /* This randomizes the number of operations to be executed in one transaction. */
+            _max_op_count = random_generator::instance().generate_integer(_min_op, _max_op);
+            _current_op_count = 0;
+            _in_txn = true;
+        }
+    }
+
+    /* Returns true if the current transaction has been committed. */
+    bool
+    commit_transaction(WT_SESSION *session, const std::string &config)
+    {
+        /* A transaction cannot be committed if not started. */
+        testutil_assert(_in_txn);
+        /* The current transaction should be committed if:
+         *  - The thread is done working. This is useful when the test is ended and the thread has
+         * not reached the maximum number of operations per transaction.
+         *  - The number of operations executed in the current transaction has exceeded the
+         * threshold.
+         */
+        if (!_running || (++_current_op_count > _max_op_count)) {
+            testutil_check(
+              session->commit_transaction(session, config.empty() ? NULL : config.c_str()));
+            _in_txn = false;
+        }
+
+        return !_in_txn;
+    }
+
     private:
     const std::vector<std::string> _collection_names;
-    bool _running;
+    /*
+     * _current_op_count is the current number of operations that have been executed in the current
+     * transaction.
+     */
+    uint64_t _current_op_count;
+    bool _in_txn, _running;
+    /*
+     * _min_op and _max_op are the minimum and maximum number of operations within one transaction.
+     * _max_op_count is the current maximum number of operations that can be executed in the current
+     * transaction. _max_op_count will always be <= _max_op.
+     */
+    int64_t _min_op, _max_op, _max_op_count;
     const thread_operation _type;
 };
 } // namespace test_harness
