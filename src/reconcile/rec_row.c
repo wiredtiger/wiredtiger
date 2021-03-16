@@ -792,7 +792,7 @@ __wt_rec_row_leaf(
         }
 
         /* Unpack the on-page value cell. */
-        __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
+        __wt_row_leaf_value_cell(session, page, rip, vpack);
 
         /* Look for an update. */
         WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));

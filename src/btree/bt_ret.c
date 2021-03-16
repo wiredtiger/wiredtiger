@@ -100,7 +100,7 @@ __wt_read_row_time_window(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, 
         return;
     }
 
-    __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+    __wt_row_leaf_value_cell(session, page, rip, &unpack);
     WT_TIME_WINDOW_COPY(tw, &unpack.tw);
 }
 
@@ -166,7 +166,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
         }
 
         /* Take the value from the original page cell. */
-        __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+        __wt_row_leaf_value_cell(session, page, rip, &unpack);
         if (tw != NULL)
             WT_TIME_WINDOW_COPY(tw, &unpack.tw);
         return (__wt_page_cell_data_ref(session, page, &unpack, buf));

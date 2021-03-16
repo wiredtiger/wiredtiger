@@ -1998,7 +1998,7 @@ __slvg_row_ovfl(
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
         }
-        __wt_row_leaf_value_cell(session, page, rip, NULL, &unpack);
+        __wt_row_leaf_value_cell(session, page, rip, &unpack);
         WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
     }
     return (0);

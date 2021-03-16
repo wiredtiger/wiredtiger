@@ -1165,64 +1165,21 @@ __wt_row_leaf_key(
 }
 
 /*
- * __wt_row_leaf_value_cell --
- *     Return the unpacked value for a row-store leaf page key.
- */
-static inline void
-__wt_row_leaf_value_cell(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *kpack, WT_CELL_UNPACK_KV *vpack)
-{
-    WT_CELL *kcell, *vcell;
-    WT_CELL_UNPACK_KV unpack;
-    size_t size;
-    uint8_t prefix;
-    void *copy, *key;
-
-    size = 0;   /* -Werror=maybe-uninitialized */
-    key = NULL; /* -Werror=maybe-uninitialized */
-
-    /*
-     * If we already have an unpacked key cell, use it.
-     *
-     * KEITH: it might be faster to look at the key if it's encoded, why not check that first? Where
-     * is this called from with kpack already set??
-     */
-    if (kpack != NULL)
-        vcell = (WT_CELL *)((uint8_t *)kpack->cell + __wt_cell_total_len(kpack));
-    else {
-        /*
-         * The row-store key can change underfoot; explicitly take a copy.
-         */
-        copy = WT_ROW_KEY_COPY(rip);
-
-        /*
-         * Figure out where the key is, step past it to the value cell. If we have an on-page key we
-         * can step past it to the value, otherwise we have to crack the on-page key cell first,
-         * then step past it.
-         */
-        __wt_row_leaf_key_info(page, copy, NULL, &kcell, &key, &size, &prefix);
-        if (kcell == NULL)
-            vcell = (WT_CELL *)((uint8_t *)key + size);
-        else {
-            __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
-            vcell = (WT_CELL *)((uint8_t *)unpack.cell + __wt_cell_total_len(&unpack));
-        }
-    }
-
-    __wt_cell_unpack_kv(session, page->dsk, __wt_cell_leaf_value_parse(page, vcell), vpack);
-}
-
-/*
  * __wt_row_leaf_value_is_encoded --
  *     Return if the value for a row-store leaf page is an encoded key/value pair.
  */
 static inline bool
 __wt_row_leaf_value_is_encoded(WT_ROW *rip)
 {
+    uintptr_t v;
+
+    /* The row-store key can change underfoot; explicitly take a copy. */
+    v = (uintptr_t)WT_ROW_KEY_COPY(rip);
+
     /*
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
      */
-    return (((uintptr_t)WT_ROW_KEY_COPY(rip) & WT_KEY_FLAG_BITS) == WT_KV_FLAG);
+    return ((v & WT_KEY_FLAG_BITS) == WT_KV_FLAG);
 }
 
 /*
@@ -1234,15 +1191,15 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
 {
     uintptr_t v;
 
-    /*
-     * KEITH: THIS IS ONLY CALLED FROM ONE PLACE, get rid of it and merge it into a renamed
-     * __wt_row_leaf_value_cell call.
-     */
-
     /* The row-store key can change underfoot; explicitly take a copy. */
     v = (uintptr_t)WT_ROW_KEY_COPY(rip);
 
     /*
+     * Normally a value is represented by the value's cell in the disk image (or an update), but
+     * there is a fast path for returning a simple value, where it's worth the additional effort of
+     * encoding the value in the per-row reference and retrieving it. This function does that work,
+     * while most value retrieval goes through the "return the cell" version.
+     *
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
      */
     if ((v & WT_KEY_FLAG_BITS) == WT_KV_FLAG) {
@@ -1252,6 +1209,45 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
         return (true);
     }
     return (false);
+}
+
+/*
+ * __wt_row_leaf_value_cell --
+ *     Return the unpacked value for a row-store leaf page key.
+ */
+static inline void
+__wt_row_leaf_value_cell(
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_KV *vpack)
+{
+    WT_CELL *kcell, *vcell;
+    WT_CELL_UNPACK_KV unpack;
+    size_t size;
+    uint8_t prefix;
+    void *copy, *key;
+
+    size = 0;   /* -Werror=maybe-uninitialized */
+    key = NULL; /* -Werror=maybe-uninitialized */
+
+    /*
+     * The row-store key can change underfoot; explicitly take a copy.
+     */
+    copy = WT_ROW_KEY_COPY(rip);
+
+    /*
+     * Figure out where the key is and step past it to the value cell. If we have information about
+     * an on-page key, we can use that information to step past the key to the value (a value starts
+     * immediately after its key), otherwise we have to crack the on-page key cell first, then step
+     * past it.
+     */
+    __wt_row_leaf_key_info(page, copy, NULL, &kcell, &key, &size, &prefix);
+    if (kcell == NULL)
+        vcell = (WT_CELL *)((uint8_t *)key + size);
+    else {
+        __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
+        vcell = (WT_CELL *)((uint8_t *)unpack.cell + __wt_cell_total_len(&unpack));
+    }
+
+    __wt_cell_unpack_kv(session, page->dsk, __wt_cell_leaf_value_parse(page, vcell), vpack);
 }
 
 /*
