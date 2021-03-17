@@ -124,7 +124,6 @@ __wt_row_leaf_key_work(
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_ROW *rip, *jump_rip;
@@ -181,7 +180,7 @@ switch_and_jump:
                 keyb->data = key_data;
                 keyb->size = key_size;
             } else if (slot_offset > page->prefix_start && slot_offset <= page->prefix_stop)
-                WT_ERR(__wt_row_leaf_key_prefix_group(
+                WT_RET(__wt_row_leaf_key_prefix_group(
                   session, page, keyb, key_data, key_size, key_prefix));
             else
                 goto prefix_continue;
@@ -195,7 +194,7 @@ switch_and_jump:
              * The key doesn't need to be instantiated, skip past that test.
              */
             if (slot_offset == 0)
-                goto done;
+                return (0);
 
             /*
              * This key is not an overflow key by definition and isn't compressed in any way, we can
@@ -221,7 +220,7 @@ switch_and_jump:
             if (slot_offset == 0) {
                 keyb->data = key_data;
                 keyb->size = key_size;
-                goto done;
+                return (0);
             }
 
             /*
@@ -276,7 +275,7 @@ switch_and_jump:
                 __wt_readlock(session, &btree->ovfl_lock);
                 ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 __wt_readunlock(session, &btree->ovfl_lock);
-                WT_ERR(ret);
+                WT_RET(ret);
                 break;
             }
 
@@ -311,9 +310,9 @@ switch_and_jump:
              *
              * The key doesn't need to be instantiated, skip past that test.
              */
-            WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb));
+            WT_RET(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb));
             if (slot_offset == 0)
-                goto done;
+                return (0);
             goto switch_and_jump;
         }
 
@@ -355,7 +354,7 @@ prefix_continue:
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
              * data length to the prefix bytes.
              */
-            WT_ERR(__wt_buf_grow(session, keyb, key_prefix + key_size));
+            WT_RET(__wt_buf_grow(session, keyb, key_prefix + key_size));
             memcpy((uint8_t *)keyb->data + key_prefix, key_data, key_size);
             keyb->size = key_prefix + key_size;
 
@@ -391,7 +390,7 @@ next:
         copy = WT_ROW_KEY_COPY(rip_arg);
         __wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL, NULL);
         WT_ASSERT(session, ikey == NULL && cell != NULL);
-        WT_ERR(__wt_row_ikey_alloc(
+        WT_RET(__wt_row_ikey_alloc(
           session, WT_PAGE_DISK_OFFSET(page, cell), keyb->data, keyb->size, &ikey));
 
         /*
@@ -403,11 +402,7 @@ next:
         else
             __wt_free(session, ikey);
     }
-
-done:
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+    return (0);
 }
 
 /*
