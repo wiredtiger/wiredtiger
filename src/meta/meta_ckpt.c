@@ -111,18 +111,8 @@ __wt_meta_checkpoint(
     /* Retrieve the metadata entry for the file. */
     WT_ERR(__wt_metadata_search(session, fname, &config));
 
-/*
- * Check for the version mismatch in wiredtiger standalone build when compatibility has not been
- * configured.
- */
-#ifdef WT_STANDALONE_BUILD
-    if (!F_ISSET(S2C(session), WT_CONN_COMPATIBILITY))
-        /* Check the major/minor version numbers. */
-        WT_ERR(__ckpt_version_chk(session, fname, config));
-#else
     /* Check the major/minor version numbers. */
     WT_ERR(__ckpt_version_chk(session, fname, config));
-#endif
 
     /*
      * Retrieve the named checkpoint or the last checkpoint.
@@ -725,7 +715,7 @@ format:
 
 /*
  * __wt_metadata_update_base_write_gen --
- *     Update the connection's base write generation.
+ *     Update the connection's base write generation from the config string.
  */
 int
 __wt_metadata_update_base_write_gen(WT_SESSION_IMPL *session, const char *config)
