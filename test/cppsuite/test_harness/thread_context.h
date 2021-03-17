@@ -66,25 +66,25 @@ class thread_context {
     const std::vector<std::string> &
     get_collection_names() const
     {
-        return _collection_names;
+        return (_collection_names);
     }
 
     thread_operation
     get_thread_operation() const
     {
-        return _type;
+        return (_type);
     }
 
     workload_tracking *
     get_tracking() const
     {
-        return _tracking;
+        return (_tracking);
     }
 
     bool
     is_running() const
     {
-        return _running;
+        return (_running);
     }
 
     void
@@ -111,7 +111,7 @@ class thread_context {
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
         if (!_timestamp_manager->is_enabled())
-            return true;
+            return (true);
 
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
@@ -127,10 +127,11 @@ class thread_context {
             _in_txn = false;
         }
 
-        return !_in_txn;
+        return (!_in_txn);
     }
 
-    /* Set a commit timestamp if the timestamp manager is enabled and always return the timestamp
+    /*
+     * Set a commit timestamp if the timestamp manager is enabled and always return the timestamp
      * that should have been used for the commit.
      */
     wt_timestamp_t
@@ -145,7 +146,7 @@ class thread_context {
             testutil_check(session->timestamp_transaction(session, config.c_str()));
         }
 
-        return ts;
+        return (ts);
     }
 
     private:

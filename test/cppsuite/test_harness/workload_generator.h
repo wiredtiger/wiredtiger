@@ -193,7 +193,7 @@ class workload_generator : public component {
         }
     }
 
-    /* 
+    /*
      * Basic update operation that currently update the same key with a random value in each
      * collection.
      */
@@ -301,7 +301,8 @@ class workload_generator : public component {
 
     template <typename K, typename V>
     static int
-    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name, K key, V value, wt_timestamp_t ts)
+    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
+      K key, V value, wt_timestamp_t ts)
     {
         int error_code;
 
