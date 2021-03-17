@@ -2168,19 +2168,15 @@ struct __wt_connection {
 	 * cache if cache type NVRAM is chosen., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram, bypass cache if that percent of
 	 * file fits in DRAM., an integer between 0 and 100; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;simulated_size, track blocks that wouldn't have been in
-	 * the cache if the cache size were set to similated size.  This is a tracing feature used
-	 * for the development of the eviction protocol.  The simulated cache size must be smaller
-	 * than the actual\, or zero\, if no tracing is to be performed., an integer between 0 and
-	 * 1024GB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate
-	 * for the block cache., an integer between 0 and 1024GB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;system_ram, amount of DRAM expected to be available on
-	 * the system., an integer between 0 and 1024GB; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a string; default
-	 * empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_allocate, allocate cache blocks on write.,
-	 * a boolean flag; default \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block cache., an
+	 * integer between 0 and 1024GB; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;system_ram,
+	 * amount of DRAM expected to be available on the system., an integer between 0 and 1024GB;
+	 * default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;type, cache location: DRAM or NVRAM., a
+	 * string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;write_allocate, allocate cache
+	 * blocks on write., a boolean flag; default \c true.}
 	 * @config{ ),,}
 	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
 	 * wait for space to be available in cache before giving up.  Default will wait forever., an
@@ -2811,11 +2807,6 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * percent_file_in_dram, bypass cache if that percent of file fits in DRAM., an integer between 0
  * and 100; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;simulated_size, track blocks that
- * wouldn't have been in the cache if the cache size were set to similated size.  This is a tracing
- * feature used for the development of the eviction protocol.  The simulated cache size must be
- * smaller than the actual\, or zero\, if no tracing is to be performed., an integer between 0 and
- * 1024GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the
  * block cache., an integer between 0 and 1024GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;

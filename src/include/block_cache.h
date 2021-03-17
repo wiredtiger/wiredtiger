@@ -47,7 +47,6 @@ struct __wt_blkcache_item {
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
     void *data;
     uint32_t num_references;
-    bool present_in_sim_cache;
 };
 
 /*
@@ -71,7 +70,6 @@ struct __wt_blkcache {
     size_t hash_size;
     size_t num_data_blocks;
     size_t max_bytes;
-    size_t max_bytes_sim;
     size_t system_ram;
 
     /*
@@ -94,9 +92,8 @@ struct __wt_blkcache {
 
     /* Histograms keeping track of number of references to each block */
 #define BLKCACHE_HIST_BUCKETS 11
-#define BLKCACHE_HIST_BOUNDARY 10
-    uint32_t real_cache_references[BLKCACHE_HIST_BUCKETS];
-    uint32_t sim_cache_references[BLKCACHE_HIST_BUCKETS];
+#define BLKCACHE_HIST_BOUNDARY 1
+    uint32_t cache_references[BLKCACHE_HIST_BUCKETS];
 };
 
 #define BLKCACHE_UNCONFIGURED 0
