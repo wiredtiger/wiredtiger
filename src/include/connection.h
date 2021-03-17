@@ -42,7 +42,7 @@ struct __wt_bucket_storage {
     uint64_t retain_secs;              /* Tiered period */
     const char *kmsid;                 /* Tiered authentication cookie */
     WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
-    /* Linked list of bucket storages */
+    /* Linked list of bucket storage entries */
     TAILQ_ENTRY(__wt_bucket_storage) hashq;
     TAILQ_ENTRY(__wt_bucket_storage) q;
 

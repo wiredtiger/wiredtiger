@@ -196,10 +196,10 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     conn->bstorage->retain_secs = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
-    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->kmsid));
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
     WT_ASSERT(session, conn->bstorage != NULL);
     conn->bstorage->object_size = (uint64_t)cval.val;
 
