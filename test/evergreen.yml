@@ -196,7 +196,6 @@ functions:
 
           git commit -m "Update auto-generated develop docs" \
                      --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>" > /dev/null
-          git log -u -1
     # Use separate shell.exec with "silent" directive to avoid exposing credentail in task log
     - command: shell.exec
       params:
