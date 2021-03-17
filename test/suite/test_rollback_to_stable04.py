@@ -148,6 +148,7 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        hs_sweep = stat_cursor[stat.conn.txn_rts_sweep_hs_keys][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
         keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
         pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
@@ -160,9 +161,9 @@ class test_rollback_to_stable04(test_rollback_to_stable_base):
         self.assertGreater(pages_visited, 0)
         if self.in_memory:
             self.assertEqual(upd_aborted, nrows * 11)
-            self.assertEqual(hs_removed, 0)
+            self.assertEqual(hs_removed + hs_sweep, 0)
         else:
-            self.assertGreaterEqual(upd_aborted + hs_removed, nrows * 11)
+            self.assertGreaterEqual(upd_aborted + hs_removed + hs_sweep, nrows * 11)
 
 if __name__ == '__main__':
     wttest.run()

@@ -43,7 +43,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(1, nrows+1):
+        for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             if commit_ts == 0:
@@ -62,7 +62,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         session = self.session
         cursor = session.open_cursor(uri)
         session.begin_transaction()
-        for i in range(1, nrows+1):
+        for i in range(1, nrows + 1):
             cursor.set_key(i)
             mods = [wiredtiger.Modify(value, location, nbytes)]
             self.assertEqual(cursor.modify(mods), 0)
@@ -82,7 +82,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         # Remove a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(1, nrows+1):
+        for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor.set_key(i)
             cursor.remove()
@@ -106,8 +106,6 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
-            #print('key:' +str(k))
-            #print('value:'+v)
             self.assertEqual(v, check_value)
             count += 1
         session.commit_transaction()
