@@ -2,7 +2,7 @@
 
 @section storage_overview Overview of Tiered Storage in WiredTiger
 
-Applications can implement their own custom storage sources underneath
+Applications can implement their own custom storage sources.
 WiredTiger does not currently offer builtin support for any particular
 storage source. The expected usage of a storage source is to implement and
 allow for cloud-based object storage.
@@ -23,8 +23,8 @@ data files are first created, using the \c tiered_storage= configuration in
 the WT_SESSION::create call.  Such options override the default
 (<em>system</em>) storage that was indicated in the ::wiredtiger_open
 call for the individual data file. It is possible to turn off tiered
-storage for individual files using the reserved \c none name,
-to use a different storage source, or to specify a different \c bucket.
+storage for individual files using the reserved \c none name. It is also
+possible to use a different storage source, or to specify a different \c bucket.
 
 Overriding the system storage source for a table does not override
 the system storage source for indices on that table, nor does it override

@@ -196,26 +196,22 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     conn->bstorage->retain_secs = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->kmsid));
+
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
     WT_ASSERT(session, conn->bstorage != NULL);
     conn->bstorage->object_size = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->auth_token));
-
     /* The strings for unique identification are connection level not per bucket. */
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.cluster", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_cluster));
-    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_kmsid));
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.member", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_member));
 
     return (__tiered_manager_config(session, cfg, runp));
 err:
-    __wt_free(session, conn->bstorage->auth_token);
     __wt_free(session, conn->tiered_cluster);
-    __wt_free(session, conn->tiered_kmsid);
     __wt_free(session, conn->tiered_member);
     return (ret);
 }
@@ -296,7 +292,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     /* Destroy any existing thread since we could be a reconfigure. */
     WT_RET(__wt_tiered_storage_destroy(session));
     WT_RET(__tiered_config(session, cfg, &start, reconfig));
-    if (!F_ISSET(conn, WT_CONN_TIERED_ENABLED) || !start)
+    if (!start)
         return (0);
 
     /* Set first, the thread might run before we finish up. */
@@ -330,7 +326,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     __wt_free(session, conn->tiered_cluster);
-    __wt_free(session, conn->tiered_kmsid);
     __wt_free(session, conn->tiered_member);
 
     /* Stop the server thread. */

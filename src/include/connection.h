@@ -40,9 +40,9 @@ struct __wt_bucket_storage {
     int owned;                         /* Storage needs to be terminated */
     uint64_t object_size;              /* Tiered object size */
     uint64_t retain_secs;              /* Tiered period */
-    const char *auth_token;            /* Tiered authentication cookie */
+    const char *kmsid;                 /* Tiered authentication cookie */
     WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
-    /* Linked list of storage sources */
+    /* Linked list of bucket storages */
     TAILQ_ENTRY(__wt_bucket_storage) hashq;
     TAILQ_ENTRY(__wt_bucket_storage) q;
 
@@ -377,7 +377,7 @@ struct __wt_connection_impl {
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
-    WT_BUCKET_STORAGE *bstorage; /* Bucket storage for metadata and log */
+    WT_BUCKET_STORAGE *bstorage; /* Bucket storage for the connection */
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
@@ -407,18 +407,12 @@ struct __wt_connection_impl {
     WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
 
     const char *tiered_cluster;       /* Tiered storage cluster name */
-    const char *tiered_kmsid;         /* Tiered storage key management id */
     const char *tiered_member;        /* Tiered storage member name */
     WT_TIERED_MANAGER tiered_manager; /* Tiered worker thread information */
     bool tiered_server_running;       /* Internal tiered server operating */
 
     uint32_t tiered_threads_max; /* Max tiered threads */
     uint32_t tiered_threads_min; /* Min tiered threads */
-
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CONN_TIERED_ENABLED 0x1u /* Shared tiered is configured */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t tiered_flags;          /* Global tiered configuration */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */

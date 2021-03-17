@@ -298,7 +298,7 @@ __wt_btree_config_encryptor(
 
 /*
  * __btree_config_tiered --
- *     Return a storage source handle based on the configuration.
+ *     Return a bucket storage handle based on the configuration.
  */
 static int
 __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
@@ -306,6 +306,7 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
     WT_BUCKET_STORAGE *bstorage;
     WT_CONFIG_ITEM bucket, cval;
     WT_DECL_RET;
+    bool local_free;
 
     /*
      * We do not use __wt_config_gets_none for name because "none" and the empty string have
@@ -313,18 +314,20 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
      * "none" means this table is not using tiered storage.
      */
     *bstoragep = NULL;
+    local_free = false;
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
     if (cval.len == 0)
         *bstoragep = S2C(session)->bstorage;
     else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
         WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
         WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
+        local_free = true;
         WT_ASSERT(session, *bstoragep != NULL);
     }
     if (*bstoragep != NULL) {
         bstorage = *bstoragep;
         /*
-         * If we get here then we have a valid bucket storage entry. Now see if the user overrides
+         * If we get here then we have a valid bucket storage entry. Now see if the config overrides
          * any of the other settings.
          */
         WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.local_retention", &cval));
@@ -338,8 +341,8 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
     return (0);
 err:
     /* If the bucket storage was set up with copies of the strings, free them here. */
-    if (bstorage != NULL && F_ISSET(bstorage, WT_BUCKET_FREE)) {
-        __wt_free(session, bstorage->auth_token);
+    if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
+        __wt_free(session, bstorage->kmsid);
         __wt_free(session, bstorage->bucket);
         __wt_free(session, bstorage);
     }

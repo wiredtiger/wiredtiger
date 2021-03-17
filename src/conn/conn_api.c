@@ -736,7 +736,7 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
     if (bstorage != NULL) {
         new->object_size = bstorage->object_size;
         new->retain_secs = bstorage->retain_secs;
-        WT_ERR(__wt_strdup(session, bstorage->auth_token, &new->auth_token));
+        WT_ERR(__wt_strdup(session, bstorage->kmsid, &new->kmsid));
     }
     TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
     TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
@@ -749,7 +749,7 @@ out:
 
 err:
     if (bstorage != NULL) {
-        __wt_free(session, new->auth_token);
+        __wt_free(session, new->kmsid);
         __wt_free(session, new->bucket);
         __wt_free(session, new);
     }
@@ -847,12 +847,7 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
-#if 0
-            if (bstorage->storage_source->terminate != NULL)
-                WT_TRET(bstorage->storage_source->terminate(
-                  bstorage->storage_source, (WT_SESSION *)session));
-#endif
-            __wt_free(session, bstorage->auth_token);
+            __wt_free(session, bstorage->kmsid);
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage);
         }
