@@ -75,7 +75,8 @@ class workload_generator : public component {
         WT_SESSION *session;
         wt_timestamp_t ts;
         int64_t collection_count, key_count, value_size;
-        std::string collection_name, generated_value, home;
+        std::string collection_name, config, generated_value, home;
+        bool ts_enabled = _timestamp_manager->is_enabled();
 
         cursor = nullptr;
         collection_count = key_count = value_size = 0;
@@ -111,10 +112,14 @@ class workload_generator : public component {
                  */
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
-                testutil_check(session->begin_transaction(session, NULL));
                 ts = _timestamp_manager->get_next_ts();
+                if (ts_enabled)
+                    testutil_check(session->begin_transaction(session, ""));
                 testutil_check(insert(cursor, collection_name, j + 1, generated_value.c_str(), ts));
-                testutil_check(session->commit_transaction(session, NULL));
+                if (ts_enabled) {
+                    config = std::string(COMMIT_TS) + "=" + _timestamp_manager->decimal_to_hex(ts);
+                    testutil_check(session->commit_transaction(session, config.c_str()));
+                }
             }
         }
         debug_info("Populate stage done", _trace_level, DEBUG_INFO);
@@ -142,8 +147,9 @@ class workload_generator : public component {
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc = new thread_context(_collection_names, thread_operation::READ,
-              max_operation_per_transaction, min_operation_per_transaction);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking,
+              _collection_names, thread_operation::READ, max_operation_per_transaction,
+              min_operation_per_transaction);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
@@ -173,10 +179,12 @@ class workload_generator : public component {
             break;
         case thread_operation::REMOVE:
         case thread_operation::INSERT:
-        case thread_operation::UPDATE:
             /* Sleep until it is implemented. */
             while (context.is_running())
                 std::this_thread::sleep_for(std::chrono::seconds(1));
+            break;
+        case thread_operation::UPDATE:
+            update_operation(context, session);
             break;
         default:
             testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
@@ -185,15 +193,59 @@ class workload_generator : public component {
         }
     }
 
+    /* 
+     * Basic update operation that currently update the same key with a random value in each
+     * collection.
+     */
+    static void
+    update_operation(thread_context &context, WT_SESSION *session)
+    {
+        WT_CURSOR *cursor;
+        WT_DECL_RET;
+        wt_timestamp_t ts;
+        std::vector<WT_CURSOR *> cursors;
+        std::vector<std::string> collection_names;
+        std::string generated_value;
+        bool has_committed = true;
+        int cpt;
+
+        testutil_assert(session != nullptr);
+        /* Get a cursor for each collection in collection_names. */
+        for (const auto &it : context.get_collection_names()) {
+            testutil_check(session->open_cursor(session, it.c_str(), NULL, NULL, &cursor));
+            cursors.push_back(cursor);
+            collection_names.push_back(it);
+        }
+
+        while (context.is_running()) {
+            /* Walk each cursor. */
+            context.begin_transaction(session, "");
+            ts = context.set_commit_timestamp(session);
+            cpt = 0;
+            for (const auto &it : cursors) {
+                int value_size = 10;
+                generated_value =
+                  random_generator::random_generator::instance().generate_string(value_size);
+                /* Key is hard coded for now. */
+                testutil_check(update(context.get_tracking(), it, collection_names[cpt], 1,
+                  generated_value.c_str(), ts));
+                ++cpt;
+            }
+            has_committed = context.commit_transaction(session, "");
+        }
+
+        /* Make sure the last operation is committed now the work is finished. */
+        if (!has_committed)
+            context.commit_transaction(session, "");
+    }
+
     /* Basic read operation that walks a cursors across all collections. */
     static void
     read_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
         WT_DECL_RET;
-        std::string config;
         std::vector<WT_CURSOR *> cursors;
-        bool has_committed = true;
 
         testutil_assert(session != nullptr);
         /* Get a cursor for each collection in collection_names. */
@@ -204,17 +256,11 @@ class workload_generator : public component {
 
         while (context.is_running()) {
             /* Walk each cursor. */
-            context.begin_transaction(session, config);
             for (const auto &it : cursors) {
                 if ((ret = it->next(it)) != 0)
                     it->reset(it);
             }
-            has_committed = context.commit_transaction(session, config);
         }
-
-        /* Make sure the last operation is committed now the work is finished. */
-        if (!has_committed)
-            context.commit_transaction(session, config);
     }
 
     /* WiredTiger APIs wrappers for single operations. */
@@ -253,11 +299,26 @@ class workload_generator : public component {
         return (cursor->search_near(cursor, exact));
     }
 
+    template <typename K, typename V>
     static int
-    update(WT_CURSOR *cursor)
+    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name, K key, V value, wt_timestamp_t ts)
     {
+        int error_code;
+
+        testutil_assert(tracking != nullptr);
         testutil_assert(cursor != nullptr);
-        return (cursor->update(cursor));
+        cursor->set_key(cursor, key);
+        cursor->set_value(cursor, value);
+        error_code = cursor->update(cursor);
+
+        if (error_code == 0) {
+            debug_info("key/value update", _trace_level, DEBUG_INFO);
+            error_code =
+              tracking->save(tracking_operation::UPDATE, collection_name, key, value, ts);
+        } else
+            debug_info("key/value update failed", _trace_level, DEBUG_ERROR);
+
+        return (error_code);
     }
 
     private:

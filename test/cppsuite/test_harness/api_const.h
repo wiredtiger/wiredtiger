@@ -51,6 +51,7 @@ static const char *STAT_CACHE_SIZE = "stat_cache_size";
 static const char *VALUE_SIZE = "value_size";
 
 /* WiredTiger API consts. */
+static const char *COMMIT_TS = "commit_timestamp";
 static const char *CONNECTION_CREATE = "create";
 static const char *OLDEST_TS = "oldest_timestamp";
 static const char *STABLE_TS = "stable_timestamp";

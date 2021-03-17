@@ -50,6 +50,9 @@ class timestamp_manager : public component {
     {
     }
 
+    /* Delete the copy constructor. */
+    timestamp_manager(const timestamp_manager &) = delete;
+
     void
     load()
     {
@@ -103,6 +106,12 @@ class timestamp_manager : public component {
         }
     }
 
+    bool
+    is_enabled() const
+    {
+        return _is_enabled;
+    }
+
     /*
      * Get a unique commit timestamp. The first 32 bits represent the epoch time in seconds. The
      * last 32 bits represent an increment for uniqueness.
@@ -119,9 +128,8 @@ class timestamp_manager : public component {
         return (_latest_ts);
     }
 
-    private:
-    const std::string
-    decimal_to_hex(int64_t value) const
+    static const std::string
+    decimal_to_hex(int64_t value)
     {
         std::stringstream ss;
         ss << std::hex << value;
@@ -129,6 +137,7 @@ class timestamp_manager : public component {
         return (res);
     }
 
+    private:
     uint64_t
     get_time_now_s() const
     {

@@ -30,6 +30,7 @@
 #define THREAD_CONTEXT_H
 
 #include "random_generator.h"
+#include "workload_tracking.h"
 
 namespace test_harness {
 /* Define the different thread operations. */
@@ -47,10 +48,12 @@ enum class thread_operation {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
+    thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking,
+      std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
       int64_t min_op)
         : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
-          _max_op(max_op), _max_op_count(0), _min_op(min_op), _running(false), _type(type)
+          _running(false), _min_op(min_op), _max_op(max_op), _max_op_count(0),
+          _timestamp_manager(timestamp_manager), _type(type), _tracking(tracking)
     {
     }
 
@@ -72,6 +75,12 @@ class thread_context {
         return _type;
     }
 
+    workload_tracking *
+    get_tracking() const
+    {
+        return _tracking;
+    }
+
     bool
     is_running() const
     {
@@ -87,7 +96,7 @@ class thread_context {
     void
     begin_transaction(WT_SESSION *session, const std::string &config)
     {
-        if (!_in_txn) {
+        if (!_in_txn && _timestamp_manager->is_enabled()) {
             testutil_check(
               session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
             /* This randomizes the number of operations to be executed in one transaction. */
@@ -101,6 +110,9 @@ class thread_context {
     bool
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
+        if (!_timestamp_manager->is_enabled())
+            return true;
+
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
         /* The current transaction should be committed if:
@@ -111,11 +123,29 @@ class thread_context {
          */
         if (!_running || (++_current_op_count > _max_op_count)) {
             testutil_check(
-              session->commit_transaction(session, config.empty() ? NULL : config.c_str()));
+              session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
             _in_txn = false;
         }
 
         return !_in_txn;
+    }
+
+    /* Set a commit timestamp if the timestamp manager is enabled and always return the timestamp
+     * that should have been used for the commit.
+     */
+    wt_timestamp_t
+    set_commit_timestamp(WT_SESSION *session)
+    {
+
+        wt_timestamp_t ts = _timestamp_manager->get_next_ts();
+        std::string config;
+
+        if (_timestamp_manager->is_enabled()) {
+            config = std::string(COMMIT_TS) + "=" + _timestamp_manager->decimal_to_hex(ts);
+            testutil_check(session->timestamp_transaction(session, config.c_str()));
+        }
+
+        return ts;
     }
 
     private:
@@ -132,7 +162,9 @@ class thread_context {
      * transaction. _max_op_count will always be <= _max_op.
      */
     int64_t _min_op, _max_op, _max_op_count;
+    timestamp_manager *_timestamp_manager;
     const thread_operation _type;
+    workload_tracking *_tracking;
 };
 } // namespace test_harness
 

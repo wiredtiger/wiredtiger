@@ -49,7 +49,7 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT };
+enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT, UPDATE };
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
 
@@ -63,6 +63,9 @@ class workload_tracking : public component {
           _schema_table_name(schema_table_name)
     {
     }
+
+    /* Delete the copy constructor. */
+    workload_tracking(const workload_tracking &) = delete;
 
     const std::string &
     get_schema_table_name() const
