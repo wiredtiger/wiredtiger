@@ -1,9 +1,92 @@
 /*! @arch_page arch-block Block Manager
 
-The Block Manager manages the reading and writing of disk blocks
-in WiredTiger.  It does compression and encryption when these
-are configured.
+The WiredTiger block manager subsystem manages the reading and writing of data
+from the disk. It is designed to facilitate high performance, economic use of
+disk space and customizability.
 
-The state of the block manager is represented by the \c WT_BM structure.
-Individual blocks being tracked are in \c WT_BLOCK structures.
+@section block What is a block?
+
+The block manager API introduces the concept of a "block" which represents a
+chunk of data that is stored on the disk and operated on as a single atomic
+unit. Each WiredTiger data file (any file in the home directory with the \c .wt
+suffix) is made up of these blocks.
+
+Since a data file can contain page images from multiple reconciliations of the
+same page, each block is associated with a single checkpoint. The API is
+designed in a way that allows users to load a checkpoint into the block manager
+and then read the blocks from that checkpoint as if they were a contiguous
+stream of chunks in the file (in reality, blocks from different checkpoints can
+be interleaved).
+
+@section block_usage How WiredTiger uses the block manager
+
+Whenever a page is read into the cache, WiredTiger will read it's corresponding
+block from the data file. This block contains what's referred to as the
+"page image" in other subsystems and has the newest versions of data for each
+key.
+
+Conversely, when a page is reconciled whether that is due to a page eviction or
+by a checkpoint, a new page image is constructed and it is written as a new
+block in the data file. In the case of checkpoint, the newly written block is
+bound to the current checkpoint and in the case of eviction, it is associated
+with the next checkpoint.
+
+@section block_lists Extent lists
+
+Internally, WiredTiger uses a data structure called an extent list or a
+\c WT_EXTLIST to track file usage. An extent list consists of a series of
+\c WT_EXT elements that track a file offset and size to track a portion of the
+file.
+
+There are three extent lists that are maintained per checkpoint:
+
+- Alloc: The extents allocated for a given checkpoint.
+- Avail: The extents that are unused and available for allocation.
+- Discard: The extents freed in this checkpoint.
+
+The alloc and discard extent lists are maintained as a skiplist sorted by file
+offset. The avail extent list is used for new allocations so we maintain an
+extra skiplist sorted by the extent size.
+
+@section configuration Configuration options
+
+There are a number of configuration options that affect the block manager's
+behaviour. This does not aim to be an exhaustive list, however, these are the
+configuration options that are more commonly of interest to users.
+
+@subsystems allocation_size Allocation size
+
+The \c allocation_size configuration is passed to the \c session->create(...)
+API and controls the file unit allocation size. Any blocks allocated by the
+block manager must be a multiple of this value.
+
+For example, if we specify an allocation_size of 4KB, blocks of size 8KB and
+12KB would be permitted but NOT 10KB. Higher allocation sizes may yield better
+compression rates, yet may cause larger page sizes. The allocation size is set
+to 4KB by default which is a good choice unless your OS or storage device has
+special requirements.
+
+@subsection block_compression Block compression
+
+The \c block_compressor configuration is passed to the \c session->create(...)
+API and controls the compression algorithm used to compress each block. By
+default, WiredTiger supports lz4, snappy, zlib and zstd for block-level
+compression. However, WiredTiger also supports a compressor API for writing
+custom compressors so you can extend the storage engine to use whatever
+compression algorithm you desire to perform block compression.
+
+@subsection block_encryption Block encryption
+
+The \c encryption configuration is passed to the \c session->create(...) API and
+controls the encryption algorithm used to encrypt each block. WiredTiger does
+not support any block-level encryption algorithms out of the box, however it
+supports an encryptor API for writing custom encryptors so you can extend the
+storage engine to use whatever encryption algorithm you desire to perform
+block encryption.
+
+@subsection checksum Checksum
+
+The \c checksum configuration controls whether blocks have a checksum stored
+alongside them. This can defend against disk corruption.
+
 */
