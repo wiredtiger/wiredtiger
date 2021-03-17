@@ -35,6 +35,90 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     return (0);
 }
 
+static bool
+__blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item,
+			int frequency_target, int recency_target)
+{
+    if (blkcache_item->virtual_recency_timestamp <= recency_target
+	&& WT_MIN(blkcache_item->num_references, BLKCACHE_MAX_FREQUENCY_TARGET)
+	<= BLKCACHE_MAX_FREQUENCY_TARGET)
+	return true;
+}
+
+static void
+__blkcache_eviction_thread(WT_SESSION_IMPL *session)
+{
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+    int frequency_target, recency_target;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    while (!cache_destroyed) {
+
+	/* If cache is not close to being full, go to sleep for a while. */
+	if ((double)blkcache->bytes_used / (double)blkcache->max_bytes < full_target){
+	    __wt_cond_wait(session);
+
+	    /*
+	     * Reset the targets to begin eviction conservatively, targeting
+	     * the blocks that were never reused.
+	     */
+	    frequency_target = 0;
+	    recency_target = 0;
+	}
+
+	/* Check if we were awaken because the cache is being destroyed */
+	if (cache_destroyed) break;
+
+	/*
+	 * Walk the cache, gathering statistics and evicting blocks
+	 * that are within our target.
+	 */
+	for (i = 0; i < blkcache->hash_size; i++) {
+	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
+	    while (!TAILQ_EMPTY(&blkcache->hash[i])) {
+		blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
+
+		if (__blkcache_should_evict(session, blkcache_item, frequency_target,
+					    recency_target)) {
+		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
+		    __blkcache_free(session, blkcache_item->data);
+		    __blkcache_update_ref_histogram(session, blkcache_item);
+		    blkcache->num_data_blocks--;
+		    blkcache->bytes_used -= blkcache_item->id.size;
+		    __wt_free(session, blkcache_item);
+		}
+		else
+		    blkcache_item->virtual_recency_timestamp--;
+	    }
+	    __wt_spin_unlock(session, &blkcache->hash_locks[i]);
+	}
+
+	/*
+	 * Increment the targets. This way, if we get to do another round of
+	 * eviction, we will be more aggressive. We use the LRU-first approach.
+	 * We first stay within the same recency range, evicting increasingly
+	 * more frequently used blocks within that range. Once we reach the
+	 * maximum freequency target, we move into the closer recency category.
+	 */
+
+	if (frequency_target < BLKCACHE_MAX_FREQUENCY_TARGET)
+	    frequency_target = WT_MAX(frequency_target + BLKCACHE_FREQ_TARGET_INCREMENT,
+				      BLKCACHE_MAX_FREQUENCY_TARGET);
+	else if (recency_target < BLKCACHE_MAX_RECENCY_TARGET) {
+	    recency_target = WT_MAX(recency_target + BLKCACHE_REC_TARGET_INCREMENT,
+				    BLKCACHE_MAX_RECENCY_TARGET);
+	    frequency_target = 0;
+	}
+	else {
+	    printf("Both targets maxed out: f(%d), r(%d).\n", frequency_target,
+		   recency_target);
+	}
+    }
+}
+
 
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
@@ -133,7 +217,6 @@ __blkcache_free(WT_SESSION_IMPL *session, void *ptr)
 static void
 __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item)
 {
-
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
     unsigned int bucket;

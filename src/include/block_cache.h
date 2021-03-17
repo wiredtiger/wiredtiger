@@ -15,13 +15,18 @@
 #include <memkind.h>
 #endif /* HAVE_LIBMEMKIND */
 
+#define BLKCACHE_FREQ_TARGET_INCREMENT 10;
+#define BLKCACHE_MAX_FREQUENCY_TARGET 100;
+#define BLKCACHE_MAX_RECENCY_TARGET 5;
+#define BLKCACHE_REC_TARGET_INCREMENT 1;
+
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
 
-#define BLKCACHE_TRACE 0
-
 #define BLKCACHE_OVERHEAD_THRESHOLD 0.1
+
+#define BLKCACHE_TRACE 0
 
 #define WT_BLKCACHE_FULL   -2
 #define WT_BLKCACHE_BYPASS -3
@@ -47,6 +52,12 @@ struct __wt_blkcache_item {
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
     void *data;
     uint32_t num_references;
+    /*
+     * The virtual recency timestamp is incremented every time the block is
+     * referenced, but saturates at the set threshold. It is decremented every
+     * time the eviction thread scans the cache.
+     */
+    uint32_t virtual_recency_timestamp;
 };
 
 /*
@@ -60,7 +71,9 @@ struct __wt_blkcache {
     WT_SPINLOCK * hash_locks;
 
     bool write_allocate;
+    volatile bool cache_destroyed;
     char *nvram_device_path;
+    double full_target;
     double overhead_pct;
     float fraction_in_dram;
     int refs_since_filesize_estimated;
