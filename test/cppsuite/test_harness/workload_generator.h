@@ -131,11 +131,12 @@ class workload_generator : public component {
     {
         WT_SESSION *session = nullptr;
         int64_t duration_seconds, read_threads, min_operation_per_transaction,
-          max_operation_per_transaction;
+          max_operation_per_transaction, value_size;
 
         /* Populate the database. */
         populate();
 
+        /* Retrieve useful parameters from the test configuration. */
         testutil_check(_config->get_int(DURATION_SECONDS, duration_seconds));
         testutil_assert(duration_seconds >= 0);
         testutil_check(_config->get_int(READ_THREADS, read_threads));
@@ -144,12 +145,14 @@ class workload_generator : public component {
         testutil_check(
           _config->get_int(MAX_OPERATION_PER_TRANSACTION, max_operation_per_transaction));
         testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
+        testutil_check(_config->get_int(VALUE_SIZE, value_size));
+        testutil_assert(value_size >= 0);
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
             thread_context *tc = new thread_context(_timestamp_manager, _tracking,
               _collection_names, thread_operation::READ, max_operation_per_transaction,
-              min_operation_per_transaction);
+              min_operation_per_transaction, value_size);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
@@ -207,7 +210,7 @@ class workload_generator : public component {
         std::vector<std::string> collection_names;
         std::string generated_value;
         bool has_committed = true;
-        int cpt;
+        int64_t cpt, value_size = context.get_value_size();
 
         testutil_assert(session != nullptr);
         /* Get a cursor for each collection in collection_names. */
@@ -223,7 +226,6 @@ class workload_generator : public component {
             ts = context.set_commit_timestamp(session);
             cpt = 0;
             for (const auto &it : cursors) {
-                int value_size = 10;
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 /* Key is hard coded for now. */

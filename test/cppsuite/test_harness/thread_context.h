@@ -50,10 +50,11 @@ class thread_context {
     public:
     thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking,
       std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
-      int64_t min_op)
+      int64_t min_op, int64_t value_size)
         : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
           _running(false), _min_op(min_op), _max_op(max_op), _max_op_count(0),
-          _timestamp_manager(timestamp_manager), _type(type), _tracking(tracking)
+          _timestamp_manager(timestamp_manager), _type(type), _tracking(tracking),
+          _value_size(value_size)
     {
     }
 
@@ -79,6 +80,12 @@ class thread_context {
     get_tracking() const
     {
         return (_tracking);
+    }
+
+    int64_t
+    get_value_size() const
+    {
+        return (_value_size);
     }
 
     bool
@@ -166,6 +173,8 @@ class thread_context {
     timestamp_manager *_timestamp_manager;
     const thread_operation _type;
     workload_tracking *_tracking;
+    /* Temporary member that comes from the test configuration. */
+    int64_t _value_size;
 };
 } // namespace test_harness
 
