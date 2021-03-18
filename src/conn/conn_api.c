@@ -731,17 +731,12 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
           session, EINVAL, "table tiered storage requires connection tiered storage to be set");
     hash = __wt_hash_city64(bucket->str, bucket->len);
     hash_bucket = hash & (conn->hash_size - 1);
-    TAILQ_FOREACH (bstorage, &nstorage->buckethashqh[hash_bucket], q) {
-        __wt_errx(session, "Check %p %s %.*s", (void *)bstorage, bstorage->bucket, (int)bucket->len,
-          bucket->str);
+    TAILQ_FOREACH (bstorage, &nstorage->buckethashqh[hash_bucket], q)
         if (WT_STRING_MATCH(bstorage->bucket, bucket->str, bucket->len))
             goto out;
-    }
 
     WT_ERR(__wt_calloc_one(session, &new));
     WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
-    __wt_errx(session, "BUCKET: create %p bucket %s bstorage %p", (void *)new, new->bucket,
-      (void *)bstorage);
     storage = nstorage->storage_source;
 #if 0
     if (storage->customize != NULL) {

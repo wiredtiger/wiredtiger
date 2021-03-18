@@ -100,18 +100,18 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.assertEqual(retain, 0)
 
         # Now test some connection statistics with operations.
-        retain = self.get_stat(stat.conn.tiered_retention)
+        retain = self.get_stat(stat.conn.tiered_retention, '')
         self.assertEqual(retain, self.retention)
         self.session.flush_tier(None)
         self.session.flush_tier('force=true')
-        calls = self.get_stat(stat.conn.flush_tier)
+        calls = self.get_stat(stat.conn.flush_tier, '')
         self.assertEqual(calls, 2)
         new = self.retention * 2
         config = 'tiered_storage=(local_retention=%d)' % new
         self.conn.reconfigure(config)
         self.session.flush_tier(None)
-        retain = self.get_stat(stat.conn.tiered_retention)
-        calls = self.get_stat(stat.conn.flush_tier)
+        retain = self.get_stat(stat.conn.tiered_retention, '')
+        calls = self.get_stat(stat.conn.flush_tier, '')
         self.assertEqual(retain, new)
         self.assertEqual(calls, 3)
 
