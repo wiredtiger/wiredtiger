@@ -386,7 +386,7 @@ prefix_continue:
              * space, then append the suffix to the prefix already in the buffer.
              *
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
-             * data length to the prefix bytes.
+             * CURRENT data length to the prefix bytes before growing the buffer.
              */
             WT_ASSERT(session, keyb->size >= key_prefix);
             keyb->size = key_prefix;

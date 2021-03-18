@@ -1010,8 +1010,9 @@ __wt_rec_row_leaf(
              * then append the suffix to the prefix already in the buffer.
              *
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
-             * data length to the prefix bytes.
+             * CURRENT data length to the prefix bytes before growing the buffer.
              */
+            WT_ASSERT(session, tmpkey->size >= key_prefix);
             tmpkey->size = key_prefix;
             WT_ERR(__wt_buf_grow(session, tmpkey, key_prefix + key_size));
             memcpy((uint8_t *)tmpkey->mem + key_prefix, key_data, key_size);

@@ -492,7 +492,6 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
      */
     if (cbt->rip_saved == NULL || cbt->rip_saved != rip - 1)
         goto slow;
-    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
 
     /*
      * Inline building simple prefix-compressed keys from a previous key.
@@ -500,9 +499,10 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
      * Grow the buffer as necessary as well as ensure data has been copied into local buffer space,
      * then append the suffix to the prefix already in the buffer.
      *
-     * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's data
-     * length to the prefix bytes.
+     * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's CURRENT
+     * data length to the prefix bytes before growing the buffer.
      */
+    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
     cbt->row_key->size = key_prefix;
     WT_RET(__wt_buf_grow(session, cbt->row_key, key_prefix + key_size));
     memcpy((uint8_t *)cbt->row_key->data + key_prefix, key_data, key_size);
