@@ -40,6 +40,19 @@ checkpoint.
 In this section, we'll dive into the file layout in more detail and talk about
 some of the core data structures used as part of block allocation.
 
+@subsection block_layout Block layout
+
+Each block consists of a page header, a block manager header followed by the
+actual page image.
+
+The page header contains some metadata about the page contents such as the type
+of page, whether it is compressed, whether it is encrypted, its write generation
+, etc.
+
+The block manager header is simpler. It contains the size of the following disk
+image as well as an optional checksum for when block-level checksumming is
+enabled.
+
 @subsection desc_block Descriptor block
 
 As discussed earlier, a file is divided up into blocks. The first block in a file
