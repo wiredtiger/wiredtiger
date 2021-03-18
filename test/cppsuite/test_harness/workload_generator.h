@@ -54,6 +54,10 @@ class workload_generator : public component {
             delete it;
     }
 
+    /* Delete the copy constructor and the assignment operator. */
+    workload_generator(const workload_generator &) = delete;
+    workload_generator &operator=(const workload_generator &) = delete;
+
     /*
      * Function that performs the following steps using the configuration that is defined by the
      * test:

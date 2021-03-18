@@ -126,6 +126,10 @@ class runtime_monitor : public component {
         _stats.clear();
     }
 
+    /* Delete the copy constructor and the assignment operator. */
+    runtime_monitor(const runtime_monitor &) = delete;
+    runtime_monitor &operator=(const runtime_monitor &) = delete;
+
     void
     load()
     {
