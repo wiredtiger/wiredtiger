@@ -779,14 +779,13 @@ __wt_rec_row_leaf(
         dictionary = false;
 
         /*
-         * Figure out the key: set any cell reference (and unpack it), set any instantiated key
-         * reference.
+         * Figure out if the key is an overflow key, and in that case unpack the cell, we'll need it
+         * later.
          */
         copy = WT_ROW_KEY_COPY(rip);
-        __wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL, NULL);
-        if (cell == NULL)
-            kpack = NULL;
-        else {
+        __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
+        kpack = NULL;
+        if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL) {
             kpack = &_kpack;
             __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
         }
@@ -988,26 +987,23 @@ __wt_rec_row_leaf(
              * the key from scratch.
              */
             __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
-            if (cell == NULL && key_prefix == 0) {
+            if (key_data == NULL) {
+                if (__wt_cell_type(cell) != WT_CELL_KEY)
+                    goto slow;
+                kpack = &_kpack;
+                __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+                key_data = kpack->data;
+                key_size = kpack->size;
+                key_prefix = kpack->prefix;
+            }
+            if (key_prefix == 0) {
                 tmpkey->data = key_data;
                 tmpkey->size = key_size;
                 goto build;
             }
 
-            if (cell != NULL) {
-                kpack = &_kpack;
-                __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-                if (kpack->type != WT_CELL_KEY)
-                    goto slow;
-                key_data = kpack->data;
-                key_size = kpack->size;
-                key_prefix = kpack->prefix;
-            }
-            if (tmpkey->size == 0 || tmpkey->size < key_prefix) {
-slow:
-                WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-                goto build;
-            }
+            if (tmpkey->size == 0 || tmpkey->size < key_prefix)
+                goto slow;
 
             /*
              * Grow the buffer as necessary, ensuring data has been copied into local buffer space,
@@ -1016,9 +1012,15 @@ slow:
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
              * data length to the prefix bytes.
              */
+            tmpkey->size = key_prefix;
             WT_ERR(__wt_buf_grow(session, tmpkey, key_prefix + key_size));
             memcpy((uint8_t *)tmpkey->mem + key_prefix, key_data, key_size);
             tmpkey->size = key_prefix + key_size;
+
+            if (0) {
+slow:
+                WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
+            }
 
 build:
             WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size, &ovfl_key));

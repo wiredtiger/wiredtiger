@@ -646,7 +646,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
               (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
                 (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
                   __wt_txn_tw_start_visible_all(session, &unpack.tw))))
-                __wt_row_leaf_value_set(page, rip - 1, &unpack);
+                __wt_row_leaf_value_set(rip - 1, &unpack);
             break;
         case WT_CELL_VALUE_OVFL:
             break;

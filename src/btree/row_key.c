@@ -127,11 +127,12 @@ __wt_row_leaf_key_work(
     WT_DECL_RET;
     WT_IKEY *ikey;
     WT_ROW *rip, *jump_rip;
-    size_t key_size;
+    size_t group_size, key_size;
+    uint32_t slot;
     u_int jump_slot_offset, slot_offset;
-    uint8_t key_prefix, last_prefix;
+    uint8_t group_prefix, key_prefix, last_prefix;
     void *copy;
-    const void *key_data;
+    const void *group_key, *key_data;
 
     /*
      * It is unusual to call this function: most code should be calling the front-end,
@@ -153,6 +154,8 @@ __wt_row_leaf_key_work(
     for (slot_offset = 0;;) {
         if (0) {
 switch_and_jump:
+            /* KEITH: we can lose some code by checking slot_offset == 0 here and returning. */
+
             /* Switching to a forward roll. */
             WT_ASSERT(session, direction == BACKWARD);
             direction = FORWARD;
@@ -161,6 +164,7 @@ switch_and_jump:
             rip = jump_rip;
             slot_offset = jump_slot_offset;
         }
+        /* The row-store key can change underfoot; explicitly take a copy. */
         copy = WT_ROW_KEY_COPY(rip);
 
         /*
@@ -169,20 +173,15 @@ switch_and_jump:
         __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
 
         /* 1: the test for a directly referenced on-page key. */
-        if (cell == NULL) {
+        if (ikey == NULL && key_data != NULL) {
             /*
-             * If there's a key without prefix compression, we're good to go. Prefix compression
-             * means we don't yet have a key, but there's a special case: if the key is part of the
-             * group of compressed key prefixes we saved when reading the page into memory, we can
-             * build a key for this slot. Otherwise we have to keep rolling forward or backward.
+             * If there's a key without prefix compression, we're good to go, otherwise we have to
+             * deal with the prefix.
              */
             if (key_prefix == 0) {
                 keyb->data = key_data;
                 keyb->size = key_size;
-            } else if (slot_offset > page->prefix_start && slot_offset <= page->prefix_stop)
-                WT_RET(__wt_row_leaf_key_prefix_group(
-                  session, page, keyb, key_data, key_size, key_prefix));
-            else
+            } else
                 goto prefix_continue;
 
             /*
@@ -191,7 +190,7 @@ switch_and_jump:
              * normally happen, the fast-path code that front-ends this function will have figured
              * it out before we were called.
              *
-             * The key doesn't need to be instantiated, skip past that test.
+             * The key doesn't need to be instantiated, just return.
              */
             if (slot_offset == 0)
                 return (0);
@@ -215,7 +214,7 @@ switch_and_jump:
              * backward, or if it's an overflow key or not, it's what we wanted. Take a copy and
              * wrap up.
              *
-             * The key doesn't need to be instantiated, skip past that test.
+             * The key doesn't need to be instantiated, just return.
              */
             if (slot_offset == 0) {
                 keyb->data = key_data;
@@ -253,9 +252,7 @@ switch_and_jump:
             goto next;
         }
 
-        /*
-         * It must be an on-page cell, unpack it.
-         */
+        /* Unpack the on-page cell. */
         __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
 
         /* 3: the test for an on-page reference to an overflow key. */
@@ -273,6 +270,13 @@ switch_and_jump:
              */
             if (slot_offset == 0) {
                 __wt_readlock(session, &btree->ovfl_lock);
+                /*
+                 * KEITH I think there's a race here -- it's a long one, but if the object is
+                 * removed after we check the row-store info and decide to read the cell, but before
+                 * we acquire this read lock, the cell might have been removed when we try to read
+                 * it here. The comment above seems to indicate there was additional work going on
+                 * here at some point.
+                 */
                 ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 __wt_readunlock(session, &btree->ovfl_lock);
                 WT_RET(ret);
@@ -292,8 +296,7 @@ switch_and_jump:
         }
 
         /*
-         * 4: the test for an on-page reference to a key that isn't
-         * prefix compressed.
+         * 4: the test for an on-page reference to a key that isn't prefix compressed.
          */
         if (unpack->prefix == 0) {
             /*
@@ -308,7 +311,7 @@ switch_and_jump:
              * If rolling forward there's a bug, we should have found this key while rolling
              * backwards and switched directions then.
              *
-             * The key doesn't need to be instantiated, skip past that test.
+             * The key doesn't need to be instantiated, just return.
              */
             WT_RET(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb));
             if (slot_offset == 0)
@@ -321,6 +324,37 @@ switch_and_jump:
         key_prefix = unpack->prefix;
 
 prefix_continue:
+        /*
+         * Proceed with a prefix-compressed key.
+         *
+         * Prefix compression means we don't yet have a key, but there's a special case: if the key
+         * is part of the group of compressed key prefixes we saved when reading the page into
+         * memory, we can build a key for this slot. Otherwise we have to keep rolling forward or
+         * backward.
+         */
+        slot = WT_ROW_SLOT(page, rip);
+        if (slot > page->prefix_start && slot <= page->prefix_stop) {
+            /* The row-store key can change underfoot; explicitly take a copy. */
+            copy = WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]);
+
+            __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
+            if (group_key != NULL) {
+                WT_RET(__wt_buf_grow(session, keyb, key_prefix + key_size));
+                memcpy(keyb->mem, group_key, key_prefix);
+                memcpy((uint8_t *)keyb->mem + key_prefix, key_data, key_size);
+                keyb->size = key_prefix + key_size;
+                /*
+                 * If this is the key we originally wanted, we don't care if we're rolling forward
+                 * or backward, it's what we want.
+                 *
+                 * The key doesn't need to be instantiated, just return.
+                 */
+                if (slot_offset == 0)
+                    return (0);
+                goto switch_and_jump;
+            }
+        }
+
         /*
          * 5: an on-page reference to a key that's prefix compressed.
          *
@@ -354,6 +388,8 @@ prefix_continue:
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
              * data length to the prefix bytes.
              */
+            WT_ASSERT(session, keyb->size >= key_prefix);
+            keyb->size = key_prefix;
             WT_RET(__wt_buf_grow(session, keyb, key_prefix + key_size));
             memcpy((uint8_t *)keyb->data + key_prefix, key_data, key_size);
             keyb->size = key_prefix + key_size;
@@ -389,7 +425,10 @@ next:
     if (instantiate) {
         copy = WT_ROW_KEY_COPY(rip_arg);
         __wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL, NULL);
-        WT_ASSERT(session, ikey == NULL && cell != NULL);
+
+        /* Check if we raced with another thread instantiating the key before doing real work. */
+        if (ikey != NULL)
+            return (0);
         WT_RET(__wt_row_ikey_alloc(
           session, WT_PAGE_DISK_OFFSET(page, cell), keyb->data, keyb->size, &ikey));
 

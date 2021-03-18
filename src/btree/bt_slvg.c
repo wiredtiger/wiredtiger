@@ -1994,10 +1994,8 @@ __slvg_row_ovfl(
     for (rip = page->pg_row + start; start < stop; ++start, ++rip) {
         copy = WT_ROW_KEY_COPY(rip);
         __wt_row_leaf_key_info(page, copy, NULL, &cell, NULL, NULL, NULL);
-        if (cell != NULL) {
-            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
-        }
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+        WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
         __wt_row_leaf_value_cell(session, page, rip, &unpack);
         WT_RET(__slvg_row_ovfl_single(session, trk, &unpack));
     }

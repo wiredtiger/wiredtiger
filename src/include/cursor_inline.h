@@ -468,35 +468,31 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * First, check for an immediately available key.
+     * Check for an immediately available key from an encoded or instantiated key, and if that's not
+     * available, from the unpacked cell.
      */
     __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
-    if (cell == NULL && key_prefix == 0) {
+    if (key_data == NULL) {
+        if (__wt_cell_type(cell) != WT_CELL_KEY)
+            goto slow;
+        __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+        key_data = kpack->data;
+        key_size = kpack->size;
+        key_prefix = kpack->prefix;
+    }
+    if (key_prefix == 0) {
         kb->data = key_data;
         kb->size = key_size;
         return (0);
     }
 
     /*
-     * Get a key: we could just call __wt_row_leaf_key, but as a cursor is running through the tree,
-     * we may have the fully-built key that's immediately before the prefix-compressed key we want,
-     * so it's a faster construction.
+     * A prefix compressed key. As a cursor is running through the tree, we may have the fully-built
+     * key immediately before the prefix-compressed key we want, so it's faster to build here.
      */
     if (cbt->rip_saved == NULL || cbt->rip_saved != rip - 1)
         goto slow;
-
-    /*
-     * We either have a prefix-compressed on-page key or a reference to the cell. If it's a cell,
-     * unpack it and deal with overflow keys.
-     */
-    if (cell != NULL) {
-        __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-        if (kpack->type != WT_CELL_KEY)
-            goto slow;
-        key_data = kpack->data;
-        key_size = kpack->size;
-        key_prefix = kpack->prefix;
-    }
+    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
 
     /*
      * Inline building simple prefix-compressed keys from a previous key.
@@ -507,15 +503,15 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
      * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's data
      * length to the prefix bytes.
      */
-    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
+    cbt->row_key->size = key_prefix;
     WT_RET(__wt_buf_grow(session, cbt->row_key, key_prefix + key_size));
     memcpy((uint8_t *)cbt->row_key->data + key_prefix, key_data, key_size);
     cbt->row_key->size = key_prefix + key_size;
 
     if (0) {
 slow: /*
-       * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we already did
-       * __wt_row_leaf_key's fast-path checks inline.
+       * Call __wt_row_leaf_key_work() instead of __wt_row_leaf_key(): we already did the
+       * __wt_row_leaf_key() fast-path checks inline.
        */
         WT_RET(__wt_row_leaf_key_work(session, page, rip, cbt->row_key, false));
     }

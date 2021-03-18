@@ -893,9 +893,10 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * This function returns information from set of things about the key (WT_IKEY reference, cell
      * reference and/or key/length/prefix triplet). Our callers know the order we resolve items and
      * what information will be returned. Specifically, the caller gets a key (in the form of a
-     * pointer to the bytes, a length and a prefix length), plus a possible WT_IKEY reference, OR
-     * a pointer to an on-page cell. In other words, our caller's test is generally if there is a
-     * returned cell or not.
+     * pointer to the bytes, a length and a prefix length in all cases where we can get it without
+     * unpacking a cell), plus an optional WT_IKEY reference, and in all cases, a pointer to the
+     * on-page cell. Our caller's test is generally if there is a returned key or not, falling back
+     * to the returned cell.
      *
      * Now the magic: allocated memory must be aligned to store any standard type and we expect some
      * standard type to require at least quad-byte alignment, so allocated memory should have two
@@ -907,70 +908,88 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * key, 0x03 to mark an on-page key/value pair, otherwise it's a WT_IKEY reference. The bit
      * pattern for on-page cells is:
      *
-     *	29 bits		page offset of the key's cell (512MB),
+     *	29 bits		offset of the key's cell (512MB)
      *	 2 bits		0x01 flag
      *
      * The on-page cell is our fallback: if a key or value won't fit into our encoding (unlikely,
      * but possible), we fall back to using a cell reference, which obviously has enough room for
      * all possible values.
      *
-     * The bit pattern for on-page keys is:
-     *	22 bits		key length (4MB),
-     *   8 bits		key prefix (256B),
-     *	29 bits		page offset of the key's bytes (512MB),
+     * The next encoding is for on-page keys:
+     *
+     *	19 bits		key length (512KB)
+     *   6 bits		offset of the key's bytes from the key's cell (32B)
+     *   8 bits		key prefix (256B)
+     *	29 bits		offset of the key's cell (512MB)
      *	 2 bits		0x02 flag
      *
      * But, while that allows us to skip decoding simple key cells, we also want to skip decoding
-     * the value cell in the case where the value cell is also simple/short. We use bit 0x03 to mark
-     * an encoded on-page key and value pair. The bit pattern for on-page key/value pairs is:
+     * value cells in the case where the value cell is also simple/short. We use bit 0x03 to mark
+     * an encoded on-page key and value pair. The encoding for on-page key/value pairs is:
      *
-     *	12 bits		key length (4KB),
-     *   8 bits		key prefix (256B),
-     *	13 bits		value length (8KB),
-     *	17 bits		page offset of the key's bytes (128KB),
-     *	12 bits		offset of the value's bytes from key's bytes (4KB),
+     *  13 bits		value's length (8KB)
+     *   6 bits		offset of the value's bytes from the end of the key's cell (32B)
+     *  12 bits		key's length (4KB)
+     *   6 bits		offset of the key's bytes from the key's cell (32B)
+     *   8 bits		key's prefix (256B, the maximum possible value))
+     *  17 bits		offset of the key's cell (128KB)
      *	 2 bits		0x03 flag
+     *
+     * A reason for the complexity here is we need to be able to find the key and value cells from
+     * the encoded form: for that reason we store an offset to the key cell plus a second offset to
+     * the start of the key's bytes. Finding the value cell is reasonably straight-forward, we use
+     * the location of the key to find the cell immediately following the key.
      *
      * Generally, the bitfields are expected to be larger than the stored items (4/8KB keys/values,
      * 128KB pages), but the underlying limits are larger and we can see items we cannot encode in
      * this way.  For example, if an application creates pages larger than 128KB, encoded key/value
-     * offsets after the maximum offset, that is, at the end of the page, would no longer be
-     * possible to encode. If that's a problem, as these bit patterns are in-memory only, they can
-     * be easily changed (we could even tune for specific workloads in specific trees).
+     * offsets after the maximum offset (the offsets of cells at the end of the page), couldn't be
+     * encoded. If that's not working, these bit patterns can be changed as they are in-memory only
+     * (we could even tune for specific workloads in specific trees).
      */
 #define WT_KEY_FLAG_BITS 0x03
 
 #define WT_CELL_FLAG 0x01
+/* key cell offset field size can hold maximum value, WT_CELL_MAX_KEY_CELL_OFFSET not needed. */
 #define WT_CELL_ENCODE_OFFSET(v) ((uintptr_t)(v) << 2)
 #define WT_CELL_DECODE_OFFSET(v) ((v) >> 2)
 
 #define WT_K_FLAG 0x02
-#define WT_K_MAX_KEY_LEN (0x400000 - 1)
-#define WT_K_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 39)
-#define WT_K_DECODE_KEY_LEN(v) (((v)&0x1fffff8000000000) >> 39)
-#define WT_K_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 31)
+#define WT_K_MAX_KEY_LEN (0x80000 - 1)
+#define WT_K_DECODE_KEY_LEN(v) (((v)&0xffffe00000000000) >> 45)
+#define WT_K_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 45)
+#define WT_K_MAX_KEY_OFFSET (0x40 - 1)
+#define WT_K_DECODE_KEY_OFFSET(v) (((v)&0x001f8000000000) >> 39)
+#define WT_K_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 39)
+/* Key prefix field size can hold maximum value, WT_K_MAX_KEY_PREFIX not needed. */
 #define WT_K_DECODE_KEY_PREFIX(v) (((v)&0x00007f80000000) >> 31)
-#define WT_K_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 2)
-#define WT_K_DECODE_KEY_OFFSET(v) (((v)&0x0000007ffffffc) >> 2)
+#define WT_K_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 31)
+/* Key cell offset field size can hold maximum value, WT_K_MAX_KEY_CELL_OFFSET not needed. */
+#define WT_K_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000007ffffffc) >> 2)
+#define WT_K_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
 
 #define WT_KV_FLAG 0x03
-#define WT_KV_MAX_KEY_LEN (0x1000 - 1)
-#define WT_KV_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 52)
-#define WT_KV_DECODE_KEY_LEN(v) (((v)&0xfff0000000000000) >> 52)
-#define WT_KV_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 44)
-#define WT_KV_DECODE_KEY_PREFIX(v) (((v)&0x0ff00000000000) >> 44)
 #define WT_KV_MAX_VALUE_LEN (0x2000 - 1)
-#define WT_KV_ENCODE_VALUE_LEN(v) ((uintptr_t)(v) << 31)
-#define WT_KV_DECODE_VALUE_LEN(v) (((v)&0x000fff80000000) >> 31)
-#define WT_KV_MAX_KEY_OFFSET (0x20000 - 1)
-#define WT_KV_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 14)
-#define WT_KV_DECODE_KEY_OFFSET(v) (((v)&0x0000007fffc000) >> 14)
-#define WT_KV_MAX_VALUE_OFFSET (0x1000 - 1)
-#define WT_KV_ENCODE_VALUE_OFFSET(v) ((uintptr_t)(v) << 2)
-#define WT_KV_DECODE_VALUE_OFFSET(v) (((v)&0x00000000003ffc) >> 2)
+#define WT_KV_DECODE_VALUE_LEN(v) (((v)&0xfff8000000000000) >> 51)
+#define WT_KV_ENCODE_VALUE_LEN(v) ((uintptr_t)(v) << 51)
+#define WT_KV_MAX_VALUE_OFFSET (0x40 - 1)
+#define WT_KV_DECODE_VALUE_OFFSET(v) (((v)&0x07e00000000000) >> 45)
+#define WT_KV_ENCODE_VALUE_OFFSET(v) ((uintptr_t)(v) << 45)
+#define WT_KV_MAX_KEY_LEN (0x1000 - 1)
+#define WT_KV_DECODE_KEY_LEN(v) (((v)&0x001ffe00000000) >> 33)
+#define WT_KV_ENCODE_KEY_LEN(v) ((uintptr_t)(v) << 33)
+/* Key offset encoding is the same for key and key/value forms, WT_KV_MAX_KEY_OFFSET not needed. */
+#define WT_KV_DECODE_KEY_OFFSET(v) (((v)&0x000001f8000000) >> 27)
+#define WT_KV_ENCODE_KEY_OFFSET(v) ((uintptr_t)(v) << 27)
+/* Key prefix encoding is the same for key and key/value forms, WT_KV_MAX_KEY_PREFIX not needed. */
+#define WT_KV_DECODE_KEY_PREFIX(v) (((v)&0x00000007f80000) >> 19)
+#define WT_KV_ENCODE_KEY_PREFIX(v) ((uintptr_t)(v) << 19)
+#define WT_KV_MAX_KEY_CELL_OFFSET (0x20000 - 1)
+#define WT_KV_DECODE_KEY_CELL_OFFSET(v) (((v)&0x0000000007fffc) >> 2)
+#define WT_KV_ENCODE_KEY_CELL_OFFSET(v) ((uintptr_t)(v) << 2)
+
     switch (v & WT_KEY_FLAG_BITS) {
-    case WT_CELL_FLAG:
-        /* On-page cell: no instantiated key. */
+    case WT_CELL_FLAG: /* On-page cell. */
         if (ikeyp != NULL)
             *ikeyp = NULL;
         if (cellp != NULL)
@@ -980,43 +999,45 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
             *sizep = 0;
             *prefixp = 0;
         }
-        return;
-    case WT_K_FLAG:
-        /* Encoded key: no instantiated key, no cell. */
+        break;
+    case WT_K_FLAG: /* Encoded key. */
         if (ikeyp != NULL)
             *ikeyp = NULL;
         if (cellp != NULL)
-            *cellp = NULL;
+            *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_CELL_OFFSET(v));
         if (datap != NULL) {
-            *(void **)datap = WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_OFFSET(v));
+            *(void **)datap =
+              WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_CELL_OFFSET(v) + WT_K_DECODE_KEY_OFFSET(v));
             *sizep = WT_K_DECODE_KEY_LEN(v);
             *prefixp = WT_K_DECODE_KEY_PREFIX(v);
         }
-        return;
-    case WT_KV_FLAG:
-        /* Encoded key/value pair: no instantiated key, no cell. */
+        break;
+    case WT_KV_FLAG: /* Encoded key/value pair. */
         if (ikeyp != NULL)
             *ikeyp = NULL;
         if (cellp != NULL)
-            *cellp = NULL;
+            *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v));
         if (datap != NULL) {
-            *(void **)datap = WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_OFFSET(v));
+            *(void **)datap = WT_PAGE_REF_OFFSET(
+              page, WT_KV_DECODE_KEY_CELL_OFFSET(v) + WT_KV_DECODE_KEY_OFFSET(v));
             *sizep = WT_KV_DECODE_KEY_LEN(v);
             *prefixp = WT_KV_DECODE_KEY_PREFIX(v);
         }
-        return;
-    }
-
-    /* Instantiated key. */
-    ikey = (WT_IKEY *)copy;
-    if (ikeyp != NULL)
-        *ikeyp = (WT_IKEY *)copy;
-    if (cellp != NULL)
-        *cellp = (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
-    if (datap != NULL) {
-        *(void **)datap = WT_IKEY_DATA(ikey);
-        *sizep = ikey->size;
-        *prefixp = 0;
+        break;
+    default: /* Instantiated key. */
+        ikey = (WT_IKEY *)copy;
+        if (ikeyp != NULL)
+            *ikeyp = ikey;
+        if (cellp != NULL)
+            *cellp = ikey->cell_offset == 0 ?
+              NULL :
+              (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+        if (datap != NULL) {
+            *(void **)datap = WT_IKEY_DATA(ikey);
+            *sizep = ikey->size;
+            *prefixp = 0;
+        }
+        break;
     }
 }
 
@@ -1027,54 +1048,62 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
 static inline void
 __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
 {
-    uintptr_t v;
+    uintptr_t key_offset, v;
 
     /*
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
+     *
+     * Not checking the prefix and cell offset sizes, the fields hold any legitimate value.
      */
-    if (unpack->type == WT_CELL_KEY_OVFL || unpack->size > WT_K_MAX_KEY_LEN)
+    key_offset = (uintptr_t)WT_PTRDIFF(unpack->cell, unpack->data);
+    if (unpack->type != WT_CELL_KEY || key_offset > WT_K_MAX_KEY_OFFSET ||
+      unpack->size > WT_K_MAX_KEY_LEN)
         v = WT_CELL_ENCODE_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->cell)) | WT_CELL_FLAG;
     else
-        v = WT_K_ENCODE_KEY_LEN(unpack->size) | WT_K_ENCODE_KEY_PREFIX(unpack->prefix) |
-          WT_K_ENCODE_KEY_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->data)) | WT_K_FLAG;
+        v = WT_K_ENCODE_KEY_CELL_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->cell)) |
+          WT_K_ENCODE_KEY_PREFIX(unpack->prefix) | WT_K_ENCODE_KEY_OFFSET(key_offset) |
+          WT_K_ENCODE_KEY_LEN(unpack->size) | WT_K_FLAG;
+
     WT_ROW_KEY_SET(rip, v);
 }
 
 /*
  * __wt_row_leaf_value_set --
- *     Set a WT_ROW to reference an on-page row-store leaf value, if possible.
+ *     Set a WT_ROW to reference an on-page row-store leaf key and value pair, if possible.
  */
 static inline void
-__wt_row_leaf_value_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
+__wt_row_leaf_value_set(WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
 {
-    uintptr_t key_len, key_offset, key_prefix, value_offset, v;
+    uintptr_t value_offset, v;
 
+    /* The row-store key can change underfoot; explicitly take a copy. */
     v = (uintptr_t)WT_ROW_KEY_COPY(rip);
 
     /*
      * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
+     *
+     * Only encoded keys can be upgraded to encoded key/value pairs.
      */
-    if ((v & WT_KEY_FLAG_BITS) != WT_K_FLAG) /* Only fast-path keys can include fast-path values. */
+    if ((v & WT_KEY_FLAG_BITS) != WT_K_FLAG)
         return;
 
-    key_len = WT_K_DECODE_KEY_LEN(v); /* Key length */
-    if (key_len > WT_KV_MAX_KEY_LEN)
+    if (WT_K_DECODE_KEY_CELL_OFFSET(v) > WT_KV_MAX_KEY_CELL_OFFSET) /* Key cell offset */
         return;
-    key_prefix = WT_K_DECODE_KEY_PREFIX(v); /* Key prefix */
-    key_offset = WT_K_DECODE_KEY_OFFSET(v); /* Key offset */
-    if (key_offset > WT_KV_MAX_KEY_OFFSET)
+    /* Not checking the prefix size, the field sizes are the same in both encodings. */
+    /* Not checking the key offset, the field sizes are the same in both encodings. */
+    if (WT_K_DECODE_KEY_LEN(v) > WT_KV_MAX_KEY_LEN) /* Key len */
         return;
-
+    value_offset = (uintptr_t)WT_PTRDIFF(unpack->cell, unpack->data);
+    if (value_offset > WT_KV_MAX_VALUE_OFFSET) /* Value offset */
+        return;
     if (unpack->size > WT_KV_MAX_VALUE_LEN) /* Value length */
         return;
-    value_offset = WT_PAGE_DISK_OFFSET(page, unpack->data);
-    value_offset -= key_offset;
-    if (value_offset > WT_KV_MAX_VALUE_OFFSET)
-        return;
 
-    v = WT_KV_ENCODE_KEY_LEN(key_len) | WT_KV_ENCODE_KEY_PREFIX(key_prefix) |
-      WT_KV_ENCODE_VALUE_LEN(unpack->size) | WT_KV_ENCODE_KEY_OFFSET(key_offset) |
-      WT_KV_ENCODE_VALUE_OFFSET(value_offset) | WT_KV_FLAG;
+    v = WT_KV_ENCODE_KEY_CELL_OFFSET(WT_K_DECODE_KEY_CELL_OFFSET(v)) |
+      WT_KV_ENCODE_KEY_PREFIX(WT_K_DECODE_KEY_PREFIX(v)) |
+      WT_KV_ENCODE_KEY_OFFSET(WT_K_DECODE_KEY_OFFSET(v)) |
+      WT_KV_ENCODE_KEY_LEN(WT_K_DECODE_KEY_LEN(v)) | WT_KV_ENCODE_VALUE_OFFSET(value_offset) |
+      WT_KV_ENCODE_VALUE_LEN(unpack->size) | WT_KV_FLAG;
     WT_ROW_KEY_SET(rip, v);
 }
 
@@ -1088,38 +1117,15 @@ __wt_row_leaf_key_free(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip)
     WT_IKEY *ikey;
     void *copy;
 
-    /*
-     * If the key was an allocation (that is, if it points somewhere other than the original page),
-     * free the memory.
-     *
-     * The row-store key can change underfoot; explicitly take a copy.
-     */
+    /* The row-store key can change underfoot; explicitly take a copy. */
     copy = WT_ROW_KEY_COPY(rip);
+
+    /*
+     * If the key was a WT_IKEY allocation (that is, if it points somewhere other than the original
+     * page), free the memory.
+     */
     __wt_row_leaf_key_info(page, copy, &ikey, NULL, NULL, NULL, NULL);
     __wt_free(session, ikey);
-}
-
-/*
- * __wt_row_leaf_key_prefix_group --
- *     Set a buffer to reference a row-store leaf page key when the key is part of the saved group
- *     of prefix-compressed keys created when a page is read.
- */
-static inline int
-__wt_row_leaf_key_prefix_group(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ITEM *key,
-  const void *key_data, size_t key_size, uint8_t key_prefix)
-{
-    size_t first_size;
-    uint8_t first_prefix;
-    const void *first_key;
-
-    WT_ASSERT(session, key_prefix != 0);
-
-    __wt_row_leaf_key_info(page, WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]), NULL, NULL,
-      &first_key, &first_size, &first_prefix);
-    WT_RET(__wt_buf_initsize(session, key, key_prefix + key_size));
-    memcpy(key->mem, first_key, key_prefix);
-    memcpy((uint8_t *)key->mem + key_prefix, key_data, key_size);
-    return (0);
 }
 
 /*
@@ -1131,11 +1137,11 @@ __wt_row_leaf_key(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_ITEM *key, bool instantiate)
 {
     WT_CELL *cell;
-    size_t key_size;
+    size_t group_size, key_size;
     uint32_t slot;
-    uint8_t key_prefix;
+    uint8_t group_prefix, key_prefix;
     void *copy;
-    const void *key_data;
+    const void *group_key, *key_data;
 
     /*
      * A front-end for __wt_row_leaf_key_work, here to inline fast paths. Handle on-page keys (which
@@ -1153,14 +1159,25 @@ __wt_row_leaf_key(
      * was compressed.
      */
     __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
-    if (cell == NULL && key_prefix == 0) {
+    if (key_data != NULL && key_prefix == 0) {
         key->data = key_data;
         key->size = key_size;
         return (0);
     }
     slot = WT_ROW_SLOT(page, rip);
-    if (cell == NULL && slot > page->prefix_start && slot <= page->prefix_stop)
-        return (__wt_row_leaf_key_prefix_group(session, page, key, key_data, key_size, key_prefix));
+    if (key_data != NULL && slot > page->prefix_start && slot <= page->prefix_stop) {
+        /* The row-store key can change underfoot; explicitly take a copy. */
+        copy = WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]);
+        __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
+        if (group_key != NULL) {
+            WT_ASSERT(session, group_size >= key_prefix);
+            WT_RET(__wt_buf_grow(session, key, key_prefix + key_size));
+            memcpy(key->mem, group_key, key_prefix);
+            memcpy((uint8_t *)key->mem + key_prefix, key_data, key_size);
+            key->size = key_prefix + key_size;
+            return (0);
+        }
+    }
 
     /*
      * The alternative is an on-page cell with some kind of compressed or overflow key that's never
@@ -1199,17 +1216,22 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
     /* The row-store key can change underfoot; explicitly take a copy. */
     v = (uintptr_t)WT_ROW_KEY_COPY(rip);
 
-    /*
-     * Normally a value is represented by the value's cell in the disk image (or an update), but
-     * there is a fast path for returning a simple value, where it's worth the additional effort of
-     * encoding the value in the per-row reference and retrieving it. This function does that work,
-     * while most value retrieval goes through the "return the cell" version.
-     *
-     * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
-     */
     if ((v & WT_KEY_FLAG_BITS) == WT_KV_FLAG) {
-        value->data =
-          WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_OFFSET(v) + WT_KV_DECODE_VALUE_OFFSET(v));
+        /*
+         * See the comment in __wt_row_leaf_key_info for an explanation of the magic.
+         *
+         * Normally a value is represented by the value's cell in the disk image (or an update), but
+         * there is a fast path for returning a simple value, where it's worth the additional effort
+         * of encoding the value in the per-row reference and retrieving it. This function does that
+         * work, while most value retrieval goes through the "return the unpacked cell" version.
+         *
+         * The value's data is the page offset of the key's cell, plus the key's offset, plus the
+         * key's size, plus the value's offset: in other words, we know where the key's cell starts,
+         * the key's data ends the key's cell, and the value cell immediately follows, Skip past the
+         * key cell to the value cell, then skip to the start of the value's data.
+         */
+        value->data = (uint8_t *)WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v)) +
+          WT_KV_DECODE_KEY_OFFSET(v) + WT_KV_DECODE_KEY_LEN(v) + WT_KV_DECODE_VALUE_OFFSET(v);
         value->size = WT_KV_DECODE_VALUE_LEN(v);
         return (true);
     }
@@ -1226,28 +1248,38 @@ __wt_row_leaf_value_cell(
 {
     WT_CELL *kcell, *vcell;
     WT_CELL_UNPACK_KV unpack;
-    size_t size;
-    uint8_t prefix;
-    void *copy, *key;
+    WT_IKEY *ikey;
+    uintptr_t v;
 
-    size = 0;   /* -Werror=maybe-uninitialized */
-    key = NULL; /* -Werror=maybe-uninitialized */
+    /* The row-store key can change underfoot; explicitly take a copy. */
+    v = (uintptr_t)WT_ROW_KEY_COPY(rip);
 
-    /*
-     * The row-store key can change underfoot; explicitly take a copy.
-     */
-    copy = WT_ROW_KEY_COPY(rip);
+    kcell = vcell = NULL;
+    switch (v & WT_KEY_FLAG_BITS) {
+    case WT_CELL_FLAG:
+        /* We have a direct reference the key's cell, step past it to the value's cell. */
+        kcell = (WT_CELL *)WT_PAGE_REF_OFFSET(page, WT_CELL_DECODE_OFFSET(v));
+        break;
+    case WT_K_FLAG:
+        /* We have an encoded on-page key, the value's cell follows the key's data. */
+        vcell = (WT_CELL *)((uint8_t *)WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_CELL_OFFSET(v)) +
+          WT_K_DECODE_KEY_OFFSET(v) + WT_K_DECODE_KEY_LEN(v));
+        break;
+    case WT_KV_FLAG:
+        /* We have an encoded on-page key/value pair, the value's cell follows the key's data. */
+        vcell = (WT_CELL *)((uint8_t *)WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v)) +
+          WT_KV_DECODE_KEY_OFFSET(v) + WT_KV_DECODE_KEY_LEN(v));
+        break;
+    default:
+        /* We have an instantiated key, the key cell's offset is included in the structure. */
+        ikey = (WT_IKEY *)v;
+        kcell =
+          ikey->cell_offset == 0 ? NULL : (WT_CELL *)WT_PAGE_REF_OFFSET(page, ikey->cell_offset);
+        break;
+    }
 
-    /*
-     * Figure out where the key is and step past it to the value cell. If we have information about
-     * an on-page key, we can use that information to step past the key to the value (a value starts
-     * immediately after its key), otherwise we have to crack the on-page key cell first, then step
-     * past it.
-     */
-    __wt_row_leaf_key_info(page, copy, NULL, &kcell, &key, &size, &prefix);
-    if (kcell == NULL)
-        vcell = (WT_CELL *)((uint8_t *)key + size);
-    else {
+    /* If we only have the key cell, unpack it and skip past it to the value cell. */
+    if (vcell == NULL) {
         __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
         vcell = (WT_CELL *)((uint8_t *)unpack.cell + __wt_cell_total_len(&unpack));
     }
