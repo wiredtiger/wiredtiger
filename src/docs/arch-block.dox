@@ -42,8 +42,8 @@ some of the core data structures used as part of block allocation.
 
 @subsection block_layout Block layout
 
-Each block consists of a page header, a block manager header followed by the
-actual page image.
+Each block consists of a page header, followed by a block manager header,
+followed by the actual page image.
 
 The page header contains some metadata about the page contents such as the type
 of page, whether it is compressed, whether it is encrypted, its write generation
