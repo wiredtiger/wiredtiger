@@ -54,7 +54,7 @@ class connection_manager {
     instance()
     {
         static connection_manager _instance;
-        return _instance;
+        return (_instance);
     }
 
     void
@@ -67,7 +67,7 @@ class connection_manager {
     }
 
     void
-    create(std::string home = DEFAULT_DIR)
+    create(const std::string &config, const std::string &home = DEFAULT_DIR)
     {
         if (_conn != nullptr) {
             debug_info("connection is not NULL, cannot be re-opened.", _trace_level, DEBUG_ERROR);
@@ -78,7 +78,7 @@ class connection_manager {
         testutil_make_work_dir(home.c_str());
 
         /* Open conn. */
-        testutil_check(wiredtiger_open(home.c_str(), NULL, CONNECTION_CREATE, &_conn));
+        testutil_check(wiredtiger_open(home.c_str(), NULL, config.c_str(), &_conn));
     }
 
     WT_SESSION *
@@ -96,7 +96,18 @@ class connection_manager {
         testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
         _conn_mutex.unlock();
 
-        return session;
+        return (session);
+    }
+
+    /*
+     * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
+     */
+    void
+    set_timestamp(const std::string &config)
+    {
+        _conn_mutex.lock();
+        testutil_check(_conn->set_timestamp(_conn, config.c_str()));
+        _conn_mutex.unlock();
     }
 
     private:
