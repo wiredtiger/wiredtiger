@@ -2,7 +2,7 @@
 
 The WiredTiger block manager subsystem manages the reading and writing of data
 from the disk. It is designed to facilitate high performance, economic use of
-disk space and customizability.
+disk space and customisability.
 
 @section block What is a block?
 
@@ -31,7 +31,7 @@ block in the data file. In the case of checkpoint, the newly written block is
 bound to the current checkpoint and in the case of eviction, it is associated
 with the next checkpoint.
 
-@section block_impl How the block manager is implemented
+@section block_implementation How the block manager is implemented
 
 We've already discussed the concept of a block and how the data file's on-disk
 representation is divided into smaller blocks that are each associated with a
@@ -50,7 +50,7 @@ of page, whether it is compressed, whether it is encrypted, its write generation
 , etc.
 
 The block manager header is simpler. It contains the size of the following disk
-image as well as an optional checksum for when block-level checksumming is
+image as well as an optional checksum for when block-level checksums are
 enabled.
 
 @subsection desc_block Descriptor block
@@ -88,7 +88,7 @@ extent size to aid with allocating new blocks.
 @section configuration Configuration options
 
 There are a number of configuration options that affect the block manager's
-behaviour. This does not aim to be an exhaustive list, however, these are the
+behavior. This does not aim to be an exhaustive list, however, these are the
 configuration options that are more commonly of interest to users.
 
 All of the configuration options below are passed into the \c WT_SESSION::create
@@ -126,7 +126,7 @@ encryption algorithm you desire.
 The \c checksum configuration controls whether blocks have a checksum stored
 alongside them. With block checksums enabled, a block write to disk is
 accompanied by a checksum of the block contents. When that block is read off the
-disk to reconstruct a page, we recompute the checksum and verify that is is the
+disk to reconstruct a page, we recompute the checksum and verify that is the
 same to defend against the risk of file corruption.
 
 */
