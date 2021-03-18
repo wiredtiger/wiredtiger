@@ -20,7 +20,7 @@ be interleaved).
 
 @section block_usage How WiredTiger uses the block manager
 
-Whenever a page is read into the cache, WiredTiger will read it's corresponding
+Whenever a page is read into the cache, WiredTiger will read its corresponding
 block from the data file. This block contains what's referred to as the
 "page image" in other subsystems and has the newest versions of data for each
 key.
@@ -64,8 +64,8 @@ The descriptor block serves as a safety check to ensure that the file being
 loaded into the block manager is actually a WiredTiger data file, that it
 belongs to a compatible version of WiredTiger and that the entire file has not
 been corrupted. WiredTiger also offers block-level checksums to defend against
-file corruption at a more granular level, which can be found in the \c checksum
-section.
+file corruption at a more granular level, which can be found in the
+\ref checksum section.
 
 @subsection block_lists Extent lists
 
@@ -76,9 +76,10 @@ track a portion of the file.
 
 There are three extent lists that are maintained per checkpoint:
 
-- Alloc: The extents allocated for a given checkpoint.
-- Avail: The extents that are unused and available for allocation.
-- Discard: The extents freed in this checkpoint.
+- \c alloc: The extents allocated for a given checkpoint.
+- \c avail: The extents that are unused and available for allocation.
+- \c discard: The extents freed in the current checkpoint. After the checkpoint
+completes, these extents are shifted to the \c avail extent list.
 
 The alloc and discard extent lists are maintained as a skiplist sorted by file
 offset. The avail extent list also maintains an extra skiplist sorted by the
