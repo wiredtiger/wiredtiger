@@ -1443,6 +1443,8 @@ extern int __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *c
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg,
+  WT_BUCKET_STORAGE *bstorage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive,
   const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])

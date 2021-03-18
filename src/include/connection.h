@@ -40,7 +40,7 @@ struct __wt_bucket_storage {
     int owned;                         /* Storage needs to be terminated */
     uint64_t object_size;              /* Tiered object size */
     uint64_t retain_secs;              /* Tiered period */
-    const char *kmsid;                 /* Tiered authentication cookie */
+    const char *auth_token;            /* Tiered authentication cookie */
     WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
     /* Linked list of bucket storage entries */
     TAILQ_ENTRY(__wt_bucket_storage) hashq;

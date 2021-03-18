@@ -421,6 +421,8 @@ file_config = format_meta + file_runtime_config + [
             or custom storage source name created with
             WT_CONNECTION::add_storage_source.
             See @ref custom_storage_sources for more information'''),
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
         Config('bucket', '', r'''
             The bucket indicating the location for this table'''),
         Config('local_retention', '300', r'''
@@ -973,14 +975,14 @@ wiredtiger_open_tiered_storage_configuration = [
         configured session_max''',
         type='category', undoc=True, subconfig=
         tiered_storage_configuration_common + [
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
         Config('bucket', '', r'''
             bucket string identifier where the objects should reside'''),
         Config('cluster', '', r'''
             unique string identifier identifying the cluster owning these objects.
             This identifier is used in naming since objects multiple instances can share
             the object storage bucket'''),
-        Config('kmsid', '', r'''
-            authentication string identifier'''),
         Config('member', '', r'''
             unique string identifier identifying the member within a cluster.
             This identifier is used in naming objects since multiple nodes in a

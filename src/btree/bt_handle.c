@@ -330,19 +330,13 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
          * If we get here then we have a valid bucket storage entry. Now see if the config overrides
          * any of the other settings.
          */
-        WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.local_retention", &cval));
-        if (cval.val != 0)
-            bstorage->retain_secs = (uint64_t)cval.val;
-
-        WT_ERR(__wt_config_gets_none(session, cfg, "tiered_storage.object_target_size", &cval));
-        if (cval.val != 0)
-            bstorage->object_size = (uint64_t)cval.val;
+        WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
     }
     return (0);
 err:
     /* If the bucket storage was set up with copies of the strings, free them here. */
     if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
-        __wt_free(session, bstorage->kmsid);
+        __wt_free(session, bstorage->auth_token);
         __wt_free(session, bstorage->bucket);
         __wt_free(session, bstorage);
     }

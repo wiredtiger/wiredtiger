@@ -171,6 +171,30 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 }
 
 /*
+ * __wt_tiered_common_config --
+ *     Parse configuration options common to connection and btrees.
+ */
+int
+__wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE *bstorage)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
+    bstorage->retain_secs = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
+    bstorage->object_size = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
+    /*
+     * This call is purposely the last configuration processed so we don't need memory management
+     * code and an error label to free it. Note this if any code is added after this line.
+     */
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &bstorage->auth_token));
+    return (0);
+}
+
+/*
  * __tiered_config --
  *     Parse and setup the storage server options.
  */
@@ -192,25 +216,21 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (conn->bstorage == NULL)
         return (0);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
-    conn->bstorage->retain_secs = (uint64_t)cval.val;
+    WT_ASSERT(session, conn->bstorage != NULL);
+    WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.kmsid", &cval));
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->kmsid));
-
-    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
-    WT_ASSERT(session, conn->bstorage != NULL);
-    conn->bstorage->object_size = (uint64_t)cval.val;
-
     /* The strings for unique identification are connection level not per bucket. */
-    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.cluster", &cval));
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.cluster", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_cluster));
     WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.member", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_member));
 
     return (__tiered_manager_config(session, cfg, runp));
 err:
+    __wt_free(session, conn->bstorage->auth_token);
+    __wt_free(session, conn->bstorage->bucket);
+    __wt_free(session, conn->bstorage);
     __wt_free(session, conn->tiered_cluster);
     __wt_free(session, conn->tiered_member);
     return (ret);
