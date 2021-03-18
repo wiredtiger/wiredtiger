@@ -117,7 +117,7 @@ class cache_limit_statistic : public statistic {
  */
 class runtime_monitor : public component {
     public:
-    runtime_monitor(configuration *config) : component(config) {}
+    runtime_monitor(configuration *config) : component(config), _ops(1) {}
 
     ~runtime_monitor()
     {
@@ -125,9 +125,6 @@ class runtime_monitor : public component {
             delete it;
         _stats.clear();
     }
-
-    /* Delete copy constructor. */
-    runtime_monitor(const runtime_monitor &) = delete;
 
     void
     load()

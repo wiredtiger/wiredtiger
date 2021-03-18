@@ -64,9 +64,6 @@ class workload_tracking : public component {
     {
     }
 
-    /* Delete the copy constructor. */
-    workload_tracking(const workload_tracking &) = delete;
-
     const std::string &
     get_schema_table_name() const
     {

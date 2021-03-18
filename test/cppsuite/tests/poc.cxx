@@ -58,7 +58,6 @@ main(int argc, char *argv[])
 {
     std::string cfg = "";
     int64_t trace_level = 0;
-    int64_t error_code = 0;
 
     // Parse args
     // -C   : Configuration
@@ -88,6 +87,12 @@ main(int argc, char *argv[])
     std::cout << "Configuration\t:" << cfg << std::endl;
     std::cout << "Trace level\t:" << trace_level << std::endl;
 
-    poc_test(cfg, trace_level).run();
+    try {
+        poc_test(cfg, trace_level).run();
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        return -1;
+    }
+
     return (0);
 }

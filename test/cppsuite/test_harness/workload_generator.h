@@ -54,9 +54,6 @@ class workload_generator : public component {
             delete it;
     }
 
-    /* Delete the copy constructor. */
-    workload_generator(const workload_generator &) = delete;
-
     /*
      * Function that performs the following steps using the configuration that is defined by the
      * test:
@@ -246,7 +243,6 @@ class workload_generator : public component {
     read_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
-        WT_DECL_RET;
         std::vector<WT_CURSOR *> cursors;
 
         testutil_assert(session != nullptr);
@@ -259,7 +255,7 @@ class workload_generator : public component {
         while (context.is_running()) {
             /* Walk each cursor. */
             for (const auto &it : cursors) {
-                if ((ret = it->next(it)) != 0)
+                if (it->next(it) != 0)
                     it->reset(it);
             }
         }

@@ -38,7 +38,7 @@ namespace test_harness {
  */
 class component {
     public:
-    component(configuration *config) : _config(config) {}
+    component(configuration *config) : _running(false), _config(config) {}
     /*
      * The load function should perform all tasks required to setup the component for the main phase
      * of the test. An example operation performed in the load phase would be populating a database.
