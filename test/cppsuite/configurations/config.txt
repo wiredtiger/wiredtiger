@@ -1,0 +1,19 @@
+collection_count=2
+key_count=5
+value_size=10
+read_threads=1
+duration_seconds=10
+cache_size_mb=1000
+stat_cache_size=
+START_SUBCONFIG
+START_SUBCONFIG
+  enabled=true
+  limit=100
+END_SUBCONFIG
+rate_per_second=10
+enable_tracking=true
+enable_timestamp=true
+oldest_lag=1
+stable_lag=1
+min_operation_per_transaction=1
+max_operation_per_transaction=1
