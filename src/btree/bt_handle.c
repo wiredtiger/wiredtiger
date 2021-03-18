@@ -331,6 +331,10 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
          * any of the other settings.
          */
         WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
+        __wt_errx(session, "BTREE: bstorage %p obj %" PRIu64 " retain %" PRIu64, (void *)bstorage,
+          bstorage->object_size, bstorage->retain_secs);
+        WT_STAT_DATA_SET(session, tiered_object_size, bstorage->object_size);
+        WT_STAT_DATA_SET(session, tiered_retention, bstorage->retain_secs);
     }
     return (0);
 err:

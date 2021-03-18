@@ -218,6 +218,9 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
 
     WT_ASSERT(session, conn->bstorage != NULL);
     WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
+    __wt_errx(session, "TIERED: set CONN bstorage %p obj %" PRIu64 " retain %" PRIu64,
+      (void *)conn->bstorage, conn->bstorage->object_size, conn->bstorage->retain_secs);
+    WT_STAT_CONN_SET(session, tiered_object_size, conn->bstorage->object_size);
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
     /* The strings for unique identification are connection level not per bucket. */
