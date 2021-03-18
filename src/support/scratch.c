@@ -51,8 +51,14 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
         buf->data = buf->mem;
         buf->size = 0;
     } else {
-        if (copy_data)
+        if (copy_data) {
+            /*
+             * It's easy to corrupt memory if you pass in the wrong size for the final buffer size,
+             * which is harder to debug than this assert.
+             */
+            WT_ASSERT(session, buf->size <= buf->memsize);
             memcpy(buf->mem, buf->data, buf->size);
+        }
         buf->data = (uint8_t *)buf->mem + offset;
     }
 
