@@ -1009,7 +1009,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
             *(void **)datap =
               WT_PAGE_REF_OFFSET(page, WT_K_DECODE_KEY_CELL_OFFSET(v) + WT_K_DECODE_KEY_OFFSET(v));
             *sizep = WT_K_DECODE_KEY_LEN(v);
-            *prefixp = WT_K_DECODE_KEY_PREFIX(v);
+            *prefixp = (uint8_t)WT_K_DECODE_KEY_PREFIX(v);
         }
         break;
     case WT_KV_FLAG: /* Encoded key/value pair. */
@@ -1021,7 +1021,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
             *(void **)datap = WT_PAGE_REF_OFFSET(
               page, WT_KV_DECODE_KEY_CELL_OFFSET(v) + WT_KV_DECODE_KEY_OFFSET(v));
             *sizep = WT_KV_DECODE_KEY_LEN(v);
-            *prefixp = WT_KV_DECODE_KEY_PREFIX(v);
+            *prefixp = (uint8_t)WT_KV_DECODE_KEY_PREFIX(v);
         }
         break;
     default: /* Instantiated key. */
