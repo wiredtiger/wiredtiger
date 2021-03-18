@@ -700,6 +700,11 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
+#if 0
+    WT_STORAGE_SOURCE *custom, *storage;
+#else
+    WT_STORAGE_SOURCE *storage;
+#endif
     uint64_t hash_bucket, hash;
 
     *bstoragep = NULL;
@@ -732,7 +737,18 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
 
     WT_ERR(__wt_calloc_one(session, &new));
     WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
-    new->storage_source = nstorage->storage_source;
+    storage = nstorage->storage_source;
+#if 0
+    if (storage->customize != NULL) {
+        custom = NULL;
+        WT_ERR(storage->customize(storage, &session->iface, cfg_arg, &custom));
+        if (custom != NULL) {
+            bstorage->owned = 1;
+            storage = custom;
+        }
+    }
+#endif
+    new->storage_source = storage;
     if (bstorage != NULL) {
         new->object_size = bstorage->object_size;
         new->retain_secs = bstorage->retain_secs;
@@ -838,6 +854,7 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
+    WT_STORAGE_SOURCE *storage;
 
     conn = S2C(session);
 
@@ -847,15 +864,20 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
+            storage = bstorage->storage_source;
+            WT_ASSERT(session, storage != NULL);
+            if (bstorage->owned && storage->terminate != NULL)
+                WT_TRET(storage->terminate(storage, (WT_SESSION *)session));
             __wt_free(session, bstorage->auth_token);
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage);
         }
 
         /* Call any termination method. */
-        if (nstorage->storage_source->terminate != NULL)
-            WT_TRET(
-              nstorage->storage_source->terminate(nstorage->storage_source, (WT_SESSION *)session));
+        storage = nstorage->storage_source;
+        WT_ASSERT(session, storage != NULL);
+        if (storage->terminate != NULL)
+            WT_TRET(storage->terminate(storage, (WT_SESSION *)session));
 
         __wt_free(session, nstorage->buckethashqh);
         __wt_free(session, nstorage->name);
