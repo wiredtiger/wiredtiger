@@ -31,12 +31,35 @@ block in the data file. In the case of checkpoint, the newly written block is
 bound to the current checkpoint and in the case of eviction, it is associated
 with the next checkpoint.
 
-@section block_lists Extent lists
+@section block_impl How the block manager is implemented
+
+We've already discussed the concept of a block and how the data file's on-disk
+representation is divided into smaller blocks that are each associated with a
+checkpoint.
+
+In this section, we'll dive into the file layout in more detail and talk about
+some of the core data structures used as part of block allocation.
+
+@subsection desc_block Descriptor block
+
+As discussed earlier, a file is divided up into blocks. The first block in a file
+is special as it contains metadata about the file and is referred to as the
+"descriptor block". It contains the WiredTiger major and minor version, a
+checksum of the block contents as well as a "magic" number to check against.
+
+The descriptor block serves as a safety check to ensure that the file being
+loaded into the block manager is actually a WiredTiger data file, that it
+belongs to a compatible version of WiredTiger and that the entire file has not
+been corrupted. WiredTiger also offers block-level checksums to defend against
+file corruption at a more granular level, which can be found in the \c checksum
+section.
+
+@subsection block_lists Extent lists
 
 Internally, WiredTiger uses a data structure called an extent list or a
 \c WT_EXTLIST to track file usage. An extent list consists of a series of
-\c WT_EXT elements that track a file offset and size to track a portion of the
-file.
+extents (or \c WT_EXT elements). Each extent tracks a file offset and size to
+track a portion of the file.
 
 There are three extent lists that are maintained per checkpoint:
 
@@ -45,8 +68,8 @@ There are three extent lists that are maintained per checkpoint:
 - Discard: The extents freed in this checkpoint.
 
 The alloc and discard extent lists are maintained as a skiplist sorted by file
-offset. The avail extent list is used for new allocations so we maintain an
-extra skiplist sorted by the extent size.
+offset. The avail extent list also maintains an extra skiplist sorted by the
+extent size to aid with allocating new blocks.
 
 @section configuration Configuration options
 
@@ -54,39 +77,43 @@ There are a number of configuration options that affect the block manager's
 behaviour. This does not aim to be an exhaustive list, however, these are the
 configuration options that are more commonly of interest to users.
 
-@subsystems allocation_size Allocation size
+All of the configuration options below are passed into the \c WT_SESSION::create
+API at the time of file creation.
 
-The \c allocation_size configuration is passed to the \c session->create(...)
-API and controls the file unit allocation size. Any blocks allocated by the
-block manager must be a multiple of this value.
+@subsection allocation_size Allocation size
 
-For example, if we specify an allocation_size of 4KB, blocks of size 8KB and
-12KB would be permitted but NOT 10KB. Higher allocation sizes may yield better
-compression rates, yet may cause larger page sizes. The allocation size is set
-to 4KB by default which is a good choice unless your OS or storage device has
-special requirements.
+The \c allocation_size configuration controls the file unit allocation size. Any
+blocks allocated by the block manager must be a multiple of this value.
+
+For example, if we specify an \c allocation_size of \c 4KB, blocks of size \c 8KB
+and \c 12KB would be permitted but NOT \c 10KB. Higher allocation sizes may
+yield better compression rates, yet may cause larger page sizes. The allocation
+size is set to \c 4KB by default which is a good choice unless your OS or storage
+device has special requirements.
 
 @subsection block_compression Block compression
 
-The \c block_compressor configuration is passed to the \c session->create(...)
-API and controls the compression algorithm used to compress each block. By
-default, WiredTiger supports lz4, snappy, zlib and zstd for block-level
-compression. However, WiredTiger also supports a compressor API for writing
-custom compressors so you can extend the storage engine to use whatever
-compression algorithm you desire to perform block compression.
+The \c block_compressor configuration controls the compression algorithm used
+to compress each block. By default, WiredTiger supports \c lz4, \c snappy,
+\c zlib and \c zstd for block-level compression. However, WiredTiger also
+supports a compressor API for writing custom compressors so you can extend the
+storage engine to use whatever compression algorithm you desire to perform block
+compression.
 
 @subsection block_encryption Block encryption
 
-The \c encryption configuration is passed to the \c session->create(...) API and
-controls the encryption algorithm used to encrypt each block. WiredTiger does
-not support any block-level encryption algorithms out of the box, however it
-supports an encryptor API for writing custom encryptors so you can extend the
-storage engine to use whatever encryption algorithm you desire to perform
-block encryption.
+The \c encryption configuration controls the encryption algorithm used to
+encrypt each block. WiredTiger does not support any block-level encryption
+algorithms out of the box, however it supports an encryptor API for writing
+custom encryptors so you can extend the storage engine to use whatever
+encryption algorithm you desire to perform block encryption.
 
 @subsection checksum Checksum
 
 The \c checksum configuration controls whether blocks have a checksum stored
-alongside them. This can defend against disk corruption.
+alongside them. With block checksums enabled, a block write to disk is
+accompanied by a checksum of the block contents. When that block is read off the
+disk to reconstruct a page, we recompute the checksum and verify that is is the
+same to defend against the risk of file corruption.
 
 */
