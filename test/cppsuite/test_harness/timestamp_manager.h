@@ -50,9 +50,6 @@ class timestamp_manager : public component {
     {
     }
 
-    /* Delete the copy constructor. */
-    timestamp_manager(const timestamp_manager &) = delete;
-
     void
     load()
     {
