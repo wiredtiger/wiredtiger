@@ -130,7 +130,6 @@ class workload_generator : public component {
     void
     run()
     {
-        WT_SESSION *session = nullptr;
         int64_t duration_seconds, read_threads, min_operation_per_transaction,
           max_operation_per_transaction, value_size;
 
@@ -205,7 +204,6 @@ class workload_generator : public component {
     update_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
-        WT_DECL_RET;
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
         std::vector<std::string> collection_names;
