@@ -85,7 +85,6 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             session.begin_transaction()
         else:
             session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
-        # session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
 
         count = 0
@@ -94,8 +93,6 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             ret = cursor.search()
             if check_value is None:
                 if ret != wiredtiger.WT_NOTFOUND:
-                    # self.tty(f'key = {cursor.get_key()}')
-                    # self.tty(f'value = {cursor.get_value()}')
                     self.assertTrue(ret == wiredtiger.WT_NOTFOUND)
             else:
                 if self.value_format == 'S':
@@ -141,7 +138,7 @@ class test_rollback_to_stable16(wttest.WiredTigerTestCase):
             # Rollback to stable done as part of recovery.
             simulate_crash_restart(self,".", "RESTART")
         else:
-            # Manually call rollback_to_stable for in memory k/v's.
+            # Manually call rollback_to_stable for in memory keys/values.
             self.conn.rollback_to_stable()
 
         self.check(values[0], uri, nrows, 1, 2)

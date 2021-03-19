@@ -112,7 +112,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
             # Rollback to stable done as part of recovery.
             simulate_crash_restart(self,".", "RESTART")
         else:
-            # Manually call rollback_to_stable for in memory k/v's.
+            # Manually call rollback_to_stable for in memory keys/values.
             self.conn.rollback_to_stable()
 
         # Check that keys at timestamps 2 and 5 have the correct values they were updated with.
