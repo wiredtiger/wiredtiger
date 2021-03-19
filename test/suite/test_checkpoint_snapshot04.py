@@ -114,8 +114,8 @@ class test_checkpoint_snapshot04(backup_base):
 
         self.compare_backups(self.uri, self.dir, './')
         # Due to unavailibility of history store file in targetted backup scenarios,
-        # it is possible that RTS may not occur during the first restart, so compare
-        # the backup again.
+        # RTS doesn't get performed during the first restart, so compare the backup again
+        # to confirm that RTS doesn't change the backup contents.
         self.compare_backups(self.uri, self.dir, './')
 
 if __name__ == '__main__':
