@@ -58,7 +58,6 @@ main(int argc, char *argv[])
 {
     std::string cfg = "";
     int64_t trace_level = 0;
-    int64_t error_code = 0;
 
     // Parse args
     // -C   : Configuration
