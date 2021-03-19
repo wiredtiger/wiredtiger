@@ -235,7 +235,7 @@ local_config_dup(LOCAL_STORAGE *local, WT_SESSION *session, WT_CONFIG_ITEM *v, c
         free(p);
         return (ret);
     }
-    (void)strncat(p, suffix, len);
+    (void)strcat(p, suffix);
     *result = p;
     return (0);
 }
