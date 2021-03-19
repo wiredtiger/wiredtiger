@@ -101,7 +101,7 @@ class test {
     run()
     {
         int64_t cache_size_mb = 100, duration_seconds = 0;
-        bool enable_tracking, is_success = true;
+        bool is_success = true;
 
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
@@ -131,8 +131,7 @@ class test {
         _thread_manager->join();
 
         /* Validation stage. */
-        testutil_check(_configuration->get_bool(ENABLE_TRACKING, enable_tracking));
-        if (enable_tracking) {
+        if (_workload_tracking->is_enabled()) {
             workload_validation wv;
             is_success = wv.validate(_workload_tracking->get_operation_table_name(),
               _workload_tracking->get_schema_table_name());
