@@ -130,7 +130,6 @@ class workload_generator : public component {
     void
     run()
     {
-        WT_SESSION *session = nullptr;
         int64_t duration_seconds, read_threads, min_operation_per_transaction,
           max_operation_per_transaction, value_size;
 
