@@ -113,6 +113,10 @@ class test_checkpoint_snapshot04(backup_base):
         session1.rollback_transaction()
 
         self.compare_backups(self.uri, self.dir, './')
+        # Due to unavailibility of history store file in targetted backup scenarios,
+        # it is possible that RTS may not occur during the first restart, so compare
+        # the backup again.
+        self.compare_backups(self.uri, self.dir, './')
 
 if __name__ == '__main__':
     wttest.run()
