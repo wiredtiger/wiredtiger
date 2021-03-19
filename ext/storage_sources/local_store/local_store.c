@@ -1238,6 +1238,7 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
       (ret = pthread_rwlock_init(&local->flush_lock, NULL)) != 0) {
         (void)local_err(local, NULL, ret, "pthread_rwlock_init");
         free(local);
+        return (ret);
     }
 
     /*
