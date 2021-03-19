@@ -163,7 +163,7 @@ functions:
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
             fi
 
-            # Make sure the code fragments in the documentation build.
+            # Make sure the code fragment is in the documentation build.
             make all-am
             make -C test/utility
             make -C examples/c
