@@ -918,7 +918,8 @@ local_open(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 
     if (0) {
 err:
-        local_file_close_internal(local, session, local_fh, true);
+        if (local_fh != NULL)
+            local_file_close_internal(local, session, local_fh, true);
     }
     return (ret);
 }
