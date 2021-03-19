@@ -55,7 +55,8 @@ class component {
     virtual void run() = 0;
 
     bool
-    is_enabled() const {
+    is_enabled() const
+    {
         return _enabled;
     }
 

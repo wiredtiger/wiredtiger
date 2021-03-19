@@ -45,8 +45,8 @@ class timestamp_manager : public component {
     public:
     timestamp_manager(configuration *config)
         : /* _periodic_update_s is hardcoded to 1 second for now. */
-          component(config), _increment_ts(0U), _latest_ts(0U), _oldest_lag(0),
-          _oldest_ts(0U), _periodic_update_s(1), _stable_lag(0), _stable_ts(0U)
+          component(config), _increment_ts(0U), _latest_ts(0U), _oldest_lag(0), _oldest_ts(0U),
+          _periodic_update_s(1), _stable_lag(0), _stable_ts(0U)
     {
     }
 
