@@ -630,9 +630,10 @@ local_location_handle(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     location->iface.close = local_location_handle_close;
     *location_handlep = &location->iface;
 
-    if (0)
+    if (0) {
 err:
         (void)local_location_handle_close(&location->iface, session);
+    }
 
     if (parser != NULL)
         if ((t_ret = parser->close(parser)) != 0 && ret == 0)
