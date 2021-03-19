@@ -48,16 +48,12 @@ class poc_test : public test_harness::test {
 };
 
 const std::string poc_test::test::name = "poc_test";
-const std::string poc_test::test::default_config =
-  "collection_count=2,key_count=5,value_size=10,read_threads=1,duration_seconds=10,"
-  "cache_size_mb=1000,stat_cache_size=(enabled=true,limit=100),rate_per_second=10,"
-  "enable_tracking=true,enable_timestamp=true,oldest_lag=1,stable_lag=1,"
-  "min_operation_per_transaction=1,max_operation_per_transaction=1";
+const std::string poc_test::test::default_config = "config_poc_default.txt";
 
 std::string
 parse_configuration_from_file(const std::string &filename)
 {
-    std::string cfg, line, prev_line;
+    std::string cfg, line, prev_line, error;
     std::ifstream cFile(filename);
 
     if (cFile.is_open()) {
@@ -66,24 +62,28 @@ parse_configuration_from_file(const std::string &filename)
             if (line[0] == '#' || line.empty())
                 continue;
 
+            /* Whitespaces are only for readability, they can be removed safely. */
             line.erase(std::remove_if(line.begin(), line.end(), isspace), line.end());
 
             if (prev_line == line) {
-                std::cout << "Error when parsing configuration. Two consecutive lines are equal to "
-                          << line << std::endl;
+                error =
+                  "Error when parsing configuration. Two consecutive lines are equal to " + line;
+                testutil_die(EINVAL, error.c_str());
                 break;
             }
 
-            if (line == "START_SUBCONFIG")
+            /* Start of a sub config. */
+            if (line == "{")
                 cfg += "(";
-            else if (line == "END_SUBCONFIG")
+            /* End of a sub config. */
+            else if (line == "}")
                 cfg += ")";
             else {
                 /* First line. */
                 if (cfg.empty())
                     cfg += line;
                 /* No comma needed at the start of a subconfig. */
-                else if (prev_line == "START_SUBCONFIG")
+                else if (prev_line == "{")
                     cfg += line;
                 else
                     cfg += "," + line;
@@ -92,8 +92,10 @@ parse_configuration_from_file(const std::string &filename)
             prev_line = line;
         }
 
-    } else
-        std::cerr << "Couldn't open " << filename << " file for reading." << std::endl;
+    } else {
+        error = "Couldn't open " + filename + " file for reading.";
+        testutil_die(EINVAL, error.c_str());
+    }
 
     return (cfg);
 }
@@ -150,7 +152,8 @@ main(int argc, char *argv[])
     if (error_code == 0) {
         /* Check if default configuration should be used. */
         if (cfg.empty() && filename.empty())
-            cfg = poc_test::test::default_config;
+            cfg = parse_configuration_from_file(
+              "../../../test/cppsuite/configurations/" + poc_test::test::default_config);
         else if (!filename.empty())
             cfg =
               parse_configuration_from_file("../../../test/cppsuite/configurations/" + filename);
