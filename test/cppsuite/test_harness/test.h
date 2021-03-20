@@ -102,12 +102,15 @@ class test {
     {
         int64_t cache_size_mb = 100, duration_seconds = 0;
         bool is_success = true;
+        bool enable_logging, is_success = true;
 
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
         testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
         db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
+        testutil_check(_configuration->get_bool(ENABLE_LOGGING, enable_logging));
+        db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
         /* Set up the test environment. */
         connection_manager::instance().create(db_create_config);
