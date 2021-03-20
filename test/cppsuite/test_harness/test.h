@@ -101,7 +101,6 @@ class test {
     run()
     {
         int64_t cache_size_mb = 100, duration_seconds = 0;
-        bool is_success = true;
         bool enable_logging, is_success = true;
 
         /* Build the database creation config string. */
