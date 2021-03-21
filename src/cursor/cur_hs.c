@@ -381,9 +381,17 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
 
         /*
          * If the stop time pair on the tombstone in the history store is already globally visible
-         * we can skip it.
+         * and the key is set, we should stop here as none of the key versions before the current
+         * version of the key will be visible any way. Only exception is when history store contains
+         * a deleted update without a timestamp.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
+            if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET) &&
+              cbt->upd_value->tw.durable_stop_ts != WT_TS_NONE &&
+              cbt->upd_value->tw.stop_ts != WT_TS_NONE) {
+                ret = WT_NOTFOUND;
+                goto err;
+            }
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
