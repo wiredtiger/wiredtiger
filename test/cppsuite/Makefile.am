@@ -11,7 +11,7 @@ all:
 all_TESTS=
 noinst_PROGRAMS=
 
-test_SOURCES = tests/poc_test.cxx tests/main.cxx
+test_SOURCES = tests/main.cxx
 noinst_PROGRAMS += test
 all_TESTS += test
 
