@@ -638,12 +638,13 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 		 " bytes used to be destroyed", (uint32_t)blkcache->bytes_used);
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
-	goto done;
+	return;
 
     blkcache->blkcache_exiting = true;
     __wt_cond_signal(session, blkcache->blkcache_cond);
     WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
     printf("Block cache eviction thread exited...\n");
+    __wt_cond_destroy(session, &blkcache->blkcache_cond);
 
     if (blkcache->bytes_used == 0)
         goto done;
@@ -664,8 +665,6 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
   done:
-    if (blkcache->blkcache_cond != NULL)
-	__wt_cond_destroy(session, &blkcache->blkcache_cond);
     /* Print reference histograms */
     printf("Reuses \t Number of blocks \n");
     printf("-----------------------------\n");
