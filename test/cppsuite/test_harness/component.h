@@ -44,6 +44,11 @@ class component {
     {
         delete _config;
     }
+
+    /* Delete the copy constructor and the assignment operator. */
+    component(const component &) = delete;
+    component &operator=(const component &) = delete;
+
     /*
      * The load function should perform all tasks required to setup the component for the main phase
      * of the test. An example operation performed in the load phase would be populating a database.
