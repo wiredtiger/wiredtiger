@@ -778,7 +778,7 @@ local_location_list_internal(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sess
     *countp = count;
 
 err:
-    free(dirp);
+    closedir(dirp);
     if (ret == 0)
         return (0);
 
