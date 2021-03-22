@@ -613,8 +613,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
 
     if (exact >= 0) {
         /*
-         * We placed the file cursor after or equal to the search key. Try first to walk forwards to
-         * see if we can find a visible record. If nothing is visible, try to walk backwards.
+         * We placed the file cursor after or exactly at the search key. Try first to walk forwards
+         * to see if we can find a visible record. If nothing is visible, try to walk backwards.
          */
         WT_ERR_NOTFOUND_OK(__curhs_next_visible(session, hs_cursor), true);
         if (ret == WT_NOTFOUND) {
@@ -669,8 +669,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
         } else {
             WT_ERR(ret);
             /*
-             * We find an update when walking forwards. If initially we land on the same key as the
-             * specified key, we need to compare the keys to see where we are now. Otherwise, we
+             * We find an update when walking forwards. If initially we landed on the same key as
+             * the specified key, we need to compare the keys to see where we are now. Otherwise, we
              * must have found a key that is larger than the specified key.
              */
             if (exact == 0) {
