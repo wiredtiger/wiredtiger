@@ -91,7 +91,10 @@ print_error(const std::string &str)
     std::cerr << "No value given for option " << str << std::endl;
 }
 
-/* Run a test with its default configuration. */
+/*
+ * Run a specific test.
+ * config_name is the configuration name. The default configuration is used if it is left empty.
+ */
 int64_t
 run_test(const std::string &test_name, int64_t trace_level, const std::string &config_name = "")
 {
@@ -106,9 +109,10 @@ run_test(const std::string &test_name, int64_t trace_level, const std::string &c
 
     std::cout << "Configuration\t:" << cfg << std::endl;
 
-    if (test_name == "poc_test")
+    if (test_name == "poc_test") {
         poc_test(cfg, test_name, trace_level).run();
-    else {
+        std::cout << "Test " << test_name << " done." << std::endl;
+    } else {
         std::cout << "Test not found: " << test_name << std::endl;
         error_code = -1;
     }
@@ -119,8 +123,9 @@ run_test(const std::string &test_name, int64_t trace_level, const std::string &c
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, config_name, test_to_run;
+    std::string cfg, config_name, test_name;
     int64_t trace_level = 0, error_code = 0;
+    const std::vector<std::string> all_tests = {"poc_test"};
 
     /* Parse args
      * -C   : Configuration. Cannot be used with -f.
@@ -151,7 +156,7 @@ main(int argc, char *argv[])
             }
         } else if (std::string(argv[i]) == "-t") {
             if ((i + 1) < argc)
-                test_to_run = argv[++i];
+                test_name = argv[++i];
             else {
                 print_error(argv[i]);
                 error_code = -1;
@@ -167,16 +172,19 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-
         std::cout << "Trace level\t:" << trace_level << std::endl;
-
-        /* Find the test to run. */
-        if (test_to_run.empty()) {
+        if (test_name.empty()) {
             /* Run all tests. */
             std::cout << "No tests given, running all tests!" << std::endl;
-            error_code = run_test("poc_test", trace_level);
+            for (auto const &it : all_tests) {
+                error_code = run_test(it, trace_level);
+                if (error_code != 0) {
+                    std::cout << "Test " << it << " failed." << std::endl;
+                    break;
+                }
+            }
         } else
-            error_code = run_test(test_to_run, trace_level, config_name);
+            error_code = run_test(test_name, trace_level, config_name);
     }
 
     return (error_code);
