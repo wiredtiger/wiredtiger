@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -330,7 +330,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
         # Crash and recover in a new directory.
         newdir = 'RESTART'
-        copy_wiredtiger_home('.', newdir)
+        copy_wiredtiger_home(self, '.', newdir)
         self.conn.close()
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)

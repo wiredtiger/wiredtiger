@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -549,34 +549,27 @@ __curfile_cache(WT_CURSOR *cursor)
 }
 
 /*
- * __curfile_reopen --
- *     WT_CURSOR->reopen method for the btree cursor type.
+ * __curfile_reopen_int --
+ *     Helper for __curfile_reopen, called with the session data handle set.
  */
 static int
-__curfile_reopen(WT_CURSOR *cursor, bool check_only)
+__curfile_reopen_int(WT_CURSOR *cursor)
 {
     WT_BTREE *btree;
-    WT_CURSOR_BTREE *cbt;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool is_dead;
 
-    cbt = (WT_CURSOR_BTREE *)cursor;
-    dhandle = cbt->dhandle;
     session = CUR2S(cursor);
-
-    if (check_only)
-        return (WT_DHANDLE_CAN_REOPEN(dhandle) ? 0 : WT_NOTFOUND);
-
-    session->dhandle = dhandle;
+    dhandle = session->dhandle;
 
     /*
      * Lock the handle: we're only interested in open handles, any other state disqualifies the
      * cache.
      */
     ret = __wt_session_lock_dhandle(session, 0, &is_dead);
-    if (!is_dead && ret == 0 && !F_ISSET(dhandle, WT_DHANDLE_OPEN)) {
+    if (!is_dead && ret == 0 && !WT_DHANDLE_CAN_REOPEN(dhandle)) {
         WT_RET(__wt_session_release_dhandle(session));
         ret = __wt_set_return(session, EBUSY);
     }
@@ -600,11 +593,52 @@ __curfile_reopen(WT_CURSOR *cursor, bool check_only)
         WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_BTREE);
         WT_ASSERT(session, ((WT_BTREE *)dhandle->handle)->root.page != NULL);
 
-        btree = CUR2BT(cbt);
+        btree = CUR2BT(cursor);
         cursor->internal_uri = btree->dhandle->name;
         cursor->key_format = btree->key_format;
         cursor->value_format = btree->value_format;
+
+        WT_STAT_CONN_DATA_INCR(session, cursor_reopen);
     }
+    return (ret);
+}
+
+/*
+ * __curfile_reopen --
+ *     WT_CURSOR->reopen method for the btree cursor type.
+ */
+static int
+__curfile_reopen(WT_CURSOR *cursor, bool sweep_check_only)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    bool can_sweep;
+
+    session = CUR2S(cursor);
+    dhandle = ((WT_CURSOR_BTREE *)cursor)->dhandle;
+
+    if (sweep_check_only) {
+        /*
+         * The sweep check returns WT_NOTFOUND if the cursor should be swept. Generally if the
+         * associated data handle cannot be reopened it should be swept. But a handle being operated
+         * on by this thread should not be swept. The situation where a handle cannot be reopened
+         * but also cannot be swept can occur if this thread is in the middle of closing a cursor
+         * for a handle that is marked as dropped. During the close, a few iterations of the session
+         * cursor sweep are run. The sweep calls this function to see if a cursor should be swept,
+         * and it may thus be asking about the very cursor being closed.
+         */
+        can_sweep = !WT_DHANDLE_CAN_REOPEN(dhandle) && dhandle != session->dhandle;
+        return (can_sweep ? WT_NOTFOUND : 0);
+    }
+
+    /*
+     * Temporarily set the session's data handle to the data handle in the cursor. Reopen may be
+     * called either as part of an open API call, or during cursor sweep as part of a different API
+     * call, so we need to restore the original data handle that was in our session after the reopen
+     * completes.
+     */
+    WT_WITH_DHANDLE(session, dhandle, ret = __curfile_reopen_int(cursor));
     return (ret);
 }
 

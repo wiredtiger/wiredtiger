@@ -1,10 +1,36 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
+
+/*
+ * __wt_curhs_get_btree --
+ *     Convert a history store cursor to the underlying btree.
+ */
+static inline WT_BTREE *
+__wt_curhs_get_btree(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    return (CUR2BT(hs_cursor->file_cursor));
+}
+
+/*
+ * __wt_curhs_get_cbt --
+ *     Convert a history store cursor to the underlying btree cursor.
+ */
+static inline WT_CURSOR_BTREE *
+__wt_curhs_get_cbt(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    return ((WT_CURSOR_BTREE *)hs_cursor->file_cursor);
+}
 
 /*
  * __cursor_set_recno --

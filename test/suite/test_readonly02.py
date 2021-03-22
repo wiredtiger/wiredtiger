@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -86,7 +86,7 @@ class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
 
     def check_unclean(self):
         backup = "WT_COPYDIR"
-        copy_wiredtiger_home(self.home, backup, True)
+        copy_wiredtiger_home(self, self.home, backup, True)
         msg = '/needs recovery/'
         #   2. an unclean shutdown and reopening readonly
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

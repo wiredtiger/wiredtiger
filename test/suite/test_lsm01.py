@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -77,7 +77,7 @@ class test_lsm01(wttest.WiredTigerTestCase):
         args += ')' # Close the LSM configuration option group
         self.verbose(3,
             'Test LSM with config: ' + args + ' count: ' + str(self.nrecs))
-        SimpleDataSet(self, self.uri, self.nrecs).populate()
+        SimpleDataSet(self, self.uri, self.nrecs, config=args).populate()
 
         # TODO: Adding an explicit drop here can cause deadlocks, if a merge
         # is still happening. See issue #349.

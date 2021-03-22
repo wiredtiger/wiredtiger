@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -99,6 +99,17 @@ struct __wt_named_extractor {
     const char *name;                    /* Name of extractor */
     WT_EXTRACTOR *extractor;             /* User supplied object */
     TAILQ_ENTRY(__wt_named_extractor) q; /* Linked list of extractors */
+};
+
+/*
+ * WT_NAMED_STORAGE_SOURCE --
+ *	A storage source list entry
+ */
+struct __wt_named_storage_source {
+    const char *name;                  /* Name of storage source */
+    WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
+    /* Linked list of compressors */
+    TAILQ_ENTRY(__wt_named_storage_source) q;
 };
 
 /*
@@ -365,6 +376,25 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
+    WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
+    wt_thread_t tiered_tid;          /* Tiered thread */
+    bool tiered_tid_set;             /* Tiered thread set */
+    WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
+    uint64_t tiered_object_size;     /* Tiered object size */
+    uint64_t tiered_retain_secs;     /* Tiered period */
+    const char *tiered_auth_token;   /* Tiered authentication cookie */
+
+    WT_TIERED_MANAGER tiered_manager; /* Tiered worker thread information */
+    bool tiered_server_running;       /* Internal tiered server operating */
+
+    uint32_t tiered_threads_max; /* Max tiered threads */
+    uint32_t tiered_threads_min; /* Min tiered threads */
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_CONN_TIERED_ENABLED 0x1u /* Shared tiered is configured */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t tiered_flags;          /* Global tiered configuration */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x002u  /* Logging is configured */
@@ -435,6 +465,9 @@ struct __wt_connection_impl {
 
     /* Locked: extractor list */
     TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
+
+    /* Locked: storage source list */
+    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
 
     void *lang_private; /* Language specific private storage */
 
@@ -508,11 +541,12 @@ struct __wt_connection_impl {
 #define WT_VERB_SPLIT 0x0020000000u
 #define WT_VERB_TEMPORARY 0x0040000000u
 #define WT_VERB_THREAD_GROUP 0x0080000000u
-#define WT_VERB_TIMESTAMP 0x0100000000u
-#define WT_VERB_TRANSACTION 0x0200000000u
-#define WT_VERB_VERIFY 0x0400000000u
-#define WT_VERB_VERSION 0x0800000000u
-#define WT_VERB_WRITE 0x1000000000u
+#define WT_VERB_TIERED 0x0100000000u
+#define WT_VERB_TIMESTAMP 0x0200000000u
+#define WT_VERB_TRANSACTION 0x0400000000u
+#define WT_VERB_VERIFY 0x0800000000u
+#define WT_VERB_VERSION 0x1000000000u
+#define WT_VERB_WRITE 0x2000000000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint64_t verbose;
 
@@ -547,35 +581,44 @@ struct __wt_connection_impl {
      */
     WT_FILE_SYSTEM *file_system;
 
+/*
+ * Server subsystem flags.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CONN_CACHE_CURSORS 0x0000001u
-#define WT_CONN_CACHE_POOL 0x0000002u
-#define WT_CONN_CKPT_SYNC 0x0000004u
-#define WT_CONN_CLOSING 0x0000008u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x0000010u
-#define WT_CONN_CLOSING_TIMESTAMP 0x0000020u
-#define WT_CONN_COMPATIBILITY 0x0000040u
-#define WT_CONN_DATA_CORRUPTION 0x0000080u
-#define WT_CONN_EVICTION_RUN 0x0000100u
-#define WT_CONN_FILE_CLOSE_SYNC 0x0000200u
-#define WT_CONN_HS_OPEN 0x0000400u
-#define WT_CONN_INCR_BACKUP 0x0000800u
-#define WT_CONN_IN_MEMORY 0x0001000u
-#define WT_CONN_LEAK_MEMORY 0x0002000u
-#define WT_CONN_LSM_MERGE 0x0004000u
-#define WT_CONN_OPTRACK 0x0008000u
-#define WT_CONN_PANIC 0x0010000u
-#define WT_CONN_READONLY 0x0020000u
-#define WT_CONN_RECONFIGURING 0x0040000u
-#define WT_CONN_RECOVERING 0x0080000u
-#define WT_CONN_SALVAGE 0x0100000u
-#define WT_CONN_SERVER_CAPACITY 0x0200000u
-#define WT_CONN_SERVER_CHECKPOINT 0x0400000u
-#define WT_CONN_SERVER_LOG 0x0800000u
-#define WT_CONN_SERVER_LSM 0x1000000u
-#define WT_CONN_SERVER_STATISTICS 0x2000000u
-#define WT_CONN_SERVER_SWEEP 0x4000000u
-#define WT_CONN_WAS_BACKUP 0x8000000u
+#define WT_CONN_SERVER_CAPACITY 0x01u
+#define WT_CONN_SERVER_CHECKPOINT 0x02u
+#define WT_CONN_SERVER_LOG 0x04u
+#define WT_CONN_SERVER_LSM 0x08u
+#define WT_CONN_SERVER_STATISTICS 0x10u
+#define WT_CONN_SERVER_SWEEP 0x20u
+#define WT_CONN_SERVER_TIERED 0x40u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t server_flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_CONN_CACHE_CURSORS 0x000001u
+#define WT_CONN_CACHE_POOL 0x000002u
+#define WT_CONN_CKPT_GATHER 0x000004u
+#define WT_CONN_CKPT_SYNC 0x000008u
+#define WT_CONN_CLOSING 0x000010u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000020u
+#define WT_CONN_CLOSING_TIMESTAMP 0x000040u
+#define WT_CONN_COMPATIBILITY 0x000080u
+#define WT_CONN_DATA_CORRUPTION 0x000100u
+#define WT_CONN_EVICTION_RUN 0x000200u
+#define WT_CONN_FILE_CLOSE_SYNC 0x000400u
+#define WT_CONN_HS_OPEN 0x000800u
+#define WT_CONN_INCR_BACKUP 0x001000u
+#define WT_CONN_IN_MEMORY 0x002000u
+#define WT_CONN_LEAK_MEMORY 0x004000u
+#define WT_CONN_LSM_MERGE 0x008000u
+#define WT_CONN_OPTRACK 0x010000u
+#define WT_CONN_PANIC 0x020000u
+#define WT_CONN_READONLY 0x040000u
+#define WT_CONN_RECONFIGURING 0x080000u
+#define WT_CONN_RECOVERING 0x100000u
+#define WT_CONN_SALVAGE 0x200000u
+#define WT_CONN_WAS_BACKUP 0x400000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

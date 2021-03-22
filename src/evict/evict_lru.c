@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -285,7 +285,7 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    WT_RET(__wt_hs_cursor_cache(session));
+    WT_RET(__wt_curhs_cache(session));
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
          * Cannot use WT_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
@@ -584,8 +584,15 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (!__evict_queue_empty(cache->evict_urgent_queue, false))
         LF_SET(WT_CACHE_EVICT_URGENT);
 
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0)
+    /*
+     * TODO: We are caching the cache usage values associated with the history store because the
+     * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
+     * values could lead to surprising bugs in the future.
+     */
+    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
         cache->bytes_hs = hs_tree->bytes_inmem;
+        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+    }
 
     /*
      * If we need space in the cache, try to find clean pages to evict.
@@ -1726,6 +1733,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
+    /*
+     * Reduce the number of pages to be selected from btrees other than the history store (HS) if
+     * the cache pressure is high and HS content dominates the cache. Evicting unclean non-HS pages
+     * can generate even more HS content and will not help with the cache pressure, and will
+     * probably just amplify it further.
+     */
+    if (!WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
+        /* If target pages are less than 10, keep it like that. */
+        target_pages = target_pages < 10 ? target_pages : target_pages / 10;
+        WT_STAT_CONN_INCR(session, cache_eviction_target_page_reduced);
+        WT_STAT_DATA_INCR(session, cache_eviction_target_page_reduced);
+    }
+
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
         return (0);
@@ -1925,6 +1945,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (modified &&
           (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
+            if (__wt_page_evict_urgent(session, ref))
+                urgent_queued = true;
+            continue;
+        }
+
+        /*
+         * If history store dirty content is dominating the cache, we want to prioritize evicting
+         * history store pages over other btree pages. This helps in keeping cache contents below
+         * the configured cache size during checkpoints where reconciling non-HS pages can generate
+         * significant amount of HS dirty content very quickly.
+         */
+        if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
             continue;
@@ -2297,7 +2330,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *hs_cursor_saved;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
@@ -2316,21 +2348,12 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
-     * If we have a history store cursor, save it. This ensures that if eviction needs to access the
-     * history store, it will get its own cursor, avoiding potential problems if it were to
-     * reposition or reset a history store cursor that we're in the middle of using for something
-     * else.
-     */
-    hs_cursor_saved = session->hs_cursor;
-    session->hs_cursor = NULL;
-
-    /*
      * Before we enter the eviction generation, make sure this session has a cached history store
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
      * inside eviction waiting on a handle list read lock to open a history store cursor.
      */
-    WT_ERR(__wt_hs_cursor_cache(session));
+    WT_ERR(__wt_curhs_cache(session));
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
@@ -2430,12 +2453,6 @@ err:
 
 done:
     WT_TRACK_OP_END(session);
-
-    /* If the caller was using a history store cursor they should have closed it by now. */
-    WT_ASSERT(session, session->hs_cursor == NULL);
-
-    /* Restore the caller's history store cursor. */
-    session->hs_cursor = hs_cursor_saved;
 
     return (ret);
 }

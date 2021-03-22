@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -834,6 +834,8 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
         ret = __create_index(session, uri, exclusive, config);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __create_table(session, uri, exclusive, import, config);
+    else if (WT_PREFIX_MATCH(uri, "tiered:"))
+        ret = __wt_tiered_create(session, uri, exclusive, config);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->create == NULL ? __wt_object_unsupported(session, uri) :
                                      __create_data_source(session, uri, config, dsrc);

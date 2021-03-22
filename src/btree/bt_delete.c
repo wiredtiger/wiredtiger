@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -71,7 +71,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
-        WT_RET(__wt_hs_cursor_cache(session));
+        WT_RET(__wt_curhs_cache(session));
         (void)__wt_atomic_addv32(&S2BT(session)->evict_busy, 1);
         ret = __wt_evict(session, ref, previous_state, 0);
         (void)__wt_atomic_subv32(&S2BT(session)->evict_busy, 1);
@@ -109,12 +109,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * discarded. The way we figure that out is to check the page's cell type, cells for leaf pages
      * without overflow items are special.
      *
-     * Additionally, if the aggregated start time point on the page is not visible to us then we
-     * cannot truncate the page.
+     * Additionally, if the page has prepared updates or the aggregated start time point on the page
+     * is not visible to us then we cannot truncate the page.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
     if (addr.type != WT_ADDR_LEAF_NO)
+        goto err;
+    if (addr.ta.prepare)
         goto err;
     if (!__wt_txn_visible(session, addr.ta.newest_txn, addr.ta.newest_start_durable_ts))
         goto err;

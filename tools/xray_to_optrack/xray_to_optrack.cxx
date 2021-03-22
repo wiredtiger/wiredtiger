@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -79,7 +79,7 @@ write_optrack_record(std::ofstream &os, int record_type, const std::string &func
 
 /*
  * symbolize_func_id --
- *    Symbolize the full function name for a given XRay function id.
+ *     Symbolize the full function name for a given XRay function id.
  */
 static llvm::Expected<std::string>
 symbolize_func_id(uint32_t func_id, const std::string &instr_map,

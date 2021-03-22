@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -77,7 +77,7 @@ __rec_cell_build_int_key(
 
     /* Create an overflow object if the data won't fit. */
     if (size > btree->maxintlkey) {
-        WT_STAT_DATA_INCR(session, rec_overflow_key_internal);
+        WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_internal);
 
         *is_ovflp = true;
         return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
@@ -163,7 +163,7 @@ __rec_cell_build_leaf_key(
          * compressed.
          */
         if (pfx == 0) {
-            WT_STAT_DATA_INCR(session, rec_overflow_key_leaf);
+            WT_STAT_CONN_DATA_INCR(session, rec_overflow_key_leaf);
 
             *is_ovflp = true;
             return (__wt_rec_cell_build_ovfl(session, r, key, WT_CELL_KEY_OVFL, NULL, 0));
@@ -703,6 +703,7 @@ __wt_rec_row_leaf(
     WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;
+    WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(tmpkey);
     WT_DECL_RET;
@@ -720,6 +721,7 @@ __wt_rec_row_leaf(
     void *copy;
 
     btree = S2BT(session);
+    hs_cursor = NULL;
     page = pageref->page;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
     WT_TIME_WINDOW_INIT(&tw);
@@ -914,11 +916,19 @@ __wt_rec_row_leaf(
                      * ever need to blow away history store content, so we can skip this.
                      */
                     if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
-                        WT_ERR(__wt_hs_cursor_open(session));
+                        /*
+                         * FIXME-WT-7053: we will hit the dhandle deadlock if we open multiple
+                         * history store cursors in reconciliation. Once it is fixed, we can move
+                         * the open and close of the history store cursor inside the delete key
+                         * function.
+                         */
+                        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
                         WT_ERR(__wt_hs_delete_key_from_ts(
-                          session, btree->id, tmpkey, WT_TS_NONE, false));
-                        WT_ERR(__wt_hs_cursor_close(session));
-                        WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
+                          session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
+                        WT_ERR(hs_cursor->close(hs_cursor));
+                        hs_cursor = NULL;
+                        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
+                        WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                     }
                 }
 
@@ -1034,6 +1044,8 @@ leaf_insert:
     ret = __wt_rec_split_finish(session, r);
 
 err:
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &tmpkey);
     return (ret);
 }

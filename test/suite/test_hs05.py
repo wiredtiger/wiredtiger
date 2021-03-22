@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,6 +30,7 @@ from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -44,6 +45,12 @@ class test_hs05(wttest.WiredTigerTestCase):
     conn_config += 'eviction_updates_target=100,eviction_updates_trigger=100'
     session_config = 'isolation=snapshot'
     stable = 1
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -65,13 +72,13 @@ class test_hs05(wttest.WiredTigerTestCase):
         score_diff = score_end - score_start
         self.pr("After large updates score start: " + str(score_start))
         self.pr("After large updates score end: " + str(score_end))
-        self.pr("After large updates hs score diff: " + str(score_diff))
+        self.pr("After large updates history store score diff: " + str(score_diff))
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs05"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import fnmatch, os, shutil, threading, time
-from helper import copy_wiredtiger_home
+from helper import copy_wiredtiger_home, simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtdataset import SimpleDataSet
@@ -69,48 +69,34 @@ def retry_rollback(self, name, txn_session, code):
 class test_rollback_to_stable10(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(prepare_values)
+    scenarios = make_scenarios(key_format_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=6MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
 
-    def simulate_crash_restart(self, olddir, newdir):
-        ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
-        shutil.rmtree(newdir, ignore_errors=True)
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and \
-                "WiredTiger.lock" not in fullname and \
-                "Tmplog" not in fullname and \
-                "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
-        #
-        # close the original connection and open to new directory
-        # NOTE:  This really cannot test the difference between the
-        # write-no-sync (off) version of log_flush and the sync
-        # version since we're not crashing the system itself.
-        #
-        self.close_conn()
-        self.conn = self.setUpConnectionOpen(newdir)
-        self.session = self.setUpSessionOpen(self.conn)
-
     def test_rollback_to_stable(self):
         nrows = 1000
+
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
 
         # Create a table without logging.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
         ds_1 = SimpleDataSet(
-            self, uri_1, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri_1, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds_1.populate()
 
         # Create another table without logging.
@@ -132,15 +118,15 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Perform several updates.
         self.pr("large updates")
-        self.large_updates(uri_1, value_d, ds_1, nrows, 20)
-        self.large_updates(uri_1, value_c, ds_1, nrows, 30)
-        self.large_updates(uri_1, value_b, ds_1, nrows, 40)
-        self.large_updates(uri_1, value_a, ds_1, nrows, 50)
+        self.large_updates(uri_1, value_d, ds_1, nrows, self.prepare, 20)
+        self.large_updates(uri_1, value_c, ds_1, nrows, self.prepare, 30)
+        self.large_updates(uri_1, value_b, ds_1, nrows, self.prepare, 40)
+        self.large_updates(uri_1, value_a, ds_1, nrows, self.prepare, 50)
 
-        self.large_updates(uri_2, value_d, ds_2, nrows, 20)
-        self.large_updates(uri_2, value_c, ds_2, nrows, 30)
-        self.large_updates(uri_2, value_b, ds_2, nrows, 40)
-        self.large_updates(uri_2, value_a, ds_2, nrows, 50)
+        self.large_updates(uri_2, value_d, ds_2, nrows, self.prepare, 20)
+        self.large_updates(uri_2, value_c, ds_2, nrows, self.prepare, 30)
+        self.large_updates(uri_2, value_b, ds_2, nrows, self.prepare, 40)
+        self.large_updates(uri_2, value_a, ds_2, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
         self.check(value_d, uri_1, nrows, 20)
@@ -170,20 +156,20 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             # Rollbacks may occur when checkpoint is running, so retry as needed.
             self.pr("updates")
             retry_rollback(self, 'update ds1, e', None,
-                           lambda: self.large_updates(uri_1, value_e, ds_1, nrows, 70))
+                           lambda: self.large_updates(uri_1, value_e, ds_1, nrows, self.prepare, 70))
             retry_rollback(self, 'update ds2, e', None,
-                           lambda: self.large_updates(uri_2, value_e, ds_2, nrows, 70))
+                           lambda: self.large_updates(uri_2, value_e, ds_2, nrows, self.prepare, 70))
             retry_rollback(self, 'update ds1, f', None,
-                           lambda: self.large_updates(uri_1, value_f, ds_1, nrows, 80))
+                           lambda: self.large_updates(uri_1, value_f, ds_1, nrows, self.prepare, 80))
             retry_rollback(self, 'update ds2, f', None,
-                           lambda: self.large_updates(uri_2, value_f, ds_2, nrows, 80))
+                           lambda: self.large_updates(uri_2, value_f, ds_2, nrows, self.prepare, 80))
         finally:
             done.set()
             ckpt.join()
 
         # Simulate a server crash and restart.
         self.pr("restart")
-        self.simulate_crash_restart(".", "RESTART")
+        simulate_crash_restart(self, ".", "RESTART")
         self.pr("restart complete")
 
         # Check that the correct data is seen at and after the stable timestamp.
@@ -247,15 +233,15 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         # Perform several updates.
         self.pr("large updates")
-        self.large_updates(uri_1, value_d, ds_1, nrows, 20)
-        self.large_updates(uri_1, value_c, ds_1, nrows, 30)
-        self.large_updates(uri_1, value_b, ds_1, nrows, 40)
-        self.large_updates(uri_1, value_a, ds_1, nrows, 50)
+        self.large_updates(uri_1, value_d, ds_1, nrows, self.prepare, 20)
+        self.large_updates(uri_1, value_c, ds_1, nrows, self.prepare, 30)
+        self.large_updates(uri_1, value_b, ds_1, nrows, self.prepare, 40)
+        self.large_updates(uri_1, value_a, ds_1, nrows, self.prepare, 50)
 
-        self.large_updates(uri_2, value_d, ds_2, nrows, 20)
-        self.large_updates(uri_2, value_c, ds_2, nrows, 30)
-        self.large_updates(uri_2, value_b, ds_2, nrows, 40)
-        self.large_updates(uri_2, value_a, ds_2, nrows, 50)
+        self.large_updates(uri_2, value_d, ds_2, nrows, self.prepare, 20)
+        self.large_updates(uri_2, value_c, ds_2, nrows, self.prepare, 30)
+        self.large_updates(uri_2, value_b, ds_2, nrows, self.prepare, 40)
+        self.large_updates(uri_2, value_a, ds_2, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
         self.check(value_d, uri_1, nrows, 20)
@@ -317,7 +303,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             ckpt.join()
 
         # Simulate a crash by copying to a new directory(RESTART).
-        copy_wiredtiger_home(".", "RESTART")
+        copy_wiredtiger_home(self, ".", "RESTART")
 
         # Commit the prepared transaction.
         session_p1.commit_transaction('commit_timestamp=' + timestamp_str(70) + ',durable_timestamp=' + timestamp_str(71))

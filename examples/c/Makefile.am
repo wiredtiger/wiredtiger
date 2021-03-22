@@ -9,6 +9,7 @@ noinst_PROGRAMS = \
 	ex_backup \
 	ex_backup_block \
 	ex_call_center \
+	ex_col_store \
 	ex_config_parse \
 	ex_cursor \
 	ex_data_source \
@@ -22,6 +23,7 @@ noinst_PROGRAMS = \
 	ex_pack \
 	ex_process \
 	ex_schema \
+	ex_storage_source \
 	ex_smoke \
 	ex_stat \
 	ex_sync \
@@ -29,6 +31,7 @@ noinst_PROGRAMS = \
 
 ex_encrypt_LDFLAGS = -rdynamic
 ex_file_system_LDFLAGS = -rdynamic
+ex_storage_source_LDFLAGS = -rdynamic
 
 # The examples can be run with no arguments as simple smoke tests
 TESTS = $(noinst_PROGRAMS)

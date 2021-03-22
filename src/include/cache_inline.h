@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -443,6 +443,24 @@ __wt_cache_full(WT_SESSION_IMPL *session)
     cache = conn->cache;
 
     return (__wt_cache_bytes_inuse(cache) >= conn->cache_size);
+}
+
+/*
+ * __wt_cache_hs_dirty --
+ *     Return if a major portion of the cache is dirty due to history store content.
+ */
+static inline bool
+__wt_cache_hs_dirty(WT_SESSION_IMPL *session)
+{
+    WT_CACHE *cache;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bytes_max;
+    conn = S2C(session);
+    cache = conn->cache;
+    bytes_max = S2C(session)->cache_size;
+
+    return (__wt_cache_bytes_plus_overhead(cache, cache->bytes_hs_dirty) >=
+      ((uint64_t)(cache->eviction_dirty_trigger * bytes_max) / 100));
 }
 
 /*

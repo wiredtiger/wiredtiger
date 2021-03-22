@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -136,13 +136,13 @@ __wt_block_compact_page_skip(
     WT_EXT *ext;
     WT_EXTLIST *el;
     wt_off_t limit, offset;
-    uint32_t size, checksum;
+    uint32_t checksum, logid, size;
 
     WT_UNUSED(addr_size);
     *skipp = true; /* Return a default skip. */
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_buffer_to_addr(block, addr, &offset, &size, &checksum));
+    WT_RET(__wt_block_buffer_to_addr(block, addr, &logid, &offset, &size, &checksum));
 
     /*
      * If this block is in the chosen percentage of the file and there's a block on the available

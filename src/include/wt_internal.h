@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -165,6 +165,8 @@ struct __wt_cursor_stat;
 typedef struct __wt_cursor_stat WT_CURSOR_STAT;
 struct __wt_cursor_table;
 typedef struct __wt_cursor_table WT_CURSOR_TABLE;
+struct __wt_cursor_tiered;
+typedef struct __wt_cursor_tiered WT_CURSOR_TIERED;
 struct __wt_data_handle;
 typedef struct __wt_data_handle WT_DATA_HANDLE;
 struct __wt_data_handle_cache;
@@ -253,6 +255,8 @@ struct __wt_named_encryptor;
 typedef struct __wt_named_encryptor WT_NAMED_ENCRYPTOR;
 struct __wt_named_extractor;
 typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
+struct __wt_named_storage_source;
+typedef struct __wt_named_storage_source WT_NAMED_STORAGE_SOURCE;
 struct __wt_optrack_header;
 typedef struct __wt_optrack_header WT_OPTRACK_HEADER;
 struct __wt_optrack_record;
@@ -313,6 +317,10 @@ struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_tiered;
+typedef struct __wt_tiered WT_TIERED;
+struct __wt_tiered_manager;
+typedef struct __wt_tiered_manager WT_TIERED_MANAGER;
 struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
@@ -402,6 +410,7 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
+#include "tiered.h"
 #include "txn.h"
 
 #include "session.h" /* required by connection.h */
