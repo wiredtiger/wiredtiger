@@ -83,17 +83,21 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
 
 
 static bool
-__blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item,
-			int frequency_target, int recency_target)
+__blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_target,
+			uint32_t recency_target)
 {
     if (blkcache_item->virtual_recency_timestamp <= recency_target
 	&& WT_MIN(blkcache_item->num_references, BLKCACHE_MAX_FREQUENCY_TARGET)
-	<= BLKCACHE_MAX_FREQUENCY_TARGET)
+	<= frequency_target)
 	return true;
     return false;
 }
 
-WT_THREAD_RET
+/*
+ * __blkcache_eviction_thread
+ *     Periodically sweep the cache and evict unused blocks.
+ */
+static WT_THREAD_RET
 __blkcache_eviction_thread(void *arg)
 {
     WT_BLKCACHE *blkcache;
@@ -101,11 +105,13 @@ __blkcache_eviction_thread(void *arg)
     WT_BLKCACHE_ITEM *blkcache_item, *blkcache_item_tmp;
     WT_SESSION_IMPL *session;
     double full_target = 0.95;
-    int blocks_evicted, blocks_not_evicted, i, frequency_target, recency_target;
+    int blocks_evicted, blocks_not_evicted, i;
+    uint32_t frequency_target, recency_target;
 
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    frequency_target = recency_target = 0;
 
     printf("Block cache eviction thread starting...\n");
 
@@ -130,8 +136,7 @@ __blkcache_eviction_thread(void *arg)
 	     * Reset the targets so that we begin a new eviction cycle
 	     * conservatively, targeting the blocks that were never reused.
 	     */
-	    frequency_target = 0;
-	    recency_target = 0;
+	    frequency_target = recency_target = 0;
 	}
 
 	/* Check if we were awaken because the cache is being destroyed */
@@ -149,11 +154,10 @@ __blkcache_eviction_thread(void *arg)
 	blocks_evicted = blocks_not_evicted = 0;
 	printf("Beginning a pass: f(%d), r(%d).\n", frequency_target, recency_target);
 
-	for (i = 0; i < blkcache->hash_size; i++) {
+	for (i = 0; i < (int)blkcache->hash_size; i++) {
 	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
 	    TAILQ_FOREACH_SAFE(blkcache_item, &blkcache->hash[i], hashq, blkcache_item_tmp) {
-		if (__blkcache_should_evict(session, blkcache_item, frequency_target,
-					    recency_target)) {
+		if (__blkcache_should_evict(blkcache_item, frequency_target, recency_target)) {
 		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
 		    __blkcache_free(session, blkcache_item->data);
 		    __blkcache_update_ref_histogram(session, blkcache_item);
