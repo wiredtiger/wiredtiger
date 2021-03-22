@@ -34,9 +34,8 @@
 
 class poc_test : public test_harness::test {
     public:
-    poc_test(const std::string &config, const std::string &name, int64_t trace_level)
+    poc_test(const std::string &config, const std::string &name)
         : test(config, name)
     {
-        test_harness::_trace_level = trace_level;
     }
 };
