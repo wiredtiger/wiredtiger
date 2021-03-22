@@ -30,8 +30,5 @@
 
 class poc_test : public test_harness::test {
     public:
-    poc_test(const std::string &config, const std::string &name)
-        : test(config, name)
-    {
-    }
+    poc_test(const std::string &config, const std::string &name) : test(config, name) {}
 };

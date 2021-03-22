@@ -102,9 +102,9 @@ run_test(const std::string &test_name, const std::string &config_name = "")
     int error_code = 0;
 
     if (config_name.empty())
-        cfg_path = "../../../test/cppsuite/configurations/config_" + test_name + "_default.txt";
+        cfg_path = "configs/config_" + test_name + "_default.txt";
     else
-        cfg_path = "../../../test/cppsuite/configurations/" + config_name;
+        cfg_path = config_name;
     cfg = parse_configuration_from_file(cfg_path);
 
     std::cout << "Configuration\t:" << cfg << std::endl;
