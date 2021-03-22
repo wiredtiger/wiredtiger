@@ -29,6 +29,8 @@
 #ifndef DEBUG_UTILS_H
 #define DEBUG_UTILS_H
 
+#include <iostream>
+
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
