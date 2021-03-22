@@ -38,12 +38,12 @@ namespace test_harness {
  */
 class component {
     public:
-    component(configuration *config) : _config(config) {}
+    component(configuration *config) : _enabled(true), _running(false), _config(config) {}
+
     ~component()
     {
         delete _config;
     }
-
     /*
      * The load function should perform all tasks required to setup the component for the main phase
      * of the test. An example operation performed in the load phase would be populating a database.
@@ -59,6 +59,12 @@ class component {
      */
     virtual void run() = 0;
 
+    bool
+    is_enabled() const
+    {
+        return _enabled;
+    }
+
     /*
      * The finish phase is a cleanup phase. Created objects are destroyed here and any final testing
      * requirements can be performed in this phase. An example could be the verification of the
@@ -73,6 +79,7 @@ class component {
     static const std::string name;
 
     protected:
+    bool _enabled;
     volatile bool _running;
     configuration *_config;
 };
