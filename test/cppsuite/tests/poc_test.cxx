@@ -26,10 +26,6 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include <fstream>
-#include <iostream>
-#include <string>
-
 #include "test_harness/test.h"
 
 class poc_test : public test_harness::test {
