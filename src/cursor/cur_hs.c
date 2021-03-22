@@ -347,6 +347,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
     WT_CURSOR_BTREE *cbt;
     WT_DECL_ITEM(datastore_key);
     WT_DECL_RET;
+    WT_TIME_WINDOW *stop_tw;
     wt_timestamp_t start_ts;
     uint64_t counter;
     uint32_t btree_id;
@@ -386,9 +387,9 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
          * a deleted update without a timestamp.
          */
         if (__wt_txn_tw_stop_visible_all(session, &cbt->upd_value->tw)) {
-            if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET) &&
-              cbt->upd_value->tw.durable_stop_ts != WT_TS_NONE &&
-              cbt->upd_value->tw.stop_ts != WT_TS_NONE) {
+            stop_tw = &cbt->upd_value->tw;
+            if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET) && stop_tw->stop_txn != WT_TXN_NONE &&
+              stop_tw->durable_stop_ts != WT_TS_NONE && stop_tw->stop_ts != WT_TS_NONE) {
                 ret = WT_NOTFOUND;
                 goto err;
             }
