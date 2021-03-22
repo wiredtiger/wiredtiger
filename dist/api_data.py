@@ -425,11 +425,11 @@ file_config = format_meta + file_runtime_config + [
             authentication string identifier'''),
         Config('bucket', '', r'''
             The bucket indicating the location for this table'''),
-        Config('local_retention', '', r'''
+        Config('local_retention', '300', r'''
             time in seconds to retain data on tiered storage on the local tier
             for faster read access''',
         min='0', max='10000'),
-        Config('object_target_size', '', r'''
+        Config('object_target_size', '10M', r'''
             the approximate size of objects before creating them on the
             tiered storage tier''',
             min='100K', max='10TB'),
