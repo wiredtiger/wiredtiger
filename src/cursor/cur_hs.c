@@ -670,8 +670,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
             WT_ERR(ret);
             /*
              * We find an update when walking forwards. If initially we land on the same key as the
-             * specified key, exact will be 0 and we need to compare the keys to . If it is not
-             * visible, we must have found a key that is larger than the specified key.
+             * specified key, we need to compare the keys to see where we are now. Otherwise, we
+             * must have found a key that is larger than the specified key.
              */
             if (exact == 0) {
                 WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
