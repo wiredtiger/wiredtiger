@@ -15,10 +15,10 @@
 #include <memkind.h>
 #endif /* HAVE_LIBMEMKIND */
 
-#define BLKCACHE_FREQ_TARGET_INCREMENT 10;
-#define BLKCACHE_MAX_FREQUENCY_TARGET 100;
-#define BLKCACHE_MAX_RECENCY_TARGET 5;
-#define BLKCACHE_REC_TARGET_INCREMENT 1;
+#define BLKCACHE_FREQ_TARGET_INCREMENT 10
+#define BLKCACHE_MAX_FREQUENCY_TARGET 100
+#define BLKCACHE_MAX_RECENCY_TARGET 5
+#define BLKCACHE_REC_TARGET_INCREMENT 1
 
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
@@ -68,17 +68,19 @@ struct __wt_blkcache_item {
 struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
-    WT_SPINLOCK * hash_locks;
+    WT_SPINLOCK *hash_locks;
+    WT_CONDVAR *blkcache_cond;
+    wt_thread_t evict_thread_tid;
 
+    volatile bool blkcache_exiting;
     bool write_allocate;
-    volatile bool cache_destroyed;
     char *nvram_device_path;
     double full_target;
     double overhead_pct;
     float fraction_in_dram;
     int refs_since_filesize_estimated;
     int type;
-    size_t bytes_used;
+    volatile size_t bytes_used;
     size_t estimated_file_size;
     size_t hash_size;
     size_t num_data_blocks;

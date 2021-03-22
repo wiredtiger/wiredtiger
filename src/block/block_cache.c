@@ -35,6 +35,53 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     return (0);
 }
 
+/*
+ * __blkcache_free --
+ *     Free a chunk of memory.
+ */
+static void
+__blkcache_free(WT_SESSION_IMPL *session, void *ptr)
+{
+
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (blkcache->type == BLKCACHE_DRAM)
+        __wt_free(session, ptr);
+    else if (blkcache->type == BLKCACHE_NVRAM) {
+#ifdef HAVE_LIBMEMKIND
+        memkind_free(blkcache->pmem_kind, ptr);
+#else
+        __wt_err(session, EINVAL, "NVRAM block cache type requires libmemkind.");
+#endif
+    }
+}
+
+/*
+ * __blkcache_update_ref_histogram --
+ *      Update the histogram of block accesses when the block is freed or on exit.
+ */
+static void
+__blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item)
+{
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+    unsigned int bucket;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    bucket = blkcache_item->num_references / BLKCACHE_HIST_BOUNDARY;
+    if (bucket > BLKCACHE_HIST_BUCKETS - 1)
+	bucket =  BLKCACHE_HIST_BUCKETS - 1;
+
+    blkcache->cache_references[bucket]++;
+}
+
+
 static bool
 __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item,
 			int frequency_target, int recency_target)
@@ -43,44 +90,68 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
 	&& WT_MIN(blkcache_item->num_references, BLKCACHE_MAX_FREQUENCY_TARGET)
 	<= BLKCACHE_MAX_FREQUENCY_TARGET)
 	return true;
+    return false;
 }
 
-static void
-__blkcache_eviction_thread(WT_SESSION_IMPL *session)
+WT_THREAD_RET
+__blkcache_eviction_thread(void *arg)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
-    int frequency_target, recency_target;
+    WT_BLKCACHE_ITEM *blkcache_item, *blkcache_item_tmp;
+    WT_SESSION_IMPL *session;
+    double full_target = 0.95;
+    int blocks_evicted, blocks_not_evicted, i, frequency_target, recency_target;
 
+    session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
-    while (!cache_destroyed) {
+    printf("Block cache eviction thread starting...\n");
 
-	/* If cache is not close to being full, go to sleep for a while. */
-	if ((double)blkcache->bytes_used / (double)blkcache->max_bytes < full_target){
-	    __wt_cond_wait(session);
+    while (!blkcache->blkcache_exiting) {
 
+	/*
+	 * If cache is not close to being full, go to sleep for a while.
+	 * We don't protect reading cache statistics with synchronization
+	 * primitives. They change slowly, and it's okay if we are a little off.
+	 * They are used as a heuristic, not for correctness. The variable indicating
+	 * the number of bytes used is declared volatile, so the compiler
+	 * won't cache it in registers.
+	 */
+	while ((double)blkcache->bytes_used/(double)blkcache->max_bytes < full_target
+	       && !blkcache->blkcache_exiting){
+	    __wt_cond_wait(session, blkcache->blkcache_cond, WT_MILLION, NULL);
+
+	    printf("Block cache eviction thread slept: %.2f occupancy below target of %.2f.\n",
+		   (double)blkcache->bytes_used/(double)blkcache->max_bytes, full_target);
 	    /*
-	     * Reset the targets to begin eviction conservatively, targeting
-	     * the blocks that were never reused.
+	     * We just slept, meaning that eviction was not needed.
+	     * Reset the targets so that we begin a new eviction cycle
+	     * conservatively, targeting the blocks that were never reused.
 	     */
 	    frequency_target = 0;
 	    recency_target = 0;
 	}
 
 	/* Check if we were awaken because the cache is being destroyed */
-	if (cache_destroyed) break;
+	if (blkcache->blkcache_exiting)
+	    return (0);
 
 	/*
 	 * Walk the cache, gathering statistics and evicting blocks
-	 * that are within our target.
+	 * that are within our target. Borrowing a page from the "clock"
+	 * algorithm, we decrement the virtual recency timestamps as
+	 * we scan the blocks. A lower value of the timestamp means
+	 * a less recent access. On the other hand, when the block
+	 * is accessed, that timestamp will be incremented.
 	 */
+	blocks_evicted = blocks_not_evicted = 0;
+	printf("Beginning a pass: f(%d), r(%d).\n", frequency_target, recency_target);
+
 	for (i = 0; i < blkcache->hash_size; i++) {
 	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
-	    while (!TAILQ_EMPTY(&blkcache->hash[i])) {
-		blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
-
+	    TAILQ_FOREACH_SAFE(blkcache_item, &blkcache->hash[i], hashq, blkcache_item_tmp) {
 		if (__blkcache_should_evict(session, blkcache_item, frequency_target,
 					    recency_target)) {
 		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
@@ -89,11 +160,16 @@ __blkcache_eviction_thread(WT_SESSION_IMPL *session)
 		    blkcache->num_data_blocks--;
 		    blkcache->bytes_used -= blkcache_item->id.size;
 		    __wt_free(session, blkcache_item);
+		    blocks_evicted++;
 		}
-		else
+		else {
 		    blkcache_item->virtual_recency_timestamp--;
+		    blocks_not_evicted++;
+		}
 	    }
 	    __wt_spin_unlock(session, &blkcache->hash_locks[i]);
+	    if (blkcache->blkcache_exiting)
+		return (0);
 	}
 
 	/*
@@ -101,14 +177,14 @@ __blkcache_eviction_thread(WT_SESSION_IMPL *session)
 	 * eviction, we will be more aggressive. We use the LRU-first approach.
 	 * We first stay within the same recency range, evicting increasingly
 	 * more frequently used blocks within that range. Once we reach the
-	 * maximum freequency target, we move into the closer recency category.
+	 * maximum freequency target, we move into the more recent category.
 	 */
 
 	if (frequency_target < BLKCACHE_MAX_FREQUENCY_TARGET)
-	    frequency_target = WT_MAX(frequency_target + BLKCACHE_FREQ_TARGET_INCREMENT,
+	    frequency_target = WT_MIN(frequency_target + BLKCACHE_FREQ_TARGET_INCREMENT,
 				      BLKCACHE_MAX_FREQUENCY_TARGET);
 	else if (recency_target < BLKCACHE_MAX_RECENCY_TARGET) {
-	    recency_target = WT_MAX(recency_target + BLKCACHE_REC_TARGET_INCREMENT,
+	    recency_target = WT_MIN(recency_target + BLKCACHE_REC_TARGET_INCREMENT,
 				    BLKCACHE_MAX_RECENCY_TARGET);
 	    frequency_target = 0;
 	}
@@ -116,9 +192,13 @@ __blkcache_eviction_thread(WT_SESSION_IMPL *session)
 	    printf("Both targets maxed out: f(%d), r(%d).\n", frequency_target,
 		   recency_target);
 	}
+	printf("Block cache eviction pass done. Evicted blocks: %d, not evicted blocks %d \n",
+	       blocks_evicted, blocks_not_evicted);
+	printf("Targets are: f(%d), r(%d).\n", frequency_target, recency_target);
     }
-}
 
+    return (0);
+}
 
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
@@ -185,51 +265,6 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     return blkcache->estimated_file_size;
 }
 
-/*
- * __blkcache_free --
- *     Free a chunk of memory.
- */
-static void
-__blkcache_free(WT_SESSION_IMPL *session, void *ptr)
-{
-
-    WT_BLKCACHE *blkcache;
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    blkcache = &conn->blkcache;
-
-    if (blkcache->type == BLKCACHE_DRAM)
-        __wt_free(session, ptr);
-    else if (blkcache->type == BLKCACHE_NVRAM) {
-#ifdef HAVE_LIBMEMKIND
-        memkind_free(blkcache->pmem_kind, ptr);
-#else
-        __wt_err(session, EINVAL, "NVRAM block cache type requires libmemkind.");
-#endif
-    }
-}
-
-/*
- * __blkcache_update_ref_histogram --
- *      Update the histogram of block accesses when the block is freed or on exit.
- */
-static void
-__blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item)
-{
-    WT_BLKCACHE *blkcache;
-    WT_CONNECTION_IMPL *conn;
-    unsigned int bucket;
-
-    conn = S2C(session);
-    blkcache = &conn->blkcache;
-
-    bucket = blkcache_item->num_references / BLKCACHE_HIST_BOUNDARY;
-    if (bucket > BLKCACHE_HIST_BUCKETS - 1)
-	bucket =  BLKCACHE_HIST_BUCKETS - 1;
-
-    blkcache->cache_references[bucket]++;
-}
 
 /*
  * __wt_blkcache_get_or_check --
@@ -287,6 +322,10 @@ __wt_blkcache_get_or_check(
                 memcpy(data_ptr, blkcache_item->data, size);
 
 	    blkcache_item->num_references++;
+            /* The recency timestamp saturates at the maximum value. */
+	    blkcache_item->virtual_recency_timestamp
+		= WT_MIN(blkcache_item->virtual_recency_timestamp + 1,
+			 BLKCACHE_MAX_RECENCY_TARGET);
 
 #if BLKCACHE_TRACE == 1
 	    time_stop = __wt_clock(session);
@@ -394,6 +433,13 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     WT_ERR(__wt_calloc_one(session, &blkcache_item));
     blkcache_item->id = id;
     blkcache_item->data = data_ptr;
+
+    /*
+     * Set the recency timestamp on newly inserted blocks to the
+     * maximum value to reduce the chance of them being evicted before they
+     * are reused.
+     */
+    blkcache_item->virtual_recency_timestamp = BLKCACHE_MAX_RECENCY_TARGET;
 
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);
@@ -552,6 +598,11 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
         WT_RET(__wt_spin_init(session, &blkcache->hash_locks[i], "block cache bucket locks"));
     }
 
+    /* Create the eviction thread */
+    WT_RET(__wt_cond_alloc(session, "Block cache eviction", &blkcache->blkcache_cond));
+    WT_RET(__wt_thread_create(session, &blkcache->evict_thread_tid,
+			      __blkcache_eviction_thread, (void*)session));
+
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialized: "
 		 "type=%s, size=%" PRIu32 " path=%s",
 		 (type == BLKCACHE_NVRAM)?"nvram":(type == BLKCACHE_DRAM)?"dram":"unconfigured",
@@ -570,6 +621,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     int j;
     uint64_t i;
 
@@ -579,6 +631,11 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache with %" PRIu32
 		 " bytes used to be destroyed", (uint32_t)blkcache->bytes_used);
+
+    blkcache->blkcache_exiting = true;
+    __wt_cond_signal(session, blkcache->blkcache_cond);
+    WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
+    printf("Block cache eviction thread exited...\n");
 
     if (blkcache->bytes_used == 0)
         goto done;
@@ -597,9 +654,10 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         __wt_spin_unlock(session, &blkcache->hash_locks[i]);
     }
 
+    __wt_cond_destroy(session, &blkcache->blkcache_cond);
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
-done:
+  done:
     /* Print reference histograms */
     printf("Reuses \t Number of blocks \n");
     printf("-----------------------------\n");
