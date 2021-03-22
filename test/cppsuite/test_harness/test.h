@@ -54,7 +54,7 @@ namespace test_harness {
  */
 class test {
     public:
-    test(const std::string &config)
+    test(const std::string &config, const std::string &name)
     {
         _configuration = new configuration(name, config);
         _runtime_monitor = new runtime_monitor(_configuration);
@@ -97,7 +97,7 @@ class test {
     /*
      * The primary run function that most tests will be able to utilize without much other code.
      */
-    void
+    virtual void
     run()
     {
         int64_t cache_size_mb = 100, duration_seconds = 0;
@@ -175,10 +175,8 @@ class test {
         return _thread_manager;
     }
 
-    static const std::string name;
-    static const std::string default_config;
-
     private:
+    std::string _name;
     std::vector<component *> _components;
     configuration *_configuration;
     runtime_monitor *_runtime_monitor;

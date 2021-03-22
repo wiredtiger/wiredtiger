@@ -33,22 +33,7 @@
 #include "test_harness/debug_utils.h"
 #include "test_harness/test.h"
 
-class poc_test : public test_harness::test {
-    public:
-    poc_test(const std::string &config, int64_t trace_level) : test(config)
-    {
-        test_harness::_trace_level = trace_level;
-    }
-
-    void
-    run()
-    {
-        test::run();
-    }
-};
-
-const std::string poc_test::test::name = "poc_test";
-const std::string poc_test::test::default_config = "config_poc_default.txt";
+#include "poc_test.cxx"
 
 std::string
 parse_configuration_from_file(const std::string &filename)
@@ -106,20 +91,46 @@ print_error(const std::string &str)
     std::cerr << "No value given for option " << str << std::endl;
 }
 
+/* Run a test with its default configuration. */
+int64_t
+run_test(const std::string &test_name, int64_t trace_level, const std::string &config_name = "")
+{
+    std::string cfg, cfg_path;
+    int error_code = 0;
+
+    if (config_name.empty())
+        cfg_path = "../../../test/cppsuite/configurations/config_" + test_name + "_default.txt";
+    else
+        cfg_path = "../../../test/cppsuite/configurations/" + config_name;
+    cfg = parse_configuration_from_file(cfg_path);
+
+    std::cout << "Configuration\t:" << cfg << std::endl;
+
+    if (test_name == "poc_test")
+        poc_test(cfg, test_name, trace_level).run();
+    else {
+        std::cout << "Test not found: " << test_name << std::endl;
+        error_code = -1;
+    }
+
+    return (error_code);
+}
+
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, filename;
+    std::string cfg, config_name, test_to_run;
     int64_t trace_level = 0, error_code = 0;
 
     /* Parse args
      * -C   : Configuration. Cannot be used with -f.
      * -f   : Filename that contains the configuration. Cannot be used with -C.
-     * -t   : Trace level.
+     * -l   : Trace level.
+     * -t   : Test to run. All tests are run if not specified.
      */
     for (int i = 1; (i < argc) && (error_code == 0); ++i) {
         if (std::string(argv[i]) == "-C") {
-            if (!filename.empty()) {
+            if (!config_name.empty()) {
                 std::cerr << "Option -C cannot be used with -f" << std::endl;
                 error_code = -1;
             } else if ((i + 1) < argc)
@@ -133,12 +144,19 @@ main(int argc, char *argv[])
                 std::cerr << "Option -f cannot be used with -C" << std::endl;
                 error_code = -1;
             } else if ((i + 1) < argc)
-                filename = argv[++i];
+                config_name = argv[++i];
             else {
                 print_error(argv[i]);
                 error_code = -1;
             }
         } else if (std::string(argv[i]) == "-t") {
+            if ((i + 1) < argc)
+                test_to_run = argv[++i];
+            else {
+                print_error(argv[i]);
+                error_code = -1;
+            }
+        } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
                 trace_level = std::stoi(argv[++i]);
             else {
@@ -149,18 +167,16 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        /* Check if default configuration should be used. */
-        if (cfg.empty() && filename.empty())
-            cfg = parse_configuration_from_file(
-              "../../../test/cppsuite/configurations/" + poc_test::test::default_config);
-        else if (!filename.empty())
-            cfg =
-              parse_configuration_from_file("../../../test/cppsuite/configurations/" + filename);
 
-        std::cout << "Configuration\t:" << cfg << std::endl;
         std::cout << "Trace level\t:" << trace_level << std::endl;
 
-        poc_test(cfg, trace_level).run();
+        /* Find the test to run. */
+        if (test_to_run.empty()) {
+            /* Run all tests. */
+            std::cout << "No tests given, running all tests!" << std::endl;
+            error_code = run_test("poc_test", trace_level);
+        } else
+            error_code = run_test(test_to_run, trace_level, config_name);
     }
 
     return (error_code);

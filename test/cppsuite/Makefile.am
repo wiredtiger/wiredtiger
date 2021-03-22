@@ -7,9 +7,9 @@ AM_LDFLAGS = -static
 all_TESTS=
 noinst_PROGRAMS=
 
-test_poc_SOURCES = tests/poc.cxx
-noinst_PROGRAMS += test_poc
-all_TESTS += test_poc
+test_SOURCES = tests/poc_test.cxx tests/main.cxx
+noinst_PROGRAMS += test
+all_TESTS += test
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)
