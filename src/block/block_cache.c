@@ -576,18 +576,17 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
     blkcache->max_bytes = cache_size;
     blkcache->overhead_pct = overhead_pct;
     blkcache->system_ram = system_ram;
-    blkcache->type = type;
     blkcache->write_allocate = write_allocate;
 
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
-        if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0) {
-            WT_RET_MSG(session, ret, "block cache failed to initialize");
-            WT_RET(__wt_strndup(
-              session, nvram_device_path, strlen(nvram_device_path), &blkcache->nvram_device_path));
-            __wt_free(session, nvram_device_path);
-        }
+        if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0)
+            WT_RET_MSG(session, ret, "block cache failed to initialize: memkind_create_pmem");
+
+	WT_RET(__wt_strndup(
+		   session, nvram_device_path, strlen(nvram_device_path), &blkcache->nvram_device_path));
+	__wt_free(session, nvram_device_path);
 #else
         (void)nvram_device_path;
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
@@ -606,6 +605,8 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
     WT_RET(__wt_cond_alloc(session, "Block cache eviction", &blkcache->blkcache_cond));
     WT_RET(__wt_thread_create(session, &blkcache->evict_thread_tid,
 			      __blkcache_eviction_thread, (void*)session));
+
+    blkcache->type = type;
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache initialized: "
 		 "type=%s, size=%" PRIu32 " path=%s",
@@ -636,6 +637,9 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     __wt_verbose(session, WT_VERB_BLKCACHE, "block cache with %" PRIu32
 		 " bytes used to be destroyed", (uint32_t)blkcache->bytes_used);
 
+    if (blkcache->type == BLKCACHE_UNCONFIGURED)
+	goto done;
+
     blkcache->blkcache_exiting = true;
     __wt_cond_signal(session, blkcache->blkcache_cond);
     WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
@@ -657,11 +661,11 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         }
         __wt_spin_unlock(session, &blkcache->hash_locks[i]);
     }
-
-    __wt_cond_destroy(session, &blkcache->blkcache_cond);
     WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
 
   done:
+    if (blkcache->blkcache_cond != NULL)
+	__wt_cond_destroy(session, &blkcache->blkcache_cond);
     /* Print reference histograms */
     printf("Reuses \t Number of blocks \n");
     printf("-----------------------------\n");
