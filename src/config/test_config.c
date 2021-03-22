@@ -22,7 +22,7 @@ static const WT_CONFIG_CHECK confchk_insert_config_subconfigs[] = {
   {"value_format", "string", NULL, NULL, NULL, 0},
   {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
-static const WT_CONFIG_CHECK confchk_operation_count_subconfigs[] = {
+static const WT_CONFIG_CHECK confchk_ops_per_transaction_subconfigs[] = {
   {"max", "string", NULL, NULL, NULL, 0}, {"min", "string", NULL, NULL, NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -39,7 +39,7 @@ static const WT_CONFIG_CHECK confchk_workload_generator_subconfigs[] = {
   {"key_count", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"key_format", "string", NULL, NULL, NULL, 0},
   {"key_size", "int", NULL, "min=0,max=10000", NULL, 0},
-  {"operation_count", "category", NULL, NULL, confchk_operation_count_subconfigs, 2},
+  {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
   {"read_threads", "int", NULL, "min=0,max=100", NULL, 0},
   {"update_config", "category", NULL, NULL, confchk_update_config_subconfigs, 4},
   {"update_threads", "int", NULL, "min=0,max=20", NULL, 0},
@@ -68,7 +68,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "workload_generator=(collection_count=1,"
     "insert_config=(key_format=i,key_size=0,value_format=S,"
     "value_size=0),insert_threads=0,key_count=0,key_format=i,"
-    "key_size=0,operation_count=(max=1,min=),read_threads=0,"
+    "key_size=0,ops_per_transaction=(max=1,min=),read_threads=0,"
     "update_config=(key_format=i,key_size=0,value_format=S,"
     "value_size=0),update_threads=0,value_format=S,value_size=0),"
     "workload_tracking=(enabled=false)",

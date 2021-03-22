@@ -61,9 +61,9 @@ record_config = [
 #
 populate_config = [
     Config('collection_count', 1, r'''
-        The number of colections the workload generator operates over''', min=0, max=200000),
+        The number of collections the workload generator operates over''', min=0, max=200000),
     Config('key_count', 0, r'''
-        The number of keys to be operated on per colection''', min=0, max=1000000),
+        The number of keys to be operated on per collection''', min=0, max=1000000),
 ]
 
 #
@@ -75,8 +75,8 @@ throttle_config = [
 ]
 
 #
-# A generic configuration used by various other configuration to define whether that thing is
-# enabled or not.
+# A generic configuration used by various other configurations to define whether that component or
+# similar is enabled or not.
 #
 enable_config = [
     Config('enabled', 'false', r'''
@@ -99,9 +99,9 @@ range_config = [
 ]
 
 transaction_config = [
-    Config('operation_count', '', r'''
+    Config('ops_per_transaction', '', r'''
         Defines how many operations a transaction can perform, the range is defined with a minimum
-        and a maximum and a random number is choses between the two using a linear distrubtion.''',
+        and a maximum and a random number is chosen between the two using a linear distrubtion.''',
         type='category',subconfig=range_config),
 ]
 
@@ -162,7 +162,7 @@ test_config = [
         Configuration options for the workload generator''',
         type='category', subconfig=workload_generator),
     Config('workload_tracking','', r'''
-        Configuration options for the workload tracking component''',
+        Configuration options for the workload tracker''',
         type='category', subconfig=workload_tracking),
 
 # Non component top level configuration.

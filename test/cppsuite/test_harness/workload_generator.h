@@ -139,7 +139,7 @@ class workload_generator : public component {
 
         /* Retrieve useful parameters from the test configuration. */
         testutil_check(_config->get_int(READ_THREADS, read_threads));
-        sub_config = _config->get_subconfig(OPERATION_COUNT);
+        sub_config = _config->get_subconfig(OPS_PER_TRANSACTION);
         testutil_check(sub_config->get_int(MIN, min_operation_per_transaction));
         testutil_check(sub_config->get_int(MAX, max_operation_per_transaction));
         testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
