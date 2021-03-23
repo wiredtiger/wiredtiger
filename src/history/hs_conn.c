@@ -84,6 +84,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_SESSION_IMPL *tmp_setup_session;
+    wt_off_t hs_size;
+    bool hs_exists;
 
     conn = S2C(session);
     tmp_setup_session = NULL;
@@ -125,6 +127,15 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      */
     btree->file_max = (uint64_t)cval.val;
     WT_STAT_CONN_SET(session, cache_hs_ondisk_max, btree->file_max);
+
+    /*
+     * Set the history store file size as it may already exist after a restart.
+     */
+    WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
+    if (hs_exists) {
+        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
+    }
 
 err:
     if (tmp_setup_session != NULL)
