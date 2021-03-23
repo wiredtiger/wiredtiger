@@ -88,8 +88,7 @@ parse_configuration_from_file(const std::string &filename)
 void
 print_error(const std::string &str)
 {
-    test_harness::debug_info(
-      "Value missing for option " + str, test_harness::_trace_level, DEBUG_ERROR);
+    test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
 }
 
 /*
@@ -108,19 +107,17 @@ run_test(const std::string &test_name, const std::string &config_name = "")
         cfg_path = config_name;
     cfg = parse_configuration_from_file(cfg_path);
 
-    test_harness::debug_info("Configuration\t: " + cfg, test_harness::_trace_level, DEBUG_INFO);
+    test_harness::debug_print("Configuration\t: " + cfg, DEBUG_INFO);
 
     if (test_name == "poc_test")
         poc_test(cfg, test_name).run();
     else {
-        test_harness::debug_info(
-          "Test not found: " + test_name, test_harness::_trace_level, DEBUG_ERROR);
+        test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
         error_code = -1;
     }
 
     if (error_code == 0)
-        test_harness::debug_info(
-          "Test " + test_name + " done.", test_harness::_trace_level, DEBUG_INFO);
+        test_harness::debug_print("Test " + test_name + " done.", DEBUG_INFO);
 
     return (error_code);
 }
@@ -141,8 +138,7 @@ main(int argc, char *argv[])
     for (int i = 1; (i < argc) && (error_code == 0); ++i) {
         if (std::string(argv[i]) == "-C") {
             if (!config_name.empty()) {
-                test_harness::debug_info(
-                  "Option -C cannot be used with -f", test_harness::_trace_level, DEBUG_ERROR);
+                test_harness::debug_print("Option -C cannot be used with -f", DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
@@ -152,8 +148,7 @@ main(int argc, char *argv[])
             }
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
-                test_harness::debug_info(
-                  "Option -f cannot be used with -C", test_harness::_trace_level, DEBUG_ERROR);
+                test_harness::debug_print("Option -f cannot be used with -C", DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
                 config_name = argv[++i];
@@ -179,17 +174,15 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        test_harness::debug_info(
-          "Trace level\t:" + test_harness::_trace_level, test_harness::_trace_level, DEBUG_INFO);
+        test_harness::debug_print(
+          "Trace level\t:" + std::to_string(test_harness::_trace_level), DEBUG_INFO);
         if (test_name.empty()) {
             /* Run all tests. */
-            test_harness::debug_info(
-              "Running all tests.", test_harness::_trace_level, DEBUG_INFO);
+            test_harness::debug_print("Running all tests.", DEBUG_INFO);
             for (auto const &it : all_tests) {
                 error_code = run_test(it);
                 if (error_code != 0) {
-                    test_harness::debug_info(
-                      "Test " + it + " failed.", test_harness::_trace_level, DEBUG_ERROR);
+                    test_harness::debug_print("Test " + it + " failed.", DEBUG_ERROR);
                     break;
                 }
             }

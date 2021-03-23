@@ -43,9 +43,9 @@ static int64_t _trace_level = 0;
 
 /* Used to print out traces for debugging purpose. */
 static void
-debug_info(const std::string &str, int64_t trace_level, int64_t trace_type)
+debug_print(const std::string &str, int64_t trace_type)
 {
-    if (trace_level >= trace_type) {
+    if (_trace_level >= trace_type) {
         if (trace_type >= DEBUG_ERROR)
             std::cerr << str << std::endl;
         else

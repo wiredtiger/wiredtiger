@@ -142,7 +142,7 @@ class test {
               _workload_tracking->get_schema_table_name());
         }
 
-        debug_info(is_success ? "SUCCESS" : "FAILED", test_harness::_trace_level, DEBUG_INFO);
+        debug_print(is_success ? "SUCCESS" : "FAILED", DEBUG_INFO);
         connection_manager::instance().close();
     }
 
