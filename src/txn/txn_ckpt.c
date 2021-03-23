@@ -899,6 +899,12 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         time_start_hs = __wt_clock(session);
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
         WT_ERR(ret);
+
+        /*
+         * The history store tree should not be visited again by the current checkpoint.
+         */
+        __checkpoint_update_generation(session);
+
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
