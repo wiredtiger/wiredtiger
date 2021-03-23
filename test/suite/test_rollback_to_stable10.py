@@ -311,6 +311,12 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         session_p1.close()
         session_p2.close()
 
+        # Check the history store file size before the simulated crash
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        hs_file_size_before_crash = stat_cursor[stat.conn.cache_hs_ondisk][2]
+        stat_cursor.close()
+        self.assertGreater(hs_file_size_before_crash, 0)
+
         # Open the new directory.
         self.pr("restart")
         self.conn = self.setUpConnectionOpen("RESTART")
@@ -333,6 +339,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         calls = stat_cursor[stat.conn.txn_rts][2]
+        hs_file_size_after_crash = stat_cursor[stat.conn.cache_hs_ondisk][2]
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
         hs_sweep = stat_cursor[stat.conn.txn_rts_sweep_hs_keys][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
@@ -346,6 +353,8 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.assertEqual(keys_restored, 0)
         self.assertGreaterEqual(upd_aborted, 0)
         self.assertGreater(pages_visited, 0)
+        # The history store file size should be greater than 0 after the restart
+        self.assertGreater(hs_file_size_after_crash, 0)
         self.assertGreaterEqual(hs_removed, 0)
         self.assertGreater(hs_sweep, 0)
 
