@@ -142,11 +142,7 @@ class test {
               _workload_tracking->get_schema_table_name());
         }
 
-        if (is_success)
-            std::cout << "SUCCESS" << std::endl;
-        else
-            std::cout << "FAILED" << std::endl;
-
+        debug_info(is_success ? "SUCCESS" : "FAILED", test_harness::_trace_level, DEBUG_INFO);
         connection_manager::instance().close();
     }
 

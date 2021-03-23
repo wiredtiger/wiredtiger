@@ -99,13 +99,13 @@ class workload_validation {
                 is_valid = check_disk_state(session, collection, collections);
                 if (!is_valid) {
                     debug_info("check_disk_state failed for collection " + collection, _trace_level,
-                      DEBUG_INFO);
+                      DEBUG_ERROR);
                     break;
                 }
             }
 
         } else
-            debug_info("check_reference failed!", _trace_level, DEBUG_INFO);
+            debug_info("check_reference failed!", _trace_level, DEBUG_ERROR);
 
         /* Clean the allocated memory. */
         clean_memory(collections);
@@ -149,10 +149,10 @@ class workload_validation {
             testutil_check(cursor->get_value(cursor, &value_operation_type));
 
             debug_info(
-              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);
-            debug_info("Timestamp is " + std::to_string(key_timestamp), _trace_level, DEBUG_INFO);
+              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_TRACE);
+            debug_info("Timestamp is " + std::to_string(key_timestamp), _trace_level, DEBUG_TRACE);
             debug_info("Operation type is " + std::to_string(value_operation_type), _trace_level,
-              DEBUG_INFO);
+              DEBUG_TRACE);
 
             if (static_cast<tracking_operation>(value_operation_type) ==
               tracking_operation::CREATE) {
@@ -201,12 +201,12 @@ class workload_validation {
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
 
             debug_info(
-              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_INFO);
-            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_INFO);
-            debug_info("Timestamp is " + std::to_string(key_timestamp), _trace_level, DEBUG_INFO);
+              "Collection name is " + std::string(key_collection_name), _trace_level, DEBUG_TRACE);
+            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_TRACE);
+            debug_info("Timestamp is " + std::to_string(key_timestamp), _trace_level, DEBUG_TRACE);
             debug_info("Operation type is " + std::to_string(value_operation_type), _trace_level,
-              DEBUG_INFO);
-            debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
+              DEBUG_TRACE);
+            debug_info("Value is " + std::string(value), _trace_level, DEBUG_TRACE);
 
             /*
              * If the cursor is reading an operation for a different collection, we know all the
@@ -290,7 +290,7 @@ class workload_validation {
                     if (!is_valid) {
                         debug_info(
                           "check_reference failed for key " + std::to_string(it_operations.first),
-                          _trace_level, DEBUG_INFO);
+                          _trace_level, DEBUG_ERROR);
                         break;
                     }
                 }
@@ -298,7 +298,7 @@ class workload_validation {
 
             if (!is_valid) {
                 debug_info("check_reference failed for collection " + it_collections.first,
-                  _trace_level, DEBUG_INFO);
+                  _trace_level, DEBUG_ERROR);
                 break;
             }
         }
@@ -327,7 +327,7 @@ class workload_validation {
         if (!is_valid)
             debug_info(
               "Collection " + collection_name + " has not been tracked or has been deleted",
-              _trace_level, DEBUG_INFO);
+              _trace_level, DEBUG_ERROR);
         else
             collection = collections[collection_name];
 
@@ -336,8 +336,8 @@ class workload_validation {
             testutil_check(cursor->get_key(cursor, &key));
             testutil_check(cursor->get_value(cursor, &value));
 
-            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_INFO);
-            debug_info("Value is " + std::string(value), _trace_level, DEBUG_INFO);
+            debug_info("Key is " + std::to_string(key), _trace_level, DEBUG_TRACE);
+            debug_info("Value is " + std::string(value), _trace_level, DEBUG_TRACE);
 
             if (collection->count(key) > 0) {
                 value_str = collection->at(key);
@@ -351,12 +351,12 @@ class workload_validation {
                         "\n Disk value: " + std ::string(value) +
                         "\n Tracking table key: " + std::to_string(key) +
                         "\n Tracking table value: " + (value_str == nullptr ? "NULL" : *value_str),
-                      _trace_level, DEBUG_INFO);
+                      _trace_level, DEBUG_ERROR);
             } else {
                 is_valid = false;
                 debug_info(
                   "The key " + std::to_string(key) + " present on disk has not been tracked",
-                  _trace_level, DEBUG_INFO);
+                  _trace_level, DEBUG_ERROR);
             }
         }
 

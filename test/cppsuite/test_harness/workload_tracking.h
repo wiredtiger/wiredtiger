@@ -91,14 +91,14 @@ class workload_tracking : public component {
           session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
         testutil_check(
           session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
-        debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
+        debug_info("Schema tracking initiated", _trace_level, DEBUG_TRACE);
 
         /* Initiate operations tracking. */
         testutil_check(
           session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
         testutil_check(session->open_cursor(
           session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
-        debug_info("Operations tracking created", _trace_level, DEBUG_INFO);
+        debug_info("Operations tracking created", _trace_level, DEBUG_TRACE);
     }
 
     void
@@ -137,7 +137,7 @@ class workload_tracking : public component {
         error_code = cursor->insert(cursor);
 
         if (error_code == 0)
-            debug_info("Workload tracking saved operation.", _trace_level, DEBUG_INFO);
+            debug_info("Workload tracking saved operation.", _trace_level, DEBUG_TRACE);
         else
             debug_info("Workload tracking failed to save operation !", _trace_level, DEBUG_ERROR);
 

@@ -88,7 +88,8 @@ parse_configuration_from_file(const std::string &filename)
 void
 print_error(const std::string &str)
 {
-    std::cerr << "No value given for option " << str << std::endl;
+    test_harness::debug_info(
+      "Value missing for option " + str, test_harness::_trace_level, DEBUG_ERROR);
 }
 
 /*
@@ -107,17 +108,19 @@ run_test(const std::string &test_name, const std::string &config_name = "")
         cfg_path = config_name;
     cfg = parse_configuration_from_file(cfg_path);
 
-    std::cout << "Configuration\t:" << cfg << std::endl;
+    test_harness::debug_info("Configuration\t: " + cfg, test_harness::_trace_level, DEBUG_INFO);
 
     if (test_name == "poc_test")
         poc_test(cfg, test_name).run();
     else {
-        std::cout << "Test not found: " << test_name << std::endl;
+        test_harness::debug_info(
+          "Test not found: " + test_name, test_harness::_trace_level, DEBUG_ERROR);
         error_code = -1;
     }
 
     if (error_code == 0)
-        std::cout << "Test " << test_name << " done." << std::endl;
+        test_harness::debug_info(
+          "Test " + test_name + " done.", test_harness::_trace_level, DEBUG_INFO);
 
     return (error_code);
 }
@@ -138,7 +141,8 @@ main(int argc, char *argv[])
     for (int i = 1; (i < argc) && (error_code == 0); ++i) {
         if (std::string(argv[i]) == "-C") {
             if (!config_name.empty()) {
-                std::cerr << "Option -C cannot be used with -f" << std::endl;
+                test_harness::debug_info(
+                  "Option -C cannot be used with -f", test_harness::_trace_level, DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
@@ -148,7 +152,8 @@ main(int argc, char *argv[])
             }
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
-                std::cerr << "Option -f cannot be used with -C" << std::endl;
+                test_harness::debug_info(
+                  "Option -f cannot be used with -C", test_harness::_trace_level, DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
                 config_name = argv[++i];
@@ -174,14 +179,17 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        std::cout << "Trace level\t:" << test_harness::_trace_level << std::endl;
+        test_harness::debug_info(
+          "Trace level\t:" + test_harness::_trace_level, test_harness::_trace_level, DEBUG_INFO);
         if (test_name.empty()) {
             /* Run all tests. */
-            std::cout << "No tests given, running all tests!" << std::endl;
+            test_harness::debug_info(
+              "Running all tests.", test_harness::_trace_level, DEBUG_INFO);
             for (auto const &it : all_tests) {
                 error_code = run_test(it);
                 if (error_code != 0) {
-                    std::cout << "Test " << it << " failed." << std::endl;
+                    test_harness::debug_info(
+                      "Test " + it + " failed.", test_harness::_trace_level, DEBUG_ERROR);
                     break;
                 }
             }

@@ -95,7 +95,7 @@ class workload_generator : public component {
             _collection_names.push_back(collection_name);
         }
         debug_info(
-          std::to_string(collection_count) + " collections created", _trace_level, DEBUG_INFO);
+          std::to_string(collection_count) + " collections created", _trace_level, DEBUG_TRACE);
 
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         testutil_check(_config->get_int(KEY_COUNT, key_count));
@@ -123,7 +123,7 @@ class workload_generator : public component {
                 }
             }
         }
-        debug_info("Populate stage done", _trace_level, DEBUG_INFO);
+        debug_info("Populate stage done", _trace_level, DEBUG_TRACE);
     }
 
     /* Do the work of the main part of the workload. */
@@ -165,7 +165,7 @@ class workload_generator : public component {
             it->finish();
         }
         _thread_manager.join();
-        debug_info("Workload generator: run stage done", _trace_level, DEBUG_INFO);
+        debug_info("Workload generator: run stage done", _trace_level, DEBUG_TRACE);
     }
 
     /* Workload threaded operations. */
@@ -276,7 +276,7 @@ class workload_generator : public component {
         error_code = cursor->insert(cursor);
 
         if (error_code == 0) {
-            debug_info("key/value inserted", _trace_level, DEBUG_INFO);
+            debug_info("key/value inserted", _trace_level, DEBUG_TRACE);
             error_code =
               _tracking->save(tracking_operation::INSERT, collection_name, key, value, ts);
         } else
@@ -313,7 +313,7 @@ class workload_generator : public component {
         error_code = cursor->update(cursor);
 
         if (error_code == 0) {
-            debug_info("key/value update", _trace_level, DEBUG_INFO);
+            debug_info("key/value update", _trace_level, DEBUG_TRACE);
             error_code =
               tracking->save(tracking_operation::UPDATE, collection_name, key, value, ts);
         } else
