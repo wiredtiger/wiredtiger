@@ -86,7 +86,7 @@ parse_configuration_from_file(const std::string &filename)
 }
 
 void
-print_error(const std::string &str)
+value_missing_error(const std::string &str)
 {
     test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
 }
@@ -143,7 +143,7 @@ main(int argc, char *argv[])
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
             else {
-                print_error(argv[i]);
+                value_missing_error(argv[i]);
                 error_code = -1;
             }
         } else if (std::string(argv[i]) == "-f") {
@@ -153,21 +153,21 @@ main(int argc, char *argv[])
             } else if ((i + 1) < argc)
                 config_name = argv[++i];
             else {
-                print_error(argv[i]);
+                value_missing_error(argv[i]);
                 error_code = -1;
             }
         } else if (std::string(argv[i]) == "-t") {
             if ((i + 1) < argc)
                 test_name = argv[++i];
             else {
-                print_error(argv[i]);
+                value_missing_error(argv[i]);
                 error_code = -1;
             }
         } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
                 test_harness::_trace_level = std::stoi(argv[++i]);
             else {
-                print_error(argv[i]);
+                value_missing_error(argv[i]);
                 error_code = -1;
             }
         }
