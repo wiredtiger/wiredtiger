@@ -810,6 +810,8 @@ __hs_fixup_out_of_order_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
         hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts;
         hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
 
+        WT_ASSERT(session, hs_insert_tw.stop_txn >= hs_insert_tw.start_txn);
+
         /* Extract the underlying value for reinsertion. */
         WT_ERR(hs_cursor->get_value(
           hs_cursor, &tw.durable_stop_ts, &tw.durable_start_ts, &hs_upd_type, &hs_value));
