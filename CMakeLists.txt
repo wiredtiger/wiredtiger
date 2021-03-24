@@ -50,6 +50,17 @@ parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 # Establish wiredtiger library target
 add_library(wiredtiger ${link_type} ${wt_sources})
 
+# Generate wiredtiger.h
+configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
+# Generate our wiredtiger_config.h
+configure_file(build_cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
+# Set our targets public and private includes
+target_include_directories(
+    wiredtiger
+    PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include
+    PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+)
+
 # Ensure we link any available library dependencies to our wiredtiger target
 if(HAVE_LIBPTHREAD)
     target_link_libraries(wiredtiger "pthread")
