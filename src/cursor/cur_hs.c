@@ -380,13 +380,6 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         }
 
         /*
-         * Break here if we are not concerned about the visibility of the record and just want to
-         * read anything that has been committed to the history store.
-         */
-        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
-            break;
-
-        /*
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
@@ -394,6 +387,13 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_hs_tombstone);
             continue;
         }
+
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
+         */
+        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
+            break;
 
         /*
          * If we are using a history store cursor and haven't set the WT_CURSTD_HS_READ_COMMITTED
@@ -469,13 +469,6 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         }
 
         /*
-         * Break here if we are not concerned about the visibility of the record and just want to
-         * read anything that has been committed to the history store.
-         */
-        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
-            break;
-
-        /*
          * If the stop time pair on the tombstone in the history store is already globally visible
          * we can skip it.
          */
@@ -483,6 +476,13 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
             WT_STAT_CONN_DATA_INCR(session, cursor_next_hs_tombstone);
             continue;
         }
+
+        /*
+         * Don't check the visibility of the record if we want to read any history store record that
+         * is not obsolete.
+         */
+        if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_COMMITTED))
+            break;
 
         /*
          * If we are using a history store cursor and haven't set the WT_CURSTD_HS_READ_COMMITTED
