@@ -100,3 +100,6 @@ endif()
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger wiredtiger_zstd)
 endif()
+
+# Establish our install target configuration
+include(build_cmake/install/install.cmake)
