@@ -1,0 +1,40 @@
+#
+# Public Domain 2014-present MongoDB, Inc.
+# Public Domain 2008-2014 WiredTiger, Inc.
+#  All rights reserved.
+#
+# See the file LICENSE for redistribution information.
+#
+
+cmake_minimum_required(VERSION 3.11.0)
+
+project(WiredTiger C ASM)
+
+include(build_cmake/helpers.cmake)
+
+# If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
+# we will infer the target from the host
+if(NOT WT_ARCH)
+    # Defer to our hosts architecture as our target architecture
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386)$")
+        set(WT_ARCH "x86")
+    else()
+        set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
+    endif()
+endif()
+if(NOT WT_OS)
+    # Defer to our hosts OS as our target OS
+    string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" host_os)
+    set(WT_OS "${host_os}")
+endif()
+
+if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
+    message(FATAL_ERROR "build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake does not exist")
+endif()
+
+# Load any configuration variables special to our target
+include(build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
+# Load auto-configure variables (e.g. environment-related configs)
+include(build_cmake/configs/auto.cmake)
+# Load WiredTiger related configuration options
+include(build_cmake/configs/base.cmake)
