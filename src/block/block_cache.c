@@ -562,7 +562,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 		size_t hash_size,
 		int type, char *nvram_device_path, size_t system_ram,
 		int percent_file_in_dram, bool write_allocate,
-		double overhead_pct)
+		double overhead_pct, bool eviction_on)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -602,9 +602,12 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
     }
 
     /* Create the eviction thread */
-    WT_RET(__wt_cond_alloc(session, "Block cache eviction", &blkcache->blkcache_cond));
-    WT_RET(__wt_thread_create(session, &blkcache->evict_thread_tid,
-			      __blkcache_eviction_thread, (void*)session));
+    if (eviction_on) {
+	WT_RET(__wt_cond_alloc(session, "Block cache eviction", &blkcache->blkcache_cond));
+	WT_RET(__wt_thread_create(session, &blkcache->evict_thread_tid,
+				  __blkcache_eviction_thread, (void*)session));
+	blkcache->eviction_on = true;
+    }
 
     blkcache->type = type;
 
@@ -640,11 +643,13 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
 	return;
 
-    blkcache->blkcache_exiting = true;
-    __wt_cond_signal(session, blkcache->blkcache_cond);
-    WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
-    printf("Block cache eviction thread exited...\n");
-    __wt_cond_destroy(session, &blkcache->blkcache_cond);
+    if (blkcache->eviction_on) {
+	blkcache->blkcache_exiting = true;
+	__wt_cond_signal(session, blkcache->blkcache_cond);
+	WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
+	printf("Block cache eviction thread exited...\n");
+	__wt_cond_destroy(session, &blkcache->blkcache_cond);
+    }
 
     if (blkcache->bytes_used == 0)
         goto done;
@@ -698,15 +703,18 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
 
-    bool write_allocate = true;
-    char *nvram_device_path = NULL;
+    bool write_allocate, eviction_on;
+    char *nvram_device_path;
     double overhead_pct;
-    int cache_type = BLKCACHE_UNCONFIGURED, percent_file_in_dram;
+    int cache_type, percent_file_in_dram;
     size_t cache_size, hash_size, system_ram;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    cache_type = BLKCACHE_UNCONFIGURED;
     cache_size = hash_size = 0;
+    eviction_on = write_allocate = true;
+    nvram_device_path = NULL;
 
     if (reconfig)
         __wt_block_cache_destroy(session);
@@ -751,6 +759,10 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     if ((percent_file_in_dram = (int)cval.val) == 0)
 	percent_file_in_dram =  BLKCACHE_PERCENT_FILE_IN_DRAM;
 
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.eviction_on", &cval));
+    if (cval.val == 0)
+	eviction_on = false;
+
     WT_RET(__wt_config_gets(session, cfg, "block_cache.write_allocate", &cval));
     if (cval.val == 0)
 	write_allocate = false;
@@ -764,5 +776,5 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     return __blkcache_init(session, cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram,
 			   percent_file_in_dram, write_allocate,
-			   overhead_pct);
+			   overhead_pct, eviction_on);
 }

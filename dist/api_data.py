@@ -448,6 +448,9 @@ connection_runtime_config = [
                Config('enabled', 'false', r'''
                       enable block cache''',
                       type='boolean'),
+               Config('eviction_on', 'true', r'''
+                    Turn on eviction''',
+                    type='boolean'),
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='1024GB'),

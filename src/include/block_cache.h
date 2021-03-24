@@ -73,6 +73,7 @@ struct __wt_blkcache {
     wt_thread_t evict_thread_tid;
 
     volatile bool blkcache_exiting;
+    bool eviction_on;
     bool write_allocate;
     char *nvram_device_path;
     double full_target;
