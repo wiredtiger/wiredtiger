@@ -86,9 +86,15 @@ static bool
 __blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_target,
 			uint32_t recency_target)
 {
+    /*
     if (blkcache_item->virtual_recency_timestamp <= recency_target
 	&& WT_MIN(blkcache_item->num_references, BLKCACHE_MAX_FREQUENCY_TARGET)
 	<= frequency_target)
+	return true;
+    */
+    WT_UNUSED(frequency_target);
+    WT_UNUSED(recency_target);
+    if (blkcache_item->freq_rec_counter < 0)
 	return true;
     return false;
 }
@@ -168,6 +174,7 @@ __blkcache_eviction_thread(void *arg)
 		}
 		else {
 		    blkcache_item->virtual_recency_timestamp--;
+		    blkcache_item->freq_rec_counter--;
 		    blocks_not_evicted++;
 		}
 	    }
@@ -331,6 +338,8 @@ __wt_blkcache_get_or_check(
 		= WT_MIN(blkcache_item->virtual_recency_timestamp + 1,
 			 BLKCACHE_MAX_RECENCY_TARGET);
 
+	    blkcache_item->freq_rec_counter++;
+
 #if BLKCACHE_TRACE == 1
 	    time_stop = __wt_clock(session);
 #endif
@@ -444,6 +453,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
      * are reused.
      */
     blkcache_item->virtual_recency_timestamp = BLKCACHE_MAX_RECENCY_TARGET;
+    blkcache_item->freq_rec_counter = BLKCACHE_MAX_RECENCY_TARGET;
 
 #if BLKCACHE_TRACE == 1
     time_start = __wt_clock(session);

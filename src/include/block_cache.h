@@ -58,6 +58,14 @@ struct __wt_blkcache_item {
      * time the eviction thread scans the cache.
      */
     uint32_t virtual_recency_timestamp;
+    /* This counter is incremented every time a block is referenced
+     * and decremented every time the eviction threads sweeps through
+     * the cache. This counter will be high for blocks that are not
+     * reused or for blocks that were reused in the past but lost
+     * their appeal. In this sense, this counter is a metric combining
+     * frequency and recency, and hence its name.
+     */
+    int32_t freq_rec_counter;
 };
 
 /*
