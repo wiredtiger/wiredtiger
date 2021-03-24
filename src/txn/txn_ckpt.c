@@ -901,9 +901,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
 
         /*
-         * Once the history store checkpoint has been completed, the checkpoint generation of the
-         * associated b-tree can be incremented, as such visibility checks performed on updates in
-         * the history store will not need to include the checkpoint transaction.
+         * Once the history store checkpoint is complete, we increment the checkpoint generation of
+         * the associated b-tree. The checkpoint generation controls whether we include the
+         * checkpoint transaction in our calculations of the pinned and oldest_ids for a given
+         * btree. We increment it here to ensure that the visibility checks performed on updates in
+         * the history store do not include the checkpoint transaction.
          */
         __checkpoint_update_generation(session);
 
