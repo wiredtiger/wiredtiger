@@ -172,6 +172,7 @@ typedef struct {
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
     uint32_t c_huffman_value;
+    uint32_t c_import;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
