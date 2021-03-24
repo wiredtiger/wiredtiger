@@ -82,10 +82,12 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     uint64_t upd_type_full_diag;
     int cmp;
 #endif
+    bool hs_read_global_tombstone;
     uint64_t counter, hs_counter;
     uint32_t hs_btree_id;
 
     counter = 0;
+    hs_read_global_tombstone = F_ISSET(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
 
     /* Allocate buffers for the history store and search key. */
     WT_ERR(__wt_scr_alloc(session, 0, &hs_key));
@@ -106,12 +108,21 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_ASSERT(session, type == WT_UPDATE_STANDARD || type == WT_UPDATE_MODIFY);
 
     /*
+     * Setting the flag WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE before searching the history store
+     * optimizes the search routine as we do not skip globally visible tombstones during the search.
+     */
+    if (!hs_read_global_tombstone)
+        F_SET(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
+    /*
      * Adjust counter if there exists an update in the history store with same btree id, key and
      * timestamp. Otherwise the newly inserting history store record may fall behind the existing
      * one can lead to wrong order.
      */
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
+
+    if (!hs_read_global_tombstone)
+        F_CLR(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
 
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -152,8 +163,14 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         if (ret == 0)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
         else {
+            if (!hs_read_global_tombstone)
+                F_SET(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
+
             cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
             WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
+
+            if (!hs_read_global_tombstone)
+                F_CLR(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
         }
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
@@ -183,6 +200,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     WT_STAT_DATA_INCR(session, cache_hs_insert);
 
 err:
+    if (!hs_read_global_tombstone)
+        F_CLR(cursor, WT_CURSTD_HS_READ_GLOBAL_TOMBSTONE);
 #ifdef HAVE_DIAGNOSTIC
     __wt_scr_free(session, &existing_val);
 #endif
