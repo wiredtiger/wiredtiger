@@ -272,7 +272,7 @@ class workload_validation {
             collection_name = it_collections.first;
             /*
              * The associated key/value pairs to the current collection are null if the collection
-             * has ben deleted during the test.
+             * has been deleted during the test.
              */
             collection_exists = (it_collections.second != nullptr);
             is_valid = wv.verify_database_state(session, collection_name, collection_exists);
