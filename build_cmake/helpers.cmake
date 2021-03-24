@@ -579,3 +579,55 @@ function(assert_type_size type size)
         message(FATAL_ERROR "Type assertion failed: ${type} does not equal size ${size}")
     endif()
 endfunction()
+
+# parse_filelist_source(filelist output_var)
+# A helper function that parses the list of sources (usually found in "dist/filelist"). This returning a list of
+# sources that can then be used to generate the necessary build rules for the wiredtiger library. Additionally
+# uses the config values "WT_ARCH" and "WT_OS" when extracting platform specific sources from the file list.
+#   filelist - Destination of 'filelist' file.
+#   output_var - name of the output variable that will be set with the parsed sources. Output variable is set in
+#       the callers scope.
+function(parse_filelist_source filelist output_var)
+    set(arch_host "")
+    set(plat_host "")
+    # Determine architecture host for our filelist parse
+    if(WT_X86)
+        set(arch_host "X86_HOST")
+    elseif(WT_ARM64)
+        set(arch_host "ARM64_HOST")
+    elseif(WT_PPC64)
+        set(arch_host "POWERPC_HOST")
+    elseif(WT_ZSERIES)
+        set(arch_host "ZSERIES_HOST")
+    endif()
+    # Determine platform host for our filelist parse
+    if(WT_POSIX)
+        set(plat_host "POSIX_HOST")
+    elseif(WT_WIN)
+        set(plat_host "WINDOWS_HOST")
+    endif()
+
+    # Read file list and parse into list
+    file(READ "${filelist}" contents NEWLINE_CONSUME)
+    string(REGEX REPLACE "\n" ";" contents "${contents}")
+    set(output_files "")
+    foreach(file ${contents})
+        if(${file} MATCHES "^#.*$")
+            continue()
+        endif()
+        string(REGEX REPLACE "[ \t\r\]+" ";" file_contents ${file})
+        list(LENGTH file_contents file_contents_len)
+        if (file_contents_len EQUAL 1)
+            list(APPEND output_files ${file})
+        elseif(file_contents_len EQUAL 2)
+            list(GET file_contents 0 file_name)
+            list(GET file_contents 1 file_group)
+            if ((${file_group} STREQUAL "${plat_host}") OR (${file_group} STREQUAL "${arch_host}"))
+                list(APPEND output_files ${file_name})
+            endif()
+        else()
+            message(FATAL_ERROR "filelist (${filelist}) has an unexpected format [Invalid Line: \"${file}]\"")
+        endif()
+    endforeach()
+    set(${output_var} ${output_files} PARENT_SCOPE)
+endfunction()
