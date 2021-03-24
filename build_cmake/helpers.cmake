@@ -8,6 +8,11 @@
 
 cmake_minimum_required(VERSION 3.11.0)
 
+include(CheckIncludeFiles)
+include(CheckSymbolExists)
+include(CheckLibraryExists)
+include(CheckTypeSize)
+
 # Helper function for evaluating a list of dependencies. Mostly used by the
 # "config_X" helpers to evaluate the dependencies required to enable the config
 # option.
@@ -250,5 +255,327 @@ function(config_bool config_name description)
         # Config doesn't meet dependency requirements, set its default state and flag it as disabled.
         set(${config_name} ${CONFIG_BOOL_DEFAULT} CACHE STRING "${description}" FORCE)
         set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+    endif()
+endfunction()
+
+# config_func(config_name description FUNC <function-symbol> FILE <include-header> [DEPENDS <deps>] [LIBS <library-dependencies>])
+# Defines a boolean (0/1) configuration option based on whether a given function symbol exists.
+# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
+#   FUNC <function-symbol> - function symbol we want to search for.
+#   FILE <include-header> - header we expect the function symbol to be defined e.g a std header.
+#   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration to be evaluated.
+#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
+#   LIBS <library-dependencies> - a list of any additional library dependencies needed to successfully link with the function symbol.
+function(config_func config_name description)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "CONFIG_FUNC"
+        ""
+        "FUNC;DEPENDS;FILES;LIBS"
+        ""
+    )
+
+    if (NOT "${CONFIG_FUNC_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_FUNC_UNPARSED_ARGUMENTS}")
+    endif()
+    # We require an include header (not optional)
+    if ("${CONFIG_FUNC_FILES}" STREQUAL "")
+        message(FATAL_ERROR "No file list passed")
+    endif()
+    # We require a function symbol (not optional)
+    if ("${CONFIG_FUNC_FUNC}" STREQUAL "")
+        message(FATAL_ERROR "No function passed")
+    endif()
+
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    eval_dependency("${CONFIG_FUNC_DEPENDS}" enabled)
+    if(enabled)
+        set(CMAKE_REQUIRED_LIBRARIES "${CONFIG_FUNC_LIBS}")
+        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
+            # 'check_symbol_exists' won't use our current cache when test compiling the function symbol.
+            # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
+            # needed if 'check_symbol_exists' will leverage one of our toolchain files.
+            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
+        endif()
+        check_symbol_exists(${CONFIG_FUNC_FUNC} "${CONFIG_FUNC_FILES}" has_symbol_${config_name})
+        set(CMAKE_REQUIRED_LIBRARIES)
+        set(CMAKE_REQUIRED_FLAGS)
+        set(has_symbol "0")
+        if(has_symbol_${config_name})
+            set(has_symbol ${has_symbol_${config_name}})
+        endif()
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        if(${config_name}_DISABLED)
+            unset(${config_name}_DISABLED CACHE)
+            set(${config_name} ${has_symbol} CACHE STRING "${description}" FORCE)
+        else()
+            set(${config_name} ${has_symbol} CACHE STRING "${description}")
+        endif()
+        # 'check_symbol_exists' sets our given temp variable into the cache. Clear this so it doesn't persist between
+        # configuration runs.
+        unset(has_symbol_${config_name} CACHE)
+    else()
+        # Config doesn't meet dependency requirements, set a disabled state.
+        set(${config_name} 0 CACHE INTERNAL "" FORCE)
+        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+    endif()
+endfunction()
+
+
+# config_include(config_name description FILE <include-header> [DEPENDS <deps>])
+# Defines a boolean (0/1) configuration option based on whether a given include header exists.
+# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
+#   FILE <include-header> - header we want to search for e.g a std header.
+#   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration to be evaluated.
+#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
+function(config_include config_name description)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "CONFIG_INCLUDE"
+        ""
+        "FILE;DEPENDS"
+        ""
+    )
+
+    if (NOT "${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}")
+    endif()
+    # We require a include header (not optional)
+    if ("${CONFIG_INCLUDE_FILE}" STREQUAL "")
+        message(FATAL_ERROR "No include file passed")
+    endif()
+
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    eval_dependency("${CONFIG_INCLUDE_DEPENDS}" enabled)
+    if(enabled)
+        # 'check_include_files' won't use our current cache when test compiling the include header.
+        # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
+        # needed if 'check_include_files' will leverage one of our toolchain files.
+        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
+            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
+        endif()
+        check_include_files(${CONFIG_INCLUDE_FILE} has_include_${config_name})
+        set(CMAKE_REQUIRED_FLAGS)
+        set(has_include "0")
+        if(has_include_${config_name})
+            set(has_include ${has_include_${config_name}})
+        endif()
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        if(${config_name}_DISABLED)
+            unset(${config_name}_DISABLED CACHE)
+            set(${config_name} ${has_include} CACHE STRING "${description}" FORCE)
+        else()
+            set(${config_name} ${has_include} CACHE STRING "${description}")
+        endif()
+        # 'check_include_files' sets our given temp variable into the cache. Clear this so it doesn't persist between
+        # configuration runs.
+        unset(has_include_${config_name} CACHE)
+    else()
+        set(${config_name} OFF CACHE INTERNAL "" FORCE)
+        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+    endif()
+    # Set an internal cahce variable with the CPP include statement. We can use this when building out our config header.
+    if (${${config_name}})
+        set(${config_name}_DECL "#include <${CONFIG_INCLUDE_FILE}>" CACHE INTERNAL "")
+    endif()
+endfunction()
+
+# config_lib(config_name description LIB <library> FUNC <function-symbol> [DEPENDS <deps>])
+# Defines a boolean (0/1) configuration option based on whether a given library exists.
+# The configuration option is stored in the cmake cache and can be exported to the wiredtiger config header.
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
+#   LIB <library> - library we are searching for (defined as if we are linking against it e.g -lpthread).
+#   FUNC <function-symbol> - function symbol we expect to be available to link against within the library.
+#   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration to be evaluated.
+#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
+function(config_lib config_name description)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "CONFIG_LIB"
+        ""
+        "LIB;FUNC;DEPENDS"
+        ""
+    )
+
+    if (NOT "${CONFIG_LIB_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to config_lib: ${CONFIG_LIB_UNPARSED_ARGUMENTS}")
+    endif()
+    # We require a library (not optional).
+    if ("${CONFIG_LIB_LIB}" STREQUAL "")
+        message(FATAL_ERROR "No library passed")
+    endif()
+    # We require a function within the library (not optional).
+    if ("${CONFIG_LIB_FUNC}" STREQUAL "")
+        message(FATAL_ERROR "No library function passed")
+    endif()
+
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    eval_dependency("${CONFIG_LIB_DEPENDS}" enabled)
+    if(enabled)
+        # 'check_library_exists' won't use our current cache when test compiling the library.
+        # To get around this we need to ensure we manually forward WT_ARCH and WT_OS as a minimum. This is particularly
+        # needed if 'check_library_exists' will leverage one of our toolchain files.
+        if((NOT "${WT_ARCH}" STREQUAL "") AND (NOT "${WT_ARCH}" STREQUAL ""))
+            set(CMAKE_REQUIRED_FLAGS "-DWT_ARCH=${WT_ARCH} -DWT_OS=${WT_OS}")
+        endif()
+        check_library_exists(${CONFIG_LIB_LIB} ${CONFIG_LIB_FUNC} "" has_lib_${config_name})
+        set(CMAKE_REQUIRED_FLAGS)
+        set(has_lib "0")
+        if(has_lib_${config_name})
+            set(has_lib ${has_lib_${config_name}})
+        endif()
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        if(${config_name}_DISABLED)
+            unset(${config_name}_DISABLED CACHE)
+            set(${config_name} ${has_lib} CACHE STRING "${description}" FORCE)
+        else()
+            set(${config_name} ${has_lib} CACHE STRING "${description}")
+        endif()
+        # 'check_library_exists' sets our given temp variable into the cache. Clear this so it doesn't persist between
+        # configuration runs.
+        unset(has_lib_${config_name} CACHE)
+    else()
+        set(${config_name} 0 CACHE INTERNAL "" FORCE)
+        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+    endif()
+endfunction()
+
+# config_compile(config_name description SOURCE <source-file> [DEPENDS <deps>] [LIBS <library-dependencies>])
+# Defines a boolean (0/1) configuration option based on whether a source file can be successfully compiled. Used
+# to determine if more fine grained functionality is supported on a given target environment (beyond what function
+# symbols, libraries and headers are available). The configuration option is stored in the cmake cache and can be
+# exported to the wiredtiger config header.
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
+#   SOURCE <source-file> - specific source file we want to test compile.
+#   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration to be evaluated.
+#       If any of the dependencies aren't met the configuration value will be set to '0' (false).
+#   LIBS <library-dependencies> - a list of any additional library dependencies needed to successfully compile the source.
+function(config_compile config_name description)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "CONFIG_COMPILE"
+        ""
+        "SOURCE;DEPENDS;LIBS"
+        ""
+    )
+
+    if (NOT "${CONFIG_COMPILE_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to config_compile: ${CONFIG_COMPILE_UNPARSED_ARGUMENTS}")
+    endif()
+    # We require a source file (not optional).
+    if ("${CONFIG_COMPILE_SOURCE}" STREQUAL "")
+        message(FATAL_ERROR "No source passed")
+    endif()
+
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    eval_dependency("${CONFIG_COMPILE_DEPENDS}" enabled)
+    if(enabled)
+        # Test compile the source file
+        try_compile(
+            can_compile_${config_name}
+            ${CMAKE_CURRENT_BINARY_DIR}
+            ${CONFIG_COMPILE_SOURCE}
+            CMAKE_FLAGS "-DWT_ARCH=${WT_ARCH}" "-DWT_OS=${WT_OS}"
+            LINK_LIBRARIES "${CONFIG_COMPILE_LIBS}"
+        )
+        set(can_compile "0")
+        if(can_compile_${config_name})
+            set(can_compile ${can_compile_${config_name}})
+        endif()
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        if(${config_name}_DISABLED)
+            unset(${config_name}_DISABLED CACHE)
+            set(${config_name} ${can_compile} CACHE STRING "${description}" FORCE)
+        else()
+            set(${config_name} ${can_compile} CACHE STRING "${description}")
+        endif()
+        # 'try_compile' sets our given temp variable into the cache. Clear this so it doesn't persist between
+        # configuration runs.
+        unset(can_compile_${config_name} CACHE)
+    else()
+        set(${config_name} 0 CACHE INTERNAL "" FORCE)
+        set(${config_name}_DISABLED ON CACHE INTERNAL "" FORCE)
+    endif()
+endfunction()
+
+# test_type_size(type output_size)
+# Helper function that tests for a given types size and returns its value if found.
+#   type - name of the type to test.
+#   output_size - name of the output variable, set with either the types size or "" (empty string)
+#       if not found.
+#   EXTRA_INCLUDES - extra/optional include files to access the given type e.g. a custom typedef in an include header.
+function(test_type_size type output_size)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "TEST_TYPE"
+        ""
+        ""
+        "EXTRA_INCLUDES"
+    )
+
+    if (NOT "${TEST_TYPE_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to assert_type: ${TEST_TYPE_UNPARSED_ARGUMENTS}")
+    endif()
+
+    set(CMAKE_EXTRA_INCLUDE_FILES "${TEST_TYPE_EXTRA_INCLUDES}")
+    check_type_size(${type} TEST_TYPE)
+    set(CMAKE_EXTRA_INCLUDE_FILES)
+
+    if(NOT HAVE_TEST_TYPE)
+        set(${output_size} "" PARENT_SCOPE)
+    else()
+        set(${output_size} ${TEST_TYPE} PARENT_SCOPE)
+    endif()
+endfunction()
+
+# assert_type_size(type size)
+# Wrapper function around 'test_type_size' that additionally asserts whether the given types meets an expected size.
+# Throws a fatal error if the type is not found or doesn't equal the expected size.
+#   type - eame of the type to test.
+#   size - expected size of the type.
+#   EXTRA_INCLUDES - extra/optional include files to access the given type e.g. a custom typedef in an include header.
+function(assert_type_size type size)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        2
+        "ASSERT_TYPE"
+        ""
+        ""
+        "EXTRA_INCLUDES"
+    )
+
+    if (NOT "${ASSERT_TYPE_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to assert_type: ${ASSERT_TYPE_UNPARSED_ARGUMENTS}")
+    endif()
+
+    set(additional_args "")
+    if(${ASSERT_TYPE_EXTRA_INCLUDES})
+        set(additional_args "EXTRA_INCLUDES ${ASSERT_TYPE_EXTRA_INCLUDES}")
+    endif()
+    test_type_size(${type} output_type_size ${additional_args})
+
+    if(${output_type_size} EQUAL "")
+        # Type does not exist
+        message(FATAL_ERROR "Type assertion failed: ${type} does not exists")
+    endif()
+
+    if((NOT ${size} EQUAL 0) AND  (NOT ${output_type_size} EQUAL ${size}))
+        # Type does not meet size assertion
+        message(FATAL_ERROR "Type assertion failed: ${type} does not equal size ${size}")
     endif()
 endfunction()
