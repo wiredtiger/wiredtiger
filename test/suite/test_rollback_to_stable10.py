@@ -302,7 +302,8 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             done.set()
             ckpt.join()
 
-        # Check the history store file size before the simulated crash
+        # Check that the history store file has been used and has non-zero size before the simulated
+        # crash.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache_hs_ondisk = stat_cursor[stat.conn.cache_hs_ondisk][2]
         stat_cursor.close()
@@ -323,7 +324,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         self.session = self.setUpSessionOpen(self.conn)
         self.pr("restart complete")
 
-        # The history store file size should be greater than 0 after the restart
+        # The history store file size should be greater than zero after the restart.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache_hs_ondisk = stat_cursor[stat.conn.cache_hs_ondisk][2]
         stat_cursor.close()
