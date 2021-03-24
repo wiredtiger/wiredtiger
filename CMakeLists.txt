@@ -39,6 +39,14 @@ include(build_cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options
 include(build_cmake/configs/base.cmake)
 
+if(ENABLE_STRICT)
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
+        include(build_cmake/strict/gcc_strict.cmake)
+    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+        include(build_cmake/strict/clang_strict.cmake)
+    endif()
+endif()
+
 set(link_type "STATIC")
 if(NOT ENABLE_STATIC)
     set(link_type "SHARED")
