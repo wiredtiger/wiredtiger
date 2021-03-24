@@ -137,6 +137,102 @@ static void *thread_workload(void *arg) {
     return (NULL);
 }
 
+static void *thread_idle_table_cycle_worload(void *arg) {
+
+    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *) arg;
+    WorkloadRunner *runner = runnerConnection->runner;
+    WT_CONNECTION *connection = runnerConnection->connection;
+
+    try {
+        runner->start_table_idle_cycle(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while create/drop tables." << std::endl;
+    }
+
+    return (NULL);
+}
+
+int WorkloadRunner::check_timing(const char *name, uint64_t start, uint64_t *stop) {
+    uint64_t last_interval;
+    int msg_err;
+    const char *str;
+    WorkloadOptions *options = &_workload->options;
+
+    msg_err = 0;
+
+    workgen_clock(stop);
+
+    last_interval = ns_to_sec(*stop - start);
+
+    if (last_interval > options->max_idle_table_cycle) {
+        if (options->max_idle_table_cycle_fatal) {
+            msg_err = ETIMEDOUT;
+            str = "ERROR";
+        } else {
+            str = "WARNING";
+        }
+        std::cerr << str << ": Cycling idle table failed because " << name << " took " << last_interval << " seconds which is longer than configured acceptable maximum of " << options->max_idle_table_cycle << std::endl;
+     }
+     return (msg_err);
+}
+
+int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
+
+    //std::string session_config = _workload->_threads[0].options.session_config;
+    int ret, cycle_count;
+    WT_SESSION *session;
+    WT_CURSOR *cursor;
+    char uri[BUF_SIZE];
+    uint64_t start, stop;
+
+    cycle_count = 0;
+    if (ret = conn->open_session(conn, NULL, NULL, &session) != 0) {
+        THROW ("Error Opening a Session.");
+    }
+
+    for (cycle_count = 0 ; !stopping ; ++cycle_count) {
+        sprintf (uri, "table:test_cycle%04d", cycle_count);
+
+        workgen_clock(&start);
+
+        /* Create a table. */
+        if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+            if (ret == EBUSY)
+                continue;
+            THROW ("Table create failed in start_table_idle_cycle.");
+        }
+        if ((ret = check_timing("CREATE", start, &stop)) != 0)
+            THROW_ERRNO (ret, "CREATE table Failed because max_idle_table_cycle_fatal is true.");
+        start = stop;
+
+        /* Open and close cursor. */
+        if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
+            THROW ("Cursor open failed.");
+        }
+        if ((ret = cursor->close(cursor)) != 0) {
+            THROW ("Cursor close failed.");
+        }
+        if ((ret = check_timing("CURSOR", start, &stop)) != 0)
+            THROW_ERRNO (ret, "Open/Close CURSOR Failed because max_idle_table_cycle_fatal is true.");
+        start = stop;
+
+        /*
+         * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
+         * checkpoints are happening.
+         */
+        while ((ret = session->drop(session, uri, "force,checkpoint_wait=false")) == EBUSY)
+            sleep(1);
+
+        if (ret != 0) {
+            THROW ("Table drop failed in cycle_idle_tables.");
+        }
+
+        if ((ret = check_timing("DROP", start, &stop)) != 0)
+            THROW_ERRNO (ret, "DROP table Failed because max_idle_table_cycle_fatal is true.");
+    }
+
+    return 0;
+}
 /*
  * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
  * stable_timestamp with the specified lag until stopping is set to true
@@ -1933,9 +2029,9 @@ TableInternal::~TableInternal() {}
 
 WorkloadOptions::WorkloadOptions() : max_latency(0),
     report_file("workload.stat"), report_interval(0), run_time(0),
-    sample_file("monitor.json"), sample_interval_ms(0), sample_rate(1),
-    warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
-    timestamp_advance(0.0), _options() {
+    sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0),
+    sample_rate(1), warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
+    timestamp_advance(0.0), max_idle_table_cycle_fatal(false), _options() {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
       "milliseconds. Requires sample_interval to be configured.");
@@ -1954,6 +2050,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
       "When set to the empty string, no JSON is emitted.");
     _options.add_int("sample_interval_ms", sample_interval_ms,
       "performance logging every interval milliseconds, 0 to disable");
+    _options.add_int("max_idle_table_cycle", max_idle_table_cycle,
+      "enable regular create and drop of idle tables, 0 to disable");
     _options.add_int("sample_rate", sample_rate,
       "how often the latency of operations is measured. 1 for every operation, "
       "2 for every second operation, 3 for every third operation etc.");
@@ -1966,6 +2064,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
     _options.add_double("timestamp_advance", timestamp_advance,
       "how many seconds to wait before moving oldest and stable"
       "timestamp forward");
+    _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
+      "print warning (false) or abort (true) of max_idle_table_cycle failure");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
@@ -2125,11 +2225,12 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
     WorkloadRunnerConnection *runnerConnection;
+    WorkloadRunnerConnection *createDropTableCycle;
     Monitor monitor(*this);
     std::ofstream monitor_out;
     std::ofstream monitor_json;
     std::ostream &out = *_report_out;
-    pthread_t time_thandle;
+    pthread_t time_thandle, idle_table_thandle;
     WT_DECL_RET;
 
     for (size_t i = 0; i < _trunners.size(); i++)
@@ -2191,6 +2292,22 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
         }
     }
 
+    // Start Idle table cycle thread
+    if (options->max_idle_table_cycle > 0) {
+
+        createDropTableCycle = new WorkloadRunnerConnection();
+        createDropTableCycle->runner = this;
+        createDropTableCycle->connection = conn;
+
+        if ((ret = pthread_create(&idle_table_thandle, NULL, thread_idle_table_cycle_worload,
+            createDropTableCycle)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
+            (void)pthread_join(idle_table_thandle, &status);
+            delete createDropTableCycle;
+        }
+    }
+
     // Treat warmup separately from report interval so that if we have a
     // warmup period we clear and ignore stats after it ends.
     if (options->warmup != 0)
@@ -2237,7 +2354,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
             _trunners[i]._stop = true;
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
-    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
+    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0 || options->max_idle_table_cycle > 0) {
         stopping = true;
     }
 
@@ -2258,6 +2375,12 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
+    }
+
+    // Wait for the idle table cycle thread.
+    if (options->max_idle_table_cycle > 0) {
+        WT_TRET(pthread_join(idle_table_thandle, &status));
+        delete createDropTableCycle;
     }
 
     workgen_epoch(&now);

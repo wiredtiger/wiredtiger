@@ -90,6 +90,7 @@ workload.options.run_time=900
 workload.options.max_latency=1000
 workload.options.sample_rate=1
 workload.options.sample_interval_ms = 5000
+workload.options.max_idle_table_cycle = 2
 workload.run(conn)
 
 latency_filename = context.args.home + "/latency.out"
