@@ -202,14 +202,6 @@ if (VERSION_MAJOR == None or
     print("Failed to find version variables in " + version_file)
     Exit(1)
 
-wiredtiger_includes = """
-        #include <sys/types.h>
-        #include <stdarg.h>
-        #include <stdbool.h>
-        #include <stdint.h>
-        #include <stdio.h>
-    """
-wiredtiger_includes = textwrap.dedent(wiredtiger_includes)
 replacements = {
     '@VERSION_MAJOR@' : VERSION_MAJOR,
     '@VERSION_MINOR@' : VERSION_MINOR,
@@ -218,7 +210,12 @@ replacements = {
     '@uintmax_t_decl@': "",
     '@uintptr_t_decl@': "",
     '@off_t_decl@' : 'typedef int64_t wt_off_t;',
-    '@wiredtiger_includes_decl@': wiredtiger_includes
+    '@HAVE_SYS_TYPES_H_DECL@' : '#include <sys/types.h>',
+    '@HAVE_INTTYPES_H_DECL@': "",
+    '@HAVE_STDARG_H_DECL@' : '#include <stdarg.h>',
+    '@HAVE_STDBOOL_H_DECL@' : '#include <stdbool.h>',
+    '@HAVE_STDINT_H_DECL@' : '#include <stdint.h>',
+    '@HAVE_STDIO_H_DECL@' : '#include <stdio.h>',
 }
 
 wtheader = env.Substfile(
