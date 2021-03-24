@@ -38,3 +38,27 @@ include(build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
 include(build_cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options
 include(build_cmake/configs/base.cmake)
+
+set(link_type "STATIC")
+if(NOT ENABLE_STATIC)
+    set(link_type "SHARED")
+    SET_PROPERTY(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
+endif()
+
+# Collect all the library sources we need to compile from the source filelist
+parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
+# Establish wiredtiger library target
+add_library(wiredtiger ${link_type} ${wt_sources})
+
+# Ensure we link any available library dependencies to our wiredtiger target
+if(HAVE_LIBPTHREAD)
+    target_link_libraries(wiredtiger "pthread")
+endif()
+
+if(HAVE_LIBRT)
+    target_link_libraries(wiredtiger "rt")
+endif()
+
+if(HAVE_LIBDL)
+    target_link_libraries(wiredtiger "dl")
+endif()
