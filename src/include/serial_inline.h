@@ -279,9 +279,9 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
         page->modify->obsolete_check_txn = WT_TXN_NONE;
     }
-    /* 
-     * We don't want to remove obsolete updates in the history store, 
-     * since another reader might be reading these updates.
+    /*
+     * We don't want to remove obsolete updates in the history store, since another reader might be
+     * reading these updates.
      */
     if (WT_IS_HS(session->dhandle))
         return (0);
