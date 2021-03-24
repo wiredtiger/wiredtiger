@@ -189,10 +189,12 @@ class workload_validation {
         error_code = cursor->search_near(cursor, &exact);
 
         /*
-         * As we don't support deletion, the searched collection is expected to be found. Since the
-         * timestamp which is part of the key is not provided, exact is expected to be > 0.
+         * search_near might set exact to < 0, hence we need to move the cursor to the next
+         * position. Since the timestamp which is part of the key is not provided, nothing specific
+         * should be done when exact is >= 0.
          */
-        testutil_check(exact < 1);
+        if (exact < 0)
+            error_code = cursor->next(cursor);
 
         while (error_code == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
@@ -228,6 +230,12 @@ class workload_validation {
                 collections.at(key_collection_name)->insert(pair);
                 break;
             }
+            case tracking_operation::UPDATE: {
+                /* Remove the old key/value pair and add the new one. */
+                delete collections.at(key_collection_name)->at(key);
+                collections.at(key_collection_name)->at(key) = new std::string(value);
+                break;
+            }
             case tracking_operation::CREATE:
             case tracking_operation::DELETE_COLLECTION:
                 testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
@@ -255,38 +263,40 @@ class workload_validation {
     {
 
         bool collection_exists, is_valid = true;
+        int key;
         std::map<int, std::string *> *collection;
         workload_validation wv;
-        std::string *value;
+        std::string collection_name, *value;
 
         for (const auto &it_collections : collections) {
-            /* Check the collection is in the correct state. */
+            collection_name = it_collections.first;
+            /*
+             * The associated key/value pairs to the current collection are null if the collection
+             * has ben deleted during the test.
+             */
             collection_exists = (it_collections.second != nullptr);
-            is_valid = wv.verify_database_state(session, it_collections.first, collection_exists);
+            is_valid = wv.verify_database_state(session, collection_name, collection_exists);
 
             if (is_valid && collection_exists) {
                 collection = it_collections.second;
+                /* Walk through each key/value pair of the current collection. */
                 for (const auto &it_operations : *collection) {
-                    value = (*collection)[it_operations.first];
+                    /* The value should be NULL if the key has been been deleted during the test. */
+                    key = it_operations.first;
+                    value = it_operations.second;
                     /* The key/value pair exists. */
                     if (value != nullptr)
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == true);
+                        is_valid = (wv.is_key_present(session, collection_name, key) == true);
                     /* The key has been deleted. */
                     else
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == false);
-
-                    /* Check the associated value is valid. */
-                    if (is_valid && (value != nullptr)) {
-                        is_valid = (wv.verify_value(
-                          session, it_collections.first, it_operations.first, *value));
-                    }
+                        is_valid = (wv.is_key_present(session, collection_name, key) == false);
+                    /* Check the retrieved value is the expected one. */
+                    if (is_valid && (value != nullptr))
+                        is_valid = (wv.verify_value(session, collection_name, key, *value));
 
                     if (!is_valid) {
                         debug_print(
-                          "check_reference failed for key " + std::to_string(it_operations.first),
-                          DEBUG_ERROR);
+                          "check_reference failed for key " + std::to_string(key), DEBUG_ERROR);
                         break;
                     }
                 }
@@ -294,7 +304,7 @@ class workload_validation {
 
             if (!is_valid) {
                 debug_print(
-                  "check_reference failed for collection " + it_collections.first, DEBUG_ERROR);
+                  "check_reference failed for collection " + collection_name, DEBUG_ERROR);
                 break;
             }
         }

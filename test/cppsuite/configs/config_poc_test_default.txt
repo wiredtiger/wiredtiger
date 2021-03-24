@@ -31,6 +31,7 @@ workload_generator=
         max=50
     }
     read_threads=1
+    update_threads=1
     value_size=10
     value_format=S
 }

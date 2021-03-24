@@ -130,14 +130,15 @@ class workload_generator : public component {
     run()
     {
         configuration *sub_config;
-        int64_t read_threads, min_operation_per_transaction, max_operation_per_transaction,
-          value_size;
+        int64_t read_threads, update_threads, min_operation_per_transaction,
+          max_operation_per_transaction, value_size;
 
         /* Populate the database. */
         populate();
 
         /* Retrieve useful parameters from the test configuration. */
         testutil_check(_config->get_int(READ_THREADS, read_threads));
+        testutil_check(_config->get_int(UPDATE_THREADS, update_threads));
         sub_config = _config->get_subconfig(OPS_PER_TRANSACTION);
         testutil_check(sub_config->get_int(MIN, min_operation_per_transaction));
         testutil_check(sub_config->get_int(MAX, max_operation_per_transaction));
@@ -151,6 +152,15 @@ class workload_generator : public component {
         for (int i = 0; i < read_threads; ++i) {
             thread_context *tc = new thread_context(_timestamp_manager, _tracking,
               _collection_names, thread_operation::READ, max_operation_per_transaction,
+              min_operation_per_transaction, value_size);
+            _workers.push_back(tc);
+            _thread_manager.add_thread(tc, &execute_operation);
+        }
+
+        /* Generate threads to execute update operations on the collections. */
+        for (int i = 0; i < update_threads; ++i) {
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking,
+              _collection_names, thread_operation::UPDATE, max_operation_per_transaction,
               min_operation_per_transaction, value_size);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
@@ -219,10 +229,10 @@ class workload_generator : public component {
         }
 
         while (context.is_running()) {
-            /* Walk each cursor. */
+            cpt = 0;
             context.begin_transaction(session, "");
             ts = context.set_commit_timestamp(session);
-            cpt = 0;
+            /* Walk each cursor. */
             for (const auto &it : cursors) {
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
