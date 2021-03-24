@@ -901,7 +901,9 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
 
         /*
-         * The history store tree should not be visited again by the current checkpoint.
+         * Once the history store checkpoint has been updated, the associated tree should not be
+         * visited again. This can be assured by updating its checkpoint generation which is not
+         * updated in the __wt_checkpoint routine. We need to update it here explicitly.
          */
         __checkpoint_update_generation(session);
 
