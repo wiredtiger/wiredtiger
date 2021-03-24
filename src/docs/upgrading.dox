@@ -62,6 +62,12 @@ across sessions. The WT_SESSION.begin_transaction method's \c snapshot configura
 WT_SESSION::snapshot method have been removed and are no longer available.
 </dd>
 
+<dt>Btree version and Compatibility with older releases</dt>
+<dd>
+The Btree version WT_BTREE_MAJOR_VERSION_MAX has been bumped in this release. Databases created with
+this release version cannot be downgraded to older versions as the underlying file format has changed.
+</dd>
+
 </dl><hr>
 @section version_321 Upgrading to Version 3.2.1
 <dl>
