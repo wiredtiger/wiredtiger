@@ -257,6 +257,12 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
     /* Mark the page dirty after updating the footprint. */
     __wt_page_modify_set(session, page);
+    /*
+     * We don't want to remove obsolete updates in the history store, since another reader might be
+     * reading these updates.
+     */
+    if (WT_IS_HS(session->dhandle))
+        return (0);
 
     /* If there are no subsequent WT_UPDATE structures we are done here. */
     if (upd->next == NULL || exclusive)
@@ -279,12 +285,6 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
 
         page->modify->obsolete_check_txn = WT_TXN_NONE;
     }
-    /*
-     * We don't want to remove obsolete updates in the history store, since another reader might be
-     * reading these updates.
-     */
-    if (WT_IS_HS(session->dhandle))
-        return (0);
     /* If we can't lock it, don't scan, that's okay. */
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return (0);
