@@ -318,7 +318,6 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
     }
 
     g.page_dump_cursor = cursor;
-    fprintf(stderr, "RET = %d\n", ret);
     testutil_assert(0);
 
     /* NOTREACHED */

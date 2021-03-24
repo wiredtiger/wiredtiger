@@ -172,7 +172,6 @@ typedef struct {
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
     uint32_t c_huffman_value;
-    uint32_t c_import;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
@@ -276,10 +275,6 @@ typedef struct {
 #define ISOLATION_READ_COMMITTED 3
 #define ISOLATION_SNAPSHOT 4
     u_int c_isolation_flag; /* Isolation flag value */
-
-#define IMPORT_REPAIR 1
-#define IMPORT_METADATA 2
-    u_int c_import_flag; /* Import flag value */
 
 /* The page must be a multiple of the allocation size, and 512 always works. */
 #define BLOCK_ALLOCATION_SIZE 512
