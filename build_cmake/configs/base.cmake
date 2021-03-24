@@ -91,40 +91,60 @@ config_choice(
     SPINLOCK_TYPE
     "Set a spinlock type"
     OPTIONS
-        "pthread;SPINLOCK_PTHREAD_MUTEX;"
+        "pthread;SPINLOCK_PTHREAD_MUTEX;HAVE_LIBPTHREAD"
         "gcc;SPINLOCK_GCC;"
         "msvc;SPINLOCK_MSVC;WT_WIN"
-        "pthread_adaptive;SPINLOCK_PTHREAD_ADAPTIVE;"
+        "pthread_adaptive;SPINLOCK_PTHREAD_ADAPTIVE;HAVE_LIBPTHREAD"
 )
 
 config_bool(
     ENABLE_LIBLZ4
     "Build the lz4 compressor extension"
     DEFAULT OFF
+    DEPENDS "HAVE_LIBLZ4"
+    # Specifically throw a fatal error if a user tries to enable the lz4 compressor without
+    # actually having the library available (as opposed to silently defaulting to OFF)
+    DEPENDS_ERROR ON "Failed to find lz4 library"
 )
 
 config_bool(
     ENABLE_LIBSNAPPY
     "Build the snappy compressor extension"
     DEFAULT OFF
+    DEPENDS "HAVE_LIBSNAPPY"
+    # Specifically throw a fatal error if a user tries to enable the snappy compressor without
+    # actually having the library available (as opposed to silently defaulting to OFF)
+    DEPENDS_ERROR ON "Failed to find snappy library"
 )
 
 config_bool(
     ENABLE_LIBZ
     "Build the zlib compressor extension"
     DEFAULT OFF
+    DEPENDS "HAVE_LIBZ"
+    # Specifically throw a fatal error if a user tries to enable the zlib compressor without
+    # actually having the library available (as opposed to silently defaulting to OFF)
+    DEPENDS_ERROR ON "Failed to find zlib library"
 )
 
 config_bool(
     ENABLE_LIBZSTD
     "Build the libzstd compressor extension"
     DEFAULT OFF
+    DEPENDS "HAVE_LIBZSTD"
+    # Specifically throw a fatal error if a user tries to enable the zstd compressor without
+    # actually having the library available (as opposed to silently defaulting to OFF)
+    DEPENDS_ERROR ON "Failed to find zstd library"
 )
 
 config_bool(
     ENABLE_TCMALLOC
     "Use TCMalloc as the backend allocator"
     DEFAULT OFF
+    DEPENDS "HAVE_LIBTCMALLOC"
+    # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
+    # actually having the library available (as opposed to silently defaulting to OFF)
+    DEPENDS_ERROR ON "Failed to find tcmalloc library"
 )
 
 config_string(
