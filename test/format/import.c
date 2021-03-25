@@ -38,7 +38,7 @@ static void verify_import(WT_SESSION *session, int start_value);
  * copy we maintain for recovery testing.
  */
 #define HOME_IMPORT_INIT_CMD "rm -rf %s/IMPORT && mkdir %s/IMPORT"
-#define IMPORT_DIRNAME "IMPORT"
+#define IMPORT_DIR "IMPORT"
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_CONFIG "key_format=i,value_format=i"
 #define IMPORT_ENTRIES 1000
@@ -71,9 +71,9 @@ import(void *arg)
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
     free(cmd);
 
-    len = strlen(g.home) + strlen(IMPORT_DIRNAME) + 10;
+    len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
     cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIRNAME));
+    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIR));
     /* Open a connection to the database, creating it if necessary. */
     testutil_check(wiredtiger_open(cmd, NULL, "create", &import_conn));
     free(cmd);
@@ -100,7 +100,7 @@ import(void *arg)
         testutil_check(import_session->checkpoint(import_session, NULL));
 
         /* Copy table into current test/format directory */
-        copy_file_into_directory(session, IMPORT_DIRNAME, "import.wt");
+        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
 
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
