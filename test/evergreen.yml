@@ -955,8 +955,9 @@ tasks:
             set -o verbose
             UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0 ./ex_access
 
-  # Start of cpp suite test tasks.
-  - name: poc-tests
+  # Start of cppsuite test tasks.
+
+  - name: poc-test
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -970,8 +971,6 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/test/cppsuite/run -t poc_test -f test/cppsuite/configs/config_poc_test_default.txt -l 1
-
-
 
   # Start of csuite test tasks
 
@@ -1761,6 +1760,7 @@ tasks:
             set -o errexit
             set -o verbose
             if [ "Windows_NT" = "$OS" ]; then
+              cd ..
               cmd.exe /c t_fops.exe
             else
 
