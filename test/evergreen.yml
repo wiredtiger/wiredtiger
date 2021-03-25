@@ -300,11 +300,11 @@ functions:
   "truncated log test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix/test/csuite"
+      working_dir: "wiredtiger/build_posix/"
       script: |
         set -o errexit
         set -o verbose
-        ${test_env_vars|} ./test_truncated_log ${truncated_log_args|} 2>&1
+        ${test_env_vars|} ./test/csuite/test_truncated_log ${truncated_log_args|} 2>&1
   "recovery stress test script":
     command: shell.exec
     params:
