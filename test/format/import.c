@@ -42,6 +42,7 @@ static void verify_import(WT_SESSION *session, int start_value);
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_CONFIG "key_format=i,value_format=i"
 #define IMPORT_ENTRIES 1000
+
 /*
  * import --
  *     Periodically import table.
