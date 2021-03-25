@@ -955,6 +955,24 @@ tasks:
             set -o verbose
             UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0 ./ex_access
 
+  # Start of cpp suite test tasks.
+  - name: poc-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t poc_test -f test/cppsuite/configs/config_poc_test_default.txt -l 1
+
+
+
   # Start of csuite test tasks
 
   - name: csuite-incr-backup-test
