@@ -69,7 +69,7 @@ import(void *arg)
     cmd_len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
     testutil_check(__wt_snprintf(cmd, cmd_len, HOME_IMPORT_INIT_CMD, g.home, g.home));
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
-    
+
     memset(cmd, 0, sizeof(cmd));
     cmd_len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
     testutil_check(__wt_snprintf(cmd, cmd_len, "%s/%s", g.home, IMPORT_DIR));
