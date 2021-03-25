@@ -209,5 +209,4 @@ copy_file_into_directory(WT_SESSION *session, const char *dir, const char *name)
     buf_len = strlen(dir) + strlen(name) + 10;
     testutil_check(__wt_snprintf(from, buf_len, "%s/%s", dir, name));
     testutil_check(__wt_copy_and_sync(session, from, name));
-    free(from);
 }
