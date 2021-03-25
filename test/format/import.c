@@ -123,8 +123,7 @@ import(void *arg)
     }
 
     testutil_check(cursor->close(cursor));
-    testutil_check(import_session->close(import_session, NULL));
-    testutil_check(import_conn->close(import_conn, NULL));
+    wts_close(&import_conn, &import_session);
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
 }
