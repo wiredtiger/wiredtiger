@@ -1756,14 +1756,15 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
-          working_dir: "wiredtiger"
+          working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
             if [ "Windows_NT" = "$OS" ]; then
               cmd.exe /c t_fops.exe
             else
-              build_posix/test/fops/t
+
+              ${test_env_vars|} test/fops/t
             fi
 
   - name: million-collection-test
