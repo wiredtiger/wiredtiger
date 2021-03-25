@@ -2582,7 +2582,7 @@ buildvariants:
     - name: linux-directio
       distros: ubuntu1804-build
     - name: syscall-linux
-    - name: make-check-asan-test
+    - name: make-check-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
     - name: unit-test-long
