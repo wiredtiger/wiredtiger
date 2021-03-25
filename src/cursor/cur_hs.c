@@ -380,8 +380,8 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         }
 
         /*
-         * Don't check the visibility of the record if we want to read history store record with
-         * globally visible tombstone.
+         * Don't check the visibility of the record if we want to any read history store record,
+         * even with a globally visible tombstone.
          */
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_ALL))
             break;
@@ -476,8 +476,8 @@ __curhs_next_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
         }
 
         /*
-         * Don't check the visibility of the record if we want to read history store record with
-         * globally visible tombstone.
+         * Don't check the visibility of the record if we want to any read history store record,
+         * even with a globally visible tombstone.
          */
         if (F_ISSET(std_cursor, WT_CURSTD_HS_READ_ALL))
             break;
