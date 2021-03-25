@@ -1511,7 +1511,7 @@ tasks:
   # Start of Python unit test tasks
 
   - name: unit-test
-    tags: ["python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -1519,14 +1519,14 @@ tasks:
       - func: "unit test"
 
   - name: unit-test-with-compile
-    tags: ["python", "unit_test"]
+    tags: ["python"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "unit test"
 
   - name: unit-test-long
-    tags: ["python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
@@ -1536,7 +1536,7 @@ tasks:
           unit_test_args: -v 2 --long
 
   - name: unit-linux-no-ftruncate-test
-    tags: ["python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile-linux-no-ftruncate
     commands:
@@ -1547,7 +1547,7 @@ tasks:
 
   # Run the tests that uses suite_random with a random starting seed
   - name: unit-test-random-seed
-    tags: ["python", "unit_test"]
+    tags: ["python"]
     depends_on:
     - name: compile
     commands:
