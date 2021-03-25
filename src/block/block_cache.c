@@ -81,7 +81,7 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
     blkcache->cache_references[bucket]++;
 }
 
-
+#define BLKCACHE_EVICT_THRESHOLD -100
 static bool
 __blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_target,
 			uint32_t recency_target)
@@ -94,7 +94,7 @@ __blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_targ
     */
     WT_UNUSED(frequency_target);
     WT_UNUSED(recency_target);
-    if (blkcache_item->freq_rec_counter < 0)
+    if (blkcache_item->freq_rec_counter < BLKCACHE_EVICT_THRESHOLD)
 	return true;
     return false;
 }
@@ -119,7 +119,7 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
     frequency_target = recency_target = 0;
 
-    printf("Block cache eviction thread starting...\n");
+    printf("Block cache eviction thread starting... Threshold = %d\n", BLKCACHE_EVICT_THRESHOLD);
 
     while (!blkcache->blkcache_exiting) {
 
@@ -158,7 +158,7 @@ __blkcache_eviction_thread(void *arg)
 	 * is accessed, that timestamp will be incremented.
 	 */
 	blocks_evicted = blocks_not_evicted = 0;
-	printf("Beginning a pass: f(%d), r(%d).\n", frequency_target, recency_target);
+//	printf("Beginning a pass: f(%d), r(%d).\n", frequency_target, recency_target);
 
 	for (i = 0; i < (int)blkcache->hash_size; i++) {
 	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
@@ -205,7 +205,6 @@ __blkcache_eviction_thread(void *arg)
 	}
 	printf("Block cache eviction pass done. Evicted blocks: %d, not evicted blocks %d \n",
 	       blocks_evicted, blocks_not_evicted);
-	printf("Targets are: f(%d), r(%d).\n", frequency_target, recency_target);
     }
 
     return (0);
@@ -214,20 +213,11 @@ __blkcache_eviction_thread(void *arg)
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
 {
-    static uint64_t counter = 0;
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE *blkcache;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
-
-    if (counter++ % 1000000 == 0)
-	printf("inserts=%ld, removals=%ld, lookups=%ld, "
-	       "ratio = %.2f, thrshold = %.2f\n", blkcache->inserts,
-	       blkcache->removals, blkcache->lookups,
-	       (double)(blkcache->inserts + blkcache->removals)/
-	       (double)(blkcache->lookups),
-	       blkcache->overhead_pct);
 
     if ((double)(blkcache->inserts + blkcache->removals)/
 	(double)(blkcache->lookups) > blkcache->overhead_pct)
