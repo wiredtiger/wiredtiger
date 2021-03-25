@@ -76,7 +76,7 @@ compressor(uint32_t compress_flag)
  * encryptor --
  *     Configure encryption.
  */
-static const char *
+const char *
 encryptor(uint32_t encrypt_flag)
 {
     const char *p;

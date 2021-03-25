@@ -38,11 +38,10 @@ static void verify_import(WT_SESSION *session, int start_value);
  * copy we maintain for recovery testing.
  */
 #define HOME_IMPORT_INIT_CMD "rm -rf %s/IMPORT && mkdir %s/IMPORT"
-#define IMPORT_DIR "IMPORT"
+#define IMPORT_DIRNAME "IMPORT"
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_CONFIG "key_format=i,value_format=i"
 #define IMPORT_ENTRIES 1000
-
 /*
  * import --
  *     Periodically import table.
@@ -55,9 +54,10 @@ import(void *arg)
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
     size_t len;
+    uint32_t import_value;
     u_int period;
     int counter;
-    uint32_t import_value;
+    char buf[2048];
     char *cmd;
 
     (void)(arg);
@@ -71,16 +71,20 @@ import(void *arg)
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
     free(cmd);
 
-    len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
+    memset(buf, 0, sizeof(buf));
+    len = strlen(g.home) + strlen(IMPORT_DIRNAME) + 10;
     cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIR));
+    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIRNAME));
+    testutil_check(__wt_snprintf(
+      buf, sizeof(buf), "create,encryption=(name=%s)", encryptor(g.c_encryption_flag)));
     /* Open a connection to the database, creating it if necessary. */
-    testutil_check(wiredtiger_open(cmd, NULL, "create", &import_conn));
+    testutil_check(wiredtiger_open(cmd, NULL, buf, &import_conn));
     free(cmd);
 
     /* Open a session */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
+
     testutil_checkfmt(
       import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
 
@@ -100,7 +104,7 @@ import(void *arg)
         testutil_check(import_session->checkpoint(import_session, NULL));
 
         /* Copy table into current test/format directory */
-        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
+        copy_file_into_directory(session, IMPORT_DIRNAME, "import.wt");
 
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
@@ -172,7 +176,7 @@ import_with_repair(WT_SESSION *session)
 
 /*
  * import_with_file_metadata --
- *     Perform import with the file metadata information.
+ *     Perform import with the file metadata.
  */
 static void
 import_with_file_metadata(WT_SESSION *session, WT_SESSION *import_session)
