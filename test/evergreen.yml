@@ -755,23 +755,6 @@ tasks:
         vars:
           directory: examples/c
 
-  - name: examples-c-asan-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile-asan
-    commands:
-      - func: "fetch artifacts"
-        vars:
-          dependent_task: compile-asan
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-fsanitize=address -ggdb" CXXFLAGS="-fsanitize=address -ggdb"
-          posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static
-      - func: "make check directory"
-        vars:
-          test_env_vars: ASAN_OPTIONS=detect_leaks=1:abort_on_error=1:disable_coredump=0 ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          directory: examples/c
-
   - name: examples-c-production-disable-shared-test
     tags: ["pull_request"]
     depends_on:
@@ -2617,6 +2600,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.unit_test !.python"
     - name: make-check-test
+    - name: examples-c-test
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
