@@ -125,7 +125,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
 
-    F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
+    /* Only clear the flag if it wasn't set when we entered the function. */
+    if (!hs_read_all_flag)
+        F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
 
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
@@ -171,7 +173,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
             cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
             WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
 
-            F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
+            if (!hs_read_all_flag)
+                F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
         }
         if (ret == 0)
             WT_ERR(__hs_fixup_out_of_order_from_pos(
