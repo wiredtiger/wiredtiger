@@ -54,9 +54,9 @@ class thread_manager {
      * Generic function to create threads that take contexts, typically these will be static
      * functions.
      */
-    template <typename Callable>
+    template <typename K, typename V, typename Callable>
     void
-    add_thread(thread_context *tc, Callable &&fct)
+    add_thread(thread_context<K, V> *tc, Callable &&fct)
     {
         tc->set_running(true);
         std::thread *t = new std::thread(fct, std::ref(*tc));

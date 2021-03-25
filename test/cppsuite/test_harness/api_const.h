@@ -45,6 +45,7 @@ static const char *DURATION_SECONDS = "duration_seconds";
 static const char *ENABLED = "enabled";
 static const char *ENABLE_LOGGING = "enable_logging";
 static const char *KEY_COUNT = "key_count";
+static const char *KEY_FORMAT = "key_format";
 static const char *LIMIT = "limit";
 static const char *MAX = "max";
 static const char *MIN = "min";
@@ -54,6 +55,7 @@ static const char *RATE_PER_SECOND = "rate_per_second";
 static const char *READ_THREADS = "read_threads";
 static const char *STABLE_LAG = "stable_lag";
 static const char *STAT_CACHE_SIZE = "stat_cache_size";
+static const char *VALUE_FORMAT = "value_format";
 static const char *VALUE_SIZE = "value_size";
 
 /* WiredTiger API consts. */

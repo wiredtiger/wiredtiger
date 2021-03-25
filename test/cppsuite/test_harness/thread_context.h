@@ -46,9 +46,9 @@ enum class thread_operation {
 };
 
 /* Container class for a thread and any data types it may need to interact with the database. */
-class thread_context {
+template <typename K, typename V> class thread_context {
     public:
-    thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking,
+    thread_context(timestamp_manager *timestamp_manager, workload_tracking<K, V> *tracking,
       std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
       int64_t min_op, int64_t value_size)
         : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
@@ -76,7 +76,7 @@ class thread_context {
         return (_type);
     }
 
-    workload_tracking *
+    workload_tracking<K, V> *
     get_tracking() const
     {
         return (_tracking);
@@ -172,7 +172,7 @@ class thread_context {
     int64_t _min_op, _max_op, _max_op_count;
     timestamp_manager *_timestamp_manager;
     const thread_operation _type;
-    workload_tracking *_tracking;
+    workload_tracking<K, V> *_tracking;
     /* Temporary member that comes from the test configuration. */
     int64_t _value_size;
 };

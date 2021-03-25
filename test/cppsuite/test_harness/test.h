@@ -52,7 +52,7 @@ namespace test_harness {
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
-class test {
+template <typename K, typename V> class test {
     public:
     test(const std::string &config, const std::string &name)
     {
@@ -60,11 +60,11 @@ class test {
         _runtime_monitor = new runtime_monitor(_configuration->get_subconfig(RUNTIME_MONITOR));
         _timestamp_manager =
           new timestamp_manager(_configuration->get_subconfig(TIMESTAMP_MANAGER));
-        _workload_tracking = new workload_tracking(_configuration->get_subconfig(WORKLOAD_TRACKING),
-          OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
-          TABLE_SCHEMA_TRACKING);
+        _workload_tracking = new workload_tracking<K, V>(
+          _configuration->get_subconfig(WORKLOAD_TRACKING), OPERATION_TRACKING_TABLE_CONFIG,
+          TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG, TABLE_SCHEMA_TRACKING);
         _workload_generator =
-          new workload_generator(_configuration->get_subconfig(WORKLOAD_GENERATOR),
+          new workload_generator<K, V>(_configuration->get_subconfig(WORKLOAD_GENERATOR),
             _timestamp_manager, _workload_tracking);
         _thread_manager = new thread_manager();
         /*
@@ -136,11 +136,10 @@ class test {
         _thread_manager->join();
 
         /* Validation stage. */
-        if (_workload_tracking->is_enabled()) {
-            workload_validation wv;
-            is_success = wv.validate(_workload_tracking->get_operation_table_name(),
-              _workload_tracking->get_schema_table_name());
-        }
+        if (_workload_tracking->is_enabled())
+            is_success = workload_validation<K, V>(_workload_tracking)
+                           .validate(_workload_tracking->get_operation_table_name(),
+                             _workload_tracking->get_schema_table_name());
 
         debug_print(is_success ? "SUCCESS" : "FAILED", DEBUG_INFO);
         connection_manager::instance().close();
@@ -150,7 +149,7 @@ class test {
      * Getters for all the major components, used if a test wants more control over the test
      * program.
      */
-    workload_generator *
+    workload_generator<K, V> *
     get_workload_generator()
     {
         return _workload_generator;
@@ -181,8 +180,8 @@ class test {
     runtime_monitor *_runtime_monitor;
     thread_manager *_thread_manager;
     timestamp_manager *_timestamp_manager;
-    workload_generator *_workload_generator;
-    workload_tracking *_workload_tracking;
+    workload_generator<K, V> *_workload_generator;
+    workload_tracking<K, V> *_workload_tracking;
 };
 } // namespace test_harness
 

@@ -39,8 +39,9 @@ namespace test_harness {
 /*
  * Class that can validate database state and collection data.
  */
-class workload_validation {
+template <typename K, typename V> class workload_validation {
     public:
+    workload_validation(workload_tracking<K, V> *tracking) : _tracking(tracking) {}
     /*
      * Validate the on disk data against what has been tracked during the test. The first step is to
      * replay the tracked operations so a representation in memory of the collections is created.
@@ -64,7 +65,7 @@ class workload_validation {
          * value from a key/value pair is null, this means the key should not be present in the
          * collection on disk.
          */
-        std::map<std::string, std::map<int, std::string *> *> collections;
+        std::map<std::string, std::map<K, V *> *> collections;
         /* Existing collections after the test. */
         std::vector<std::string> created_collections;
         bool is_valid;
@@ -77,7 +78,7 @@ class workload_validation {
 
         /* Allocate memory to the operations performed on the created collections. */
         for (auto const &it : created_collections) {
-            std::map<int, std::string *> *map = new std::map<int, std::string *>();
+            std::map<K, V *> *map = new std::map<K, V *>();
             collections[it] = map;
         }
 
@@ -115,7 +116,7 @@ class workload_validation {
 
     /* Clean the memory used to represent the collections after the test. */
     void
-    clean_memory(std::map<std::string, std::map<int, std::string *> *> &collections)
+    clean_memory(std::map<std::string, std::map<K, V *> *> &collections)
     {
         for (auto &it_collections : collections) {
             if (it_collections.second == nullptr)
@@ -131,8 +132,8 @@ class workload_validation {
     }
 
     /*
-     * collection_name is the collection that contains the operations on the different collections
-     * during the test.
+     * collection_name is the collection that contains the creation and deletion operations on the
+     * different collections during the test.
      */
     const std::vector<std::string>
     parse_schema_tracking_table(WT_SESSION *session, const std::string &collection_name)
@@ -148,12 +149,18 @@ class workload_validation {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type));
 
-            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
-            debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
-            debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
+            debug_print(
+              "parse_schema_tracking_table: Collection name is " + std::string(key_collection_name),
+              DEBUG_TRACE);
+            debug_print(
+              "parse_schema_tracking_table: Timestamp is " + std::to_string(key_timestamp),
+              DEBUG_TRACE);
+            debug_print("parse_schema_tracking_table: Operation type is " +
+                std::to_string(value_operation_type),
+              DEBUG_TRACE);
 
             if (static_cast<tracking_operation>(value_operation_type) ==
-              tracking_operation::CREATE) {
+              tracking_operation::CREATE_COLLECTION) {
                 created_collections.push_back(key_collection_name);
             } else if (static_cast<tracking_operation>(value_operation_type) ==
               tracking_operation::DELETE_COLLECTION) {
@@ -174,18 +181,24 @@ class workload_validation {
      */
     void
     parse_operation_tracking_table(WT_SESSION *session, const std::string &tracking_collection_name,
-      const std::string &collection_name,
-      std::map<std::string, std::map<int, std::string *> *> &collections)
+      const std::string &collection_name, std::map<std::string, std::map<K, V *> *> &collections)
     {
         WT_CURSOR *cursor;
-        int error_code, exact, key, key_timestamp, value_operation_type;
-        const char *key_collection_name, *value;
+        std::vector<K> created_keys;
+        K key;
+        V value;
+        int error_code, exact, key_timestamp, value_operation_type;
+        const char *key_collection_name;
 
+        testutil_assert(session != nullptr);
         testutil_check(
           session->open_cursor(session, tracking_collection_name.c_str(), NULL, NULL, &cursor));
 
         /* Our keys start at 0. */
-        cursor->set_key(cursor, collection_name.c_str(), 0);
+        created_keys = _tracking->get_created_keys(collection_name);
+        testutil_assert(!created_keys.empty());
+        std::cout << "Key used to search near is " << created_keys[0] << std::endl;
+        cursor->set_key(cursor, collection_name.c_str(), created_keys[0]);
         error_code = cursor->search_near(cursor, &exact);
 
         /*
@@ -198,11 +211,20 @@ class workload_validation {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
 
-            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
-            debug_print("Key is " + std::to_string(key), DEBUG_TRACE);
-            debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
-            debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
-            debug_print("Value is " + std::string(value), DEBUG_TRACE);
+            debug_print("parse_operation_tracking_table: Collection name is " +
+                std::string(key_collection_name),
+              DEBUG_TRACE);
+            debug_print(
+              "parse_operation_tracking_table: Key is " + std::to_string(key), DEBUG_TRACE);
+            debug_print(
+              "parse_operation_tracking_table: Timestamp is " + std::to_string(key_timestamp),
+              DEBUG_TRACE);
+            debug_print("parse_operation_tracking_table: Operation type is " +
+                std::to_string(value_operation_type),
+              DEBUG_TRACE);
+            // TODO issue to print due to type
+            // debug_print("parse_operation_tracking_table: Value is " + std::to_string(value),
+            // DEBUG_TRACE);
 
             /*
              * If the cursor is reading an operation for a different collection, we know all the
@@ -224,11 +246,11 @@ class workload_validation {
                 break;
             case tracking_operation::INSERT: {
                 /* Keys are unique, it is safe to assume the key has not been encountered before. */
-                std::pair<int, std::string *> pair(key, new std::string(value));
+                std::pair<K, V *> pair(key, new V(value));
                 collections.at(key_collection_name)->insert(pair);
                 break;
             }
-            case tracking_operation::CREATE:
+            case tracking_operation::CREATE_COLLECTION:
             case tracking_operation::DELETE_COLLECTION:
                 testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
                   static_cast<tracking_operation>(value_operation_type));
@@ -250,43 +272,45 @@ class workload_validation {
      * representation in memory of the collections after the test according to the tracking table.
      */
     bool
-    check_reference(
-      WT_SESSION *session, std::map<std::string, std::map<int, std::string *> *> &collections)
+    check_reference(WT_SESSION *session, std::map<std::string, std::map<K, V *> *> &collections)
     {
 
         bool collection_exists, is_valid = true;
-        std::map<int, std::string *> *collection;
-        workload_validation wv;
-        std::string *value;
+        K key;
+        V *value;
+        std::map<K, V *> *collection;
+        std::string collection_name;
 
         for (const auto &it_collections : collections) {
-            /* Check the collection is in the correct state. */
+            collection_name = it_collections.first;
+            /*
+             * The associated key/value pairs to the current collection are null if the collection
+             * has been deleted during the test.
+             */
             collection_exists = (it_collections.second != nullptr);
-            is_valid = wv.verify_database_state(session, it_collections.first, collection_exists);
+            is_valid = verify_database_state(session, collection_name, collection_exists);
 
             if (is_valid && collection_exists) {
                 collection = it_collections.second;
+                /* Walk through each key/value pair of the current collection. */
                 for (const auto &it_operations : *collection) {
-                    value = (*collection)[it_operations.first];
+                    /* The value should be NULL if the key has been been deleted during the test. */
+                    key = it_operations.first;
+                    value = it_operations.second;
                     /* The key/value pair exists. */
                     if (value != nullptr)
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == true);
+                        is_valid = (is_key_present(session, collection_name, key) == true);
                     /* The key has been deleted. */
                     else
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == false);
+                        is_valid = (is_key_present(session, collection_name, key) == false);
 
-                    /* Check the associated value is valid. */
-                    if (is_valid && (value != nullptr)) {
-                        is_valid = (wv.verify_value(
-                          session, it_collections.first, it_operations.first, *value));
-                    }
+                    /* Check the retrieved value is the expected one. */
+                    if (is_valid && (value != nullptr))
+                        is_valid = (verify_value(session, collection_name, key, *value));
 
                     if (!is_valid) {
                         debug_print(
-                          "check_reference failed for key " + std::to_string(it_operations.first),
-                          DEBUG_ERROR);
+                          "check_reference failed for key " + std::to_string(key), DEBUG_ERROR);
                         break;
                     }
                 }
@@ -294,7 +318,7 @@ class workload_validation {
 
             if (!is_valid) {
                 debug_print(
-                  "check_reference failed for collection " + it_collections.first, DEBUG_ERROR);
+                  "check_reference failed for collection " + collection_name, DEBUG_ERROR);
                 break;
             }
         }
@@ -305,14 +329,14 @@ class workload_validation {
     /* Check what is present on disk against what has been tracked. */
     bool
     check_disk_state(WT_SESSION *session, const std::string &collection_name,
-      std::map<std::string, std::map<int, std::string *> *> &collections)
+      std::map<std::string, std::map<K, V *> *> &collections)
     {
         WT_CURSOR *cursor;
-        int key;
-        const char *value;
+        K key;
+        V value;
         bool is_valid;
-        std::string *value_str;
-        std::map<int, std::string *> *collection;
+        V *value_in_memory;
+        std::map<K, V *> *collection;
 
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
 
@@ -332,22 +356,26 @@ class workload_validation {
             testutil_check(cursor->get_key(cursor, &key));
             testutil_check(cursor->get_value(cursor, &value));
 
-            debug_print("Key is " + std::to_string(key), DEBUG_TRACE);
-            debug_print("Value is " + std::string(value), DEBUG_TRACE);
+            // TODO issue print due to type
+            // debug_print("Key is " + std::to_string(key), DEBUG_TRACE);
+            // debug_print("Value is " + std::to_string(value), DEBUG_TRACE);
 
             if (collection->count(key) > 0) {
-                value_str = collection->at(key);
+                value_in_memory = collection->at(key);
                 /*
                  * Check the key/value pair on disk matches the one in memory from the tracked
                  * operations.
                  */
-                is_valid = (value_str != nullptr) && (*value_str == std::string(value));
+                // TODO if value format is S, need to cast chat * to string
+                is_valid = (value_in_memory != nullptr) && (*value_in_memory == value);
                 if (!is_valid)
-                    debug_print(" Key/Value pair mismatch.\n Disk key: " + std::to_string(key) +
-                        "\n Disk value: " + std ::string(value) +
-                        "\n Tracking table key: " + std::to_string(key) +
-                        "\n Tracking table value: " + (value_str == nullptr ? "NULL" : *value_str),
-                      DEBUG_ERROR);
+                    // TODO Issue print due to type
+                    debug_print(" Key/Value pair mismatch", DEBUG_ERROR);
+                // debug_print(" Key/Value pair mismatch.\n Disk key: " + std::to_string(key) +
+                //     "\n Disk value: " + std ::to_string(value) + "\n Tracking table key: " +
+                //     std::to_string(key) + "\n Tracking table value: " +
+                //     (value_in_memory == nullptr ? "NULL" : std::to_string(*value_in_memory)),
+                //   DEBUG_ERROR);
             } else {
                 is_valid = false;
                 debug_print(
@@ -372,7 +400,6 @@ class workload_validation {
         return (exists ? (ret == 0) : (ret != 0));
     }
 
-    template <typename K>
     bool
     is_key_present(WT_SESSION *session, const std::string &collection_name, const K &key)
     {
@@ -383,13 +410,12 @@ class workload_validation {
     }
 
     /* Verify the given expected value is the same on disk. */
-    template <typename K, typename V>
     bool
     verify_value(WT_SESSION *session, const std::string &collection_name, const K &key,
       const V &expected_value)
     {
         WT_CURSOR *cursor;
-        const char *value;
+        V value;
 
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
@@ -400,6 +426,7 @@ class workload_validation {
     }
 
     private:
+    workload_tracking<K, V> *_tracking;
 };
 } // namespace test_harness
 

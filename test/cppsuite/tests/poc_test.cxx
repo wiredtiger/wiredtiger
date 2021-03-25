@@ -28,7 +28,8 @@
 
 #include "test_harness/test.h"
 
-class poc_test : public test_harness::test {
+template <typename K, typename V>
+class poc_test : public test_harness::test<K, V> {
     public:
-    poc_test(const std::string &config, const std::string &name) : test(config, name) {}
+    poc_test(const std::string &config, const std::string &name) : test_harness::test<K,V>(config, name) {}
 };

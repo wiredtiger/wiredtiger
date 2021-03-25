@@ -40,10 +40,10 @@ namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
  */
-class workload_generator : public component {
+template <typename K, typename V> class workload_generator : public component {
     public:
     workload_generator(configuration *configuration, timestamp_manager *timestamp_manager,
-      workload_tracking *tracking)
+      workload_tracking<K, V> *tracking)
         : component(configuration), _timestamp_manager(timestamp_manager), _tracking(tracking)
     {
     }
@@ -75,13 +75,22 @@ class workload_generator : public component {
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t ts;
+        configuration *sub_config;
         int64_t collection_count, key_count, value_size;
-        std::string collection_name, config, generated_value, home;
+        std::string collection_name, config, generated_value, home, schema;
         bool ts_enabled = _timestamp_manager->is_enabled();
 
         cursor = nullptr;
         collection_count = key_count = value_size = 0;
         collection_name = "";
+
+        // TODO Doesnt work
+        // testutil_check(_config->get_string(KEY_FORMAT, key_format));
+        // testutil_check(_config->get_string(VALUE_FORMAT, value_format));
+
+        schema = generate_schema(_key_format, _value_format);
+        // schema = DEFAULT_TABLE_SCHEMA;
+        std::cout << "Schema is " << schema << std::endl;
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
@@ -89,9 +98,8 @@ class workload_generator : public component {
         testutil_check(_config->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
             ts = _timestamp_manager->get_next_ts();
-            testutil_check(_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
+            testutil_check(create(session, collection_name, schema, ts));
             _collection_names.push_back(collection_name);
         }
         debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
@@ -101,8 +109,10 @@ class workload_generator : public component {
         testutil_check(_config->get_int(VALUE_SIZE, value_size));
         testutil_assert(value_size >= 0);
         for (const auto &collection_name : _collection_names) {
-            /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
-             * session is closed, WiredTiger APIs close the cursors too. */
+            /*
+             * WiredTiger lets you open a cursor on a collection using the same pointer. When a
+             * session is closed, WiredTiger APIs close the cursors too.
+             */
             testutil_check(
               session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
             for (size_t j = 0; j < key_count; ++j) {
@@ -113,9 +123,17 @@ class workload_generator : public component {
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 ts = _timestamp_manager->get_next_ts();
+
+                /* Insert the generated data. */
                 if (ts_enabled)
                     testutil_check(session->begin_transaction(session, ""));
-                testutil_check(insert(cursor, collection_name, j + 1, generated_value.c_str(), ts));
+
+                // TO DO - Adapt this to the key/value format given in the test configuration
+                K current_key;
+                V current_value;
+                // testutil_check(insert(cursor, collection_name, j + 1, generated_value, ts));
+                testutil_check(insert(cursor, collection_name, current_key, current_value, ts));
+
                 if (ts_enabled) {
                     config = std::string(COMMIT_TS) + "=" + _timestamp_manager->decimal_to_hex(ts);
                     testutil_check(session->commit_transaction(session, config.c_str()));
@@ -149,7 +167,7 @@ class workload_generator : public component {
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking,
+            thread_context<K, V> *tc = new thread_context<K, V>(_timestamp_manager, _tracking,
               _collection_names, thread_operation::READ, max_operation_per_transaction,
               min_operation_per_transaction, value_size);
             _workers.push_back(tc);
@@ -169,7 +187,7 @@ class workload_generator : public component {
 
     /* Workload threaded operations. */
     static void
-    execute_operation(thread_context &context)
+    execute_operation(thread_context<K, V> &context)
     {
         WT_SESSION *session;
 
@@ -200,7 +218,7 @@ class workload_generator : public component {
      * collection.
      */
     static void
-    update_operation(thread_context &context, WT_SESSION *session)
+    update_operation(thread_context<K, V> &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
         wt_timestamp_t ts;
@@ -227,8 +245,13 @@ class workload_generator : public component {
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 /* Key is hard coded for now. */
-                testutil_check(update(context.get_tracking(), it, collection_names[cpt], 1,
-                  generated_value.c_str(), ts));
+                // TO DO - Adapt this to the key/value format given in the test configuration
+                K current_key;
+                V current_value;
+                // testutil_check(update(context.get_tracking(), it, collection_names[cpt], 1,
+                //   generated_value.c_str(), ts));
+                testutil_check(update(context.get_tracking(), it, collection_names[cpt],
+                  current_key, current_value, ts));
                 ++cpt;
             }
             has_committed = context.commit_transaction(session, "");
@@ -241,7 +264,7 @@ class workload_generator : public component {
 
     /* Basic read operation that walks a cursors across all collections. */
     static void
-    read_operation(thread_context &context, WT_SESSION *session)
+    read_operation(thread_context<K, V> &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
@@ -262,45 +285,8 @@ class workload_generator : public component {
         }
     }
 
-    /* WiredTiger APIs wrappers for single operations. */
-    template <typename K, typename V>
-    int
-    insert(WT_CURSOR *cursor, const std::string &collection_name, K key, V value, wt_timestamp_t ts)
-    {
-        int error_code;
-
-        testutil_assert(cursor != nullptr);
-        cursor->set_key(cursor, key);
-        cursor->set_value(cursor, value);
-        error_code = cursor->insert(cursor);
-
-        if (error_code == 0) {
-            debug_print("key/value inserted", DEBUG_TRACE);
-            error_code =
-              _tracking->save(tracking_operation::INSERT, collection_name, key, value, ts);
-        } else
-            debug_print("key/value insertion failed", DEBUG_ERROR);
-
-        return (error_code);
-    }
-
     static int
-    search(WT_CURSOR *cursor)
-    {
-        testutil_assert(cursor != nullptr);
-        return (cursor->search(cursor));
-    }
-
-    static int
-    search_near(WT_CURSOR *cursor, int *exact)
-    {
-        testutil_assert(cursor != nullptr);
-        return (cursor->search_near(cursor, exact));
-    }
-
-    template <typename K, typename V>
-    static int
-    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
+    update(workload_tracking<K, V> *tracking, WT_CURSOR *cursor, const std::string &collection_name,
       K key, V value, wt_timestamp_t ts)
     {
         int error_code;
@@ -314,7 +300,7 @@ class workload_generator : public component {
         if (error_code == 0) {
             debug_print("key/value update", DEBUG_TRACE);
             error_code =
-              tracking->save(tracking_operation::UPDATE, collection_name, key, value, ts);
+              tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
         } else
             debug_print("key/value update failed", DEBUG_ERROR);
 
@@ -322,11 +308,97 @@ class workload_generator : public component {
     }
 
     private:
+    const std::string
+    generate_schema(K key_format, V value_format)
+    {
+        std::string schema;
+
+        if (typeid(key_format) == typeid(int))
+            schema += "key_format=i,";
+        else if (typeid(key_format) == typeid(std::string))
+            schema += "key_format=S,";
+        else
+            testutil_die(EINVAL, "Invalid key format. Only S or i are accepted.");
+        if (typeid(value_format) == typeid(int))
+            schema += "value_format=i";
+        else if (typeid(value_format) == typeid(std::string))
+            schema += "value_format=S";
+        else
+            testutil_die(EINVAL, "Invalid value format. Only S or i are accepted.");
+
+        return (schema);
+    }
+
+    /* WiredTiger APIs wrappers for single operations. */
+    int
+    create(WT_SESSION *session, const std::string &collection_name, const std::string &config,
+      wt_timestamp_t ts)
+    {
+        int error_code;
+
+        testutil_assert(session != nullptr);
+        error_code = session->create(session, collection_name.c_str(), config.c_str());
+
+        if (error_code == 0) {
+            debug_print("Collection created: " + collection_name, DEBUG_TRACE);
+            error_code = _tracking->save_operation_on_collection(
+              tracking_operation::CREATE_COLLECTION, collection_name, ts);
+        } else
+            debug_print("Collection creation failed: " + collection_name, DEBUG_ERROR);
+
+        return (error_code);
+    }
+
+    int
+    drop(WT_SESSION *session, const std::string &collection_name, const std::string &config,
+      wt_timestamp_t ts)
+    {
+        int error_code;
+
+        testutil_assert(session != nullptr);
+        error_code = session->drop(session, collection_name.c_str(), config.c_str());
+
+        if (error_code == 0) {
+            debug_print("Collection dropped: " + collection_name, DEBUG_TRACE);
+            error_code = _tracking->save_operation_on_collection(
+              tracking_operation::DELETE_COLLECTION, collection_name, ts);
+        } else
+            debug_print("Collection drop failed: " + collection_name, DEBUG_ERROR);
+
+        return (error_code);
+    }
+
+    int
+    insert(WT_CURSOR *cursor, const std::string &collection_name, const K &key, const V &value,
+      wt_timestamp_t ts)
+    {
+        int error_code;
+
+        testutil_assert(cursor != nullptr);
+
+        cursor->set_key(cursor, key);
+        // TODO If value format is string, need to c_str()
+        // cursor->set_value(cursor, typeid(value) == typeid(std::string) ? value.c_str() : value);
+        cursor->set_value(cursor, value);
+        error_code = cursor->insert(cursor);
+
+        if (error_code == 0) {
+            debug_print("key/value inserted", DEBUG_TRACE);
+            error_code = _tracking->save_operation(
+              tracking_operation::INSERT, collection_name, key, value, ts);
+        } else
+            debug_print("key/value insertion failed", DEBUG_ERROR);
+
+        return (error_code);
+    }
+
     std::vector<std::string> _collection_names;
+    K _key_format;
+    V _value_format;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
-    workload_tracking *_tracking;
-    std::vector<thread_context *> _workers;
+    workload_tracking<K, V> *_tracking;
+    std::vector<thread_context<K, V> *> _workers;
 };
 } // namespace test_harness
 

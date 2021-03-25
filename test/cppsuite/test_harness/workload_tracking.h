@@ -29,6 +29,9 @@
 #ifndef WORKLOAD_TRACKING_H
 #define WORKLOAD_TRACKING_H
 
+#include <algorithm>
+// #include <map>
+
 /*
  * Default schema for tracking operations on collections (key_format: Collection name / Key /
  * Timestamp, value_format: Operation type / Value)
@@ -48,10 +51,18 @@
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
 
 namespace test_harness {
+
+// template <typename V> struct Value {
+//     bool exists;
+//     V data;
+// };
+
+// template <typename K, typename V> using MAP = std::map<std::string, std::map<K, Value<V>>>;
+
 /* Tracking operations. */
-enum class tracking_operation { CREATE, DELETE_COLLECTION, DELETE_KEY, INSERT, UPDATE };
+enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY, INSERT, UPDATE };
 /* Class used to track operations performed on collections */
-class workload_tracking : public component {
+template <typename K, typename V> class workload_tracking : public component {
 
     public:
     workload_tracking(configuration *_config, const std::string &operation_table_config,
@@ -107,45 +118,115 @@ class workload_tracking : public component {
         /* Does not do anything. */
     }
 
-    template <typename K, typename V>
-    int
-    save(const tracking_operation &operation, const std::string &collection_name, const K &key,
-      const V &value, wt_timestamp_t ts)
+    const std::vector<std::string> &
+    get_created_collections() const
     {
-        WT_CURSOR *cursor;
+        return _created_collections;
+    }
+
+    const std::vector<K> &
+    get_created_keys(const std::string &collection_name) const
+    {
+        return _created_keys.at(collection_name);
+    }
+
+    /*
+     * Keep track of the creation or deletion of a given collection.
+     */
+    int
+    save_operation_on_collection(
+      const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
+    {
+        int error_code = 0;
+
+        if (!_enabled)
+            return (error_code);
+
+        if ((operation == tracking_operation::CREATE_COLLECTION) ||
+          (operation == tracking_operation::DELETE_COLLECTION)) {
+            _cursor_schema->set_key(_cursor_schema, collection_name.c_str(), ts);
+            _cursor_schema->set_value(_cursor_schema, static_cast<int>(operation));
+
+            error_code = _cursor_schema->insert(_cursor_schema);
+
+            if (error_code == 0) {
+                debug_print(
+                  "save_operation_on_collection: saved operation on collection.", DEBUG_TRACE);
+
+                /* Update the collection state in memory. */
+                if (operation == tracking_operation::CREATE_COLLECTION)
+                    _created_collections.push_back(collection_name);
+                else if (operation == tracking_operation::DELETE_COLLECTION) {
+                    _created_collections.erase(std::remove(_created_collections.begin(),
+                                                 _created_collections.end(), collection_name),
+                      _created_collections.end());
+                    /* Keys associated to deleted collection can be removed. */
+                    _created_keys[collection_name].clear();
+                }
+            } else
+                debug_print(
+                  "save_operation_on_collection: failed to save operation on collection !",
+                  DEBUG_ERROR);
+        } else {
+            error_code = -1;
+            debug_print(
+              "save_operation_on_collection: invalid operation: " + static_cast<int>(operation),
+              DEBUG_ERROR);
+        }
+
+        return (error_code);
+    }
+
+    /*
+     * Keep track of the operations on the key/value pairs on a given collection.
+     */
+    int
+    save_operation(const tracking_operation &operation, const std::string &collection_name,
+      const K &key, const V &value, wt_timestamp_t ts)
+    {
         int error_code = 0;
 
         if (!_enabled)
             return (error_code);
 
         /* Select the correct cursor to save in the collection associated to specific operations. */
-        switch (operation) {
-        case tracking_operation::CREATE:
-        case tracking_operation::DELETE_COLLECTION:
-            cursor = _cursor_schema;
-            cursor->set_key(cursor, collection_name.c_str(), ts);
-            cursor->set_value(cursor, static_cast<int>(operation));
-            break;
+        if ((operation == tracking_operation::CREATE_COLLECTION) ||
+          (operation == tracking_operation::DELETE_COLLECTION)) {
+            error_code = -1;
+            debug_print(
+              "save_operation: invalid operation: " + static_cast<int>(operation), DEBUG_ERROR);
+        } else {
+            _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);
+            _cursor_operations->set_value(_cursor_operations, static_cast<int>(operation), value);
 
-        default:
-            cursor = _cursor_operations;
-            cursor->set_key(cursor, collection_name.c_str(), key, ts);
-            cursor->set_value(cursor, static_cast<int>(operation), value);
-            break;
+            error_code = _cursor_operations->insert(_cursor_operations);
+
+            if (error_code == 0) {
+                debug_print("Workload tracking saved operation.", DEBUG_TRACE);
+
+                /* Update the key in memory. */
+                if (operation == tracking_operation::DELETE_KEY)
+                    _created_keys[collection_name].erase(
+                      std::remove(_created_keys[collection_name].begin(),
+                        _created_keys[collection_name].end(), key),
+                      _created_keys[collection_name].end());
+                else if (operation == tracking_operation::INSERT)
+                    _created_keys[collection_name].push_back(key);
+            } else
+                debug_print("Workload tracking failed to save operation !", DEBUG_ERROR);
         }
 
-        error_code = cursor->insert(cursor);
-
-        if (error_code == 0)
-            debug_print("Workload tracking saved operation.", DEBUG_TRACE);
-        else
-            debug_print("Workload tracking failed to save operation !", DEBUG_ERROR);
-
-        return error_code;
+        return (error_code);
     }
 
     private:
+    /* Created collections during the test. */
+    std::vector<std::string> _created_collections;
+    /* Created keys in each collection during the test. */
+    std::map<std::string, std::vector<K>> _created_keys;
+    /* Cursor associated to the operations on the key/value pairs of the different collections. */
     WT_CURSOR *_cursor_operations;
+    /* Cursor associated to the creation and deletion of collection. */
     WT_CURSOR *_cursor_schema;
     const std::string _operation_table_config;
     const std::string _operation_table_name;

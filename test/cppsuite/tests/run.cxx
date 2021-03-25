@@ -110,7 +110,8 @@ run_test(const std::string &test_name, const std::string &config_name = "")
     test_harness::debug_print("Configuration\t: " + cfg, DEBUG_INFO);
 
     if (test_name == "poc_test")
-        poc_test(cfg, test_name).run();
+        // TODO - Generate the correct template from the test configuration
+        poc_test<int, std::string>(cfg, test_name).run();
     else {
         test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
         error_code = -1;
