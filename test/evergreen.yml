@@ -685,7 +685,6 @@ tasks:
         vars:
           smp_command: -j 1
 
-
   - name: make-check-msan-test
     depends_on:
       - name: compile-msan
@@ -1512,6 +1511,7 @@ tasks:
   # Start of Python unit test tasks
 
   - name: unit-test
+    tags: ["python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1519,12 +1519,14 @@ tasks:
       - func: "unit test"
 
   - name: unit-test-with-compile
+    tags: ["python", "unit_test"]
     commands:
       - func: "get project"
       - func: "compile wiredtiger"
       - func: "unit test"
 
   - name: unit-test-long
+    tags: ["python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1534,6 +1536,7 @@ tasks:
           unit_test_args: -v 2 --long
 
   - name: unit-linux-no-ftruncate-test
+    tags: ["python", "unit_test"]
     depends_on:
     - name: compile-linux-no-ftruncate
     commands:
@@ -1544,6 +1547,7 @@ tasks:
 
   # Run the tests that uses suite_random with a random starting seed
   - name: unit-test-random-seed
+    tags: ["python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1555,7 +1559,7 @@ tasks:
   # and we use the -b option of the test/suite/run.py script to split up the tests.
 
   - name: unit-test-bucket00
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1565,7 +1569,7 @@ tasks:
           unit_test_args: -v 2 -b 0/11
 
   - name: unit-test-bucket01
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1575,7 +1579,7 @@ tasks:
           unit_test_args: -v 2 -b 1/11
 
   - name: unit-test-bucket02
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1585,7 +1589,7 @@ tasks:
           unit_test_args: -v 2 -b 2/11
 
   - name: unit-test-bucket03
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1595,7 +1599,7 @@ tasks:
           unit_test_args: -v 2 -b 3/11
 
   - name: unit-test-bucket04
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1605,7 +1609,7 @@ tasks:
           unit_test_args: -v 2 -b 4/11
 
   - name: unit-test-bucket05
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1615,7 +1619,7 @@ tasks:
           unit_test_args: -v 2 -b 5/11
 
   - name: unit-test-bucket06
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1625,7 +1629,7 @@ tasks:
           unit_test_args: -v 2 -b 6/11
 
   - name: unit-test-bucket07
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1635,7 +1639,7 @@ tasks:
           unit_test_args: -v 2 -b 7/11
 
   - name: unit-test-bucket08
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1645,7 +1649,7 @@ tasks:
           unit_test_args: -v 2 -b 8/11
 
   - name: unit-test-bucket09
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -1655,7 +1659,7 @@ tasks:
           unit_test_args: -v 2 -b 9/11
 
   - name: unit-test-bucket10
-    tags: ["pull_request", "unit_test"]
+    tags: ["pull_request", "python", "unit_test"]
     depends_on:
     - name: compile
     commands:
@@ -2598,7 +2602,7 @@ buildvariants:
       TESTUTIL_BYPASS_ASAN=1
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
-    - name: ".pull_request !.windows_only !.pull_request_compilers !.unit_test !.python"
+    - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
     - name: make-check-test
     - name: examples-c-test
 
