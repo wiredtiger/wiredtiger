@@ -87,9 +87,13 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     uint32_t hs_btree_id;
 
     counter = 0;
+
     /*
      * Keep track if the caller had set WT_CURSTD_HS_READ_ALL flag on the history store cursor. We
-     * want to preserve the flags set by the caller.
+     * want to preserve the flags set by the caller when we exit from this function. Also, we want
+     * to explicitly set the flag WT_CURSTD_HS_READ_ALL only for the search_near operations on the
+     * history store cursor and perform all other cursor operations using the flags set by the
+     * caller of this function.
      */
     hs_read_all_flag = F_ISSET(cursor, WT_CURSTD_HS_READ_ALL);
 
