@@ -2574,6 +2574,29 @@ buildvariants:
     - name: static-wt-build-test
     - name: format-failure-configs-test
 
+- name: ubuntu1804-asan
+  display_name: "! Ubuntu 18.04 ASAN"
+  run_on:
+  - ubuntu1804-wt-build
+  expansions:
+    configure_env_vars:
+      CC=/opt/mongodbtoolchain/v3/bin/clang
+      CXX=/opt/mongodbtoolchain/v3/bin/clang++
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
+      CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
+    posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static --prefix=$(pwd)/LOCAL_INSTALL
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    test_env_vars:
+      ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
+      ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+      TESTUTIL_BYPASS_ASAN=1
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+  tasks:
+    - name: ".pull_request !.windows_only !.pull_request_compilers !.unit_test !.python"
+    - name: make-check-test
+
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
   run_on:
