@@ -56,8 +56,8 @@ import(void *arg)
     size_t len;
     u_int period;
     int counter;
+    uint32_t import_value;
     char *cmd;
-    bool import_value;
 
     (void)(arg);
     conn = g.wts_conn;
@@ -90,7 +90,6 @@ import(void *arg)
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
 
-        // Validate the cursor inserts
         for (int i = 0; i < IMPORT_ENTRIES; ++i) {
             cursor->set_key(cursor, i);
             cursor->set_value(cursor, counter + i);
@@ -99,19 +98,22 @@ import(void *arg)
         counter += IMPORT_ENTRIES;
         testutil_check(import_session->checkpoint(import_session, NULL));
 
+        /* Copy table into current test/format directory */
         copy_file_into_directory(session, IMPORT_DIRNAME, "import.wt");
 
         import_value = mmrand(NULL, 0, 1);
-        if (import_value) {
+        if (import_value == 0) {
             import_with_repair(session);
         } else {
             import_with_file_metadata(session, import_session);
         }
 
+        /* Drop import table, so we can import next iteration */
         while ((ret = session->drop(session, IMPORT_URI, NULL)) == EBUSY) {
             __wt_yield();
         }
         testutil_check(ret);
+
         verify_import(import_session, counter - IMPORT_ENTRIES);
         while (period > 0 && !g.workers_finished) {
             --period;
@@ -128,14 +130,11 @@ import(void *arg)
 
 /*
  * verify_import --
- *     Copy a single file into the directories.
+ *     Verify all the values inside the imported table.
  */
 static void
 verify_import(WT_SESSION *session, int start_value)
 {
-    /*
-     * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-     */
     WT_CURSOR *cursor;
     WT_DECL_RET;
     int counter, key, value;
@@ -154,6 +153,10 @@ verify_import(WT_SESSION *session, int start_value)
     scan_end_check(ret == WT_NOTFOUND);
 }
 
+/*
+ * import_with_repair --
+ *     Perform import with repair option
+ */
 static void
 import_with_repair(WT_SESSION *session)
 {
@@ -166,6 +169,10 @@ import_with_repair(WT_SESSION *session)
         testutil_die(ret, "session.import", ret);
 }
 
+/*
+ * import_with_file_metadata --
+ *     Perform import with the file metadata information.
+ */
 static void
 import_with_file_metadata(WT_SESSION *session, WT_SESSION *import_session)
 {
