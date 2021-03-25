@@ -956,7 +956,7 @@ tasks:
             UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1:abort_on_error=1:disable_coredump=0 ./ex_access
 
   # Start of cpp suite test tasks.
-  - name: poc-test
+  - name: poc-tests
     tags: ["pull_request"]
     depends_on:
       - name: compile
