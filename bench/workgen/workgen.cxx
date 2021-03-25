@@ -202,7 +202,7 @@ int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
             THROW ("Table create failed in start_table_idle_cycle.");
         }
         if ((ret = check_timing("CREATE", start, &stop)) != 0)
-            THROW_ERRNO (ret, "CREATE table Failed because max_idle_table_cycle_fatal is true.");
+            THROW_ERRNO (ret, "WT_SESSION->create timeout.");
         start = stop;
 
         /* Open and close cursor. */
@@ -213,7 +213,7 @@ int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
             THROW ("Cursor close failed.");
         }
         if ((ret = check_timing("CURSOR", start, &stop)) != 0)
-            THROW_ERRNO (ret, "Open/Close CURSOR Failed because max_idle_table_cycle_fatal is true.");
+            THROW_ERRNO (ret, "WT_SESSION->open_cursor timeout.");
         start = stop;
 
         /*
@@ -228,7 +228,7 @@ int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
         }
 
         if ((ret = check_timing("DROP", start, &stop)) != 0)
-            THROW_ERRNO (ret, "DROP table Failed because max_idle_table_cycle_fatal is true.");
+            THROW_ERRNO (ret, "WT_SESSION->drop timeout.");
     }
 
     return 0;
@@ -2051,7 +2051,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
     _options.add_int("sample_interval_ms", sample_interval_ms,
       "performance logging every interval milliseconds, 0 to disable");
     _options.add_int("max_idle_table_cycle", max_idle_table_cycle,
-      "enable regular create and drop of idle tables, 0 to disable");
+      "Value is the maximum number of seconds a create or drop is allowed"
+    "before aborting or printing a warning based on max_idle_table_cycle_fatal setting");
     _options.add_int("sample_rate", sample_rate,
       "how often the latency of operations is measured. 1 for every operation, "
       "2 for every second operation, 3 for every third operation etc.");
@@ -2233,6 +2234,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     pthread_t time_thandle, idle_table_thandle;
     WT_DECL_RET;
 
+    runnerConnection = createDropTableCycle = NULL;
     for (size_t i = 0; i < _trunners.size(); i++)
         _trunners[i].get_static_counts(counts);
     out << "Starting workload: " << _trunners.size() << " threads, ";
@@ -2289,6 +2291,8 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
             std::cerr << "Stopping Time threads." << std::endl;
             (void)pthread_join(time_thandle, &status);
             delete runnerConnection;
+            runnerConnection = NULL;
+            stopping = true;
         }
     }
 
@@ -2305,58 +2309,67 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
             std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
             (void)pthread_join(idle_table_thandle, &status);
             delete createDropTableCycle;
+            createDropTableCycle = NULL;
+            stopping = true;
         }
     }
 
-    // Treat warmup separately from report interval so that if we have a
-    // warmup period we clear and ignore stats after it ends.
-    if (options->warmup != 0)
-        sleep((unsigned int)options->warmup);
+    timespec now;
 
-    // Clear stats after any warmup period completes.
-    for (size_t i = 0; i < _trunners.size(); i++) {
-        ThreadRunner *runner = &_trunners[i];
-        runner->_stats.clear();
+    /* Don't run the test if any of the above pthread_create fails. */
+    if (!stopping && ret == 0)
+    {
+        // Treat warmup separately from report interval so that if we have a
+        // warmup period we clear and ignore stats after it ends.
+        if (options->warmup != 0)
+            sleep((unsigned int)options->warmup);
+
+        // Clear stats after any warmup period completes.
+        for (size_t i = 0; i < _trunners.size(); i++) {
+            ThreadRunner *runner = &_trunners[i];
+            runner->_stats.clear();
+        }
+
+        workgen_epoch(&_start);
+        timespec end = _start + options->run_time;
+        timespec next_report = _start + options->report_interval;
+
+        // Let the test run, reporting as needed.
+        Stats curstats(false);
+        //timespec now = _start;
+        now = _start;
+        while (now < end) {
+            timespec sleep_amt;
+
+            sleep_amt = end - now;
+            if (next_report != 0) {
+                timespec next_diff = next_report - now;
+                if (next_diff < next_report)
+                    sleep_amt = next_diff;
+            }
+            if (sleep_amt.tv_sec > 0)
+                sleep((unsigned int)sleep_amt.tv_sec);
+            else
+                usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
+
+            workgen_epoch(&now);
+            if (now >= next_report && now < end && options->report_interval != 0) {
+                report(options->report_interval, (now - _start).tv_sec, &curstats);
+                while (now >= next_report)
+                    next_report += options->report_interval;
+            }
+        }
     }
 
-    workgen_epoch(&_start);
-    timespec end = _start + options->run_time;
-    timespec next_report = _start + options->report_interval;
-
-    // Let the test run, reporting as needed.
-    Stats curstats(false);
-    timespec now = _start;
-    while (now < end) {
-        timespec sleep_amt;
-
-        sleep_amt = end - now;
-        if (next_report != 0) {
-            timespec next_diff = next_report - now;
-            if (next_diff < next_report)
-                sleep_amt = next_diff;
-        }
-        if (sleep_amt.tv_sec > 0)
-            sleep((unsigned int)sleep_amt.tv_sec);
-        else
-            usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
-
-        workgen_epoch(&now);
-        if (now >= next_report && now < end && options->report_interval != 0) {
-            report(options->report_interval, (now - _start).tv_sec, &curstats);
-            while (now >= next_report)
-                next_report += options->report_interval;
-        }
-    }
-
-    // signal all threads to stop
+    // signal all threads to stop.
     if (options->run_time != 0)
         for (size_t i = 0; i < _trunners.size(); i++)
             _trunners[i]._stop = true;
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
-    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0 || options->max_idle_table_cycle > 0) {
-        stopping = true;
-    }
+
+    // Signal timestamp and idle table cycle thread to stop.
+    stopping = true;
 
     // wait for all threads
     exception = NULL;
@@ -2372,13 +2385,13 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     }
 
     // Wait for the time increment thread
-    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
+    if ( runnerConnection != NULL) {
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }
 
     // Wait for the idle table cycle thread.
-    if (options->max_idle_table_cycle > 0) {
+    if (createDropTableCycle != NULL) {
         WT_TRET(pthread_join(idle_table_thandle, &status));
         delete createDropTableCycle;
     }
