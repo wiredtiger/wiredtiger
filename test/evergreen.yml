@@ -957,7 +957,7 @@ tasks:
 
   # Start of cppsuite test tasks.
 
-  - name: poc-test
+  - name: poc-test-cpp
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -972,6 +972,7 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/cppsuite/run -t poc_test -f test/cppsuite/configs/config_poc_test_default.txt -l 1
 
+  # End of cppsuite test tasks.
   # Start of csuite test tasks
 
   - name: csuite-incr-backup-test
@@ -2581,7 +2582,6 @@ buildvariants:
     - name: linux-directio
       distros: ubuntu1804-build
     - name: syscall-linux
-    - name: make-check-test
     - name: configure-combinations
     - name: checkpoint-filetypes-test
     - name: unit-test-long
@@ -2598,7 +2598,7 @@ buildvariants:
 - name: ubuntu1804-asan
   display_name: "! Ubuntu 18.04 ASAN"
   run_on:
-  - ubuntu1804-wt-build
+  - ubuntu1804-test
   expansions:
     configure_env_vars:
       CC=/opt/mongodbtoolchain/v3/bin/clang
