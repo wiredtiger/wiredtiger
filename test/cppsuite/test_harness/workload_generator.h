@@ -84,7 +84,7 @@ template <typename K, typename V> class workload_generator : public component {
         collection_count = key_count = value_size = 0;
         collection_name = "";
 
-        // TODO Doesnt work
+        // TODO Does not work
         // testutil_check(_config->get_string(KEY_FORMAT, key_format));
         // testutil_check(_config->get_string(VALUE_FORMAT, value_format));
 
@@ -110,7 +110,7 @@ template <typename K, typename V> class workload_generator : public component {
         testutil_assert(value_size >= 0);
         for (const auto &collection_name : _collection_names) {
             /*
-             * WiredTiger lets you open a cursor on a collection using the same pointer. When a
+             * WiredTiger let you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
              */
             testutil_check(
@@ -224,7 +224,6 @@ template <typename K, typename V> class workload_generator : public component {
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
         std::vector<std::string> collection_names;
-        std::string generated_value;
         bool has_committed = true;
         int64_t cpt, value_size = context.get_value_size();
 
@@ -242,14 +241,10 @@ template <typename K, typename V> class workload_generator : public component {
             ts = context.set_commit_timestamp(session);
             cpt = 0;
             for (const auto &it : cursors) {
-                generated_value =
-                  random_generator::random_generator::instance().generate_string(value_size);
-                /* Key is hard coded for now. */
                 // TO DO - Adapt this to the key/value format given in the test configuration
+                // current_value needs to have c_str() if format is string
                 K current_key;
                 V current_value;
-                // testutil_check(update(context.get_tracking(), it, collection_names[cpt], 1,
-                //   generated_value.c_str(), ts));
                 testutil_check(update(context.get_tracking(), it, collection_names[cpt],
                   current_key, current_value, ts));
                 ++cpt;
@@ -377,8 +372,7 @@ template <typename K, typename V> class workload_generator : public component {
         testutil_assert(cursor != nullptr);
 
         cursor->set_key(cursor, key);
-        // TODO If value format is string, need to c_str()
-        // cursor->set_value(cursor, typeid(value) == typeid(std::string) ? value.c_str() : value);
+        // TODO If value format is string, need to call c_str()
         cursor->set_value(cursor, value);
         error_code = cursor->insert(cursor);
 

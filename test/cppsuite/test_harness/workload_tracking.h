@@ -30,7 +30,7 @@
 #define WORKLOAD_TRACKING_H
 
 #include <algorithm>
-// #include <map>
+#include <map>
 
 /*
  * Default schema for tracking operations on collections (key_format: Collection name / Key /
@@ -51,13 +51,6 @@
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
 
 namespace test_harness {
-
-// template <typename V> struct Value {
-//     bool exists;
-//     V data;
-// };
-
-// template <typename K, typename V> using MAP = std::map<std::string, std::map<K, Value<V>>>;
 
 /* Tracking operations. */
 enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY, INSERT, UPDATE };
