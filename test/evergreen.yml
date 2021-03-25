@@ -1763,7 +1763,6 @@ tasks:
               cd ..
               cmd.exe /c t_fops.exe
             else
-
               ${test_env_vars|} test/fops/t
             fi
 
