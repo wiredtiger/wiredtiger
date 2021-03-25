@@ -734,7 +734,7 @@ tasks:
   # Start of normal make check test tasks
 
   - name: lang-python-test
-    tags: ["pull_request"]
+    tags: ["pull_request", "python"]
     depends_on:
       - name: compile
     commands:
@@ -1679,7 +1679,7 @@ tasks:
             sh s_all -A -E 2>&1
 
   - name: conf-dump-test
-    tags: ["pull_request"]
+    tags: ["pull_request", "python"]
     depends_on:
     - name: compile
     commands:
