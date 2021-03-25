@@ -54,31 +54,27 @@ import(void *arg)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
-    size_t len;
+    size_t cmd_len;
     uint32_t import_value;
     u_int period;
     int counter;
-    char buf[256];
-    char *cmd;
+    char cmd[64];
 
     WT_UNUSED(arg);
     conn = g.wts_conn;
-    import_value = false;
     counter = 0;
+    import_value = false;
 
-    len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
-    cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, HOME_IMPORT_INIT_CMD, g.home, g.home));
+    memset(cmd, 0, sizeof(cmd));
+    cmd_len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
+    testutil_check(__wt_snprintf(cmd, cmd_len, HOME_IMPORT_INIT_CMD, g.home, g.home));
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
-    free(cmd);
-
-    memset(buf, 0, sizeof(buf));
-    len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
-    cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIR));
+    
+    memset(cmd, 0, sizeof(cmd));
+    cmd_len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
+    testutil_check(__wt_snprintf(cmd, cmd_len, "%s/%s", g.home, IMPORT_DIR));
     /* Open a connection to the database, creating it if necessary. */
     create_database(cmd, &import_conn);
-    free(cmd);
 
     /* Open a session */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
@@ -207,12 +203,11 @@ import_with_file_metadata(WT_SESSION *session, WT_SESSION *import_session)
 static void
 copy_file_into_directory(WT_SESSION *session, const char *dir, const char *name)
 {
-    size_t len;
-    char *from;
+    size_t buf_len;
+    char from[64];
 
-    len = strlen(dir) + strlen(name) + 10;
-    from = dmalloc(len);
-    testutil_check(__wt_snprintf(from, len, "%s/%s", dir, name));
+    buf_len = strlen(dir) + strlen(name) + 10;
+    testutil_check(__wt_snprintf(from, buf_len, "%s/%s", dir, name));
     testutil_check(__wt_copy_and_sync(session, from, name));
     free(from);
 }
