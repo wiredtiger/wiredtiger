@@ -76,7 +76,7 @@ compressor(uint32_t compress_flag)
  * encryptor --
  *     Configure encryption.
  */
-const char *
+static const char *
 encryptor(uint32_t encrypt_flag)
 {
     const char *p;
@@ -148,7 +148,7 @@ static WT_EVENT_HANDLER event_handler = {
  * create_database --
  *     Create a WiredTiger database.
  */
-static void
+void
 create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;

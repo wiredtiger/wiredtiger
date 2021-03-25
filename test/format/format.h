@@ -442,7 +442,7 @@ void wts_salvage(void);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, const char *);
 
-const char *encryptor(uint32_t encrypt_flag);
+void create_database(const char *home, WT_CONNECTION **connp);
 
 #if !defined(CUR2S)
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)

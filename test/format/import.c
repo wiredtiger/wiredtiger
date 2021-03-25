@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -37,11 +37,12 @@ static void verify_import(WT_SESSION *session, int start_value);
  * Import directory initialize command, remove and re-create the primary backup directory, plus a
  * copy we maintain for recovery testing.
  */
-#define HOME_IMPORT_INIT_CMD "rm -rf %s/IMPORT && mkdir %s/IMPORT"
-#define IMPORT_DIRNAME "IMPORT"
+#define HOME_IMPORT_INIT_CMD "rm -rf %s/" IMPORT_DIR "&& mkdir %s/" IMPORT_DIR
+#define IMPORT_DIR "IMPORT"
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_CONFIG "key_format=i,value_format=i"
 #define IMPORT_ENTRIES 1000
+
 /*
  * import --
  *     Periodically import table.
@@ -57,10 +58,10 @@ import(void *arg)
     uint32_t import_value;
     u_int period;
     int counter;
-    char buf[2048];
+    char buf[256];
     char *cmd;
 
-    (void)(arg);
+    WT_UNUSED(arg);
     conn = g.wts_conn;
     import_value = false;
     counter = 0;
@@ -72,13 +73,11 @@ import(void *arg)
     free(cmd);
 
     memset(buf, 0, sizeof(buf));
-    len = strlen(g.home) + strlen(IMPORT_DIRNAME) + 10;
+    len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
     cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIRNAME));
-    testutil_check(__wt_snprintf(
-      buf, sizeof(buf), "create,encryption=(name=%s)", encryptor(g.c_encryption_flag)));
+    testutil_check(__wt_snprintf(cmd, len, "%s/%s", g.home, IMPORT_DIR));
     /* Open a connection to the database, creating it if necessary. */
-    testutil_check(wiredtiger_open(cmd, NULL, buf, &import_conn));
+    create_database(cmd, &import_conn);
     free(cmd);
 
     /* Open a session */
@@ -88,9 +87,6 @@ import(void *arg)
     testutil_checkfmt(
       import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
 
-    /*
-     * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-     */
     testutil_check(import_session->open_cursor(import_session, IMPORT_URI, NULL, NULL, &cursor));
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
@@ -104,7 +100,7 @@ import(void *arg)
         testutil_check(import_session->checkpoint(import_session, NULL));
 
         /* Copy table into current test/format directory */
-        copy_file_into_directory(session, IMPORT_DIRNAME, "import.wt");
+        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
 
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
@@ -166,7 +162,7 @@ static void
 import_with_repair(WT_SESSION *session)
 {
     WT_DECL_RET;
-    char buf[2048];
+    char buf[256];
 
     memset(buf, 0, sizeof(buf));
     testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
