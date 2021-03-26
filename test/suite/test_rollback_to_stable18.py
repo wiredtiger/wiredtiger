@@ -78,7 +78,7 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
 
         # Perform several updates.
         self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
-        
+
         # Perform several removes.
         self.large_removes(uri, ds, nrows, self.prepare, 30)
 
