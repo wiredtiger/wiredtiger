@@ -90,19 +90,21 @@ import(void *arg)
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Populate new table made in import database connection */
+    /* Create new table and populate with data in import database connection */
     testutil_checkfmt(
       import_session->create(import_session, IMPORT_URI, IMPORT_TABLE_CONFIG), "%s", g.uri);
     populate_table(import_session);
-
-    /* Copy table into usual database directory */
-    copy_file_into_directory(session, IMPORT_DIR, "import.wt");
 
     /* Grab metadata information for import table from import database connection */
     get_file_metadata(import_session, &file_config, &table_config);
 
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
+
+        /* Copy table into usual database directory */
+        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
+
+        /* Perform import with either repair or file metadata */
         memset(buf, 0, sizeof(buf));
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
@@ -118,7 +120,7 @@ import(void *arg)
 
         verify_import(session);
 
-        /* Drop import table, so we can import next iteration */
+        /* Drop import table, so we can perform import next iteration */
         while ((ret = session->drop(session, IMPORT_URI, NULL)) == EBUSY) {
             __wt_yield();
         }
@@ -156,6 +158,7 @@ verify_import(WT_SESSION *session)
     }
     testutil_assert(iteration == IMPORT_ENTRIES);
     scan_end_check(ret == WT_NOTFOUND);
+    testutil_check(cursor->close(cursor));
 }
 
 /*
