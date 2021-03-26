@@ -2574,6 +2574,7 @@ buildvariants:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
+    - examples-c-test
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
