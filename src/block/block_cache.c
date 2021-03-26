@@ -81,10 +81,8 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
     blkcache->cache_references[bucket]++;
 }
 
-#define BLKCACHE_EVICT_THRESHOLD -100
 static bool
-__blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_target,
-			uint32_t recency_target)
+__blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, int32_t evict_aggressive_target)
 {
     /*
     if (blkcache_item->virtual_recency_timestamp <= recency_target
@@ -92,9 +90,7 @@ __blkcache_should_evict(WT_BLKCACHE_ITEM *blkcache_item, uint32_t frequency_targ
 	<= frequency_target)
 	return true;
     */
-    WT_UNUSED(frequency_target);
-    WT_UNUSED(recency_target);
-    if (blkcache_item->freq_rec_counter < BLKCACHE_EVICT_THRESHOLD)
+    if (blkcache_item->freq_rec_counter < evict_aggressive_target)
 	return true;
     return false;
 }
@@ -119,7 +115,8 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
     frequency_target = recency_target = 0;
 
-    printf("Block cache eviction thread starting... Threshold = %d\n", BLKCACHE_EVICT_THRESHOLD);
+    printf("Block cache eviction thread starting... Aggressive target = %d\n",
+	   blkcache->evict_aggressive);
 
     while (!blkcache->blkcache_exiting) {
 
@@ -134,9 +131,6 @@ __blkcache_eviction_thread(void *arg)
 	while ((double)blkcache->bytes_used/(double)blkcache->max_bytes < full_target
 	       && !blkcache->blkcache_exiting){
 	    __wt_cond_wait(session, blkcache->blkcache_cond, WT_MILLION, NULL);
-
-	    printf("Block cache eviction thread slept: %.2f occupancy below target of %.2f.\n",
-		   (double)blkcache->bytes_used/(double)blkcache->max_bytes, full_target);
 	    /*
 	     * We just slept, meaning that eviction was not needed.
 	     * Reset the targets so that we begin a new eviction cycle
@@ -158,12 +152,11 @@ __blkcache_eviction_thread(void *arg)
 	 * is accessed, that timestamp will be incremented.
 	 */
 	blocks_evicted = blocks_not_evicted = 0;
-//	printf("Beginning a pass: f(%d), r(%d).\n", frequency_target, recency_target);
 
 	for (i = 0; i < (int)blkcache->hash_size; i++) {
 	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
 	    TAILQ_FOREACH_SAFE(blkcache_item, &blkcache->hash[i], hashq, blkcache_item_tmp) {
-		if (__blkcache_should_evict(blkcache_item, frequency_target, recency_target)) {
+		if (__blkcache_should_evict(blkcache_item, blkcache->evict_aggressive)) {
 		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
 		    __blkcache_free(session, blkcache_item->data);
 		    __blkcache_update_ref_histogram(session, blkcache_item);
@@ -203,8 +196,7 @@ __blkcache_eviction_thread(void *arg)
 	    printf("Both targets maxed out: f(%d), r(%d).\n", frequency_target,
 		   recency_target);
 	}
-	printf("Block cache eviction pass done. Evicted blocks: %d, not evicted blocks %d \n",
-	       blocks_evicted, blocks_not_evicted);
+	WT_STAT_CONN_INCRV(session, block_cache_blocks_evicted, blocks_evicted);
     }
 
     return (0);
@@ -562,7 +554,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 		size_t hash_size,
 		int type, char *nvram_device_path, size_t system_ram,
 		int percent_file_in_dram, bool write_allocate,
-		double overhead_pct, bool eviction_on)
+		double overhead_pct, bool eviction_on, int evict_aggressive)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -607,6 +599,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 	WT_RET(__wt_thread_create(session, &blkcache->evict_thread_tid,
 				  __blkcache_eviction_thread, (void*)session));
 	blkcache->eviction_on = true;
+	blkcache->evict_aggressive = evict_aggressive;
     }
 
     blkcache->type = type;
@@ -706,7 +699,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     bool write_allocate, eviction_on;
     char *nvram_device_path;
     double overhead_pct;
-    int cache_type, percent_file_in_dram;
+    int cache_type, evict_aggressive, percent_file_in_dram;
     size_t cache_size, hash_size, system_ram;
 
     conn = S2C(session);
@@ -763,6 +756,9 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     if (cval.val == 0)
 	eviction_on = false;
 
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.eviction_aggression", &cval));
+    evict_aggressive = cval.val;
+
     WT_RET(__wt_config_gets(session, cfg, "block_cache.write_allocate", &cval));
     if (cval.val == 0)
 	write_allocate = false;
@@ -776,5 +772,5 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     return __blkcache_init(session, cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram,
 			   percent_file_in_dram, write_allocate,
-			   overhead_pct, eviction_on);
+			   overhead_pct, eviction_on, evict_aggressive);
 }

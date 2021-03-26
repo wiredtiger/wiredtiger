@@ -451,6 +451,10 @@ connection_runtime_config = [
                Config('eviction_on', 'true', r'''
                     Turn on eviction''',
                     type='boolean'),
+               Config('eviction_aggression', '0', r'''
+                   a value indicating how aggressive eviction should be
+                   with low negative numbers being less aggressive, and
+                   numbers close to zero being very aggressive'''),
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='1024GB'),
