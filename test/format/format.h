@@ -385,9 +385,9 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
+WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
-WT_THREAD_RET import(void *);
 
 void config_clear(void);
 void config_compat(const char **);
@@ -397,6 +397,7 @@ void config_final(void);
 void config_print(bool);
 void config_run(void);
 void config_single(const char *, bool);
+void create_database(const char *home, WT_CONNECTION **connp);
 void fclose_and_clear(FILE **);
 bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(WT_ITEM *, uint64_t, const char *);
@@ -441,8 +442,6 @@ void wts_reopen(void);
 void wts_salvage(void);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, const char *);
-
-void create_database(const char *home, WT_CONNECTION **connp);
 
 #if !defined(CUR2S)
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)

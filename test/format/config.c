@@ -703,6 +703,8 @@ config_in_memory(void)
         return;
     if (config_is_perm("logging"))
         return;
+    if (config_is_perm("import"))
+        return;
     if (config_is_perm("ops.hs_cursor"))
         return;
     if (config_is_perm("ops.salvage"))
@@ -736,6 +738,8 @@ config_in_memory_reset(void)
         config_single("ops.hs_cursor=off", false);
     if (!config_is_perm("logging"))
         config_single("logging=off", false);
+    if (!config_is_perm("import"))
+        config_single("import=off", false);
     if (!config_is_perm("ops.salvage"))
         config_single("ops.salvage=off", false);
     if (!config_is_perm("ops.verify"))

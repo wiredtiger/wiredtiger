@@ -28,10 +28,10 @@
 
 #include "format.h"
 
-static void copy_file_into_directory(WT_SESSION *session, const char *dir, const char *name);
-static void import_with_repair(WT_SESSION *session);
-static void import_with_file_metadata(WT_SESSION *session, WT_SESSION *import_session);
-static void verify_import(WT_SESSION *session, int start_value);
+static void copy_file_into_directory(WT_SESSION *, const char *, const char *);
+static void get_file_metadata(WT_SESSION *, const char **, const char **);
+static void populate_table(WT_SESSION *);
+static void verify_import(WT_SESSION *);
 
 /*
  * Import directory initialize command, remove and re-create the primary backup directory, plus a
@@ -39,10 +39,14 @@ static void verify_import(WT_SESSION *session, int start_value);
  */
 #define HOME_IMPORT_INIT_CMD "rm -rf %s/" IMPORT_DIR "&& mkdir %s/" IMPORT_DIR
 #define IMPORT_DIR "IMPORT"
-#define IMPORT_URI "table:import"
-#define IMPORT_URI_CONFIG "key_format=i,value_format=i"
+/*
+ * The number of entries in the import table, primary use for validating contents after import. The
+ * varying of the entries doesn't affect functionality of import.
+ */
 #define IMPORT_ENTRIES 1000
-
+#define IMPORT_TABLE_CONFIG "key_format=i,value_format=i"
+#define IMPORT_URI "table:import"
+#define IMPORT_URI_FILE "file:import.wt"
 /*
  * import --
  *     Periodically import table.
@@ -51,20 +55,23 @@ WT_THREAD_RET
 import(void *arg)
 {
     WT_CONNECTION *conn, *import_conn;
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION *import_session, *session;
     size_t cmd_len;
     uint32_t import_value;
     u_int period;
-    int counter;
-    char cmd[64];
+    char buf[2048], cmd[64];
+    const char *file_config, *table_config;
 
     WT_UNUSED(arg);
     conn = g.wts_conn;
-    counter = 0;
-    import_value = false;
+    file_config = table_config = NULL;
+    import_value = 0;
 
+    /*
+     * Initiate a new import database, which is primarily used for copying the table file, and
+     * importing the table from a foreign database.
+     */
     memset(cmd, 0, sizeof(cmd));
     cmd_len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
     testutil_check(__wt_snprintf(cmd, cmd_len, HOME_IMPORT_INIT_CMD, g.home, g.home));
@@ -76,49 +83,51 @@ import(void *arg)
     /* Open a connection to the database, creating it if necessary. */
     create_database(cmd, &import_conn);
 
-    /* Open a session */
+    /*
+     * Open two sessions, one for usual test database connection and one for the import database
+     * connection
+     */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
+    /* Populate new table made in import database connection */
     testutil_checkfmt(
-      import_session->create(import_session, IMPORT_URI, IMPORT_URI_CONFIG), "%s", g.uri);
+      import_session->create(import_session, IMPORT_URI, IMPORT_TABLE_CONFIG), "%s", g.uri);
+    populate_table(import_session);
 
-    testutil_check(import_session->open_cursor(import_session, IMPORT_URI, NULL, NULL, &cursor));
+    /* Copy table into usual database directory */
+    copy_file_into_directory(session, IMPORT_DIR, "import.wt");
+
+    /* Grab metadata information for import table from import database connection */
+    get_file_metadata(import_session, &file_config, &table_config);
+
     while (!g.workers_finished) {
         period = mmrand(NULL, 1, 10);
-
-        for (int i = 0; i < IMPORT_ENTRIES; ++i) {
-            cursor->set_key(cursor, i);
-            cursor->set_value(cursor, counter + i);
-            testutil_check(cursor->insert(cursor));
-        }
-        counter += IMPORT_ENTRIES;
-        testutil_check(import_session->checkpoint(import_session, NULL));
-
-        /* Copy table into current test/format directory */
-        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
-
+        memset(buf, 0, sizeof(buf));
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
-            import_with_repair(session);
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
+            if ((ret = session->create(session, IMPORT_URI, buf)) != 0)
+                testutil_die(ret, "session.import", ret);
         } else {
-            import_with_file_metadata(session, import_session);
+            testutil_check(__wt_snprintf(buf, sizeof(buf),
+              "%s,import=(enabled,repair=false,file_metadata=(%s))", table_config, file_config));
+            if ((ret = session->create(session, IMPORT_URI, buf)) != 0)
+                testutil_die(ret, "session.import", ret);
         }
+
+        verify_import(session);
 
         /* Drop import table, so we can import next iteration */
         while ((ret = session->drop(session, IMPORT_URI, NULL)) == EBUSY) {
             __wt_yield();
         }
         testutil_check(ret);
-
-        verify_import(import_session, counter - IMPORT_ENTRIES);
         while (period > 0 && !g.workers_finished) {
             --period;
             __wt_sleep(1, 0);
         }
     }
-
-    testutil_check(cursor->close(cursor));
     wts_close(&import_conn, &import_session);
     testutil_check(session->close(session, NULL));
     return (WT_THREAD_RET_VALUE);
@@ -129,69 +138,60 @@ import(void *arg)
  *     Verify all the values inside the imported table.
  */
 static void
-verify_import(WT_SESSION *session, int start_value)
+verify_import(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    int counter, key, value;
+    int iteration, key, value;
 
-    counter = 0;
+    iteration = 0;
     testutil_check(session->open_cursor(session, IMPORT_URI, NULL, NULL, &cursor));
 
     while ((ret = cursor->next(cursor)) == 0) {
         error_check(cursor->get_key(cursor, &key));
-        testutil_assert(key == counter);
+        testutil_assert(key == iteration);
         error_check(cursor->get_value(cursor, &value));
-        testutil_assert(value == counter + start_value);
-        counter++;
+        testutil_assert(value == iteration);
+        iteration++;
     }
-    testutil_assert(counter == IMPORT_ENTRIES);
+    testutil_assert(iteration == IMPORT_ENTRIES);
     scan_end_check(ret == WT_NOTFOUND);
 }
 
 /*
- * import_with_repair --
- *     Perform import with repair option
+ * populate_table --
+ *     populate import table with simple data.
  */
 static void
-import_with_repair(WT_SESSION *session)
+populate_table(WT_SESSION *session)
 {
-    WT_DECL_RET;
-    char buf[256];
-
-    memset(buf, 0, sizeof(buf));
-    testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
-    if ((ret = session->create(session, IMPORT_URI, buf)) != 0)
-        testutil_die(ret, "session.import", ret);
+    WT_CURSOR *cursor;
+    testutil_check(session->open_cursor(session, IMPORT_URI, NULL, NULL, &cursor));
+    for (int i = 0; i < IMPORT_ENTRIES; ++i) {
+        cursor->set_key(cursor, i);
+        cursor->set_value(cursor, i);
+        testutil_check(cursor->insert(cursor));
+    }
+    testutil_check(cursor->close(cursor));
+    testutil_check(session->checkpoint(session, NULL));
 }
 
 /*
- * import_with_file_metadata --
- *     Perform import with the file metadata.
+ * get_with_file_metadata --
+ *     Get import file and table metadata information from import database connection.
  */
 static void
-import_with_file_metadata(WT_SESSION *session, WT_SESSION *import_session)
+get_file_metadata(WT_SESSION *session, const char **file_config, const char **table_config)
 {
     WT_CURSOR *metadata_cursor;
-    WT_DECL_RET;
-    char buf[2048];
-    const char *table_config, *file_config;
-
-    memset(buf, 0, sizeof(buf));
-    testutil_check(
-      import_session->open_cursor(import_session, "metadata:", NULL, NULL, &metadata_cursor));
-
+    testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &metadata_cursor));
     metadata_cursor->set_key(metadata_cursor, IMPORT_URI);
-    metadata_cursor->search(metadata_cursor);
-    metadata_cursor->get_value(metadata_cursor, &table_config);
+    testutil_check(metadata_cursor->search(metadata_cursor));
+    metadata_cursor->get_value(metadata_cursor, table_config);
 
-    metadata_cursor->set_key(metadata_cursor, "file:import.wt");
-    metadata_cursor->search(metadata_cursor);
-    metadata_cursor->get_value(metadata_cursor, &file_config);
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "%s,import=(enabled,repair=false,file_metadata=(%s))", table_config, file_config));
-    if ((ret = session->create(session, IMPORT_URI, buf)) != 0)
-        testutil_die(ret, "session.import", ret);
+    metadata_cursor->set_key(metadata_cursor, IMPORT_URI_FILE);
+    testutil_check(metadata_cursor->search(metadata_cursor));
+    metadata_cursor->get_value(metadata_cursor, file_config);
 
     testutil_check(metadata_cursor->close(metadata_cursor));
 }

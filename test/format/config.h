@@ -221,11 +221,11 @@ static CONFIG c[] = {
   {"lsm.worker_threads", "number of LSM worker threads", 0x0, 3, 4, 20, &g.c_lsm_worker_threads,
     NULL},
 
+  /* 100% */
+  {"import", "import table from newly created database", C_BOOL, 100, 0, 0, &g.c_import, NULL},
+
   /* 10% */
   {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0, &g.c_alter, NULL},
-
-  /* 100% */
-  {"ops.import", "import table", C_BOOL, 100, 0, 0, &g.c_import, NULL},
 
   /* 10% */
   {"ops.compaction", "configure compaction", C_BOOL, 10, 0, 0, &g.c_compact, NULL},
