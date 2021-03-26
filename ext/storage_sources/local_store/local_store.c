@@ -95,9 +95,9 @@ typedef struct {
     WT_FILE_SYSTEM file_system; /* Must come first */
     LOCAL_STORAGE *local_storage;
 
-    char *auth_token;     /* Identifier for key management system */
-    char *bucket;         /* Actually a directory path for local implementation */
-    char *cluster_prefix; /* Cluster prefix */
+    char *auth_token; /* Identifier for key management system */
+    char *bucket;     /* Actually a directory path for local implementation */
+    char *fs_prefix;  /* File system prefix, allowing for a "directory" within a bucket */
 } LOCAL_FILE_SYSTEM;
 
 /*
@@ -338,11 +338,11 @@ local_location_path(WT_FILE_SYSTEM *file_system, const char *name, const char *m
     /* If this is a marker file, it will be hidden from all namespaces. */
     if (marker == NULL)
         marker = "";
-    len = strlen(local_fs->bucket) + strlen(marker) + strlen(local_fs->cluster_prefix) +
-      strlen(name) + 2;
+    len =
+      strlen(local_fs->bucket) + strlen(marker) + strlen(local_fs->fs_prefix) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_location_path"));
-    snprintf(p, len, "%s/%s%s%s", local_fs->bucket, marker, local_fs->cluster_prefix, name);
+    snprintf(p, len, "%s/%s%s%s", local_fs->bucket, marker, local_fs->fs_prefix, name);
     *pathp = p;
     return (ret);
 }
@@ -381,7 +381,7 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         ret = local_err(local, session, ENOMEM, "local_file_system.bucket_name");
         goto err;
     }
-    if ((fs->cluster_prefix = strdup(prefix)) == NULL) {
+    if ((fs->fs_prefix = strdup(prefix)) == NULL) {
         ret = local_err(local, session, ENOMEM, "local_file_system.prefix");
         goto err;
     }
@@ -485,7 +485,7 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
             /*
              * We must match against the bucket and the name if given.
              * Our match string is of the form:
-             *   <bucket_name>/<cluster_prefix><name>
+             *   <bucket_name>/<fs_prefix><name>
              *
              * If name is given, we must match the entire path.
              * If name is not given, we must match up to the beginning
@@ -609,7 +609,7 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
     DIR *dirp;
     LOCAL_FILE_SYSTEM *local_fs;
     LOCAL_STORAGE *local;
-    size_t alloc_sz, cluster_len, dir_len, prefix_len;
+    size_t alloc_sz, fs_prefix_len, dir_len, prefix_len;
     uint32_t allocated, count;
     int ret, t_ret;
     char **entries, **new_entries;
@@ -619,7 +619,7 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
     local = local_fs->local_storage;
     entries = NULL;
     allocated = count = 0;
-    cluster_len = strlen(local_fs->cluster_prefix);
+    fs_prefix_len = strlen(local_fs->fs_prefix);
     dir_len = (directory == NULL ? 0 : strlen(directory));
     prefix_len = (prefix == NULL ? 0 : strlen(prefix));
     ret = 0;
@@ -650,11 +650,11 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
             continue;
         basename += dir_len;
 
-        /* Skip files not associated with our cluster. */
-        if (strncmp(basename, local_fs->cluster_prefix, cluster_len) != 0)
+        /* Skip files not associated with our file system prefix. */
+        if (strncmp(basename, local_fs->fs_prefix, fs_prefix_len) != 0)
             continue;
 
-        basename += cluster_len;
+        basename += fs_prefix_len;
         /* The list of files is optionally filtered by a prefix. */
         if (prefix != NULL && strncmp(basename, prefix, prefix_len) != 0)
             continue;
@@ -711,7 +711,7 @@ local_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     FS2LOCAL(file_system)->op_count++;
     free(local_fs->auth_token);
     free(local_fs->bucket);
-    free(local_fs->cluster_prefix);
+    free(local_fs->fs_prefix);
     free(file_system);
 
     return (0);
