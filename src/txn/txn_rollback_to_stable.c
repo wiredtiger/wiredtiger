@@ -976,7 +976,10 @@ __rollback_page_needs_abort(
     durable_ts = WT_TS_NONE;
     newest_txn = WT_TXN_NONE;
     tag = "undefined state";
-    prepared = result = false;
+    prepared = false;
+
+    /* Default to check for unstable updates. */
+    result = true;
 
     /*
      * The rollback operation should be performed on this page when any one of the following is
