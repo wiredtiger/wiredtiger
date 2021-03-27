@@ -164,6 +164,8 @@ __blkcache_eviction_thread(void *arg)
 		    blkcache->bytes_used -= blkcache_item->id.size;
 		    __wt_free(session, blkcache_item);
 		    blocks_evicted++;
+		    WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->id.size);
+		    WT_STAT_CONN_DECR(session, block_cache_blocks);
 		}
 		else {
 		    blkcache_item->virtual_recency_timestamp--;
