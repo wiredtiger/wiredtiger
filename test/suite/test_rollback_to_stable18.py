@@ -88,10 +88,9 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
 
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
         # Search for the key so we position our cursor on the page that we want to evict.
-        for i in range(1, nrows + 1):
-            evict_cursor.set_key(i)
-            evict_cursor.search()
-            evict_cursor.reset()
+        evict_cursor.set_key(1)
+        evict_cursor.search()
+        evict_cursor.reset()
         evict_cursor.close()
 
         # Pin stable and oldest to timestamp 30 if prepare otherwise 20.

@@ -217,8 +217,7 @@ __rec_need_save_upd(
         return (false);
 
     if (WT_TIME_WINDOW_HAS_STOP(&upd_select->tw))
-        return (!(__wt_txn_tw_stop_visible_all(session, &upd_select->tw) &&
-          __wt_txn_tw_start_visible_all(session, &upd_select->tw)));
+        return (!__wt_txn_tw_stop_visible_all(session, &upd_select->tw));
     else
         return (!__wt_txn_tw_start_visible_all(session, &upd_select->tw));
 }
