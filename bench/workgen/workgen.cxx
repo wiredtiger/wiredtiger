@@ -137,11 +137,10 @@ static void *thread_workload(void *arg) {
     return (NULL);
 }
 
-static void *thread_idle_table_cycle_worload(void *arg) {
-
+static void *thread_idle_table_cycle_workload(void *arg) {
     WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *) arg;
-    WorkloadRunner *runner = runnerConnection->runner;
     WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
 
     try {
         runner->start_table_idle_cycle(connection);
@@ -152,17 +151,12 @@ static void *thread_idle_table_cycle_worload(void *arg) {
     return (NULL);
 }
 
-int WorkloadRunner::check_timing(const char *name, uint64_t start, uint64_t *stop) {
-    uint64_t last_interval;
+int WorkloadRunner::check_timing(const char *name, uint64_t last_interval) {
+    WorkloadOptions *options = &_workload->options;
     int msg_err;
     const char *str;
-    WorkloadOptions *options = &_workload->options;
 
     msg_err = 0;
-
-    workgen_clock(stop);
-
-    last_interval = ns_to_sec(*stop - start);
 
     if (last_interval > options->max_idle_table_cycle) {
         if (options->max_idle_table_cycle_fatal) {
@@ -177,43 +171,44 @@ int WorkloadRunner::check_timing(const char *name, uint64_t start, uint64_t *sto
 }
 
 int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
-
-    //std::string session_config = _workload->_threads[0].options.session_config;
-    int ret, cycle_count;
     WT_SESSION *session;
     WT_CURSOR *cursor;
+    uint64_t start, stop, last_interval;
+    int ret, cycle_count;
     char uri[BUF_SIZE];
-    uint64_t start, stop;
 
     cycle_count = 0;
     if (ret = conn->open_session(conn, NULL, NULL, &session) != 0) {
-        THROW ("Error Opening a Session.");
+        THROW("Error Opening a Session.");
     }
 
     for (cycle_count = 0 ; !stopping ; ++cycle_count) {
-        sprintf (uri, "table:test_cycle%04d", cycle_count);
+        sprintf(uri, "table:test_cycle%04d", cycle_count);
 
         workgen_clock(&start);
-
         /* Create a table. */
         if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
             if (ret == EBUSY)
                 continue;
-            THROW ("Table create failed in start_table_idle_cycle.");
+            THROW("Table create failed in start_table_idle_cycle.");
         }
-        if ((ret = check_timing("CREATE", start, &stop)) != 0)
-            THROW_ERRNO (ret, "WT_SESSION->create timeout.");
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("CREATE", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->create timeout.");
         start = stop;
 
         /* Open and close cursor. */
         if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
-            THROW ("Cursor open failed.");
+            THROW("Cursor open failed.");
         }
         if ((ret = cursor->close(cursor)) != 0) {
-            THROW ("Cursor close failed.");
+            THROW("Cursor close failed.");
         }
-        if ((ret = check_timing("CURSOR", start, &stop)) != 0)
-            THROW_ERRNO (ret, "WT_SESSION->open_cursor timeout.");
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("CURSOR", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->open_cursor timeout.");
         start = stop;
 
         /*
@@ -224,13 +219,13 @@ int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
             sleep(1);
 
         if (ret != 0) {
-            THROW ("Table drop failed in cycle_idle_tables.");
+            THROW("Table drop failed in cycle_idle_tables.");
         }
-
-        if ((ret = check_timing("DROP", start, &stop)) != 0)
-            THROW_ERRNO (ret, "WT_SESSION->drop timeout.");
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("DROP", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->drop timeout.");
     }
-
     return 0;
 }
 /*
@@ -238,8 +233,8 @@ int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
  * stable_timestamp with the specified lag until stopping is set to true
  */
 int WorkloadRunner::increment_timestamp(WT_CONNECTION *conn) {
-    char buf[BUF_SIZE];
     uint64_t time_us;
+    char buf[BUF_SIZE];
 
     while (!stopping)
     {
@@ -2051,8 +2046,8 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
     _options.add_int("sample_interval_ms", sample_interval_ms,
       "performance logging every interval milliseconds, 0 to disable");
     _options.add_int("max_idle_table_cycle", max_idle_table_cycle,
-      "Value is the maximum number of seconds a create or drop is allowed"
-    "before aborting or printing a warning based on max_idle_table_cycle_fatal setting");
+      "maximum number of seconds a create or drop is allowed before aborting "
+      "or printing a warning based on max_idle_table_cycle_fatal setting.");
     _options.add_int("sample_rate", sample_rate,
       "how often the latency of operations is measured. 1 for every operation, "
       "2 for every second operation, 3 for every third operation etc.");
@@ -2303,7 +2298,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
         createDropTableCycle->runner = this;
         createDropTableCycle->connection = conn;
 
-        if ((ret = pthread_create(&idle_table_thandle, NULL, thread_idle_table_cycle_worload,
+        if ((ret = pthread_create(&idle_table_thandle, NULL, thread_idle_table_cycle_workload,
             createDropTableCycle)) != 0) {
             std::cerr << "pthread_create failed err=" << ret << std::endl;
             std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
@@ -2336,7 +2331,6 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
 
         // Let the test run, reporting as needed.
         Stats curstats(false);
-        //timespec now = _start;
         now = _start;
         while (now < end) {
             timespec sleep_amt;
@@ -2385,7 +2379,7 @@ int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     }
 
     // Wait for the time increment thread
-    if ( runnerConnection != NULL) {
+    if (runnerConnection != NULL) {
         WT_TRET(pthread_join(time_thandle, &status));
         delete runnerConnection;
     }
