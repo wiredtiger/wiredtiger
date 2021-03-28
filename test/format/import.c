@@ -164,7 +164,7 @@ verify_import(WT_SESSION *session)
 
 /*
  * populate_table --
- *     Populate import table with simple data.
+ *     Populate the import table with simple data.
  */
 static void
 populate_table(WT_SESSION *session)
