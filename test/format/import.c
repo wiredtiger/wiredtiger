@@ -34,19 +34,20 @@ static void populate_table(WT_SESSION *);
 static void verify_import(WT_SESSION *);
 
 /*
- * Import directory initialize command, remove and re-create the primary backup directory, plus a
- * copy we maintain for recovery testing.
+ * Import directory initialize command, remove and create import directory, to place new database
+ * connection.
  */
 #define HOME_IMPORT_INIT_CMD "rm -rf %s/" IMPORT_DIR "&& mkdir %s/" IMPORT_DIR
 #define IMPORT_DIR "IMPORT"
 /*
- * The number of entries in the import table, primary use for validating contents after import. The
- * varying of the entries doesn't affect functionality of import.
+ * The number of entries in the import table, primary use for validating contents after import.
+ * There is no benefit to varying the number of entries in the import table.
  */
 #define IMPORT_ENTRIES 1000
 #define IMPORT_TABLE_CONFIG "key_format=i,value_format=i"
 #define IMPORT_URI "table:import"
 #define IMPORT_URI_FILE "file:import.wt"
+
 /*
  * import --
  *     Periodically import table.
@@ -84,27 +85,25 @@ import(void *arg)
     create_database(cmd, &import_conn);
 
     /*
-     * Open two sessions, one for usual test database connection and one for the import database
-     * connection
+     * Open two sessions, one for the usual test database connection and one for the import database
+     * connection.
      */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create new table and populate with data in import database connection */
+    /* Create new table and populate with data in import database connection. */
     testutil_checkfmt(
-      import_session->create(import_session, IMPORT_URI, IMPORT_TABLE_CONFIG), "%s", g.uri);
+      import_session->create(import_session, IMPORT_URI, IMPORT_TABLE_CONFIG), "%s", IMPORT_URI);
     populate_table(import_session);
 
-    /* Grab metadata information for import table from import database connection */
+    /* Grab metadata information for import table from import database connection. */
     get_file_metadata(import_session, &file_config, &table_config);
 
     while (!g.workers_finished) {
-        period = mmrand(NULL, 1, 10);
-
-        /* Copy table into usual database directory */
+        /* Copy table into usual database directory. */
         copy_file_into_directory(session, IMPORT_DIR, "import.wt");
 
-        /* Perform import with either repair or file metadata */
+        /* Perform import with either repair or file metadata. */
         memset(buf, 0, sizeof(buf));
         import_value = mmrand(NULL, 0, 1);
         if (import_value == 0) {
@@ -120,11 +119,13 @@ import(void *arg)
 
         verify_import(session);
 
-        /* Drop import table, so we can perform import next iteration */
+        /* Drop import table, so we can perform import on the next iteration. */
         while ((ret = session->drop(session, IMPORT_URI, NULL)) == EBUSY) {
             __wt_yield();
         }
         testutil_check(ret);
+
+        period = mmrand(NULL, 1, 10);
         while (period > 0 && !g.workers_finished) {
             --period;
             __wt_sleep(1, 0);
@@ -163,14 +164,17 @@ verify_import(WT_SESSION *session)
 
 /*
  * populate_table --
- *     populate import table with simple data.
+ *     Populate import table with simple data.
  */
 static void
 populate_table(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
+    int i;
+
     testutil_check(session->open_cursor(session, IMPORT_URI, NULL, NULL, &cursor));
-    for (int i = 0; i < IMPORT_ENTRIES; ++i) {
+
+    for (i = 0; i < IMPORT_ENTRIES; ++i) {
         cursor->set_key(cursor, i);
         cursor->set_value(cursor, i);
         testutil_check(cursor->insert(cursor));
@@ -187,6 +191,7 @@ static void
 get_file_metadata(WT_SESSION *session, const char **file_config, const char **table_config)
 {
     WT_CURSOR *metadata_cursor;
+
     testutil_check(session->open_cursor(session, "metadata:", NULL, NULL, &metadata_cursor));
     metadata_cursor->set_key(metadata_cursor, IMPORT_URI);
     testutil_check(metadata_cursor->search(metadata_cursor));
@@ -204,12 +209,12 @@ get_file_metadata(WT_SESSION *session, const char **file_config, const char **ta
  *     Copy a single file into the current session directory.
  */
 static void
-copy_file_into_directory(WT_SESSION *session, const char *dir, const char *name)
+copy_file_into_directory(WT_SESSION *session, const char *from_dir, const char *name)
 {
     size_t buf_len;
     char from[64];
 
-    buf_len = strlen(dir) + strlen(name) + 10;
-    testutil_check(__wt_snprintf(from, buf_len, "%s/%s", dir, name));
+    buf_len = strlen(from_dir) + strlen(name) + 10;
+    testutil_check(__wt_snprintf(from, buf_len, "%s/%s", from_dir, name));
     testutil_check(__wt_copy_and_sync(session, from, name));
 }

@@ -182,6 +182,9 @@ static CONFIG c[] = {
   {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, 1000,
     &g.c_major_timeout, NULL},
 
+  /* 20% */
+  {"import", "import table from newly created database", C_BOOL, 20, 0, 0, &g.c_import, NULL},
+
   /* 50% */
   {"logging", "configure logging", C_BOOL, 50, 0, 0, &g.c_logging, NULL},
 
@@ -220,9 +223,6 @@ static CONFIG c[] = {
 
   {"lsm.worker_threads", "number of LSM worker threads", 0x0, 3, 4, 20, &g.c_lsm_worker_threads,
     NULL},
-
-  /* 100% */
-  {"import", "import table from newly created database", C_BOOL, 100, 0, 0, &g.c_import, NULL},
 
   /* 10% */
   {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0, &g.c_alter, NULL},
