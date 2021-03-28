@@ -121,9 +121,9 @@ class workload_validation {
             if (it_collections.second == nullptr)
                 continue;
 
-            for (auto &it_operations : *it_collections.second) {
-                delete it_operations.second;
-                it_operations.second = nullptr;
+            for (auto &key_value_pairs : *it_collections.second) {
+                delete key_value_pairs.second;
+                key_value_pairs.second = nullptr;
             }
             delete it_collections.second;
             it_collections.second = nullptr;
@@ -255,38 +255,41 @@ class workload_validation {
     {
 
         bool collection_exists, is_valid = true;
-        std::map<int, std::string *> *collection;
-        workload_validation wv;
-        std::string *value;
+        int key;
+        std::map<int, std::string *> *key_value_pairs;
+        std::string collection_name, *value;
 
         for (const auto &it_collections : collections) {
-            /* Check the collection is in the correct state. */
+            collection_name = it_collections.first;
+            /*
+             * The associated key/value pairs to the current collection are null if the collection
+             * has been deleted during the test.
+             */
             collection_exists = (it_collections.second != nullptr);
-            is_valid = wv.verify_database_state(session, it_collections.first, collection_exists);
+            is_valid = verify_database_state(session, collection_name, collection_exists);
 
             if (is_valid && collection_exists) {
-                collection = it_collections.second;
-                for (const auto &it_operations : *collection) {
-                    value = (*collection)[it_operations.first];
+                key_value_pairs = it_collections.second;
+                /* Walk through each key/value pair of the current collection. */
+                for (const auto &key_value : *key_value_pairs) {
+                    /* The value should be NULL if the key has been been deleted during the test. */
+                    key = key_value.first;
+                    value = key_value.second;
                     /* The key/value pair exists. */
                     if (value != nullptr)
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == true);
+                        is_valid = (is_key_present(session, collection_name, key) == true);
                     /* The key has been deleted. */
                     else
-                        is_valid = (wv.is_key_present(
-                                      session, it_collections.first, it_operations.first) == false);
+                        is_valid = (is_key_present(session, collection_name, key) == false);
 
                     /* Check the associated value is valid. */
                     if (is_valid && (value != nullptr)) {
-                        is_valid = (wv.verify_value(
-                          session, it_collections.first, it_operations.first, *value));
+                        is_valid = (verify_value(session, collection_name, key, *value));
                     }
 
                     if (!is_valid) {
                         debug_print(
-                          "check_reference failed for key " + std::to_string(it_operations.first),
-                          DEBUG_ERROR);
+                          "check_reference failed for key " + std::to_string(key), DEBUG_ERROR);
                         break;
                     }
                 }
@@ -294,7 +297,7 @@ class workload_validation {
 
             if (!is_valid) {
                 debug_print(
-                  "check_reference failed for collection " + it_collections.first, DEBUG_ERROR);
+                  "check_reference failed for collection " + collection_name, DEBUG_ERROR);
                 break;
             }
         }
