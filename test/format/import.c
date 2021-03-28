@@ -184,7 +184,7 @@ populate_table(WT_SESSION *session)
 }
 
 /*
- * get_with_file_metadata --
+ * get_file_metadata --
  *     Get import file and table metadata information from import database connection.
  */
 static void
