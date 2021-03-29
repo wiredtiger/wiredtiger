@@ -33,6 +33,7 @@
 #include <atomic>
 #include <map>
 
+#include "database_model.h"
 #include "random_generator.h"
 #include "workload_tracking.h"
 
@@ -68,20 +69,21 @@ class workload_generator : public component {
      *      - Open a cursor on each collection.
      *      - Insert m key/value pairs in each collection. Values are random strings which size is
      * defined by the configuration.
+     *      - Store in memory the created collections and the generated keys that were inserted.
      */
     void
-    populate()
+    populate(Database &database)
     {
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t ts;
-        int64_t collection_count, key_count, value_size;
+        int64_t collection_count, key_count, key_cpt, key_size, value_size;
         std::string collection_name, config, home;
         key_value_t generated_key, generated_value;
         bool ts_enabled = _timestamp_manager->is_enabled();
 
         cursor = nullptr;
-        collection_count = key_count = value_size = 0;
+        collection_count = key_count = key_size = value_size = 0;
         collection_name = "";
 
         /* Get a session. */
@@ -101,17 +103,22 @@ class workload_generator : public component {
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         testutil_check(_config->get_int(KEY_COUNT, key_count));
         testutil_check(_config->get_int(VALUE_SIZE, value_size));
-        testutil_assert(value_size >= 0);
+        testutil_assert(value_size > 0);
+        testutil_check(_config->get_int(KEY_SIZE, key_size));
+        testutil_assert(key_size > 0);
+        /* Keys must be unique. */
+        testutil_assert(key_count <= pow(10, key_size));
+
         for (const auto &collection_name : _collection_names) {
+            key_cpt = 0;
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
             testutil_check(
               session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
             for (size_t j = 0; j < key_count; ++j) {
-                /* Generated keys are based on the index for now. */
-                generated_key = std::to_string(j + 1);
-                /* Save the generated key. */
-                _generated_keys[collection_name] = generated_key;
+                /* Generation of a unique key. */
+                generated_key = number_to_string(key_size, key_cpt);
+                ++key_cpt;
                 /*
                  * Generation of a random string value using the size defined in the test
                  * configuration.
@@ -127,6 +134,10 @@ class workload_generator : public component {
                     config = std::string(COMMIT_TS) + "=" + _timestamp_manager->decimal_to_hex(ts);
                     testutil_check(session->commit_transaction(session, config.c_str()));
                 }
+                /* Update the memory representation of the collections. */
+                database.collections[collection_name].keys[generated_key].exists = true;
+                /* Values are not stored here. */
+                database.collections[collection_name].values = nullptr;
             }
         }
         debug_print("Populate stage done", DEBUG_TRACE);
@@ -141,7 +152,7 @@ class workload_generator : public component {
           value_size;
 
         /* Populate the database. */
-        populate();
+        populate(_database);
 
         /* Retrieve useful parameters from the test configuration. */
         testutil_check(_config->get_int(READ_THREADS, read_threads));
@@ -172,6 +183,12 @@ class workload_generator : public component {
         }
         _thread_manager.join();
         debug_print("Workload generator: run stage done", DEBUG_TRACE);
+    }
+
+    Database &
+    get_database()
+    {
+        return _database;
     }
 
     /* Workload threaded operations. */
@@ -333,9 +350,23 @@ class workload_generator : public component {
     }
 
     private:
+    /*
+     * Convert a number to a string. If the resukting string is less than the given length, padding
+     * of '0' is added.
+     */
+    static std::string
+    number_to_string(uint64_t size, uint64_t value)
+    {
+        std::string str, value_str = std::to_string(value);
+        testutil_assert(size >= value_str.size());
+        uint64_t diff = size - value_str.size();
+        std::string s(diff, '0');
+        str = s.append(value_str);
+        return (str);
+    }
+
     std::vector<std::string> _collection_names;
-    /* Generated keys for each collection. */
-    std::map<std::string, key_value_t> _generated_keys;
+    Database _database;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
     workload_tracking *_tracking;

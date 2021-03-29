@@ -48,6 +48,7 @@ static const char *DURATION_SECONDS = "duration_seconds";
 static const char *ENABLED = "enabled";
 static const char *ENABLE_LOGGING = "enable_logging";
 static const char *KEY_COUNT = "key_count";
+static const char *KEY_SIZE = "key_size";
 static const char *LIMIT = "limit";
 static const char *MAX = "max";
 static const char *MIN = "min";
