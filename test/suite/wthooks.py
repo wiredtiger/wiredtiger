@@ -219,10 +219,7 @@ class WiredTigerHookManager(object):
         return tests
 
 # Hooks must derive from this class
-class WiredTigerHookCreator(object):
-    def __init__(self):
-        pass
-
+class WiredTigerHookCreator(metaclass = abc.ABCMeta):
     # This is called right after creation and should not be overridden.
     def _initialize(self, name, hookmgr):
         self.name = name
