@@ -99,15 +99,14 @@ def hooked_function(self, orig_func, hooks_name, *args):
     # We only walk through the hook list once, and process the config
     # hooks while we're doing that, and copy any other hooks needed.
     for hook_type,hook_func in hook_func_list:
-        if hook_type == HOOK_NOTIFY:
-            notifies.append(hook_func)
-        elif hook_type == HOOK_REPLACE:
-            replace_func = hook_func
-        elif hook_type == HOOK_ARGS:
+        if hook_type == HOOK_ARGS:
             # The arg list may be completely transformed,
             # and multiple hooks may do this.
             args = hook_func(self, args)
-
+        elif hook_type == HOOK_NOTIFY:
+            notifies.append(hook_func)
+        elif hook_type == HOOK_REPLACE:
+            replace_func = hook_func
     if replace_func == None:
         if self == wiredtiger:
             ret = orig_func(*args)

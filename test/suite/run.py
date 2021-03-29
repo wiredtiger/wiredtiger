@@ -119,7 +119,7 @@ Options:\n\
                                  be run without executing any.\n\
   -g      | --gdb                all subprocesses (like calls to wt) use gdb\n\
   -h      | --help               show this message\n\
-          | --hook name[=arg]    set up hooks from hook_name.py, with optional arg\n\
+          | --hook name[=arg]    set up hooks from hook_<name>.py, with optional arg\n\
   -j N    | --parallel N         run all tests in parallel using N processes\n\
   -l      | --long               run the entire test suite\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
