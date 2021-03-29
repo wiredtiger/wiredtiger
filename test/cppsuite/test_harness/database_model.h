@@ -34,25 +34,38 @@
 
 namespace test_harness {
 
+/* Key/Value type. */
+typedef std::string key_value_t;
+
 /* Representation of key states. */
-struct Key {
+struct key_t {
     bool exists;
 };
 
 /* Representation of a value. */
-struct Value {
+struct value_t {
     key_value_t value;
 };
 
 /* A collection is made of mapped Key objects. */
-struct Collection {
-    std::map<key_value_t, Key> keys;
-    std::map<key_value_t, Value> *values;
+struct collection_t {
+    std::map<key_value_t, key_t> keys;
+    std::map<key_value_t, value_t> *values;
 };
 
 /* Representation of the collections in memory. */
-struct Database {
-    std::map<std::string, Collection> collections;
+class database {
+    public:
+    const std::vector<std::string>
+    get_collection_names() const
+    {
+        std::vector<std::string> collection_names;
+        for (auto const &it : _collections)
+            collection_names.push_back(it.first);
+        return (collection_names);
+    }
+
+    std::map<std::string, collection_t> _collections;
 };
 } // namespace test_harness
 

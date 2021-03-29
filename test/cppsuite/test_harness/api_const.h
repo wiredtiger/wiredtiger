@@ -32,9 +32,6 @@
 /* Define all constants related to WiredTiger APIs and testing. */
 namespace test_harness {
 
-/* Key/Value type. */
-typedef std::string key_value_t;
-
 /* Component names. */
 static const char *RUNTIME_MONITOR = "runtime_monitor";
 static const char *TIMESTAMP_MANAGER = "timestamp_manager";

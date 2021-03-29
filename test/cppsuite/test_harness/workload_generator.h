@@ -72,19 +72,19 @@ class workload_generator : public component {
      *      - Store in memory the created collections and the generated keys that were inserted.
      */
     void
-    populate(Database &database)
+    populate(database &database)
     {
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t ts;
         int64_t collection_count, key_count, key_cpt, key_size, value_size;
         std::string collection_name, config, home;
+        std::vector<std::string> collection_names;
         key_value_t generated_key, generated_value;
         bool ts_enabled = _timestamp_manager->is_enabled();
 
         cursor = nullptr;
         collection_count = key_count = key_size = value_size = 0;
-        collection_name = "";
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
@@ -92,11 +92,11 @@ class workload_generator : public component {
         testutil_check(_config->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
+            collection_names.push_back(collection_name);
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = _timestamp_manager->get_next_ts();
             testutil_check(_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
-            _collection_names.push_back(collection_name);
         }
         debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
 
@@ -109,7 +109,7 @@ class workload_generator : public component {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
-        for (const auto &collection_name : _collection_names) {
+        for (const auto &collection_name : collection_names) {
             key_cpt = 0;
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
@@ -135,9 +135,9 @@ class workload_generator : public component {
                     testutil_check(session->commit_transaction(session, config.c_str()));
                 }
                 /* Update the memory representation of the collections. */
-                database.collections[collection_name].keys[generated_key].exists = true;
+                database._collections[collection_name].keys[generated_key].exists = true;
                 /* Values are not stored here. */
-                database.collections[collection_name].values = nullptr;
+                database._collections[collection_name].values = nullptr;
             }
         }
         debug_print("Populate stage done", DEBUG_TRACE);
@@ -150,6 +150,7 @@ class workload_generator : public component {
         configuration *sub_config;
         int64_t read_threads, min_operation_per_transaction, max_operation_per_transaction,
           value_size;
+        std::vector<std::string> collection_names;
 
         /* Populate the database. */
         populate(_database);
@@ -165,11 +166,13 @@ class workload_generator : public component {
 
         delete sub_config;
 
+        collection_names = _database.get_collection_names();
+
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking,
-              _collection_names, thread_operation::READ, max_operation_per_transaction,
-              min_operation_per_transaction, value_size);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking, collection_names,
+              thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
+              value_size);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
@@ -185,7 +188,7 @@ class workload_generator : public component {
         debug_print("Workload generator: run stage done", DEBUG_TRACE);
     }
 
-    Database &
+    database &
     get_database()
     {
         return _database;
@@ -365,8 +368,7 @@ class workload_generator : public component {
         return (str);
     }
 
-    std::vector<std::string> _collection_names;
-    Database _database;
+    database _database;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
     workload_tracking *_tracking;
