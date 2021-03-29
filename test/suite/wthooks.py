@@ -218,12 +218,34 @@ class WiredTigerHookManager(object):
             tests = hook.filter_tests(tests)
         return tests
 
+class HookCreatorProxy(object):
+    def __init__(self, hookmgr, clazz):
+        self.hookmgr = hookmgr
+        self.clazz = clazz
+
+    # Get the original function/method before any hooks applied
+    def __getitem__(self, name):
+        return self.hookmgr.get_function(self.clazz, name)
+
+    # Get the original function/method before any hooks applied
+    def __setitem__(self, name, value):
+        try:
+            hooktype = int(value[0])
+            fcn = value[1]
+        except:
+            raise ValueError('value must be (HOOK_xxxx, function)')
+        self.hookmgr.add_hook(self.clazz, name, hooktype, fcn)
+
 # Hooks must derive from this class
 class WiredTigerHookCreator(metaclass = abc.ABCMeta):
     # This is called right after creation and should not be overridden.
     def _initialize(self, name, hookmgr):
         self.name = name
         self.hookmgr = hookmgr
+        self.wiredtiger = HookCreatorProxy(self.hookmgr, wiredtiger)
+        self.Connection = HookCreatorProxy(self.hookmgr, wiredtiger.Connection)
+        self.Session = HookCreatorProxy(self.hookmgr, wiredtiger.Session)
+        self.Cursor = HookCreatorProxy(self.hookmgr, wiredtiger.Cursor)
 
     # default version of filter_tests, can be overridden
     def filter_tests(self, tests):
@@ -233,29 +255,3 @@ class WiredTigerHookCreator(metaclass = abc.ABCMeta):
     def setup_hooks(self):
         """Set up all hooks using add_*_hook methods."""
         return
-
-    # Call these to do override of "global" WiredTiger functions, like wiredtiger_open.
-    def add_wiredtiger_hook(self, method_name, hook_type, hook_func):
-        self.hookmgr.add_hook(wiredtiger, method_name, hook_type, hook_func)
-
-    def add_connection_hook(self, method_name, hook_type, hook_func):
-        self.hookmgr.add_hook(wiredtiger.Connection, method_name, hook_type, hook_func)
-
-    def add_session_hook(self, method_name, hook_type, hook_func):
-        self.hookmgr.add_hook(wiredtiger.Session, method_name, hook_type, hook_func)
-
-    def add_cursor_hook(self, method_name, hook_type, hook_func):
-        self.hookmgr.add_hook(wiredtiger.Cursor, method_name, hook_type, hook_func)
-
-    # Allows lookup of the original version of functions
-    def get_wiredtiger_function(self, method_name):
-        return self.hookmgr.get_function(wiredtiger, method_name)
-
-    def get_connection_function(self, method_name):
-        return self.hookmgr.get_function(wiredtiger.Connection, method_name)
-
-    def get_session_function(self, method_name):
-        return self.hookmgr.get_function(wiredtiger.Session, method_name)
-
-    def get_cursor_function(self, method_name):
-        return self.hookmgr.get_function(wiredtiger.Cursor, method_name)

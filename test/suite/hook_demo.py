@@ -116,13 +116,13 @@ class DemoHookCreator(wthooks.WiredTigerHookCreator):
         return tests
 
     def setup_hooks(self):
-        orig_session_create = self.get_session_function('create')  # gets original function
-        tty('>> SETUP HOOKS RUN, SET TO ' + str(orig_session_create))
-        self.add_wiredtiger_hook('wiredtiger_open', wthooks.HOOK_ARGS, wiredtiger_open_args)
-        self.add_wiredtiger_hook('wiredtiger_open', wthooks.HOOK_NOTIFY, wiredtiger_open_notify)
-        self.add_session_hook('create', wthooks.HOOK_REPLACE,
-          lambda s, uri, config: session_create_replace(self.arg, orig_session_create, s, uri, config))
-        self.add_session_hook('open_cursor', wthooks.HOOK_NOTIFY, session_open_cursor_notify)
+        tty('>> SETUP HOOKS RUN')
+        orig_session_create = self.Session['create']     # gets original function
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_args)
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_NOTIFY, wiredtiger_open_notify)
+        self.Session['create'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
+          session_create_replace(self.arg, orig_session_create, s, uri, config))
+        self.Session['open_cursor'] = (wthooks.HOOK_NOTIFY, session_open_cursor_notify)
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
