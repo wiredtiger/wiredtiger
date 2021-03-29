@@ -63,7 +63,6 @@ class workload_validation {
      * replay the tracked operations so a representation in memory of the collections is created.
      * This representation is then compared to what is on disk. The second step is to go through
      * what has been saved on disk and make sure the memory representation has the same data.
-     *
      * operation_table_name is the collection that contains all the operations about the key/value
      * pairs in the different collections used during the test. schema_table_name is the collection
      * that contains all the operations about the creation or deletion of collections during the
@@ -121,8 +120,9 @@ class workload_validation {
     parse_schema_tracking_table(WT_SESSION *session, const std::string &collection_name)
     {
         WT_CURSOR *cursor;
+        wt_timestamp_t key_timestamp;
         const char *key_collection_name;
-        int key_timestamp, value_operation_type;
+        int value_operation_type;
         std::vector<std::string> created_collections;
 
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
