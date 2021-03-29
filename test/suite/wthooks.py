@@ -44,15 +44,47 @@ HOOK_REPLACE = 1     # replace the call with the hook function
 HOOK_NOTIFY = 2      # call the hook function after the function
 HOOK_ARGS = 3        # transform the arg list before the call
 
+# Print to /dev/tty for debugging, since anything extraneous to stdout/stderr will
+# cause a test error.
 def tty(message):
     from wttest import WiredTigerTestCase
     WiredTigerTestCase.tty(message)
 
-# A global function, when called, has no self.  We'll make a "self"
-# which will be the wiredtiger module
-def hooked_function_for_global_function(orig_func, hooks_name, *args):
-    return hooked_function(wiredtiger, orig_func, hooks_name, *args)
+################
+# Hooks Overview
+#
+# Here are some useful terms to know, with some commentary for each.
+#
+#   API functions
+#      potentially any WiredTiger API functions that a hook creator wishes to modify (like
+#      Session.rename).  In Python most everything is an object.  Of course an instance of
+#      "Session" is an object, but also the "Session" class itself is an object.  The Session.rename
+#      function is also an object (of a certain form that can be called).  Also in Python,
+#      attributes on an object don't have to be "pre-declared", they can be created at any time.
+#      So it's easy to imagine assigning Session._rename_orig to be (the original value of)
+#      Session.rename, and then assigning Session.rename to be some other function object, that
+#      knows how to do something and then perhaps calls Session._rename_orig .  This is the
+#      essence of the hook concept.
+#
+#  Hook Creator:
+#      A way to attach a set of "behavior modifications" to various API functions.  More precisely,
+#      a hook creator derives from WiredTigerHookCreator and sets up a number of "hook functions",
+#      that are actions that are done either just before, after, or instead of, an API function.
+#      A XxxxHookCreator lives in a hook_xxxx.py file.  When a HookCreator is loaded, it may be
+#      given an optional argument.  This argument comes from the original python command line.
+#      For example, "python run.py --hook abc" loads hook_abc.py (where it expects to find a hook).
+#      "python run.py --hook abc=123" loads hook_abc.py with an argument "123".
+#
+#  Hook Function:
+#      One function that will be called before, after or instead of, an API function.  A hook
+#      function will be bound to an API function.  It is the job of the HookCreator to set up that
+#      binding.  It is possible to have multiple hook functions bound to the same API function.
+#      A hook function that replaces an API function will have the same args as the function
+#      it replaces (but there is a trick to give it additional context if needed -
+#      see session_create_replace in hook_demo.py).
 
+# hooked_function -
+# A helper function for the hook manager.
 def hooked_function(self, orig_func, hooks_name, *args):
     hook_func_list = getattr(self, hooks_name)
 
@@ -91,6 +123,17 @@ def hooked_function(self, orig_func, hooks_name, *args):
         hook_func(ret, self, *args)
     return ret
 
+# WiredTigerHookManager -
+# The hook manager class.  There is only one hook manager.  It is responsible for finding all the
+# HookCreators at the beginning of the run, and calling setup_hooks() for each one, to have it bind
+# hook functions to API functions.  The hook manager is initialized with a list of hook names. Each
+# name is expanded, for example, "demo" causes the hook manager to load hook_demo.py, and to call
+# the "initialize" global function in that file.  We expect "initialize" to return a list of objects
+# (hooks) derived from WiredTigerHook (class defined below).  Generally, "initialize" returns a
+# single object (setting up some number of "hook functions") but to allow flexibility for different
+# sorts of packaging, we allow any number of hooks to be returned.
+#
+# A hook can set up any number of "hook functions".  See hook_demo.py for a sample hook class.
 class WiredTigerHookManager(object):
     def __init__(self, hooknames = []):
         self.hooks = []
@@ -125,6 +168,7 @@ class WiredTigerHookManager(object):
         if not hasattr(clazz, method_name):
             raise Exception('Cannot find method ' + method_name + ' on class ' + str(clazz))
 
+        # We need to set up some extra attributes on the Connection class.
         # Given that the method name is XXXX, and class is Connection, here's what we're doing:
         #    wiredtiger.Connection._XXXX_hooks = []
         #    wiredtiger.Connection._XXXX_orig = wiredtiger.Connection.XXXX
@@ -132,13 +176,15 @@ class WiredTigerHookManager(object):
         hooks_name = '_' + method_name + '_hooks'
         orig_name = '_' + method_name + '_orig'
         if not hasattr(clazz, hooks_name):
-            tty('Setting up hook on ' + str(clazz) + '.' + method_name)
+            #tty('Setting up hook on ' + str(clazz) + '.' + method_name)
             setattr(clazz, hooks_name, [])
             orig_func = getattr(clazz, method_name)
             if orig_func == None:
                 raise Exception('method ' + method_name + ' hook setup: method does not exist')
 
-            # If we're using the wiredtiger module and not a class, we need a slightly different style of hooked_function.
+            # If we're using the wiredtiger module and not a class, we need a slightly different
+            # style of hooked_function, since there is no self.  What would be the "self" argument
+            # is in fact the class.
             if clazz == wiredtiger:
                 f = lambda *args: hooked_function(wiredtiger, orig_func, hooks_name, *args)
             else:
@@ -157,7 +203,7 @@ class WiredTigerHookManager(object):
             raise Exception('method ' + method_name + ' hook setup: unknown hook_type: ' + str(hook_type))
         hooks_list.append([hook_type, hook_func])
         setattr(clazz, hooks_name, hooks_list)
-        tty('Setting up hooks list in ' + str(clazz) + '.' + hooks_name)
+        #tty('Setting up hooks list in ' + str(clazz) + '.' + hooks_name)
 
     def get_function(self, clazz, method_name):
         orig_name = '_' + method_name + '_orig'
@@ -173,7 +219,7 @@ class WiredTigerHookManager(object):
         return tests
 
 # Hooks must derive from this class
-class WiredTigerHook(object):
+class WiredTigerHookCreator(object):
     def __init__(self):
         pass
 

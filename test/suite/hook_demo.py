@@ -101,7 +101,7 @@ def session_create_replace(arg, orig_session_create, session_self, uri, config):
 
 # Every hook file must have one or more classes descended from WiredTigerHook
 # This is where the hook functions are 'hooked' to API methods.
-class DemoHook(wthooks.WiredTigerHook):
+class DemoHookCreator(wthooks.WiredTigerHookCreator):
     def __init__(self, arg=0):
         # An argument may alter the test
         if arg == None:
@@ -127,4 +127,4 @@ class DemoHook(wthooks.WiredTigerHook):
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
 def initialize(arg):
-    return [DemoHook(arg)]
+    return [DemoHookCreator(arg)]
