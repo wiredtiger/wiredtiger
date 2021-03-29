@@ -36,6 +36,9 @@
 #include "random_generator.h"
 #include "workload_tracking.h"
 
+/* Key/Value type. */
+typedef std::string key_value_t;
+
 namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
@@ -76,7 +79,8 @@ class workload_generator : public component {
         WT_SESSION *session;
         wt_timestamp_t ts;
         int64_t collection_count, key_count, value_size;
-        std::string collection_name, config, generated_value, home;
+        std::string collection_name, config, home;
+        key_value_t generated_key, generated_value;
         bool ts_enabled = _timestamp_manager->is_enabled();
 
         cursor = nullptr;
@@ -89,7 +93,8 @@ class workload_generator : public component {
         testutil_check(_config->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            testutil_check(session->create(session, collection_name.c_str(), DEFAULT_TABLE_SCHEMA));
+            testutil_check(
+              session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = _timestamp_manager->get_next_ts();
             testutil_check(_tracking->save(tracking_operation::CREATE, collection_name, 0, "", ts));
             _collection_names.push_back(collection_name);
@@ -106,6 +111,10 @@ class workload_generator : public component {
             testutil_check(
               session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
             for (size_t j = 0; j < key_count; ++j) {
+                /* Generated keys are based on the index for now. */
+                generated_key = std::to_string(j + 1);
+                /* Save the generated key. */
+                _generated_keys[collection_name] = generated_key;
                 /*
                  * Generation of a random string value using the size defined in the test
                  * configuration.
@@ -115,7 +124,8 @@ class workload_generator : public component {
                 ts = _timestamp_manager->get_next_ts();
                 if (ts_enabled)
                     testutil_check(session->begin_transaction(session, ""));
-                testutil_check(insert(cursor, collection_name, j + 1, generated_value.c_str(), ts));
+                testutil_check(insert(
+                  cursor, collection_name, generated_key.c_str(), generated_value.c_str(), ts));
                 if (ts_enabled) {
                     config = std::string(COMMIT_TS) + "=" + _timestamp_manager->decimal_to_hex(ts);
                     testutil_check(session->commit_transaction(session, config.c_str()));
@@ -205,8 +215,9 @@ class workload_generator : public component {
         WT_CURSOR *cursor;
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
+        std::string collection_name;
         std::vector<std::string> collection_names;
-        std::string generated_value;
+        key_value_t generated_value, key;
         bool has_committed = true;
         int64_t cpt, value_size = context.get_value_size();
 
@@ -223,11 +234,13 @@ class workload_generator : public component {
             context.begin_transaction(session, "");
             ts = context.set_commit_timestamp(session);
             cpt = 0;
+            /* The key to update is hard coded to 1 for now. */
+            key = 1;
             for (const auto &it : cursors) {
+                collection_name = collection_names[cpt];
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
-                /* Key is hard coded for now. */
-                testutil_check(update(context.get_tracking(), it, collection_names[cpt], 1,
+                testutil_check(update(context.get_tracking(), it, collection_name, key.c_str(),
                   generated_value.c_str(), ts));
                 ++cpt;
             }
@@ -265,7 +278,8 @@ class workload_generator : public component {
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     int
-    insert(WT_CURSOR *cursor, const std::string &collection_name, K key, V value, wt_timestamp_t ts)
+    insert(WT_CURSOR *cursor, const std::string &collection_name, const K &key, const V &value,
+      wt_timestamp_t ts)
     {
         int error_code;
 
@@ -323,6 +337,7 @@ class workload_generator : public component {
 
     private:
     std::vector<std::string> _collection_names;
+    std::map<std::string, key_value_t> _generated_keys;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
     workload_tracking *_tracking;

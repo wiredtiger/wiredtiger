@@ -63,6 +63,7 @@ static const char *OLDEST_TS = "oldest_timestamp";
 static const char *STABLE_TS = "stable_timestamp";
 
 /* Test harness consts. */
+static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S";
 static const char *TABLE_OPERATION_TRACKING = "table:operation_tracking";
 static const char *TABLE_SCHEMA_TRACKING = "table:schema_tracking";
 static const char *STATISTICS_URI = "statistics:";
