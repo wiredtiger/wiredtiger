@@ -36,9 +36,6 @@
 #include "random_generator.h"
 #include "workload_tracking.h"
 
-/* Key/Value type. */
-typedef std::string key_value_t;
-
 namespace test_harness {
 /*
  * Class that can execute operations based on a given configuration.
@@ -337,6 +334,7 @@ class workload_generator : public component {
 
     private:
     std::vector<std::string> _collection_names;
+    /* Generated keys for each collection. */
     std::map<std::string, key_value_t> _generated_keys;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;
