@@ -351,7 +351,7 @@ class workload_generator : public component {
 
     private:
     /*
-     * Convert a number to a string. If the resukting string is less than the given length, padding
+     * Convert a number to a string. If the resulting string is less than the given length, padding
      * of '0' is added.
      */
     static std::string
