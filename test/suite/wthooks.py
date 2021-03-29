@@ -35,7 +35,7 @@
 #
 from __future__ import print_function
 
-import os, sys
+import abc, os, sys
 from importlib import import_module
 import wiredtiger
 
@@ -232,8 +232,10 @@ class WiredTigerHookCreator(object):
     def filter_tests(self, tests):
         return tests
 
+    @abc.abstractmethod
     def setup_hooks(self):
-        raise Exception('setup_hooks must be overridden by a hook class')
+        """Set up all hooks using add_*_hook methods."""
+        return
 
     # Call these to do override of "global" WiredTiger functions, like wiredtiger_open.
     def add_wiredtiger_hook(self, method_name, hook_type, hook_func):
