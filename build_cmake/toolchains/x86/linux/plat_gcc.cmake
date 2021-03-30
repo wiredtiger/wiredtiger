@@ -6,6 +6,4 @@
 # See the file LICENSE for redistribution information.
 #
 
-cmake_minimum_required(VERSION 3.11.0)
-
 set(CROSS_COMPILER_PREFIX "x86_64-linux-gnu-" CACHE INTERNAL "" FORCE)

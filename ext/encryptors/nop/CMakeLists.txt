@@ -6,8 +6,6 @@
 # See the file LICENSE for redistribution information.
 #
 
-cmake_minimum_required(VERSION 3.11.0)
-
 project(nop_encrypt C)
 
 set(sources "nop_encrypt.c")
