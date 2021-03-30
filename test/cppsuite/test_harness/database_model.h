@@ -60,12 +60,12 @@ class database {
     get_collection_names() const
     {
         std::vector<std::string> collection_names;
-        for (auto const &it : _collections)
+        for (auto const &it : collections)
             collection_names.push_back(it.first);
         return (collection_names);
     }
 
-    std::map<std::string, collection_t> _collections;
+    std::map<std::string, collection_t> collections;
 };
 } // namespace test_harness
 
