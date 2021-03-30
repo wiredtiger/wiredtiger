@@ -57,7 +57,7 @@ struct __wt_blkcache_item {
      * referenced, but saturates at the set threshold. It is decremented every
      * time the eviction thread scans the cache.
      */
-    uint32_t virtual_recency_timestamp;
+    int32_t virtual_recency_timestamp;
     /* This counter is incremented every time a block is referenced
      * and decremented every time the eviction threads sweeps through
      * the cache. This counter will be high for blocks that are not
@@ -119,6 +119,7 @@ struct __wt_blkcache {
 #define BLKCACHE_HIST_BUCKETS 11
 #define BLKCACHE_HIST_BOUNDARY 1
     uint32_t cache_references[BLKCACHE_HIST_BUCKETS];
+    uint32_t cache_references_removed_blocks[BLKCACHE_HIST_BUCKETS];
 };
 
 #define BLKCACHE_UNCONFIGURED 0
