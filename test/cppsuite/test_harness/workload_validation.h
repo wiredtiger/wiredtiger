@@ -252,7 +252,7 @@ class workload_validation {
                 break;
             }
             case tracking_operation::UPDATE:
-                database._collections[key_collection_name].values->at(key).value =
+                database.collections[key_collection_name].values->at(key).value =
                   key_value_t(value);
                 break;
             default:

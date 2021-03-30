@@ -74,8 +74,8 @@ class thread_context {
     {
         std::vector<key_value_t> keys;
 
-        if (_database._collections.count(collection_name) > 0) {
-            for (auto const &it : _database._collections.at(collection_name).keys) {
+        if (_database.collections.count(collection_name) > 0) {
+            for (auto const &it : _database.collections.at(collection_name).keys) {
                 if (it.second.exists)
                     keys.push_back(it.first);
             }
