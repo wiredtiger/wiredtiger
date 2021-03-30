@@ -66,7 +66,7 @@ __blkcache_free(WT_SESSION_IMPL *session, void *ptr)
  */
 static void
 __blkcache_update_ref_histogram(
-    WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item, bool removed)
+    WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item, int type)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -81,8 +81,41 @@ __blkcache_update_ref_histogram(
 
     blkcache->cache_references[bucket]++;
 
-    if (removed)
+    if (type == BLKCACHE_RM_FREE)
 	blkcache->cache_references_removed_blocks[bucket]++;
+    else if (type == BLKCACHE_RM_EVICTION)
+	blkcache->cache_references_evicted_blocks[bucket]++;
+}
+
+static void
+__blkcache_print_reference_hist(const char *header, uint32_t *hist)
+{
+    int j;
+
+    printf("%s:\n", header);
+    printf("Reuses \t Number of blocks \n");
+    printf("-----------------------------\n");
+    for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
+	printf("[%d - %d] \t %d \n", j * BLKCACHE_HIST_BOUNDARY,
+	       (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
+    }
+    printf("\n");
+}
+
+static inline bool
+__blkcache_high_overhead(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_BLKCACHE *blkcache;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if ((double)(blkcache->inserts + blkcache->removals)/
+	(double)(blkcache->lookups) > blkcache->overhead_pct)
+	return true;
+
+    return false;
 }
 
 static bool
@@ -110,7 +143,8 @@ __blkcache_eviction_thread(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE_ITEM *blkcache_item, *blkcache_item_tmp;
     WT_SESSION_IMPL *session;
-    double full_target = 0.95;
+    bool ovhd;
+    double full_target;
     int blocks_evicted, blocks_not_evicted, i;
     uint32_t frequency_target, recency_target;
 
@@ -118,12 +152,13 @@ __blkcache_eviction_thread(void *arg)
     conn = S2C(session);
     blkcache = &conn->blkcache;
     frequency_target = recency_target = 0;
+    full_target = 0.95;
 
     printf("Block cache eviction thread starting... Aggressive target = %d\n",
 	   blkcache->evict_aggressive);
 
     while (!blkcache->blkcache_exiting) {
-
+	ovhd = false;
 	/*
 	 * If cache is not close to being full, go to sleep for a while.
 	 * We don't protect reading cache statistics with synchronization
@@ -131,9 +166,17 @@ __blkcache_eviction_thread(void *arg)
 	 * They are used as a heuristic, not for correctness. The variable indicating
 	 * the number of bytes used is declared volatile, so the compiler
 	 * won't cache it in registers.
+	 *
+	 * If we are seeing high overhead due to insertions and removals
+	 * generating churn, we won't run eviction, because by evicting
+	 * blocks and creating space for new blocks it contributes to churn,
+	 * and that damage is greater than the benefits eviction creates.
 	 */
-	while ((double)blkcache->bytes_used/(double)blkcache->max_bytes < full_target
-	       && !blkcache->blkcache_exiting){
+	while (((double)blkcache->bytes_used/(double)blkcache->max_bytes < full_target ||
+		(ovhd = __blkcache_high_overhead(session))) && !blkcache->blkcache_exiting ){
+	    if (ovhd)
+		WT_STAT_CONN_INCR(session, block_cache_slept_overhead);
+
 	    __wt_cond_wait(session, blkcache->blkcache_cond, WT_MILLION, NULL);
 	    /*
 	     * We just slept, meaning that eviction was not needed.
@@ -163,9 +206,16 @@ __blkcache_eviction_thread(void *arg)
 		if (__blkcache_should_evict(blkcache_item, blkcache->evict_aggressive)) {
 		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
 		    __blkcache_free(session, blkcache_item->data);
-		    __blkcache_update_ref_histogram(session, blkcache_item, false);
+		    __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EVICTION);
 		    blkcache->num_data_blocks--;
 		    blkcache->bytes_used -= blkcache_item->id.size;
+                    /* Update this in addition to updating the blocks
+		     * evicted variable, because removals is used to
+		     * estimate the overhead, and we want the removals
+		     * done by eviction to be included in that estimate.
+		     */
+		    blkcache->removals++;
+
 		    blocks_evicted++;
 		    WT_STAT_CONN_DECRV(session, block_cache_bytes, blkcache_item->id.size);
 		    WT_STAT_CONN_DECR(session, block_cache_blocks);
@@ -180,6 +230,8 @@ __blkcache_eviction_thread(void *arg)
 	    __wt_spin_unlock(session, &blkcache->hash_locks[i]);
 	    if (blkcache->blkcache_exiting)
 		return (0);
+	    if (__blkcache_high_overhead(session))
+		break;
 	}
 
 	/*
@@ -198,30 +250,10 @@ __blkcache_eviction_thread(void *arg)
 				    BLKCACHE_MAX_RECENCY_TARGET);
 	    frequency_target = 0;
 	}
-	else {
-	    printf("Both targets maxed out: f(%d), r(%d).\n", frequency_target,
-		   recency_target);
-	}
 	WT_STAT_CONN_INCRV(session, block_cache_blocks_evicted, blocks_evicted);
     }
 
     return (0);
-}
-
-static inline bool
-__blkcache_high_overhead(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_BLKCACHE *blkcache;
-
-    conn = S2C(session);
-    blkcache = &conn->blkcache;
-
-    if ((double)(blkcache->inserts + blkcache->removals)/
-	(double)(blkcache->lookups) > blkcache->overhead_pct)
-	return true;
-
-    return false;
 }
 
 /*
@@ -533,7 +565,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= size;
-	    __blkcache_update_ref_histogram(session, blkcache_item, true);
+	    __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             __blkcache_free(session, blkcache_item->data);
             __wt_overwrite_and_free(session, blkcache_item);
@@ -629,7 +661,6 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    int j;
     uint64_t i;
 
     conn = S2C(session);
@@ -661,7 +692,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 #if 0 /* Todo: remove this later. Some workloads crash on freeing arenas */
             __blkcache_free(session, blkcache_item->data);
 #endif
-	    __blkcache_update_ref_histogram(session, blkcache_item, false);
+	    __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EXIT);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= blkcache_item->id.size;
             __wt_free(session, blkcache_item);
@@ -672,21 +703,9 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 
   done:
     /* Print reference histograms */
-    printf("All blocks:\n");
-    printf("Reuses \t Number of blocks \n");
-    printf("-----------------------------\n");
-    for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-	printf("[%d - %d] \t %d \n", j * BLKCACHE_HIST_BOUNDARY,
-	       (j + 1) * BLKCACHE_HIST_BOUNDARY, blkcache->cache_references[j]);
-    }
-    printf("Removed blocks:\n");
-    printf("Reuses \t Number of blocks \n");
-    printf("-----------------------------\n");
-    for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-	printf("[%d - %d] \t %d \n", j * BLKCACHE_HIST_BOUNDARY,
-	       (j + 1) * BLKCACHE_HIST_BOUNDARY,
-	       blkcache->cache_references_removed_blocks[j]);
-    }
+    __blkcache_print_reference_hist("All blocks", blkcache->cache_references);
+    __blkcache_print_reference_hist("Removed blocks", blkcache->cache_references_removed_blocks);
+    __blkcache_print_reference_hist("Evicted blocks", blkcache->cache_references_evicted_blocks);
 
 #ifdef HAVE_LIBMEMKIND
     if (blkcache->type == BLKCACHE_NVRAM) {

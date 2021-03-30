@@ -120,6 +120,7 @@ struct __wt_blkcache {
 #define BLKCACHE_HIST_BOUNDARY 1
     uint32_t cache_references[BLKCACHE_HIST_BUCKETS];
     uint32_t cache_references_removed_blocks[BLKCACHE_HIST_BUCKETS];
+    uint32_t cache_references_evicted_blocks[BLKCACHE_HIST_BUCKETS];
 };
 
 #define BLKCACHE_UNCONFIGURED 0
@@ -127,3 +128,7 @@ struct __wt_blkcache {
 #define BLKCACHE_NVRAM 2
 
 #define BLKCACHE_PERCENT_FILE_IN_DRAM 50
+
+#define BLKCACHE_RM_EXIT 1
+#define BLKCACHE_RM_FREE 2
+#define BLKCACHE_RM_EVICTION 3
