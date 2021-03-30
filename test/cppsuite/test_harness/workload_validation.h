@@ -251,13 +251,10 @@ class workload_validation {
                 database._collections[key_collection_name].values->insert(pair);
                 break;
             }
-            case tracking_operation::UPDATE: {
-                value_t v;
-                v.value = key_value_t(value);
-                std::pair<key_value_t, value_t> pair(key_value_t(key), v);
-                database._collections[key_collection_name].values->insert(pair);
+            case tracking_operation::UPDATE:
+                database._collections[key_collection_name].values->at(key).value =
+                  key_value_t(value);
                 break;
-            }
             default:
                 testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
                   value_operation_type);
@@ -410,7 +407,7 @@ class workload_validation {
         testutil_check(cursor->search(cursor));
         testutil_check(cursor->get_value(cursor, &value));
 
-        return (value == expected_value);
+        return (key_value_t(value) == expected_value);
     }
 };
 } // namespace test_harness

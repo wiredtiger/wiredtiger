@@ -29,6 +29,7 @@
 #ifndef THREAD_CONTEXT_H
 #define THREAD_CONTEXT_H
 
+#include "database_model.h"
 #include "random_generator.h"
 #include "workload_tracking.h"
 
@@ -48,13 +49,11 @@ enum class thread_operation {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking,
-      std::vector<std::string> collection_names, thread_operation type, int64_t max_op,
-      int64_t min_op, int64_t value_size)
-        : _collection_names(collection_names), _current_op_count(0U), _in_txn(false),
-          _running(false), _min_op(min_op), _max_op(max_op), _max_op_count(0),
-          _timestamp_manager(timestamp_manager), _type(type), _tracking(tracking),
-          _value_size(value_size)
+    thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db,
+      thread_operation type, int64_t max_op, int64_t min_op, int64_t value_size)
+        : _database(db), _current_op_count(0U), _in_txn(false), _running(false), _min_op(min_op),
+          _max_op(max_op), _max_op_count(0), _timestamp_manager(timestamp_manager), _type(type),
+          _tracking(tracking), _value_size(value_size)
     {
     }
 
@@ -64,10 +63,25 @@ class thread_context {
         _running = false;
     }
 
-    const std::vector<std::string> &
+    const std::vector<std::string>
     get_collection_names() const
     {
-        return (_collection_names);
+        return (_database.get_collection_names());
+    }
+
+    const std::vector<key_value_t>
+    get_collection_keys(const std::string &collection_name) const
+    {
+        std::vector<key_value_t> keys;
+
+        if (_database._collections.count(collection_name) > 0) {
+            for (auto const &it : _database._collections.at(collection_name).keys) {
+                if (it.second.exists)
+                    keys.push_back(it.first);
+            }
+        }
+
+        return (keys);
     }
 
     thread_operation
@@ -105,7 +119,7 @@ class thread_context {
     {
         if (!_in_txn && _timestamp_manager->is_enabled()) {
             testutil_check(
-              session->begin_transaction(session, config.empty() ? NULL : config.c_str()));
+              session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
             /* This randomizes the number of operations to be executed in one transaction. */
             _max_op_count = random_generator::instance().generate_integer(_min_op, _max_op);
             _current_op_count = 0;
@@ -157,7 +171,8 @@ class thread_context {
     }
 
     private:
-    const std::vector<std::string> _collection_names;
+    /* Representation of the collections and their key/value pairs in memory. */
+    database _database;
     /*
      * _current_op_count is the current number of operations that have been executed in the current
      * transaction.

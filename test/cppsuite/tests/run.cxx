@@ -107,7 +107,7 @@ run_test(const std::string &test_name, const std::string &config_name = "")
         cfg_path = config_name;
     cfg = parse_configuration_from_file(cfg_path);
 
-    test_harness::debug_print("Configuration\t: " + cfg, DEBUG_INFO);
+    test_harness::debug_print("Configuration\t:" + cfg, DEBUG_INFO);
 
     if (test_name == "poc_test")
         poc_test(cfg, test_name).run();

@@ -150,7 +150,6 @@ class workload_generator : public component {
         configuration *sub_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
           update_threads, value_size;
-        std::vector<std::string> collection_names;
 
         /* Populate the database. */
         populate(_database);
@@ -167,22 +166,20 @@ class workload_generator : public component {
 
         delete sub_config;
 
-        collection_names = _database.get_collection_names();
-
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking, collection_names,
-              thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
-              value_size);
+            thread_context *tc =
+              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::READ,
+                max_operation_per_transaction, min_operation_per_transaction, value_size);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
 
         /* Generate threads to execute update operations on the collections. */
         for (int i = 0; i < update_threads; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking,
-              _database.get_collection_names(), thread_operation::UPDATE,
-              max_operation_per_transaction, min_operation_per_transaction, value_size);
+            thread_context *tc =
+              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::UPDATE,
+                max_operation_per_transaction, min_operation_per_transaction, value_size);
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, &execute_operation);
         }
@@ -191,9 +188,8 @@ class workload_generator : public component {
     void
     finish()
     {
-        for (const auto &it : _workers) {
+        for (const auto &it : _workers)
             it->finish();
-        }
         _thread_manager.join();
         debug_print("Workload generator: run stage done", DEBUG_TRACE);
     }
@@ -233,8 +229,7 @@ class workload_generator : public component {
     }
 
     /*
-     * Basic update operation that currently update the same key with a random value in each
-     * collection.
+     * Basic update operation that updates all the keys to a random value in each collection.
      */
     static void
     update_operation(thread_context &context, WT_SESSION *session)
@@ -243,35 +238,45 @@ class workload_generator : public component {
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
         std::string collection_name;
-        std::vector<std::string> collection_names;
+        std::vector<std::string> collection_names = context.get_collection_names();
+        std::map<std::string, std::vector<key_value_t>> collection_keys;
         key_value_t generated_value, key;
         bool has_committed = true;
         int64_t cpt, value_size = context.get_value_size();
 
         testutil_assert(session != nullptr);
         /* Get a cursor for each collection in collection_names. */
-        for (const auto &it : context.get_collection_names()) {
+        for (const auto &it : collection_names) {
             testutil_check(session->open_cursor(session, it.c_str(), NULL, NULL, &cursor));
             cursors.push_back(cursor);
-            collection_names.push_back(it);
+            collection_keys[it] = context.get_collection_keys(it);
         }
 
-        while (context.is_running()) {
-            // TODO whcih key to update ?
-            cpt = 0;
-            context.begin_transaction(session, "");
-            ts = context.set_commit_timestamp(session);
-            /* Walk each cursor. */
-            for (const auto &it : cursors) {
-                collection_name = collection_names[cpt];
+        cpt = 0;
+        /* Walk each cursor. */
+        for (const auto &it : cursors) {
+            collection_name = collection_names[cpt];
+            /* Walk each key. */
+            for (auto const &key : collection_keys.at(collection_name)) {
+                if (has_committed) {
+                    context.begin_transaction(session, "");
+                    ts = context.set_commit_timestamp(session);
+                }
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 testutil_check(update(context.get_tracking(), it, collection_name, key.c_str(),
                   generated_value.c_str(), ts));
-                ++cpt;
+                has_committed = context.commit_transaction(session, "");
             }
-            has_committed = context.commit_transaction(session, "");
+            ++cpt;
         }
+
+        /*
+         * The update operations will be later on inside a loop that will be managed through
+         * throttle management.
+         */
+        while (context.is_running())
+            std::this_thread::sleep_for(std::chrono::seconds(1));
 
         /* Make sure the last operation is committed now the work is finished. */
         if (!has_committed)
