@@ -56,12 +56,29 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
+    const std::vector<key_value_t>
+    get_collection_keys(const std::string &collection_name) const
+    {
+        std::vector<key_value_t> keys;
+
+        if (collections.count(collection_name) > 0) {
+            for (auto const &it : collections.at(collection_name).keys) {
+                if (it.second.exists)
+                    keys.push_back(it.first);
+            }
+        }
+
+        return (keys);
+    }
+
     const std::vector<std::string>
     get_collection_names() const
     {
         std::vector<std::string> collection_names;
+
         for (auto const &it : collections)
             collection_names.push_back(it.first);
+
         return (collection_names);
     }
 
