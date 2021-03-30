@@ -14,16 +14,16 @@ include(CheckTypeSize)
 # Helper function for evaluating a list of dependencies. Mostly used by the
 # "config_X" helpers to evaluate the dependencies required to enable the config
 # option.
-#   depends - a list (semicolon seperated) of dependencies to evaluate
+#   depends - a list (semicolon seperated) of dependencies to evaluate.
 #   enabled - name of the output variable set with either 'ON' or 'OFF' (based
 #             on evaluated dependencies). Output variable is set in the callers scope.
 function(eval_dependency depends enabled)
-    # If no dependencies were given then we default to an enabled state
+    # If no dependencies were given then we default to an enabled state.
     if(("${depends}" STREQUAL "") OR ("${depends}" STREQUAL "NOTFOUND"))
         set(enabled ON PARENT_SCOPE)
         return()
     endif()
-    # Evaluate each dependency
+    # Evaluate each dependency.
     set(is_enabled ON)
     foreach(dependency ${depends})
         string(REGEX REPLACE " +" ";" dependency "${dependency}")
@@ -38,8 +38,8 @@ endfunction()
 # config_string(config_name description DEFAULT <default string> [DEPENDS <deps>] [INTERNAL])
 # Defines a string configuration option. The configuration option is stored in the cmake cache
 # and can be exported to the wiredtiger config header.
-#   config_name - name of the configuration option
-#   description - docstring to describe the configuration option (viewable in the cmake-gui)
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
 #   DEFAULT <default string> -  Default value of the configuration string. Used when not manually set
 #       by a cmake script or in the cmake-gui.
 #   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration string
@@ -61,17 +61,17 @@ function(config_string config_name description)
     if (NOT "${CONFIG_STR_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_str: ${CONFIG_STR_UNPARSED_ARGUMENTS}")
     endif()
-    # We require a default value (not optional)
+    # We require a default value (not optional).
     if ("${CONFIG_STR_DEFAULT}" STREQUAL "")
         message(FATAL_ERROR "No default value passed")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_STR_DEPENDS}" enabled)
     set(default_value "${CONFIG_STR_DEFAULT}")
     if(enabled)
         # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${default_value} CACHE STRING "${description}" FORCE)
@@ -79,7 +79,7 @@ function(config_string config_name description)
             set(${config_name} ${default_value} CACHE STRING "${description}")
         endif()
         if (CONFIG_STR_INTERNAL)
-            # Mark as an advanced variable, hiding it from initial UI's views
+            # Mark as an advanced variable, hiding it from initial UI's views.
             mark_as_advanced(FORCE ${config_name})
         endif()
     else()
@@ -93,12 +93,12 @@ endfunction()
 # Defines a configuration option, bounded with pre-set toggleable values. The configuration option is stored
 # in the cmake cache and can be exported to the wiredtiger config header. We default to the first *available* option in the
 # list if the config has not been manually set by a cmake script or in the cmake-gui.
-#   config_name - name of the configuration option
-#   description - docstring to describe the configuration option (viewable in the cmake-gui)
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
 #   OPTIONS - a list of option values that the configuration option can be set to. Each option is itself a semicolon
 #       seperated list consisting of "<option-name>;<config-name>;<option-dependencies>".
 #       * option-name: name of the given option stored in the ${config_name} cache variable and presented
-#           to users in the gui (usually something understandable)
+#           to users in the gui (usually something understandable).
 #       * config-name: an additional cached configuration variable that is made available if the option is selected.
 #           It is only present if the option is chosen, otherwise it is unset.
 #       *  option-dependencies: dependencies required for the option to be made available. If its dependencies aren't met
@@ -130,11 +130,11 @@ function(config_choice config_name description)
         if (NOT opt_length EQUAL 3)
             message(FATAL_ERROR "Invalid option format: ${curr_option}")
         endif()
-        # We expect three items defined for each option
+        # We expect three items defined for each option.
         list(GET curr_option 0 option_config_field)
         list(GET curr_option 1 option_config_var)
         list(GET curr_option 2 option_depends)
-        # Check that the options dependencies are enabled before setting it to a selectable state
+        # Check that the options dependencies are enabled before setting it to a selectable state.
         eval_dependency("${option_depends}" enabled)
         if(enabled)
             list(APPEND all_option_config_fields ${option_config_field})
@@ -154,12 +154,12 @@ function(config_choice config_name description)
                 set(default_config_field "${option_config_field}")
                 set(default_config_var "${option_config_var}")
             else()
-                # Clear the cache of the current set value
+                # Clear the cache of the current set value.
                 set(${option_config_var} OFF CACHE INTERNAL "" FORCE)
             endif()
         else()
             unset(${option_config_var} CACHE)
-            # Check if the option is already set with this given field - we want to clear it if so
+            # Check if the option is already set with this given field - we want to clear it if so.
             if ("${${config_name}_CONFIG_VAR}" STREQUAL "${option_config_var}")
                 unset(${config_name}_CONFIG_VAR CACHE)
             endif()
@@ -180,8 +180,8 @@ endfunction()
 # config_bool(config_name description DEFAULT <default-value> [DEPENDS <deps>] [DEPENDS_ERROR <config-val> <error-string>])
 # Defines a boolean (ON/OFF) configuration option . The configuration option is stored in the cmake cache
 # and can be exported to the wiredtiger config header.
-#   config_name - name of the configuration option
-#   description - docstring to describe the configuration option (viewable in the cmake-gui)
+#   config_name - name of the configuration option.
+#   description - docstring to describe the configuration option (viewable in the cmake-gui).
 #   DEFAULT <default-value> -  default value of the configuration bool (ON/OFF). Used when not manually set
 #       by a cmake script or in the cmake-gui or when dependencies aren't met.
 #   DEPENDS <deps> - list of dependencies (semicolon seperated) required for the configuration bool
@@ -204,14 +204,14 @@ function(config_bool config_name description)
     if(NOT "${CONFIG_BOOL_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_bool: ${CONFIG_BOOL_UNPARSED_ARGUMENTS}")
     endif()
-    # We require a default value (not optional)
+    # We require a default value (not optional).
     if("${CONFIG_BOOL_DEFAULT}" STREQUAL "")
         message(FATAL_ERROR "No default value passed")
     endif()
 
     set(depends_err_value)
     set(depends_err_message "")
-    # If DEPENDS_ERROR is specifically set, parse the value we want to throw an error on if the dependency fails
+    # If DEPENDS_ERROR is specifically set, parse the value we want to throw an error on if the dependency fails.
     if(CONFIG_BOOL_DEPENDS_ERROR)
         list(LENGTH CONFIG_BOOL_DEPENDS_ERROR depends_error_length)
         if(NOT depends_error_length EQUAL 2)
@@ -227,11 +227,11 @@ function(config_bool config_name description)
         endif()
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_BOOL_DEPENDS}" enabled)
     if(enabled)
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${CONFIG_BOOL_DEFAULT} CACHE STRING "${description}" FORCE)
@@ -244,7 +244,7 @@ function(config_bool config_name description)
             set(config_value "1")
         endif()
         # If the user tries to set the config option to a given value when its dependencies
-        # are not met, throw an error (when DEPENDS_ERROR is explicitly set)
+        # are not met, throw an error (when DEPENDS_ERROR is explicitly set).
         if(CONFIG_BOOL_DEPENDS_ERROR)
             if(${depends_err_value} EQUAL ${config_value})
                 message(FATAL_ERROR "Unable to set ${config_name}: ${depends_err_message}")
@@ -279,16 +279,16 @@ function(config_func config_name description)
     if (NOT "${CONFIG_FUNC_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_FUNC_UNPARSED_ARGUMENTS}")
     endif()
-    # We require an include header (not optional)
+    # We require an include header (not optional).
     if ("${CONFIG_FUNC_FILES}" STREQUAL "")
         message(FATAL_ERROR "No file list passed")
     endif()
-    # We require a function symbol (not optional)
+    # We require a function symbol (not optional).
     if ("${CONFIG_FUNC_FUNC}" STREQUAL "")
         message(FATAL_ERROR "No function passed")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_FUNC_DEPENDS}" enabled)
     if(enabled)
         set(CMAKE_REQUIRED_LIBRARIES "${CONFIG_FUNC_LIBS}")
@@ -305,8 +305,8 @@ function(config_func config_name description)
         if(has_symbol_${config_name})
             set(has_symbol ${has_symbol_${config_name}})
         endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${has_symbol} CACHE STRING "${description}" FORCE)
@@ -345,12 +345,12 @@ function(config_include config_name description)
     if (NOT "${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}")
     endif()
-    # We require a include header (not optional)
+    # We require a include header (not optional).
     if ("${CONFIG_INCLUDE_FILE}" STREQUAL "")
         message(FATAL_ERROR "No include file passed")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_INCLUDE_DEPENDS}" enabled)
     if(enabled)
         # 'check_include_files' won't use our current cache when test compiling the include header.
@@ -365,8 +365,8 @@ function(config_include config_name description)
         if(has_include_${config_name})
             set(has_include ${has_include_${config_name}})
         endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${has_include} CACHE STRING "${description}" FORCE)
@@ -417,7 +417,7 @@ function(config_lib config_name description)
         message(FATAL_ERROR "No library function passed")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_LIB_DEPENDS}" enabled)
     if(enabled)
         # 'check_library_exists' won't use our current cache when test compiling the library.
@@ -432,8 +432,8 @@ function(config_lib config_name description)
         if(has_lib_${config_name})
             set(has_lib ${has_lib_${config_name}})
         endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${has_lib} CACHE STRING "${description}" FORCE)
@@ -478,10 +478,10 @@ function(config_compile config_name description)
         message(FATAL_ERROR "No source passed")
     endif()
 
-    # Check that the configs dependencies are enabled before setting it to a visible enabled state
+    # Check that the configs dependencies are enabled before setting it to a visible enabled state.
     eval_dependency("${CONFIG_COMPILE_DEPENDS}" enabled)
     if(enabled)
-        # Test compile the source file
+        # Test compile the source file.
         try_compile(
             can_compile_${config_name}
             ${CMAKE_CURRENT_BINARY_DIR}
@@ -493,8 +493,8 @@ function(config_compile config_name description)
         if(can_compile_${config_name})
             set(can_compile ${can_compile_${config_name}})
         endif()
-        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state
-        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met
+        # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
+        # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
             set(${config_name} ${can_compile} CACHE STRING "${description}" FORCE)
@@ -568,12 +568,12 @@ function(assert_type_size type size)
     test_type_size(${type} output_type_size ${additional_args})
 
     if(${output_type_size} EQUAL "")
-        # Type does not exist
+        # Type does not exist.
         message(FATAL_ERROR "Type assertion failed: ${type} does not exists")
     endif()
 
     if((NOT ${size} EQUAL 0) AND  (NOT ${output_type_size} EQUAL ${size}))
-        # Type does not meet size assertion
+        # Type does not meet size assertion.
         message(FATAL_ERROR "Type assertion failed: ${type} does not equal size ${size}")
     endif()
 endfunction()
@@ -588,7 +588,7 @@ endfunction()
 function(parse_filelist_source filelist output_var)
     set(arch_host "")
     set(plat_host "")
-    # Determine architecture host for our filelist parse
+    # Determine architecture host for our filelist parse.
     if(WT_X86)
         set(arch_host "X86_HOST")
     elseif(WT_ARM64)
@@ -598,14 +598,14 @@ function(parse_filelist_source filelist output_var)
     elseif(WT_ZSERIES)
         set(arch_host "ZSERIES_HOST")
     endif()
-    # Determine platform host for our filelist parse
+    # Determine platform host for our filelist parse.
     if(WT_POSIX)
         set(plat_host "POSIX_HOST")
     elseif(WT_WIN)
         set(plat_host "WINDOWS_HOST")
     endif()
 
-    # Read file list and parse into list
+    # Read file list and parse into list.
     file(READ "${filelist}" contents NEWLINE_CONSUME)
     string(REGEX REPLACE "\n" ";" contents "${contents}")
     set(output_files "")

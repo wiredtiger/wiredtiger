@@ -144,7 +144,7 @@
 # endif
 #endif
 
-/* Default alignment of buffers used for I/O */
+/* Default alignment of buffers used for I/O. */
 #define WT_BUFFER_ALIGNMENT_DEFAULT @WT_BUFFER_ALIGNMENT_DEFAULT@
 
 /* Define to 1 to support standalone build. */

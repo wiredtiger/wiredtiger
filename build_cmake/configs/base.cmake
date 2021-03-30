@@ -8,7 +8,7 @@
 
 include(build_cmake/helpers.cmake)
 
-# WiredTiger-related configuration options
+# WiredTiger-related configuration options.
 
 config_choice(
     WT_ARCH

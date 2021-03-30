@@ -8,7 +8,7 @@
 
 cmake_minimum_required(VERSION 3.11.0)
 
-# Try to use CCACHE if available - speeds up build times
+# Try to use CCACHE if available - speeds up build times.
 find_program(CCACHE_FOUND ccache)
 if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE ccache)
@@ -20,9 +20,9 @@ project(WiredTiger C ASM)
 include(build_cmake/helpers.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
-# we will infer the target from the host
+# we will infer the target from the host.
 if(NOT WT_ARCH)
-    # Defer to our hosts architecture as our target architecture
+    # Defer to our hosts architecture as our target architecture.
     if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386)$")
         set(WT_ARCH "x86")
     else()
@@ -30,7 +30,7 @@ if(NOT WT_ARCH)
     endif()
 endif()
 if(NOT WT_OS)
-    # Defer to our hosts OS as our target OS
+    # Defer to our hosts OS as our target OS.
     string(TOLOWER "${CMAKE_HOST_SYSTEM_NAME}" host_os)
     set(WT_OS "${host_os}")
 endif()
@@ -39,11 +39,11 @@ if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/build_cmake/configs/${WT_ARCH}/${WT_OS}
     message(FATAL_ERROR "build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake does not exist")
 endif()
 
-# Load any configuration variables special to our target
+# Load any configuration variables special to our target.
 include(build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
-# Load auto-configure variables (e.g. environment-related configs)
+# Load auto-configure variables (e.g. environment-related configs).
 include(build_cmake/configs/auto.cmake)
-# Load WiredTiger related configuration options
+# Load WiredTiger related configuration options.
 include(build_cmake/configs/base.cmake)
 
 if(ENABLE_STRICT)
@@ -60,26 +60,26 @@ if(NOT ENABLE_STATIC)
     SET_PROPERTY(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
 endif()
 
-# Include the extensions to the build
+# Include the extensions to the build.
 add_subdirectory(ext)
 
-# Collect all the library sources we need to compile from the source filelist
+# Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
 # Establish wiredtiger library target
 add_library(wiredtiger ${link_type} ${wt_sources})
 
-# Generate wiredtiger.h
+# Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
-# Generate our wiredtiger_config.h
+# Generate our wiredtiger_config.h include file.
 configure_file(build_cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
-# Set our targets public and private includes
+# Set our targets public and private includes.
 target_include_directories(
     wiredtiger
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
 )
 
-# Ensure we link any available library dependencies to our wiredtiger target
+# Ensure we link any available library dependencies to our wiredtiger target.
 if(HAVE_LIBPTHREAD)
     target_link_libraries(wiredtiger "pthread")
 endif()
@@ -108,5 +108,5 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger wiredtiger_zstd)
 endif()
 
-# Establish our install target configuration
+# Establish our install target configuration.
 include(build_cmake/install/install.cmake)
