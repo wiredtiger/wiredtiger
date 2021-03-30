@@ -6,8 +6,6 @@
 # See the file LICENSE for redistribution information.
 #
 
-cmake_minimum_required(VERSION 3.11.0)
-
 set(TRIPLE_TARGET "x86_64-pc-linux-gnu")
 
 set(CROSS_COMPILER_PREFIX ${TRIPLE_TARGET}-)
