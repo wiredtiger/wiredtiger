@@ -18,8 +18,8 @@ config_bool(
     DEPENDS_ERROR ON "Failed to find zlib library"
 )
 
-if (HAVE_BUILTIN_EXTENSION_ZLIB AND ENABLE_LIBZ)
-    message(FATAL_ERROR "Only one of 'ENABLE_LIBZ' or 'HAVE_BUILTIN_EXTENSION_ZLIB' can be enabled")
+if (HAVE_BUILTIN_EXTENSION_ZLIB AND ENABLE_ZLIB)
+    message(FATAL_ERROR "Only one of 'ENABLE_ZLIB' or 'HAVE_BUILTIN_EXTENSION_ZLIB' can be enabled")
 endif()
 
 set(sources "zlib_compress.c")
@@ -34,7 +34,7 @@ else()
     set(link_type "MODULE")
 endif()
 
-if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_LIBZ)
+if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
     add_library(wiredtiger_zlib ${link_type} ${sources})
     target_link_libraries(wiredtiger_zlib "z")
     target_include_directories(

@@ -98,7 +98,7 @@ config_choice(
 )
 
 config_bool(
-    ENABLE_LIBLZ4
+    ENABLE_LZ4
     "Build the lz4 compressor extension"
     DEFAULT OFF
     DEPENDS "HAVE_LIBLZ4"
@@ -108,7 +108,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_LIBSNAPPY
+    ENABLE_SNAPPY
     "Build the snappy compressor extension"
     DEFAULT OFF
     DEPENDS "HAVE_LIBSNAPPY"
@@ -118,7 +118,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_LIBZ
+    ENABLE_ZLIB
     "Build the zlib compressor extension"
     DEFAULT OFF
     DEPENDS "HAVE_LIBZ"
@@ -128,7 +128,7 @@ config_bool(
 )
 
 config_bool(
-    ENABLE_LIBZSTD
+    ENABLE_ZSTD
     "Build the libzstd compressor extension"
     DEFAULT OFF
     DEPENDS "HAVE_LIBZSTD"
