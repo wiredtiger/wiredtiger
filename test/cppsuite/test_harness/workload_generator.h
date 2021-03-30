@@ -91,7 +91,7 @@ class workload_generator : public component {
         testutil_check(_config->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            database._collections[collection_name] = {};
+            database.collections[collection_name] = {};
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = _timestamp_manager->get_next_ts();
@@ -108,7 +108,7 @@ class workload_generator : public component {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
-        for (const auto &it_collections : database._collections) {
+        for (const auto &it_collections : database.collections) {
             collection_name = it_collections.first;
             key_cpt = 0;
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
@@ -135,9 +135,9 @@ class workload_generator : public component {
                     testutil_check(session->commit_transaction(session, config.c_str()));
                 }
                 /* Update the memory representation of the collections. */
-                database._collections[collection_name].keys[generated_key].exists = true;
+                database.collections[collection_name].keys[generated_key].exists = true;
                 /* Values are not stored here. */
-                database._collections[collection_name].values = nullptr;
+                database.collections[collection_name].values = nullptr;
             }
         }
         debug_print("Populate stage done", DEBUG_TRACE);

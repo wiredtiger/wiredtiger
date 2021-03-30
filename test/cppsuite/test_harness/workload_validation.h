@@ -74,7 +74,7 @@ class workload_validation {
 
         /* Make sure they exist in memory. */
         for (auto const &it : created_collections) {
-            if (database._collections.count(it) == 0) {
+            if (database.collections.count(it) == 0) {
                 debug_print("Collection missing in memory: " + it, DEBUG_ERROR);
                 is_valid = false;
                 break;
@@ -86,7 +86,7 @@ class workload_validation {
 
         /* Make sure they don't exist in memory nor on disk. */
         for (auto const &it : deleted_collections) {
-            if (database._collections.count(it) > 0) {
+            if (database.collections.count(it) > 0) {
                 debug_print(
                   "Collection present in memory while it has been tracked as deleted: " + it,
                   DEBUG_ERROR);
@@ -122,8 +122,8 @@ class workload_validation {
                 is_valid = false;
             }
             /* Clear memory. */
-            delete database._collections[collection_name].values;
-            database._collections[collection_name].values = nullptr;
+            delete database.collections[collection_name].values;
+            database.collections[collection_name].values = nullptr;
         }
 
         return (is_valid);
@@ -188,7 +188,7 @@ class workload_validation {
         std::string key_str;
 
         /* Retrieve all keys from the given collection. */
-        for (auto const &it : database._collections.at(collection_name).keys)
+        for (auto const &it : database.collections.at(collection_name).keys)
             collection_keys.push_back(it.first);
         /* There must be at least a key. */
         testutil_assert(!collection_keys.empty());
@@ -233,22 +233,22 @@ class workload_validation {
                  * assume the key has been inserted previously in an existing collection and can be
                  * safely deleted.
                  */
-                database._collections.at(key_collection_name).keys.at(std::string(key)).exists =
+                database.collections.at(key_collection_name).keys.at(std::string(key)).exists =
                   false;
-                delete database._collections.at(key_collection_name).values;
-                database._collections.at(key_collection_name).values = nullptr;
+                delete database.collections.at(key_collection_name).values;
+                database.collections.at(key_collection_name).values = nullptr;
                 break;
             case tracking_operation::INSERT: {
                 /* Keys are unique, it is safe to assume the key has not been encountered before. */
-                database._collections[key_collection_name].keys[std::string(key)].exists = true;
-                if (database._collections[key_collection_name].values == nullptr) {
-                    database._collections[key_collection_name].values =
+                database.collections[key_collection_name].keys[std::string(key)].exists = true;
+                if (database.collections[key_collection_name].values == nullptr) {
+                    database.collections[key_collection_name].values =
                       new std::map<key_value_t, value_t>();
                 }
                 value_t v;
                 v.value = key_value_t(value);
                 std::pair<key_value_t, value_t> pair(key_value_t(key), v);
-                database._collections[key_collection_name].values->insert(pair);
+                database.collections[key_collection_name].values->insert(pair);
                 break;
             }
             case tracking_operation::UPDATE:
@@ -284,7 +284,7 @@ class workload_validation {
         is_valid = verify_collection_state(session, collection_name, true);
 
         if (is_valid) {
-            collection = database._collections.at(collection_name);
+            collection = database.collections.at(collection_name);
             /* Walk through each key/value pair of the current collection. */
             for (const auto &keys : collection.keys) {
                 key_str = keys.first;
@@ -330,7 +330,7 @@ class workload_validation {
 
         testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
 
-        collection = database._collections.at(collection_name);
+        collection = database.collections.at(collection_name);
 
         /* Read the collection on disk. */
         while (is_valid && (cursor->next(cursor) == 0)) {
