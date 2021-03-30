@@ -923,7 +923,7 @@ __wt_rec_row_leaf(
                          * function.
                          */
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-                        WT_ERR(__wt_hs_delete_reinsert_key_from_ts(
+                        WT_ERR(__wt_hs_delete_key_from_ts(
                           session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
                         WT_ERR(hs_cursor->close(hs_cursor));
                         hs_cursor = NULL;

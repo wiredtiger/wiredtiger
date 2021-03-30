@@ -174,10 +174,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         if (!hs_read_all_flag)
             F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
     }
-    if (ret == 0) {
+    if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, &counter));
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -455,7 +454,7 @@ __wt_hs_insert_updates(
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp.
                  */
-                WT_ERR(__wt_hs_delete_reinsert_key_from_ts(
+                WT_ERR(__wt_hs_delete_key_from_ts(
                   session, hs_cursor, btree->id, key, fix_ts_upd->start_ts + 1, true));
                 F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
@@ -646,13 +645,13 @@ err:
 }
 
 /*
- * __wt_hs_delete_reinsert_key_from_ts --
+ * __wt_hs_delete_key_from_ts --
  *     Delete history store content of a given key from a timestamp and optionally reinsert them
  *     with ts-1 timestamp.
  */
 int
-__wt_hs_delete_reinsert_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
+__wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
