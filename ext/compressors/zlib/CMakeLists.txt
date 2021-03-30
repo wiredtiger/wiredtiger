@@ -10,14 +10,14 @@ project(zlib C)
 
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZLIB
-    "Builtin zlib compression library"
+    "Builtin zlib compression library."
     DEFAULT OFF
     DEPENDS "HAVE_LIBZ"
-    DEPENDS_ERROR ON "Failed to find zlib library"
+    DEPENDS_ERROR ON "Failed to find zlib library."
 )
 
 if (HAVE_BUILTIN_EXTENSION_ZLIB AND ENABLE_ZLIB)
-    message(FATAL_ERROR "Only one of 'ENABLE_ZLIB' or 'HAVE_BUILTIN_EXTENSION_ZLIB' can be enabled")
+    message(FATAL_ERROR "Only one of 'ENABLE_ZLIB' or 'HAVE_BUILTIN_EXTENSION_ZLIB' can be enabled.")
 endif()
 
 set(sources "zlib_compress.c")

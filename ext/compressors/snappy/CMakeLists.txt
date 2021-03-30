@@ -10,14 +10,14 @@ project(snappy C)
 
 config_bool(
     HAVE_BUILTIN_EXTENSION_SNAPPY
-    "Builtin snappy compression library"
+    "Builtin snappy compression library."
     DEFAULT OFF
     DEPENDS "HAVE_LIBSNAPPY"
-    DEPENDS_ERROR ON "Failed to find snappy library"
+    DEPENDS_ERROR ON "Failed to find snappy library."
 )
 
 if (HAVE_BUILTIN_EXTENSION_SNAPPY AND ENABLE_SNAPPY)
-    message(FATAL_ERROR "Only one of 'ENABLE_SNAPPY' or 'HAVE_BUILTIN_EXTENSION_SNAPPY' can be enabled")
+    message(FATAL_ERROR "Only one of 'ENABLE_SNAPPY' or 'HAVE_BUILTIN_EXTENSION_SNAPPY' can be enabled.")
 endif()
 
 set(sources "snappy_compress.c")

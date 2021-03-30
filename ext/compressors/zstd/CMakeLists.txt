@@ -10,14 +10,14 @@ project(zstd C)
 
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZSTD
-    "Builtin zstd compression library"
+    "Builtin zstd compression library."
     DEFAULT OFF
     DEPENDS "HAVE_LIBZSTD"
-    DEPENDS_ERROR ON "Failed to find zstd library"
+    DEPENDS_ERROR ON "Failed to find zstd library."
 )
 
 if (HAVE_BUILTIN_EXTENSION_ZSTD AND ENABLE_ZSTD)
-    message(FATAL_ERROR "Only one of 'ENABLE_ZSTD' or 'HAVE_BUILTIN_EXTENSION_ZSTD' can be enabled")
+    message(FATAL_ERROR "Only one of 'ENABLE_ZSTD' or 'HAVE_BUILTIN_EXTENSION_ZSTD' can be enabled.")
 endif()
 
 set(sources "zstd_compress.c")
