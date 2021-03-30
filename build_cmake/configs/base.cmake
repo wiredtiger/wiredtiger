@@ -149,7 +149,7 @@ config_bool(
 
 config_string(
     CC_OPTIMIZE_LEVEL
-    "CC optimisation level"
+    "CC optimization level"
     DEFAULT "-O3"
 )
 
