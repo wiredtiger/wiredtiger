@@ -61,7 +61,7 @@ import(void *arg)
     size_t cmd_len;
     uint32_t import_value;
     u_int period;
-    char buf[2048], cmd[64];
+    char buf[2048], *cmd;
     const char *file_config, *table_config;
 
     WT_UNUSED(arg);
@@ -73,16 +73,18 @@ import(void *arg)
      * Initiate a new import database, which is primarily used for copying the table file, and
      * importing the table from a foreign database.
      */
-    memset(cmd, 0, sizeof(cmd));
     cmd_len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
+    cmd = dmalloc(cmd_len);
     testutil_check(__wt_snprintf(cmd, cmd_len, HOME_IMPORT_INIT_CMD, g.home, g.home));
     testutil_checkfmt(system(cmd), "%s", "import directory creation failed");
+    free(cmd);
 
-    memset(cmd, 0, sizeof(cmd));
     cmd_len = strlen(g.home) + strlen(IMPORT_DIR) + 10;
+    cmd = dmalloc(cmd_len);
     testutil_check(__wt_snprintf(cmd, cmd_len, "%s/%s", g.home, IMPORT_DIR));
     /* Open a connection to the database, creating it if necessary. */
     create_database(cmd, &import_conn);
+    free(cmd);
 
     /*
      * Open two sessions, one for the usual test database connection and one for the import database
