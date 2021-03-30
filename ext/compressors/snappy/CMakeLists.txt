@@ -18,8 +18,8 @@ config_bool(
     DEPENDS_ERROR ON "Failed to find snappy library"
 )
 
-if (HAVE_BUILTIN_EXTENSION_SNAPPY AND ENABLE_LIBSNAPPY)
-    message(FATAL_ERROR "Only one of 'ENABLE_LIBSNAPPY' or 'HAVE_BUILTIN_EXTENSION_SNAPPY' can be enabled")
+if (HAVE_BUILTIN_EXTENSION_SNAPPY AND ENABLE_SNAPPY)
+    message(FATAL_ERROR "Only one of 'ENABLE_SNAPPY' or 'HAVE_BUILTIN_EXTENSION_SNAPPY' can be enabled")
 endif()
 
 set(sources "snappy_compress.c")
@@ -34,7 +34,7 @@ else()
     set(link_type "MODULE")
 endif()
 
-if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_LIBSNAPPY)
+if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
     add_library(wiredtiger_snappy ${link_type} ${sources})
     target_link_libraries(wiredtiger_snappy "snappy")
     target_include_directories(

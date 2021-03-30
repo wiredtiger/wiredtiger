@@ -73,10 +73,10 @@ $ ninja
 There are a number of additional configuration options you can pass to the CMake configuration step. A summary of some important options you will come to know:
 
 * `-DENABLE_STATIC=1` : Compile WiredTiger as a static library
-* `-DENABLE_LIBLZ4=1` : Build the lz4 compressor extension
-* `-DENABLE_LIBSNAPPY=1` : Build the snappy compressor extension
-* `-DENABLE_LIBZ=1` : Build the zlib compressor extension
-* `-DENABLE_LIBZSTD=1` : Build the libzstd compressor extension
+* `-DENABLE_LZ4=1` : Build the lz4 compressor extension
+* `-DENABLE_SNAPPY=1` : Build the snappy compressor extension
+* `-DENABLE_ZLIB=1` : Build the zlib compressor extension
+* `-DENABLE_ZSTD=1` : Build the libzstd compressor extension
 * `-DHAVE_DIAGNOSTIC=1` : Enable WiredTiger diagnostics
 * `-DHAVE_ATTACH=1` : Enable to pause for debugger attach on failure
 * `-DENABLE_STRICT=1` : Compile with strict compiler warnings enabled
@@ -87,7 +87,7 @@ There are a number of additional configuration options you can pass to the CMake
 An example of using the above configuration options during the configuration step:
 
 ```bash
-$ cmake -DENABLE_STATIC=1 -DENABLE_LIBLZ4=1 -DENABLE_LIBSNAPPY=1 -DENABLE_LIBZ=1 -DENABLE_LIBZSTD=1 -DHAVE_DIAGNOSTIC=1 -DHAVE_ATTACH=1 -DENABLE_STRICT=1 -G Ninja ../.
+$ cmake -DENABLE_STATIC=1 -DENABLE_LZ4=1 -DENABLE_SNAPPY=1 -DENABLE_ZLIB=1 -DENABLE_ZSTD=1 -DHAVE_DIAGNOSTIC=1 -DHAVE_ATTACH=1 -DENABLE_STRICT=1 -G Ninja ../.
 ```
 
 ---

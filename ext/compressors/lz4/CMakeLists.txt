@@ -18,8 +18,8 @@ config_bool(
     DEPENDS_ERROR ON "Failed to find lz4 library"
 )
 
-if (HAVE_BUILTIN_EXTENSION_LZ4 AND ENABLE_LIBLZ4)
-    message(FATAL_ERROR "Only one of 'ENABLE_LIBLZ4' or 'HAVE_BUILTIN_EXTENSION_LZ4' can be enabled")
+if (HAVE_BUILTIN_EXTENSION_LZ4 AND ENABLE_LZ4)
+    message(FATAL_ERROR "Only one of 'ENABLE_LZ4' or 'HAVE_BUILTIN_EXTENSION_LZ4' can be enabled")
 endif()
 
 set(sources "lz4_compress.c")
@@ -35,7 +35,7 @@ else()
     set(link_type "MODULE")
 endif()
 
-if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LIBLZ4)
+if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
     add_library(wiredtiger_lz4 ${link_type} ${sources})
     target_link_libraries(wiredtiger_lz4 "lz4")
     target_include_directories(
