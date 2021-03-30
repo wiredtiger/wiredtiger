@@ -79,7 +79,6 @@ class workload_generator : public component {
         wt_timestamp_t ts;
         int64_t collection_count, key_count, key_cpt, key_size, value_size;
         std::string collection_name, config, home;
-        std::vector<std::string> collection_names;
         key_value_t generated_key, generated_value;
         bool ts_enabled = _timestamp_manager->is_enabled();
 
@@ -92,7 +91,7 @@ class workload_generator : public component {
         testutil_check(_config->get_int(COLLECTION_COUNT, collection_count));
         for (int i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            collection_names.push_back(collection_name);
+            database._collections[collection_name] = {};
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = _timestamp_manager->get_next_ts();
@@ -109,7 +108,8 @@ class workload_generator : public component {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
-        for (const auto &collection_name : collection_names) {
+        for (const auto &it_collections : database._collections) {
+            collection_name = it_collections.first;
             key_cpt = 0;
             /* WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too. */
