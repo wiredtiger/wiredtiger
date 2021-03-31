@@ -450,7 +450,7 @@ function(config_lib config_name description)
 endfunction()
 
 # config_compile(config_name description SOURCE <source-file> [DEPENDS <deps>] [LIBS <library-dependencies>])
-# Defines a boolean (0/1) configuration option based on whether a source file can be successfully compiled. Used
+# Defines a boolean (0/1) configuration option based on whether a source file can be successfully compiled and run. Used
 # to determine if more fine grained functionality is supported on a given target environment (beyond what function
 # symbols, libraries and headers are available). The configuration option is stored in the cmake cache and can be
 # exported to the wiredtiger config header.
@@ -482,27 +482,29 @@ function(config_compile config_name description)
     eval_dependency("${CONFIG_COMPILE_DEPENDS}" enabled)
     if(enabled)
         # Test compile the source file.
-        try_compile(
-            can_compile_${config_name}
+        try_run(
+            can_run_${config_name} can_compile_${config_name}
             ${CMAKE_CURRENT_BINARY_DIR}
             ${CONFIG_COMPILE_SOURCE}
             CMAKE_FLAGS "-DWT_ARCH=${WT_ARCH}" "-DWT_OS=${WT_OS}"
             LINK_LIBRARIES "${CONFIG_COMPILE_LIBS}"
         )
-        set(can_compile "0")
-        if(can_compile_${config_name})
-            set(can_compile ${can_compile_${config_name}})
+        set(can_run "0")
+        if((NOT "${can_run_${config_name}}" STREQUAL "FAILED_TO_RUN") AND
+            ("${can_run_${config_name}}" STREQUAL "0"))
+            set(can_run "1")
         endif()
         # Set an internal cache variable "${config_name}_DISABLED" to capture its enabled/disabled state.
         # We want to ensure we capture a transition from a disabled to enabled state when dependencies are met.
         if(${config_name}_DISABLED)
             unset(${config_name}_DISABLED CACHE)
-            set(${config_name} ${can_compile} CACHE STRING "${description}" FORCE)
+            set(${config_name} ${can_run} CACHE STRING "${description}" FORCE)
         else()
-            set(${config_name} ${can_compile} CACHE STRING "${description}")
+            set(${config_name} ${can_run} CACHE STRING "${description}")
         endif()
-        # 'try_compile' sets our given temp variable into the cache. Clear this so it doesn't persist between
+        # 'try_run' sets our given temp variable into the cache. Clear this so it doesn't persist between
         # configuration runs.
+        unset(can_run_${config_name} CACHE)
         unset(can_compile_${config_name} CACHE)
     else()
         set(${config_name} 0 CACHE INTERNAL "" FORCE)
