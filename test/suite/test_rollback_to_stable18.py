@@ -86,7 +86,9 @@ class test_rollback_to_stable18(test_rollback_to_stable_base):
         self.check(value_a, uri, nrows, 20)
         self.check(None, uri, 0, 30)
 
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+
         # Search for the key so we position our cursor on the page that we want to evict.
         evict_cursor.set_key(1)
         evict_cursor.search()
