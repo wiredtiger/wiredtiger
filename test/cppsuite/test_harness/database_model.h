@@ -53,7 +53,7 @@ struct value_t {
 /* A collection is made of mapped Key objects. */
 struct collection_t {
     std::map<key_value_t, key_t> keys;
-    std::map<key_value_t, value_t> *values;
+    std::map<key_value_t, value_t> *values = {nullptr};
 };
 
 /* Representation of the collections in memory. */

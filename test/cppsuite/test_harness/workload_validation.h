@@ -275,10 +275,10 @@ class workload_validation {
     check_reference(
       WT_SESSION *session, const std::string &collection_name, const database &database)
     {
-        bool is_valid = true;
+        bool is_valid;
         collection_t collection;
         key_t key;
-        key_value_t key_str, *value;
+        key_value_t key_str;
 
         /* Check the collection exists on disk. */
         is_valid = verify_collection_state(session, collection_name, true);
