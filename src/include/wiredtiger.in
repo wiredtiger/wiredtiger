@@ -2158,23 +2158,24 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable
 	 * block cache., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * eviction_aggression, a value indicating how aggressive eviction should be with low
-	 * negative numbers being less aggressive\, and numbers close to zero being very
-	 * aggressive., a string; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_on, Turn
-	 * on eviction., a boolean flag; default \c true.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize,
-	 * size of the hashtable that keeps track of blocks., an integer between 512 and 1073741824;
-	 * default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum tolerated
-	 * overhead expressed as the number of blocks added and removed as percent of blocks looked
-	 * up.  Cache population will be suppressed if the overhead exceeds the supplied threshold.,
-	 * an integer between 1 and 500; default \c 0.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the
-	 * file path for the NVRAM that will be used as a cache if cache type NVRAM is chosen., a
-	 * string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram, bypass
-	 * cache if that percent of file fits in DRAM., an integer between 0 and 100; default \c 0.}
+	 * eviction_aggression, a value indicating how many seconds an unused block would stay in
+	 * the cache before it is evicted., an integer between 1 and 7200; default \c 1800.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_on, Turn on eviction., a boolean flag; default
+	 * \c true.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;full_target, a fraction of cache that must be
+	 * full before eviction will remove unused blocks., an integer between 30 and 100; default
+	 * \c 95.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the hashtable that keeps track
+	 * of blocks., an integer between 512 and 1073741824; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum tolerated overhead
+	 * expressed as the number of blocks added and removed as percent of blocks looked up.
+	 * Cache population will be suppressed if the overhead exceeds the supplied threshold., an
+	 * integer between 1 and 500; default \c 10.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file
+	 * path for the NVRAM that will be used as a cache if cache type NVRAM is chosen., a string;
+	 * default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram, bypass cache if
+	 * that percent of file fits in DRAM., an integer between 0 and 100; default \c 50.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the block cache., an
 	 * integer between 0 and 1024GB; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;system_ram,
@@ -2804,21 +2805,24 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable block cache., a boolean
  * flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_aggression, a value indicating
- * how aggressive eviction should be with low negative numbers being less aggressive\, and numbers
- * close to zero being very aggressive., a string; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * eviction_on, Turn on eviction., a boolean flag; default \c true.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the hashtable that keeps track of blocks., an
- * integer between 512 and 1073741824; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;
- * max_percent_overhead, maximum tolerated overhead expressed as the number of blocks added and
- * removed as percent of blocks looked up.  Cache population will be suppressed if the overhead
- * exceeds the supplied threshold., an integer between 1 and 500; default \c 0.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a cache if
- * cache type NVRAM is chosen., a string; default empty.}
+ * how many seconds an unused block would stay in the cache before it is evicted., an integer
+ * between 1 and 7200; default \c 1800.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_on, Turn on
+ * eviction., a boolean flag; default \c true.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;full_target, a
+ * fraction of cache that must be full before eviction will remove unused blocks., an integer
+ * between 30 and 100; default \c 95.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the
+ * hashtable that keeps track of blocks., an integer between 512 and 1073741824; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum tolerated overhead expressed as the
+ * number of blocks added and removed as percent of blocks looked up.  Cache population will be
+ * suppressed if the overhead exceeds the supplied threshold., an integer between 1 and 500; default
+ * \c 10.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;path, the file path for the NVRAM that will be used as a
+ * cache if cache type NVRAM is chosen., a string; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * percent_file_in_dram, bypass cache if that percent of file fits in DRAM., an integer between 0
- * and 100; default \c 0.}
+ * and 100; default \c 50.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;size, maximum memory to allocate for the
  * block cache., an integer between 0 and 1024GB; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
@@ -5105,27 +5109,27 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! block-manager: block cache lookups */
 #define	WT_STAT_CONN_BLOCK_CACHE_DATA_REFS		1027
 /*!
+ * block-manager: block cache number of blocks not evicted due to
+ * overhead
+ */
+#define	WT_STAT_CONN_BLOCK_CACHE_NOT_EVICTED_OVERHEAD	1028
+/*!
  * block-manager: block cache number of bypasses because no-write-
  * allocate setting was on
  */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC	1028
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_WRITEALLOC	1029
 /*! block-manager: block cache number of bypasses due to overhead on get */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_GET	1029
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_GET	1030
 /*! block-manager: block cache number of bypasses due to overhead on put */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT	1030
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_OVERHEAD_PUT	1031
 /*! block-manager: block cache number of bypasses on get */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET		1031
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_GET		1032
 /*! block-manager: block cache number of bypasses on put */
-#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT		1032
+#define	WT_STAT_CONN_BLOCK_CACHE_BYPASS_PUT		1033
 /*! block-manager: block cache number of hits including existence checks */
-#define	WT_STAT_CONN_BLOCK_CACHE_HITS			1033
+#define	WT_STAT_CONN_BLOCK_CACHE_HITS			1034
 /*! block-manager: block cache number of misses including existence checks */
-#define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1034
-/*!
- * block-manager: block cache number of times eviction slept due to
- * overhead
- */
-#define	WT_STAT_CONN_BLOCK_CACHE_SLEPT_OVERHEAD		1035
+#define	WT_STAT_CONN_BLOCK_CACHE_MISSES			1035
 /*! block-manager: block cache removed blocks */
 #define	WT_STAT_CONN_BLOCK_CACHE_BLOCKS_REMOVED		1036
 /*! block-manager: block cache total blocks */

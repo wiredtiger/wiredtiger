@@ -449,19 +449,23 @@ connection_runtime_config = [
                       enable block cache''',
                       type='boolean'),
                Config('eviction_on', 'true', r'''
-                    Turn on eviction''',
-                    type='boolean'),
-               Config('eviction_aggression', '0', r'''
-                   a value indicating how aggressive eviction should be
-                   with low negative numbers being less aggressive, and
-                   numbers close to zero being very aggressive'''),
+                      Turn on eviction''',
+                      type='boolean'),
+               Config('eviction_aggression', '1800', r'''
+                      a value indicating how many seconds an unused block
+                      would stay in the cache before it is evicted''',
+                      min='1', max='7200'),
+               Config('full_target', '95', r'''
+                      a fraction of cache that must be full before eviction
+                      will remove unused blocks''',
+                      min='30', max='100'),
                Config('size', '0', r'''
                    maximum memory to allocate for the block cache.''',
                    min='0', max='1024GB'),
                Config('hashsize', '0', r'''
                    size of the hashtable that keeps track of blocks.''',
                    min='512', max='1073741824'),
-               Config('max_percent_overhead', '0', r'''
+               Config('max_percent_overhead', '10', r'''
                    maximum tolerated overhead expressed as the number of
                    blocks added and removed as percent of blocks looked up.
                    Cache population will be suppressed if the overhead
@@ -470,7 +474,7 @@ connection_runtime_config = [
                Config('path', '', r'''
                    the file path for the NVRAM that will be used as a cache
                    if cache type NVRAM is chosen.'''),
-               Config('percent_file_in_dram', '0', r'''
+               Config('percent_file_in_dram', '50', r'''
                    bypass cache if that percent of file fits in DRAM.''',
                    min='0', max='100'),
                Config('system_ram', '0', r'''

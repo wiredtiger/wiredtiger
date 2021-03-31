@@ -15,16 +15,9 @@
 #include <memkind.h>
 #endif /* HAVE_LIBMEMKIND */
 
-#define BLKCACHE_FREQ_TARGET_INCREMENT 10
-#define BLKCACHE_MAX_FREQUENCY_TARGET 100
-#define BLKCACHE_MAX_RECENCY_TARGET 5
-#define BLKCACHE_REC_TARGET_INCREMENT 1
-
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
-
-#define BLKCACHE_OVERHEAD_THRESHOLD 0.1
 
 #define BLKCACHE_TRACE 0
 
@@ -52,16 +45,11 @@ struct __wt_blkcache_item {
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
     void *data;
     uint32_t num_references;
-    /*
-     * The virtual recency timestamp is incremented every time the block is
-     * referenced, but saturates at the set threshold. It is decremented every
-     * time the eviction thread scans the cache.
-     */
-    int32_t virtual_recency_timestamp;
+
     /* This counter is incremented every time a block is referenced
      * and decremented every time the eviction threads sweeps through
-     * the cache. This counter will be high for blocks that are not
-     * reused or for blocks that were reused in the past but lost
+     * the cache. This counter will be low for blocks that have not
+     * been reused or for blocks that were reused in the past but lost
      * their appeal. In this sense, this counter is a metric combining
      * frequency and recency, and hence its name.
      */
@@ -89,7 +77,7 @@ struct __wt_blkcache {
     double overhead_pct;
     float fraction_in_dram;
     int refs_since_filesize_estimated;
-    int type;
+    uint type;
     volatile size_t bytes_used;
     size_t estimated_file_size;
     size_t hash_size;
@@ -117,7 +105,7 @@ struct __wt_blkcache {
 
     /* Histograms keeping track of number of references to each block */
 #define BLKCACHE_HIST_BUCKETS 11
-#define BLKCACHE_HIST_BOUNDARY 1
+#define BLKCACHE_HIST_BOUNDARY 10
     uint32_t cache_references[BLKCACHE_HIST_BUCKETS];
     uint32_t cache_references_removed_blocks[BLKCACHE_HIST_BUCKETS];
     uint32_t cache_references_evicted_blocks[BLKCACHE_HIST_BUCKETS];
