@@ -4755,7 +4755,7 @@ struct __wt_storage_source {
 	 * files in the file system.  In particular, the fs_open_file method requires
 	 * its flags argument to include either WT_FS_OPEN_CREATE or WT_FS_OPEN_READONLY.
 	 * Objects being created are not deemed to "exist" and be visible to
-	 * WT_FILE_SYSTEM::fs_exist and other file system APIs until the new handle has
+	 * WT_FILE_SYSTEM::fs_exist and other file system methods until the new handle has
 	 * been closed.  Objects once created are immutable. That is, only objects that
 	 * do not already exist can be opened with the create flag, and objects that
 	 * already exist can only be opened with the readonly flag.  Only objects that
