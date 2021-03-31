@@ -75,5 +75,5 @@ if(${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL 8)
     string(APPEND gcc_base_c_flags " -Wmultistatement-macros")
 endif()
 
-# Set our base gcc flags to ensure it propogates to the rest of our build
+# Set our base gcc flags to ensure it propogates to the rest of our build.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${gcc_base_c_flags}" CACHE STRING "" FORCE)

@@ -101,7 +101,7 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_LIBLZ4"
     # Specifically throw a fatal error if a user tries to enable the lz4 compressor without
-    # actually having the library available (as opposed to silently defaulting to OFF)
+    # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find lz4 library"
 )
 
@@ -111,7 +111,7 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_LIBSNAPPY"
     # Specifically throw a fatal error if a user tries to enable the snappy compressor without
-    # actually having the library available (as opposed to silently defaulting to OFF)
+    # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find snappy library"
 )
 
@@ -121,7 +121,7 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_LIBZ"
     # Specifically throw a fatal error if a user tries to enable the zlib compressor without
-    # actually having the library available (as opposed to silently defaulting to OFF)
+    # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find zlib library"
 )
 
@@ -131,7 +131,7 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_LIBZSTD"
     # Specifically throw a fatal error if a user tries to enable the zstd compressor without
-    # actually having the library available (as opposed to silently defaulting to OFF)
+    # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find zstd library"
 )
 
@@ -141,7 +141,7 @@ config_bool(
     DEFAULT OFF
     DEPENDS "HAVE_LIBTCMALLOC"
     # Specifically throw a fatal error if a user tries to enable the tcmalloc allocator without
-    # actually having the library available (as opposed to silently defaulting to OFF)
+    # actually having the library available (as opposed to silently defaulting to OFF).
     DEPENDS_ERROR ON "Failed to find tcmalloc library"
 )
 
