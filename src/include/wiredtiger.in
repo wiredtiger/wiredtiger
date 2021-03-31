@@ -4773,18 +4773,20 @@ struct __wt_storage_source {
 	 * as another prefix, which is removed from the results.
 	 *
 	 * Names used by the file system methods are generally flat.  However, in some
-	 * implementations, "..", ".", "/" may have a particular meaning, as in a POSIX
-	 * file system.  We suggest that these constructs be avoided when a caller chooses
-	 * bucket or file names, and they may be rejected by the implementation.  Within a
-	 * prefix, "/" is specifically allowed, as this may have performance or administrative
-	 * benefits.  Within a prefix, certain combinations involving "/" may be rejected,
-	 * for example "/../".
+	 * implementations of a file system returned by a storage source, "..", ".", "/"
+	 * may have a particular meaning, as in a POSIX file system.  We suggest that
+	 * these constructs be avoided when a caller chooses file names within the returned
+	 * file system, they may be rejected by the implementation.  Within a bucket name,
+	 * these characters may or may not be acceptable, that is implementation dependent.
+	 * In the prefix, "/" is specifically allowed, as this may have performance or
+	 * administrative benefits.  That said, within a prefix, certain combinations
+	 * involving "/" may be rejected, for example "/../".
 	 *
 	 * @errors
 	 *
 	 * @param storage_source the WT_STORAGE_SOURCE
 	 * @param session the current WiredTiger session
-	 * @param bucket_name the name of the bucket.
+	 * @param bucket_name the name of the bucket.  Use of '/' is implementation dependent.
 	 * @param prefix a prefix for each file.  If used, the prefix will be added to the
 	 *    name of each object created or otherwise accessed in the bucket.  Also, only
 	 *    objects with this prefix will be visible, and the prefix will be removed when
