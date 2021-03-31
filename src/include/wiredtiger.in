@@ -4749,48 +4749,53 @@ struct __wt_file_handle {
 struct __wt_storage_source {
 	/*!
 	 * Create a customized file system to access the storage source
-         * objects.
-         *
-         * The file system returned behaves as if objects in the specified buckets
-         * are files in the file system.  In particular, the fs_open_file method
-         * requires its flags argument to include either WT_FS_OPEN_CREATE or
-         * WT_FS_OPEN_READONLY.  Objects being created are not deemed to "exist" and
-         * be visible to other APIs WT_FILE_SYSTEM::fs_exist until the new handle has been closed.
-	 * Objects once created are immutable. That is, only objects that do not already
-	 * exist can be opened with the create flag, and objects that already exist can
-	 * only be opened with the readonly flag.  Only objects that exist can be
-         * transferred to the underlying shared object storage.  This can happen at any
-         * time after an object is created, and can be forced to happen using
-         * WT_STORAGE_SOURCE::ss_flush.
+	 * objects.
+	 *
+	 * The file system returned behaves as if objects in the specified buckets are
+	 * files in the file system.  In particular, the fs_open_file method requires
+	 * its flags argument to include either WT_FS_OPEN_CREATE or WT_FS_OPEN_READONLY.
+	 * Objects being created are not deemed to "exist" and be visible to
+	 * WT_FILE_SYSTEM::fs_exist and other file system APIs until the new handle has
+	 * been closed.  Objects once created are immutable. That is, only objects that
+	 * do not already exist can be opened with the create flag, and objects that
+	 * already exist can only be opened with the readonly flag.  Only objects that
+	 * exist can be transferred to the underlying shared object storage.  This can
+	 * happen at any time after an object is created, and can be forced to happen using
+	 * WT_STORAGE_SOURCE::ss_flush.
 	 *
 	 * Additionally file handles returned by the file system behave as file handles to a
-         * local file.  For example, WT_FILE_HANDLE::fh_sync synchronizes writes to the
-         * local file, and does not imply any transferring of data to the shared object store.
-         *
-         * The directory argument to the WT_FILE_SYSTEM::fs_directory_list method is normally
-         * the empty string as the cloud equivalent (bucket) has already been given when
-         * customizing the file system.  If specified, the directory path is interpreted
-         * as another prefix, which is removed from the results.
-         *
-         * Names used by the file system methods are generally flat.  In particular, "..", ".",
-         * and "/" have no particular meaning, unlike POSIX file systems.
-         *
+	 * local file.  For example, WT_FILE_HANDLE::fh_sync synchronizes writes to the
+	 * local file, and does not imply any transferring of data to the shared object store.
+	 *
+	 * The directory argument to the WT_FILE_SYSTEM::fs_directory_list method is normally
+	 * the empty string as the cloud equivalent (bucket) has already been given when
+	 * customizing the file system.  If specified, the directory path is interpreted
+	 * as another prefix, which is removed from the results.
+	 *
+	 * Names used by the file system methods are generally flat.  However, in some
+	 * implementations, "..", ".", "/" may have a particular meaning, as in a POSIX
+	 * file system.  We suggest that these constructs be avoided when a caller chooses
+	 * bucket or file names, and they may be rejected by the implementation.  Within a
+	 * prefix, "/" is specifically allowed, as this may have performance or administrative
+	 * benefits.  Within a prefix, certain combinations involving "/" may be rejected,
+	 * for example "/../".
+	 *
 	 * @errors
 	 *
 	 * @param storage_source the WT_STORAGE_SOURCE
 	 * @param session the current WiredTiger session
 	 * @param bucket_name the name of the bucket.
-         * @param prefix a prefix for each file.  If used, the prefix will be added to the
-         *    name of each object created or otherwise accessed in the bucket.  Also, only
-         *    objects with this prefix will be visible, and the prefix will be removed when
-         *    listed.
+	 * @param prefix a prefix for each file.  If used, the prefix will be added to the
+	 *    name of each object created or otherwise accessed in the bucket.  Also, only
+	 *    objects with this prefix will be visible, and the prefix will be removed when
+	 *    listed. Prefixes may contain '/' as a separator.
 	 * @param auth_token the authorization identifier.
 	 * @param config additional configuration, currently must be NULL.
 	 * @param[out] file_system the customized file system returned
 	 */
 	int (*ss_customize_file_system)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 	    const char *bucket_name, const char *prefix, const char *auth_token, const char *config,
-            WT_FILE_SYSTEM **file_system);
+	    WT_FILE_SYSTEM **file_system);
 
 	/*!
 	 * Flush any existing objects that match the location and name from
@@ -4803,7 +4808,7 @@ struct __wt_storage_source {
 	 * @param storage_source the WT_STORAGE_SOURCE
 	 * @param session the current WiredTiger session
 	 * @param file_system if NULL, all objects are considered, otherwise only objects
-         *    managed by the given file system.
+	 *    managed by the given file system.
 	 * @param name the name of the object to flush (or NULL for all)
 	 * @param config additional configuration, currently must be NULL
 	 */
