@@ -35,8 +35,9 @@
 #
 from __future__ import print_function
 
-import abc, os, sys
+import os, sys
 from importlib import import_module
+from abc import ABC, abstractmethod
 import wiredtiger
 
 # Three kinds of hooks available:
@@ -83,10 +84,20 @@ def tty(message):
 #      it replaces (but there is a trick to give it additional context if needed -
 #      see session_create_replace in hook_demo.py).
 
+# For every API function altered, there is one of these objects
+# stashed in the <class>._<api_name>_hooks attribute.
+class WiredTigerHooksInfo(object):
+    def __init__(self):
+        self.arg_funcs = []     # The set of hook functions for manipulating arguments
+        self.notify_funcs = []    # The set of hook functions for manipulating arguments
+        # At the moment, we can only replace a method once.
+        # If needed, we can think about removing this restriction.
+        self.replace_func = None
+
 # hooked_function -
 # A helper function for the hook manager.
 def hooked_function(self, orig_func, hooks_name, *args):
-    hook_func_list = getattr(self, hooks_name)
+    hook_info = getattr(self, hooks_name)
 
     notifies = []
     replace_func = None
@@ -98,27 +109,16 @@ def hooked_function(self, orig_func, hooks_name, *args):
     #
     # We only walk through the hook list once, and process the config
     # hooks while we're doing that, and copy any other hooks needed.
-    for hook_type,hook_func in hook_func_list:
-        if hook_type == HOOK_ARGS:
-            # The arg list may be completely transformed,
-            # and multiple hooks may do this.
-            args = hook_func(self, args)
-        elif hook_type == HOOK_NOTIFY:
-            notifies.append(hook_func)
-        elif hook_type == HOOK_REPLACE:
-            replace_func = hook_func
-    if replace_func == None:
-        if self == wiredtiger:
-            ret = orig_func(*args)
-        else:
-            ret = orig_func(self, *args)
+    for hook_func in hook_info.arg_funcs:
+        args = hook_func(self, args)
+    call_func = hook_info.replace_func
+    if call_func == None:
+        call_func = orig_func
+    if self == wiredtiger:
+        ret = call_func(*args)
     else:
-        if self == wiredtiger:
-            ret = replace_func(*args)
-        else:
-            ret = replace_func(self, *args)
-
-    for hook_func in notifies:
+        ret = call_func(self, *args)
+    for hook_func in hook_info.notify_funcs:
         hook_func(ret, self, *args)
     return ret
 
@@ -169,17 +169,19 @@ class WiredTigerHookManager(object):
 
         # We need to set up some extra attributes on the Connection class.
         # Given that the method name is XXXX, and class is Connection, here's what we're doing:
+        #    orig = wiredtiger.Connection.XXXX
         #    wiredtiger.Connection._XXXX_hooks = []
         #    wiredtiger.Connection._XXXX_orig = wiredtiger.Connection.XXXX
-        #    wiredtiger.Connection.XXXX = lambda self, *args: hooked_function(self, 'XXXX', *args)
+        #    wiredtiger.Connection.XXXX = lambda self, *args:
+        #              hooked_function(self, orig, '_XXXX_hooks', *args)
         hooks_name = '_' + method_name + '_hooks'
         orig_name = '_' + method_name + '_orig'
         if not hasattr(clazz, hooks_name):
             #tty('Setting up hook on ' + str(clazz) + '.' + method_name)
-            setattr(clazz, hooks_name, [])
             orig_func = getattr(clazz, method_name)
             if orig_func == None:
                 raise Exception('method ' + method_name + ' hook setup: method does not exist')
+            setattr(clazz, hooks_name, WiredTigerHooksInfo())
 
             # If we're using the wiredtiger module and not a class, we need a slightly different
             # style of hooked_function, since there is no self.  What would be the "self" argument
@@ -193,15 +195,16 @@ class WiredTigerHookManager(object):
 
         # Now add to the list of hook functions
         # If it's a replace hook, we only allow one of them for a given method name
-        hooks_list = getattr(clazz, hooks_name)
-        if hook_type == HOOK_REPLACE:
-            for ht, hf in hooks_list:
-                if ht == HOOK_REPLACE:
-                    raise Exception('method ' + method_name + ' hook setup: trying to replace the same method with two hooks')
-        elif hook_type != HOOK_NOTIFY and hook_type != HOOK_ARGS:
-            raise Exception('method ' + method_name + ' hook setup: unknown hook_type: ' + str(hook_type))
-        hooks_list.append([hook_type, hook_func])
-        setattr(clazz, hooks_name, hooks_list)
+        hooks_info = getattr(clazz, hooks_name)
+        if hook_type == HOOK_ARGS:
+            hooks_info.arg_funcs.append(hook_func)
+        elif hook_type == HOOK_NOTIFY:
+            hooks_info.notify_funcs.append(hook_func)
+        elif hook_type == HOOK_REPLACE:
+            if hooks_info.replace_func == None:
+                hooks_info.replace_func = hook_func
+            else:
+                raise Exception('method ' + method_name + ' hook setup: trying to replace the same method with two hooks')
         #tty('Setting up hooks list in ' + str(clazz) + '.' + hooks_name)
 
     def get_function(self, clazz, method_name):
@@ -236,7 +239,7 @@ class HookCreatorProxy(object):
         self.hookmgr.add_hook(self.clazz, name, hooktype, fcn)
 
 # Hooks must derive from this class
-class WiredTigerHookCreator(metaclass = abc.ABCMeta):
+class WiredTigerHookCreator(ABC):
     # This is called right after creation and should not be overridden.
     def _initialize(self, name, hookmgr):
         self.name = name
@@ -250,7 +253,7 @@ class WiredTigerHookCreator(metaclass = abc.ABCMeta):
     def filter_tests(self, tests):
         return tests
 
-    @abc.abstractmethod
+    @abstractmethod
     def setup_hooks(self):
         """Set up all hooks using add_*_hook methods."""
         return
