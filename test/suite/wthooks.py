@@ -86,7 +86,7 @@ def tty(message):
 
 # For every API function altered, there is one of these objects
 # stashed in the <class>._<api_name>_hooks attribute.
-class WiredTigerHooksInfo(object):
+class WiredTigerHookInfo(object):
     def __init__(self):
         self.arg_funcs = []     # The set of hook functions for manipulating arguments
         self.notify_funcs = []    # The set of hook functions for manipulating arguments
@@ -96,8 +96,8 @@ class WiredTigerHooksInfo(object):
 
 # hooked_function -
 # A helper function for the hook manager.
-def hooked_function(self, orig_func, hooks_name, *args):
-    hook_info = getattr(self, hooks_name)
+def hooked_function(self, orig_func, hook_info_name, *args):
+    hook_info = getattr(self, hook_info_name)
 
     notifies = []
     replace_func = None
@@ -170,42 +170,42 @@ class WiredTigerHookManager(object):
         # We need to set up some extra attributes on the Connection class.
         # Given that the method name is XXXX, and class is Connection, here's what we're doing:
         #    orig = wiredtiger.Connection.XXXX
-        #    wiredtiger.Connection._XXXX_hooks = []
+        #    wiredtiger.Connection._XXXX_hooks = WiredTigerHookInfo()
         #    wiredtiger.Connection._XXXX_orig = wiredtiger.Connection.XXXX
         #    wiredtiger.Connection.XXXX = lambda self, *args:
         #              hooked_function(self, orig, '_XXXX_hooks', *args)
-        hooks_name = '_' + method_name + '_hooks'
+        hook_info_name = '_' + method_name + '_hooks'
         orig_name = '_' + method_name + '_orig'
-        if not hasattr(clazz, hooks_name):
+        if not hasattr(clazz, hook_info_name):
             #tty('Setting up hook on ' + str(clazz) + '.' + method_name)
             orig_func = getattr(clazz, method_name)
             if orig_func == None:
                 raise Exception('method ' + method_name + ' hook setup: method does not exist')
-            setattr(clazz, hooks_name, WiredTigerHooksInfo())
+            setattr(clazz, hook_info_name, WiredTigerHookInfo())
 
             # If we're using the wiredtiger module and not a class, we need a slightly different
             # style of hooked_function, since there is no self.  What would be the "self" argument
             # is in fact the class.
             if clazz == wiredtiger:
-                f = lambda *args: hooked_function(wiredtiger, orig_func, hooks_name, *args)
+                f = lambda *args: hooked_function(wiredtiger, orig_func, hook_info_name, *args)
             else:
-                f = lambda self, *args: hooked_function(self, orig_func, hooks_name, *args)
+                f = lambda self, *args: hooked_function(self, orig_func, hook_info_name, *args)
             setattr(clazz, method_name, f)
             setattr(clazz, orig_name, orig_func)
 
         # Now add to the list of hook functions
         # If it's a replace hook, we only allow one of them for a given method name
-        hooks_info = getattr(clazz, hooks_name)
+        hook_info = getattr(clazz, hook_info_name)
         if hook_type == HOOK_ARGS:
-            hooks_info.arg_funcs.append(hook_func)
+            hook_info.arg_funcs.append(hook_func)
         elif hook_type == HOOK_NOTIFY:
-            hooks_info.notify_funcs.append(hook_func)
+            hook_info.notify_funcs.append(hook_func)
         elif hook_type == HOOK_REPLACE:
-            if hooks_info.replace_func == None:
-                hooks_info.replace_func = hook_func
+            if hook_info.replace_func == None:
+                hook_info.replace_func = hook_func
             else:
                 raise Exception('method ' + method_name + ' hook setup: trying to replace the same method with two hooks')
-        #tty('Setting up hooks list in ' + str(clazz) + '.' + hooks_name)
+        #tty('Setting up hooks list in ' + str(clazz) + '.' + hook_info_name)
 
     def get_function(self, clazz, method_name):
         orig_name = '_' + method_name + '_orig'
