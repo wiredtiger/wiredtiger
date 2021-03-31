@@ -130,11 +130,6 @@ class thread_context {
         }
     }
 
-    /*
-     * Commit the current transaction if:
-     * - It has not been committed yet and the thread has stopped working
-     * - The number of operations per transaction is over the limit
-     */
     void
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
