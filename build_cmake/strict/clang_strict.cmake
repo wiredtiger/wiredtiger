@@ -46,5 +46,5 @@ if(WT_DARWIN AND (CMAKE_C_COMPILER_VERSION VERSION_EQUAL 4.1))
     string(APPEND clang_base_c_flags " -Wno-unused-command-line-argument")
 endif()
 
-# Set our base clang flags to ensure it propogates to the rest of our build
+# Set our base clang flags to ensure it propogates to the rest of our build.
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${clang_base_c_flags}" CACHE STRING "" FORCE)
