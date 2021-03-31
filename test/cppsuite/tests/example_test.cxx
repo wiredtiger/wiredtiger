@@ -27,8 +27,6 @@
  */
 
 #include "test_harness/test.h"
-#include "test_harness/database_operation.h"
-#include "test_harness/thread_context.h"
 
 /*
  * Class that defines operations that do nothing as an example.

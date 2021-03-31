@@ -149,8 +149,6 @@ class thread_context {
     void
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
-        /* A transaction cannot be committed if the timestamp manager is not enabled. */
-        testutil_assert(_timestamp_manager->is_enabled());
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
         testutil_check(

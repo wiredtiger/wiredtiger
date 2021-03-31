@@ -121,12 +121,8 @@ class test {
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
-        if (!_initialized)
-            /*
-             * Use the default implementation of the database operations if init() has not been
-             * explicitly called before.
-             */
-            init(new database_operation());
+        /* The test cannot run if not initialized. */
+        testutil_assert(_initialized);
 
         testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
         db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
