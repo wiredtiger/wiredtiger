@@ -42,6 +42,9 @@ struct key_t {
     bool exists;
 };
 
+/* Iterator type used to iterate over keys that are stored in the data model. */
+typedef std::map<test_harness::key_value_t, test_harness::key_t>::const_iterator keys_iterator_t;
+
 /* Representation of a value. */
 struct value_t {
     key_value_t value;
@@ -56,19 +59,16 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
-    const std::vector<key_value_t>
-    get_collection_keys(const std::string &collection_name) const
+    const keys_iterator_t
+    get_collection_keys_begin(const std::string &collection_name) const
     {
-        std::vector<key_value_t> keys;
+        return (collections.at(collection_name).keys.begin());
+    }
 
-        if (collections.count(collection_name) > 0) {
-            for (auto const &it : collections.at(collection_name).keys) {
-                if (it.second.exists)
-                    keys.push_back(it.first);
-            }
-        }
-
-        return (keys);
+    const keys_iterator_t
+    get_collection_keys_end(const std::string &collection_name) const
+    {
+        return (collections.at(collection_name).keys.end());
     }
 
     const std::vector<std::string>

@@ -69,10 +69,16 @@ class thread_context {
         return (_database.get_collection_names());
     }
 
-    const std::vector<key_value_t>
-    get_collection_keys(const std::string &collection_name) const
+    const keys_iterator_t
+    get_collection_keys_begin(const std::string &collection_name) const
     {
-        return (_database.get_collection_keys(collection_name));
+        return (_database.get_collection_keys_begin(collection_name));
+    }
+
+    const keys_iterator_t
+    get_collection_keys_end(const std::string &collection_name) const
+    {
+        return (_database.get_collection_keys_end(collection_name));
     }
 
     thread_operation
@@ -99,6 +105,12 @@ class thread_context {
         return (_running);
     }
 
+    bool
+    is_in_transaction() const
+    {
+        return (_in_txn);
+    }
+
     void
     set_running(bool running)
     {
@@ -118,12 +130,16 @@ class thread_context {
         }
     }
 
-    /* Returns true if the current transaction has been committed. */
-    bool
+    /*
+     * Commit the current transaction if:
+     * - It has not been committed yet and the thread has stopped working
+     * - The number of operations per transaction is over the limit
+     */
+    void
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
         if (!_timestamp_manager->is_enabled())
-            return (true);
+            return;
 
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
@@ -138,8 +154,6 @@ class thread_context {
               session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
             _in_txn = false;
         }
-
-        return (!_in_txn);
     }
 
     /*

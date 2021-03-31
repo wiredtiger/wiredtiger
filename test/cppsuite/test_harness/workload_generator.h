@@ -239,9 +239,7 @@ class workload_generator : public component {
         std::vector<WT_CURSOR *> cursors;
         std::string collection_name;
         std::vector<std::string> collection_names = context.get_collection_names();
-        std::map<std::string, std::vector<key_value_t>> collection_keys;
         key_value_t generated_value, key;
-        bool has_committed = true;
         int64_t cpt, value_size = context.get_value_size();
 
         testutil_assert(session != nullptr);
@@ -249,7 +247,6 @@ class workload_generator : public component {
         for (const auto &it : collection_names) {
             testutil_check(session->open_cursor(session, it.c_str(), NULL, NULL, &cursor));
             cursors.push_back(cursor);
-            collection_keys[it] = context.get_collection_keys(it);
         }
 
         cpt = 0;
@@ -257,16 +254,20 @@ class workload_generator : public component {
         for (const auto &it : cursors) {
             collection_name = collection_names[cpt];
             /* Walk each key. */
-            for (auto const &key : collection_keys.at(collection_name)) {
-                if (has_committed) {
+            for (keys_iterator_t iter_key = context.get_collection_keys_begin(collection_name);
+                 iter_key != context.get_collection_keys_end(collection_name); ++iter_key) {
+                /* Do not process removed keys. */
+                if (!iter_key->second.exists)
+                    continue;
+                if (!context.is_in_transaction()) {
                     context.begin_transaction(session, "");
                     ts = context.set_commit_timestamp(session);
                 }
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
-                testutil_check(update(context.get_tracking(), it, collection_name, key.c_str(),
-                  generated_value.c_str(), ts));
-                has_committed = context.commit_transaction(session, "");
+                testutil_check(update(context.get_tracking(), it, collection_name,
+                  iter_key->first.c_str(), generated_value.c_str(), ts));
+                context.commit_transaction(session, "");
             }
             ++cpt;
         }
@@ -279,7 +280,7 @@ class workload_generator : public component {
             std::this_thread::sleep_for(std::chrono::seconds(1));
 
         /* Make sure the last operation is committed now the work is finished. */
-        if (!has_committed)
+        if (context.is_in_transaction())
             context.commit_transaction(session, "");
     }
 
