@@ -52,7 +52,6 @@ class database_operation {
     populate(database &database, timestamp_manager *_timestamp_manager, configuration *_config,
       workload_tracking *tracking)
     {
-        std::cout << "Inside populate here" << std::endl;
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t ts;
@@ -126,7 +125,6 @@ class database_operation {
     virtual void
     read_operation(thread_context &context, WT_SESSION *session)
     {
-        std::cout << "Inside read_operation here" << std::endl;
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
 
@@ -152,7 +150,6 @@ class database_operation {
     virtual void
     update_operation(thread_context &context, WT_SESSION *session)
     {
-        std::cout << "Inside update_operation here" << std::endl;
         WT_CURSOR *cursor;
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
@@ -178,6 +175,8 @@ class database_operation {
                 /* Do not process removed keys. */
                 if (!iter_key->second.exists)
                     continue;
+
+                /* Start a transaction if possible. */
                 if (!context.is_in_transaction()) {
                     context.begin_transaction(session, "");
                     ts = context.set_commit_timestamp(session);
@@ -186,7 +185,11 @@ class database_operation {
                   random_generator::random_generator::instance().generate_string(value_size);
                 testutil_check(update(context.get_tracking(), it, collection_name,
                   iter_key->first.c_str(), generated_value.c_str(), ts));
-                context.commit_transaction(session, "");
+
+                /* Commit the current transaction if possible. */
+                context.increment_operation_count();
+                if (context.can_commit_transaction())
+                    context.commit_transaction(session, "");
             }
             ++cpt;
         }

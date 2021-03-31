@@ -55,7 +55,7 @@ namespace test_harness {
 class test {
     public:
     test(const std::string &config, const std::string &name)
-        : _is_init(false), _runtime_monitor(nullptr), _thread_manager(nullptr),
+        : _initialized(false), _runtime_monitor(nullptr), _thread_manager(nullptr),
           _timestamp_manager(nullptr), _workload_generator(nullptr), _workload_tracking(nullptr)
     {
         _configuration = new configuration(name, config);
@@ -65,7 +65,7 @@ class test {
     void
     init(database_operation *db_operation)
     {
-        testutil_assert(!_is_init);
+        testutil_assert(!_initialized);
         testutil_assert(_configuration != nullptr);
         testutil_assert(db_operation != nullptr);
         _runtime_monitor = new runtime_monitor(_configuration->get_subconfig(RUNTIME_MONITOR));
@@ -84,7 +84,7 @@ class test {
          */
         _components = {
           _workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor};
-        _is_init = true;
+        _initialized = true;
     }
 
     ~test()
@@ -121,7 +121,7 @@ class test {
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
-        if (!_is_init)
+        if (!_initialized)
             /*
              * Use the default implementation of the database operations if init() has not been
              * explicitly called before.
@@ -197,7 +197,7 @@ class test {
     std::string _name;
     std::vector<component *> _components;
     configuration *_configuration;
-    bool _is_init;
+    bool _initialized;
     runtime_monitor *_runtime_monitor;
     thread_manager *_thread_manager;
     timestamp_manager *_timestamp_manager;

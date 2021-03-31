@@ -55,7 +55,6 @@ class workload_generator : public component {
     {
         for (auto &it : _workers)
             delete it;
-        delete _database_operation;
     }
 
     /* Delete the copy constructor and the assignment operator. */

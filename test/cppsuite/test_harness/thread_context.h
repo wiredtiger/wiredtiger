@@ -130,25 +130,38 @@ class thread_context {
         }
     }
 
+    /*
+     * The current transaction can be committed if:
+     *  - The timestamp manager is enabled and
+     *  - A transaction has started and
+     *      - The thread is done working. This is useful when the test is ended and the thread has
+     * not reached the maximum number of operations per transaction or
+     *      - The number of operations executed in the current transaction has exceeded the
+     * threshold.
+     */
+    bool
+    can_commit_transaction() const
+    {
+        return (_timestamp_manager->is_enabled() && _in_txn &&
+          (!_running || (_current_op_count > _max_op_count)));
+    }
+
     void
     commit_transaction(WT_SESSION *session, const std::string &config)
     {
-        if (!_timestamp_manager->is_enabled())
-            return;
-
+        /* A transaction cannot be committed if the timestamp manager is not enabled. */
+        testutil_assert(_timestamp_manager->is_enabled());
         /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
-        /* The current transaction should be committed if:
-         *  - The thread is done working. This is useful when the test is ended and the thread has
-         * not reached the maximum number of operations per transaction.
-         *  - The number of operations executed in the current transaction has exceeded the
-         * threshold.
-         */
-        if (!_running || (++_current_op_count > _max_op_count)) {
-            testutil_check(
-              session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
-            _in_txn = false;
-        }
+        testutil_check(
+          session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
+        _in_txn = false;
+    }
+
+    void
+    increment_operation_count(uint64_t inc = 1)
+    {
+        _current_op_count += inc;
     }
 
     /*

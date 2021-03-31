@@ -32,6 +32,7 @@
 
 /*
  * Class that defines operations that do nothing as an example.
+ * This shows how database operations can be overriden and customized.
  */
 class obsolete_operation : public test_harness::database_operation {
     public:
@@ -63,5 +64,6 @@ class example_test : public test_harness::test {
         obsolete_operation *db_operation = new obsolete_operation();
         init(db_operation);
         test::run();
+        delete db_operation;
     }
 };
