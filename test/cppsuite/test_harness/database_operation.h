@@ -135,7 +135,7 @@ class database_operation {
             cursors.push_back(cursor);
         }
 
-        while (context.is_running()) {
+        while (!cursors.empty() && context.is_running()) {
             /* Walk each cursor. */
             for (const auto &it : cursors) {
                 if (it->next(it) != 0)

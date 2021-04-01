@@ -31,13 +31,4 @@
 class poc_test : public test_harness::test {
     public:
     poc_test(const std::string &config, const std::string &name) : test(config, name) {}
-
-    void
-    run()
-    {
-        test_harness::database_operation *db_operation = new test_harness::database_operation();
-        init(db_operation);
-        test::run();
-        delete db_operation;
-    }
 };

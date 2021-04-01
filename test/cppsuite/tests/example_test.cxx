@@ -32,8 +32,10 @@
  * Class that defines operations that do nothing as an example.
  * This shows how database operations can be overriden and customized.
  */
-class obsolete_operation : public test_harness::database_operation {
+class example_test : public test_harness::test {
     public:
+    example_test(const std::string &config, const std::string &name) : test(config, name) {}
+
     virtual void
     populate(test_harness::database &database, test_harness::timestamp_manager *_timestamp_manager,
       test_harness::configuration *_config, test_harness::workload_tracking *tracking)
@@ -49,19 +51,5 @@ class obsolete_operation : public test_harness::database_operation {
     update_operation(test_harness::thread_context &context, WT_SESSION *session)
     {
         std::cout << "update_operation: nothing done." << std::endl;
-    }
-};
-
-class example_test : public test_harness::test {
-    public:
-    example_test(const std::string &config, const std::string &name) : test(config, name) {}
-
-    void
-    run()
-    {
-        obsolete_operation *db_operation = new obsolete_operation();
-        init(db_operation);
-        test::run();
-        delete db_operation;
     }
 };

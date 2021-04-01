@@ -52,22 +52,13 @@ namespace test_harness {
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
-class test {
+class test : public database_operation {
     public:
     test(const std::string &config, const std::string &name)
-        : _initialized(false), _runtime_monitor(nullptr), _thread_manager(nullptr),
-          _timestamp_manager(nullptr), _workload_generator(nullptr), _workload_tracking(nullptr)
+        : _runtime_monitor(nullptr), _thread_manager(nullptr), _timestamp_manager(nullptr),
+          _workload_generator(nullptr), _workload_tracking(nullptr)
     {
         _configuration = new configuration(name, config);
-    }
-
-    /* Initialize each component. */
-    void
-    init(database_operation *db_operation)
-    {
-        testutil_assert(!_initialized);
-        testutil_assert(_configuration != nullptr);
-        testutil_assert(db_operation != nullptr);
         _runtime_monitor = new runtime_monitor(_configuration->get_subconfig(RUNTIME_MONITOR));
         _timestamp_manager =
           new timestamp_manager(_configuration->get_subconfig(TIMESTAMP_MANAGER));
@@ -75,7 +66,7 @@ class test {
           OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
           TABLE_SCHEMA_TRACKING);
         _workload_generator =
-          new workload_generator(_configuration->get_subconfig(WORKLOAD_GENERATOR), db_operation,
+          new workload_generator(_configuration->get_subconfig(WORKLOAD_GENERATOR), this,
             _timestamp_manager, _workload_tracking);
         _thread_manager = new thread_manager();
         /*
@@ -84,7 +75,6 @@ class test {
          */
         _components = {
           _workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor};
-        _initialized = true;
     }
 
     ~test()
@@ -120,9 +110,6 @@ class test {
 
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
-
-        /* The test cannot run if not initialized. */
-        testutil_assert(_initialized);
 
         testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
         db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
@@ -193,7 +180,6 @@ class test {
     std::string _name;
     std::vector<component *> _components;
     configuration *_configuration;
-    bool _initialized;
     runtime_monitor *_runtime_monitor;
     thread_manager *_thread_manager;
     timestamp_manager *_timestamp_manager;
