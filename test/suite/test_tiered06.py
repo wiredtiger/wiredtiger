@@ -65,7 +65,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         os.mkdir("objects")
         location = local.ss_location_handle(session,
-            'cluster="cluster1",bucket="./objects",auth_token="Secret"')
+            'hostid="host1",bucket="./objects",auth_token="Secret"')
 
         # The object doesn't exist yet.
         self.assertFalse(local.ss_exist(session, location, 'foobar'))
@@ -125,7 +125,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         os.mkdir("objects")
         location = local.ss_location_handle(session,
-            'cluster="cluster1",bucket="./objects",auth_token="Secret"')
+            'hostid="host1",bucket="./objects",auth_token="Secret"')
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -190,7 +190,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.assertEquals(got, expect)
 
     def test_local_locations(self):
-        # Test using various buckets, clusters
+        # Test using various buckets, hosts
 
         session = self.session
         local = self.conn.get_storage_source('local_store')
@@ -201,13 +201,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # Any of the activity that happens in the various locations
         # should be independent.
         location1 = local.ss_location_handle(session,
-            'cluster="cluster1",bucket="./objects1",auth_token="k1"')
+            'hostid="host1",bucket="./objects1",auth_token="k1"')
         location2 = local.ss_location_handle(session,
-            'cluster="cluster1",bucket="./objects2",auth_token="k2"')
+            'hostid="host1",bucket="./objects2",auth_token="k2"')
         location3 = local.ss_location_handle(session,
-            'cluster="cluster2",bucket="./objects1",auth_token="k3"')
+            'hostid="host2",bucket="./objects1",auth_token="k3"')
         location4 = local.ss_location_handle(session,
-            'cluster="cluster2",bucket="./objects2",auth_token="k4"')
+            'hostid="host2",bucket="./objects2",auth_token="k4"')
 
         # Create files in the locations with some name overlap
         self.create_in_loc(location1, 'alpaca')

@@ -122,9 +122,9 @@ typedef struct local_file_handle {
 typedef struct local_location {
     WT_LOCATION_HANDLE iface; /* Must come first */
 
-    char *cluster_prefix; /* Cluster prefix */
-    char *auth_token;     /* Identifier for key management system */
-    char *bucket;         /* Actually a directory path for local implementation */
+    char *uniqueid_prefix; /* Unique id prefix */
+    char *auth_token;      /* Identifier for key management system */
+    char *bucket;          /* Actually a directory path for local implementation */
 } LOCAL_LOCATION;
 
 /*
@@ -358,7 +358,7 @@ local_flush_free(LOCAL_FLUSH_ITEM *flush)
  */
 static int
 local_location_decode(LOCAL_STORAGE *local, WT_LOCATION_HANDLE *location_handle, char **bucket_name,
-  char **cluster_prefix, char **auth_token)
+  char **uniqueid_prefix, char **auth_token)
 {
     LOCAL_LOCATION *location;
     char *p;
@@ -370,10 +370,10 @@ local_location_decode(LOCAL_STORAGE *local, WT_LOCATION_HANDLE *location_handle,
             return (local_err(local, NULL, ENOMEM, "local_location_decode"));
         *bucket_name = p;
     }
-    if (cluster_prefix != NULL) {
-        if ((p = strdup(location->cluster_prefix)) == NULL)
+    if (uniqueid_prefix != NULL) {
+        if ((p = strdup(location->uniqueid_prefix)) == NULL)
             return (local_err(local, NULL, ENOMEM, "local_location_decode"));
-        *cluster_prefix = p;
+        *uniqueid_prefix = p;
     }
     if (auth_token != NULL) {
         if ((p = strdup(location->auth_token)) == NULL)
@@ -403,11 +403,11 @@ local_location_path(LOCAL_STORAGE *local, WT_LOCATION_HANDLE *location_handle, c
     /* If this is a marker file, it will be hidden from all namespaces. */
     if (marker == NULL)
         marker = "";
-    len = strlen(location->bucket) + strlen(marker) + strlen(location->cluster_prefix) +
+    len = strlen(location->bucket) + strlen(marker) + strlen(location->uniqueid_prefix) +
       strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (local_err(local, NULL, ENOMEM, "local_location_path"));
-    snprintf(p, len, "%s/%s%s%s", location->bucket, marker, location->cluster_prefix, name);
+    snprintf(p, len, "%s/%s%s%s", location->bucket, marker, location->uniqueid_prefix, name);
     *pathp = p;
     return (ret);
 }
@@ -496,7 +496,7 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
             /*
              * We must match against the bucket and the name if given.
              * Our match string is of the form:
-             *   <bucket_name>/<cluster_prefix><name>
+             *   <bucket_name>/<uniqueid_prefix><name>
              *
              * If name is given, we must match the entire path.
              * If name is not given, we must match up to the beginning
@@ -607,13 +607,13 @@ local_location_handle(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     if ((ret = local_config_dup(local, session, &value, NULL, NULL, &location->bucket)) != 0)
         goto err;
 
-    if ((ret = parser->get(parser, "cluster", &value)) != 0) {
+    if ((ret = parser->get(parser, "hostid", &value)) != 0) {
         if (ret == WT_NOTFOUND)
-            ret =
-              local_err(local, session, EINVAL, "ss_location_handle: missing cluster parameter");
+            ret = local_err(local, session, EINVAL, "ss_location_handle: missing hostid parameter");
         goto err;
     }
-    if ((ret = local_config_dup(local, session, &value, "_", "_/", &location->cluster_prefix)) != 0)
+    if ((ret = local_config_dup(local, session, &value, "_", "_/", &location->uniqueid_prefix)) !=
+      0)
         goto err;
 
     if ((ret = parser->get(parser, "auth_token", &value)) != 0) {
@@ -625,9 +625,8 @@ local_location_handle(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
     if ((ret = local_config_dup(local, session, &value, NULL, NULL, &location->auth_token)) != 0)
         goto err;
 
-    VERBOSE(local, "Location: (bucket=%s,cluster=%s,auth_token=%s)\n",
-      SHOW_STRING(location->bucket), SHOW_STRING(location->cluster_prefix),
-      SHOW_STRING(location->auth_token));
+    VERBOSE(local, "Location: (bucket=%s,hostid=%s,auth_token=%s)\n", SHOW_STRING(location->bucket),
+      SHOW_STRING(location->uniqueid_prefix), SHOW_STRING(location->auth_token));
 
     location->iface.close = local_location_handle_close;
     *location_handlep = &location->iface;
@@ -658,7 +657,7 @@ local_location_handle_close(WT_LOCATION_HANDLE *location_handle, WT_SESSION *ses
     location = (LOCAL_LOCATION *)location_handle;
     free(location->auth_token);
     free(location->bucket);
-    free(location->cluster_prefix);
+    free(location->uniqueid_prefix);
     free(location);
     return (0);
 }
@@ -709,7 +708,7 @@ local_location_list_internal(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sess
     DIR *dirp;
     LOCAL_LOCATION *location;
     LOCAL_STORAGE *local;
-    size_t alloc_sz, cluster_len, marker_len, prefix_len;
+    size_t alloc_sz, uniqueid_len, marker_len, prefix_len;
     uint32_t allocated, count;
     int ret, t_ret;
     char **entries, **new_entries;
@@ -719,7 +718,7 @@ local_location_list_internal(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sess
     location = (LOCAL_LOCATION *)location_handle;
     entries = NULL;
     allocated = count = 0;
-    cluster_len = strlen(location->cluster_prefix);
+    uniqueid_len = strlen(location->uniqueid_prefix);
     marker_len = (marker == NULL ? 0 : strlen(marker));
     prefix_len = (prefix == NULL ? 0 : strlen(prefix));
     ret = 0;
@@ -751,11 +750,11 @@ local_location_list_internal(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sess
             basename += marker_len;
         }
 
-        /* Skip files not associated with our cluster. */
-        if (strncmp(basename, location->cluster_prefix, cluster_len) != 0)
+        /* Skip files not associated with our hostid. */
+        if (strncmp(basename, location->uniqueid_prefix, uniqueid_len) != 0)
             continue;
 
-        basename += cluster_len;
+        basename += uniqueid_len;
         /* The list of files is optionally filtered by a prefix. */
         if (prefix != NULL && strncmp(basename, prefix, prefix_len) != 0)
             continue;
