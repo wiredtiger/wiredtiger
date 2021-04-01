@@ -219,6 +219,7 @@ connection_stats = [
     BlockStat('block_cache_bytes_insert_read', 'block cache total bytes inserted on read path'),
     BlockStat('block_cache_bytes_insert_write', 'block cache total bytes inserted on write path'),
     BlockStat('block_cache_data_refs', 'block cache lookups'),
+    BlockStat('block_cache_eviction_passes', 'block cache number of eviction passes'),
     BlockStat('block_cache_hits', 'block cache number of hits including existence checks'),
     BlockStat('block_cache_misses', 'block cache number of misses including existence checks'),
     BlockStat('block_cache_not_evicted_overhead', 'block cache number of blocks not evicted due to overhead'),

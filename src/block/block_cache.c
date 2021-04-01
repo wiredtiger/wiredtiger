@@ -218,6 +218,7 @@ __blkcache_eviction_thread(void *arg)
 	    if (blkcache->blkcache_exiting)
 		return (0);
 	}
+	WT_STAT_CONN_INCR(session, block_cache_eviction_passes);
     }
     return (0);
 }
