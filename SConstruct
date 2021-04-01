@@ -211,6 +211,8 @@ replacements = {
     '@uintptr_t_decl@': "",
     '@off_t_decl@' : 'typedef int64_t wt_off_t;',
     '@HAVE_SYS_TYPES_H_DECL@' : '#include <sys/types.h>',
+    # We generally omit <inttypes.h> on Windows due to incomplete C99 support on some
+    # older versions of Visual Studio.
     '@HAVE_INTTYPES_H_DECL@': "",
     '@HAVE_STDARG_H_DECL@' : '#include <stdarg.h>',
     '@HAVE_STDBOOL_H_DECL@' : '#include <stdbool.h>',
