@@ -40,7 +40,7 @@
 #  - notify on session.open_cursor
 #  - intercept the session.create call
 #
-#   With N == 0, the session.create call merely reports its arguments;
+#   With N == 0, the session.create call reports its arguments and calls original session.create.
 #   with N == 1, it does an additional session.drop call (which should cause tests to fail);
 #   with N == 2, it does an additional session.create after the drop call (which should work).
 #
