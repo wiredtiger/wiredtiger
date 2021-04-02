@@ -124,12 +124,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local = self.get_local_storage_source()
 
         os.mkdir("objects")
-<<<<<<< HEAD
-        location = local.ss_location_handle(session,
-            'hostid="host1",bucket="./objects",auth_token="Secret"')
-=======
         fs = local.ss_customize_file_system(session, "./objects", "cluster1-", "Secret", None)
->>>>>>> develop
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -204,21 +199,10 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         # Any of the activity that happens in the various locations
         # should be independent.
-<<<<<<< HEAD
-        location1 = local.ss_location_handle(session,
-            'hostid="host1",bucket="./objects1",auth_token="k1"')
-        location2 = local.ss_location_handle(session,
-            'hostid="host1",bucket="./objects2",auth_token="k2"')
-        location3 = local.ss_location_handle(session,
-            'hostid="host2",bucket="./objects1",auth_token="k3"')
-        location4 = local.ss_location_handle(session,
-            'hostid="host2",bucket="./objects2",auth_token="k4"')
-=======
         fs1 = local.ss_customize_file_system(session, "./objects1", "cluster1-", "k1", None)
         fs2 = local.ss_customize_file_system(session, "./objects2", "cluster1-", "k2", None)
         fs3 = local.ss_customize_file_system(session, "./objects1", "cluster2-", "k3", None)
         fs4 = local.ss_customize_file_system(session, "./objects2", "cluster2-", "k4", None)
->>>>>>> develop
 
         # Create files in the locations with some name overlap
         self.create_with_fs(fs1, 'alpaca')
