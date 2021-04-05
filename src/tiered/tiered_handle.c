@@ -21,6 +21,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_TIERED *tiered;
+    uint32_t unused;
     u_int i;
     const char **tiered_cfg;
 
@@ -50,14 +51,23 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_calloc_def(session, tiered->ntiers, &tiered->tiers));
 
     __wt_config_subinit(session, &cparser, &tierconf);
+    tiered->flags = 0;
     for (i = 0; i < tiered->ntiers; i++) {
         WT_ERR(__wt_config_next(&cparser, &ckey, &cval));
         WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)ckey.len, ckey.str));
         WT_ERR(__wt_session_get_dhandle(session, (const char *)buf->data, NULL, cfg, 0));
+        if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
+            F_SET(tiered, WT_TIERED_LOCAL);
+        if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED)
+            F_SET(tiered, WT_TIERED_SHARED);
         (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
         /* Load in reverse order (based on LSM logic). */
         tiered->tiers[(tiered->ntiers - 1) - i] = session->dhandle;
         WT_ERR(__wt_session_release_dhandle(session));
+    }
+    if (0) {
+        /* Temp code to keep s_all happy. */
+        FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
     }
 
     if (0) {
