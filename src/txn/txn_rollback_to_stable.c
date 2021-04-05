@@ -378,9 +378,9 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
          * records newer than or equal to the onpage value if eviction runs concurrently with
          * checkpoint. In that case, don't verify the first record.
          *
-         * If we have fixed the out-of-order timestamp, then the newer update which has been
-         * reinserted with the fixed timestamp may have a durable timestamp that is smaller than the
-         * current stop durable timestamp.
+         * If we have fixed the out-of-order timestamp, then the newer update reinserted with an
+         * older timestamp may have a durable timestamp that is smaller than the current stop
+         * durable timestamp.
          */
         WT_ASSERT(session,
           hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
