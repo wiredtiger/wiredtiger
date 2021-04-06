@@ -134,18 +134,18 @@ class test_hs21(wttest.WiredTigerTestCase):
         # After waiting for the sweep server to remove our idle handles, the only open
         # handles that should be the metadata file, history store file and lock file.
         final_numfiles = 3
+        # Open the stats cursor to collect the dhandle sweep status.
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
         while sleep < max:
             # We continue doing checkpoints to ensure we sweep the session cache, allowing
             # idle handles to be removed.
             self.session.checkpoint()
             sleep += 0.5
             time.sleep(0.5)
-            # Open the stats cursor to get the current dhandle sweep status.
-            stat_cursor = self.session.open_cursor('statistics:', None, None)
+            stat_cursor.reset()
             curr_files_open = stat_cursor[stat.conn.file_open][2]
             curr_dhandles_removed = stat_cursor[stat.conn.dh_sweep_remove][2]
             curr_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_close][2]
-            stat_cursor.close()
 
             self.pr("==== loop " + str(sleep))
             self.pr("Number of files open: " + str(curr_files_open))
@@ -157,7 +157,7 @@ class test_hs21(wttest.WiredTigerTestCase):
             if curr_files_open == final_numfiles and curr_dhandle_sweep_closes >= self.numfiles:
                 break
 
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        stat_cursor.reset()
         final_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_close][2]
         stat_cursor.close()
         # We want to assert our active history files have all been closed.
