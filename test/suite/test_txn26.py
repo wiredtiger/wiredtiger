@@ -29,7 +29,7 @@
 import wiredtiger, wttest
 
 # test_txn26.py
-#   Test that commit should fail if commit timestamp is smaller or equal to the active timestamp. Our handling of out of order timestamp relies on this to ensure repeated reads is working as expected.
+#   Test that commit should fail if commit timestamp is smaller or equal to the active timestamp. Our handling of out of order timestamp relies on this to ensure repeated reads are working as expected.
 def timestamp_str(t):
     return '%x' % t
 class test_txn26(wttest.WiredTigerTestCase):

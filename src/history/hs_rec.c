@@ -289,6 +289,15 @@ __wt_hs_insert_updates(
     F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     __wt_update_vector_init(session, &updates);
+    /*
+     * We use another stack to store the out-of-order timestamp updates (including updates without a
+     * timestamp). We walk the update chain from the newest to the oldest. Once an out-of-order
+     * timestamp update is detected, if it has lower timestamp than the head of the stack, it is
+     * pushed to the stack. When we are inserting updates to the history store, we compare the
+     * update's timestamp with the head of the stack. If it is larger than the out-of-order
+     * timestamp, we fix the timestamp by inserting with the out-of-order timestamp. If the update
+     * we are inserting is the head of the stack, we pop it from the stack.
+     */
     __wt_update_vector_init(session, &out_of_order_ts_updates);
 
     if (!btree->hs_entries)
@@ -690,9 +699,10 @@ err:
 
 /*
  * __hs_delete_reinsert_from_pos --
- *     Delete updates in the history store if they are larger or equal to the specified timestamp
- *     and reinsert them with ts-1 timestamp. This function works by looking ahead of the current
- *     cursor position for entries for the same key, removing them.
+ *     Delete updates in the history store if the start timestamp of the update is larger or equal
+ *     to the specified timestamp and optionally reinsert them with ts-1 timestamp. This function
+ *     works by looking ahead of the current cursor position for entries for the same key, removing
+ *     them.
  */
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
@@ -759,6 +769,19 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * 2     foo 3  1       bbb
      * 2     foo 3  2       ccc
      * 2     foo 3  3       ddd
+     *
+     * * Another example, if we're inserting an update at timestamp 0 with value ddd:
+     * btree key ts counter value
+     * 2     foo 5  0       aaa
+     * 2     foo 6  0       bbb
+     * 2     foo 7  0       ccc
+     *
+     * We want to end up with this:
+     * btree key ts counter value
+     * 2     foo 0  0       aaa
+     * 2     foo 0  1       bbb
+     * 2     foo 0  2       ccc
+     * 2     foo 0  3       ddd
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* We shouldn't have crossed the btree and user key search space. */
