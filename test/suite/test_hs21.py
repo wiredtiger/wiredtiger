@@ -147,10 +147,10 @@ class test_hs21(wttest.WiredTigerTestCase):
             curr_dhandles_removed = stat_cursor[stat.conn.dh_sweep_remove][2]
             curr_dhandle_sweep_closes = stat_cursor[stat.conn.dh_sweep_close][2]
 
-            self.pr("==== loop " + str(sleep))
-            self.pr("Number of files open: " + str(curr_files_open))
-            self.pr("Number of connection sweep dhandles closed: " + str(curr_dhandle_sweep_closes))
-            self.pr("Number of connection sweep dhandles removed from hashlist: " + str(curr_dhandles_removed))
+            self.printVerbose(3, "==== loop " + str(sleep))
+            self.printVerbose(3, "Number of files open: " + str(curr_files_open))
+            self.printVerbose(3, "Number of connection sweep dhandles closed: " + str(curr_dhandle_sweep_closes))
+            self.printVerbose(3, "Number of connection sweep dhandles removed from hashlist: " + str(curr_dhandles_removed))
 
             # We've sweeped all the handles we can if we are left with the number of final dhandles
             # that we expect to be always open.
