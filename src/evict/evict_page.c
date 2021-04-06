@@ -576,6 +576,18 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /*
+     * If we trying to evict a dirty page that does not belong to history store(HS) and checkpoint
+     * is processing HS file, then avoid evicting the dirty non-HS page for now if the cache is
+     * already dominated by dirty HS content.
+     *
+     * Evicting a non-HS dirty page can generate even more HS content. As we can not evict HS pages
+     * while checkpoint is operating on the HS file, we can end up in a situation where we exceed
+     * the cache size limits.
+     */
+    if (modified && !WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session) &&
+      conn->txn_global.checkpoint_running_hs)
+        return (__wt_set_return(session, EBUSY));
+    /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store), give up.
      */
