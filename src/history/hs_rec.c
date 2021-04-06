@@ -149,7 +149,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
              */
             if (cmp == 0)
                 WT_ASSERT(session,
-                  __wt_txn_tw_stop_visible_all(session, hs_cbt->upd_value->tw) ||
+                  __wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) ||
                     tw->start_txn == WT_TXN_NONE ||
                     tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
                     tw->start_ts != hs_cbt->upd_value->tw.start_ts);
