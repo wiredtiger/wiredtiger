@@ -53,10 +53,10 @@ class test_hs21(wttest.WiredTigerTestCase):
         # Update a large number of records, we'll hang if the history store table isn't working.
         session = self.session
         cursor = session.open_cursor(uri)
+        session.begin_transaction()
         for i in range(1, nrows + 1):
-            session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+        session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
