@@ -55,18 +55,18 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     for (i = 0; i < tiered->ntiers; i++) {
         WT_ERR(__wt_config_next(&cparser, &ckey, &cval));
         WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)ckey.len, ckey.str));
-	__wt_verbose(session, WT_VERB_TIERED, "Open tiered URI dhandle %s", (char *)buf->data);
+        __wt_verbose(session, WT_VERB_TIERED, "Open tiered URI dhandle %s", (char *)buf->data);
         WT_ERR(__wt_session_get_dhandle(session, (const char *)buf->data, NULL, cfg, 0));
         if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
             F_SET(tiered, WT_TIERED_LOCAL);
         if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED)
             F_SET(tiered, WT_TIERED_SHARED);
         (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
-	/*
-	 * This is the ordered list of tiers in the table. The order would be approximately the
-	 * local file, then the shared tiered objects. There could be other items in there such
-	 * as an archive storage or multiple tiers to search for the data.
-	 */
+        /*
+         * This is the ordered list of tiers in the table. The order would be approximately the
+         * local file, then the shared tiered objects. There could be other items in there such as
+         * an archive storage or multiple tiers to search for the data.
+         */
         tiered->tiers[i] = session->dhandle;
         WT_ERR(__wt_session_release_dhandle(session));
     }
@@ -115,6 +115,38 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
         __wt_free(session, tiered->tiers);
     }
+
+    return (ret);
+}
+
+/*
+ * __wt_tiered_tree_open --
+ *     Open a tiered tree data handle.
+ */
+int
+__wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_DECL_RET;
+
+    WT_UNUSED(session);
+    WT_UNUSED(cfg);
+    WT_UNUSED(ret);
+
+    return (ret);
+}
+
+/*
+ * __wt_tiered_tree_close --
+ *     Close a tiered tree data handle.
+ */
+int
+__wt_tiered_tree_close(WT_SESSION_IMPL *session, WT_TIERED_TREE *tiered_tree)
+{
+    WT_DECL_RET;
+
+    ret = 0;
+    __wt_free(session, tiered_tree->key_format);
+    __wt_free(session, tiered_tree->value_format);
 
     return (ret);
 }

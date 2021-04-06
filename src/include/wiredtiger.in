@@ -1253,31 +1253,23 @@ struct __wt_session {
 	 * size\, that is\, when a Btree page is split\, it will be split into smaller pages\, where
 	 * each page is the specified percentage of the maximum Btree page size., an integer between
 	 * 50 and 100; default \c 90.}
-	 * @config{tiered = (, options only relevant for tiered data sources., a set of related
-	 * configuration options defined below.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;chunk_size, the
-	 * maximum size of the hot chunk of tiered tree.  This limit is soft - it is possible for
-	 * chunks to be temporarily larger than this value., an integer greater than or equal to 1M;
-	 * default \c 1GB.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;tiers, list of data sources to combine
-	 * into a tiered storage structure., a list of strings; default empty.}
-	 * @config{ ),,}
 	 * @config{tiered_storage = (, configure a storage source for this table., a set of related
 	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;auth_token,
 	 * authentication string identifier., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket, The bucket indicating the location for this
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket, the bucket indicating the location for this
 	 * table., a string; default empty.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time
-	 * in seconds to retain data on tiered storage on the local tier for faster read access., an
-	 * integer between 0 and 10000; default \c 300.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name,
-	 * Permitted values are \c "none" or custom storage source name created with
-	 * WT_CONNECTION::add_storage_source.  See @ref custom_storage_sources for more
-	 * information., a string; default \c none.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
-	 * object_target_size, the approximate size of objects before creating them on the tiered
-	 * storage tier., an integer between 100K and 10TB; default \c 10M.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;bucket_prefix, the
+	 * unique bucket prefix for this table., a string; default empty.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;local_retention, time in seconds to retain data on tiered
+	 * storage on the local tier for faster read access., an integer between 0 and 10000;
+	 * default \c 300.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;name, permitted values are \c "none" or
+	 * custom storage source name created with WT_CONNECTION::add_storage_source.  See @ref
+	 * custom_storage_sources for more information., a string; default \c none.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;object_target_size, the approximate size of objects
+	 * before creating them on the tiered storage tier., an integer between 100K and 10TB;
+	 * default \c 10M.}
 	 * @config{ ),,}
 	 * @config{type, set the type of data source used to store a column group\, index or simple
 	 * table.  By default\, a \c "file:" URI is derived from the object name.  The \c type

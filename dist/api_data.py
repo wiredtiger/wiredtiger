@@ -205,18 +205,41 @@ lsm_config = [
     ]),
 ]
 
-tiered_config = common_runtime_config + [
-    Config('tiered', '', r'''
-        options only relevant for tiered data sources''',
+tiered_config = [
+    Config('tiered_storage', '', r'''
+        configure a storage source for this table''',
         type='category', subconfig=[
-        Config('chunk_size', '1GB', r'''
-            the maximum size of the hot chunk of tiered tree.  This
-            limit is soft - it is possible for chunks to be temporarily
-            larger than this value''',
-            min='1M'),
-        Config('tiers', '', r'''
-            list of data sources to combine into a tiered storage structure''', type='list')
-    ]),
+        Config('name', 'none', r'''
+            permitted values are \c "none"
+            or custom storage source name created with
+            WT_CONNECTION::add_storage_source.
+            See @ref custom_storage_sources for more information'''),
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
+        Config('bucket', '', r'''
+            the bucket indicating the location for this table'''),
+        Config('bucket_prefix', '', r'''
+            the unique bucket prefix for this table'''),
+        Config('local_retention', '300', r'''
+            time in seconds to retain data on tiered storage on the local tier
+            for faster read access''',
+            min='0', max='10000'),
+        Config('object_target_size', '10M', r'''
+            the approximate size of objects before creating them on the
+            tiered storage tier''',
+            min='100K', max='10TB'),
+        ]),
+]
+
+tiered_tree_config = [
+    Config('bucket', '', r'''
+        the bucket indicating the location for this table'''),
+    Config('bucket_prefix', '', r'''
+        the unique bucket prefix for this table'''),
+    Config('objects', '', r'''
+        active objects in the shared tier tree'''),
+    Config('old_objects', '', r'''
+        obsolete objects in the shared tier tree'''),
 ]
 
 file_runtime_config = common_runtime_config + [
@@ -258,7 +281,7 @@ file_runtime_config = common_runtime_config + [
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + [
+file_config = format_meta + file_runtime_config + tiered_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first";
         the \c "best" configuration uses a best-fit algorithm,
@@ -413,27 +436,6 @@ file_config = format_meta + file_runtime_config + [
         split into smaller pages, where each page is the specified
         percentage of the maximum Btree page size''',
         min='50', max='100'),
-    Config('tiered_storage', '', r'''
-        configure a storage source for this table''',
-        type='category', subconfig=[
-        Config('name', 'none', r'''
-            Permitted values are \c "none"
-            or custom storage source name created with
-            WT_CONNECTION::add_storage_source.
-            See @ref custom_storage_sources for more information'''),
-        Config('auth_token', '', r'''
-            authentication string identifier'''),
-        Config('bucket', '', r'''
-            The bucket indicating the location for this table'''),
-        Config('local_retention', '300', r'''
-            time in seconds to retain data on tiered storage on the local tier
-            for faster read access''',
-        min='0', max='10000'),
-        Config('object_target_size', '10M', r'''
-            the approximate size of objects before creating them on the
-            tiered storage tier''',
-            min='100K', max='10TB'),
-        ]),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)
@@ -459,7 +461,15 @@ lsm_meta = file_config + lsm_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-tiered_meta = tiered_config
+tiered_meta = tiered_config + [
+    Config('last', '', r'''
+        the last allocated object ID'''),
+    Config('tiers', '', r'''
+        list of data sources to combine into a tiered storage structure''', type='list'),
+]
+
+tier_meta = tiered_tree_config
+object_meta = file_meta
 
 table_only_config = [
     Config('colgroups', '', r'''
@@ -1249,7 +1259,11 @@ methods = {
 
 'lsm.meta' : Method(lsm_meta),
 
+'object.meta' : Method(object_meta),
+
 'table.meta' : Method(table_meta),
+
+'tier.meta' : Method(tier_meta),
 
 'tiered.meta' : Method(tiered_meta),
 
