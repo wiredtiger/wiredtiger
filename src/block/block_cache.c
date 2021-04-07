@@ -320,6 +320,8 @@ __wt_blkcache_get_or_check(
                 memcpy(data_ptr, blkcache_item->data, size);
 
 	    blkcache_item->num_references++;
+	    if (blkcache_item->freq_rec_counter < 0)
+		blkcache_item->freq_rec_counter = 0;
 	    blkcache_item->freq_rec_counter++;
 
 #if BLKCACHE_TRACE == 1
