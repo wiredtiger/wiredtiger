@@ -137,8 +137,10 @@ class test_hs21(wttest.WiredTigerTestCase):
         # Open the stats cursor to collect the dhandle sweep status.
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         while sleep < max:
-            # We continue doing checkpoints to ensure we sweep the session cache, allowing
-            # idle handles to be removed.
+            # We continue doing checkpoints which as a side effect runs the session handle sweep. This encouraging the idle
+            # handles get removed.
+            # Note, though checkpointing blocks sweeping, the checkpoint should be fast and not add too much extra time to the
+            # overall test time.
             self.session.checkpoint()
             sleep += 0.5
             time.sleep(0.5)
