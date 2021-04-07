@@ -142,10 +142,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
               &upd_type_full_diag, existing_val));
             WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
             /*
-             * We shouldn't be inserting the same value again for the key unless it comes from a
-             * different transaction or it is previously deleted by rollback to stable or prepared
-             * rollback. If the updates are from the same transaction, the start timestamp for each
-             * update should be different.
+             *  Same value should not be inserted again unless 1. previous entry is already
+             * deleted(i.e. the stop timestamp is globally visible), 2. from a different
+             * transaction 3. with a different timestamp if from the same transaction.
              */
             if (cmp == 0)
                 WT_ASSERT(session,
