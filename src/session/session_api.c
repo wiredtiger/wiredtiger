@@ -2142,7 +2142,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
      * caller decline this work.
      */
     if (open_metadata) {
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
             WT_TRET(__wt_session_close_internal(session));
             return (ret);
