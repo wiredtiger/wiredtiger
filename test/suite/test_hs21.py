@@ -59,16 +59,17 @@ class test_hs21(wttest.WiredTigerTestCase):
         session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
-    def check(self, check_value, uri, nrows, read_ts):
-        # Validate we read an expected value at a given read timestamp.
-        session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+    def check(self, session, check_value, uri, nrows, read_ts=-1):
+        # Validate we read an expected value (optionally at a given read timestamp).
+        if read_ts != -1:
+            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
             self.assertEqual(v, check_value)
             count += 1
-        session.rollback_transaction()
+        if read_ts != -1:
+            session.rollback_transaction()
         self.assertEqual(count, nrows)
         cursor.close()
 
@@ -112,19 +113,29 @@ class test_hs21(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 
-        # Perform a series of updates over our files to check the history store is
-        # working with old and new timestamps.
+        # Perform a series of updates over our files at timestamp 2. This being data we can later assert
+        # to ensure the history store is working as intended.
         for (_, ds) in active_files:
-            # Load data.
-            self.large_updates(ds.uri, value1, ds, self.nrows // 2 , 1)
-            # Check that all updates are seen.
-            self.check(value1, ds.uri, self.nrows // 2, 1)
+            # Load data at timestamp 2.
+            self.large_updates(ds.uri, value1, ds, self.nrows // 2 , 2)
 
+        # We want to create a long running read transaction in a seperate session which we will persist over the closing and
+        # re-opening of handles. We want to ensure the correct data gets read throughout this time period.
+        session_read = self.conn.open_session()
+        session_read.begin_transaction('read_timestamp=' + timestamp_str(2))
+        # Check our inital set of updates are seen at the read timestamp.
+        for (_, ds) in active_files:
+            # Check that all updates at timestamp 2 are seen.
+            self.check(session_read, value1, ds.uri, self.nrows // 2)
+
+        # Perform a series of updates over over files at a later timestamp. Checking the history store data is consistent
+        # with old and new timestamps.
+        for (_, ds) in active_files:
             # Load more data with a later timestamp.
             self.large_updates(ds.uri, value2, ds, self.nrows, 100)
             # Check that the new updates are only seen after the update timestamp.
-            self.check(value1, ds.uri, self.nrows // 2, 1)
-            self.check(value2, ds.uri, self.nrows, 100)
+            self.check(self.session, value1, ds.uri, self.nrows // 2, 2)
+            self.check(self.session, value2, ds.uri, self.nrows, 100)
 
         # Our sweep scan interval is every 1 second and the amount of idle time needed for a handle to be closed is 3 seconds.
         # It should take roughly 4 seconds for the sweep server to close our file handles. Lets wait at least double
@@ -165,14 +176,20 @@ class test_hs21(wttest.WiredTigerTestCase):
         # We want to assert our active history files have all been closed.
         self.assertGreaterEqual(final_dhandle_sweep_closes, self.numfiles)
 
-        # Perform a series of checks over our files to ensure that any transactions before the
-        # dhandles were closed/sweeped have been written.
+        # Using our long running read transaction, we want to now check the correct data can still be read after the
+        # handles have been closed.
+        for (_, ds) in active_files:
+            # Check that all updates at timestamp 2 are seen.
+            self.check(session_read, value1, ds.uri, self.nrows // 2)
+        session_read.rollback_transaction()
+
+        # Perform a series of checks over our files to ensure that our transactions have been written
+        # before the dhandles were closed/sweeped.
         # Also despite the dhandle is being re-opened, we don't expect the base write generation
         # to have changed since we haven't actually restarted the system.
         for idx, (initial_base_write_gen, ds) in enumerate(active_files):
-            # Check that the transactions have the correct data.
-            self.check(value1, ds.uri, self.nrows // 2, 1)
-            self.check(value2, ds.uri, self.nrows, 100)
+            # Check that the most recent transaction has the correct data.
+            self.check(self.session, value2, ds.uri, self.nrows, 100)
             file_uri = 'file:%s.%d.wt' % (self.file_name, idx)
             # Get the current base_write_gen and ensure it hasn't changed since being
             # closed.
