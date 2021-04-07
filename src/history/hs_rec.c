@@ -292,7 +292,7 @@ __wt_hs_insert_updates(
     /*
      * We use another stack to store the out-of-order timestamp updates (including updates without a
      * timestamp). We walk the update chain from the newest to the oldest. Once an out-of-order
-     * timestamp update is detected, if it has lower timestamp than the head of the stack, it is
+     * timestamp update is detected, and it has a lower timestamp than the head of the stack, it is
      * pushed to the stack. When we are inserting updates to the history store, we compare the
      * update's timestamp with the head of the stack. If it is larger than the out-of-order
      * timestamp, we fix the timestamp by inserting with the out-of-order timestamp. If the update
@@ -669,8 +669,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     uint32_t hs_btree_id;
     bool hs_read_committed;
 
-    /* If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update. */
+    /*
+     * If we will delete all the updates of the key from the history store, we should not reinsert
+     * any update.
+     */
     WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
     hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
@@ -770,7 +772,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * 2     foo 3  2       ccc
      * 2     foo 3  3       ddd
      *
-     * * Another example, if we're inserting an update at timestamp 0 with value ddd:
+     * Another example, if we're inserting an update at timestamp 0 with value ddd:
      * btree key ts counter value
      * 2     foo 5  0       aaa
      * 2     foo 6  0       bbb
@@ -794,8 +796,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         /*
          * If we got here, we've got out-of-order updates in the history store.
          *
-         * Our strategy to rectify this is to remove all records for the same key with a higher or
-         * equal timestamp to the specified timestamp and reinsert them at the smaller timestamp,
+         * Our strategy to rectify this is to remove all records for the same key with a timestamp
+         * higher or equal than the specified timestamp and reinsert them at the smaller timestamp,
          * which is the timestamp of the update we are about to insert to the history store.
          */
         WT_ASSERT(session, hs_ts >= ts);
@@ -831,9 +833,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
             hs_insert_tw.start_txn = hs_cbt->upd_value->tw.start_txn;
 
             /*
-             * We're going to be inserting something immediately after with the smaller timestamp.
-             * Either another moved update OR the update itself that triggered the correction. In
-             * either case, we should preserve the stop transaction id.
+             * We're going to insert something immediately after with the smaller timestamp. Either
+             * another moved update OR the update itself triggered the correction. In either case,
+             * we should preserve the stop transaction id.
              */
             hs_insert_tw.stop_ts = hs_insert_tw.durable_stop_ts = ts - 1;
             hs_insert_tw.stop_txn = hs_cbt->upd_value->tw.stop_txn;
