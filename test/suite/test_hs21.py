@@ -42,7 +42,7 @@ def timestamp_str(t):
 # restarted the system).
 class test_hs21(wttest.WiredTigerTestCase):
     # Configure handle sweeping to occur within a specific amount of time.
-    conn_config = 'file_manager=(close_handle_minimum=0,close_idle_time=3,close_scan_interval=1),' + \
+    conn_config = 'file_manager=(close_handle_minimum=0,close_idle_time=2,close_scan_interval=1),' + \
             'statistics=(all),operation_tracking=(enabled=false)'
     session_config = 'isolation=snapshot'
     file_name = 'test_hs21'
@@ -137,10 +137,10 @@ class test_hs21(wttest.WiredTigerTestCase):
             self.check(self.session, value1, ds.uri, self.nrows // 2, 2)
             self.check(self.session, value2, ds.uri, self.nrows, 100)
 
-        # Our sweep scan interval is every 1 second and the amount of idle time needed for a handle to be closed is 3 seconds.
-        # It should take roughly 4 seconds for the sweep server to close our file handles. Lets wait at least double
+        # Our sweep scan interval is every 1 second and the amount of idle time needed for a handle to be closed is 2 seconds.
+        # It should take roughly 3 seconds for the sweep server to close our file handles. Lets wait at least double
         # that to be safe.
-        max = 8
+        max = 6
         sleep = 0
         # After waiting for the sweep server to remove our idle handles, the only open
         # handles that should be the metadata file, history store file and lock file.
