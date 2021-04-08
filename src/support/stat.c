@@ -1087,7 +1087,11 @@ static const char *const __stats_connection_desc[] = {
   "connection: pthread mutex shared lock read-lock calls",
   "connection: pthread mutex shared lock write-lock calls",
   "connection: total fsync I/Os",
+  "connection: total full updates modify interface",
+  "connection: total full updates standard update",
   "connection: total read I/Os",
+  "connection: total reverse modifies modify interface",
+  "connection: total reverse modifies standard update",
   "connection: total write I/Os",
   "cursor: cached cursor count",
   "cursor: cursor bulk loaded cursor insert calls",
@@ -1603,7 +1607,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rwlock_read = 0;
     stats->rwlock_write = 0;
     stats->fsync_io = 0;
+    /* not clearing full_updates_upd_modify */
+    /* not clearing full_updates_upd_std */
     stats->read_io = 0;
+    /* not clearing rev_modifies_upd_modify */
+    /* not clearing rev_modifies_upd_std */
     stats->write_io = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_insert_bulk = 0;
@@ -2107,7 +2115,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rwlock_read += WT_STAT_READ(from, rwlock_read);
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
     to->fsync_io += WT_STAT_READ(from, fsync_io);
+    to->full_updates_upd_modify += WT_STAT_READ(from, full_updates_upd_modify);
+    to->full_updates_upd_std += WT_STAT_READ(from, full_updates_upd_std);
     to->read_io += WT_STAT_READ(from, read_io);
+    to->rev_modifies_upd_modify += WT_STAT_READ(from, rev_modifies_upd_modify);
+    to->rev_modifies_upd_std += WT_STAT_READ(from, rev_modifies_upd_std);
     to->write_io += WT_STAT_READ(from, write_io);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);

@@ -173,6 +173,10 @@ connection_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
+    ConnStat('rev_modifies_upd_modify', 'total reverse modifies modify interface', 'no_clear'),
+    ConnStat('rev_modifies_upd_std', 'total reverse modifies standard update', 'no_clear'),
+    ConnStat('full_updates_upd_modify', 'total full updates modify interface', 'no_clear'),
+    ConnStat('full_updates_upd_std', 'total full updates standard update', 'no_clear'),
 
     ##########################################
     # Block manager statistics

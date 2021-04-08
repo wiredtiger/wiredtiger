@@ -439,7 +439,11 @@ struct __wt_connection_stats {
     int64_t rwlock_read;
     int64_t rwlock_write;
     int64_t fsync_io;
+    int64_t full_updates_upd_modify;
+    int64_t full_updates_upd_std;
     int64_t read_io;
+    int64_t rev_modifies_upd_modify;
+    int64_t rev_modifies_upd_std;
     int64_t write_io;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
