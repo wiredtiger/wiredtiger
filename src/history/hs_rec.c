@@ -623,7 +623,9 @@ __wt_hs_insert_updates(
              * the RTS.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
-            if (!F_ISSET(upd, WT_UPDATE_DS) && upd->type == WT_UPDATE_MODIFY &&
+            if (!F_ISSET(upd, WT_UPDATE_DS) &&
+            //   (upd->type == WT_UPDATE_MODIFY || upd->type == WT_UPDATE_STANDARD) &&
+              (upd->type == WT_UPDATE_MODIFY) &&
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
@@ -631,9 +633,20 @@ __wt_hs_insert_updates(
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-            } else
+                // Reverse modifies stat
+                if (upd->type == WT_UPDATE_MODIFY)
+                    WT_STAT_CONN_INCR(session, rev_modifies_upd_modify);
+                else
+                    WT_STAT_CONN_INCR(session, rev_modifies_upd_std);
+            } else {
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+                // Full update stat
+                if (upd->type == WT_UPDATE_MODIFY)
+                    WT_STAT_CONN_INCR(session, full_updates_upd_modify);
+                else
+                    WT_STAT_CONN_INCR(session, full_updates_upd_std);
+            }
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
