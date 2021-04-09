@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import wiredtiger, wttest, time, string
+import wiredtiger, wttest, time, string, os
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 
@@ -19,37 +19,24 @@ class test_foo(wttest.WiredTigerTestCase):
             session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
         cursor.close()
 
-    def test_it(self):
+    def check(self, check_value, uri, nrows, read_ts):
+        session = self.session
+        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        cursor = session.open_cursor(uri)
+        count = 0
+        for k, v in cursor:
+            self.assertEqual(v, check_value)
+            count += 1
+        cursor.close()
+        session.rollback_transaction()
+        self.assertEqual(count, nrows)
 
+    def test_it(self):
         nrows = 10000
         self.uri = 'table:test'
-
-        # Create and populate
-        ds = SimpleDataSet(self, self.uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
-        ds.populate()
-        bigvalue = "aaaaa" * 100
-        self.large_updates(self.uri, bigvalue, ds, nrows, 1)
-
-        #self.session.create(self.uri, 'key_format=i,value_format=i')
-        #c = self.session.open_cursor(self.uri)
-
-        # Put some records in the table
-        #for i in range(10000):
-        #    c[i] = i
-
-        # Set the oldest and stable timestamps to something older than the following updates
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
-
-        #stat_cursor = self.session.open_cursor('statistics:', None, None)
-        #upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        #stat_cursor.close()
-
-        # Update the records in batches (txns) of 100, increasing the timestamp for each batch
-        # This should force old values to get copied to the history store
         test_time_min = 11
-        commit_ts = 2
+        commit_ts = 1
         t = 0
-        i = 10
         cpt = 0
         letters = list(string.ascii_lowercase)
         cur_letter = 0
@@ -57,23 +44,34 @@ class test_foo(wttest.WiredTigerTestCase):
         enable_checkpoint = False
         old_time_30_sec = time.time()
         old_time = time.time()
-        #while i < 1000000:
+
+        # Create and populate
+        ds = SimpleDataSet(self, self.uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+        ds.populate()
+        bigvalue = "aaaaa" * 100
+        self.large_updates(self.uri, bigvalue, ds, nrows, commit_ts)
+        commit_ts += 1
+
+        # Set the oldest and stable timestamps to something older than the following updates
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+
         while True:
+
+            # Perform updates
             self.large_updates(self.uri, letters[cur_letter] * cur_multplier, ds, nrows, commit_ts)
+
+            # Set the new values to be written
             if(cur_multplier >= 1000):
                 cur_multplier = 10
                 cur_letter = (cur_letter + 1) % len(letters)
             else:
                 cur_multplier = cur_multplier * 10
-            i = i + 1
-            #self.session.begin_transaction()
-            #for j in range (100):
-            #    c[i%10000] = i
-            #    i += 1
+
             diff = time.time() - old_time
             diff_30_sec = time.time() - old_time_30_sec
+
+            # Update ts
             if(enable_checkpoint and cpt >= 1):
-                #ckptcfg = 'use_timestamp=true'
                 self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(commit_ts) + ',stable_timestamp=' + timestamp_str(commit_ts))
                 self.session.checkpoint()
                 self.session.compact(self.uri, None)
@@ -109,4 +107,19 @@ class test_foo(wttest.WiredTigerTestCase):
             # Stop test
             if(t >= test_time_min):
                 break
+
+        # Check all values are correct
+        cur_letter = 0
+        cur_multplier = 10
+        self.prout("Checking values...")
+        for i in range(2,commit_ts):
+            os.write(wttest.WiredTigerTestCase._dupout, str.encode('%d/%d\r' % (i,commit_ts)))
+            #self.prout(str(i) + "checked out of " + str(commit_ts), end='\r', flush=True)
+            self.check(letters[cur_letter] * cur_multplier, self.uri, nrows, i)
+            if(cur_multplier >= 1000):
+                cur_multplier = 10
+                cur_letter = (cur_letter + 1) % len(letters)
+            else:
+                cur_multplier = cur_multplier * 10
+
         self.conn.close()
