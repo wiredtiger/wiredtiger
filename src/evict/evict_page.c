@@ -585,8 +585,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * the cache size limits.
      */
     if (modified && conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
-      __wt_cache_hs_dirty(session) && __wt_cache_full(session))
+      __wt_cache_hs_dirty(session) && __wt_cache_full(session)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_checkpoint_hs);
         return (__wt_set_return(session, EBUSY));
+    }
     /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store), give up.
