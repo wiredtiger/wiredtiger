@@ -14,7 +14,7 @@
  */
 int
 __wt_block_tiered_flush(
-                        WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t **flush_cookie, size_t *cookie_size)
+  WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t **flush_cookie, size_t *cookie_size)
 {
     /* TODO: tiered: fill in the cookie. */
     (void)flush_cookie;
