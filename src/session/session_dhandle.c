@@ -442,14 +442,16 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
 {
     WT_DATA_HANDLE_CACHE *dhandle_cache;
     WT_DECL_RET;
+    bool is_checkpoint;
 
     /*
      * If we get called as part of the checkpoint, and the handle is the checkpoint to be created,
      * it is guaranteed that the handle won't exist in either session or the shared dhandle list.
      * Skip searching through the session dhandle list.
      */
-    if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
-      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT))) {
+    is_checkpoint = (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
+      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT)));
+    if (!is_checkpoint) {
         __session_find_dhandle(session, uri, checkpoint, &dhandle_cache);
         if (dhandle_cache != NULL) {
             session->dhandle = dhandle_cache->dhandle;
