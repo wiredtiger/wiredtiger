@@ -694,17 +694,13 @@ __tiered_confchk(
  */
 int
 __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_ITEM *bucket,
-  WT_BUCKET_STORAGE **bstoragep)
+  WT_CONFIG_ITEM *auth, WT_BUCKET_STORAGE **bstoragep)
 {
     WT_BUCKET_STORAGE *bstorage, *new;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
-#if 0
-    WT_STORAGE_SOURCE *custom, *storage;
-#else
     WT_STORAGE_SOURCE *storage;
-#endif
     uint64_t hash_bucket, hash;
 
     *bstoragep = NULL;
@@ -737,34 +733,26 @@ __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CON
 
     WT_ERR(__wt_calloc_one(session, &new));
     WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
+    WT_ERR(__wt_strndup(session, auth->str, auth->len, &new->auth_token));
     storage = nstorage->storage_source;
-#if 0
-    if (storage->customize != NULL) {
-        custom = NULL;
-        WT_ERR(storage->customize(storage, &session->iface, cfg_arg, &custom));
-        if (custom != NULL) {
-            bstorage->owned = 1;
-            storage = custom;
-        }
-    }
-#endif
+    WT_ERR(storage->ss_customize_file_system(
+      storage, &session->iface, new->bucket, "", new->auth_token, NULL, &new->file_system));
     new->storage_source = storage;
-    if (bstorage != NULL) {
-        new->object_size = bstorage->object_size;
-        new->retain_secs = bstorage->retain_secs;
-        WT_ERR(__wt_strdup(session, bstorage->auth_token, &new->auth_token));
-    }
     TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
     TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
     F_SET(new, WT_BUCKET_FREE);
+    bstorage = new;
 
 out:
     __wt_spin_unlock(session, &conn->storage_lock);
-    *bstoragep = new;
+    *bstoragep = bstorage;
     return (0);
 
 err:
     if (bstorage != NULL) {
+        WT_ASSERT(session, new != NULL);
+        if (new->file_system != NULL && new->file_system->terminate != NULL)
+            WT_TRET(new->file_system->terminate(new->file_system, &session->iface));
         __wt_free(session, new->auth_token);
         __wt_free(session, new->bucket);
         __wt_free(session, new);
@@ -864,10 +852,6 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
-            storage = bstorage->storage_source;
-            WT_ASSERT(session, storage != NULL);
-            if (bstorage->owned && storage->terminate != NULL)
-                WT_TRET(storage->terminate(storage, (WT_SESSION *)session));
             __wt_free(session, bstorage->auth_token);
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage);
@@ -2662,6 +2646,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
             WT_ERR(__wt_os_posix(session));
 #endif
     }
+    session->file_system = conn->file_system;
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
     /* Make sure no other thread of control already owns this database. */
@@ -2898,6 +2883,12 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
     /*
+     * Do some early initialization for tiered storage, as this may affect our choice of file system
+     * for some operations.
+     */
+    WT_ERR(__wt_tiered_storage_init(session, cfg));
+
+    /*
      * The metadata/log encryptor is configured after extensions, since
      * extensions may load encryptors.  We have to do this before creating
      * the metadata file.
@@ -2939,16 +2930,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE DATABASE HOME, IT'S WHAT
      * WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_ERR(__wt_turtle_init(session));
-    WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
-    verify_meta = cval.val;
+    WT_WITH_BUCKET_STORAGE(conn->bstorage, session, {
+        WT_ERR(__wt_turtle_init(session));
+        WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
+        verify_meta = cval.val;
 
-    /* Only verify the metadata file first. We will verify the history store table later.  */
-    if (verify_meta) {
-        wt_session = &session->iface;
-        ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
-        WT_ERR(ret);
-    }
+        /* Only verify the metadata file first. We will verify the history store table later.  */
+        if (verify_meta) {
+            wt_session = &session->iface;
+            ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
+            WT_ERR(ret);
+        }
+    });
+    /* TODO: tiered: should we encompass more using the bucket storage? */
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the

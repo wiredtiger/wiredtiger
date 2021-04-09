@@ -37,7 +37,6 @@ extern WT_PROCESS __wt_process;
  */
 struct __wt_bucket_storage {
     const char *bucket;                /* Bucket location */
-    int owned;                         /* Storage needs to be terminated */
     uint64_t object_size;              /* Tiered object size */
     uint64_t retain_secs;              /* Tiered period */
     const char *auth_token;            /* Tiered authentication cookie */
@@ -52,6 +51,16 @@ struct __wt_bucket_storage {
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
+
+/* Call a function with the file system from the bucket storage. */
+#define WT_WITH_BUCKET_STORAGE(bstorage, s, e)                                              \
+    do {                                                                                    \
+        WT_FILE_SYSTEM *__saved_fs = (s)->file_system;                                      \
+        WT_FILE_SYSTEM *__fs = ((bstorage) == NULL) ? __saved_fs : (bstorage)->file_system; \
+        (s)->file_system = (__fs);                                                          \
+        e;                                                                                  \
+        (s)->file_system = __saved_fs;                                                      \
+    } while (0)
 
 /*
  * WT_KEYED_ENCRYPTOR --

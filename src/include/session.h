@@ -68,7 +68,8 @@ struct __wt_session_impl {
     uint64_t operation_timeout_us; /* Maximum operation period before rollback */
     u_int api_call_counter;        /* Depth of api calls */
 
-    WT_DATA_HANDLE *dhandle; /* Current data handle */
+    WT_DATA_HANDLE *dhandle;     /* Current data handle */
+    WT_FILE_SYSTEM *file_system; /* Current file system */
 
     /*
      * Each session keeps a cache of data handles. The set of handles can grow quite large so we

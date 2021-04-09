@@ -64,6 +64,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_FILE_SYSTEM *file_system;
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *filename;
@@ -115,8 +116,12 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     if (!WT_PREFIX_SKIP(filename, "file:"))
         WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
 
-    WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
-      F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    file_system = (btree->bstorage == NULL) ? session->file_system : btree->bstorage->file_system;
+    WT_WITH_FILE_SYSTEM(session, file_system,
+      ret = __wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
+        F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    WT_ERR(ret);
+
     bm = btree->bm;
 
     /*
@@ -304,7 +309,7 @@ static int
 __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
 {
     WT_BUCKET_STORAGE *bstorage;
-    WT_CONFIG_ITEM bucket, cval;
+    WT_CONFIG_ITEM auth, bucket, cval;
     WT_DECL_RET;
     bool local_free;
 
@@ -319,8 +324,9 @@ __btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STOR
     if (cval.len == 0)
         *bstoragep = S2C(session)->bstorage;
     else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
+        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.auth_token", &auth));
         WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
-        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
+        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &auth, bstoragep));
         local_free = true;
         WT_ASSERT(session, *bstoragep != NULL);
     }

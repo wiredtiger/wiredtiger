@@ -182,6 +182,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
     block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
+    /* TODO: tiered: we should have a block version number in metadata rather than this. */
     block->log_structured = WT_STRING_MATCH("log-structured", cval.str, cval.len);
 
     /* Configuration: optional OS buffer cache maximum size. */

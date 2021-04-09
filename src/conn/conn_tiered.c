@@ -185,12 +185,6 @@ __wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
     bstorage->object_size = (uint64_t)cval.val;
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    /*
-     * This call is purposely the last configuration processed so we don't need memory management
-     * code and an error label to free it. Note this if any code is added after this line.
-     */
-    WT_RET(__wt_strndup(session, cval.str, cval.len, &bstorage->auth_token));
     return (0);
 }
 
@@ -199,30 +193,25 @@ __wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_
  *     Parse and setup the storage server options.
  */
 static int
-__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
+__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 {
-    WT_CONFIG_ITEM bucket, cval;
+    WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     conn = S2C(session);
 
-    if (!reconfig) {
-        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
-        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
-    }
     /* If the connection is not set up for tiered storage there is nothing more to do. */
     if (conn->bstorage == NULL)
         return (0);
 
     WT_ASSERT(session, conn->bstorage != NULL);
-    WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
+    WT_ERR(__wt_tiered_common_config(session, cfg, conn->bstorage));
     WT_STAT_CONN_SET(session, tiered_object_size, conn->bstorage->object_size);
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
     /* The strings for unique identification are connection level. */
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_prefix));
 
     return (__tiered_manager_config(session, cfg, runp));
@@ -307,11 +296,15 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     conn = S2C(session);
     start = false;
 
-    /* Destroy any existing thread since we could be a reconfigure. */
-    WT_RET(__wt_tiered_storage_destroy(session));
-    WT_RET(__tiered_config(session, cfg, &start, reconfig));
-    if (!start)
-        return (0);
+    /*
+     * Destroy any existing thread since we could be a reconfigure.
+     */
+    if (reconfig) {
+        WT_RET(__wt_tiered_storage_destroy(session));
+        WT_RET(__tiered_config(session, cfg, &start));
+        if (!start)
+            return (0);
+    }
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
@@ -361,4 +354,24 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     }
 
     return (ret);
+}
+
+/*
+ * __wt_tiered_storage_init --
+ *     Configure tiered storage initially.
+ */
+int
+__wt_tiered_storage_init(WT_SESSION_IMPL *session, const char *cfg[])
+{
+    WT_CONFIG_ITEM auth, bucket, name;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &name));
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &auth));
+    WT_RET(__wt_tiered_bucket_config(session, &name, &bucket, &auth, &conn->bstorage));
+
+    return (0);
 }

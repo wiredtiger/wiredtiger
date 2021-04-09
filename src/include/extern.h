@@ -175,8 +175,6 @@ extern int __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mappe
 extern int __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list,
   wt_off_t offset, uint32_t size, bool live, const char *func, int line)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_off_free(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t logid,
   wt_off_t offset, wt_off_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_off_remove_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el,
@@ -198,6 +196,12 @@ extern int __wt_block_salvage_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
 extern int __wt_block_salvage_valid(WT_SESSION_IMPL *session, WT_BLOCK *block, uint8_t *addr,
   size_t addr_size, bool valid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_tiered_flush(WT_SESSION_IMPL *session, WT_BLOCK *block,
+  uint8_t **flush_cookie, size_t *cookie_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1443,7 +1447,7 @@ extern int __wt_thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *g
   uint32_t new_min, uint32_t new_max, uint32_t flags)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval,
-  WT_CONFIG_ITEM *bucket, WT_BUCKET_STORAGE **bstoragep)
+  WT_CONFIG_ITEM *bucket, WT_CONFIG_ITEM *auth, WT_BUCKET_STORAGE **bstoragep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1454,6 +1458,8 @@ extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_storage_init(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_time_aggregate_validate(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta,
   WT_TIME_AGGREGATE *parent, bool silent) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

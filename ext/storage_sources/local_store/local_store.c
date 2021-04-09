@@ -39,6 +39,7 @@
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
 #include "queue.h"
+#include "misc.h"
 
 /*
  * This storage source implementation is used for demonstration and testing. All objects are stored
@@ -191,6 +192,8 @@ static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, co
             fprintf(stderr, __VA_ARGS__); \
     } while (0);
 #define SHOW_STRING(s) (((s) == NULL) ? "<null>" : (s))
+#define ENDS_WITH(str, sub) \
+    (strlen(str) >= strlen(sub) && strcmp(&str[strlen(str) - strlen(sub)], sub) == 0)
 
 /*
  * Some files are created with "marker" prefixes in their name.
@@ -205,8 +208,8 @@ static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, co
  * the object has been flushed. We already track in memory what objects need to be flushed, but
  * having a file representation gives us a record of what needs to be done if we were to crash.
  */
-static const char *MARKER_NEED_FLUSH = "FLUSH_";
-static const char *MARKER_TEMPORARY = "TEMP_";
+static const char *MARKER_NEED_FLUSH = "_FLUSH";
+static const char *MARKER_TEMPORARY = "_TEMP";
 
 /*
  * local_configure
@@ -335,14 +338,17 @@ local_location_path(WT_FILE_SYSTEM *file_system, const char *name, const char *m
     ret = 0;
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
 
-    /* If this is a marker file, it will be hidden from all namespaces. */
+    /*
+     * If this is a marker file, it will be hidden from all namespaces. To keep things easy, we'll
+     * put the marker at the end. That way, names like "./foo" will do the right thing.
+     */
     if (marker == NULL)
         marker = "";
     len =
       strlen(local_fs->bucket) + strlen(marker) + strlen(local_fs->fs_prefix) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_location_path"));
-    snprintf(p, len, "%s/%s%s%s", local_fs->bucket, marker, local_fs->fs_prefix, name);
+    snprintf(p, len, "%s/%s%s%s", local_fs->bucket, local_fs->fs_prefix, name, marker);
     *pathp = p;
     return (ret);
 }
@@ -359,6 +365,7 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     LOCAL_STORAGE *local;
     LOCAL_FILE_SYSTEM *fs;
     int ret;
+    struct stat statbuf;
 
     local = (LOCAL_STORAGE *)storage_source;
 
@@ -367,6 +374,20 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     if (config != NULL)
         return local_err(local, session, EINVAL, "customize file system: config must be NULL");
 
+    if (strlen(bucket_name) == 0) {
+        ret = local_err(local, session, EINVAL,
+          "local_file_system: bucket %s: non-empty string required", bucket_name);
+        goto err;
+    }
+    if (stat(bucket_name, &statbuf) != 0) {
+        ret = local_err(local, session, errno, "local_file_system: bucket %s:", bucket_name);
+        goto err;
+    }
+    if (!S_ISDIR(statbuf.st_mode)) {
+        ret = local_err(
+          local, session, EINVAL, "local_file_system: bucket %s: not a directory", bucket_name);
+        goto err;
+    }
     if ((fs = calloc(1, sizeof(LOCAL_FILE_SYSTEM))) == NULL) {
         ret = local_err(local, session, ENOMEM, "local_file_system");
         goto err;
@@ -641,8 +662,7 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
             continue;
 
         /* Skip over any marker files. */
-        if (strncmp(basename, MARKER_TEMPORARY, strlen(MARKER_TEMPORARY)) == 0 ||
-          strncmp(basename, MARKER_NEED_FLUSH, strlen(MARKER_NEED_FLUSH)) == 0)
+        if (ENDS_WITH(basename, MARKER_TEMPORARY) || ENDS_WITH(basename, MARKER_NEED_FLUSH))
             continue;
 
         /* Match only the indicated directory files. */
@@ -730,6 +750,7 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     LOCAL_FLUSH_ITEM *flush;
     LOCAL_STORAGE *local;
     WT_FILE_HANDLE *file_handle;
+    mode_t mode;
     int fd, oflags, ret;
     char *open_name;
 
@@ -741,17 +762,47 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
     local = local_fs->local_storage;
 
-    if (file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-        return (
-          local_err(local, session, EINVAL, "%s: open: only data file types supported", name));
+    /*
+     * TODO: tiered: maybe consider "passing through" file types we don't want to deal with to the
+     * real file system.
+     */
+    if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR)
+        return (local_err(
+          local, session, EINVAL, "%s: open: only data and regular file types supported", name));
 
     local->op_count++;
-    if (flags == WT_FS_OPEN_CREATE)
-        oflags = O_WRONLY | O_CREAT;
-    else if (flags == WT_FS_OPEN_READONLY)
-        oflags = O_RDONLY;
-    else
-        return (local_err(local, session, EINVAL, "open: invalid flags: 0x%x", flags));
+
+    /*
+     * TODO: tiered: this is copied from os_fs.c. Given our latest goal of making this behave
+     * exactly like a real file system, a better strategy would be to hold a WT_HANDLE to
+     * WiredTiger's POSIX fs implementation, and use that instead of a UNIX fd.
+     */
+    oflags = LF_ISSET(WT_FS_OPEN_READONLY) ? O_RDONLY : O_RDWR;
+    if (LF_ISSET(WT_FS_OPEN_CREATE)) {
+        oflags |= O_CREAT;
+        if (LF_ISSET(WT_FS_OPEN_EXCLUSIVE))
+            oflags |= O_EXCL;
+        mode = 0666;
+    } else
+        mode = 0;
+
+#ifdef O_BINARY
+    /* Windows clones: we always want to treat the file as a binary. */
+    oflags |= O_BINARY;
+#endif
+#ifdef O_CLOEXEC
+    /*
+     * Security: The application may spawn a new process, and we don't want another process to have
+     * access to our file handles.
+     */
+    oflags |= O_CLOEXEC;
+#endif
+    /* Ignore WT_FS_OPEN_DIRECTIO for now. */
+#ifdef O_NOATIME
+    /* Avoid updating metadata for read-only workloads. */
+    if (file_type == WT_FS_OPEN_FILE_TYPE_DATA)
+        oflags |= O_NOATIME;
+#endif
 
     /* Create a new handle. */
     if ((local_fh = calloc(1, sizeof(LOCAL_FILE_HANDLE))) == NULL) {
@@ -760,7 +811,7 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     }
     if ((ret = local_location_path(file_system, name, NULL, &local_fh->path)) != 0)
         goto err;
-    if (flags == WT_FS_OPEN_CREATE) {
+    if ((flags & WT_FS_OPEN_CREATE) != 0) {
         if ((flush = calloc(1, sizeof(LOCAL_FLUSH_ITEM))) == NULL) {
             ret = ENOMEM;
             goto err;
@@ -802,8 +853,7 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     } else
         open_name = local_fh->path;
 
-    /* Set file mode so it can only be reopened as readonly. */
-    if ((fd = open(open_name, oflags, 0444)) < 0) {
+    if ((fd = open(open_name, oflags, mode)) < 0) {
         ret = local_err(local, session, errno, "ss_open_object: open: %s", open_name);
         goto err;
     }
@@ -868,12 +918,31 @@ static int
 local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
+    LOCAL_STORAGE *local;
+    int ret;
+    char *from_path, *to_path;
 
-    (void)from;  /* Unused */
-    (void)to;    /* Unused */
     (void)flags; /* Unused */
 
-    return (local_err(FS2LOCAL(file_system), session, ENOTSUP, "local remove not supported"));
+    local = FS2LOCAL(file_system);
+    from_path = to_path = NULL;
+
+    local->op_count++;
+    if ((ret = local_location_path(file_system, from, NULL, &from_path)) != 0)
+        goto err;
+    if ((ret = local_location_path(file_system, to, NULL, &to_path)) != 0)
+        goto err;
+
+    ret = rename(from_path, to_path);
+    if (ret != 0) {
+        ret = local_err(local, session, errno, "%s, %s: ss_rename", from_path, to_path);
+        goto err;
+    }
+
+err:
+    free(from_path);
+    free(to_path);
+    return (ret);
 }
 
 /*

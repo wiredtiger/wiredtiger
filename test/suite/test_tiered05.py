@@ -37,17 +37,20 @@ class test_tiered05(wttest.WiredTigerTestCase):
 
     auth_token = "test_token"
     extension_name = "local_store"
+    bucket = "./objects"
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     def conn_config(self):
+        os.mkdir(self.bucket)
         return \
           'statistics=(fast),' + \
           'tiered_manager=(wait=10),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'name=%s,' % self.extension_name + \
+          'bucket=%s,' % self.bucket + \
           'object_target_size=20M)'
 
     # Test calling the flush_tier API with a tiered manager. Should get an error.
