@@ -396,21 +396,6 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_search_ckpt_dhandle --
- *     Return false if it is a checkpoint thread and checkpoint string is WT_CHECKPOINT else return
- *     true.
- */
-int
-__wt_search_ckpt_dhandle(WT_SESSION_IMPL *session, const char *checkpoint)
-{
-    if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
-      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT)))
-        return (false);
-
-    return (true);
-}
-
-/*
  * __session_find_shared_dhandle --
  *     Search for a data handle in the connection and add it to a session's cache. We must increment
  *     the handle's reference count while holding the handle list lock.
@@ -421,10 +406,18 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
     WT_DECL_RET;
 
     /*
-     * Skip walking the session's dhandle cache and connection's list if it is checkpoint thread and
-     * checkpoint string is WT_CHECKPOINT.
+     * If we get called as part of the checkpoint, and the handle is the checkpoint to be created,
+     * it is guaranteed that the handle won't exist in the shared dhandle list. Skip searching
+     * through the list, and directly insert into it.
      */
-    if (__wt_search_ckpt_dhandle(session, checkpoint)) {
+    if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
+      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT))) {
+        /*
+         * Let's check that our assumption that this handle is not already there in the shared list
+         * is actually correct.
+         */
+        WT_ASSERT(session, __wt_conn_dhandle_find(session, uri, checkpoint) != 0);
+    } else {
         WT_WITH_HANDLE_LIST_READ_LOCK(session,
           if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
             WT_DHANDLE_ACQUIRE(session->dhandle));
@@ -432,13 +425,6 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
         if (ret != WT_NOTFOUND)
             return (ret);
     }
-
-#ifdef HAVE_DIAGNOSTIC
-    /* Assert if checkpoint dhandle exists in the connection list before adding it to the list. */
-    WT_WITH_HANDLE_LIST_READ_LOCK(session,
-      if (checkpoint != NULL && (ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
-        WT_ASSERT(session, __wt_search_ckpt_dhandle(session, checkpoint)));
-#endif
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
       if ((ret = __wt_conn_dhandle_alloc(session, uri, checkpoint)) == 0)
@@ -456,11 +442,14 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
 {
     WT_DATA_HANDLE_CACHE *dhandle_cache;
     WT_DECL_RET;
+
     /*
-     * Skip walking the session's dhandle cache and connection's list if it is checkpoint thread and
-     * checkpoint string is WT_CHECKPOINT.
+     * If we get called as part of the checkpoint, and the handle is the checkpoint to be created,
+     * it is guaranteed that the handle won't exist in either session or the shared dhandle list.
+     * Skip searching through the session dhandle list.
      */
-    if (__wt_search_ckpt_dhandle(session, checkpoint)) {
+    if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
+      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT))) {
         __session_find_dhandle(session, uri, checkpoint, &dhandle_cache);
         if (dhandle_cache != NULL) {
             session->dhandle = dhandle_cache->dhandle;
