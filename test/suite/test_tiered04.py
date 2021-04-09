@@ -48,7 +48,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
     retention = 600
     retention1 = 350
     def conn_config(self):
-        self.tty('directory is: ' + os.getcwd())
         os.mkdir(self.bucket)
         return \
           'statistics=(all),' + \
