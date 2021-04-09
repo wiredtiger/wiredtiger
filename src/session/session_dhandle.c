@@ -404,7 +404,7 @@ int
 __wt_search_ckpt_dhandle(WT_SESSION_IMPL *session, const char *checkpoint)
 {
     if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
-      WT_PREFIX_MATCH(checkpoint, WT_CHECKPOINT))
+      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT)))
         return (false);
 
     return (true);
