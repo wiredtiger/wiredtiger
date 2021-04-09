@@ -1293,6 +1293,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: set timestamp stable updates",
   "transaction: transaction begins",
   "transaction: transaction checkpoint currently running",
+  "transaction: transaction checkpoint currently running for history store file",
   "transaction: transaction checkpoint generation",
   "transaction: transaction checkpoint history store file duration (usecs)",
   "transaction: transaction checkpoint max time (msecs)",
@@ -1808,6 +1809,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_set_ts_stable_upd = 0;
     stats->txn_begin = 0;
     /* not clearing txn_checkpoint_running */
+    /* not clearing txn_checkpoint_running_hs */
     /* not clearing txn_checkpoint_generation */
     stats->txn_hs_ckpt_duration = 0;
     /* not clearing txn_checkpoint_time_max */
@@ -2316,6 +2318,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_set_ts_stable_upd += WT_STAT_READ(from, txn_set_ts_stable_upd);
     to->txn_begin += WT_STAT_READ(from, txn_begin);
     to->txn_checkpoint_running += WT_STAT_READ(from, txn_checkpoint_running);
+    to->txn_checkpoint_running_hs += WT_STAT_READ(from, txn_checkpoint_running_hs);
     to->txn_checkpoint_generation += WT_STAT_READ(from, txn_checkpoint_generation);
     to->txn_hs_ckpt_duration += WT_STAT_READ(from, txn_hs_ckpt_duration);
     to->txn_checkpoint_time_max += WT_STAT_READ(from, txn_checkpoint_time_max);
