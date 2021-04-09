@@ -5097,135 +5097,135 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_HAZARD_MAX			1069
 /*! cache: history store score */
 #define	WT_STAT_CONN_CACHE_HS_SCORE			1070
-/*! cache: history store table max on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1071
-/*! cache: history store table on-disk size */
-#define	WT_STAT_CONN_CACHE_HS_ONDISK			1072
 /*! cache: internal pages queued for eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_QUEUED	1073
+#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_QUEUED	1071
 /*! cache: internal pages seen by eviction walk */
-#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_SEEN	1074
+#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_SEEN	1072
 /*! cache: internal pages seen by eviction walk that are already queued */
-#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_ALREADY_QUEUED	1075
+#define	WT_STAT_CONN_CACHE_EVICTION_INTERNAL_PAGES_ALREADY_QUEUED	1073
 /*! cache: maximum bytes configured */
-#define	WT_STAT_CONN_CACHE_BYTES_MAX			1076
+#define	WT_STAT_CONN_CACHE_BYTES_MAX			1074
 /*! cache: maximum page size at eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1077
+#define	WT_STAT_CONN_CACHE_EVICTION_MAXIMUM_PAGE_SIZE	1075
 /*! cache: modified pages evicted by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY		1078
+#define	WT_STAT_CONN_CACHE_EVICTION_APP_DIRTY		1076
 /*! cache: operations timed out waiting for space in cache */
-#define	WT_STAT_CONN_CACHE_TIMED_OUT_OPS		1079
+#define	WT_STAT_CONN_CACHE_TIMED_OUT_OPS		1077
 /*! cache: pages currently held in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1080
+#define	WT_STAT_CONN_CACHE_PAGES_INUSE			1078
 /*! cache: pages evicted by application threads */
-#define	WT_STAT_CONN_CACHE_EVICTION_APP			1081
+#define	WT_STAT_CONN_CACHE_EVICTION_APP			1079
 /*! cache: pages evicted in parallel with checkpoint */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1082
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_IN_PARALLEL_WITH_CHECKPOINT	1080
 /*! cache: pages queued for eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED	1083
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED	1081
 /*! cache: pages queued for eviction post lru sorting */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_POST_LRU	1084
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_POST_LRU	1082
 /*! cache: pages queued for urgent eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT	1085
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT	1083
 /*! cache: pages queued for urgent eviction during walk */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_OLDEST	1086
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_OLDEST	1084
 /*!
  * cache: pages queued for urgent eviction from history store due to high
  * dirty content
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY	1087
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_QUEUED_URGENT_HS_DIRTY	1085
 /*! cache: pages seen by eviction walk that are already queued */
-#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_ALREADY_QUEUED	1088
+#define	WT_STAT_CONN_CACHE_EVICTION_PAGES_ALREADY_QUEUED	1086
 /*! cache: pages selected for eviction unable to be evicted */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL		1089
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL		1087
 /*!
  * cache: pages selected for eviction unable to be evicted as the parent
  * page has overflow items
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_PARENT_HAS_OVERFLOW_ITEMS	1090
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_PARENT_HAS_OVERFLOW_ITEMS	1088
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * active children on an internal page
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_ACTIVE_CHILDREN_ON_AN_INTERNAL_PAGE	1091
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_ACTIVE_CHILDREN_ON_AN_INTERNAL_PAGE	1089
 /*!
  * cache: pages selected for eviction unable to be evicted because of
  * failure in reconciliation
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_IN_RECONCILIATION	1092
+#define	WT_STAT_CONN_CACHE_EVICTION_FAIL_IN_RECONCILIATION	1090
 /*! cache: pages walked for eviction */
-#define	WT_STAT_CONN_CACHE_EVICTION_WALK		1093
+#define	WT_STAT_CONN_CACHE_EVICTION_WALK		1091
 /*! cache: percentage overhead */
-#define	WT_STAT_CONN_CACHE_OVERHEAD			1094
+#define	WT_STAT_CONN_CACHE_OVERHEAD			1092
 /*! cache: tracked bytes belonging to internal pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1095
+#define	WT_STAT_CONN_CACHE_BYTES_INTERNAL		1093
 /*! cache: tracked bytes belonging to leaf pages in the cache */
-#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1096
+#define	WT_STAT_CONN_CACHE_BYTES_LEAF			1094
 /*! cache: tracked dirty pages in the cache */
-#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1097
+#define	WT_STAT_CONN_CACHE_PAGES_DIRTY			1095
 /*! capacity: background fsync file handles considered */
-#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1098
+#define	WT_STAT_CONN_FSYNC_ALL_FH_TOTAL			1096
 /*! capacity: background fsync file handles synced */
-#define	WT_STAT_CONN_FSYNC_ALL_FH			1099
+#define	WT_STAT_CONN_FSYNC_ALL_FH			1097
 /*! capacity: background fsync time (msecs) */
-#define	WT_STAT_CONN_FSYNC_ALL_TIME			1100
+#define	WT_STAT_CONN_FSYNC_ALL_TIME			1098
 /*! capacity: bytes read */
-#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1101
+#define	WT_STAT_CONN_CAPACITY_BYTES_READ		1099
 /*! capacity: bytes written for checkpoint */
-#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1102
+#define	WT_STAT_CONN_CAPACITY_BYTES_CKPT		1100
 /*! capacity: bytes written for eviction */
-#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1103
+#define	WT_STAT_CONN_CAPACITY_BYTES_EVICT		1101
 /*! capacity: bytes written for log */
-#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1104
+#define	WT_STAT_CONN_CAPACITY_BYTES_LOG			1102
 /*! capacity: bytes written total */
-#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1105
+#define	WT_STAT_CONN_CAPACITY_BYTES_WRITTEN		1103
 /*! capacity: threshold to call fsync */
-#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1106
+#define	WT_STAT_CONN_CAPACITY_THRESHOLD			1104
 /*! capacity: time waiting due to total capacity (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1107
+#define	WT_STAT_CONN_CAPACITY_TIME_TOTAL		1105
 /*! capacity: time waiting during checkpoint (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1108
+#define	WT_STAT_CONN_CAPACITY_TIME_CKPT			1106
 /*! capacity: time waiting during eviction (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1109
+#define	WT_STAT_CONN_CAPACITY_TIME_EVICT		1107
 /*! capacity: time waiting during logging (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1110
+#define	WT_STAT_CONN_CAPACITY_TIME_LOG			1108
 /*! capacity: time waiting during read (usecs) */
-#define	WT_STAT_CONN_CAPACITY_TIME_READ			1111
+#define	WT_STAT_CONN_CAPACITY_TIME_READ			1109
 /*! connection: auto adjusting condition resets */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1112
+#define	WT_STAT_CONN_COND_AUTO_WAIT_RESET		1110
 /*! connection: auto adjusting condition wait calls */
-#define	WT_STAT_CONN_COND_AUTO_WAIT			1113
+#define	WT_STAT_CONN_COND_AUTO_WAIT			1111
 /*!
  * connection: auto adjusting condition wait raced to update timeout and
  * skipped updating
  */
-#define	WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED		1114
+#define	WT_STAT_CONN_COND_AUTO_WAIT_SKIPPED		1112
 /*! connection: detected system time went backwards */
-#define	WT_STAT_CONN_TIME_TRAVEL			1115
+#define	WT_STAT_CONN_TIME_TRAVEL			1113
 /*! connection: files currently open */
-#define	WT_STAT_CONN_FILE_OPEN				1116
+#define	WT_STAT_CONN_FILE_OPEN				1114
 /*! connection: hash bucket array size for data handles */
-#define	WT_STAT_CONN_BUCKETS_DH				1117
+#define	WT_STAT_CONN_BUCKETS_DH				1115
 /*! connection: hash bucket array size general */
-#define	WT_STAT_CONN_BUCKETS				1118
+#define	WT_STAT_CONN_BUCKETS				1116
 /*! connection: memory allocations */
-#define	WT_STAT_CONN_MEMORY_ALLOCATION			1119
+#define	WT_STAT_CONN_MEMORY_ALLOCATION			1117
 /*! connection: memory frees */
-#define	WT_STAT_CONN_MEMORY_FREE			1120
+#define	WT_STAT_CONN_MEMORY_FREE			1118
 /*! connection: memory re-allocations */
-#define	WT_STAT_CONN_MEMORY_GROW			1121
+#define	WT_STAT_CONN_MEMORY_GROW			1119
 /*! connection: pthread mutex condition wait calls */
-#define	WT_STAT_CONN_COND_WAIT				1122
+#define	WT_STAT_CONN_COND_WAIT				1120
 /*! connection: pthread mutex shared lock read-lock calls */
-#define	WT_STAT_CONN_RWLOCK_READ			1123
+#define	WT_STAT_CONN_RWLOCK_READ			1121
 /*! connection: pthread mutex shared lock write-lock calls */
-#define	WT_STAT_CONN_RWLOCK_WRITE			1124
+#define	WT_STAT_CONN_RWLOCK_WRITE			1122
 /*! connection: total fsync I/Os */
-#define	WT_STAT_CONN_FSYNC_IO				1125
+#define	WT_STAT_CONN_FSYNC_IO				1123
 /*! connection: total full updates modify interface */
-#define	WT_STAT_CONN_FULL_UPDATES_UPD_MODIFY		1126
+#define	WT_STAT_CONN_FULL_UPDATES_UPD_MODIFY		1124
 /*! connection: total full updates standard update */
-#define	WT_STAT_CONN_FULL_UPDATES_UPD_STD		1127
+#define	WT_STAT_CONN_FULL_UPDATES_UPD_STD		1125
+/*! connection: total hs max size */
+#define	WT_STAT_CONN_CACHE_HS_ONDISK_MAX		1126
+/*! connection: total hs size */
+#define	WT_STAT_CONN_CACHE_HS_ONDISK			1127
 /*! connection: total read I/Os */
 #define	WT_STAT_CONN_READ_IO				1128
 /*! connection: total reverse modifies modify interface */
