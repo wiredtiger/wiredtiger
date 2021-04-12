@@ -818,7 +818,7 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
     func = primary->insert;
     if (position)
         func = reserve ? primary->reserve : primary->update;
-    if (func != primary->reserve)
+    if (!reserve)
         primary->set_value(primary, value);
     return (func(primary));
 }
