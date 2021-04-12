@@ -70,7 +70,7 @@ struct __wt_blkcache {
 
     volatile bool blkcache_exiting;
     bool eviction_on;
-    int32_t evict_aggressive;
+    int32_t evict_aggressive, min_freq_counter;
     bool write_allocate;
     char *nvram_device_path;
     double full_target;

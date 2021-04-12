@@ -118,19 +118,35 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     return false;
 }
 
+#define BLKCACHE_MINFREQ_INCREMENT 20
+
+#define BLKCACHE_EVICT_OTHER 0
+#define BLKCACHE_NOT_EVICTION_CANDIDATE 1
+
 static bool
-__blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item)
+__blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item, int *reason)
 {
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE *blkcache;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    *reason = BLKCACHE_EVICT_OTHER;
 
-    /* Don't evict if there is plenty of free space */
+    /*
+     * Keep track of the minimum frequency counter for blocks whose
+     * recency timestamp has expired.
+     */
+    if ((blkcache_item->freq_rec_counter < blkcache->evict_aggressive) &&
+	(blkcache_item->num_references < blkcache->min_freq_counter))
+	blkcache->min_freq_counter = blkcache_item->num_references;
+
+	/* Don't evict if there is plenty of free space */
     if ((double)blkcache->bytes_used/(double)blkcache->max_bytes < blkcache->full_target)
 	return false;
-    /* Don't evict if there is high overhead due to blocks being
+
+    /*
+     * Don't evict if there is high overhead due to blocks being
      * inserted/removed. Churn kills performance and evicting
      * when churn is high will exacerbate the overhead.
      */
@@ -138,10 +154,21 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
 	WT_STAT_CONN_INCR(session, block_cache_not_evicted_overhead);
 	return false;
     }
-    if (blkcache_item->freq_rec_counter < blkcache->evict_aggressive)
+
+    /*
+     * Evict if the block has not been accessed for the amount of time
+     * corresponding to the evict aggressive setting. Within the
+     * category of blocks that fit this criterion, choose those with the
+     * lowest number of accesses first.
+     */
+    if (blkcache_item->freq_rec_counter < blkcache->evict_aggressive &&
+	blkcache_item->num_references <
+	(blkcache->min_freq_counter + BLKCACHE_MINFREQ_INCREMENT))
 	return true;
-    else
+    else {
+	*reason = BLKCACHE_NOT_EVICTION_CANDIDATE;
 	return false;
+    }
 }
 
 /*
@@ -155,7 +182,8 @@ __blkcache_eviction_thread(void *arg)
     WT_CONNECTION_IMPL *conn;
     WT_BLKCACHE_ITEM *blkcache_item, *blkcache_item_tmp;
     WT_SESSION_IMPL *session;
-    int i;
+    bool no_eviction_candidates;
+    int i, reason;
 
     session = (WT_SESSION_IMPL *)arg;
     conn = S2C(session);
@@ -189,11 +217,18 @@ __blkcache_eviction_thread(void *arg)
 	 * a lot in the past but weren't referenced in the past 30
 	 * minutes will stay in the cache a bit longer, until their
 	 * frequency/recency counter drops below the threshold.
+	 *
+	 * As we cycle through the blocks, we keep track of the minimum
+	 * number of references observed for blocks whose frequency/recency
+	 * counter has gone below the threshold. We will evict blocks
+	 * with the smallest counter before evicting those with a larger
+	 * one.
 	 */
+	no_eviction_candidates = true;
 	for (i = 0; i < (int)blkcache->hash_size; i++) {
 	    __wt_spin_lock(session, &blkcache->hash_locks[i]);
 	    TAILQ_FOREACH_SAFE(blkcache_item, &blkcache->hash[i], hashq, blkcache_item_tmp) {
-		if (__blkcache_should_evict(session, blkcache_item)) {
+		if (__blkcache_should_evict(session, blkcache_item, &reason)) {
 		    TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
 		    __blkcache_free(session, blkcache_item->data);
 		    __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EVICTION);
@@ -211,13 +246,20 @@ __blkcache_eviction_thread(void *arg)
 		    WT_STAT_CONN_DECR(session, block_cache_blocks);
 		    __wt_free(session, blkcache_item);
 		}
-		else
+		else {
 		    blkcache_item->freq_rec_counter--;
+		    if (reason != BLKCACHE_NOT_EVICTION_CANDIDATE)
+			no_eviction_candidates = false;
+		}
 	    }
 	    __wt_spin_unlock(session, &blkcache->hash_locks[i]);
 	    if (blkcache->blkcache_exiting)
 		return (0);
 	}
+	if (no_eviction_candidates) {
+		blkcache->min_freq_counter += BLKCACHE_MINFREQ_INCREMENT;
+	}
+
 	WT_STAT_CONN_INCR(session, block_cache_eviction_passes);
     }
     return (0);
@@ -321,7 +363,7 @@ __wt_blkcache_get_or_check(
 
 	    blkcache_item->num_references++;
 	    if (blkcache_item->freq_rec_counter < 0)
-		blkcache_item->freq_rec_counter = 0;
+                blkcache_item->freq_rec_counter = 0;
 	    blkcache_item->freq_rec_counter++;
 
 #if BLKCACHE_TRACE == 1
@@ -606,6 +648,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 				  __blkcache_eviction_thread, (void*)session));
 	blkcache->eviction_on = true;
 	blkcache->evict_aggressive = -((int)evict_aggressive);
+	blkcache->min_freq_counter = 1000;  /* initialize to a large value */
     }
 
     blkcache->type = type;
