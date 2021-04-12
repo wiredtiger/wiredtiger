@@ -470,6 +470,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
+    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
+        __wt_errx(session, "GET_DHANDLE: uri %s", uri);
     for (;;) {
         WT_RET(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;

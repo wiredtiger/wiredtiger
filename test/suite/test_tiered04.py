@@ -62,6 +62,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.extension_name)
 
     def get_stat(self, stat, uri):
+        return 0
         stat_cursor = self.session.open_cursor('statistics:' + uri)
         val = stat_cursor[stat][2]
         stat_cursor.close()
@@ -73,6 +74,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # specifying its own bucket and object size and one using no
         # tiered storage. Use stats to verify correct setup.
         base_create = 'key_format=S'
+        self.pr("create sys")
         self.session.create(self.uri, base_create)
         conf = \
           ',tiered_storage=(auth_token=%s,' % self.auth_token + \
@@ -80,10 +82,16 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'local_retention=%d,' % self.retention1 + \
           'name=%s,' % self.extension_name + \
           'object_target_size=%s)' % self.object_uri
-        self.session.create(self.uri1, base_create + conf)
+        #self.pr("create non-sys tiered")
+        #self.session.create(self.uri1, base_create + conf)
         conf = ',tiered_storage=(name=none)'
-        self.session.create(self.uri_none, base_create + conf)
+        #self.pr("create non tiered/local")
+        #self.session.create(self.uri_none, base_create + conf)
 
+        self.pr("open cursor")
+        c = session.open_cursor(self.uri)
+
+        self.pr("verify stats")
         # Verify the table settings.
         obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri)
         self.assertEqual(obj, self.object_sys_val)

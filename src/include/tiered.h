@@ -65,17 +65,21 @@ struct __wt_tiered {
     const char *config; /* Config to use for each object */
     const char *key_format, *value_format;
 
-    WT_DATA_HANDLE **tiers; /* Tiers array */
-    u_int ntiers;
+    WT_BUCKET_STORAGE *bstorage;
 
-    uint64_t object_num; /* Global next object number */
+    WT_DATA_HANDLE **tiers; /* Tiers array */
+    uint32_t ntiers;
+
+    uint64_t object_num;  /* Global next object number */
+    uint64_t current_num; /* Writable local object number */
 
     WT_COLLATOR *collator; /* TODO: handle custom collation */
     /* TODO: What about compression, encryption, etc? Do we need to worry about that here? */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TIERED_LOCAL 0x1u
-#define WT_TIERED_SHARED 0x2u
+#define WT_TIERED_OBJECT 0x2u
+#define WT_TIERED_SHARED 0x4u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };

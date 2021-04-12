@@ -9,6 +9,81 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_schema_get_tiered_uri --
+ *     Get the tiered handle for the named table.
+ */
+int
+__wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
+  uint32_t flags, WT_TIERED **tieredp)
+{
+    WT_DATA_HANDLE *saved_dhandle;
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+    uint32_t i;
+
+    *tieredp = NULL;
+
+    saved_dhandle = session->dhandle;
+
+    WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
+    tiered = (WT_TIERED *)session->dhandle;
+    if (!ok_incomplete)
+        /* XXX: I don't think we need this for tiered. */
+        for (i = 0; i < tiered->ntiers; ++i) {
+            WT_ERR(__wt_session_release_dhandle(session));
+            ret = __wt_set_return(session, EINVAL);
+            WT_ERR_MSG(session, ret, "'%s' cannot be used until all tiered parts are created",
+              tiered->iface.name);
+        }
+
+    *tieredp = tiered;
+
+err:
+    session->dhandle = saved_dhandle;
+    return (ret);
+}
+
+/*
+ * __wt_schema_get_tiered --
+ *     Get the tiered handle for the named table.
+ */
+int
+__wt_schema_get_tiered(WT_SESSION_IMPL *session, const char *name, size_t namelen,
+  bool ok_incomplete, uint32_t flags, WT_TIERED **tieredp)
+{
+    WT_DECL_ITEM(namebuf);
+    WT_DECL_RET;
+
+    WT_RET(__wt_scr_alloc(session, namelen + 1, &namebuf));
+    WT_ERR(__wt_buf_fmt(session, namebuf, "tiered:%.*s", (int)namelen, name));
+
+    WT_ERR(__wt_schema_get_tiered_uri(session, namebuf->data, ok_incomplete, flags, tieredp));
+
+err:
+    __wt_scr_free(session, &namebuf);
+    return (ret);
+}
+
+/*
+ * __wt_schema_release_tiered --
+ *     Release a tiered handle.
+ */
+int
+__wt_schema_release_tiered(WT_SESSION_IMPL *session, WT_TIERED **tieredp)
+{
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+
+    if ((tiered = *tieredp) == NULL)
+        return (0);
+    *tieredp = NULL;
+
+    WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_session_release_dhandle(session));
+
+    return (ret);
+}
+
+/*
  * __wt_schema_get_table_uri --
  *     Get the table handle for the named table.
  */

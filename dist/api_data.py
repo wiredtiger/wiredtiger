@@ -236,10 +236,6 @@ tiered_tree_config = [
         the bucket indicating the location for this table'''),
     Config('bucket_prefix', '', r'''
         the unique bucket prefix for this table'''),
-    Config('objects', '', r'''
-        active objects in the shared tier tree'''),
-    Config('old_objects', '', r'''
-        obsolete objects in the shared tier tree'''),
 ]
 
 file_runtime_config = common_runtime_config + [
@@ -469,7 +465,12 @@ tiered_meta = tiered_config + [
 ]
 
 tier_meta = tiered_tree_config
-object_meta = file_meta
+object_meta = file_meta + [
+    Config('bucket_prefix', '', r'''
+        unique string prefix to identify our objects in the bucket.
+        Multiple instances can share the storage bucket and this
+        identifier is used in naming objects'''),
+]
 
 table_only_config = [
     Config('colgroups', '', r'''
