@@ -70,20 +70,21 @@ struct __wt_blkcache {
 
     volatile bool blkcache_exiting;
     bool eviction_on;
-    int32_t evict_aggressive, min_freq_counter;
+    int32_t evict_aggressive;
     bool write_allocate;
     char *nvram_device_path;
     double full_target;
     double overhead_pct;
     float fraction_in_dram;
     int refs_since_filesize_estimated;
-    uint type;
     volatile size_t bytes_used;
     size_t estimated_file_size;
     size_t hash_size;
     size_t num_data_blocks;
     size_t max_bytes;
     size_t system_ram;
+    uint type;
+    uint32_t min_freq_counter;
 
     /*
      * Various metrics helping us measure the overhead and
