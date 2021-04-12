@@ -1019,7 +1019,7 @@ static int
 __curtiered_next_random(WT_CURSOR *cursor)
 {
     WT_CURSOR *c;
-    WT_CURSOR **cur_order;
+    WT_CURSOR **tier_order;
     WT_CURSOR_TIERED *curtiered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -1041,18 +1041,18 @@ __curtiered_next_random(WT_CURSOR *cursor)
      * TODO: We should weight this by the number of elements in each tier.
      */
     ntiers = curtiered->tiered->ntiers;
-    WT_ERR(__wt_calloc_def(session, ntiers, &cur_order));
+    WT_ERR(__wt_calloc_def(session, ntiers, &tier_order));
 
     /* "Inside-out" version of Fisher-Yates shuffle */
     for (i = 0; i < ntiers; i++) {
         swap = __wt_random(&session->rnd) % (i + 1);
-        cur_order[i] = cur_order[swap];
-        cur_order[swap] = curtiered->cursors[i];
+        tier_order[i] = tier_order[swap];
+        tier_order[swap] = curtiered->cursors[i];
     }
 
     /* Try the tiers in the permuted order. */
     for (i = 0; i < ntiers; i++) {
-        c = cur_order[i];
+        c = tier_order[i];
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND)
             continue;
@@ -1072,7 +1072,7 @@ err:
         /* We didn't find a valid doc. Don't leave cursor positioned */
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
-    __wt_free(session, cur_order);
+    __wt_free(session, tier_order);
     __curtiered_leave(curtiered);
     API_END_RET(session, ret);
 }
