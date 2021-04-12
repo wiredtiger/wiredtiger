@@ -26,11 +26,20 @@
     __wt_panic_func(session, error, __func__, __LINE__, __VA_ARGS__)
 #define __wt_set_return(session, error) __wt_set_return_func(session, __func__, __LINE__, error)
 
+/* If our compiler doesn't support expect intrinsics, make it a noop. */
+#ifndef WT_LIKELY
+#define WT_LIKELY(a) (a)
+#endif
+
+#ifndef WT_UNLIKELY
+#define WT_UNLIKELY(a) (a)
+#endif
+
 /* Set "ret" and branch-to-err-label tests. */
-#define WT_ERR(a)             \
-    do {                      \
-        if ((ret = (a)) != 0) \
-            goto err;         \
+#define WT_ERR(a)                          \
+    do {                                   \
+        if (WT_UNLIKELY((ret = (a)) != 0)) \
+            goto err;                      \
     } while (0)
 #define WT_ERR_MSG(session, v, ...)          \
     do {                                     \
@@ -53,11 +62,11 @@
 #define WT_ERR_PANIC(session, v, ...) WT_ERR(__wt_panic(session, v, __VA_ARGS__))
 
 /* Return tests. */
-#define WT_RET(a)               \
-    do {                        \
-        int __ret;              \
-        if ((__ret = (a)) != 0) \
-            return (__ret);     \
+#define WT_RET(a)                            \
+    do {                                     \
+        int __ret;                           \
+        if (WT_UNLIKELY((__ret = (a)) != 0)) \
+            return (__ret);                  \
     } while (0)
 #define WT_RET_TRACK(a)               \
     do {                              \

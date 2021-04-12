@@ -157,6 +157,9 @@ WT_ATOMIC_FUNC(size, size_t, size_t *vp, size_t v)
 /* Compile read-write barrier */
 #define WT_BARRIER() __asm__ volatile("" ::: "memory")
 
+#define WT_LIKELY(a) __builtin_expect((a), 1)
+#define WT_UNLIKELY(a) __builtin_expect((a), 0)
+
 #if defined(x86_64) || defined(__x86_64__)
 /* Pause instruction to prevent excess processor bus usage */
 #define WT_PAUSE() __asm__ volatile("pause\n" ::: "memory")
