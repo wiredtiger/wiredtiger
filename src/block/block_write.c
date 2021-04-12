@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -25,23 +25,21 @@ __wt_block_truncate(WT_SESSION_IMPL *session, WT_BLOCK *block, wt_off_t len)
     /*
      * Truncate requires serialization, we depend on our caller for that.
      *
-     * Truncation isn't a requirement of the block manager, it's only used
-     * to conserve disk space. Regardless of the underlying file system
-     * call's result, the in-memory understanding of the file size changes.
+     * Truncation isn't a requirement of the block manager, it's only used to conserve disk space.
+     * Regardless of the underlying file system call's result, the in-memory understanding of the
+     * file size changes.
      */
     block->size = block->extend_size = len;
 
     /*
-     * Backups are done by copying files outside of WiredTiger, potentially
-     * by system utilities. We cannot truncate the file during the backup
-     * window, we might surprise an application.
+     * Backups are done by copying files outside of WiredTiger, potentially by system utilities. We
+     * cannot truncate the file during the backup window, we might surprise an application.
      *
-     * This affects files that aren't involved in the backup (for example,
-     * doing incremental backups, which only copies log files, or targeted
-     * backups, stops all block truncation unnecessarily). We may want a
-     * more targeted solution at some point.
+     * This affects files that aren't involved in the backup (for example, doing incremental
+     * backups, which only copies log files, or targeted backups, stops all block truncation
+     * unnecessarily). We may want a more targeted solution at some point.
      */
-    if (!conn->hot_backup) {
+    if (conn->hot_backup_start == 0) {
         WT_WITH_HOTBACKUP_READ_LOCK(session, ret = __wt_ftruncate(session, block->fh, len), NULL);
     }
 
@@ -97,13 +95,11 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t
     WT_FILE_HANDLE *handle;
 
     /*
-     * The locking in this function is messy: by definition, the live system
-     * is locked when we're called, but that lock may have been acquired by
-     * our caller or our caller's caller. If our caller's lock, release_lock
-     * comes in set and this function can unlock it before returning (so it
-     * isn't held while extending the file). If it is our caller's caller,
-     * then release_lock comes in not set, indicating it cannot be released
-     * here.
+     * The locking in this function is messy: by definition, the live system is locked when we're
+     * called, but that lock may have been acquired by our caller or our caller's caller. If our
+     * caller's lock, release_lock comes in set and this function can unlock it before returning (so
+     * it isn't held while extending the file). If it is our caller's caller, then release_lock
+     * comes in not set, indicating it cannot be released here.
      *
      * If we unlock here, we clear release_lock.
      */
@@ -122,7 +118,7 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t
      */
     if (block->extend_size > block->size &&
       (offset > block->extend_size ||
-          offset + block->extend_len + (wt_off_t)align_size < block->extend_size))
+        offset + block->extend_len + (wt_off_t)align_size < block->extend_size))
         return (0);
 
     /*
@@ -135,13 +131,12 @@ __wt_block_extend(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_FH *fh, wt_off_t
         return (0);
 
     /*
-     * Set the extend_size before releasing the lock, I don't want to read
-     * and manipulate multiple values without holding a lock.
+     * Set the extend_size before releasing the lock, I don't want to read and manipulate multiple
+     * values without holding a lock.
      *
-     * There's a race between the calculation and doing the extension, but
-     * it should err on the side of extend_size being smaller than the
-     * actual file size, and that's OK, we simply may do another extension
-     * sooner than otherwise.
+     * There's a race between the calculation and doing the extension, but it should err on the side
+     * of extend_size being smaller than the actual file size, and that's OK, we simply may do
+     * another extension sooner than otherwise.
      */
     block->extend_size = block->size + block->extend_len * 2;
 
@@ -194,14 +189,14 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_
   size_t *addr_sizep, bool data_checksum, bool checkpoint_io)
 {
     wt_off_t offset;
-    uint32_t checksum, size;
+    uint32_t checksum, logid, size;
     uint8_t *endp;
 
     WT_RET(__wt_block_write_off(
-      session, block, buf, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
+      session, block, buf, &logid, &offset, &size, &checksum, data_checksum, checkpoint_io, false));
 
     endp = addr;
-    WT_RET(__wt_block_addr_to_buffer(block, &endp, offset, size, checksum));
+    WT_RET(__wt_block_addr_to_buffer(block, &endp, logid, offset, size, checksum));
     *addr_sizep = WT_PTRDIFF(endp, addr);
 
     return (0);
@@ -212,15 +207,16 @@ __wt_block_write(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint8_
  *     Write a buffer into a block, returning the block's offset, size and checksum.
  */
 static int
-__block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked)
+__block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t *logidp,
+  wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
+  bool caller_locked)
 {
     WT_BLOCK_HEADER *blk;
     WT_DECL_RET;
     WT_FH *fh;
     wt_off_t offset;
     size_t align_size;
-    uint32_t checksum;
+    uint32_t checksum, logid;
     uint8_t *file_sizep;
     bool local_locked;
 
@@ -229,6 +225,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     *checksump = 0; /* -Werror=maybe-uninitialized */
 
     fh = block->fh;
+    logid = block->logid;
 
     /* Buffers should be aligned for writing. */
     if (!F_ISSET(buf, WT_ITEM_ALIGNED)) {
@@ -245,9 +242,9 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     /*
      * Align the size to an allocation unit.
      *
-     * The buffer must be big enough for us to zero to the next allocsize
-     * boundary, this is one of the reasons the btree layer must find out
-     * from the block-manager layer the maximum size of the eventual write.
+     * The buffer must be big enough for us to zero to the next allocsize boundary, this is one of
+     * the reasons the btree layer must find out from the block-manager layer the maximum size of
+     * the eventual write.
      */
     align_size = WT_ALIGN(buf->size, block->allocsize);
     if (align_size > buf->memsize) {
@@ -301,21 +298,19 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     blk->disk_size = WT_STORE_SIZE(align_size);
 
     /*
-     * Update the block's checksum: if our caller specifies, checksum the
-     * complete data, otherwise checksum the leading WT_BLOCK_COMPRESS_SKIP
-     * bytes.  The assumption is applications with good compression support
-     * turn off checksums and assume corrupted blocks won't decompress
-     * correctly.  However, if compression failed to shrink the block, the
-     * block wasn't compressed, in which case our caller will tell us to
-     * checksum the data to detect corruption. If compression succeeded,
-     * we still need to checksum the first WT_BLOCK_COMPRESS_SKIP bytes
-     * because they're not compressed, both to give salvage a quick test
-     * of whether a block is useful and to give us a test so we don't lose
-     * the first WT_BLOCK_COMPRESS_SKIP bytes without noticing.
+     * Update the block's checksum: if our caller specifies, checksum the complete data, otherwise
+     * checksum the leading WT_BLOCK_COMPRESS_SKIP bytes. The assumption is applications with good
+     * compression support turn off checksums and assume corrupted blocks won't decompress
+     * correctly. However, if compression failed to shrink the block, the block wasn't compressed,
+     * in which case our caller will tell us to checksum the data to detect corruption. If
+     * compression succeeded, we still need to checksum the first WT_BLOCK_COMPRESS_SKIP bytes
+     * because they're not compressed, both to give salvage a quick test of whether a block is
+     * useful and to give us a test so we don't lose the first WT_BLOCK_COMPRESS_SKIP bytes without
+     * noticing.
      *
-     * Checksum a little-endian version of the header, and write everything
-     * in little-endian format. The checksum is (potentially) returned in a
-     * big-endian format, swap it into place in a separate step.
+     * Checksum a little-endian version of the header, and write everything in little-endian format.
+     * The checksum is (potentially) returned in a big-endian format, swap it into place in a
+     * separate step.
      */
     blk->flags = 0;
     if (data_checksum)
@@ -332,7 +327,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
         if (!caller_locked)
             __wt_spin_lock(session, &block->live_lock);
-        WT_TRET(__wt_block_off_free(session, block, offset, (wt_off_t)align_size));
+        WT_TRET(__wt_block_off_free(session, block, logid, offset, (wt_off_t)align_size));
         if (!caller_locked)
             __wt_spin_unlock(session, &block->live_lock);
         WT_RET(ret);
@@ -366,6 +361,7 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
     __wt_verbose(session, WT_VERB_WRITE, "off %" PRIuMAX ", size %" PRIuMAX ", checksum %#" PRIx32,
       (uintmax_t)offset, (uintmax_t)align_size, checksum);
 
+    *logidp = logid;
     *offsetp = offset;
     *sizep = WT_STORE_SIZE(align_size);
     *checksump = checksum;
@@ -378,8 +374,9 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
  *     Write a buffer into a block, returning the block's offset, size and checksum.
  */
 int
-__wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_off_t *offsetp,
-  uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io, bool caller_locked)
+__wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t *logidp,
+  wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump, bool data_checksum, bool checkpoint_io,
+  bool caller_locked)
 {
     WT_DECL_RET;
 
@@ -389,8 +386,8 @@ __wt_block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt
      * never see anything other than their original content.
      */
     __wt_page_header_byteswap(buf->mem);
-    ret = __block_write_off(
-      session, block, buf, offsetp, sizep, checksump, data_checksum, checkpoint_io, caller_locked);
+    ret = __block_write_off(session, block, buf, logidp, offsetp, sizep, checksump, data_checksum,
+      checkpoint_io, caller_locked);
     __wt_page_header_byteswap(buf->mem);
     return (ret);
 }

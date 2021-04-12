@@ -32,7 +32,7 @@ while true; do
 	fi
 
 	rm -rf $rundir2
-	$tcmd $config -q abort=1 logging=1 timer=$timer
+	$tcmd $config -q format.abort=1 logging=1 runs.timer=$timer
 
 	# Save a copy of the database directory exactly as it was at the crash.
 	cp -rp RUNDIR $rundir2
@@ -48,5 +48,5 @@ while true; do
 	fi
 
 	# We know we aborted, so force recovery to run.
-	$wtcmd -R -h RUNDIR verify $uri || exit 1
+	$wtcmd -m -R -h RUNDIR verify $uri || exit 1
 done

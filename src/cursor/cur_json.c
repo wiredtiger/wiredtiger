@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -315,7 +315,8 @@ __wt_json_unpack_char(u_char ch, u_char *buf, size_t bufsz, bool force_unicode)
     u_char abbrev;
 
     if (!force_unicode) {
-        if (__wt_isprint(ch) && ch != '\\' && ch != '"') {
+        /* We treat all non-ASCII characters as non-printable. */
+        if (__wt_isascii(ch) && __wt_isprint(ch) && ch != '\\' && ch != '"') {
             if (bufsz >= 1)
                 *buf = ch;
             return (1);
@@ -373,7 +374,7 @@ __wt_json_column_init(WT_CURSOR *cursor, const char *uri, const char *keyformat,
     const char *beginkey, *end, *lparen, *p;
 
     json = (WT_CURSOR_JSON *)cursor->json_private;
-    session = (WT_SESSION_IMPL *)cursor->session;
+    session = CUR2S(cursor);
     beginkey = colconf->str;
     end = beginkey + colconf->len;
 
@@ -869,10 +870,8 @@ __wt_json_strncpy(WT_SESSION *wt_session, char **pdst, size_t dstlen, const char
                     WT_RET_MSG(session, EINVAL, "invalid Unicode within JSON string");
                 src += 4;
                 if (hi != 0)
-                    WT_RET_MSG(session, EINVAL,
-                      "Unicode \"%6.6s\" byte out of "
-                      "range in JSON",
-                      src - 6);
+                    WT_RET_MSG(
+                      session, EINVAL, "Unicode \"%6.6s\" byte out of range in JSON", src - 6);
                 *dst++ = (char)lo;
                 break;
             case 'f':

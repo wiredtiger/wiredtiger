@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -46,8 +46,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
         WT_RET(__wt_config_gets(session, cfg, "in_memory", &cval));
         if (cval.val != 0)
             WT_RET_MSG(session, EINVAL,
-              "checkpoint configuration incompatible with "
-              "in-memory configuration");
+              "checkpoint configuration incompatible with in-memory configuration");
 
         __wt_log_written_reset(session);
 
@@ -64,7 +63,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 static bool
 __ckpt_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_CHECKPOINT));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT));
 }
 
 /*
@@ -116,7 +115,7 @@ __ckpt_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "checkpoint server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "checkpoint server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -135,13 +134,13 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
     if (conn->ckpt_session != NULL)
         return (0);
 
-    F_SET(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
 
     /*
      * The checkpoint server gets its own session.
      *
-     * Checkpoint does enough I/O it may be called upon to perform slow
-     * operations for the block manager.
+     * Checkpoint does enough I/O it may be called upon to perform slow operations for the block
+     * manager.
      */
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
@@ -199,11 +198,10 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
-    F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
     if (conn->ckpt_tid_set) {
         __wt_cond_signal(session, conn->ckpt_cond);
         WT_TRET(__wt_thread_join(session, &conn->ckpt_tid));
@@ -212,10 +210,8 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
     __wt_cond_destroy(session, &conn->ckpt_cond);
 
     /* Close the server thread's session. */
-    if (conn->ckpt_session != NULL) {
-        wt_session = &conn->ckpt_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
-    }
+    if (conn->ckpt_session != NULL)
+        WT_TRET(__wt_session_close_internal(conn->ckpt_session));
 
     /*
      * Ensure checkpoint settings are cleared - so that reconfigure doesn't get confused.

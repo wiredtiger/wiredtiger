@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,23 +16,18 @@ int
 __wt_connection_init(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
-    u_int i;
 
     session = conn->default_session;
 
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++) {
-        TAILQ_INIT(&conn->dhhash[i]); /* Data handle hash lists */
-        TAILQ_INIT(&conn->fhhash[i]); /* File handle hash lists */
-    }
-
-    TAILQ_INIT(&conn->dhqh);        /* Data handle list */
-    TAILQ_INIT(&conn->dlhqh);       /* Library list */
-    TAILQ_INIT(&conn->dsrcqh);      /* Data source list */
-    TAILQ_INIT(&conn->fhqh);        /* File list */
-    TAILQ_INIT(&conn->collqh);      /* Collator list */
-    TAILQ_INIT(&conn->compqh);      /* Compressor list */
-    TAILQ_INIT(&conn->encryptqh);   /* Encryptor list */
-    TAILQ_INIT(&conn->extractorqh); /* Extractor list */
+    TAILQ_INIT(&conn->dhqh);         /* Data handle list */
+    TAILQ_INIT(&conn->dlhqh);        /* Library list */
+    TAILQ_INIT(&conn->dsrcqh);       /* Data source list */
+    TAILQ_INIT(&conn->fhqh);         /* File list */
+    TAILQ_INIT(&conn->collqh);       /* Collator list */
+    TAILQ_INIT(&conn->compqh);       /* Compressor list */
+    TAILQ_INIT(&conn->encryptqh);    /* Encryptor list */
+    TAILQ_INIT(&conn->extractorqh);  /* Extractor list */
+    TAILQ_INIT(&conn->storagesrcqh); /* Storage source list */
 
     TAILQ_INIT(&conn->lsmqh); /* WT_LSM_TREE list */
 
@@ -58,6 +53,7 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
     WT_SPIN_INIT_TRACKED(session, &conn->metadata_lock, metadata);
     WT_RET(__wt_spin_init(session, &conn->reconfig_lock, "reconfigure"));
     WT_SPIN_INIT_SESSION_TRACKED(session, &conn->schema_lock, schema);
+    WT_RET(__wt_spin_init(session, &conn->storage_lock, "tiered storage"));
     WT_RET(__wt_spin_init(session, &conn->turtle_lock, "turtle file"));
 
     /* Read-write locks */
@@ -79,9 +75,10 @@ __wt_connection_init(WT_CONNECTION_IMPL *conn)
      * opaque, but for now this is simpler.
      */
     WT_RET(__wt_spin_init(session, &conn->block_lock, "block manager"));
-    for (i = 0; i < WT_HASH_ARRAY_SIZE; i++)
-        TAILQ_INIT(&conn->blockhash[i]); /* Block handle hash lists */
-    TAILQ_INIT(&conn->blockqh);          /* Block manager list */
+    TAILQ_INIT(&conn->blockqh); /* Block manager list */
+
+    conn->ckpt_prep_min = UINT64_MAX;
+    conn->ckpt_time_min = UINT64_MAX;
 
     return (0);
 }
@@ -121,6 +118,7 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->metadata_lock);
     __wt_spin_destroy(session, &conn->reconfig_lock);
     __wt_spin_destroy(session, &conn->schema_lock);
+    __wt_spin_destroy(session, &conn->storage_lock);
     __wt_rwlock_destroy(session, &conn->table_lock);
     __wt_spin_destroy(session, &conn->turtle_lock);
 
@@ -129,6 +127,15 @@ __wt_connection_destroy(WT_CONNECTION_IMPL *conn)
     __wt_spin_destroy(session, &conn->lsm_manager.app_lock);
     __wt_spin_destroy(session, &conn->lsm_manager.manager_lock);
     __wt_cond_destroy(session, &conn->lsm_manager.work_cond);
+
+    /* Free allocated hash buckets. */
+    __wt_free(session, conn->blockhash);
+    __wt_free(session, conn->dh_bucket_count);
+    __wt_free(session, conn->dhhash);
+    __wt_free(session, conn->fhhash);
+
+    /* Free allocated recovered checkpoint snapshot memory */
+    __wt_free(session, conn->recovery_ckpt_snapshot);
 
     /* Free allocated memory. */
     __wt_free(session, conn->cfg);

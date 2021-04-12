@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -32,6 +32,42 @@ __wt_exclusive_handle_operation(WT_SESSION_IMPL *session, const char *uri,
     WT_SAVE_DHANDLE(session, ret = file_func(session, cfg));
     WT_TRET(__wt_session_release_dhandle(session));
 
+    return (ret);
+}
+
+/*
+ * __wt_schema_tiered_worker --
+ *     Run a schema worker operation on each tier of a tiered data source.
+ */
+int
+__wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
+  int (*file_func)(WT_SESSION_IMPL *, const char *[]),
+  int (*name_func)(WT_SESSION_IMPL *, const char *, bool *), const char *cfg[], uint32_t open_flags)
+{
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+    u_int i;
+
+    /*
+     * If this was an alter operation, we need to alter the configuration for the overall tree and
+     * then reread it so it isn't out of date. TODO not yet supported.
+     */
+    if (FLD_ISSET(open_flags, WT_BTREE_ALTER))
+        WT_RET(ENOTSUP);
+
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, open_flags));
+    tiered = (WT_TIERED *)session->dhandle;
+
+    for (i = 0; i < tiered->ntiers; i++) {
+        dhandle = tiered->tiers[i];
+        WT_SAVE_DHANDLE(session,
+          ret = __wt_schema_worker(session, dhandle->name, file_func, name_func, cfg, open_flags));
+        WT_ERR(ret);
+    }
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
     return (ret);
 }
 
@@ -118,6 +154,8 @@ __wt_schema_worker(WT_SESSION_IMPL *session, const char *uri,
                 WT_ERR(
                   __wt_schema_worker(session, idx->source, file_func, name_func, cfg, open_flags));
         }
+    } else if (WT_PREFIX_MATCH(uri, "tiered:")) {
+        WT_ERR(__wt_schema_tiered_worker(session, uri, file_func, name_func, cfg, open_flags));
     } else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL) {
         wt_session = (WT_SESSION *)session;
         if (file_func == __wt_salvage && dsrc->salvage != NULL)

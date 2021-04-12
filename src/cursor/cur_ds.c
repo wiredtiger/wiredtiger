@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,34 +7,6 @@
  */
 
 #include "wt_internal.h"
-
-/*
- * __curds_txn_enter --
- *     Do transactional initialization when starting an operation.
- */
-static int
-__curds_txn_enter(WT_SESSION_IMPL *session, bool update)
-{
-    /* Check if we need to start an autocommit transaction. */
-    if (update)
-        WT_RET(__wt_txn_autocommit_check(session));
-
-    session->ncursors++; /* XXX */
-    __wt_txn_cursor_op(session);
-
-    return (0);
-}
-
-/*
- * __curds_txn_leave --
- *     Do transactional cleanup when ending an operation.
- */
-static void
-__curds_txn_leave(WT_SESSION_IMPL *session)
-{
-    if (--session->ncursors == 0) /* XXX */
-        __wt_txn_read_last(session);
-}
 
 /*
  * __curds_key_set --
@@ -87,15 +59,13 @@ __curds_cursor_resolve(WT_CURSOR *cursor, int ret)
     source = ((WT_CURSOR_DATA_SOURCE *)cursor)->source;
 
     /*
-     * Update the cursor's key, value and flags.  (We use the _INT flags in
-     * the same way as file objects: there's some chance the underlying data
-     * source is passing us a reference to data only pinned per operation,
-     * might as well be safe.)
+     * Update the cursor's key, value and flags. (We use the _INT flags in the same way as file
+     * objects: there's some chance the underlying data source is passing us a reference to data
+     * only pinned per operation, might as well be safe.)
      *
-     * There's also a requirement the underlying data-source never returns
-     * with the cursor/source key referencing application memory: it'd be
-     * great to do a copy as necessary here so the data-source doesn't have
-     * to worry about copying the key, but we don't have enough information
+     * There's also a requirement the underlying data-source never returns with the cursor/source
+     * key referencing application memory: it'd be great to do a copy as necessary here so the
+     * data-source doesn't have to worry about copying the key, but we don't have enough information
      * to know if a cursor is pointing at application or data-source memory.
      */
     if (ret == 0) {
@@ -182,17 +152,12 @@ __curds_next(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, next, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_next);
-    WT_STAT_DATA_INCR(session, cursor_next);
-
-    WT_ERR(__curds_txn_enter(session, false));
+    WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     ret = __curds_cursor_resolve(cursor, source->next(source));
 
 err:
-    __curds_txn_leave(session);
-
     API_END_RET(session, ret);
 }
 
@@ -211,16 +176,12 @@ __curds_prev(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, prev, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_prev);
-    WT_STAT_DATA_INCR(session, cursor_prev);
-
-    WT_ERR(__curds_txn_enter(session, false));
+    WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
     ret = __curds_cursor_resolve(cursor, source->prev(source));
 
 err:
-    __curds_txn_leave(session);
     API_END_RET(session, ret);
 }
 
@@ -239,8 +200,7 @@ __curds_reset(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, reset, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_reset);
-    WT_STAT_DATA_INCR(session, cursor_reset);
+    WT_STAT_CONN_DATA_INCR(session, cursor_reset);
 
     WT_ERR(source->reset(source));
 
@@ -265,17 +225,12 @@ __curds_search(WT_CURSOR *cursor)
 
     CURSOR_API_CALL(cursor, session, search, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_search);
-    WT_STAT_DATA_INCR(session, cursor_search);
-
-    WT_ERR(__curds_txn_enter(session, false));
+    WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
     WT_ERR(__curds_key_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->search(source));
 
 err:
-    __curds_txn_leave(session);
-
     API_END_RET(session, ret);
 }
 
@@ -294,17 +249,12 @@ __curds_search_near(WT_CURSOR *cursor, int *exact)
 
     CURSOR_API_CALL(cursor, session, search_near, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_search_near);
-    WT_STAT_DATA_INCR(session, cursor_search_near);
-
-    WT_ERR(__curds_txn_enter(session, false));
+    WT_STAT_CONN_DATA_INCR(session, cursor_search_near);
 
     WT_ERR(__curds_key_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->search_near(source, exact));
 
 err:
-    __curds_txn_leave(session);
-
     API_END_RET(session, ret);
 }
 
@@ -323,10 +273,7 @@ __curds_insert(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, insert);
 
-    WT_ERR(__curds_txn_enter(session, true));
-
-    WT_STAT_CONN_INCR(session, cursor_insert);
-    WT_STAT_DATA_INCR(session, cursor_insert);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert);
     WT_STAT_DATA_INCRV(session, cursor_insert_bytes, cursor->key.size + cursor->value.size);
 
     if (!F_ISSET(cursor, WT_CURSTD_APPEND))
@@ -335,8 +282,6 @@ __curds_insert(WT_CURSOR *cursor)
     ret = __curds_cursor_resolve(cursor, source->insert(source));
 
 err:
-    __curds_txn_leave(session);
-
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -356,20 +301,14 @@ __curds_update(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, update);
 
-    WT_STAT_CONN_INCR(session, cursor_update);
-    WT_STAT_DATA_INCR(session, cursor_update);
-    WT_STAT_CONN_INCRV(session, cursor_update_bytes, cursor->value.size);
-    WT_STAT_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
-
-    WT_ERR(__curds_txn_enter(session, true));
+    WT_STAT_CONN_DATA_INCR(session, cursor_update);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_update_bytes, cursor->value.size);
 
     WT_ERR(__curds_key_set(cursor));
     WT_ERR(__curds_value_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->update(source));
 
 err:
-    __curds_txn_leave(session);
-
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -389,19 +328,13 @@ __curds_remove(WT_CURSOR *cursor)
 
     CURSOR_REMOVE_API_CALL(cursor, session, NULL);
 
-    WT_STAT_CONN_INCR(session, cursor_remove);
-    WT_STAT_DATA_INCR(session, cursor_remove);
-    WT_STAT_CONN_INCRV(session, cursor_remove_bytes, cursor->key.size);
-    WT_STAT_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
-
-    WT_ERR(__curds_txn_enter(session, true));
+    WT_STAT_CONN_DATA_INCR(session, cursor_remove);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_remove_bytes, cursor->key.size);
 
     WT_ERR(__curds_key_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->remove(source));
 
 err:
-    __curds_txn_leave(session);
-
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -421,17 +354,12 @@ __curds_reserve(WT_CURSOR *cursor)
 
     CURSOR_UPDATE_API_CALL(cursor, session, reserve);
 
-    WT_STAT_CONN_INCR(session, cursor_reserve);
-    WT_STAT_DATA_INCR(session, cursor_reserve);
-
-    WT_ERR(__curds_txn_enter(session, true));
+    WT_STAT_CONN_DATA_INCR(session, cursor_reserve);
 
     WT_ERR(__curds_key_set(cursor));
     ret = __curds_cursor_resolve(cursor, source->reserve(source));
 
 err:
-    __curds_txn_leave(session);
-
     CURSOR_UPDATE_API_END(session, ret);
     return (ret);
 }
@@ -532,11 +460,12 @@ __wt_curds_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, con
     ret = __wt_config_getones(session, metaconf, "collator", &cval);
     if (ret == 0 && cval.len != 0) {
         WT_CLEAR(metadata);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, metaconf, "app_metadata", &metadata));
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, metaconf, "app_metadata", &metadata), false);
         WT_ERR(__wt_collator_config(
           session, uri, &cval, &metadata, &data_source->collator, &data_source->collator_owned));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     WT_ERR(
       dsrc->open_cursor(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg, &data_source->source));

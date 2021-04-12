@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,18 +26,23 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import glob
 import os
 import shutil
 import string
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet, ComplexDataSet, ComplexLSMDataSet
+try:
+    # Windows does not getrlimit/setrlimit so we must catch the resource
+    # module load.
+    import resource
+except:
+    None
 
 # test_backup06.py
 #    Test that opening a backup cursor does not open file handles.
-class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup06(backup_base):
     conn_config = 'statistics=(fast)'
     # This will create several hundred tables.
     num_table_sets = 10
@@ -72,18 +77,22 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
                 uri = i[0] + "." + str(t)
                 i[1](self, uri, 10).populate()
 
-    def populate(self):
-        for i in self.fobjs:
-            i[1](self, i[0], 100).populate()
-        for i in self.tobjs:
-            i[1](self, i[0], 100).populate()
-
     # Test that the open handle count does not change.
     def test_cursor_open_handles(self):
+        if os.name == "nt":
+            self.skipTest('Unix specific test skipped on Windows')
+
+        limits = resource.getrlimit(resource.RLIMIT_NOFILE)
+        if limits[0] < 1024:
+            new = (1024, limits[1])
+            resource.setrlimit(resource.RLIMIT_NOFILE, new)
         self.populate_many()
         # Close and reopen the connection so the populate dhandles are
         # not in the list.
         self.reopen_conn()
+
+        new = (limits[0], limits[1])
+        resource.setrlimit(resource.RLIMIT_NOFILE, new)
 
         # Confirm that opening a backup cursor does not open
         # file handles.
@@ -114,7 +123,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
         # We also want to make sure we detect and get an error when set to
         # false.  When set to true the open handles protect against schema
         # operations.
-        self.populate()
+        self.populate(self.fobjs)
+        self.populate(self.tobjs)
         cursor = self.session.open_cursor('backup:', None, None)
         # Check that we can create.
         self.session.create(schema_uri, None)
@@ -132,7 +142,8 @@ class test_backup06(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test cursor reset runs through the list twice.
     def test_cursor_reset(self):
-        self.populate()
+        self.populate(self.fobjs)
+        self.populate(self.tobjs)
         cursor = self.session.open_cursor('backup:', None, None)
         i = 0
         while True:

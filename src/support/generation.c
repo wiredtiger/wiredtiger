@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -15,6 +15,30 @@
  * threads have the previous generation published, it is safe to discard the previous version of the
  * object.
  */
+
+/*
+ * __gen_name --
+ *     Return the generation name.
+ */
+static const char *
+__gen_name(int which)
+{
+    switch (which) {
+    case WT_GEN_CHECKPOINT:
+        return ("checkpoint");
+    case WT_GEN_COMMIT:
+        return ("commit");
+    case WT_GEN_EVICT:
+        return ("evict");
+    case WT_GEN_HAZARD:
+        return ("hazard");
+    case WT_GEN_SPLIT:
+        return ("split");
+    default:
+        break;
+    }
+    return ("unknown");
+}
 
 /*
  * __wt_gen_init --
@@ -49,10 +73,14 @@ __wt_gen(WT_SESSION_IMPL *session, int which)
  * __wt_gen_next --
  *     Switch the resource to its next generation.
  */
-uint64_t
-__wt_gen_next(WT_SESSION_IMPL *session, int which)
+void
+__wt_gen_next(WT_SESSION_IMPL *session, int which, uint64_t *genp)
 {
-    return (__wt_atomic_addv64(&S2C(session)->generations[which], 1));
+    uint64_t gen;
+
+    gen = __wt_atomic_addv64(&S2C(session)->generations[which], 1);
+    if (genp != NULL)
+        *genp = gen;
 }
 
 /*
@@ -78,11 +106,13 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *s;
-    uint64_t v;
+    uint64_t v, start, stop;
     uint32_t i, session_cnt;
+    u_int minutes;
     int pause_cnt;
 
     conn = S2C(session);
+    start = 0; /* [-Wconditional-uninitialized] */
 
     /*
      * No lock is required because the session array is fixed size, but it may contain inactive
@@ -91,7 +121,7 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
      * the sessions that could have been active when we started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
+    for (minutes = 0, pause_cnt = 0, s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
@@ -100,9 +130,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
             WT_ORDERED_READ(v, s->generations[which]);
 
             /*
-             * The generation argument is newer than the limit. Wait
-             * for threads in generations older than the argument
-             * generation, threads in argument generations are OK.
+             * The generation argument is newer than the limit. Wait for threads in generations
+             * older than the argument generation, threads in argument generations are OK.
              *
              * The thread's generation may be 0 (that is, not set).
              */
@@ -111,8 +140,8 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
 
             /* If we're waiting on ourselves, we're deadlocked. */
             if (session == s) {
-                WT_ASSERT(session, session != s);
-                WT_IGNORE_RET(__wt_panic(session));
+                WT_IGNORE_RET(__wt_panic(session, WT_PANIC, "self-deadlock"));
+                return;
             }
 
             /*
@@ -123,6 +152,23 @@ __wt_gen_drain(WT_SESSION_IMPL *session, int which, uint64_t generation)
                 WT_PAUSE();
             else
                 __wt_sleep(0, 10);
+
+            /*
+             * If we wait for more than a minute, log the event. In DIAGNOSTIC mode, abort if we
+             * ever wait more than 3 minutes, that's forever.
+             */
+            if (minutes == 0) {
+                minutes = 1;
+                __wt_seconds(session, &start);
+            } else {
+                __wt_seconds(session, &stop);
+                if (stop - start > minutes * WT_MINUTE) {
+                    WT_IGNORE_RET(__wt_msg(session, "%s generation drain waited %u minutes",
+                      __gen_name(which), minutes));
+                    ++minutes;
+                    WT_ASSERT(session, minutes < 4);
+                }
+            }
         }
     }
 }
@@ -148,8 +194,7 @@ __gen_oldest(WT_SESSION_IMPL *session, int which)
      * the sessions that could have been active when we started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (oldest = conn->generations[which] + 1, s = conn->sessions, i = 0; i < session_cnt;
-         ++s, ++i) {
+    for (oldest = conn->generations[which], s = conn->sessions, i = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
@@ -195,6 +240,12 @@ __wt_gen_active(WT_SESSION_IMPL *session, int which, uint64_t generation)
             return (true);
     }
 
+#ifdef HAVE_DIAGNOSTIC
+    {
+        uint64_t oldest = __gen_oldest(session, which);
+        WT_ASSERT(session, generation < oldest);
+    }
+#endif
     return (false);
 }
 
@@ -220,6 +271,8 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
      * protected by a generation running outside one.
      */
     WT_ASSERT(session, session->generations[which] == 0);
+    WT_ASSERT(session, session->active);
+    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
 
     /*
      * Assign the thread's resource generation and publish it, ensuring threads waiting on a
@@ -240,6 +293,9 @@ __wt_session_gen_enter(WT_SESSION_IMPL *session, int which)
 void
 __wt_session_gen_leave(WT_SESSION_IMPL *session, int which)
 {
+    WT_ASSERT(session, session->active);
+    WT_ASSERT(session, session->id < S2C(session)->session_cnt);
+
     /* Ensure writes made by this thread are visible. */
     WT_PUBLISH(session->generations[which], 0);
 

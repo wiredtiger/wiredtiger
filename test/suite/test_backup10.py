@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,18 +29,16 @@
 import wiredtiger, wttest
 import os, shutil
 from helper import compare_files
-from suite_subprocess import suite_subprocess
+from wtbackup import backup_base
 from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_backup10.py
 # Test cursor backup with a duplicate backup cursor.
-class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
+class test_backup10(backup_base):
     dir='backup.dir'                    # Backup directory name
     logmax="100K"
-    newuri="table:newtable"
     uri="table:test"
-    nops=100
 
     pfx = 'test_backup'
 
@@ -63,15 +61,8 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Insert small amounts of data at a time stopping after we
         # cross into log file 2.
-        loop = 0
-        c = self.session.open_cursor(self.uri)
         while not os.path.exists(log2):
-            for i in range(0, self.nops):
-                num = i + (loop * self.nops)
-                key = 'key' + str(num)
-                val = 'value' + str(num)
-                c[key] = val
-            loop += 1
+            self.add_data(self.uri, 'key', 'value')
 
         # Open up the backup cursor. This causes a new log file to be created.
         # That log file is not part of the list returned.
@@ -79,47 +70,17 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         bkup_c = self.session.open_cursor('backup:', None, None)
 
         # Add some data that will appear in log file 3.
-        for i in range(0, self.nops):
-            num = i + (loop * self.nops)
-            key = 'key' + str(num)
-            val = 'value' + str(num)
-            c[key] = val
-        loop += 1
-        c.close()
+        self.add_data(self.uri, 'key', 'value')
         self.session.log_flush('sync=on')
 
-        # Now copy the files returned by the backup cursor.
-        orig_logs = []
-        while True:
-            ret = bkup_c.next()
-            if ret != 0:
-                break
-            newfile = bkup_c.get_key()
-            self.assertNotEqual(newfile, self.newuri)
-            sz = os.path.getsize(newfile)
-            self.pr('Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-            shutil.copy(newfile, self.dir)
-            if "WiredTigerLog" in newfile:
-                orig_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        # Now make a full backup and track the log files.
+        all_files = self.take_full_backup(self.dir, bkup_c)
+        orig_logs = [file for file in all_files if "WiredTigerLog" in file]
 
         # Now open a duplicate backup cursor.
         config = 'target=("log:")'
         dupc = self.session.open_cursor(None, bkup_c, config)
-        dup_logs = []
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
-            newfile = dupc.get_key()
-            self.assertTrue("WiredTigerLog" in newfile)
-            sz = os.path.getsize(newfile)
-            if (newfile not in orig_logs):
-                self.pr('DUP: Copy from: ' + newfile + ' (' + str(sz) + ') to ' + self.dir)
-                shutil.copy(newfile, self.dir)
-            # Record all log files returned for later verification.
-            dup_logs.append(newfile)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs, dupc)
 
         # We expect that the duplicate logs are a superset of the
         # original logs. And we expect the difference to be the
@@ -130,6 +91,7 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         diff = dup_set.difference(orig_set)
         self.assertEqual(len(diff), 1)
         self.assertTrue(log3 in dup_set)
+        self.assertFalse(log3 in orig_set)
 
         # Test a few error cases now.
         # - We cannot make multiple duplcate backup cursors.
@@ -144,11 +106,10 @@ class test_backup10(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             dupc, config), 0), msg)
-
         dupc.close()
 
         # Test we must use the log target.
-        msg = "/must be for logs/"
+        msg = "/must be for /"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, None), 0), msg)

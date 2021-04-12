@@ -136,6 +136,11 @@ __wt_logop_col_modify_print(
     escaped = NULL;
     WT_RET(__wt_logop_col_modify_unpack(session, pp, end, &fileid, &recno, &value));
 
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_modify\",\n"));
     WT_ERR(__wt_fprintf(
       session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
@@ -203,6 +208,11 @@ __wt_logop_col_put_print(
     escaped = NULL;
     WT_RET(__wt_logop_col_put_unpack(session, pp, end, &fileid, &recno, &value));
 
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_put\",\n"));
     WT_ERR(__wt_fprintf(
       session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
@@ -266,6 +276,11 @@ __wt_logop_col_remove_print(
 
     WT_RET(__wt_logop_col_remove_unpack(session, pp, end, &fileid, &recno));
 
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_remove\",\n"));
     WT_RET(__wt_fprintf(
       session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
@@ -320,6 +335,11 @@ __wt_logop_col_truncate_print(
     uint64_t stop;
 
     WT_RET(__wt_logop_col_truncate_unpack(session, pp, end, &fileid, &start, &stop));
+
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"col_truncate\",\n"));
     WT_RET(__wt_fprintf(
@@ -379,6 +399,11 @@ __wt_logop_row_modify_print(
 
     escaped = NULL;
     WT_RET(__wt_logop_row_modify_unpack(session, pp, end, &fileid, &key, &value));
+
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_modify\",\n"));
     WT_ERR(__wt_fprintf(
@@ -452,6 +477,11 @@ __wt_logop_row_put_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_put_unpack(session, pp, end, &fileid, &key, &value));
 
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_put\",\n"));
     WT_ERR(__wt_fprintf(
       session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
@@ -522,6 +552,11 @@ __wt_logop_row_remove_print(
     escaped = NULL;
     WT_RET(__wt_logop_row_remove_unpack(session, pp, end, &fileid, &key));
 
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
+
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_remove\",\n"));
     WT_ERR(__wt_fprintf(
       session, args->fs, "        \"fileid\": %" PRIu32 " 0x%" PRIx32 ",\n", fileid, fileid));
@@ -588,6 +623,11 @@ __wt_logop_row_truncate_print(
 
     escaped = NULL;
     WT_RET(__wt_logop_row_truncate_unpack(session, pp, end, &fileid, &start, &stop, &mode));
+
+    if (!FLD_ISSET(args->flags, WT_TXN_PRINTLOG_UNREDACT) && fileid != WT_METAFILE_ID) {
+        WT_RET(__wt_fprintf(session, args->fs, " REDACTED"));
+        return (0);
+    }
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"row_truncate\",\n"));
     WT_ERR(__wt_fprintf(
@@ -711,7 +751,7 @@ __wt_logop_prev_lsn_print(
 
 int
 __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_t time_sec,
-  uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_ts,
+  uint64_t time_nsec, uint64_t commit_ts, uint64_t durable_ts, uint64_t first_commit_ts,
   uint64_t prepare_ts, uint64_t read_ts)
 {
     const char *fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
@@ -720,13 +760,13 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
 
     optype = WT_LOGOP_TXN_TIMESTAMP;
     WT_RET(__wt_struct_size(session, &size, fmt, optype, 0, time_sec, time_nsec, commit_ts,
-      durable_ts, first_ts, prepare_ts, read_ts));
+      durable_ts, first_commit_ts, prepare_ts, read_ts));
 
     __wt_struct_size_adjust(session, &size);
     WT_RET(__wt_buf_extend(session, logrec, logrec->size + size));
     recsize = (uint32_t)size;
     WT_RET(__wt_struct_pack(session, (uint8_t *)logrec->data + logrec->size, size, fmt, optype,
-      recsize, time_sec, time_nsec, commit_ts, durable_ts, first_ts, prepare_ts, read_ts));
+      recsize, time_sec, time_nsec, commit_ts, durable_ts, first_commit_ts, prepare_ts, read_ts));
 
     logrec->size += (uint32_t)size;
     return (0);
@@ -735,14 +775,15 @@ __wt_logop_txn_timestamp_pack(WT_SESSION_IMPL *session, WT_ITEM *logrec, uint64_
 int
 __wt_logop_txn_timestamp_unpack(WT_SESSION_IMPL *session, const uint8_t **pp, const uint8_t *end,
   uint64_t *time_secp, uint64_t *time_nsecp, uint64_t *commit_tsp, uint64_t *durable_tsp,
-  uint64_t *first_tsp, uint64_t *prepare_tsp, uint64_t *read_tsp)
+  uint64_t *first_commit_tsp, uint64_t *prepare_tsp, uint64_t *read_tsp)
 {
     WT_DECL_RET;
     const char *fmt = WT_UNCHECKED_STRING(IIQQQQQQQ);
     uint32_t optype, size;
 
-    if ((ret = __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt, &optype, &size,
-           time_secp, time_nsecp, commit_tsp, durable_tsp, first_tsp, prepare_tsp, read_tsp)) != 0)
+    if ((ret =
+            __wt_struct_unpack(session, *pp, WT_PTRDIFF(end, *pp), fmt, &optype, &size, time_secp,
+              time_nsecp, commit_tsp, durable_tsp, first_commit_tsp, prepare_tsp, read_tsp)) != 0)
         WT_RET_MSG(session, ret, "logop_txn_timestamp: unpack failure");
     WT_ASSERT(session, optype == WT_LOGOP_TXN_TIMESTAMP);
 
@@ -758,19 +799,20 @@ __wt_logop_txn_timestamp_print(
     uint64_t time_nsec;
     uint64_t commit_ts;
     uint64_t durable_ts;
-    uint64_t first_ts;
+    uint64_t first_commit_ts;
     uint64_t prepare_ts;
     uint64_t read_ts;
 
     WT_RET(__wt_logop_txn_timestamp_unpack(session, pp, end, &time_sec, &time_nsec, &commit_ts,
-      &durable_ts, &first_ts, &prepare_ts, &read_ts));
+      &durable_ts, &first_commit_ts, &prepare_ts, &read_ts));
 
     WT_RET(__wt_fprintf(session, args->fs, " \"optype\": \"txn_timestamp\",\n"));
     WT_RET(__wt_fprintf(session, args->fs, "        \"time_sec\": %" PRIu64 ",\n", time_sec));
     WT_RET(__wt_fprintf(session, args->fs, "        \"time_nsec\": %" PRIu64 ",\n", time_nsec));
     WT_RET(__wt_fprintf(session, args->fs, "        \"commit_ts\": %" PRIu64 ",\n", commit_ts));
     WT_RET(__wt_fprintf(session, args->fs, "        \"durable_ts\": %" PRIu64 ",\n", durable_ts));
-    WT_RET(__wt_fprintf(session, args->fs, "        \"first_ts\": %" PRIu64 ",\n", first_ts));
+    WT_RET(__wt_fprintf(
+      session, args->fs, "        \"first_commit_ts\": %" PRIu64 ",\n", first_commit_ts));
     WT_RET(__wt_fprintf(session, args->fs, "        \"prepare_ts\": %" PRIu64 ",\n", prepare_ts));
     WT_RET(__wt_fprintf(session, args->fs, "        \"read_ts\": %" PRIu64 "", read_ts));
     return (0);

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -72,7 +72,7 @@ __capacity_config(WT_SESSION_IMPL *session, const char *cfg[])
 static bool
 __capacity_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_CAPACITY));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CAPACITY));
 }
 
 /*
@@ -115,7 +115,7 @@ __capacity_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "capacity server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "capacity server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -129,7 +129,7 @@ __capacity_server_start(WT_CONNECTION_IMPL *conn)
 {
     WT_SESSION_IMPL *session;
 
-    F_SET(conn, WT_CONN_SERVER_CAPACITY);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CAPACITY);
 
     /*
      * The capacity server gets its own session.
@@ -193,11 +193,10 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
-    F_CLR(conn, WT_CONN_SERVER_CAPACITY);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CAPACITY);
     if (conn->capacity_tid_set) {
         __wt_cond_signal(session, conn->capacity_cond);
         WT_TRET(__wt_thread_join(session, &conn->capacity_tid));
@@ -206,10 +205,8 @@ __wt_capacity_server_destroy(WT_SESSION_IMPL *session)
     __wt_cond_destroy(session, &conn->capacity_cond);
 
     /* Close the server thread's session. */
-    if (conn->capacity_session != NULL) {
-        wt_session = &conn->capacity_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
-    }
+    if (conn->capacity_session != NULL)
+        WT_TRET(__wt_session_close_internal(conn->capacity_session));
 
     /*
      * Ensure capacity settings are cleared - so that reconfigure doesn't get confused.

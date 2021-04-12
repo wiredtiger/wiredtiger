@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -133,10 +133,11 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
      * isn't found.
      */
     WT_CLEAR(cval);
-    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, idx->config, "collator", &cval));
+    WT_ERR_NOTFOUND_OK(__wt_config_getones(session, idx->config, "collator", &cval), false);
     if (cval.len != 0) {
         WT_CLEAR(metadata);
-        WT_ERR_NOTFOUND_OK(__wt_config_getones(session, idx->config, "app_metadata", &metadata));
+        WT_ERR_NOTFOUND_OK(
+          __wt_config_getones(session, idx->config, "app_metadata", &metadata), false);
         WT_ERR(__wt_collator_config(
           session, idx->name, &cval, &metadata, &idx->collator, &idx->collator_owned));
     }
@@ -148,14 +149,12 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &idx->key_format));
 
     /*
-     * The key format for an index is somewhat subtle: the application
-     * specifies a set of columns that it will use for the key, but the
-     * engine usually adds some hidden columns in order to derive the
-     * primary key.  These hidden columns are part of the file's key.
+     * The key format for an index is somewhat subtle: the application specifies a set of columns
+     * that it will use for the key, but the engine usually adds some hidden columns in order to
+     * derive the primary key. These hidden columns are part of the file's key.
      *
-     * The file's key_format is stored persistently, we need to calculate
-     * the index cursor key format (which will usually omit some of those
-     * keys).
+     * The file's key_format is stored persistently, we need to calculate the index cursor key
+     * format (which will usually omit some of those keys).
      */
     WT_ERR(__wt_buf_init(session, buf, 0));
     WT_ERR(__wt_config_getones(session, idx->config, "columns", &idx->colconf));
@@ -192,7 +191,7 @@ __open_index(WT_SESSION_IMPL *session, WT_TABLE *table, WT_INDEX *idx)
             continue;
         WT_ERR(__wt_buf_catfmt(session, buf, "%.*s,", (int)ckey.len, ckey.str));
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
 
     /*
      * If the table doesn't yet have its column groups, don't try to calculate a plan: we are just
@@ -345,7 +344,7 @@ __schema_open_index(
         if (idxname != NULL)
             break;
     }
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     if (idxname != NULL && !match)
         ret = WT_NOTFOUND;
 
@@ -373,9 +372,9 @@ __wt_schema_open_index(
 {
     WT_DECL_RET;
 
-    WT_WITH_TABLE_WRITE_LOCK(
-      session, WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-                 ret = __schema_open_index(session, table, idxname, len, indexp)));
+    WT_WITH_TABLE_WRITE_LOCK(session,
+      WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
+        ret = __schema_open_index(session, table, idxname, len, indexp)));
     return (ret);
 }
 
@@ -394,7 +393,7 @@ __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
  *     Open the data handle for a table (internal version).
  */
 static int
-__schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
+__schema_open_table(WT_SESSION_IMPL *session)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
@@ -408,7 +407,6 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
     tablename = table->iface.name;
 
     WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
-    WT_UNUSED(cfg);
 
     WT_RET(__wt_config_gets(session, table_cfg, "columns", &cval));
     WT_RET(__wt_config_gets(session, table_cfg, "key_format", &cval));
@@ -552,12 +550,12 @@ err:
  *     Open a named table.
  */
 int
-__wt_schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_schema_open_table(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
-    WT_WITH_TABLE_WRITE_LOCK(session, WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED,
-                                        ret = __schema_open_table(session, cfg)));
+    WT_WITH_TABLE_WRITE_LOCK(session,
+      WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = __schema_open_table(session)));
 
     return (ret);
 }

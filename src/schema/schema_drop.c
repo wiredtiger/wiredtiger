@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -113,15 +113,13 @@ __drop_table(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     /*
      * Open the table so we can drop its column groups and indexes.
      *
-     * Ideally we would keep the table locked exclusive across the drop,
-     * but for now we rely on the global table lock to prevent the table
-     * being reopened while it is being dropped.  One issue is that the
-     * WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock,
-     * avoiding deadlocks while waiting for LSM operation to quiesce.
+     * Ideally we would keep the table locked exclusive across the drop, but for now we rely on the
+     * global table lock to prevent the table being reopened while it is being dropped. One issue is
+     * that the WT_WITHOUT_LOCKS macro can drop and reacquire the global table lock, avoiding
+     * deadlocks while waiting for LSM operation to quiesce.
      *
-     * Temporarily getting the table exclusively serves the purpose
-     * of ensuring that cursors on the table that are already open
-     * must at least be closed before this call proceeds.
+     * Temporarily getting the table exclusively serves the purpose of ensuring that cursors on the
+     * table that are already open must at least be closed before this call proceeds.
      */
     WT_ERR(__wt_schema_get_table_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &table));
     WT_ERR(__wt_schema_release_table(session, &table));
@@ -172,6 +170,35 @@ err:
 }
 
 /*
+ * __drop_tiered --
+ *     Drop a tiered store.
+ */
+static int
+__drop_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    WT_DATA_HANDLE *tier;
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+    u_int i;
+
+    /* Get the tiered data handle. */
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    tiered = (WT_TIERED *)session->dhandle;
+
+    /* Drop the tiers. */
+    for (i = 0; i < tiered->ntiers; i++) {
+        tier = tiered->tiers[i];
+        WT_ERR(__wt_schema_drop(session, tier->name, cfg));
+    }
+
+    ret = __wt_metadata_remove(session, uri);
+
+err:
+    F_SET(session->dhandle, WT_DHANDLE_DISCARD);
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+/*
  * __schema_drop --
  *     Process a WT_SESSION::drop operation for all supported types.
  */
@@ -201,6 +228,8 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
         ret = __wt_lsm_tree_drop(session, uri, cfg);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __drop_table(session, uri, cfg);
+    else if (WT_PREFIX_MATCH(uri, "tiered:"))
+        ret = __drop_tiered(session, uri, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->drop == NULL ? __wt_object_unsupported(session, uri) :
                                    dsrc->drop(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -52,9 +52,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     if (F_ISSET(dsk, WT_PAGE_ENCRYPTED)) {
         if (btree->kencryptor == NULL || (encryptor = btree->kencryptor->encryptor) == NULL ||
           encryptor->decrypt == NULL) {
-            fail_msg =
-              "encrypted block in file for which no encryption "
-              "configured";
+            fail_msg = "encrypted block in file for which no encryption configured";
             goto corrupt;
         }
 
@@ -73,9 +71,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
 
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED)) {
         if (btree->compressor == NULL || btree->compressor->decompress == NULL) {
-            fail_msg =
-              "compressed block in file for which no compression "
-              "configured";
+            fail_msg = "compressed block in file for which no compression configured";
             goto corrupt;
         }
 
@@ -124,12 +120,10 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
         WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
     }
 
-    WT_STAT_CONN_INCR(session, cache_read);
-    WT_STAT_DATA_INCR(session, cache_read);
+    WT_STAT_CONN_DATA_INCR(session, cache_read);
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
         WT_STAT_DATA_INCR(session, compress_read);
-    WT_STAT_CONN_INCRV(session, cache_bytes_read, dsk->mem_size);
-    WT_STAT_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
+    WT_STAT_CONN_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
 
@@ -140,7 +134,7 @@ corrupt:
         F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);
         if (!F_ISSET(btree, WT_BTREE_VERIFY) && !F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE)) {
             WT_TRET(bm->corrupt(bm, session, addr, addr_size));
-            WT_PANIC_ERR(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
+            WT_ERR_PANIC(session, ret, "%s: fatal read error: %s", btree->dhandle->name, fail_msg);
         }
     }
 
@@ -181,7 +175,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
     time_start = time_stop = 0;
 
     /* Checkpoint calls are different than standard calls. */
-    WT_ASSERT(session, (!checkpoint && addr != NULL && addr_sizep != NULL) ||
+    WT_ASSERT(session,
+      (!checkpoint && addr != NULL && addr_sizep != NULL) ||
         (checkpoint && addr == NULL && addr_sizep == NULL));
 
     /* In-memory databases shouldn't write pages. */
@@ -309,19 +304,17 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         F_SET(dsk, WT_PAGE_ENCRYPTED);
 
     /*
-     * We increment the block's write generation so it's easy to identify
-     * newer versions of blocks during salvage.  (It's common in WiredTiger,
-     * at least for the default block manager, for multiple blocks to be
-     * internally consistent with identical first and last keys, so we need
-     * a way to know the most recent state of the block.  We could check
-     * which leaf is referenced by a valid internal page, but that implies
-     * salvaging internal pages, which I don't want to do, and it's not
-     * as good anyway, because the internal page may not have been written
-     * after the leaf page was updated.  So, write generations it is.
+     * We increment the block's write generation so it's easy to identify newer versions of blocks
+     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
+     * multiple blocks to be internally consistent with identical first and last keys, so we need a
+     * way to know the most recent state of the block. We could check which leaf is referenced by a
+     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
+     * it's not as good anyway, because the internal page may not have been written after the leaf
+     * page was updated. So, write generations it is.
      *
-     * Nothing is locked at this point but two versions of a page with the
-     * same generation is pretty unlikely, and if we did, they're going to
-     * be roughly identical for the purposes of salvage, anyway.
+     * Nothing is locked at this point but two versions of a page with the same generation is pretty
+     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
+     * anyway.
      */
     dsk->write_gen = ++btree->write_gen;
 
@@ -357,10 +350,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         WT_STAT_SESSION_INCRV(session, write_time, time_diff);
     }
 
-    WT_STAT_CONN_INCR(session, cache_write);
-    WT_STAT_DATA_INCR(session, cache_write);
-    WT_STAT_CONN_INCRV(session, cache_bytes_write, dsk->mem_size);
-    WT_STAT_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
+    WT_STAT_CONN_DATA_INCR(session, cache_write);
+    WT_STAT_CONN_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size);
 

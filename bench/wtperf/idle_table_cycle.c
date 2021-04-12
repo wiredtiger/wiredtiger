@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -29,27 +29,37 @@
 #include "wtperf.h"
 
 static int
-check_timing(WTPERF *wtperf, const char *name, struct timespec start, struct timespec *stop)
+check_timing(WTPERF *wtperf, const char *name, uint64_t start, uint64_t *stop)
 {
     CONFIG_OPTS *opts;
     uint64_t last_interval;
+    int msg_err;
+    const char *str;
 
     opts = wtperf->opts;
+    msg_err = 0;
 
-    __wt_epoch(NULL, stop);
+    *stop = __wt_clock(NULL);
 
-    last_interval = (uint64_t)(WT_TIMEDIFF_SEC(*stop, start));
+    last_interval = WT_CLOCKDIFF_SEC(*stop, start);
 
-    if (last_interval > opts->idle_table_cycle) {
-        lprintf(wtperf, ETIMEDOUT, 0, "Cycling idle table failed because %s took %" PRIu64
-                                      " seconds which is longer than configured acceptable"
-                                      " maximum of %" PRIu32 ".",
-          name, last_interval, opts->idle_table_cycle);
-        wtperf->error = true;
-        return (ETIMEDOUT);
+    if (last_interval > opts->max_idle_table_cycle) {
+        if (opts->max_idle_table_cycle_fatal) {
+            msg_err = ETIMEDOUT;
+            str = "ERROR";
+            wtperf->error = true;
+        } else {
+            str = "WARNING";
+        }
+        lprintf(wtperf, msg_err, 0,
+          "%s: Cycling idle table failed because %s took %" PRIu64
+          " seconds which is longer than configured acceptable maximum of %" PRIu32 ".",
+          str, name, last_interval, opts->max_idle_table_cycle);
     }
-    return (0);
+
+    return (msg_err);
 }
+
 /*
  * Regularly create, open a cursor and drop a table. Measure how long each step takes, and flag an
  * error if it exceeds the configured maximum.
@@ -57,11 +67,11 @@ check_timing(WTPERF *wtperf, const char *name, struct timespec start, struct tim
 static WT_THREAD_RET
 cycle_idle_tables(void *arg)
 {
-    struct timespec start, stop;
     CONFIG_OPTS *opts;
     WTPERF *wtperf;
     WT_CURSOR *cursor;
     WT_SESSION *session;
+    uint64_t start, stop;
     int cycle_count, ret;
     char uri[512];
 
@@ -81,7 +91,7 @@ cycle_idle_tables(void *arg)
         __wt_sleep(1, 0);
 
         /* Setup a start timer. */
-        __wt_epoch(NULL, &start);
+        start = __wt_clock(NULL);
 
         /* Create a table. */
         if ((ret = session->create(session, uri, opts->table_config)) != 0) {
@@ -145,7 +155,7 @@ start_idle_table_cycle(WTPERF *wtperf, wt_thread_t *idle_table_cycle_thread)
 
     opts = wtperf->opts;
 
-    if (opts->idle_table_cycle == 0)
+    if (opts->max_idle_table_cycle == 0)
         return;
 
     wtperf->idle_cycle_run = true;
@@ -160,7 +170,7 @@ stop_idle_table_cycle(WTPERF *wtperf, wt_thread_t idle_table_cycle_thread)
 
     opts = wtperf->opts;
 
-    if (opts->idle_table_cycle == 0 || !wtperf->idle_cycle_run)
+    if (opts->max_idle_table_cycle == 0 || !wtperf->idle_cycle_run)
         return;
 
     wtperf->idle_cycle_run = false;

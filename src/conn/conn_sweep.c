@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -66,31 +66,26 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
      *
-     * The close would require I/O if an update cannot be written
-     * (updates in a no-longer-referenced file might not yet be
-     * globally visible if sessions have disjoint sets of files
-     * open).  In that case, skip it: we'll retry the close the
-     * next time, after the transaction state has progressed.
+     * The close would require I/O if an update cannot be written (updates in a no-longer-referenced
+     * file might not yet be globally visible if sessions have disjoint sets of files open). In that
+     * case, skip it: we'll retry the close the next time, after the transaction state has
+     * progressed.
      *
-     * We don't set WT_DHANDLE_EXCLUSIVE deliberately, we want
-     * opens to block on us and then retry rather than returning an
-     * EBUSY error to the application.  This is done holding the
-     * handle list lock so that connection-level handle searches
-     * never need to retry.
+     * We don't set WT_DHANDLE_EXCLUSIVE deliberately, we want opens to block on us and then retry
+     * rather than returning an EBUSY error to the application. This is done holding the handle list
+     * lock so that connection-level handle searches never need to retry.
      */
     WT_RET(__wt_try_writelock(session, &dhandle->rwlock));
 
-    /* Only sweep clean trees where all updates are visible. */
-    if (btree != NULL &&
-      (btree->modified ||
-          !__wt_txn_visible_all(session, btree->rec_max_txn, btree->rec_max_timestamp)))
+    /* Only sweep clean trees. */
+    if (btree != NULL && btree->modified)
         goto err;
 
     /*
      * Mark the handle dead and close the underlying handle.
      *
-     * For btree handles, closing the handle decrements the open file
-     * count, meaning the close loop won't overrun the configured minimum.
+     * For btree handles, closing the handle decrements the open file count, meaning the close loop
+     * won't overrun the configured minimum.
      */
     ret = __wt_conn_dhandle_close(session, false, true);
 
@@ -252,7 +247,7 @@ __sweep_remove_handles(WT_SESSION_IMPL *session)
 static bool
 __sweep_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_SWEEP));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_SWEEP));
 }
 
 /*
@@ -266,14 +261,12 @@ __sweep_server(void *arg)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t last, now;
-    uint64_t last_las_sweep_id, min_sleep, oldest_id, sweep_interval;
+    uint64_t sweep_interval;
     u_int dead_handles;
     bool cv_signalled;
 
     session = arg;
     conn = S2C(session);
-    last_las_sweep_id = WT_TXN_NONE;
-    min_sleep = WT_MIN(WT_LAS_SWEEP_SEC, conn->sweep_interval);
     if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
         sweep_interval = conn->sweep_interval / 10;
     else
@@ -286,10 +279,10 @@ __sweep_server(void *arg)
     for (;;) {
         /* Wait until the next event. */
         if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP))
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * 100 * WT_THOUSAND,
-              __sweep_server_run_chk, &cv_signalled);
+            __wt_cond_wait_signal(session, conn->sweep_cond,
+              conn->sweep_interval * 100 * WT_THOUSAND, __sweep_server_run_chk, &cv_signalled);
         else
-            __wt_cond_wait_signal(session, conn->sweep_cond, min_sleep * WT_MILLION,
+            __wt_cond_wait_signal(session, conn->sweep_cond, conn->sweep_interval * WT_MILLION,
               __sweep_server_run_chk, &cv_signalled);
 
         /* Check if we're quitting or being reconfigured. */
@@ -299,32 +292,19 @@ __sweep_server(void *arg)
         __wt_seconds(session, &now);
 
         /*
-         * Sweep the lookaside table. If the lookaside table hasn't yet
-         * been written, there's no work to do.
-         *
-         * Don't sweep the lookaside table if the cache is stuck full.
-         * The sweep uses the cache and can exacerbate the problem.
-         * If we try to sweep when the cache is full or we aren't
-         * making progress in eviction, sweeping can wind up constantly
-         * bringing in and evicting pages from the lookaside table,
-         * which will stop the cache from moving into the stuck state.
-         */
-        if ((FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_AGGRESSIVE_SWEEP) ||
-              now - last >= WT_LAS_SWEEP_SEC) &&
-          !__wt_las_empty(session) && !__wt_cache_stuck(session)) {
-            oldest_id = __wt_txn_oldest_id(session);
-            if (WT_TXNID_LT(last_las_sweep_id, oldest_id)) {
-                WT_ERR(__wt_las_sweep(session));
-                last_las_sweep_id = oldest_id;
-            }
-        }
-
-        /*
          * See if it is time to sweep the data handles. Those are swept less frequently than the
-         * lookaside table by default and the frequency is controlled by a user setting.
+         * history store table by default and the frequency is controlled by a user setting. We want
+         * to avoid sweeping while checkpoint is gathering handles. Both need to lock the dhandle
+         * list and sweep acquiring that lock can interfere with checkpoint and cause it to take
+         * longer. Sweep is an operation that typically has long intervals so skipping some for
+         * checkpoint should have little impact.
          */
         if (!cv_signalled && (now - last < sweep_interval))
             continue;
+        if (F_ISSET(conn, WT_CONN_CKPT_GATHER)) {
+            WT_STAT_CONN_INCR(session, dh_sweep_skip_ckpt);
+            continue;
+        }
         WT_STAT_CONN_INCR(session, dh_sweeps);
         /*
          * Mark handles with a time of death, and report whether any handles are marked dead. If
@@ -351,7 +331,7 @@ __sweep_server(void *arg)
 
     if (0) {
 err:
-        WT_PANIC_MSG(session, ret, "handle sweep server error");
+        WT_IGNORE_RET(__wt_panic(session, ret, "handle sweep server error"));
     }
     return (WT_THREAD_RET_VALUE);
 }
@@ -401,7 +381,7 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Set first, the thread might run before we finish up. */
-    F_SET(conn, WT_CONN_SERVER_SWEEP);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_SWEEP);
 
     /*
      * Handle sweep does enough I/O it may be called upon to perform slow operations for the block
@@ -411,13 +391,6 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
     WT_RET(
       __wt_open_internal_session(conn, "sweep-server", true, session_flags, &conn->sweep_session));
     session = conn->sweep_session;
-
-    /*
-     * Sweep should have it's own lookaside cursor to avoid blocking reads and eviction when
-     * processing drops.
-     */
-    if (F_ISSET(conn, WT_CONN_LOOKASIDE_OPEN))
-        WT_RET(__wt_las_cursor_open(session));
 
     WT_RET(__wt_cond_alloc(session, "handle sweep server", &conn->sweep_cond));
 
@@ -436,11 +409,10 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION *wt_session;
 
     conn = S2C(session);
 
-    F_CLR(conn, WT_CONN_SERVER_SWEEP);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_SWEEP);
     if (conn->sweep_tid_set) {
         __wt_cond_signal(session, conn->sweep_cond);
         WT_TRET(__wt_thread_join(session, &conn->sweep_tid));
@@ -449,8 +421,7 @@ __wt_sweep_destroy(WT_SESSION_IMPL *session)
     __wt_cond_destroy(session, &conn->sweep_cond);
 
     if (conn->sweep_session != NULL) {
-        wt_session = &conn->sweep_session->iface;
-        WT_TRET(wt_session->close(wt_session, NULL));
+        WT_TRET(__wt_session_close_internal(conn->sweep_session));
 
         conn->sweep_session = NULL;
     }

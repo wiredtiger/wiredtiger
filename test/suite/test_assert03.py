@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2019 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -37,9 +37,9 @@ class test_assert03(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'log=(enabled)'
     base_uri = 'file:assert03.wt'
     cfg = 'key_format=S,value_format=S'
-    always = 'assert=(commit_timestamp=always)'
-    never = 'assert=(commit_timestamp=never)'
-    none = 'assert=(commit_timestamp=none)'
+    always = 'write_timestamp_usage=always,assert=(write_timestamp=on)'
+    never = 'write_timestamp_usage=never,assert=(write_timestamp=on)'
+    none = 'assert=(write_timestamp=off)'
 
     def test_assert03(self):
         #if not wiredtiger.diagnostic_build():

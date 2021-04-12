@@ -13,10 +13,12 @@ __wt_bulk_insert_fix
 __wt_bulk_insert_row
 __wt_bulk_insert_var
 __wt_config_getone
+__wt_curhs_open
 __wt_cursor_get_raw_value
 __wt_debug_addr
 __wt_debug_addr_print
 __wt_debug_cursor_page
+__wt_debug_cursor_tree_hs
 __wt_debug_offset
 __wt_debug_set_verbose
 __wt_debug_tree
@@ -43,6 +45,7 @@ wiredtiger_pack_uint
 wiredtiger_struct_pack
 wiredtiger_struct_size
 wiredtiger_struct_unpack
+wiredtiger_test_config_validate
 wiredtiger_unpack_int
 wiredtiger_unpack_item
 wiredtiger_unpack_start

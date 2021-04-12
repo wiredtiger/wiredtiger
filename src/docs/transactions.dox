@@ -1,4 +1,4 @@
-/*! @m_page{{c,java},transactions,Transactions}
+/*! @page transactions Transactions
 
 @section transactions_acid ACID properties
 
@@ -54,6 +54,17 @@ discarding any cursor position as well as any key and value.
 
 @snippet ex_all.c transaction commit/rollback
 
+Applications can call WT_SESSION::reset_snapshot to reset snapshots for
+snapshot isolation transactions to update their existing snapshot. It raises
+an error when this API is used for isolation other than snapshot isolation mode
+or when the session has performed any write operations.
+This API internally releases the current snapshot and gets the new running
+transactions snapshot to avoid pinning the content in the database that is no
+longer needed. Applications that don't use read_timestamp for the search may
+see different results compared to earlier with the updated snapshot.
+
+@snippet ex_all.c reset snapshot
+
 @section transactions_implicit Implicit transactions
 
 If a cursor is used when no explicit transaction is active in a session,
@@ -91,7 +102,7 @@ transactional readers, an operation may fail and return ::WT_ROLLBACK.
 
 WiredTiger supports <code>read-uncommitted</code>,
 <code>read-committed</code> and  <code>snapshot</code> isolation levels;
-the default isolation level is <code>read-committed</code>.
+the default isolation level is <code>snapshot</code>.
 
 - <code>read-uncommitted</code>:
 Transactions can see changes made by other transactions before those
@@ -128,28 +139,6 @@ re-configured on a per-session basis:
 @snippet ex_all.c session isolation configuration
 
 @snippet ex_all.c session isolation re-configuration
-
-@section transaction_named_snapshots Named Snapshots
-
-Applications can create named snapshots by calling WT_SESSION::snapshot
-with a configuration that includes <code>"name=foo"</code>.
-This configuration creates a new named snapshot, as if a snapshot isolation
-transaction were started at the time of the WT_SESSION::snapshot call.
-
-Subsequent transactions can be started "as of" that snapshot by calling
-WT_SESSION::begin_transaction with a configuration that includes
-<code>snapshot=foo</code>.  That transaction will run at snapshot isolation
-as if the transaction started at the time of the WT_SESSION::snapshot
-call that created the snapshot.
-
-Named snapshots keep data pinned in cache as if a real transaction were
-running for the time that the named snapshot is active.  The resources
-associated with named snapshots should be released by calling
-WT_SESSION::snapshot with a configuration that includes
-<code>"drop="</code>. See WT_SESSION::snapshot documentation for details of
-the semantics supported by the drop configuration.
-
-Named snapshots are not durable: they do not survive WT_CONNECTION::close.
 
 @section transaction_timestamps Application-specified Transaction Timestamps
 

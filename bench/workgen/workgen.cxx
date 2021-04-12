@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2019 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -35,7 +35,6 @@
 #include "wiredtiger.h"
 #include "workgen.h"
 #include "workgen_int.h"
-#include "workgen_time.h"
 extern "C" {
 // Include some specific WT files, as some files included by wt_internal.h
 // have some C-ism's that don't work in C++.
@@ -43,12 +42,11 @@ extern "C" {
 #include <string.h>
 #include <stdint.h>
 #include <stdlib.h>
-#include <unistd.h>
 #include <errno.h>
-#include <math.h>
 #include "error.h"
 #include "misc.h"
 }
+#define BUF_SIZE 100
 
 #define LATENCY_US_BUCKETS 1000
 #define LATENCY_MS_BUCKETS 1000
@@ -102,6 +100,12 @@ extern "C" {
 
 namespace workgen {
 
+
+struct WorkloadRunnerConnection {
+    WorkloadRunner *runner;
+    WT_CONNECTION *connection;
+};
+
 // The number of contexts.  Normally there is one context created, but it will
 // be possible to use several eventually.  More than one is not yet
 // implemented, but we must at least guard against the caller creating more
@@ -116,6 +120,139 @@ static void *thread_runner_main(void *arg) {
         runner->_exception = wge;
     }
     return (NULL);
+}
+
+static void *thread_workload(void *arg) {
+
+    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *) arg;
+    WorkloadRunner *runner = runnerConnection->runner;
+    WT_CONNECTION *connection = runnerConnection->connection;
+
+    try {
+        runner->increment_timestamp(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while incrementing timestamp." << std::endl;
+    }
+
+    return (NULL);
+}
+
+static void *thread_idle_table_cycle_workload(void *arg) {
+    WorkloadRunnerConnection *runnerConnection = (WorkloadRunnerConnection *) arg;
+    WT_CONNECTION *connection = runnerConnection->connection;
+    WorkloadRunner *runner = runnerConnection->runner;
+
+    try {
+        runner->start_table_idle_cycle(connection);
+    } catch (WorkgenException &wge) {
+        std::cerr << "Exception while create/drop tables." << std::endl;
+    }
+
+    return (NULL);
+}
+
+int WorkloadRunner::check_timing(const char *name, uint64_t last_interval) {
+    WorkloadOptions *options = &_workload->options;
+    int msg_err;
+    const char *str;
+
+    msg_err = 0;
+
+    if (last_interval > options->max_idle_table_cycle) {
+        if (options->max_idle_table_cycle_fatal) {
+            msg_err = ETIMEDOUT;
+            str = "ERROR";
+        } else {
+            str = "WARNING";
+        }
+        std::cerr << str << ": Cycling idle table failed because " << name << " took " << last_interval << " seconds which is longer than configured acceptable maximum of " << options->max_idle_table_cycle << std::endl;
+     }
+     return (msg_err);
+}
+
+int WorkloadRunner::start_table_idle_cycle(WT_CONNECTION *conn) {
+    WT_SESSION *session;
+    WT_CURSOR *cursor;
+    uint64_t start, stop, last_interval;
+    int ret, cycle_count;
+    char uri[BUF_SIZE];
+
+    cycle_count = 0;
+    if ((ret = conn->open_session(conn, NULL, NULL, &session)) != 0) {
+        THROW("Error Opening a Session.");
+    }
+
+    for (cycle_count = 0 ; !stopping ; ++cycle_count) {
+        sprintf(uri, "table:test_cycle%04d", cycle_count);
+
+        workgen_clock(&start);
+        /* Create a table. */
+        if ((ret = session->create(session, uri, "key_format=S,value_format=S")) != 0) {
+            if (ret == EBUSY)
+                continue;
+            THROW("Table create failed in start_table_idle_cycle.");
+        }
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("CREATE", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->create timeout.");
+        start = stop;
+
+        /* Open and close cursor. */
+        if ((ret = session->open_cursor(session, uri, NULL, NULL, &cursor)) != 0) {
+            THROW("Cursor open failed.");
+        }
+        if ((ret = cursor->close(cursor)) != 0) {
+            THROW("Cursor close failed.");
+        }
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("CURSOR", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->open_cursor timeout.");
+        start = stop;
+
+        /*
+         * Drop the table. Keep retrying on EBUSY failure - it is an expected return when
+         * checkpoints are happening.
+         */
+        while ((ret = session->drop(session, uri, "force,checkpoint_wait=false")) == EBUSY)
+            sleep(1);
+
+        if (ret != 0) {
+            THROW("Table drop failed in cycle_idle_tables.");
+        }
+        workgen_clock(&stop);
+        last_interval = ns_to_sec(stop - start);
+        if ((ret = check_timing("DROP", last_interval)) != 0)
+            THROW_ERRNO(ret, "WT_SESSION->drop timeout.");
+    }
+    return 0;
+}
+/*
+ * This function will sleep for "timestamp_advance" seconds, increment and set oldest_timestamp,
+ * stable_timestamp with the specified lag until stopping is set to true
+ */
+int WorkloadRunner::increment_timestamp(WT_CONNECTION *conn) {
+    uint64_t time_us;
+    char buf[BUF_SIZE];
+
+    while (!stopping)
+    {
+        if (_workload->options.oldest_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.oldest_timestamp_lag);
+            sprintf(buf, "oldest_timestamp=%" PRIu64, time_us);
+            conn->set_timestamp(conn, buf);
+        }
+
+        if (_workload->options.stable_timestamp_lag > 0) {
+            time_us = WorkgenTimeStamp::get_timestamp_lag(_workload->options.stable_timestamp_lag);
+            sprintf(buf, "stable_timestamp=%" PRIu64, time_us);
+            conn->set_timestamp(conn, buf);
+        }
+
+        WorkgenTimeStamp::sleep(_workload->options.timestamp_advance);
+    }
+    return 0;
 }
 
 static void *monitor_main(void *arg) {
@@ -467,7 +604,7 @@ int ThreadRunner::create_all(WT_CONNECTION *conn) {
     ASSERT(_session == NULL);
     if (_thread->options.synchronized)
         _thread->_op.synchronized_check();
-    WT_RET(conn->open_session(conn, NULL, NULL, &_session));
+    WT_RET(conn->open_session(conn, NULL, _thread->options.session_config.c_str(), &_session));
     _table_usage.clear();
     _stats.track_latency(_workload->options.sample_interval_ms > 0);
     WT_RET(workgen_random_alloc(_session, &_rand_state));
@@ -715,6 +852,9 @@ int ThreadRunner::op_run(Operation *op) {
     uint64_t recno;
     uint64_t range;
     bool measure_latency, own_cursor, retry_op;
+    timespec start_time;
+    uint64_t time_us;
+    char buf[BUF_SIZE];
 
     track = NULL;
     cursor = NULL;
@@ -792,9 +932,10 @@ int ThreadRunner::op_run(Operation *op) {
       (track->ops % _workload->options.sample_rate == 0);
 
     VERBOSE(*this, "OP " << op->_optype << " " << op->_table._uri.c_str() << ", recno=" << recno);
-    timespec start;
+    uint64_t start;
     if (measure_latency)
-        workgen_epoch(&start);
+        workgen_clock(&start);
+
     // Whether or not we are measuring latency, we track how many operations
     // are in progress, or that complete.
     if (track != NULL)
@@ -814,11 +955,22 @@ int ThreadRunner::op_run(Operation *op) {
     }
     // Retry on rollback until success.
     while (retry_op) {
-        if (op->_transaction != NULL) {
+        if (op->transaction != NULL) {
             if (_in_transaction)
                 THROW("nested transactions not supported");
-            WT_ERR(_session->begin_transaction(_session,
-              op->_transaction->_begin_config.c_str()));
+            if (op->transaction->use_commit_timestamp && op->transaction->use_prepare_timestamp)
+            {
+                THROW("Either use_prepare_timestamp or use_commit_timestamp must be set.");
+            }
+            if (op->transaction->read_timestamp_lag > 0) {
+                uint64_t read = WorkgenTimeStamp::get_timestamp_lag(op->transaction->read_timestamp_lag);
+                sprintf(buf, "%s=%" PRIu64, op->transaction->_begin_config.c_str(), read);
+            }
+            else {
+                sprintf(buf, "%s", op->transaction->_begin_config.c_str());
+            }
+            WT_ERR(_session->begin_transaction(_session, buf));
+
             _in_transaction = true;
         }
         if (op->is_table_op()) {
@@ -868,15 +1020,15 @@ int ThreadRunner::op_run(Operation *op) {
     }
 
     if (measure_latency) {
-        timespec stop;
-        workgen_epoch(&stop);
-        track->complete_with_latency(ts_us(stop - start));
+        uint64_t stop;
+        workgen_clock(&stop);
+        track->complete_with_latency(ns_to_us(stop - start));
     } else if (track != NULL)
         track->complete();
 
     if (op->_group != NULL) {
         uint64_t endtime = 0;
-        timespec now;
+        uint64_t now;
 
         if (op->_timed != 0.0)
             endtime = _op_time_us + secs_us(op->_timed);
@@ -890,8 +1042,8 @@ int ThreadRunner::op_run(Operation *op) {
                      i != op->_group->end(); i++)
                     WT_ERR(op_run(&*i));
             }
-            workgen_epoch(&now);
-        } while (!_stop && ts_us(now) < endtime);
+            workgen_clock(&now);
+        } while (!_stop && ns_to_us(now) < endtime);
 
         if (op->_timed != 0.0)
             _op_time_us = endtime;
@@ -899,12 +1051,28 @@ int ThreadRunner::op_run(Operation *op) {
 err:
     if (own_cursor)
         WT_TRET(cursor->close(cursor));
-    if (op->_transaction != NULL) {
-        if (ret != 0 || op->_transaction->_rollback)
+    if (op->transaction != NULL) {
+        if (ret != 0 || op->transaction->_rollback)
             WT_TRET(_session->rollback_transaction(_session, NULL));
-        else if (_in_transaction)
-            ret = _session->commit_transaction(_session,
-              op->_transaction->_commit_config.c_str());
+        else if (_in_transaction) {
+            // Set prepare, commit and durable timestamp if prepare is set.
+            if (op->transaction->use_prepare_timestamp) {
+                time_us = WorkgenTimeStamp::get_timestamp();
+                sprintf(buf, "prepare_timestamp=%" PRIu64, time_us);
+                ret = _session->prepare_transaction(_session, buf);
+                sprintf(buf, "commit_timestamp=%" PRIu64 ",durable_timestamp=%" PRIu64, time_us, time_us);
+                ret = _session->commit_transaction(_session, buf);
+            }
+            else if (op->transaction->use_commit_timestamp) {
+                uint64_t commit_time_us = WorkgenTimeStamp::get_timestamp();
+                sprintf(buf, "commit_timestamp=%" PRIu64, commit_time_us);
+                ret = _session->commit_transaction(_session, buf);     
+            }
+            else {
+                ret = _session->commit_transaction(_session,
+                    op->transaction->_commit_config.c_str());
+            }
+        }
         _in_transaction = false;
     }
     return (ret);
@@ -1019,9 +1187,10 @@ int Throttle::throttle(uint64_t op_count, uint64_t *op_limit) {
     return (0);
 }
 
-ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0),
+ThreadOptions::ThreadOptions() : name(), session_config(), throttle(0.0), throttle_burst(1.0),
     synchronized(false), _options() {
     _options.add_string("name", name, "name of the thread");
+    _options.add_string("session_config", session_config, "session config which is passed to open_session");
     _options.add_double("throttle", throttle,
       "Limit to this number of operations per second");
     _options.add_double("throttle_burst", throttle_burst,
@@ -1029,7 +1198,7 @@ ThreadOptions::ThreadOptions() : name(), throttle(0.0), throttle_burst(1.0),
       "to having large bursts with lulls (10.0 or larger)");
 }
 ThreadOptions::ThreadOptions(const ThreadOptions &other) :
-    name(other.name), throttle(other.throttle),
+    name(other.name), session_config(other.session_config), throttle(other.throttle),
   throttle_burst(other.throttle_burst), synchronized(other.synchronized),
   _options(other._options) {}
 ThreadOptions::~ThreadOptions() {}
@@ -1077,27 +1246,27 @@ void Thread::describe(std::ostream &os) const {
 
 Operation::Operation() :
     _optype(OP_NONE), _internal(NULL), _table(), _key(), _value(), _config(),
-    _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
 }
 
 Operation::Operation(OpType optype, Table table, Key key, Value value) :
     _optype(optype), _internal(NULL), _table(table), _key(key), _value(value),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
 
 Operation::Operation(OpType optype, Table table, Key key) :
     _optype(optype), _internal(NULL), _table(table), _key(key), _value(),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
 
 Operation::Operation(OpType optype, Table table) :
     _optype(optype), _internal(NULL), _table(table), _key(), _value(),
-    _config(), _transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
+    _config(), transaction(NULL), _group(NULL), _repeatgroup(0), _timed(0.0) {
     init_internal(NULL);
     size_check();
 }
@@ -1105,22 +1274,22 @@ Operation::Operation(OpType optype, Table table) :
 Operation::Operation(const Operation &other) :
     _optype(other._optype), _internal(NULL), _table(other._table),
     _key(other._key), _value(other._value), _config(other._config),
-    _transaction(other._transaction), _group(other._group),
+    transaction(other.transaction), _group(other._group),
     _repeatgroup(other._repeatgroup), _timed(other._timed) {
-    // Creation and destruction of _group and _transaction is managed
+    // Creation and destruction of _group and transaction is managed
     // by Python.
     init_internal(other._internal);
 }
 
 Operation::Operation(OpType optype, const char *config) :
     _optype(optype), _internal(NULL), _table(), _key(), _value(),
-    _config(config), _transaction(NULL), _group(NULL), _repeatgroup(0),
+    _config(config), transaction(NULL), _group(NULL), _repeatgroup(0),
     _timed(0.0) {
     init_internal(NULL);
 }
 
 Operation::~Operation() {
-    // Creation and destruction of _group, _transaction is managed by Python.
+    // Creation and destruction of _group, transaction is managed by Python.
     delete _internal;
 }
 
@@ -1129,7 +1298,7 @@ Operation& Operation::operator=(const Operation &other) {
     _table = other._table;
     _key = other._key;
     _value = other._value;
-    _transaction = other._transaction;
+    transaction = other.transaction;
     _group = other._group;
     _repeatgroup = other._repeatgroup;
     _timed = other._timed;
@@ -1184,7 +1353,7 @@ void Operation::init_internal(OperationInternal *other) {
 
 bool Operation::combinable() const {
     return (_group != NULL && _repeatgroup == 1 && _timed == 0.0 &&
-      _transaction == NULL && _config == "");
+      transaction == NULL && _config == "");
 }
 
 void Operation::create_all() {
@@ -1203,9 +1372,9 @@ void Operation::describe(std::ostream &os) const {
     }
     if (!_config.empty())
         os << ", '" << _config << "'";
-    if (_transaction != NULL) {
+    if (transaction != NULL) {
         os << ", [";
-        _transaction->describe(os);
+        transaction->describe(os);
         os << "]";
     }
     if (_timed != 0.0)
@@ -1409,14 +1578,13 @@ void SleepOperationInternal::parse_config(const std::string &config)
 int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
 {
     uint64_t endtime;
-    timespec now;
-    uint64_t now_us;
+    uint64_t now, now_us;
 
     (void)runner;    /* not used */
     (void)session;   /* not used */
 
-    workgen_epoch(&now);
-    now_us = ts_us(now);
+    workgen_clock(&now);
+    now_us = ns_to_us(now);
     if (runner->_thread->options.synchronized)
         endtime = runner->_op_time_us + secs_us(_sleepvalue);
     else
@@ -1431,15 +1599,15 @@ int SleepOperationInternal::run(ThreadRunner *runner, WT_SESSION *session)
         else
             usleep(sleep_us);
 
-        workgen_epoch(&now);
-        now_us = ts_us(now);
+        workgen_clock(&now);
+        now_us = ns_to_us(now);
     }
     return (0);
 }
 
 uint64_t SleepOperationInternal::sync_time_us() const
 {
- return (secs_us(_sleepvalue));
+    return (secs_us(_sleepvalue));
 }
 
 void TableOperationInternal::parse_config(const std::string &config)
@@ -1856,8 +2024,9 @@ TableInternal::~TableInternal() {}
 
 WorkloadOptions::WorkloadOptions() : max_latency(0),
     report_file("workload.stat"), report_interval(0), run_time(0),
-    sample_file("monitor.json"), sample_interval_ms(0), sample_rate(1),
-    warmup(0), _options() {
+    sample_file("monitor.json"), sample_interval_ms(0), max_idle_table_cycle(0),
+    sample_rate(1), warmup(0), oldest_timestamp_lag(0.0), stable_timestamp_lag(0.0),
+    timestamp_advance(0.0), max_idle_table_cycle_fatal(false), _options() {
     _options.add_int("max_latency", max_latency,
       "prints warning if any latency measured exceeds this number of "
       "milliseconds. Requires sample_interval to be configured.");
@@ -1876,11 +2045,23 @@ WorkloadOptions::WorkloadOptions() : max_latency(0),
       "When set to the empty string, no JSON is emitted.");
     _options.add_int("sample_interval_ms", sample_interval_ms,
       "performance logging every interval milliseconds, 0 to disable");
+    _options.add_int("max_idle_table_cycle", max_idle_table_cycle,
+      "maximum number of seconds a create or drop is allowed before aborting "
+      "or printing a warning based on max_idle_table_cycle_fatal setting.");
     _options.add_int("sample_rate", sample_rate,
       "how often the latency of operations is measured. 1 for every operation, "
       "2 for every second operation, 3 for every third operation etc.");
     _options.add_int("warmup", warmup,
       "how long to run the workload phase before starting measurements");
+    _options.add_double("oldest_timestamp_lag", oldest_timestamp_lag,
+      "how much lag to the oldest timestamp from epoch time");
+    _options.add_double("stable_timestamp_lag", stable_timestamp_lag,
+      "how much lag to the oldest timestamp from epoch time");
+    _options.add_double("timestamp_advance", timestamp_advance,
+      "how many seconds to wait before moving oldest and stable"
+      "timestamp forward");
+    _options.add_bool("max_idle_table_cycle_fatal", max_idle_table_cycle_fatal,
+      "print warning (false) or abort (true) of max_idle_table_cycle failure");
 }
 
 WorkloadOptions::WorkloadOptions(const WorkloadOptions &other) :
@@ -1917,13 +2098,12 @@ Workload& Workload::operator=(const Workload &other) {
 
 int Workload::run(WT_CONNECTION *conn) {
     WorkloadRunner runner(this);
-
     return (runner.run(conn));
 }
 
 WorkloadRunner::WorkloadRunner(Workload *workload) :
     _workload(workload), _trunners(workload->_threads.size()),
-    _report_out(&std::cout), _start() {
+    _report_out(&std::cout), _start(), stopping(false) {
     ts_clear(_start);
 }
 WorkloadRunner::~WorkloadRunner() {}
@@ -1934,6 +2114,9 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     std::ofstream report_out;
 
     _wt_home = conn->get_home(conn);
+
+    if ( (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) && options->timestamp_advance < 0 )
+        THROW("Workload.options.timestamp_advance must be positive if either Workload.options.oldest_timestamp_lag or Workload.options.stable_timestamp_lag is set");
     if (options->sample_interval_ms > 0 && options->sample_rate <= 0)
         THROW("Workload.options.sample_rate must be positive");
     if (!options->report_file.empty()) {
@@ -1944,7 +2127,7 @@ int WorkloadRunner::run(WT_CONNECTION *conn) {
     WT_ERR(create_all(conn, _workload->_context));
     WT_ERR(open_all());
     WT_ERR(ThreadRunner::cross_check(_trunners));
-    WT_ERR(run_all());
+    WT_ERR(run_all(conn));
   err:
     //TODO: (void)close_all();
     _report_out = &std::cout;
@@ -2031,18 +2214,22 @@ void WorkloadRunner::final_report(timespec &totalsecs) {
     out << "Run completed: " << totalsecs << " seconds" << std::endl;
 }
 
-int WorkloadRunner::run_all() {
+int WorkloadRunner::run_all(WT_CONNECTION *conn) {
     void *status;
     std::vector<pthread_t> thread_handles;
     Stats counts(false);
     WorkgenException *exception;
     WorkloadOptions *options = &_workload->options;
+    WorkloadRunnerConnection *runnerConnection;
+    WorkloadRunnerConnection *createDropTableCycle;
     Monitor monitor(*this);
     std::ofstream monitor_out;
     std::ofstream monitor_json;
     std::ostream &out = *_report_out;
+    pthread_t time_thandle, idle_table_thandle;
     WT_DECL_RET;
 
+    runnerConnection = createDropTableCycle = NULL;
     for (size_t i = 0; i < _trunners.size(); i++)
         _trunners[i].get_static_counts(counts);
     out << "Starting workload: " << _trunners.size() << " threads, ";
@@ -2086,52 +2273,97 @@ int WorkloadRunner::run_all() {
         thread_handles.push_back(thandle);
     }
 
-    // Treat warmup separately from report interval so that if we have a
-    // warmup period we clear and ignore stats after it ends.
-    if (options->warmup != 0)
-        sleep((unsigned int)options->warmup);
+    // Start Timestamp increment thread
+    if (options->oldest_timestamp_lag > 0 || options->stable_timestamp_lag > 0) {
 
-    // Clear stats after any warmup period completes.
-    for (size_t i = 0; i < _trunners.size(); i++) {
-        ThreadRunner *runner = &_trunners[i];
-        runner->_stats.clear();
-    }
+        runnerConnection = new WorkloadRunnerConnection();
+        runnerConnection->runner = this;
+        runnerConnection->connection = conn;
 
-    workgen_epoch(&_start);
-    timespec end = _start + options->run_time;
-    timespec next_report = _start + options->report_interval;
-
-    // Let the test run, reporting as needed.
-    Stats curstats(false);
-    timespec now = _start;
-    while (now < end) {
-        timespec sleep_amt;
-
-        sleep_amt = end - now;
-        if (next_report != 0) {
-            timespec next_diff = next_report - now;
-            if (next_diff < next_report)
-                sleep_amt = next_diff;
-        }
-        if (sleep_amt.tv_sec > 0)
-            sleep((unsigned int)sleep_amt.tv_sec);
-        else
-            usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
-
-        workgen_epoch(&now);
-        if (now >= next_report && now < end && options->report_interval != 0) {
-            report(options->report_interval, (now - _start).tv_sec, &curstats);
-            while (now >= next_report)
-                next_report += options->report_interval;
+        if ((ret = pthread_create(&time_thandle, NULL, thread_workload,
+            runnerConnection)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            std::cerr << "Stopping Time threads." << std::endl;
+            (void)pthread_join(time_thandle, &status);
+            delete runnerConnection;
+            runnerConnection = NULL;
+            stopping = true;
         }
     }
 
-    // signal all threads to stop
+    // Start Idle table cycle thread
+    if (options->max_idle_table_cycle > 0) {
+
+        createDropTableCycle = new WorkloadRunnerConnection();
+        createDropTableCycle->runner = this;
+        createDropTableCycle->connection = conn;
+
+        if ((ret = pthread_create(&idle_table_thandle, NULL, thread_idle_table_cycle_workload,
+            createDropTableCycle)) != 0) {
+            std::cerr << "pthread_create failed err=" << ret << std::endl;
+            std::cerr << "Stopping Create Drop table idle cycle threads." << std::endl;
+            (void)pthread_join(idle_table_thandle, &status);
+            delete createDropTableCycle;
+            createDropTableCycle = NULL;
+            stopping = true;
+        }
+    }
+
+    timespec now;
+
+    /* Don't run the test if any of the above pthread_create fails. */
+    if (!stopping && ret == 0)
+    {
+        // Treat warmup separately from report interval so that if we have a
+        // warmup period we clear and ignore stats after it ends.
+        if (options->warmup != 0)
+            sleep((unsigned int)options->warmup);
+
+        // Clear stats after any warmup period completes.
+        for (size_t i = 0; i < _trunners.size(); i++) {
+            ThreadRunner *runner = &_trunners[i];
+            runner->_stats.clear();
+        }
+
+        workgen_epoch(&_start);
+        timespec end = _start + options->run_time;
+        timespec next_report = _start + options->report_interval;
+
+        // Let the test run, reporting as needed.
+        Stats curstats(false);
+        now = _start;
+        while (now < end) {
+            timespec sleep_amt;
+
+            sleep_amt = end - now;
+            if (next_report != 0) {
+                timespec next_diff = next_report - now;
+                if (next_diff < next_report)
+                    sleep_amt = next_diff;
+            }
+            if (sleep_amt.tv_sec > 0)
+                sleep((unsigned int)sleep_amt.tv_sec);
+            else
+                usleep((useconds_t)((sleep_amt.tv_nsec + 999)/ 1000));
+
+            workgen_epoch(&now);
+            if (now >= next_report && now < end && options->report_interval != 0) {
+                report(options->report_interval, (now - _start).tv_sec, &curstats);
+                while (now >= next_report)
+                    next_report += options->report_interval;
+            }
+        }
+    }
+
+    // signal all threads to stop.
     if (options->run_time != 0)
         for (size_t i = 0; i < _trunners.size(); i++)
             _trunners[i]._stop = true;
     if (options->sample_interval_ms > 0)
         monitor._stop = true;
+
+    // Signal timestamp and idle table cycle thread to stop.
+    stopping = true;
 
     // wait for all threads
     exception = NULL;
@@ -2144,6 +2376,18 @@ int WorkloadRunner::run_all() {
         _trunners[i].close_all();
         if (exception == NULL && !_trunners[i]._exception._str.empty())
             exception = &_trunners[i]._exception;
+    }
+
+    // Wait for the time increment thread
+    if (runnerConnection != NULL) {
+        WT_TRET(pthread_join(time_thandle, &status));
+        delete runnerConnection;
+    }
+
+    // Wait for the idle table cycle thread.
+    if (createDropTableCycle != NULL) {
+        WT_TRET(pthread_join(idle_table_thandle, &status));
+        delete createDropTableCycle;
     }
 
     workgen_epoch(&now);

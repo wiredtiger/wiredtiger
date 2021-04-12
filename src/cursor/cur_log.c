@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -22,8 +22,8 @@ __curlog_logrec(WT_SESSION_IMPL *session, WT_ITEM *logrec, WT_LSN *lsnp, WT_LSN 
     WT_UNUSED(firstrecord);
 
     /* Set up the LSNs and take a copy of the log record for the cursor. */
-    *cl->cur_lsn = *lsnp;
-    *cl->next_lsn = *next_lsnp;
+    WT_ASSIGN_LSN(cl->cur_lsn, lsnp);
+    WT_ASSIGN_LSN(cl->next_lsn, next_lsnp);
     WT_RET(__wt_buf_set(session, cl->logrec, logrec->data, logrec->size));
 
     /*
@@ -208,15 +208,14 @@ __curlog_next(WT_CURSOR *cursor)
      */
     if (cl->stepp == NULL || cl->stepp >= cl->stepp_end || !*cl->stepp) {
         cl->txnid = 0;
-        ret = __wt_log_scan(session, cl->next_lsn, WT_LOGSCAN_ONE, __curlog_logrec, cl);
+        ret = __wt_log_scan(session, cl->next_lsn, NULL, WT_LOGSCAN_ONE, __curlog_logrec, cl);
         if (ret == ENOENT)
             ret = WT_NOTFOUND;
         WT_ERR(ret);
     }
     WT_ASSERT(session, cl->logrec->data != NULL);
     WT_ERR(__curlog_kv(session, cursor));
-    WT_STAT_CONN_INCR(session, cursor_next);
-    WT_STAT_DATA_INCR(session, cursor_next);
+    WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
 err:
     API_END_RET(session, ret);
@@ -247,13 +246,12 @@ __curlog_search(WT_CURSOR *cursor)
      */
     WT_ERR(__wt_cursor_get_key(cursor, &key_file, &key_offset, &counter));
     WT_SET_LSN(&key, key_file, key_offset);
-    ret = __wt_log_scan(session, &key, WT_LOGSCAN_ONE, __curlog_logrec, cl);
+    ret = __wt_log_scan(session, &key, NULL, WT_LOGSCAN_ONE, __curlog_logrec, cl);
     if (ret == ENOENT)
         ret = WT_NOTFOUND;
     WT_ERR(ret);
     WT_ERR(__curlog_kv(session, cursor));
-    WT_STAT_CONN_INCR(session, cursor_search);
-    WT_STAT_DATA_INCR(session, cursor_search);
+    WT_STAT_CONN_DATA_INCR(session, cursor_search);
 
 err:
     F_SET(cursor, raw);

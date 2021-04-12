@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2019 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,6 +37,31 @@ err:
 }
 
 /*
+ * __truncate_tiered --
+ *     Truncate for a tiered data source.
+ */
+static int
+__truncate_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+    u_int i;
+
+    WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    tiered = (WT_TIERED *)session->dhandle;
+
+    WT_STAT_DATA_INCR(session, cursor_truncate);
+
+    /* Truncate the column groups. */
+    for (i = 0; i < tiered->ntiers; i++)
+        WT_ERR(__wt_schema_truncate(session, tiered->tiers[i]->name, cfg));
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    return (ret);
+}
+
+/*
  * __truncate_dsrc --
  *     WT_SESSION::truncate for a data-source without a truncate operation.
  */
@@ -53,7 +78,7 @@ __truncate_dsrc(WT_SESSION_IMPL *session, const char *uri)
     WT_RET(__wt_open_cursor(session, uri, NULL, cfg, &cursor));
     while ((ret = cursor->next(cursor)) == 0)
         WT_ERR(cursor->remove(cursor));
-    WT_ERR_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(ret, false);
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
 err:
@@ -83,6 +108,8 @@ __wt_schema_truncate(WT_SESSION_IMPL *session, const char *uri, const char *cfg[
         ret = __wt_lsm_tree_truncate(session, uri, cfg);
     else if (WT_PREFIX_SKIP(tablename, "table:"))
         ret = __truncate_table(session, tablename, cfg);
+    else if (WT_PREFIX_MATCH(uri, "tiered:"))
+        ret = __truncate_tiered(session, uri, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->truncate == NULL ?
           __truncate_dsrc(session, uri) :
@@ -138,7 +165,7 @@ __wt_schema_range_truncate(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR
         WT_ERR(__cursor_needkey(start));
         if (stop != NULL)
             WT_ERR(__cursor_needkey(stop));
-        WT_WITH_BTREE(session, ((WT_CURSOR_BTREE *)start)->btree,
+        WT_WITH_BTREE(session, CUR2BT(start),
           ret = __wt_btcur_range_truncate((WT_CURSOR_BTREE *)start, (WT_CURSOR_BTREE *)stop));
     } else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __wt_table_range_truncate((WT_CURSOR_TABLE *)start, (WT_CURSOR_TABLE *)stop);
