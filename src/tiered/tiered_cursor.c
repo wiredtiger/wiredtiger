@@ -1010,21 +1010,6 @@ err:
 }
 
 /*
- * __curtiered_random_tier --
- *     Pick a tier at random, weighted by the size of all tiers. Weighting proportional to documents
- *     avoids biasing towards small tiers. Then return the cursor on the tier we have picked.
- */
-static void
-__curtiered_random_tier(WT_SESSION_IMPL *session, WT_CURSOR_TIERED *curtiered, WT_CURSOR **cursor)
-{
-    u_int i;
-
-    /* TODO: make randomness respect tree size. */
-    i = __wt_random(&session->rnd) % curtiered->tiered->ntiers;
-    *cursor = curtiered->cursors[i];
-}
-
-/*
  * __curtiered_next_random --
  *     WT_CURSOR->next method for the tiered cursor type when configured with next_random.
  */
@@ -1032,9 +1017,11 @@ static int
 __curtiered_next_random(WT_CURSOR *cursor)
 {
     WT_CURSOR *c;
+    WT_CURSOR **cur_order;
     WT_CURSOR_TIERED *curtiered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    u_int i, ntiers, swap;
     int exact;
 
     c = NULL;
@@ -1044,12 +1031,26 @@ __curtiered_next_random(WT_CURSOR *cursor)
     __cursor_novalue(cursor);
     WT_ERR(__curtiered_enter(curtiered, false));
 
-    for (;;) {
-        __curtiered_random_tier(session, curtiered, &c);
-        /*
-         * This call to next_random on the tier can potentially end in WT_NOTFOUND if the tier we
-         * picked is empty. We want to retry in that case.
-         */
+    /*
+     * Select a random item from a random tier. Keep trying different tiers until we either find
+     * something or run out of tiers. To do this we generate a random permutation of the tier
+     * cursors and iterate through them in the resulting order.
+     *
+     * TODO: We should weight this by the number of elements in each tier.
+     */
+    ntiers = curtiered->tiered->ntiers;
+    WT_ERR(__wt_calloc_def(session, ntiers, &cur_order));
+
+    /* "Inside-out" version of Fisher-Yates shuffle */
+    for (i = 0; i < ntiers; i++) {
+        swap = __wt_random(&session->rnd) % (i + 1);
+        cur_order[i] = cur_order[swap];
+        cur_order[swap] = curtiered->cursors[i];
+    }
+
+    /* Try the tiers in the permuted order. */
+    for (i = 0; i < ntiers; i++) {
+        c = cur_order[i];
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND)
             continue;
@@ -1064,11 +1065,12 @@ __curtiered_next_random(WT_CURSOR *cursor)
         break;
     }
 
-    /* We have found a valid doc. Set that we are now positioned */
-    if (0) {
+    if (ret == WT_NOTFOUND) {
 err:
+        /* We didn't find a valid doc. Don't leave cursor positioned */
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
+    __wt_free(session, cur_order);
     __curtiered_leave(curtiered);
     API_END_RET(session, ret);
 }
