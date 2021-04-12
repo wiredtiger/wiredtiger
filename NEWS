@@ -1,7 +1,7 @@
 Ticket reference tags refer to tickets in the MongoDB JIRA tracking system:
 https://jira.mongodb.org
 
-WiredTiger release 10.0.0, 2020-11-25
+WiredTiger release 10.0.0, 2021-04-12
 ------------------------------------
 
 See the upgrading documentation for details of API and behavior changes.
