@@ -796,6 +796,7 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
 {
     WT_CURSOR *primary;
     WT_TIERED *tiered;
+    int (*func)(WT_CURSOR *);
 
     tiered = curtiered->tiered;
 
@@ -811,14 +812,15 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
         curtiered->current = primary;
 
     primary->set_key(primary, key);
-    if (reserve) {
-        WT_RET(primary->reserve(primary));
-    } else {
-        primary->set_value(primary, value);
-        WT_RET(primary->insert(primary));
-    }
 
-    return (0);
+    /* Our API always leaves the cursor positioned after a reserve call. */
+    WT_ASSERT(CUR2S(curtiered), !reserve || position);
+    func = primary->insert;
+    if (position)
+        func = reserve ? primary->reserve : primary->update;
+    if (!reserve)
+        primary->set_value(primary, value);
+    return (func(primary));
 }
 
 /*
