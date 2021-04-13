@@ -470,24 +470,16 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
 
-    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "GET_DHANDLE: uri %s", uri);
     for (;;) {
-        if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-            __wt_errx(session, "GET_DHANDLE: session_get_dh uri %s", uri);
         WT_RET(__session_get_dhandle(session, uri, checkpoint));
         dhandle = session->dhandle;
 
         /* Try to lock the handle. */
-        if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-            __wt_errx(session, "GET_DHANDLE: lock_dhandle uri %s", uri);
         WT_RET(__wt_session_lock_dhandle(session, flags, &is_dead));
         if (is_dead)
             continue;
 
         /* If the handle is open in the mode we want, we're done. */
-        if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-            __wt_errx(session, "GET_DHANDLE: open_mode uri %s", uri);
         if (LF_ISSET(WT_DHANDLE_LOCK_ONLY) ||
           (F_ISSET(dhandle, WT_DHANDLE_OPEN) && !LF_ISSET(WT_BTREE_SPECIAL_FLAGS)))
             break;
@@ -514,8 +506,6 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
             return (ret);
         }
 
-        if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-            __wt_errx(session, "GET_DHANDLE: call conn_dh_open uri %s", uri);
         /* Open the handle. */
         if ((ret = __wt_conn_dhandle_open(session, cfg, flags)) == 0 &&
           LF_ISSET(WT_DHANDLE_EXCLUSIVE))

@@ -116,7 +116,7 @@ __create_file(
     fileconf = filemeta = NULL;
 
     if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "CR_FILE: uri %s", uri);
+        __wt_errx(session, "CREATE_FILE: uri %s", uri);
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
 
@@ -323,7 +323,6 @@ __create_colgroup(WT_SESSION_IMPL *session, const char *name, bool exclusive, co
     const char *sourcecfg[] = {config, NULL, NULL};
     bool exists, tracked;
 
-    __wt_errx(session, "CR_COLGROUP: name %s", name);
     sourceconf = NULL;
     cgconf = origconf = NULL;
     WT_CLEAR(fmt);
@@ -690,8 +689,6 @@ __create_table(
 
     import_repair = false;
 
-    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "CR_TABLE: uri %s", uri);
     cgcfg = filecfg = importcfg = tablecfg = NULL;
     cgname = filename = NULL;
     table = NULL;
@@ -822,10 +819,6 @@ __wt_tiered_tree_create(
 static int
 __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
-#if 0
-    WT_CONFIG cparser;
-    WT_CONFIG_ITEM ckey, cval, tierconf;
-#endif
     WT_DECL_RET;
     WT_TIERED *tiered;
     int ntiers;
@@ -833,33 +826,18 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     const char *cfg[4] = {WT_CONFIG_BASE(session, tiered_meta), config, NULL, NULL};
     const char *metadata;
 
-    __wt_errx(session, "CR_TIERED: uri %s", uri);
+    __wt_errx(session, "CREATE_TIERED: uri %s", uri);
     metadata = NULL;
     ntiers = 0;
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
-        __wt_errx(session, "CREATE_TIERED: search %s ret %d", uri, ret);
         if (exclusive)
             WT_TRET(EEXIST);
         goto err;
     }
     WT_RET_NOTFOUND_OK(ret);
 
-#if 0
-    /* A tiered cursor must specify at least one underlying table */
-    __wt_errx(session, "Get tiers from config %s", config);
-    WT_RET(__wt_config_gets(session, cfg, "tiered.tiers", &tierconf));
-    __wt_config_subinit(session, &cparser, &tierconf);
-
-    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-        ++ntiers;
-    WT_RET_NOTFOUND_OK(ret);
-    __wt_errx(session, "Get tiers from cfg");
-
-    if (ntiers == 0)
-        WT_RET_MSG(session, EINVAL, "tiered table must specify at least one tier");
-#endif
     /*
      * We're creating a tiered table. Set the initial tiers list to empty. Opening the table will
      * cause us to create our first file or tiered object.
@@ -869,7 +847,6 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
         WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
     }
-    __wt_errx(session, "CREATE_TIERED: get_tiered_uri %s ret %d", uri, ret);
     WT_ERR(__wt_schema_get_tiered_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &tiered));
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, true));
@@ -939,7 +916,7 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
      * back it all out.
      */
     if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "SCHEMA_CR: uri %s", uri);
+        __wt_errx(session, "SCHEMA_CREATE: uri %s", uri);
     WT_RET(__wt_meta_track_on(session));
     if (import)
         F_SET(session, WT_SESSION_IMPORT);
@@ -984,8 +961,6 @@ __wt_schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config
     WT_SESSION_IMPL *int_session;
 
     WT_RET(__wt_schema_internal_session(session, &int_session));
-    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "WT_SCHEMA_CR: uri %s", uri);
     ret = __schema_create(int_session, uri, config);
     WT_TRET(__wt_schema_session_release(session, int_session));
     return (ret);
