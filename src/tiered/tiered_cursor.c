@@ -1033,8 +1033,8 @@ __curtiered_next_random(WT_CURSOR *cursor)
     WT_ERR(__curtiered_enter(curtiered, false));
 
     /*
-     * Select a random tier. If it is empty, try the next tier and so on, wrapping around until 
-     * we find something or run out of tiers.
+     * Select a random tier. If it is empty, try the next tier and so on, wrapping around until we
+     * find something or run out of tiers.
      */
     ntiers = curtiered->tiered->ntiers;
     tier = __wt_random(&session->rnd) % ntiers;
