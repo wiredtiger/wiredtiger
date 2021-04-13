@@ -1035,8 +1035,6 @@ __curtiered_next_random(WT_CURSOR *cursor)
     /*
      * Select a random tier. If it is empty, try the next tier and so on, wrapping around until 
      * we find something or run out of tiers.
-     *
-     * TODO: We should weight this by the number of elements in each tier.
      */
     ntiers = curtiered->tiered->ntiers;
     tier = __wt_random(&session->rnd) % ntiers;
