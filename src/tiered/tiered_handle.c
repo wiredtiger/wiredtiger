@@ -135,11 +135,15 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     conn = S2C(session);
     dhandle = session->dhandle;
     tiered = (WT_TIERED *)dhandle;
+    __wt_errx(session, "TIER_SWITCH: called %s %s", dhandle->name, config);
     objconfig = NULL;
     objname = NULL;
     orig_ntiers = tiered->ntiers;
 
-    WT_RET(__wt_tiered_tree_find(session, tiered, &tiered_tree));
+    __wt_errx(session, "TIER_SWITCH: tiered_tree_find");
+    ret = __wt_tiered_tree_find(session, tiered, &tiered_tree);
+    /* We might only have a local file tree so far. */
+    WT_RET_NOTFOUND_OK(ret);
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     /*
      * The steps to switching to the next tiered file are:
@@ -167,6 +171,7 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* Create the object: entry in the metadata. */
     tiername = NULL;
     free_name = false;
+    __wt_errx(session, "TIER_SWITCH: tiered flags 0x%x", (int)tiered->flags);
     if (F_ISSET(tiered, WT_TIERED_LOCAL)) {
         /* This takes the current number, and makes a tiered object name of the same number. */
         WT_ERR(__wt_tiered_name(session, tiered, tiered->current_num, WT_TIERED_OBJECT, &objname));
@@ -182,13 +187,12 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
             WT_ERR(__wt_tiered_name(session, tiered, 0, WT_TIERED_SHARED, &tiername));
             cfg[0] = WT_CONFIG_BASE(session, tier_meta);
             cfg[2] = conn->tiered_prefix;
-            WT_ERR(__wt_config_collapse(session, cfg, &objconfig));
+            WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
             /* Set up a tiered: metadata for the first time. */
-            WT_ERR(__wt_schema_create(session, objname, objconfig));
             __wt_errx(
-              session, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", objname, objconfig);
+              session, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", tiername, objconfig);
+            WT_ERR(__wt_schema_create(session, tiername, objconfig));
             __wt_free(session, objconfig);
-            __wt_free(session, objname);
             ++tiered->ntiers;
             free_name = true;
         } else
@@ -232,6 +236,7 @@ err:
     WT_RET(__wt_meta_track_off(session, true, ret != 0));
     __wt_free(session, objconfig);
     __wt_free(session, objname);
+    __wt_free(session, tiername);
     if (free_name)
         __wt_free(session, tiername);
     __wt_scr_free(session, &tmp);
@@ -239,8 +244,23 @@ err:
 }
 
 /*
+ * __wt_tiered_switch --
+ *     Switch metadata, external version.
+ */
+int
+__wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
+{
+    /*
+     * For now just a wrapper to internal function.
+     */
+    return (__tiered_switch(session, config));
+}
+
+/*
  * __wt_tiered_name --
  *     Given a tiered table structure and object number generate the URI name of the given type.
+ *     XXX Currently this is only used in this file but I anticipate it may be of use outside.
+ *     If not, make this static and tiered_name instead.
  */
 int
 __wt_tiered_name(
@@ -261,8 +281,7 @@ __wt_tiered_name(
     if (type == WT_TIERED_LOCAL) {
         WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wt", name, id));
     } else if (type == WT_TIERED_OBJECT) {
-        WT_ERR(
-          __wt_buf_fmt(session, tmp, "object:%s-%010" PRIu64 ".wtobj", name, id));
+        WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-%010" PRIu64 ".wtobj", name, id));
     } else {
         WT_ASSERT(session, type == WT_TIERED_SHARED);
         WT_ERR(__wt_buf_fmt(session, tmp, "tier:%s", name));

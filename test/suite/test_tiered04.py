@@ -88,8 +88,10 @@ class test_tiered04(wttest.WiredTigerTestCase):
         #self.pr("create non tiered/local")
         #self.session.create(self.uri_none, base_create + conf)
 
-        self.pr("open cursor")
-        c = session.open_cursor(self.uri)
+        #self.pr("open cursor")
+        #c = session.open_cursor(self.uri)
+        self.pr("flush tier")
+        self.session.flush_tier(None)
 
         self.pr("verify stats")
         # Verify the table settings.
