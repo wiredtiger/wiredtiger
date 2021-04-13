@@ -1019,11 +1019,10 @@ static int
 __curtiered_next_random(WT_CURSOR *cursor)
 {
     WT_CURSOR *c;
-    WT_CURSOR **tier_order;
     WT_CURSOR_TIERED *curtiered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i, ntiers, swap;
+    u_int i, ntiers, tier;
     int exact;
 
     c = NULL;
@@ -1034,28 +1033,21 @@ __curtiered_next_random(WT_CURSOR *cursor)
     WT_ERR(__curtiered_enter(curtiered, false));
 
     /*
-     * Select a random item from a random tier. Keep trying different tiers until we either find
-     * something or run out of tiers. To do this we generate a random permutation of the tier
-     * cursors and iterate through them in the resulting order.
+     * Select a random tier. If it is empty, try the next tier and so on, wrapping around until 
+     * we find something or run out of tiers.
      *
      * TODO: We should weight this by the number of elements in each tier.
      */
     ntiers = curtiered->tiered->ntiers;
-    WT_ERR(__wt_calloc_def(session, ntiers, &tier_order));
-
-    /* "Inside-out" version of Fisher-Yates shuffle */
+    tier = __wt_random(&session->rnd) % ntiers;
     for (i = 0; i < ntiers; i++) {
-        swap = __wt_random(&session->rnd) % (i + 1);
-        tier_order[i] = tier_order[swap];
-        tier_order[swap] = curtiered->cursors[i];
-    }
-
-    /* Try the tiers in the permuted order. */
-    for (i = 0; i < ntiers; i++) {
-        c = tier_order[i];
+        c = curtiered->cursors[tier];
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
-        if (ret == WT_NOTFOUND)
+        if (ret == WT_NOTFOUND) {
+            if (++tier == ntiers)
+                tier = 0;
             continue;
+        }
 
         F_SET(cursor, WT_CURSTD_KEY_INT);
         WT_ERR(c->get_key(c, &cursor->key));
@@ -1067,12 +1059,11 @@ __curtiered_next_random(WT_CURSOR *cursor)
         break;
     }
 
-    if (ret == WT_NOTFOUND) {
 err:
+    if (ret != 0) {
         /* We didn't find a valid doc. Don't leave cursor positioned */
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
-    __wt_free(session, tier_order);
     __curtiered_leave(curtiered);
     API_END_RET(session, ret);
 }
