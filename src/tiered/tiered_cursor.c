@@ -1050,8 +1050,8 @@ __curtiered_next_random(WT_CURSOR *cursor)
         F_SET(cursor, WT_CURSTD_KEY_INT);
         WT_ERR(c->get_key(c, &cursor->key));
         /*
-         * Search near the current key to resolve any tombstones and position to a valid document.
-         * If we see a WT_NOTFOUND here that is valid, as the tree has no documents visible to us.
+         * Search near the current key to resolve any tombstones and position to a valid record. If
+         * we see a WT_NOTFOUND here that is valid, as the tree has no documents visible to us.
          */
         WT_ERR(__curtiered_search_near(cursor, &exact));
         break;
@@ -1059,7 +1059,7 @@ __curtiered_next_random(WT_CURSOR *cursor)
 
 err:
     if (ret != 0) {
-        /* We didn't find a valid doc. Don't leave cursor positioned */
+        /* We didn't find a valid record. Don't leave cursor positioned */
         F_CLR(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
     }
     __curtiered_leave(curtiered);
