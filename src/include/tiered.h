@@ -61,8 +61,7 @@ struct __wt_cursor_tiered {
 struct __wt_tiered {
     WT_DATA_HANDLE iface;
 
-    const char *name;   /* Name of table */
-    const char *config; /* Config to use for each object */
+    const char *obj_config; /* Config to use for each object */
     const char *key_format, *value_format;
 
     WT_BUCKET_STORAGE *bstorage;

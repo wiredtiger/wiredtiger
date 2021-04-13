@@ -1469,7 +1469,7 @@ extern int __wt_tiered_tree_add(WT_SESSION_IMPL *session, WT_TIERED *tiered,
 extern int __wt_tiered_tree_close(WT_SESSION_IMPL *session, WT_TIERED_TREE *tiered_tree)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_tree_create(WT_SESSION_IMPL *session, const char *uri, bool exclusive,
-  const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  bool import, const char *config) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_tree_find(WT_SESSION_IMPL *session, WT_TIERED *tiered,
   WT_TIERED_TREE **tiered_tree) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])

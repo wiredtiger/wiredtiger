@@ -643,10 +643,20 @@ static const WT_CONFIG_CHECK confchk_table_meta[] = {
 static const WT_CONFIG_CHECK confchk_tier_meta[] = {{"bucket", "string", NULL, NULL, NULL, 0},
   {"bucket_prefix", "string", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
-static const WT_CONFIG_CHECK confchk_tiered_meta[] = {{"last", "string", NULL, NULL, NULL, 0},
+static const WT_CONFIG_CHECK confchk_tiered_meta[] = {
+  {"app_metadata", "string", NULL, NULL, NULL, 0},
+  {"assert", "category", NULL, NULL, confchk_assert_subconfigs, 4},
+  {"collator", "string", NULL, NULL, NULL, 0}, {"columns", "list", NULL, NULL, NULL, 0},
+  {"last", "string", NULL, NULL, NULL, 0},
   {"tiered_storage", "category", NULL, NULL, confchk_WT_SESSION_create_tiered_storage_subconfigs,
     6},
-  {"tiers", "list", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"tiers", "list", NULL, NULL, NULL, 0},
+  {"verbose", "list", NULL, "choices=[\"write_timestamp\"]", NULL, 0},
+  {"write_timestamp_usage", "string", NULL,
+    "choices=[\"always\",\"key_consistent\",\"mixed_mode\","
+    "\"never\",\"none\",\"ordered\"]",
+    NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_wiredtiger_open_compatibility_subconfigs[] = {
   {"release", "string", NULL, NULL, NULL, 0}, {"require_max", "string", NULL, NULL, NULL, 0},
@@ -1228,9 +1238,12 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_table_meta, 9},
   {"tier.meta", "bucket=,bucket_prefix=", confchk_tier_meta, 2},
   {"tiered.meta",
-    "last=,tiered_storage=(auth_token=,bucket=,bucket_prefix=,"
-    "local_retention=300,name=,object_target_size=10M),tiers=",
-    confchk_tiered_meta, 3},
+    "app_metadata=,assert=(commit_timestamp=none,"
+    "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
+    "collator=,columns=,last=,tiered_storage=(auth_token=,bucket=,"
+    "bucket_prefix=,local_retention=300,name=,object_target_size=10M)"
+    ",tiers=,verbose=[],write_timestamp_usage=none",
+    confchk_tiered_meta, 9},
   {"wiredtiger_open",
     "buffer_alignment=-1,builtin_extension_config=,cache_cursors=true"
     ",cache_max_wait_ms=0,cache_overhead=8,cache_size=100MB,"

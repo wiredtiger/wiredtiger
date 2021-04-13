@@ -457,7 +457,7 @@ lsm_meta = file_config + lsm_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-tiered_meta = tiered_config + [
+tiered_meta = common_meta + tiered_config + [
     Config('last', '', r'''
         the last allocated object ID'''),
     Config('tiers', '', r'''
