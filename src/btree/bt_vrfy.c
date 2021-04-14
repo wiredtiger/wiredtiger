@@ -166,7 +166,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t *addrp, root_addr[WT_BTREE_MAX_ADDR_COOKIE + WT_INTPACK64_MAXSIZE * 2 + 1];
     const char *name;
     bool bm_start, quit;
 
@@ -258,6 +258,14 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * Create a fake, unpacked parent cell for the tree based on the checkpoint information.
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
+            addrp = root_addr + root_addr_size;
+            WT_ASSERT(session, root_addr[0] == root_addr_size);
+            WT_ASSERT(session, ckpt->row_count != 0);
+            WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->row_count));
+            WT_ASSERT(session, ckpt->byte_count != 0);
+            WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->byte_count));
+            addr_unpack.data = root_addr;
+            addr_unpack.size = root_addr_size;
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
@@ -844,10 +852,13 @@ __verify_page_content_int(
     WT_PAGE *page;
     const WT_PAGE_HEADER *dsk;
     WT_TIME_AGGREGATE *ta;
+    uint64_t addr_byte_count, addr_row_count, v;
     uint32_t cell_num;
+    const uint8_t *addrp;
 
     page = ref->page;
     ta = &unpack.ta;
+    addr_byte_count = addr_row_count = 0;
 
     /*
      * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
@@ -884,6 +895,12 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
+            addrp = (uint8_t *)unpack.data + *(uint8_t *)unpack.data;
+            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+            addr_row_count += v;
+            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+            addr_byte_count += v;
+
             if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
                 WT_RET_MSG(session, ret,
                   "cell %" PRIu32 " on page at %s failed timestamp validation", cell_num - 1,
@@ -896,6 +913,28 @@ __verify_page_content_int(
         }
     }
     WT_CELL_FOREACH_END;
+
+    /*
+     * Verify the page address cell's suffix of row count and page bytes.
+     *
+     * KEITH: This code doesn't support column-store. It's probably correct, but it doesn't do the
+     * obvious check against the record number.
+     */
+    if (parent->data != NULL) {
+        addrp = (uint8_t *)parent->data + *(uint8_t *)parent->data;
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        if (v != addr_row_count)
+            WT_RET_MSG(session, WT_ERROR,
+              "page at %s has an address key count of %" PRIu64
+              ", the addressed tree has a key count of %" PRIu64,
+              __verify_addr_string(session, ref, vs->tmp1), v, addr_row_count);
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        if (v != addr_byte_count)
+            WT_RET_MSG(session, WT_ERROR,
+              "page at %s has an address page byte count of %" PRIu64
+              ", the addressed tree has a page byte count of %" PRIu64,
+              __verify_addr_string(session, ref, vs->tmp1), v, addr_byte_count);
+    }
 
     return (0);
 }
@@ -914,9 +953,10 @@ __verify_page_content_leaf(
     const WT_PAGE_HEADER *dsk;
     WT_ROW *rip;
     WT_TIME_WINDOW *tw;
-    uint64_t recno, rle;
+    uint64_t recno, rle, row_count, v;
     uint32_t cell_num;
     uint8_t *p;
+    const uint8_t *addrp;
     bool found_ovfl;
 
     page = ref->page;
@@ -933,6 +973,7 @@ __verify_page_content_leaf(
         return (0);
 
     /* Walk the page, tracking timestamps and verifying overflow pages. */
+    row_count = 0;
     cell_num = 0;
     WT_CELL_FOREACH_KV (session, dsk, unpack) {
         ++cell_num;
@@ -943,6 +984,14 @@ __verify_page_content_leaf(
               " on page at %s is a %s cell on a %s page",
               cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
               __wt_cell_type_string(unpack.type), __wt_page_type_string(dsk->type));
+
+        switch (unpack.type) {
+        case WT_CELL_KEY:
+        case WT_CELL_KEY_OVFL:
+        case WT_CELL_KEY_SHORT:
+            ++row_count;
+            break;
+        }
 
         switch (unpack.type) {
         case WT_CELL_KEY_OVFL:
@@ -1009,6 +1058,25 @@ __verify_page_content_leaf(
           "overflow items",
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
           __wt_cell_type_string(parent->raw));
+
+    /*
+     * Verify the leaf page address cell's suffix of row count and page bytes.
+     *
+     * KEITH: This code doesn't support column-store.
+     */
+    addrp = (uint8_t *)parent->data + *(uint8_t *)parent->data;
+    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+    if (v != row_count)
+        WT_RET_MSG(session, WT_ERROR,
+          "page at %s has an address key count of %" PRIu64
+          ", the addressed page has a key count of %" PRIu64,
+          __verify_addr_string(session, ref, vs->tmp1), v, row_count);
+    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+    if (v != dsk->mem_size)
+        WT_RET_MSG(session, WT_ERROR,
+          "page at %s has an address page byte count of %" PRIu64
+          ", the addressed page has a page byte count of %" PRIu32,
+          __verify_addr_string(session, ref, vs->tmp1), v, dsk->mem_size);
 
     return (0);
 }

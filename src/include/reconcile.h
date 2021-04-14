@@ -43,17 +43,21 @@ struct __wt_rec_chunk {
      *
      * The key for a row-store page; no column-store key is needed because the page's recno, stored
      * in the recno field, is the column-store key.
+     *
+     * Aggregated time window, row count and memory usage.
      */
     uint32_t entries;
     uint64_t recno;
     WT_ITEM key;
     WT_TIME_AGGREGATE ta;
+    uint64_t addr_row_count, addr_byte_count;
 
     /* Saved minimum split-size boundary information. */
     uint32_t min_entries;
     uint64_t min_recno;
     WT_ITEM min_key;
-    WT_TIME_AGGREGATE ta_min;
+    WT_TIME_AGGREGATE min_ta;
+    uint64_t min_addr_row_count, min_addr_byte_count;
 
     size_t min_offset; /* byte offset */
 
@@ -228,6 +232,7 @@ struct __wt_reconcile {
      */
     WT_ITEM *wrapup_checkpoint;
     bool wrapup_checkpoint_compressed;
+    uint64_t wrapup_row_count, wrapup_byte_count;
 
     /*
      * We don't need to keep the 0th key around on internal pages, the search code ignores them as

@@ -453,6 +453,7 @@ struct __wt_connection_stats {
     int64_t cursor_next;
     int64_t cursor_restart;
     int64_t cursor_prev;
+    int64_t cursor_range_stat;
     int64_t cursor_remove;
     int64_t cursor_remove_bytes;
     int64_t cursor_reserve;
@@ -599,6 +600,8 @@ struct __wt_connection_stats {
     int64_t session_table_create_success;
     int64_t session_table_drop_fail;
     int64_t session_table_drop_success;
+    int64_t session_table_range_fail;
+    int64_t session_table_range_success;
     int64_t session_table_rename_fail;
     int64_t session_table_rename_success;
     int64_t session_table_salvage_fail;

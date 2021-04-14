@@ -137,6 +137,8 @@ struct __wt_ckpt {
 
     uint64_t size; /* Checkpoint size */
 
+    uint64_t row_count, byte_count; /* Row and byte counts */
+
     uint64_t write_gen;     /* Write generation */
     uint64_t run_write_gen; /* Runtime write generation. */
 

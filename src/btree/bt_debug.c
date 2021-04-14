@@ -514,6 +514,8 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t v;
+    const uint8_t *addrp;
     char time_string[WT_TIME_STRING_SIZE];
 
     session = ds->session;
@@ -533,6 +535,12 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
+        addrp = (uint8_t *)unpack->data + *(uint8_t *)unpack->data;
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        WT_RET(ds->f(ds, ", #%" PRIu64, v));
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        WT_RET(ds->f(ds, ", %" PRIu64 "B", v));
+
         if (!WT_TIME_AGGREGATE_IS_EMPTY(&unpack->ta))
             WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
@@ -1546,6 +1554,8 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
     WT_SESSION_IMPL *session;
+    uint64_t v;
+    const uint8_t *addrp;
     char time_string[WT_TIME_STRING_SIZE];
 
     session = ds->session;
@@ -1559,9 +1569,18 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
     if (F_ISSET(ref, WT_REF_FLAG_READING))
         WT_RET(ds->f(ds, ", %s", "reading"));
 
-    if (__wt_ref_addr_copy(session, ref, &addr) && !WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
-        WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
-          __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+    if (__wt_ref_addr_copy(session, ref, &addr)) {
+        addrp = (uint8_t *)addr.addr + *(uint8_t *)addr.addr;
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        WT_RET(ds->f(ds, ", #%" PRIu64, v));
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        WT_RET(ds->f(ds, ", %" PRIu64 "B", v));
+
+        if (!WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
+            WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
+              __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+    }
+
     return (ds->f(ds, "\n"));
 }
 #endif

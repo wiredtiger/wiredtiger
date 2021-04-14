@@ -1162,6 +1162,234 @@ err:
 }
 
 /*
+ * __session_range_uri --
+ *     Session handling of the range stat method with objects.
+ */
+static int
+__session_range_uri(
+  WT_SESSION_IMPL *session, const char *uri, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_CKPT ckpt;
+    WT_DECL_RET;
+    WT_TABLE *table;
+    uint64_t row_count;
+    u_int i;
+
+    table = NULL;
+
+    if (WT_PREFIX_MATCH(uri, "file:")) {
+        WT_ERR(__wt_meta_checkpoint(session, uri, NULL, &ckpt));
+        *row_countp += ckpt.row_count;
+        *byte_countp += ckpt.byte_count;
+        __wt_meta_checkpoint_free(session, &ckpt);
+    } else if (WT_PREFIX_SKIP(uri, "table:")) {
+        WT_ERR(__wt_schema_get_table(session, uri, strlen(uri), false, 0, &table));
+
+        /* Set the number of rows from one column group, sum the column group byte counts. */
+        for (i = 0; i < WT_COLGROUPS(table); i++) {
+            row_count = 0;
+            WT_ERR(
+              __session_range_uri(session, table->cgroups[i]->source, &row_count, byte_countp));
+        }
+        *row_countp = row_count;
+    } else
+        ret = __wt_bad_object_type(session, uri);
+
+err:
+    if (table != NULL)
+        WT_TRET(__wt_schema_release_table(session, &table));
+
+    /* If we didn't find a metadata entry, map that error to ENOENT. */
+    return (ret == WT_NOTFOUND ? ENOENT : ret);
+}
+
+/*
+ * __session_range_cursor_table --
+ *     Session handling of the range stat method with table cursors.
+ */
+static int
+__session_range_cursor_table(
+  WT_CURSOR_TABLE *start, WT_CURSOR_TABLE *stop, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_DECL_RET;
+    uint64_t row_count;
+    u_int i;
+
+    /* Set the number of rows from one column group, sum the column group byte counts. */
+    for (i = 0; i < WT_COLGROUPS(start->table); i++) {
+        row_count = 0;
+        WT_ERR(__wt_btcur_range_stat(
+          start->cg_cursors[i], stop->cg_cursors[i], &row_count, byte_countp));
+    }
+    *row_countp = row_count;
+
+err:
+    return (ret);
+}
+
+/*
+ * __session_range_cursor --
+ *     Session handling of the range stat method with cursors.
+ */
+static int
+__session_range_cursor(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *stop,
+  uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_DECL_RET;
+    int cmp;
+    bool local_start, local_stop;
+
+    local_start = local_stop = false;
+
+    /*
+     * Cursor statistics are only supported for some objects, check the type and for a supporting
+     * compare method.
+     */
+    if (start != NULL &&
+      ((!WT_PREFIX_MATCH(start->uri, "file:") && !WT_PREFIX_MATCH(start->uri, "table:")) ||
+        start->compare == NULL))
+        WT_ERR(__wt_bad_object_type(session, start->uri));
+    if (stop != NULL &&
+      ((!WT_PREFIX_MATCH(stop->uri, "file:") && !WT_PREFIX_MATCH(stop->uri, "table:")) ||
+        stop->compare == NULL))
+        WT_ERR(__wt_bad_object_type(session, stop->uri));
+
+    /*
+     * If both cursors set, check they're correctly ordered with respect to each other. We have to
+     * test this before any search, the search can change the initial cursor position.
+     *
+     * Rather happily, the compare routine will also confirm the cursors reference the same object
+     * and the keys are set.
+     */
+    if (start != NULL && stop != NULL) {
+        WT_ERR(start->compare(start, stop, &cmp));
+        if (cmp > 0)
+            WT_ERR_MSG(
+              session, EINVAL, "the start cursor position is after the stop cursor position");
+    }
+
+    /*
+     * Statistics do not require keys actually exist so that applications can query parts of the
+     * object's name space without knowing exactly what records currently appear in the object. For
+     * this reason, do a search-near, rather than a search. Additionally, we have to correct after
+     * calling search-near, to position the start/stop cursors on the next record greater than/less
+     * than the original key. If we fail to find a key in a search-near, there are no keys in the
+     * table. If we fail to move forward or backward in a range, there are no keys in the range. In
+     * either of those cases, we're done.
+     */
+    if (start != NULL)
+        if ((ret = start->search_near(start, &cmp)) != 0 ||
+          (cmp < 0 && (ret = start->next(start)) != 0)) {
+            WT_ERR_NOTFOUND_OK(ret, false);
+            goto done;
+        }
+    if (stop != NULL)
+        if ((ret = stop->search_near(stop, &cmp)) != 0 ||
+          (cmp > 0 && (ret = stop->prev(stop)) != 0)) {
+            WT_ERR_NOTFOUND_OK(ret, false);
+            goto done;
+        }
+
+    /* If we don't have a start cursor, create one and position it at the first record. */
+    if (start == NULL) {
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, stop->uri, NULL, NULL, &start));
+        local_start = true;
+        WT_ERR(start->next(start));
+    }
+    /* If we don't have a stop cursor, create one and position it at the last record. */
+    if (stop == NULL) {
+        WT_ERR(__session_open_cursor((WT_SESSION *)session, start->uri, NULL, NULL, &stop));
+        local_stop = true;
+        WT_ERR(start->next(stop));
+    }
+
+    /* If the start/stop keys are equal or cross, we're done, the range must be empty. */
+    WT_ERR(start->compare(start, stop, &cmp));
+    if (cmp >= 0)
+        goto done;
+
+    if (WT_PREFIX_MATCH(start->internal_uri, "file:"))
+        ret = __wt_btcur_range_stat(start, stop, row_countp, byte_countp);
+    else
+        ret = __session_range_cursor_table(
+          (WT_CURSOR_TABLE *)start, (WT_CURSOR_TABLE *)stop, row_countp, byte_countp);
+
+done:
+err:
+    /*
+     * Reset application cursors, they've possibly moved and the application cannot use them. Close
+     * any locally-opened cursors.
+     */
+    WT_TRET(start->reset(start));
+    WT_TRET(stop->reset(stop));
+    if (local_start)
+        WT_TRET(start->close(start));
+    if (local_stop)
+        WT_TRET(stop->close(stop));
+    return (ret);
+}
+
+/*
+ * __session_range_stat --
+ *     WT_SESSION->range_stat method.
+ */
+static int
+__session_range_stat(WT_SESSION *wt_session, const char *uri, WT_CURSOR *start, WT_CURSOR *stop,
+  const char *config, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    (void)start;
+    (void)stop;
+
+    *row_countp = *byte_countp = 0;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL(session, range_stat, config, cfg);
+    WT_UNUSED(cfg);
+    WT_STAT_CONN_INCR(session, cursor_range_stat);
+
+    /*
+     * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
+     * need a URI.
+     *
+     * If no URI is specified, and both cursors are specified, start/stop must reference the same
+     * object.
+     *
+     * Any specified cursor must have been initialized.
+     */
+    if ((uri == NULL && start == NULL && stop == NULL) ||
+      (uri != NULL && (start != NULL || stop != NULL)))
+        WT_ERR_MSG(session, EINVAL,
+          "the WT_SESSION.range_stat method should be passed either a URI or start/stop cursors, "
+          "but not both");
+
+    /* Disallow objects in the WiredTiger name space. */
+    if (uri == NULL)
+        WT_ERR(__session_range_cursor(session, start, stop, row_countp, byte_countp));
+    else {
+        WT_ERR(__wt_str_name_check(session, uri));
+        WT_WITH_SCHEMA_LOCK(
+          session, ret = __session_range_uri(session, uri, row_countp, byte_countp));
+    }
+
+err:
+    if (ret != 0)
+        WT_STAT_CONN_INCR(session, session_table_range_fail);
+    else
+        WT_STAT_CONN_INCR(session, session_table_range_success);
+
+    /*
+     * Only map WT_NOTFOUND to ENOENT if a URI was specified.
+     */
+    if (uri != NULL && ret == WT_NOTFOUND)
+        ret = ENOENT;
+
+    API_END_RET(session, ret);
+}
+
+/*
  * __session_salvage --
  *     WT_SESSION->salvage method.
  */
@@ -1974,19 +2202,19 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
       stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter, __session_create,
         __wt_session_compact, __session_drop, __session_join, __session_log_flush,
-        __session_log_printf, __session_rename, __session_reset, __session_salvage,
-        __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
-        __session_commit_transaction, __session_prepare_transaction, __session_reset_snapshot,
-        __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint, __session_transaction_pinned_range, __session_transaction_sync,
-        __wt_session_breakpoint},
+        __session_log_printf, __session_range_stat, __session_rename, __session_reset,
+        __session_salvage, __session_truncate, __session_upgrade, __session_verify,
+        __session_begin_transaction, __session_commit_transaction, __session_prepare_transaction,
+        __session_reset_snapshot, __session_rollback_transaction, __session_timestamp_transaction,
+        __session_query_timestamp, __session_checkpoint, __session_transaction_pinned_range,
+        __session_transaction_sync, __wt_session_breakpoint},
       stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
         __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
         __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
         __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
-        __session_rename_readonly, __session_reset, __session_salvage_readonly,
-        __session_truncate_readonly, __session_upgrade_readonly, __session_verify,
-        __session_begin_transaction, __session_commit_transaction,
+        __session_range_stat, __session_rename_readonly, __session_reset,
+        __session_salvage_readonly, __session_truncate_readonly, __session_upgrade_readonly,
+        __session_verify, __session_begin_transaction, __session_commit_transaction,
         __session_prepare_transaction_readonly, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
         __session_checkpoint_readonly, __session_transaction_pinned_range,

@@ -453,8 +453,10 @@ __verify_dsk_row_leaf(
     WT_ITEM *last;
     enum { FIRST, WAS_KEY, WAS_VALUE } last_cell_type;
     size_t prefix;
+    uint64_t v;
     uint32_t cell_num, cell_type, i, key_cnt, last_cell_num;
     uint8_t *end;
+    const uint8_t *addrp;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -627,6 +629,24 @@ key_compare:
           " and a physical entry count of %" PRIu32,
           __wt_page_type_string(dsk->type), tag, key_cnt, dsk->u.entries);
 
+    /* Check the address appended row count and memory size. */
+    if (addr != NULL && (addrp = addr->addr) != NULL) {
+        /* Skip the address cookie. */
+        addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+        WT_ERR(__wt_vunpack_uint(&addrp, 0, &v));
+        if (v != key_cnt)
+            WT_ERR_VRFY(session,
+              "%s page at %s has an address key count of %" PRIu64
+              ", the addressed page has a key count count of %" PRIu32,
+              __wt_page_type_string(dsk->type), tag, v, key_cnt);
+        WT_ERR(__wt_vunpack_uint(&addrp, 0, &v));
+        if (v != dsk->mem_size)
+            WT_ERR_VRFY(session,
+              "%s page at %s has an address page byte count of %" PRIu64
+              ", the addressed page has a page byte count of %" PRIu32,
+              __wt_page_type_string(dsk->type), tag, v, dsk->mem_size);
+    }
+
     if (0) {
 err:
         if (ret == 0)
@@ -698,6 +718,14 @@ __verify_dsk_col_fix(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HE
 
     btree = S2BT(session);
 
+    /*
+     * Check the appended row count and memory size.
+     *
+     * KEITH: This code doesn't support column-store. Column-store needs the same check as row-store
+     * for the address suffix, plus a column count check, that is, the page's columns should match
+     * the address suffix row count. Another choice is for column store's address suffix to not have
+     * a row count, but that seems like more work for little gain.
+     */
     datalen = __bitstr_size(btree->bitcnt * dsk->u.entries);
     return (__verify_dsk_chunk(session, tag, dsk, datalen));
 }
@@ -795,6 +823,15 @@ match_err:
         }
     }
     WT_RET(__verify_dsk_memsize(session, tag, dsk, cell));
+
+    /*
+     * Check the appended row count and memory size.
+     *
+     * KEITH: This code doesn't support column-store. Column-store needs the same check as row-store
+     * for the address suffix, plus a column count check, that is, the page's columns should match
+     * the address suffix row count. Another choice is for column store's address suffix to not have
+     * a row count, but that seems like more work for little gain.
+     */
 
     return (0);
 }

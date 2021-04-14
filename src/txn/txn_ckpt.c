@@ -1614,7 +1614,8 @@ __checkpoint_mark_skip(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, bool force)
  *     Update a checkpoint based on reconciliation results.
  */
 void
-__wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta)
+__wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGATE *ta,
+  uint64_t addr_row_count, uint64_t addr_byte_count)
 {
     WT_BTREE *btree;
     WT_CKPT *ckpt, *ckptbase;
@@ -1632,6 +1633,8 @@ __wt_checkpoint_tree_reconcile_update(WT_SESSION_IMPL *session, WT_TIME_AGGREGAT
             ckpt->write_gen = btree->write_gen;
             ckpt->run_write_gen = btree->run_write_gen;
             WT_TIME_AGGREGATE_COPY(&ckpt->ta, ta);
+            ckpt->row_count = addr_row_count;
+            ckpt->byte_count = addr_byte_count;
         }
 }
 
@@ -1658,7 +1661,6 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
     conn = S2C(session);
     dhandle = session->dhandle;
     fake_ckpt = resolve_bm = false;
-    WT_TIME_AGGREGATE_INIT(&ta);
 
     /*
      * Set the checkpoint LSN to the maximum LSN so that if logging is disabled, recovery will never
@@ -1679,7 +1681,8 @@ __checkpoint_tree(WT_SESSION_IMPL *session, bool is_checkpoint, const char *cfg[
      * tears.
      */
     if (is_checkpoint && btree->original) {
-        __wt_checkpoint_tree_reconcile_update(session, &ta);
+        WT_TIME_AGGREGATE_INIT(&ta);
+        __wt_checkpoint_tree_reconcile_update(session, &ta, 0, 0);
 
         fake_ckpt = true;
         goto fake;

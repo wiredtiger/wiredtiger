@@ -1800,6 +1800,208 @@ err:
 }
 
 /*
+ * __cursor_range_stat_search_intl --
+ *     Return the internal page slot for a key.
+ */
+static int
+__cursor_range_stat_search_intl(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex,
+  WT_ITEM *srch_key, uint32_t *slotp)
+{
+    WT_BTREE *btree;
+    WT_COLLATOR *collator;
+    WT_ITEM item;
+    WT_REF *current;
+    uint32_t base, indx, limit;
+    int cmp;
+
+    btree = S2BT(session);
+    collator = btree->collator;
+
+    /* Binary search of an internal page. */
+    base = 1;
+    limit = pindex->entries - 1;
+    if (collator == NULL) {
+        for (; limit != 0; limit >>= 1) {
+            indx = base + (limit >> 1);
+            current = pindex->index[indx];
+            __wt_ref_key(page, current, &item.data, &item.size);
+
+            cmp = __wt_lex_compare(srch_key, &item);
+            if (cmp > 0) {
+                base = indx + 1;
+                --limit;
+            } else if (cmp == 0) {
+                *slotp = indx;
+                return (0);
+            }
+        }
+    } else
+        for (; limit != 0; limit >>= 1) {
+            indx = base + (limit >> 1);
+            current = pindex->index[indx];
+            __wt_ref_key(page, current, &item.data, &item.size);
+
+            WT_RET(__wt_compare(session, collator, srch_key, &item, &cmp));
+            if (cmp > 0) {
+                base = indx + 1;
+                --limit;
+            } else if (cmp == 0) {
+                *slotp = indx;
+                return (0);
+            }
+        }
+    *slotp = base - 1;
+
+    /*
+     * If on the last slot (the key is larger than any key on the page), assume a page split race
+     * and retry.
+     */
+    return (pindex->entries == base && pindex->entries != 1 ? WT_RESTART : 0);
+}
+
+/*
+ * __cursor_range_stat --
+ *     Return cursor statistics for a cursor range from the tree.
+ */
+static int
+__cursor_range_stat(
+  WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_ADDR *addr;
+    WT_BTREE *btree;
+    WT_CELL_UNPACK_ADDR vpack;
+    WT_DECL_RET;
+    WT_ITEM kstart, kstop;
+    WT_PAGE *page;
+    WT_PAGE_INDEX *pindex;
+    WT_REF *current, *descent;
+    WT_SESSION_IMPL *session;
+    uint64_t byte_count, row_count;
+    uint32_t missing_addr, slot, startslot, stopslot;
+    const uint8_t *addrp;
+
+    session = CUR2S(start);
+    btree = S2BT(session);
+
+    /* Get the key. */
+    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)start, &kstart));
+    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)stop, &kstop));
+
+restart:
+    /* Descend the tree, searching internal pages for the keys. */
+    current = &btree->root;
+    for (;;) {
+        page = current->page;
+
+        WT_INTL_INDEX_GET(session, page, pindex);
+        ret = __cursor_range_stat_search_intl(session, page, pindex, &kstart, &startslot);
+        if (ret == WT_RESTART)
+            goto restart;
+        WT_ERR(ret);
+        ret = __cursor_range_stat_search_intl(session, page, pindex, &kstop, &stopslot);
+        if (ret == WT_RESTART)
+            goto restart;
+        WT_ERR(ret);
+
+        /*
+         * If the two slots are different, we've reached the first internal page where the keys
+         * diverge into different sub-trees. Don't descend further, we have what we want.
+         */
+        if (startslot != stopslot)
+            break;
+        descent = pindex->index[startslot];
+
+        /* If the cursors point to the same leaf page we're done. */
+        if (F_ISSET(descent, WT_REF_FLAG_LEAF)) {
+            break;
+        }
+
+        /*
+         * Swap the current page for the child page. If the page splits while we're retrieving it,
+         * restart the search at the root. We cannot restart in the "current" page; for example, if
+         * a thread is appending to the tree, the page it's waiting for did an insert-split into the
+         * parent, then the parent split into its parent, the name space we are searching for may
+         * have moved above the current page in the tree.
+         *
+         * On other error, simply return, the swap call ensures we're holding nothing on failure.
+         */
+        if ((ret = __wt_page_swap(
+               session, current, descent, WT_READ_RESTART_OK | WT_READ_WONT_NEED)) == 0) {
+            current = descent;
+            continue;
+        }
+        if (ret == WT_RESTART)
+            goto restart;
+        return (ret);
+    }
+
+    /* Aggregate the information between the two slots. */
+    for (missing_addr = 0, slot = startslot; slot <= stopslot; ++slot) {
+        /* There's no information until the page is reconciled, skip pages without addresses. */
+        if ((addr = pindex->index[startslot]->addr) == NULL) {
+            ++missing_addr;
+            continue;
+        }
+        if (__wt_off_page(page, addr))
+            addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+        else {
+            __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, &vpack);
+            addrp = (uint8_t *)vpack.data + *(uint8_t *)vpack.data;
+        }
+        WT_ERR(__wt_vunpack_uint(&addrp, 0, &row_count));
+        WT_ERR(__wt_vunpack_uint(&addrp, 0, &byte_count));
+
+        /*
+         * An adjustment to improve accuracy: assume the key takes up half of the range in the slot
+         * itself, on the first and last slots,. This also makes the case where the two cursors are
+         * on the same leaf page work return something reasonable, a range that isn't insane. If we
+         * want something even better, we could descend into the first/last slots to get a closer
+         * adjustment value.
+         */
+        if (slot == startslot || slot == stopslot)
+            row_count /= 2;
+        *row_countp += row_count;
+        if (slot == startslot || slot == stopslot)
+            byte_count /= 2;
+        *byte_countp += byte_count;
+    }
+
+    /*
+     * If we don't find any pages with addresses, the default would return row and byte counts of
+     * zero. There's no good rule here, for now I'm going with 50% failure means the call fails.
+     */
+    if (missing_addr > (stopslot - startslot) / 2)
+        ret = WT_NOTFOUND;
+
+err:
+    WT_TRET(__wt_page_release(session, current, 0));
+    return (ret);
+}
+
+/*
+ * __wt_btcur_range_stat --
+ *     Return cursor statistics for a cursor range from the tree.
+ */
+int
+__wt_btcur_range_stat(
+  WT_CURSOR *start, WT_CURSOR *stop, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    WT_CURSOR_BTREE *bt_start, *bt_stop;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = CUR2S(start);
+
+    bt_start = (WT_CURSOR_BTREE *)start;
+    bt_stop = (WT_CURSOR_BTREE *)stop;
+
+    WT_WITH_BTREE(session, CUR2BT(bt_start),
+      WT_WITH_PAGE_INDEX(
+        session, ret = __cursor_range_stat(bt_start, bt_stop, row_countp, byte_countp)));
+    return (ret);
+}
+
+/*
  * __wt_btcur_init --
  *     Initialize a cursor used for internal purposes.
  */

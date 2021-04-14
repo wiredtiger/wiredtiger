@@ -717,6 +717,16 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
     if (ret != WT_NOTFOUND && a.len != 0)
         ckpt->run_write_gen = (uint64_t)a.val;
 
+    WT_RET(__wt_config_subgets(session, v, "row_count", &a));
+    if (a.len == 0)
+        goto format;
+    ckpt->row_count = (uint64_t)a.val;
+
+    WT_RET(__wt_config_subgets(session, v, "byte_count", &a));
+    if (a.len == 0)
+        goto format;
+    ckpt->byte_count = (uint64_t)a.val;
+
     return (0);
 
 format:
@@ -809,13 +819,14 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
           "=(addr=\"%.*s\",order=%" PRId64 ",time=%" PRIu64 ",size=%" PRId64
           ",newest_start_durable_ts=%" PRId64 ",oldest_start_ts=%" PRId64 ",newest_txn=%" PRId64
           ",newest_stop_durable_ts=%" PRId64 ",newest_stop_ts=%" PRId64 ",newest_stop_txn=%" PRId64
-          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ")",
+          ",prepare=%d,write_gen=%" PRId64 ",run_write_gen=%" PRId64 ",row_count=%" PRId64
+          ",byte_count=%" PRId64 ")",
           (int)ckpt->addr.size, (char *)ckpt->addr.data, ckpt->order, ckpt->sec,
           (int64_t)ckpt->size, (int64_t)ckpt->ta.newest_start_durable_ts,
           (int64_t)ckpt->ta.oldest_start_ts, (int64_t)ckpt->ta.newest_txn,
           (int64_t)ckpt->ta.newest_stop_durable_ts, (int64_t)ckpt->ta.newest_stop_ts,
           (int64_t)ckpt->ta.newest_stop_txn, (int)ckpt->ta.prepare, (int64_t)ckpt->write_gen,
-          (int64_t)ckpt->run_write_gen));
+          (int64_t)ckpt->run_write_gen, (int64_t)ckpt->row_count, (int64_t)ckpt->byte_count));
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
 

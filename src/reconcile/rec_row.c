@@ -231,6 +231,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         __wt_rec_image_copy(session, r, val);
     }
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+    ++r->cur_ptr->addr_row_count;
 
     /* Update compression state. */
     __rec_key_state_update(r, ovfl_key);
@@ -249,7 +250,9 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *key, *val;
+    uint64_t v;
     uint32_t i;
+    const uint8_t *addrp;
     bool ovfl_key;
 
     mod = page->modify;
@@ -276,6 +279,13 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
 
+        /* Track the accumulated row count and memory usage. */
+        addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        r->cur_ptr->addr_row_count += v;
+        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+        r->cur_ptr->addr_byte_count += v;
+
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
     }
@@ -301,6 +311,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
     size_t key_overflow_size, size;
+    uint64_t addr_row_count, addr_byte_count;
+    const uint8_t *addrp;
     bool force, hazard, key_onpage_ovfl, ovfl_key;
     const void *p;
 
@@ -430,6 +442,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_off_page(page, addr)) {
             __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
+            addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+            WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
+            WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
@@ -451,6 +466,9 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->len = val->buf.size;
             }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            addrp = (uint8_t *)vpack->data + *(uint8_t *)vpack->data;
+            WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
+            WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -505,6 +523,10 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+        WT_ASSERT(session, addr_row_count != 0);
+        r->cur_ptr->addr_row_count += addr_row_count;
+        WT_ASSERT(session, addr_byte_count != 0);
+        r->cur_ptr->addr_byte_count += addr_byte_count;
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -651,6 +673,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
             __wt_rec_image_copy(session, r, val);
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+        ++r->cur_ptr->addr_row_count;
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -1030,6 +1053,7 @@ build:
             __wt_rec_image_copy(session, r, val);
         }
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+        ++r->cur_ptr->addr_row_count;
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);

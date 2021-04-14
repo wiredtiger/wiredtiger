@@ -271,6 +271,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * above in the switch statement. Else, the WT_REF->addr reference points to an on-page cell
          * or an off-page WT_ADDR structure: if it's an on-page cell and we copy it from the page,
          * else build a new cell.
+         *
+         * KEITH: Column-store needs the same work as row-store to aggregate row- and byte-counts.
          */
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;

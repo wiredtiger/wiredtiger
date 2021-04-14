@@ -1101,6 +1101,7 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor next calls",
   "cursor: cursor operation restarted",
   "cursor: cursor prev calls",
+  "cursor: cursor range_stat calls",
   "cursor: cursor remove calls",
   "cursor: cursor remove key bytes removed",
   "cursor: cursor reserve calls",
@@ -1248,6 +1249,8 @@ static const char *const __stats_connection_desc[] = {
   "session: table create successful calls",
   "session: table drop failed calls",
   "session: table drop successful calls",
+  "session: table range failed calls",
+  "session: table range successful calls",
   "session: table rename failed calls",
   "session: table rename successful calls",
   "session: table salvage failed calls",
@@ -1617,6 +1620,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next = 0;
     stats->cursor_restart = 0;
     stats->cursor_prev = 0;
+    stats->cursor_range_stat = 0;
     stats->cursor_remove = 0;
     stats->cursor_remove_bytes = 0;
     stats->cursor_reserve = 0;
@@ -1763,6 +1767,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_create_success */
     /* not clearing session_table_drop_fail */
     /* not clearing session_table_drop_success */
+    /* not clearing session_table_range_fail */
+    /* not clearing session_table_range_success */
     /* not clearing session_table_rename_fail */
     /* not clearing session_table_rename_success */
     /* not clearing session_table_salvage_fail */
@@ -2121,6 +2127,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next += WT_STAT_READ(from, cursor_next);
     to->cursor_restart += WT_STAT_READ(from, cursor_restart);
     to->cursor_prev += WT_STAT_READ(from, cursor_prev);
+    to->cursor_range_stat += WT_STAT_READ(from, cursor_range_stat);
     to->cursor_remove += WT_STAT_READ(from, cursor_remove);
     to->cursor_remove_bytes += WT_STAT_READ(from, cursor_remove_bytes);
     to->cursor_reserve += WT_STAT_READ(from, cursor_reserve);
@@ -2271,6 +2278,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_create_success += WT_STAT_READ(from, session_table_create_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);
     to->session_table_drop_success += WT_STAT_READ(from, session_table_drop_success);
+    to->session_table_range_fail += WT_STAT_READ(from, session_table_range_fail);
+    to->session_table_range_success += WT_STAT_READ(from, session_table_range_success);
     to->session_table_rename_fail += WT_STAT_READ(from, session_table_rename_fail);
     to->session_table_rename_success += WT_STAT_READ(from, session_table_rename_success);
     to->session_table_salvage_fail += WT_STAT_READ(from, session_table_salvage_fail);

@@ -617,10 +617,12 @@ COMPARE_NOTFOUND_OK(__wt_cursor::_search_near)
 %ignore __wt_cursor::compare(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::equals(WT_CURSOR *, WT_CURSOR *, int *);
 %ignore __wt_cursor::search_near(WT_CURSOR *, int *);
+%ignore __wt_session::range_stat(WT_SESSION *, const char *, WT_CURSOR *, WT_CURSOR *, const char *, uint64_t *, uint64_t *);
 
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, compare, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, equals, (self, other))
 OVERRIDE_METHOD(__wt_cursor, WT_CURSOR, search_near, (self))
+OVERRIDE_METHOD(__wt_session, WT_SESSION, range_stat, (self, uri, start, stop))
 
 /* SWIG magic to turn Python byte strings into data / size. */
 %apply (char *STRING, int LENGTH) { (char *data, int size) };
@@ -954,6 +956,15 @@ typedef int int_void;
 %extend __wt_session {
 	int _log_printf(const char *msg) {
 		return self->log_printf(self, "%s", msg);
+	}
+
+	/* range_info: special handling. */
+	int _range_stat(const char *uri, WT_CURSOR *start, WT_CURSOR *stop) {
+		uint64_t row_count, byte_count;
+		int ret = $self->range_stat($self, uri, start, stop, NULL, &row_count, &byte_count);
+		fprintf(stderr,
+		    "%d: row_count %" PRIu64 ", byte_count %" PRIu64 "\n", ret, row_count, byte_count);
+		return (ret);
 	}
 
 	int _freecb() {

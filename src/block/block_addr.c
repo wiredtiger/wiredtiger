@@ -19,6 +19,8 @@ __block_buffer_to_addr(WT_BLOCK *block, const uint8_t **pp, uint32_t *logidp, wt
 {
     uint64_t l, o, s, c;
 
+    ++*pp; /* Skip length */
+
     if (block->log_structured)
         WT_RET(__wt_vunpack_uint(pp, 0, &l));
     else
@@ -60,6 +62,9 @@ __wt_block_addr_to_buffer(
   WT_BLOCK *block, uint8_t **pp, uint32_t logid, wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     uint64_t l, o, s, c;
+    uint8_t *p;
+
+    p = (*pp)++; /* Save a spot for the length. */
 
     /* See the comment above: this is the reverse operation. */
     if (size == 0) {
@@ -76,6 +81,9 @@ __wt_block_addr_to_buffer(
     WT_RET(__wt_vpack_uint(pp, 0, o));
     WT_RET(__wt_vpack_uint(pp, 0, s));
     WT_RET(__wt_vpack_uint(pp, 0, c));
+
+    WT_ASSERT(NULL, WT_PTRDIFF(*pp, p) < 256); /* Store length as first byte */
+    *p = (uint8_t)WT_PTRDIFF(*pp, p);
     return (0);
 }
 

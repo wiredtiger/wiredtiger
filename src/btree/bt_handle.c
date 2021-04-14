@@ -65,7 +65,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE + WT_INTPACK64_MAXSIZE * 2 + 1];
     const char *filename;
     bool creation, forced_salvage;
 
