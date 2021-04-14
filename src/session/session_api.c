@@ -1186,6 +1186,7 @@ __session_range_uri(
         WT_ERR(__wt_schema_get_table(session, uri, strlen(uri), false, 0, &table));
 
         /* Set the number of rows from one column group, sum the column group byte counts. */
+        row_count = 0; /* [-Wconditional-uninitialized] */
         for (i = 0; i < WT_COLGROUPS(table); i++) {
             row_count = 0;
             WT_ERR(
@@ -1216,6 +1217,7 @@ __session_range_cursor_table(
     u_int i;
 
     /* Set the number of rows from one column group, sum the column group byte counts. */
+    row_count = 0; /* [-Wconditional-uninitialized] */
     for (i = 0; i < WT_COLGROUPS(start->table); i++) {
         row_count = 0;
         WT_ERR(__wt_btcur_range_stat(
