@@ -50,15 +50,10 @@ import os, sys, wthooks
 import unittest
 from wttest import WiredTigerTestCase
 
-# Print to /dev/tty for debugging, since anything extraneous to stdout/stderr will
-# cause a test error.
-def tty(s):
-    WiredTigerTestCase.tty(s)
-
 # These are the hook functions that are run when particular APIs are called.
 
 # Called to replace Session.create
-def session_create_replace(arg, orig_session_create, session_self, uri, config):
+def session_create_replace(ntiers, orig_session_create, session_self, uri, config):
     if config == None:
         base_config = ""
     else:
@@ -69,13 +64,12 @@ def session_create_replace(arg, orig_session_create, session_self, uri, config):
     #
     # NOTE: the API for creating a tiered table will change in WT-7173 and this will need to
     # be updated.
-    if uri[:6] == "table:" and "key_format=r" not in base_config and "type=lsm" not in base_config:
+    if (uri.startswith("table:") and "key_format=r" not in base_config and
+      "type=lsm" not in base_config):
         tier_string = ""
-        for i in range(arg):
+        for i in range(ntiers):
             new_uri = uri.replace('table:', 'file:tier' + str(i) + '_')
-            ret = orig_session_create(session_self, new_uri, config)
-            if ret != 0:
-                return ret
+            orig_session_create(session_self, new_uri, config)
             tier_string = tier_string + '"' + new_uri + '", '
         tier_config = 'type=tiered,tiered=(tiers=(' + tier_string[0:-2] + ')),' + base_config
         WiredTigerTestCase.verbose(None, 3,
@@ -86,28 +80,28 @@ def session_create_replace(arg, orig_session_create, session_self, uri, config):
     return ret
 
 # Called to replace Session.drop
-def session_drop_replace(arg, orig_session_drop, session_self, uri, config):
+def session_drop_replace(ntiers, orig_session_drop, session_self, uri, config):
     # Drop isn't implemented for tiered tables.  Only do the delete if this could be a
-    # uri we created a tiered table for.  Note this isn't a precise when we did/didn't
-    # create a tiered table, but we don't have the create config around to check.
+    # uri we created a tiered table for.  Note this isn't a precise match for when we
+    # did/didn't create a tiered table, but we don't have the create config around to check.
     ret = 0
-    if (uri[:6] != 'table:'):
+    if not uri.startswith("table:"):
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
 # Called to replace Session.verify
-def session_verify_replace(arg, orig_session_verify, session_self, uri):
+def session_verify_replace(ntiers, orig_session_verify, session_self, uri):
     return 0
 
 # Every hook file must have one or more classes descended from WiredTigerHook
 # This is where the hook functions are 'hooked' to API methods.
 class TieredHookCreator(wthooks.WiredTigerHookCreator):
-    def __init__(self, arg=0):
+    def __init__(self, ntiers=0):
         # Argument specifies the number of tiers to test. The default is 2.
-        if arg == None:
-            self.arg = 2
+        if ntiers == None:
+            self.ntiers = 2
         else:
-            self.arg = int(arg)
+            self.ntiers = int(ntiers)
 
     # Is this test one we should skip? We skip tests of features supported on standard
     # tables but not tiered tables, specififically cursor caching and checkpoint cursors.
@@ -117,8 +111,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
                 "test_cursor13_drops",
                 "test_cursor13_dup",
                 "checkpoint"]
-        match = [n for n in skip if n in str(test)]
-        return match
+        for item in skip:
+            if item in str(test):
+                return True
+        return False
 
     # Remove tests that won't work on tiered cursors
     def filter_tests(self, tests):
@@ -129,15 +125,15 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def setup_hooks(self):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
-          session_create_replace(self.arg, orig_session_create, s, uri, config))
+          session_create_replace(self.ntiers, orig_session_create, s, uri, config))
 
         orig_session_drop = self.Session['drop']
         self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
-          session_drop_replace(self.arg, orig_session_drop, s, uri, config))
+          session_drop_replace(self.ntiers, orig_session_drop, s, uri, config))
 
         orig_session_verify = self.Session['verify']
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri:
-          session_verify_replace(self.arg, orig_session_verify, s, uri))
+          session_verify_replace(self.ntiers, orig_session_verify, s, uri))
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
