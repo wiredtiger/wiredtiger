@@ -821,14 +821,12 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 {
     WT_DECL_RET;
     WT_TIERED *tiered;
-    int ntiers;
     char *meta_value;
     const char *cfg[4] = {WT_CONFIG_BASE(session, tiered_meta), config, NULL, NULL};
     const char *metadata;
 
     __wt_errx(session, "CREATE_TIERED: uri %s", uri);
     metadata = NULL;
-    ntiers = 0;
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
