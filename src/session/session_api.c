@@ -1262,8 +1262,11 @@ __session_range_cursor(WT_SESSION_IMPL *session, WT_CURSOR *start, WT_CURSOR *st
      *
      * Rather happily, the compare routine will also confirm the cursors reference the same object
      * and the keys are set.
+     *
+     * The test for a NULL start comparison function isn't necessary (we checked it above), but it
+     * quiets clang static analysis complaints.
      */
-    if (start != NULL && stop != NULL) {
+    if (start != NULL && stop != NULL && start->compare != NULL) {
         WT_ERR(start->compare(start, stop, &cmp));
         if (cmp > 0)
             WT_ERR_MSG(
