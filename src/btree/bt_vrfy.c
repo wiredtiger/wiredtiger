@@ -265,7 +265,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ASSERT(session, ckpt->byte_count != 0);
             WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->byte_count));
             addr_unpack.data = root_addr;
-            addr_unpack.size = root_addr_size;
+            addr_unpack.size = (uint8_t)root_addr_size;
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
