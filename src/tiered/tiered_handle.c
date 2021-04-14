@@ -177,8 +177,10 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
         WT_ERR(__wt_tiered_name(session, tiered, tiered->current_num, WT_TIERED_OBJECT, &objname));
         cfg[0] = WT_CONFIG_BASE(session, object_meta);
         cfg[1] = tiered->obj_config;
-        cfg[2] = conn->tiered_prefix;
-        WT_ERR(__wt_config_collapse(session, cfg, &objconfig));
+        WT_ASSERT(session, conn->tiered_prefix != NULL);
+        WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", conn->tiered_prefix));
+        cfg[2] = tmp->data;
+        WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
         WT_ERR(__wt_schema_create(session, objname, objconfig));
         __wt_errx(session, "TIER_SWITCH: schema create OBJECT: %s : %s", objname, objconfig);
         __wt_free(session, objconfig);
@@ -186,7 +188,12 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
         if (tiered_tree == NULL) {
             WT_ERR(__wt_tiered_name(session, tiered, 0, WT_TIERED_SHARED, &tiername));
             cfg[0] = WT_CONFIG_BASE(session, tier_meta);
-            cfg[2] = conn->tiered_prefix;
+            WT_ASSERT(session, conn->tiered_prefix != NULL);
+            WT_ASSERT(session, conn->bstorage != NULL);
+            WT_ERR(__wt_buf_fmt(session, tmp,
+             ",bucket=%s,bucket_prefix=%s", conn->bstorage->bucket,
+              conn->tiered_prefix));
+            cfg[2] = tmp->data;
             WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
             /* Set up a tiered: metadata for the first time. */
             __wt_errx(
@@ -209,8 +216,14 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_ERR(__wt_tiered_name(session, tiered, tiered->current_num, WT_TIERED_LOCAL, &objname));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = conn->tiered_prefix;
-    WT_ERR(__wt_config_collapse(session, cfg, &objconfig));
+    WT_ASSERT(session, conn->tiered_prefix != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket_prefix=%s)", conn->tiered_prefix));
+    cfg[2] = tmp->data;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
+    /*
+     * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
+     * definitely has the same problem with chunks.
+     */
     WT_ERR(__wt_schema_create(session, objname, objconfig));
     if (orig_ntiers == 0)
         ++tiered->ntiers;
@@ -232,6 +245,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_ERR(__wt_metadata_update(session, dhandle->name, objconfig));
 
 err:
+    __wt_errx(session, "TIER_SWITCH: session dh %p original dh %p", (void *)session->dhandle, (void *)dhandle);
+    session->dhandle = dhandle;
     __wt_errx(session, "TIER_SWITCH: DONE ret %d", ret);
     WT_RET(__wt_meta_track_off(session, true, ret != 0));
     __wt_free(session, objconfig);
@@ -258,9 +273,9 @@ __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
 /*
  * __wt_tiered_name --
- *     Given a tiered table structure and object number generate the URI name of the given type.
- *     XXX Currently this is only used in this file but I anticipate it may be of use outside.
- *     If not, make this static and tiered_name instead.
+ *     Given a tiered table structure and object number generate the URI name of the given type. XXX
+ *     Currently this is only used in this file but I anticipate it may be of use outside. If not,
+ *     make this static and tiered_name instead.
  */
 int
 __wt_tiered_name(
@@ -381,6 +396,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
             WT_ERR_MSG(session, EINVAL, "Unknown or unsupported tiered dhandle type %d", type);
         }
         (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+	__wt_errx(session, "TIERED_OPEN: DHANDLE %s inuse %d", session->dhandle->name, session->dhandle->session_inuse);
         /*
          * This is the ordered list of tiers in the table. The order would be approximately the
          * local file, then the shared tiered objects. There could be other items in there such as
@@ -428,14 +444,26 @@ int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
+    WT_DATA_HANDLE *dhandle;
     u_int i;
 
     ret = 0;
     __wt_free(session, tiered->key_format);
     __wt_free(session, tiered->value_format);
+    __wt_errx(session, "TIERED_CLOSE: have %d tiers", (int)tiered->ntiers);
     if (tiered->tiers != NULL) {
-        for (i = 0; i < tiered->ntiers; i++)
+        for (i = 0; i < tiered->ntiers; i++) {
+            dhandle = tiered->tiers[i];
+	    WT_ASSERT(session, dhandle != NULL);
+	    WT_ASSERT(session, dhandle->name != NULL);
+            __wt_errx(session, "TIERED_CLOSE: DHANDLE %s inuse %d", dhandle->name, dhandle->session_inuse);
+#if 0
             (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
+#else
+	    if (dhandle->session_inuse > 0)
+                (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
+#endif
+        }
         __wt_free(session, tiered->tiers);
     }
 

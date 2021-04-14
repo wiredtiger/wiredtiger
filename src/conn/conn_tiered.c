@@ -240,6 +240,7 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     /* If the connection is not set up for tiered storage there is nothing more to do. */
     if (conn->bstorage == NULL)
         return (0);
+    __wt_errx(session, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
 
     WT_ASSERT(session, conn->bstorage != NULL);
     WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
@@ -248,7 +249,10 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
 
     /* The strings for unique identification are connection level. */
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &cval));
+    if (cval.len == 0)
+        WT_RET_MSG(session, EINVAL, "Must specify a bucket prefix");
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_prefix));
+    __wt_errx(session, "TIERED_CONFIG: prefix %s", conn->tiered_prefix);
 
     return (__tiered_manager_config(session, cfg, runp));
 err:

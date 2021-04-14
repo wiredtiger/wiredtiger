@@ -41,6 +41,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
     bucket = "mybucket"
     bucket1 = "otherbucket"
     extension_name = "local_store"
+    prefix = "this_pfx"
     object_sys = "9M"
     object_sys_val = 9 * 1024 * 1024
     object_uri = "15M"
@@ -52,6 +53,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
+          'bucket_prefix=%s,' % self.prefix + \
           'local_retention=%d,' % self.retention + \
           'name=%s,' % self.extension_name + \
           'object_target_size=%s)' % self.object_sys
