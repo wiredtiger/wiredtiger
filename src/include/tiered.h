@@ -28,7 +28,7 @@ struct __wt_tiered_manager {
 
 /*
  * WT_CURSOR_TIERED --
- *	An tiered cursor.
+ *	A tiered cursor.
  */
 struct __wt_cursor_tiered {
     WT_CURSOR iface;
@@ -49,6 +49,20 @@ struct __wt_cursor_tiered {
 };
 
 /*
+ * Define the maximum number of tiers for convenience. We expect at most two initially. This can
+ * change if more are needed. It is easier to have the array statically allocated initially than
+ * worrying about the memory management. For now also assign types to slots. Local files in slot 0.
+ * Shared tier top level in slot 1.
+ */
+#define WT_TIERED_MAX_TIERS 4
+#define WT_TIERED_LOCAL_INDEX 0
+#define WT_TIERED_SHARED_INDEX 1
+
+/* Object name types */
+#define WT_TIERED_LOCAL 1
+#define WT_TIERED_OBJECT 2
+#define WT_TIERED_SHARED 3
+/*
  * WT_TIERED --
  *	Handle for a tiered data source. This data structure is used as the basis for metadata
  *	as the top level definition of a tiered table. This structure tells us where to find the
@@ -66,19 +80,17 @@ struct __wt_tiered {
 
     WT_BUCKET_STORAGE *bstorage;
 
-    WT_DATA_HANDLE **tiers; /* Tiers array */
-    uint32_t ntiers;
+    WT_DATA_HANDLE *tiers[WT_TIERED_MAX_TIERS];  /* Tiers array */
+    const char *tier_names[WT_TIERED_MAX_TIERS]; /* Tiers metadata name array */
 
-    uint64_t object_num;  /* Global next object number */
-    uint64_t current_num; /* Writable local object number */
+    uint64_t current_id; /* Current object id number */
+    uint64_t next_id;    /* Next object number */
 
     WT_COLLATOR *collator; /* TODO: handle custom collation */
     /* TODO: What about compression, encryption, etc? Do we need to worry about that here? */
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TIERED_LOCAL 0x1u
-#define WT_TIERED_OBJECT 0x2u
-#define WT_TIERED_SHARED 0x4u
+#define WT_TIERED_FLAG_UNUSED 0x1u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
@@ -90,7 +102,7 @@ struct __wt_tiered {
  *     up a tiered table. This structure contains the information needed to construct the name of
  *     this object and how to access it.
  */
-struct __wt_tiered_ojbect {
+struct __wt_tiered_object {
     const char *uri;      /* Data source for this object */
     WT_TIERED_TREE *tree; /* Pointer to tree this object is part of */
     uint64_t count;       /* Approximate count of records */

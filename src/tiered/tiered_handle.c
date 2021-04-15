@@ -10,101 +10,264 @@
 
 #if 0
 /*
- * __tiered_bucket_config --
- *     Return a bucket storage handle based on the configuration.
+ * __tiered_tree_find --
+ *     Given a tiered table, find the tier: entry if one exists yet for this table.
  */
-static int
-__tiered_bucket_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
+static void
+__tiered_tree_find(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_TIERED_TREE **tiered_tree)
 {
-    WT_BUCKET_STORAGE *bstorage;
-    WT_CONFIG_ITEM bucket, cval;
-    WT_DECL_RET;
-    bool local_free;
+    WT_DATA_HANDLE *dhandle;
 
-    /*
-     * We do not use __wt_config_gets_none for name because "none" and the empty string have
-     * different meanings. The empty string means inherit the system tiered storage setting and
-     * "none" means this table is not using tiered storage.
-     */
-    *bstoragep = NULL;
-    local_free = false;
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-    if (cval.len == 0)
-        *bstoragep = S2C(session)->bstorage;
-    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
-        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
-        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
-        local_free = true;
-        WT_ASSERT(session, *bstoragep != NULL);
-    }
-    bstorage = *bstoragep;
-    if (bstorage != NULL) {
-        /*
-         * If we get here then we have a valid bucket storage entry. Now see if the config overrides
-         * any of the other settings.
-         */
-        if (bstorage != S2C(session)->bstorage)
-            WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
-        WT_STAT_DATA_SET(session, tiered_object_size, bstorage->object_size);
-        WT_STAT_DATA_SET(session, tiered_retention, bstorage->retain_secs);
-    }
-    return (0);
-err:
-    /* If the bucket storage was set up with copies of the strings, free them here. */
-    if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
-        __wt_free(session, bstorage->auth_token);
-        __wt_free(session, bstorage->bucket);
-        __wt_free(session, bstorage);
-    }
-    return (ret);
+    *tiered_tree = NULL;
+    dhandle = tiered->tiers[WT_TIERED_SHARED_INDEX];
+    if (dhandle == NULL)
+        return;
+    WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_TIERED_TREE);
+    *tiered_tree = (WT_TIERED_TREE *)dhandle->handle;
+    return;
 }
 #endif
 
 /*
- * __wt_tiered_tree_add --
- *     Given a tiered table, add a tiered: entry to the table and metadata. XXX No op if exists?
- *     Assume it doesn't exist?
+ * __tiered_init_tiers --
+ *     Given a tiered table 'tiers' configuration set up the dhandle array.
  */
-int
-__wt_tiered_tree_add(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_TIERED_TREE **tiered_tree)
+static int
+__tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM *tierconf)
 {
-    WT_DATA_HANDLE *dhandle;
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ckey, cval;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_TIERED_TREE *tree;
+    uint32_t type;
 
-    WT_UNUSED(session);
-    WT_UNUSED(tiered);
-    WT_UNUSED(tiered_tree);
-    WT_UNUSED(dhandle);
-    WT_UNUSED(ret);
-    WT_UNUSED(tree);
-    /* XXX Do we want to just return 0 here but NULL tree? */
-    return (0);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    __wt_config_subinit(session, &cparser, tierconf);
+    while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0) {
+        /* Set up the tiers array based on the metadata. */
+        WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)ckey.len, ckey.str));
+        __wt_verbose(
+          session, WT_VERB_TIERED, "INIT_TIERS: tiered URI dhandle %s", (char *)tmp->data);
+        WT_ERR(__wt_session_get_dhandle(session, (const char *)tmp->data, NULL, NULL, 0));
+        if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
+            tiered->tiers[WT_TIERED_LOCAL_INDEX] = session->dhandle;
+        else if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED)
+            tiered->tiers[WT_TIERED_SHARED_INDEX] = session->dhandle;
+        else {
+            type = (uint32_t)session->dhandle->type;
+            WT_TRET(__wt_session_release_dhandle(session));
+            WT_ERR_MSG(session, EINVAL, "Unknown or unsupported tiered dhandle type %d", type);
+        }
+        (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+        __wt_errx(session, "INIT_TIERS: DHANDLE %s inuse %d", session->dhandle->name,
+          session->dhandle->session_inuse);
+        WT_ERR(__wt_session_release_dhandle(session));
+    }
+    WT_ERR_NOTFOUND_OK(ret, false);
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
- * __wt_tiered_tree_find --
- *     Given a tiered table, find the tier: entry if one exists yet for this table.
+ * __tiered_create_local --
+ *     Create a new local name for a tiered table.
  */
-int
-__wt_tiered_tree_find(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_TIERED_TREE **tiered_tree)
+static int
+__tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_DATA_HANDLE *dhandle;
+
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    const char *cfg[4] = {NULL, NULL, NULL, NULL};
+    const char *config, *name;
+
+    conn = S2C(session);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    tiered->current_id = __wt_atomic_add64(&tiered->next_id, 1);
+    WT_ERR(__wt_tiered_name(session, tiered, tiered->current_id, WT_TIERED_LOCAL, &name));
+    cfg[0] = WT_CONFIG_BASE(session, object_meta);
+    cfg[1] = tiered->obj_config;
+    WT_ASSERT(session, conn->tiered_prefix != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket_prefix=%s)", conn->tiered_prefix));
+    cfg[2] = tmp->data;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
+    /*
+     * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
+     * definitely has the same problem with chunks.
+     */
+    __wt_errx(session, "TIER_CREATE_LOCAL: schema create LOCAL: %s : %s", name, config);
+    WT_ERR(__wt_schema_create(session, name, config));
+    if (tiered->tier_names[WT_TIERED_LOCAL] == NULL)
+        __wt_free(session, tiered->tier_names[WT_TIERED_LOCAL]);
+    tiered->tier_names[WT_TIERED_LOCAL] = name;
+
+    if (0)
+        /* Only free name on error. */
+err:
+        __wt_free(session, name);
+    __wt_free(session, config);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __tiered_create_object --
+ *     Create an object name of the given number.
+ */
+static int
+__tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    const char *cfg[4] = {NULL, NULL, NULL, NULL};
+    const char *config, *name;
+
+    conn = S2C(session);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    /*
+     * First create the name and metadata of the new shared object of the current local object.
+     * The data structure keeps this id so that we don't have to parse and manipulate strings.
+     *   I.e. if we have file:example-000000002.wt we want object:example-000000002.wtobj.
+     */
+    WT_ERR(__wt_tiered_name(session, tiered, tiered->current_id, WT_TIERED_OBJECT, &name));
+    cfg[0] = WT_CONFIG_BASE(session, object_meta);
+    cfg[1] = tiered->obj_config;
+    WT_ASSERT(session, conn->tiered_prefix != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", conn->tiered_prefix));
+    cfg[2] = tmp->data;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
+    __wt_errx(session, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
+    /* Create the new shared object. */
+    WT_ERR(__wt_schema_create(session, name, config));
+
+err:
+    __wt_free(session, config);
+    __wt_free(session, name);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __tiered_create_tier_tree --
+ *     Create a tier name for a tiered table.
+ */
+static int
+__tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    const char *cfg[4] = {NULL, NULL, NULL, NULL};
+    const char *config, *name;
+
+    conn = S2C(session);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    /* Create tier:example for the new tiered tree. */
+    WT_ERR(__wt_tiered_name(session, tiered, 0, WT_TIERED_SHARED, &name));
+    cfg[0] = WT_CONFIG_BASE(session, tier_meta);
+    WT_ASSERT(session, conn->tiered_prefix != NULL);
+    WT_ASSERT(session, conn->bstorage != NULL);
+    WT_ERR(__wt_buf_fmt(
+      session, tmp, ",bucket=%s,bucket_prefix=%s", conn->bstorage->bucket, conn->tiered_prefix));
+    cfg[2] = tmp->data;
+    WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
+    /* Set up a tier:example metadata for the first time. */
+    __wt_errx(session, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", name, config);
+    WT_ERR(__wt_schema_create(session, name, config));
+    WT_ASSERT(session, tiered->tier_names[WT_TIERED_SHARED] == NULL);
+    tiered->tier_names[WT_TIERED_SHARED] = name;
+
+    if (0)
+        /* Only free on error. */
+err:
+        __wt_free(session, name);
+    __wt_free(session, config);
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
+ * __tiered_update_dhandles --
+ *     Update the dhandle list for a tiered structure after object switching.
+ */
+static int
+__tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_DECL_RET;
     uint32_t i;
 
-    *tiered_tree = NULL;
-    if (tiered->ntiers == 0)
-        return (0);
-    WT_ASSERT(session, tiered->tiers != NULL);
-    for (dhandle = *tiered->tiers, i = 0; i < tiered->ntiers; ++i, ++dhandle) {
-        WT_ASSERT(session, dhandle != NULL);
-        if (dhandle->type == WT_DHANDLE_TYPE_TIERED_TREE) {
-            *tiered_tree = (WT_TIERED_TREE *)dhandle->handle;
-            return (0);
+    /* Now get the dhandle and add it to the array. */
+    for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
+        /*
+         * If we have a tiered dhandle we can either skip if it is the same name or we decrement the
+         * old one and get a new one for the new name.
+         */
+        if (tiered->tiers[i] != NULL) {
+            if (strcmp(tiered->tiers[i]->name, tiered->tier_names[i]) == 0)
+                continue;
+            else
+                (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
+        }
+        WT_ERR(__wt_session_get_dhandle(session, tiered->tier_names[i], NULL, NULL, 0));
+        (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
+        tiered->tiers[i] = session->dhandle;
+        WT_ERR(__wt_session_release_dhandle(session));
+    }
+err:
+    if (ret != 0) {
+        /* XXX Need to undo our dhandles. Close and remove all. */
+        for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
+            (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
+            __wt_free(session, tiered->tier_names[i]);
+            tiered->tiers[i] = NULL;
+            tiered->tier_names[i] = NULL;
         }
     }
-    /* XXX Do we want to just return 0 here but NULL tree? */
-    return (WT_NOTFOUND);
+    return (ret);
+}
+
+/*
+ * __tiered_update_metadata --
+ *     Update the metadata for a tiered structure after object switching.
+ */
+static int
+__tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *orig_config)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+    uint32_t i;
+    const char *cfg[4] = {NULL, NULL, NULL, NULL};
+    const char *newconfig;
+
+    conn = S2C(session);
+    dhandle = session->dhandle;
+    newconfig = NULL;
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRId64 ",tiers=(\"", tiered->current_id));
+    for (i = 0; i < WT_TIERED_MAX_TIERS; ++i)
+        WT_RET(__wt_buf_fmt(session, tmp, "%s%s\"", i == 0 ? "" : ",", tiered->tier_names[i]));
+    WT_RET(__wt_buf_catfmt(session, tmp, ")"));
+
+    cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
+    cfg[1] = orig_config;
+    cfg[2] = tmp->data;
+    __wt_errx(session, "TIER_UPDATE_META: Update TIERED: %s\n%s\n%s", cfg[0], cfg[1], cfg[2]);
+    WT_ERR(__wt_config_merge(session, cfg, NULL, &newconfig));
+    __wt_errx(session, "TIER_UPDATE_META: Update TIERED: %s %s", dhandle->name, newconfig);
+    WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
+
+err:
+    __wt_free(session, newconfig);
+    __wt_scr_free(session, &tmp);
+    return (ret);
 }
 
 /*
@@ -116,145 +279,80 @@ __wt_tiered_tree_find(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_TIERED_TRE
 static int
 __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 {
-    WT_CONNECTION_IMPL *conn;
-#if 0
-    WT_CURSOR *cursor;
-    uint64_t cur_objnum, next_objnum;
-#endif
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED *tiered;
-    WT_TIERED_TREE *tiered_tree;
-    const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *objname, *tiername;
-    char *objconfig;
-    uint32_t orig_ntiers;
-    bool free_name;
+    bool need_local, need_object, need_tree, tracking;
 
-    conn = S2C(session);
     dhandle = session->dhandle;
     tiered = (WT_TIERED *)dhandle;
     __wt_errx(session, "TIER_SWITCH: called %s %s", dhandle->name, config);
-    objconfig = NULL;
-    objname = NULL;
-    orig_ntiers = tiered->ntiers;
 
-    __wt_errx(session, "TIER_SWITCH: tiered_tree_find");
-    ret = __wt_tiered_tree_find(session, tiered, &tiered_tree);
     /* We might only have a local file tree so far. */
     WT_RET_NOTFOUND_OK(ret);
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+
+    need_local = true;
+    tracking = false;
+    need_object = tiered->tiers[WT_TIERED_LOCAL_INDEX] != NULL;
+    need_tree = need_object && tiered->tiers[WT_TIERED_SHARED_INDEX] == NULL;
     /*
-     * The steps to switching to the next tiered file are:
-     *    - Start metadata tracking.
-     *    - Close the current object if needed.
-     *    - Copy the current one to the cloud. It also remains in the local store if needed.
-     *    - Add an object: with the name of the current local object to metadata if needed.
-     *    - Update the tier: metadata if needed.
-     *    - Atomically increment to get the next object number.
-     *    - Set up the new file: local object.
-     *    - Update the tiered: metadata to new object number and tiered array.
-     *    - Stop metadata tracking to make changes real.
+     * There are four possibilities to our tiers configuration. In all of them we need to create
+     * a new local tier file object dhandle and add it as element index zero of the tiers array.
+     * Then we may or may not do other operations depending on the state otherwise. These are
+     * presented in order of increasing amount of work that needs to be done.
+     *   1. tiers=() - New and empty. We only need to add in the local file object.
+     *   2. tiers=("tier:...") - Existing shared tier only. Here too we only need to add
+     *      in the local file object.
+     *   3. tiers=("file:...", "tier:...") - Both local and shared tiers exist in the metadata.
+     *       We need to create and add the next local file object (N + 1) and create a shared
+     * object in the metadata for the current local file object (N).
+     *   4. tiers=("file:...") - Existing local tier only. We need to do all of the parts listed
+     * in the #3 above, and also create the shared tier metadata entry.
      *
-     * Note that removal of overlapping local objects is not in the purview of this function.
-     * Some other mechanism will remove outdated tiers.
+     * The order we perform these operations is important. The order is:
+     *   1. Create the "object:" entry in metadata if needed.
+     *   2. Create the "tier:" entry in metadata if needed.
+     *   3. Create the new "file:" local entry in metadata.
+     *   4. Update the "tiered:" with new tiers and object number.
+     *   5. Meta tracking off to "commit" all the metadata operations.
+     *   6. Revise the dhandles in the tiered structure to reflect new state of the world.
      */
 
-    WT_RET(__wt_meta_track_on(session));
     /*
      * To be implemented with flush_tier:
      *    - Close the current object.
      *    - Copy the current one to the cloud. It also remains in the local store.
      */
 
+    WT_RET(__wt_meta_track_on(session));
+    tracking = true;
     /* Create the object: entry in the metadata. */
-    tiername = NULL;
-    free_name = false;
-    __wt_errx(session, "TIER_SWITCH: tiered flags 0x%x", (int)tiered->flags);
-    if (F_ISSET(tiered, WT_TIERED_LOCAL)) {
-        /* This takes the current number, and makes a tiered object name of the same number. */
-        WT_ERR(__wt_tiered_name(session, tiered, tiered->current_num, WT_TIERED_OBJECT, &objname));
-        cfg[0] = WT_CONFIG_BASE(session, object_meta);
-        cfg[1] = tiered->obj_config;
-        WT_ASSERT(session, conn->tiered_prefix != NULL);
-        WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", conn->tiered_prefix));
-        cfg[2] = tmp->data;
-        WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
-        WT_ERR(__wt_schema_create(session, objname, objconfig));
-        __wt_errx(session, "TIER_SWITCH: schema create OBJECT: %s : %s", objname, objconfig);
-        __wt_free(session, objconfig);
-        __wt_free(session, objname);
-        if (tiered_tree == NULL) {
-            WT_ERR(__wt_tiered_name(session, tiered, 0, WT_TIERED_SHARED, &tiername));
-            cfg[0] = WT_CONFIG_BASE(session, tier_meta);
-            WT_ASSERT(session, conn->tiered_prefix != NULL);
-            WT_ASSERT(session, conn->bstorage != NULL);
-            WT_ERR(__wt_buf_fmt(session, tmp,
-             ",bucket=%s,bucket_prefix=%s", conn->bstorage->bucket,
-              conn->tiered_prefix));
-            cfg[2] = tmp->data;
-            WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
-            /* Set up a tiered: metadata for the first time. */
-            __wt_errx(
-              session, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", tiername, objconfig);
-            WT_ERR(__wt_schema_create(session, tiername, objconfig));
-            __wt_free(session, objconfig);
-            ++tiered->ntiers;
-            free_name = true;
-        } else
-            tiername = tiered_tree->name;
-        /* XXX Need to update in last and tiers metadata entries in tier tree no matter what. */
-    }
+    if (need_object)
+        WT_ERR(__tiered_create_object(session, tiered));
+
+    if (need_tree)
+        WT_ERR(__tiered_create_tier_tree(session, tiered));
+
+    if (need_local)
+        WT_ERR(__tiered_create_local(session, tiered));
 
     /*
-     * Figure out what switching we need to make. In all cases we need to create a new local file.
-     * If we already have a local one we move it to the shared tier. Any special cases will fall out
-     * of those, such as having no objects at all or having only shared tier information.
+     * Note that removal of overlapping local objects is not in the purview of this function. Some
+     * other mechanism will remove outdated tiers. Here's where it could be done though.
      */
-    tiered->current_num = __wt_atomic_add64(&tiered->object_num, 1);
-    WT_ERR(__wt_tiered_name(session, tiered, tiered->current_num, WT_TIERED_LOCAL, &objname));
-    cfg[0] = WT_CONFIG_BASE(session, object_meta);
-    cfg[1] = tiered->obj_config;
-    WT_ASSERT(session, conn->tiered_prefix != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket_prefix=%s)", conn->tiered_prefix));
-    cfg[2] = tmp->data;
-    WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
-    /*
-     * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
-     * definitely has the same problem with chunks.
-     */
-    WT_ERR(__wt_schema_create(session, objname, objconfig));
-    if (orig_ntiers == 0)
-        ++tiered->ntiers;
-    __wt_errx(session, "TIER_SWITCH: schema create LOCAL: %s : %s", objname, objconfig);
-    __wt_free(session, objconfig);
-
-    /* Potentially remove old file object */
 
     /* Update the tiered: metadata to new object number and tiered array. */
-    cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
-    cfg[1] = config;
-    if (tiername == NULL)
-        WT_ERR(__wt_buf_fmt(session, tmp, ",tiers=(\"%s\")", objname));
-    else
-        WT_ERR(__wt_buf_fmt(session, tmp, ",tiers=(\"%s\", \"%s\")", objname, tiername));
-    cfg[2] = tmp->data;
-    WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&objconfig));
-    __wt_errx(session, "TIER_SWITCH: Update TIERED: %s %s", dhandle->name, objconfig);
-    WT_ERR(__wt_metadata_update(session, dhandle->name, objconfig));
-
+    WT_ERR(__tiered_update_metadata(session, tiered, config));
+    tracking = false;
+    WT_ERR(__wt_meta_track_off(session, true, ret != 0));
+    WT_ERR(__tiered_update_dhandles(session, tiered));
 err:
-    __wt_errx(session, "TIER_SWITCH: session dh %p original dh %p", (void *)session->dhandle, (void *)dhandle);
+    __wt_errx(session, "TIER_SWITCH: session dh %p original dh %p", (void *)session->dhandle,
+      (void *)dhandle);
     session->dhandle = dhandle;
     __wt_errx(session, "TIER_SWITCH: DONE ret %d", ret);
-    WT_RET(__wt_meta_track_off(session, true, ret != 0));
-    __wt_free(session, objconfig);
-    __wt_free(session, objname);
-    __wt_free(session, tiername);
-    if (free_name)
-        __wt_free(session, tiername);
-    __wt_scr_free(session, &tmp);
+    if (tracking)
+        WT_RET(__wt_meta_track_off(session, true, ret != 0));
     return (ret);
 }
 
@@ -266,7 +364,8 @@ int
 __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
 {
     /*
-     * For now just a wrapper to internal function.
+     * For now just a wrapper to internal function. Maybe there's more to do externally, like wrap
+     * it in a lock or with a dhandle or walk the dhandle list here rather than higher up.
      */
     return (__tiered_switch(session, config));
 }
@@ -315,17 +414,11 @@ err:
 static int
 __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CONFIG cparser;
-    WT_CONFIG_ITEM ckey, cval, tierconf;
+    WT_CONFIG_ITEM cval, tierconf;
     WT_DATA_HANDLE *dhandle;
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_TIERED *tiered;
-    uint32_t i, type, unused;
-#if 0
-    char *uri;
-    uint64_t objnum;
-#endif
+    uint32_t unused;
     char *metaconf;
     const char **tiered_cfg, *config;
 
@@ -333,6 +426,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     tiered = (WT_TIERED *)dhandle;
     tiered_cfg = dhandle->cfg;
     config = NULL;
+    metaconf = NULL;
 
     WT_UNUSED(cfg);
     /* Collapse into one string for later use in switch. */
@@ -343,70 +437,28 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_config_getones(session, config, "value_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->value_format));
 
+    WT_ERR(__wt_config_getones(session, config, "last", &cval));
+    tiered->current_id = (uint64_t)cval.val;
+    tiered->next_id = tiered->current_id + 1;
+    __wt_errx(session, "TIERED_OPEN: current %d, next %d", (int)tiered->current_id, (int)tiered->next_id);
+
     ret = __wt_config_getones(session, config, "tiers", &tierconf);
     WT_ERR_NOTFOUND_OK(ret, true);
 
-    tiered->ntiers = 0;
-    /* Count the number of tiers if we have some. */
-    if (ret == 0) {
-        __wt_config_subinit(session, &cparser, &tierconf);
-        while ((ret = __wt_config_next(&cparser, &ckey, &cval)) == 0)
-            ++tiered->ntiers;
-        WT_ERR_NOTFOUND_OK(ret, false);
-    }
-
-    ret = 0;
-    /*
-     * If we have no tiers, then we're opening and creating this for the first time. We need to
-     * create an initial local file object.
-     */
-    __wt_errx(session, "TIERED_OPEN: open/create %s ntiers %d", dhandle->name, (int)tiered->ntiers);
-    metaconf = NULL;
-    if (tiered->ntiers == 0) {
+    /* Open tiers if we have them, otherwise initialize. */
+    if (tiered->current_id != 0)
+        WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
+    else {
+        __wt_errx(session, "TIERED_OPEN: create %s", dhandle->name);
         WT_ERR(__tiered_switch(session, config));
+
         /* XXX brute force, need to figure out functions to use to do this properly. */
+        /* We need to update the dhandle config entry to reflect the new tiers metadata. */
         WT_ERR(__wt_metadata_search(session, dhandle->name, &metaconf));
         __wt_errx(session, "TIERED_OPEN: after switch meta conf %s %s", dhandle->name, metaconf);
         __wt_free(session, dhandle->cfg[1]);
         dhandle->cfg[1] = metaconf;
     }
-    WT_ASSERT(session, tiered->ntiers != 0);
-    WT_ERR(__wt_config_gets(session, dhandle->cfg, "tiers", &tierconf));
-    WT_ERR(__wt_scr_alloc(session, 0, &buf));
-    WT_ERR(__wt_calloc_def(session, tiered->ntiers, &tiered->tiers));
-
-    __wt_config_subinit(session, &cparser, &tierconf);
-    tiered->flags = 0;
-    /*
-     * Open the dhandle for each element in the tiered.tiers entry.
-     *   XXX: Maybe this should be in the tiered switch function.
-     */
-    for (i = 0; i < tiered->ntiers; i++) {
-        WT_ERR(__wt_config_next(&cparser, &ckey, &cval));
-        WT_ERR(__wt_buf_fmt(session, buf, "%.*s", (int)ckey.len, ckey.str));
-        __wt_verbose(session, WT_VERB_TIERED, "Open tiered URI dhandle %s", (char *)buf->data);
-        WT_ERR(__wt_session_get_dhandle(session, (const char *)buf->data, NULL, cfg, 0));
-        if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
-            F_SET(tiered, WT_TIERED_LOCAL);
-        else if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED)
-            F_SET(tiered, WT_TIERED_SHARED);
-        else {
-            type = (uint32_t)session->dhandle->type;
-            WT_TRET(__wt_session_release_dhandle(session));
-            WT_ERR_MSG(session, EINVAL, "Unknown or unsupported tiered dhandle type %d", type);
-        }
-        (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
-	__wt_errx(session, "TIERED_OPEN: DHANDLE %s inuse %d", session->dhandle->name, session->dhandle->session_inuse);
-        /*
-         * This is the ordered list of tiers in the table. The order would be approximately the
-         * local file, then the shared tiered objects. There could be other items in there such as
-         * an archive storage or multiple tiers to search for the data.
-         */
-        tiered->tiers[i] = session->dhandle;
-        WT_ERR(__wt_session_release_dhandle(session));
-    }
-    /* Restore dhandle after modifying dhandles for the tiers. */
-    session->dhandle = dhandle;
     if (0) {
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
@@ -415,10 +467,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     if (0) {
 err:
         __wt_free(session, tiered->tiers);
+        __wt_free(session, metaconf);
     }
-    __wt_errx(session, "TIERED_OPEN: Done ret %d dh %p", ret, (void *)session->dhandle);
+    __wt_errx(session, "TIERED_OPEN: Done ret %d", ret);
     __wt_free(session, config);
-    __wt_scr_free(session, &buf);
     return (ret);
 }
 
@@ -443,28 +495,32 @@ __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_DECL_RET;
     WT_DATA_HANDLE *dhandle;
-    u_int i;
+    WT_DECL_RET;
+    uint32_t i;
 
-    ret = 0;
     __wt_free(session, tiered->key_format);
     __wt_free(session, tiered->value_format);
-    __wt_errx(session, "TIERED_CLOSE: have %d tiers", (int)tiered->ntiers);
-    if (tiered->tiers != NULL) {
-        for (i = 0; i < tiered->ntiers; i++) {
-            dhandle = tiered->tiers[i];
-	    WT_ASSERT(session, dhandle != NULL);
-	    WT_ASSERT(session, dhandle->name != NULL);
-            __wt_errx(session, "TIERED_CLOSE: DHANDLE %s inuse %d", dhandle->name, dhandle->session_inuse);
-#if 0
-            (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
-#else
-	    if (dhandle->session_inuse > 0)
-                (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
-#endif
+    __wt_errx(session, "TIERED_CLOSE: called");
+    /*
+     * For the moment we don't have anything to return. But all the callers currently expect a real
+     * return value from a close function. And this may become more complex later.
+     */
+    WT_UNUSED(ret);
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        if (tiered->tier_names[i] != NULL)
+            __wt_free(session, tiered->tier_names[i]);
+        else {
+            WT_ASSERT(session, tiered->tiers[i] == NULL);
+            continue;
         }
-        __wt_free(session, tiered->tiers);
+        dhandle = tiered->tiers[i];
+        WT_ASSERT(session, dhandle != NULL);
+        WT_ASSERT(session, dhandle->name != NULL);
+        __wt_errx(
+          session, "TIERED_CLOSE: DHANDLE %s inuse %d", dhandle->name, dhandle->session_inuse);
+        WT_ASSERT(session, dhandle->session_inuse > 0);
+        (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
     }
 
     return (ret);

@@ -1195,7 +1195,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "name=),format=btree,huffman_key=,huffman_value=,"
     "ignore_in_memory_cache_size=false,internal_item_max=0,"
     "internal_key_max=0,internal_key_truncate=true,"
-    "internal_page_max=4KB,key_format=u,key_gap=10,last=,"
+    "internal_page_max=4KB,key_format=u,key_gap=10,last=0,"
     "leaf_item_max=0,leaf_key_max=0,leaf_page_max=32KB,"
     "leaf_value_max=0,log=(enabled=true),lsm=(auto_throttle=true,"
     "bloom=true,bloom_bit_count=16,bloom_config=,bloom_hash_count=8,"
@@ -1240,7 +1240,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"tiered.meta",
     "app_metadata=,assert=(commit_timestamp=none,"
     "durable_timestamp=none,read_timestamp=none,write_timestamp=off),"
-    "collator=,columns=,last=,tiered_storage=(auth_token=,bucket=,"
+    "collator=,columns=,last=0,tiered_storage=(auth_token=,bucket=,"
     "bucket_prefix=,local_retention=300,name=,object_target_size=10M)"
     ",tiers=,verbose=[],write_timestamp_usage=none",
     confchk_tiered_meta, 9},

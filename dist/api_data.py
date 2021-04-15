@@ -449,7 +449,7 @@ file_meta = file_config + [
 ]
 
 lsm_meta = file_config + lsm_config + [
-    Config('last', '', r'''
+    Config('last', '0', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
         active chunks in the LSM tree'''),
@@ -458,7 +458,7 @@ lsm_meta = file_config + lsm_config + [
 ]
 
 tiered_meta = common_meta + tiered_config + [
-    Config('last', '', r'''
+    Config('last', '0', r'''
         the last allocated object ID'''),
     Config('tiers', '', r'''
         list of data sources to combine into a tiered storage structure''', type='list'),

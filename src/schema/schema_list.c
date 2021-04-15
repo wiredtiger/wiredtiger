@@ -29,7 +29,9 @@ __wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_in
     tiered = (WT_TIERED *)session->dhandle;
     if (!ok_incomplete)
         /* XXX: I don't think we need this for tiered. */
-        for (i = 0; i < tiered->ntiers; ++i) {
+        for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
+            if (tiered->tiers[i] == NULL)
+                continue;
             WT_ERR(__wt_session_release_dhandle(session));
             ret = __wt_set_return(session, EINVAL);
             WT_ERR_MSG(session, ret, "'%s' cannot be used until all tiered parts are created",

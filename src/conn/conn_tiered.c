@@ -47,6 +47,10 @@ __flush_tier_once(WT_SESSION_IMPL *session, bool force)
         if (WT_PREFIX_MATCH(key, "tiered:")) {
             __wt_errx(session, "FLUSH_TIER_ONCE: %s %s", key, value);
             WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+            /*
+             * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
+             * the arg is the config string that is currently in the metadata.
+             */
             WT_ERR(__wt_tiered_switch(session, value));
             WT_ERR(__wt_session_release_dhandle(session));
         }
@@ -56,7 +60,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, bool force)
     return (0);
 
 err:
-    WT_ERR(__wt_session_release_dhandle(session));
+    WT_TRET(__wt_session_release_dhandle(session));
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     return (ret);
 }
