@@ -225,16 +225,21 @@ __tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ERR(__wt_session_release_dhandle(session));
     }
 err:
+    __wt_errx(session, "UPDATE_DH: DONE ret %d", ret);
     if (ret != 0) {
+#if 0
         /* XXX Need to undo our dhandles. Close and remove all. */
         for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
-            (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
+            if (tiered->tiers[i] != NULL)
+                (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
             __wt_free(session, tiered->tier_names[i]);
             tiered->tiers[i] = NULL;
             tiered->tier_names[i] = NULL;
         }
+#else
+        WT_RET_PANIC(session, WT_PANIC, "updating dhandles failed");
+#endif
     }
-    __wt_errx(session, "UPDATE_DH: DONE ret %d", ret);
     return (ret);
 }
 
