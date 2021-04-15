@@ -86,7 +86,8 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     conn = S2C(session);
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    tiered->current_id = __wt_atomic_add64(&tiered->next_id, 1);
+    /* This is the only place that touches this value. No need for atomic operation. */
+    tiered->current_id = tiered->next_id++;
     WT_ERR(__wt_tiered_name(session, tiered, tiered->current_id, WT_TIERED_LOCAL, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
@@ -100,9 +101,9 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      */
     __wt_errx(session, "TIER_CREATE_LOCAL: schema create LOCAL: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    if (tiered->tier_names[WT_TIERED_LOCAL] == NULL)
-        __wt_free(session, tiered->tier_names[WT_TIERED_LOCAL]);
-    tiered->tier_names[WT_TIERED_LOCAL] = name;
+    if (tiered->tier_names[WT_TIERED_LOCAL_INDEX] == NULL)
+        __wt_free(session, tiered->tier_names[WT_TIERED_LOCAL_INDEX]);
+    tiered->tier_names[WT_TIERED_LOCAL_INDEX] = name;
 
     if (0)
         /* Only free name on error. */
@@ -179,8 +180,8 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     /* Set up a tier:example metadata for the first time. */
     __wt_errx(session, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    WT_ASSERT(session, tiered->tier_names[WT_TIERED_SHARED] == NULL);
-    tiered->tier_names[WT_TIERED_SHARED] = name;
+    WT_ASSERT(session, tiered->tier_names[WT_TIERED_SHARED_INDEX] == NULL);
+    tiered->tier_names[WT_TIERED_SHARED_INDEX] = name;
 
     if (0)
         /* Only free on error. */
@@ -208,12 +209,17 @@ __tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          * old one and get a new one for the new name.
          */
         if (tiered->tiers[i] != NULL) {
+            WT_ASSERT(session, tiered->tier_names[i] != NULL);
             if (strcmp(tiered->tiers[i]->name, tiered->tier_names[i]) == 0)
                 continue;
             else
                 (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
         }
+        if (tiered->tier_names[i] == NULL)
+            continue;
+        __wt_errx(session, "UPDATE_DH: Get dhandle for %s", tiered->tier_names[i]);
         WT_ERR(__wt_session_get_dhandle(session, tiered->tier_names[i], NULL, NULL, 0));
+        __wt_errx(session, "UPDATE_DH: DONE Get dhandle for %s", tiered->tier_names[i]);
         (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
         tiered->tiers[i] = session->dhandle;
         WT_ERR(__wt_session_release_dhandle(session));
@@ -228,6 +234,7 @@ err:
             tiered->tier_names[i] = NULL;
         }
     }
+    __wt_errx(session, "UPDATE_DH: DONE ret %d", ret);
     return (ret);
 }
 
@@ -247,19 +254,24 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     const char *newconfig;
 
     conn = S2C(session);
-    dhandle = session->dhandle;
+    dhandle = &tiered->iface;
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRId64 ",tiers=(\"", tiered->current_id));
-    for (i = 0; i < WT_TIERED_MAX_TIERS; ++i)
-        WT_RET(__wt_buf_fmt(session, tmp, "%s%s\"", i == 0 ? "" : ",", tiered->tier_names[i]));
+    for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
+        if (tiered->tier_names[i] == NULL) {
+            __wt_errx(session, "TIER_UPDATE_META: names[%d] NULL", i);
+            continue;
+        }
+        __wt_errx(session, "TIER_UPDATE_META: names[%d]: %s", i, tiered->tier_names[i]);
+        WT_RET(__wt_buf_catfmt(session, tmp, "%s%s\"", i == 0 ? "" : ",", tiered->tier_names[i]));
+    }
     WT_RET(__wt_buf_catfmt(session, tmp, ")"));
 
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
     cfg[1] = orig_config;
     cfg[2] = tmp->data;
-    __wt_errx(session, "TIER_UPDATE_META: Update TIERED: %s\n%s\n%s", cfg[0], cfg[1], cfg[2]);
     WT_ERR(__wt_config_merge(session, cfg, NULL, &newconfig));
     __wt_errx(session, "TIER_UPDATE_META: Update TIERED: %s %s", dhandle->name, newconfig);
     WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
@@ -440,7 +452,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
     tiered->current_id = (uint64_t)cval.val;
     tiered->next_id = tiered->current_id + 1;
-    __wt_errx(session, "TIERED_OPEN: current %d, next %d", (int)tiered->current_id, (int)tiered->next_id);
+    __wt_errx(
+      session, "TIERED_OPEN: current %d, next %d", (int)tiered->current_id, (int)tiered->next_id);
 
     ret = __wt_config_getones(session, config, "tiers", &tierconf);
     WT_ERR_NOTFOUND_OK(ret, true);
