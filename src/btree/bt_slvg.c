@@ -1205,6 +1205,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     WT_TRACK *trk;
     uint32_t i;
 
+    ref = NULL;
+
     /* Allocate a column-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
     WT_ERR(__slvg_modify_init(session, page));
@@ -1243,7 +1245,8 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
     if (0) {
 err:
-        __wt_free(session, ref->addr);
+        if (ref != NULL)
+            __wt_free(session, ref->addr);
         __wt_page_out(session, &page);
     }
     return (ret);
@@ -1792,6 +1795,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
     WT_TRACK *trk;
     uint32_t i;
 
+    ref = NULL;
+
     /* Allocate a row-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
     WT_ERR(__slvg_modify_init(session, page));
@@ -1845,7 +1850,8 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
     if (0) {
 err:
-        __wt_free(session, ref->addr);
+        if (ref != NULL)
+            __wt_free(session, ref->addr);
         __wt_page_out(session, &page);
     }
     return (ret);
