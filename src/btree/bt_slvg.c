@@ -629,8 +629,10 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
             switch (unpack.type) {
             case WT_CELL_KEY_OVFL:
             case WT_CELL_KEY:
-                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 ++trk->addr_row_count;
+                break;
+            default:
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
                 break;
             }
         }
