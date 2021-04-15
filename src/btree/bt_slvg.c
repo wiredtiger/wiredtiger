@@ -110,6 +110,8 @@ struct __wt_track {
         } col;
     } u;
 
+    uint64_t addr_row_count; /* Page key/value count. */
+
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TRACK_CHECK_START 0x1u /* Row: initial key updated */
 #define WT_TRACK_CHECK_STOP 0x2u  /* Row: last key updated */
@@ -611,6 +613,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
         trk->col_start = dsk->recno;
         trk->col_stop = stop_recno - 1;
+        trk->addr_row_count = stop_recno - dsk->recno;
 
         __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
           __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1), trk->col_start,
@@ -621,8 +624,15 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         break;
     case WT_PAGE_ROW_LEAF:
         WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
+        trk->addr_row_count = 0;
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
-            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+            switch (unpack.type) {
+            case WT_CELL_KEY_OVFL:
+            case WT_CELL_KEY:
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                ++trk->addr_row_count;
+                break;
+            }
         }
         WT_CELL_FOREACH_END;
 
@@ -1139,21 +1149,61 @@ __slvg_modify_init(WT_SESSION_IMPL *session, WT_PAGE *page)
 }
 
 /*
+ * __slvg_build_addr --
+ *     Build a WT_REF address.
+ */
+static int
+__slvg_build_addr(WT_SESSION_IMPL *session, WT_REF *ref, WT_TRACK *trk)
+{
+    WT_ADDR *addr;
+    WT_BTREE *btree;
+    WT_DECL_RET;
+    uint8_t *addrp, build_addr[WT_BTREE_MAX_ADDR_COOKIE];
+
+    btree = S2BT(session);
+
+    WT_RET(__wt_calloc_one(session, &addr));
+
+    WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
+
+    if (btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) {
+        memcpy(build_addr, trk->trk_addr, trk->trk_addr_size);
+        addrp = build_addr + trk->trk_addr_size;
+        WT_ASSERT(session, F_ISSET(trk, WT_TRACK_MERGE) || trk->addr_row_count != 0);
+        WT_ERR(__wt_vpack_uint(&addrp, 0, trk->addr_row_count));
+        WT_ASSERT(session, F_ISSET(trk, WT_TRACK_MERGE) || trk->trk_size != 0);
+        WT_ERR(__wt_vpack_uint(&addrp, 0, trk->trk_size));
+        addr->size = (uint8_t)WT_PTRDIFF(addrp, addr);
+        WT_ERR(__wt_memdup(session, build_addr, addr->size, &addr->addr));
+    } else {
+        addr->size = trk->trk_addr_size;
+        WT_ERR(__wt_memdup(session, trk->trk_addr, addr->size, &addr->addr));
+    }
+
+    addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
+
+    ref->addr = addr;
+
+    if (0) {
+err:
+        __wt_free(session, addr);
+    }
+    return (ret);
+}
+
+/*
  * __slvg_col_build_internal --
  *     Build a column-store in-memory page that references all of the leaf pages we've found.
  */
 static int
 __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
 {
-    WT_ADDR *addr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *ref, **refp;
     WT_TRACK *trk;
     uint32_t i;
-
-    addr = NULL;
 
     /* Allocate a column-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_COL_INT, leaf_cnt, true, &page));
@@ -1167,15 +1217,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         ref = *refp++;
         ref->home = page;
         ref->page = NULL;
-
-        WT_ERR(__wt_calloc_one(session, &addr));
-        WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
-        addr->size = trk->trk_addr_size;
-        addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
-        ref->addr = addr;
-        addr = NULL;
-
+        WT_ERR(__slvg_build_addr(session, ref, trk));
         ref->ref_recno = trk->col_start;
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -1201,7 +1243,7 @@ __slvg_col_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
     if (0) {
 err:
-        __wt_free(session, addr);
+        __wt_free(session, ref->addr);
         __wt_page_out(session, &page);
     }
     return (ret);
@@ -1743,15 +1785,12 @@ err:
 static int
 __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF *ss)
 {
-    WT_ADDR *addr;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_PAGE_INDEX *pindex;
     WT_REF *ref, **refp;
     WT_TRACK *trk;
     uint32_t i;
-
-    addr = NULL;
 
     /* Allocate a row-store root (internal) page and fill it in. */
     WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_INT, leaf_cnt, true, &page));
@@ -1762,18 +1801,11 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
         if ((trk = ss->pages[i]) == NULL)
             continue;
 
+        /* Build the WT_REF structure. */
         ref = *refp++;
         ref->home = page;
         ref->page = NULL;
-
-        WT_ERR(__wt_calloc_one(session, &addr));
-        WT_TIME_AGGREGATE_COPY(&addr->ta, &trk->trk_ta);
-        WT_ERR(__wt_memdup(session, trk->trk_addr, trk->trk_addr_size, &addr->addr));
-        addr->size = trk->trk_addr_size;
-        addr->type = trk->trk_ovfl_cnt == 0 ? WT_ADDR_LEAF_NO : WT_ADDR_LEAF;
-        ref->addr = addr;
-        addr = NULL;
-
+        WT_ERR(__slvg_build_addr(session, ref, trk));
         __wt_ref_key_clear(ref);
         F_SET(ref, WT_REF_FLAG_LEAF);
         WT_REF_SET_STATE(ref, WT_REF_DISK);
@@ -1813,7 +1845,7 @@ __slvg_row_build_internal(WT_SESSION_IMPL *session, uint32_t leaf_cnt, WT_STUFF 
 
     if (0) {
 err:
-        __wt_free(session, addr);
+        __wt_free(session, ref->addr);
         __wt_page_out(session, &page);
     }
     return (ret);

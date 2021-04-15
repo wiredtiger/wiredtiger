@@ -166,7 +166,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
     size_t root_addr_size;
-    uint8_t *addrp, root_addr[WT_BTREE_MAX_ADDR_COOKIE + WT_INTPACK64_MAXSIZE * 2 + 1];
+    uint8_t *addrp, root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *name;
     bool bm_start, quit;
 
@@ -260,10 +260,12 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             memset(&addr_unpack, 0, sizeof(addr_unpack));
             addrp = root_addr + root_addr_size;
             WT_ASSERT(session, root_addr[0] == root_addr_size);
-            WT_ASSERT(session, ckpt->row_count != 0);
-            WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->row_count));
-            WT_ASSERT(session, ckpt->byte_count != 0);
-            WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->byte_count));
+            if (btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) {
+                WT_ASSERT(session, ckpt->row_count != 0);
+                WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->row_count));
+                WT_ASSERT(session, ckpt->byte_count != 0);
+                WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->byte_count));
+            }
             addr_unpack.data = root_addr;
             addr_unpack.size = (uint8_t)root_addr_size;
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
@@ -847,6 +849,7 @@ static int
 __verify_page_content_int(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *parent, WT_VSTUFF *vs)
 {
+    WT_BTREE *btree;
     WT_CELL_UNPACK_ADDR unpack;
     WT_DECL_RET;
     WT_PAGE *page;
@@ -856,6 +859,7 @@ __verify_page_content_int(
     uint32_t cell_num;
     const uint8_t *addrp;
 
+    btree = S2BT(session);
     page = ref->page;
     ta = &unpack.ta;
     addr_byte_count = addr_row_count = 0;
@@ -895,11 +899,13 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            addrp = (uint8_t *)unpack.data + *(uint8_t *)unpack.data;
-            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-            addr_row_count += v;
-            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-            addr_byte_count += v;
+            if (btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) {
+                addrp = (uint8_t *)unpack.data + *(uint8_t *)unpack.data;
+                WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+                addr_row_count += v;
+                WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+                addr_byte_count += v;
+            }
 
             if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
                 WT_RET_MSG(session, ret,
@@ -914,13 +920,8 @@ __verify_page_content_int(
     }
     WT_CELL_FOREACH_END;
 
-    /*
-     * Verify the page address cell's suffix of row count and page bytes.
-     *
-     * KEITH: This code doesn't support column-store. It's probably correct, but it doesn't do the
-     * obvious check against the record number.
-     */
-    if (parent->data != NULL) {
+    /* Verify the page address cell's suffix of row count and page bytes. */
+    if ((btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) && parent->data != NULL) {
         addrp = (uint8_t *)parent->data + *(uint8_t *)parent->data;
         WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
         if (v != addr_row_count)
@@ -934,6 +935,8 @@ __verify_page_content_int(
               "page at %s has an address page byte count of %" PRIu64
               ", the addressed tree has a page byte count of %" PRIu64,
               __verify_addr_string(session, ref, vs->tmp1), v, addr_byte_count);
+
+        /* KEITH: This code doesn't do the obvious check against the column-store record number. */
     }
 
     return (0);
@@ -1042,6 +1045,7 @@ __verify_page_content_leaf(
             WT_RET(__verify_key_hs(session, vs->tmp1, tw->start_ts, vs));
 
             recno += rle;
+            row_count += rle;
             vs->records_so_far += rle;
         }
     }
@@ -1059,11 +1063,7 @@ __verify_page_content_leaf(
           __verify_addr_string(session, ref, vs->tmp1), __wt_page_type_string(ref->page->type),
           __wt_cell_type_string(parent->raw));
 
-    /*
-     * Verify the leaf page address cell's suffix of row count and page bytes.
-     *
-     * KEITH: This code doesn't support column-store.
-     */
+    /* Verify the leaf page address cell's suffix of row count and page bytes. */
     addrp = (uint8_t *)parent->data + *(uint8_t *)parent->data;
     WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
     if (v != row_count)
@@ -1077,6 +1077,8 @@ __verify_page_content_leaf(
           "page at %s has an address page byte count of %" PRIu64
           ", the addressed page has a page byte count of %" PRIu32,
           __verify_addr_string(session, ref, vs->tmp1), v, dsk->mem_size);
+
+    /* KEITH: This code doesn't do the obvious check against the column-store record number. */
 
     return (0);
 }

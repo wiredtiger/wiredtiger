@@ -157,7 +157,7 @@ struct __wt_addr_copy {
 
     uint8_t type;
 
-    uint8_t addr[255 /* WT_BTREE_MAX_ADDR_COOKIE */ + WT_INTPACK64_MAXSIZE * 2 + 1];
+    uint8_t addr[274 /* WT_BTREE_MAX_ADDR_COOKIE */];
     uint8_t size;
 };
 

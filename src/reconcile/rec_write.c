@@ -1725,7 +1725,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_MULTI *multi;
     WT_PAGE *page;
     size_t addr_size, compressed_size;
-    uint8_t *addrp, addr[WT_BTREE_MAX_ADDR_COOKIE + WT_INTPACK64_MAXSIZE * 2 + 1];
+    uint8_t *addrp, addr[WT_BTREE_MAX_ADDR_COOKIE];
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
@@ -1855,7 +1855,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           &addrp, 0, WT_PAGE_IS_INTERNAL(page) ? chunk->addr_byte_count : chunk->image.size));
         multi->addr.size = (uint8_t)WT_PTRDIFF(addrp, addr);
     } else
-        multi->addr.size = addr_size;
+        multi->addr.size = (uint8_t)addr_size;
     WT_RET(__wt_memdup(session, addr, multi->addr.size, &multi->addr.addr));
 
     /* Adjust the pre-compression page size based on compression results. */
