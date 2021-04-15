@@ -138,7 +138,10 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     if (btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, &tw, cbulk->rle, val));
     __wt_rec_image_copy(session, r, val);
+
+    /* Track accumulated time window, row count and memory usage. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+    r->cur_ptr->addr_row_count += cbulk->rle;
 
     /* Update the starting record number in case we split. */
     r->recno += cbulk->rle;
@@ -154,11 +157,15 @@ static int
 __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_ADDR *addr;
+    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *val;
+    uint64_t v;
     uint32_t i;
+    const uint8_t *addrp;
 
+    btree = S2BT(session);
     mod = page->modify;
 
     val = &r->v;
@@ -178,7 +185,16 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
+
+        /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
+        if (btree->type == BTREE_COL_VAR) {
+            addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+            r->cur_ptr->addr_row_count += v;
+            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+            r->cur_ptr->addr_byte_count += v;
+        }
     }
     return (0);
 }
@@ -199,6 +215,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_REC_KV *val;
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
+    uint64_t addr_row_count, addr_byte_count;
+    const uint8_t *addrp;
     bool hazard;
 
     btree = S2BT(session);
@@ -271,8 +289,6 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * above in the switch statement. Else, the WT_REF->addr reference points to an on-page cell
          * or an off-page WT_ADDR structure: if it's an on-page cell and we copy it from the page,
          * else build a new cell.
-         *
-         * KEITH: Column-store needs the same work as row-store to aggregate row- and byte-counts.
          */
         if (addr == NULL && __wt_off_page(page, ref->addr))
             addr = ref->addr;
@@ -282,10 +298,24 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             val->buf.size = __wt_cell_total_len(vpack);
             val->cell_len = 0;
             val->len = val->buf.size;
+
+            /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            if (btree->type == BTREE_COL_VAR) {
+                addrp = (uint8_t *)vpack->data + *(uint8_t *)vpack->data;
+                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
+                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
+            }
         } else {
             __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
+
+            /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
+            if (btree->type == BTREE_COL_VAR) {
+                addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
+                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
+            }
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -295,7 +325,15 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
+
+        /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
+        if (btree->type == BTREE_COL_VAR) {
+            WT_ASSERT(session, addr_row_count != 0);
+            r->cur_ptr->addr_row_count += addr_row_count;
+            WT_ASSERT(session, addr_byte_count != 0);
+            r->cur_ptr->addr_byte_count += addr_byte_count;
+        }
     }
     WT_INTL_FOREACH_END;
 
@@ -549,7 +587,10 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
     if (!deleted && !overflow_type && btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, tw, rle, val));
     __wt_rec_image_copy(session, r, val);
+
+    /* Track accumulated time window, row count and memory usage. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, tw);
+    r->cur_ptr->addr_row_count += rle;
 
     /* Update the starting record number in case we split. */
     r->recno += rle;

@@ -230,6 +230,8 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
             WT_RET(__wt_rec_dict_replace(session, r, &tw, 0, val));
         __wt_rec_image_copy(session, r, val);
     }
+
+    /* Track accumulated time window, row count and memory usage. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
     ++r->cur_ptr->addr_row_count;
 
@@ -277,9 +279,9 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
-        WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
 
-        /* Track the accumulated row count and memory usage. */
+        /* Track accumulated time window, row count and memory usage. */
+        WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
         addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
         WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
         r->cur_ptr->addr_row_count += v;
@@ -441,6 +443,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          */
         if (__wt_off_page(page, addr)) {
             __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
+
+            /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
             addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
             WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
@@ -465,6 +469,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 val->cell_len = 0;
                 val->len = val->buf.size;
             }
+
+            /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
             addrp = (uint8_t *)vpack->data + *(uint8_t *)vpack->data;
             WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
@@ -522,6 +528,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         /* Copy the key and value onto the page. */
         __wt_rec_image_copy(session, r, key);
         __wt_rec_image_copy(session, r, val);
+
+        /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
         WT_ASSERT(session, addr_row_count != 0);
         r->cur_ptr->addr_row_count += addr_row_count;
@@ -672,6 +680,8 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
                 WT_RET(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
+
+        /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
         ++r->cur_ptr->addr_row_count;
 
@@ -1052,6 +1062,8 @@ build:
                 WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
+
+        /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
         ++r->cur_ptr->addr_row_count;
 

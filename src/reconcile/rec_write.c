@@ -1847,13 +1847,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
 #endif
 
     /* Append the row count and bytes to the address cookie. */
-    addrp = addr + addr_size;
-    WT_ASSERT(session, chunk->addr_row_count != 0);
-    WT_RET(__wt_vpack_uint(&addrp, 0, chunk->addr_row_count));
-    WT_RET(__wt_vpack_uint(
-      &addrp, 0, WT_PAGE_IS_INTERNAL(page) ? chunk->addr_byte_count : chunk->image.size));
-
-    multi->addr.size = (uint8_t)WT_PTRDIFF(addrp, addr);
+    if (btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) {
+        addrp = addr + addr_size;
+        WT_ASSERT(session, chunk->addr_row_count != 0);
+        WT_RET(__wt_vpack_uint(&addrp, 0, chunk->addr_row_count));
+        WT_RET(__wt_vpack_uint(
+          &addrp, 0, WT_PAGE_IS_INTERNAL(page) ? chunk->addr_byte_count : chunk->image.size));
+        multi->addr.size = (uint8_t)WT_PTRDIFF(addrp, addr);
+    } else
+        multi->addr.size = addr_size;
     WT_RET(__wt_memdup(session, addr, multi->addr.size, &multi->addr.addr));
 
     /* Adjust the pre-compression page size based on compression results. */
