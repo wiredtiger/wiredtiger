@@ -34,10 +34,10 @@ from wtscenario import make_scenarios
 
 class test_range_stat(wttest.WiredTigerTestCase):
     types = [
-        ('file', dict(uri='file:xxx', ds=SimpleDataSet)),
-        ('table-complex', dict(uri='table:xxx', ds=ComplexDataSet)),
-        ('table-index', dict(uri='table:xxx', ds=SimpleIndexDataSet)),
-        ('table-simple', dict(uri='table:xxx', ds=SimpleDataSet)),
+        ('file', dict(uri='file:range_stat', ds=SimpleDataSet)),
+        ('table-complex', dict(uri='table:range_stat', ds=ComplexDataSet)),
+        ('table-index', dict(uri='table:range_stat', ds=SimpleIndexDataSet)),
+        ('table-simple', dict(uri='table:range_stat', ds=SimpleDataSet)),
     ]
 
     scenarios = make_scenarios(types)
