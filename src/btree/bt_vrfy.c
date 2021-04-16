@@ -261,10 +261,10 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             addrp = root_addr + root_addr_size;
             WT_ASSERT(session, root_addr[0] == root_addr_size);
             if (btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) {
-                WT_ASSERT(session, ckpt->row_count != 0);
-                WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->row_count));
-                WT_ASSERT(session, ckpt->byte_count != 0);
-                WT_ERR(__wt_vpack_uint(&addrp, 0, ckpt->byte_count));
+                if ((ret = __wt_vpack_uint(&addrp, 0, ckpt->row_count)) != 0)
+                    goto exclusive_on_error;
+                if ((ret = __wt_vpack_uint(&addrp, 0, ckpt->byte_count)) != 0)
+                    goto exclusive_on_error;
             }
             addr_unpack.data = root_addr;
             addr_unpack.size = (uint8_t)root_addr_size;
@@ -276,6 +276,17 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             /* Verify the tree. */
             WT_WITH_PAGE_INDEX(
               session, ret = __verify_tree(session, &btree->root, &addr_unpack, vs));
+            if (ret != 0)
+                goto exclusive_on_error;
+
+            /* Verify the checkpoints row count. */
+            if (ckpt->row_count != vs->records_so_far) {
+                __wt_err(session, ret = WT_ERROR,
+                  "checkpoint %s: checkpoint record count of %" PRIu64
+                  " and the total tree record count is %" PRIu64,
+                  ckpt->name, ckpt->row_count, vs->records_so_far);
+                goto exclusive_on_error;
+            }
 
 #if 0
             /*
@@ -286,7 +297,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              *
              * FIXME-WT-6263: Temporarily disable history store verification.
              */
-            if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
+            if ((ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
                 WT_TRET(__wt_hs_verify_one(session));
                 /*
@@ -297,6 +308,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             }
 #endif
 
+exclusive_on_error:
             /*
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
              * that handle, and there's a race with eviction entering the tree and seeing an invalid
@@ -935,8 +947,6 @@ __verify_page_content_int(
               "page at %s has an address page byte count of %" PRIu64
               ", the addressed tree has a page byte count of %" PRIu64,
               __verify_addr_string(session, ref, vs->tmp1), v, addr_byte_count);
-
-        /* KEITH: This code doesn't do the obvious check against the column-store record number. */
     }
 
     return (0);
@@ -1046,10 +1056,12 @@ __verify_page_content_leaf(
 
             recno += rle;
             row_count += rle;
-            vs->records_so_far += rle;
         }
     }
     WT_CELL_FOREACH_END;
+
+    /* Update the total record count. */
+    vs->records_so_far += row_count;
 
     /*
      * Object if a leaf-no-overflow address cell references a page with overflow keys, but don't
@@ -1077,8 +1089,6 @@ __verify_page_content_leaf(
           "page at %s has an address page byte count of %" PRIu64
           ", the addressed page has a page byte count of %" PRIu32,
           __verify_addr_string(session, ref, vs->tmp1), v, dsk->mem_size);
-
-    /* KEITH: This code doesn't do the obvious check against the column-store record number. */
 
     return (0);
 }
