@@ -281,6 +281,8 @@ categorize_failure()
 	done
 
 	echo "############################################"
+	echo "test/format run configuration highlights"
+	echo "############################################"
 	grep -E "$search_string" $log
 	echo "############################################"
 }
