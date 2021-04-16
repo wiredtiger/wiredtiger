@@ -2159,7 +2159,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
  */
 int
 __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open_metadata,
-  uint32_t session_flags, WT_SESSION_IMPL **sessionp)
+  uint32_t session_flags, uint32_t session_lock_flags, WT_SESSION_IMPL **sessionp)
 {
     WT_SESSION_IMPL *session;
 
@@ -2175,6 +2175,7 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
      * during close. Set a flag to avoid this: internal sessions are not closed automatically.
      */
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
+    FLD_SET(session->lock_flags, session_lock_flags);
 
     *sessionp = session;
     return (0);

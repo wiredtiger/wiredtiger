@@ -15,7 +15,7 @@
 static int
 __hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
-    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, int_sessionp));
+    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, 0, int_sessionp));
 }
 
 /*

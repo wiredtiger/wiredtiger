@@ -208,7 +208,7 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
      * files. Use read-uncommitted isolation to avoid keeping updates in cache unnecessarily.
      */
     for (i = 0; i < WT_LSM_MAX_WORKERS; i++) {
-        WT_ERR(__wt_open_internal_session(conn, "lsm-worker", false, 0, &worker_session));
+        WT_ERR(__wt_open_internal_session(conn, "lsm-worker", false, 0, 0, &worker_session));
         worker_session->isolation = WT_ISO_READ_UNCOMMITTED;
         manager->lsm_worker_cookies[i].session = worker_session;
     }

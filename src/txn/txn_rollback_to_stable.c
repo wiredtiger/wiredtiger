@@ -1589,7 +1589,7 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * rollback to stable doesn't generate log records.
      */
     WT_RET(__wt_open_internal_session(S2C(session), "txn rollback_to_stable", true,
-      F_MASK(session, WT_SESSION_NO_LOGGING), &session));
+      F_MASK(session, WT_SESSION_NO_LOGGING), 0, &session));
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the

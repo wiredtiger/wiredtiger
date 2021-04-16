@@ -54,7 +54,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
     log = conn->log;
     sleep_usecs = yield_cnt = 0;
 
-    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, &tmp_session));
+    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, 0, &tmp_session));
     while (log->first_lsn.l.file < lognum) {
         /*
          * Force a checkpoint to be written in the new log file and force the archiving of all
@@ -1028,7 +1028,7 @@ int
 __wt_logmgr_open(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t session_flags;
+    uint32_t session_flags, session_lock_flags;
 
     conn = S2C(session);
 
@@ -1042,8 +1042,9 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      * Start the log close thread. It is not configurable. If logging is enabled, this thread runs.
      */
     session_flags = WT_SESSION_NO_DATA_HANDLES;
+    session_lock_flags = 0;
     WT_RET(__wt_open_internal_session(
-      conn, "log-close-server", false, session_flags, &conn->log_file_session));
+      conn, "log-close-server", false, session_flags, session_lock_flags, &conn->log_file_session));
     WT_RET(__wt_cond_alloc(conn->log_file_session, "log close server", &conn->log_file_cond));
 
     /*
@@ -1057,8 +1058,8 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      * Start the log write LSN thread. It is not configurable. If logging is enabled, this thread
      * runs.
      */
-    WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, &conn->log_wrlsn_session));
+    WT_RET(__wt_open_internal_session(conn, "log-wrlsn-server", false, session_flags,
+      session_lock_flags, &conn->log_wrlsn_session));
     WT_RET(__wt_cond_auto_alloc(
       conn->log_wrlsn_session, "log write lsn server", 10000, WT_MILLION, &conn->log_wrlsn_cond));
     WT_RET(__wt_thread_create(
@@ -1076,8 +1077,8 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
         __wt_cond_signal(session, conn->log_cond);
     } else {
         /* The log server gets its own session. */
-        WT_RET(
-          __wt_open_internal_session(conn, "log-server", false, session_flags, &conn->log_session));
+        WT_RET(__wt_open_internal_session(
+          conn, "log-server", false, session_flags, session_lock_flags, &conn->log_session));
         WT_RET(__wt_cond_auto_alloc(
           conn->log_session, "log server", 50000, WT_MILLION, &conn->log_cond));
 
