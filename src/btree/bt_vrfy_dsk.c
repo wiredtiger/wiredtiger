@@ -435,6 +435,38 @@ err:
 }
 
 /*
+ * __verify_dsk_addr_count --
+ *     Verify the address appended row count and memory size.
+ */
+static int
+__verify_dsk_addr_count(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk,
+  uint32_t key_count, uint32_t byte_count, WT_ADDR *addr)
+{
+    uint64_t v;
+    const uint8_t *addrp;
+
+    if (addr == NULL || (addrp = addr->addr) == NULL)
+        return (0);
+
+    /* Skip the address cookie. */
+    addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+    if (v != key_count)
+        WT_RET_VRFY(session,
+          "%s page at %s has an address key count of %" PRIu64
+          ", the addressed page has a key count count of %" PRIu32,
+          __wt_page_type_string(dsk->type), tag, v, key_count);
+    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
+    if (v != byte_count)
+        WT_RET_VRFY(session,
+          "%s page at %s has an address page byte count of %" PRIu64
+          ", the addressed page has a page byte count of %" PRIu32,
+          __wt_page_type_string(dsk->type), tag, v, byte_count);
+
+    return (0);
+}
+
+/*
  * __verify_dsk_row_leaf --
  *     Walk a WT_PAGE_ROW_LEAF disk page and verify it.
  */
@@ -453,10 +485,8 @@ __verify_dsk_row_leaf(
     WT_ITEM *last;
     enum { FIRST, WAS_KEY, WAS_VALUE } last_cell_type;
     size_t prefix;
-    uint64_t v;
     uint32_t cell_num, cell_type, i, key_cnt, last_cell_num;
     uint8_t *end;
-    const uint8_t *addrp;
 
     btree = S2BT(session);
     bm = btree->bm;
@@ -630,22 +660,7 @@ key_compare:
           __wt_page_type_string(dsk->type), tag, key_cnt, dsk->u.entries);
 
     /* Check the address appended row count and memory size. */
-    if (addr != NULL && (addrp = addr->addr) != NULL) {
-        /* Skip the address cookie. */
-        addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
-        WT_ERR(__wt_vunpack_uint(&addrp, 0, &v));
-        if (v != key_cnt)
-            WT_ERR_VRFY(session,
-              "%s page at %s has an address key count of %" PRIu64
-              ", the addressed page has a key count count of %" PRIu32,
-              __wt_page_type_string(dsk->type), tag, v, key_cnt);
-        WT_ERR(__wt_vunpack_uint(&addrp, 0, &v));
-        if (v != dsk->mem_size)
-            WT_ERR_VRFY(session,
-              "%s page at %s has an address page byte count of %" PRIu64
-              ", the addressed page has a page byte count of %" PRIu32,
-              __wt_page_type_string(dsk->type), tag, v, dsk->mem_size);
-    }
+    WT_ERR(__verify_dsk_addr_count(session, tag, dsk, key_cnt, dsk->mem_size, addr));
 
     if (0) {
 err:
@@ -718,14 +733,6 @@ __verify_dsk_col_fix(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HE
 
     btree = S2BT(session);
 
-    /*
-     * Check the appended row count and memory size.
-     *
-     * KEITH: This code doesn't support column-store. Column-store needs the same check as row-store
-     * for the address suffix, plus a column count check, that is, the page's columns should match
-     * the address suffix row count. Another choice is for column store's address suffix to not have
-     * a row count, but that seems like more work for little gain.
-     */
     datalen = __bitstr_size(btree->bitcnt * dsk->u.entries);
     return (__verify_dsk_chunk(session, tag, dsk, datalen));
 }
@@ -749,12 +756,13 @@ __verify_dsk_col_var(
     WT_CELL *cell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_DECL_RET;
-    uint32_t cell_num, cell_type, i;
+    uint32_t cell_num, cell_type, i, key_cnt;
     uint8_t *end;
 
     btree = S2BT(session);
     bm = btree->bm;
     unpack = &_unpack;
+    key_cnt = 0;
     end = (uint8_t *)dsk + dsk->mem_size;
 
     last.data = NULL;
@@ -786,6 +794,8 @@ __verify_dsk_col_var(
             if (ret == EINVAL)
                 return (__err_cell_corrupt_or_eof(session, ret, cell_num, tag));
         }
+
+        key_cnt += __wt_cell_rle(unpack);
 
         /*
          * Compare the last two items and see if reconciliation missed a chance for RLE encoding.
@@ -824,14 +834,8 @@ match_err:
     }
     WT_RET(__verify_dsk_memsize(session, tag, dsk, cell));
 
-    /*
-     * Check the appended row count and memory size.
-     *
-     * KEITH: This code doesn't support column-store. Column-store needs the same check as row-store
-     * for the address suffix, plus a column count check, that is, the page's columns should match
-     * the address suffix row count. Another choice is for column store's address suffix to not have
-     * a row count, but that seems like more work for little gain.
-     */
+    /* Check the address appended row count and memory size. */
+    WT_RET(__verify_dsk_addr_count(session, tag, dsk, key_cnt, dsk->mem_size, addr));
 
     return (0);
 }
