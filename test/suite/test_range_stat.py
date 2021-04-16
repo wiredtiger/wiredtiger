@@ -33,30 +33,38 @@ from wtdataset import ComplexDataSet, SimpleIndexDataSet, SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_range_stat(wttest.WiredTigerTestCase):
-    types = [
-        ('file', dict(uri='file:range_stat', ds=SimpleDataSet)),
-        ('table-complex', dict(uri='table:range_stat', ds=ComplexDataSet)),
-        ('table-index', dict(uri='table:range_stat', ds=SimpleIndexDataSet)),
-        ('table-simple', dict(uri='table:range_stat', ds=SimpleDataSet)),
+    keyfmt = [
+        ('integer', dict(keyfmt='i')),
+        ('recno', dict(keyfmt='r')),
+        ('string', dict(keyfmt='S')),
     ]
+    types = [
+        ('file', dict(uri='file', ds=SimpleDataSet)),
+        ('table-complex', dict(uri='table', ds=ComplexDataSet)),
+        ('table-index', dict(uri='table', ds=SimpleIndexDataSet)),
+        ('table-simple', dict(uri='table', ds=SimpleDataSet)),
+    ]
+    scenarios = make_scenarios(types, keyfmt)
 
-    scenarios = make_scenarios(types)
+    def populate(self, uri):
+        size = 'allocation_size=512,internal_page_max=512'
+        ds = self.ds(self, uri, 25678, config=size, key_format=self.keyfmt)
+        ds.populate()
+        self.session.checkpoint()
 
     def test_range_stat_uri(self):
-        ds = self.ds(self, self.uri, 25678, config='allocation_size=512,internal_page_max=512')
-        ds.populate()
-        self.session.checkpoint()
+        uri = self.uri + ':test_range_stat'
+        self.populate(uri)
 
-        self.session.range_stat(self.uri, None, None)
+        self.session.range_stat(uri, None, None)
 
-    def test_range_stat_cursor(self):
-        ds = self.ds(self, self.uri, 25678, config='allocation_size=512,internal_page_max=512')
-        ds.populate()
-        self.session.checkpoint()
+    def Xtest_range_stat_cursor(self):
+        uri = self.uri + ':test_range_stat'
+        self.populate(uri)
 
-        cstart = self.session.open_cursor(self.uri, None, None)
+        cstart = self.session.open_cursor(uri, None, None)
         cstart.set_key(ds.key(12000))
-        cstop = self.session.open_cursor(self.uri, None, None)
+        cstop = self.session.open_cursor(uri, None, None)
         cstop.set_key(ds.key(13000))
         self.session.range_stat(None, cstart, cstop)
 
