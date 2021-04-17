@@ -795,7 +795,7 @@ __verify_dsk_col_var(
                 return (__err_cell_corrupt_or_eof(session, ret, cell_num, tag));
         }
 
-        key_cnt += __wt_cell_rle(unpack);
+        key_cnt += (uint32_t)__wt_cell_rle(unpack);
 
         /*
          * Compare the last two items and see if reconciliation missed a chance for RLE encoding.
