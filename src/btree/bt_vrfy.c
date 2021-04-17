@@ -280,7 +280,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                 goto exclusive_on_error;
 
             /* Verify the checkpoints row count. */
-            if (ckpt->row_count != vs->records_so_far) {
+            if ((btree->type == BTREE_COL_VAR || btree->type == BTREE_ROW) &&
+              ckpt->row_count != vs->records_so_far) {
                 __wt_err(session, ret = WT_ERROR,
                   "checkpoint %s: checkpoint record count of %" PRIu64
                   " and the total tree record count is %" PRIu64,
