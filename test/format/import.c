@@ -28,7 +28,7 @@
 
 #include "format.h"
 
-static void copy_file_into_directory(WT_SESSION *, const char *, const char *);
+static void copy_file_into_directory(WT_SESSION *, const char *);
 static void get_file_metadata(WT_SESSION *, const char **, const char **);
 static void populate_table(WT_SESSION *);
 static void verify_import(WT_SESSION *);
@@ -70,8 +70,7 @@ import(void *arg)
     import_value = 0;
 
     /*
-     * Initiate a new import database, which is primarily used for copying the table file, and
-     * importing the table from a foreign database.
+     * Create a new database, primarily used for testing import.
      */
     cmd_len = strlen(g.home) * 2 + strlen(HOME_IMPORT_INIT_CMD) + 1;
     cmd = dmalloc(cmd_len);
@@ -87,23 +86,22 @@ import(void *arg)
     free(cmd);
 
     /*
-     * Open two sessions, one for the usual test database connection and one for the import database
-     * connection.
+     * Open two sessions, one for test/format database and one for the import database.
      */
     testutil_check(import_conn->open_session(import_conn, NULL, NULL, &import_session));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create new table and populate with data in import database connection. */
+    /* Create new table and populate with data in import database. */
     testutil_checkfmt(
       import_session->create(import_session, IMPORT_URI, IMPORT_TABLE_CONFIG), "%s", IMPORT_URI);
     populate_table(import_session);
 
-    /* Grab metadata information for import table from import database connection. */
+    /* Grab metadata information for table from import database connection. */
     get_file_metadata(import_session, &file_config, &table_config);
 
     while (!g.workers_finished) {
-        /* Copy table into usual database directory. */
-        copy_file_into_directory(session, IMPORT_DIR, "import.wt");
+        /* Copy table into test/format database directory. */
+        copy_file_into_directory(import_session, "import.wt");
 
         /* Perform import with either repair or file metadata. */
         memset(buf, 0, sizeof(buf));
@@ -121,7 +119,10 @@ import(void *arg)
 
         verify_import(session);
 
-        /* Drop import table, so we can perform import on the next iteration. */
+        /* Perform checkpoint, to make sure we perform drop */
+        session->checkpoint(session, NULL);
+
+        /* Drop import table, so we can import the table again */
         while ((ret = session->drop(session, IMPORT_URI, NULL)) == EBUSY) {
             __wt_yield();
         }
@@ -208,15 +209,15 @@ get_file_metadata(WT_SESSION *session, const char **file_config, const char **ta
 
 /*
  * copy_file_into_directory --
- *     Copy a single file into the current session directory.
+ *     Copy a single file into the test/format directory.
  */
 static void
-copy_file_into_directory(WT_SESSION *session, const char *from_dir, const char *name)
+copy_file_into_directory(WT_SESSION *session, const char *name)
 {
     size_t buf_len;
-    char from[64];
+    char to[64];
 
-    buf_len = strlen(from_dir) + strlen(name) + 10;
-    testutil_check(__wt_snprintf(from, buf_len, "%s/%s", from_dir, name));
-    testutil_check(__wt_copy_and_sync(session, from, name));
+    buf_len = strlen(name) + 10;
+    testutil_check(__wt_snprintf(to, buf_len, "../%s", name));
+    testutil_check(__wt_copy_and_sync(session, name, to));
 }
