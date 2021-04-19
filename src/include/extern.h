@@ -1283,9 +1283,6 @@ extern int __wt_schema_get_table(WT_SESSION_IMPL *session, const char *name, siz
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_table_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
   uint32_t flags, WT_TABLE **tablep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_schema_get_tiered(WT_SESSION_IMPL *session, const char *name, size_t namelen,
-  bool ok_incomplete, uint32_t flags, WT_TIERED **tieredp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
   uint32_t flags, WT_TIERED **tieredp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_schema_index_source(WT_SESSION_IMPL *session, WT_TABLE *table, const char *idxname,

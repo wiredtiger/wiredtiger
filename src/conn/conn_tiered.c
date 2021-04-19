@@ -31,7 +31,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, bool force)
     const char *key, *value;
 
     WT_UNUSED(force);
-    __wt_errx(session, "FLUSH_TIER_ONCE: Called");
+    __wt_verbose(session, WT_VERB_TIERED, "%s", "FLUSH_TIER_ONCE: Called");
     /*
      * - See if there is any "merging" work to do to prepare and create an object that is
      *   suitable for placing onto tiered storage.
@@ -45,7 +45,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, bool force)
         cursor->get_value(cursor, &value);
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
-            __wt_errx(session, "FLUSH_TIER_ONCE: %s %s", key, value);
+            __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s", key, value);
             WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
@@ -244,7 +244,7 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     /* If the connection is not set up for tiered storage there is nothing more to do. */
     if (conn->bstorage == NULL)
         return (0);
-    __wt_errx(session, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
 
     WT_ASSERT(session, conn->bstorage != NULL);
     WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
@@ -256,7 +256,7 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (cval.len == 0)
         WT_RET_MSG(session, EINVAL, "Must specify a bucket prefix");
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_prefix));
-    __wt_errx(session, "TIERED_CONFIG: prefix %s", conn->tiered_prefix);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->tiered_prefix);
 
     return (__tiered_manager_config(session, cfg, runp));
 err:

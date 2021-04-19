@@ -46,27 +46,6 @@ err:
 }
 
 /*
- * __wt_schema_get_tiered --
- *     Get the tiered handle for the named table.
- */
-int
-__wt_schema_get_tiered(WT_SESSION_IMPL *session, const char *name, size_t namelen,
-  bool ok_incomplete, uint32_t flags, WT_TIERED **tieredp)
-{
-    WT_DECL_ITEM(namebuf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, namelen + 1, &namebuf));
-    WT_ERR(__wt_buf_fmt(session, namebuf, "tiered:%.*s", (int)namelen, name));
-
-    WT_ERR(__wt_schema_get_tiered_uri(session, namebuf->data, ok_incomplete, flags, tieredp));
-
-err:
-    __wt_scr_free(session, &namebuf);
-    return (ret);
-}
-
-/*
  * __wt_schema_release_tiered --
  *     Release a tiered handle.
  */

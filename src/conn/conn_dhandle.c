@@ -548,11 +548,9 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_schema_open_table(session));
         break;
     case WT_DHANDLE_TYPE_TIERED:
-        __wt_errx(session, "CONN_DHANDLE_OPEN: call wt_tiered_open");
         WT_ERR(__wt_tiered_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
-        __wt_errx(session, "CONN_DHANDLE_OPEN: call wt_tiered_tree_open");
         WT_ERR(__wt_tiered_tree_open(session, cfg));
         break;
     }

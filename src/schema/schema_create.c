@@ -115,8 +115,6 @@ __create_file(
 
     fileconf = filemeta = NULL;
 
-    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "CREATE_FILE: uri %s", uri);
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
 
@@ -792,7 +790,6 @@ static int
 __create_object(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const char *config)
 {
     WT_UNUSED(exclusive);
-    __wt_errx(session, "CREATE_OBJECT: uri %s config %s", uri, config);
     WT_RET(__wt_metadata_insert(session, uri, config));
     return (0);
 }
@@ -808,7 +805,6 @@ __wt_tiered_tree_create(
     WT_UNUSED(exclusive);
     WT_UNUSED(import);
     WT_RET(__wt_metadata_insert(session, uri, config));
-    __wt_errx(session, "CR_TIERED_TREE: uri %s config %s", uri, config);
     return (0);
 }
 
@@ -825,7 +821,6 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     const char *cfg[4] = {WT_CONFIG_BASE(session, tiered_meta), config, NULL, NULL};
     const char *metadata;
 
-    __wt_errx(session, "CREATE_TIERED: uri %s", uri);
     metadata = NULL;
 
     /* Check if the tiered table already exists. */
@@ -854,7 +849,6 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 
 err:
     WT_TRET(__wt_schema_release_tiered(session, &tiered));
-    __wt_errx(session, "CREATE_TIERED: DONE %s ret %d", uri, ret);
     __wt_free(session, meta_value);
     __wt_free(session, metadata);
     return (ret);
@@ -913,8 +907,6 @@ __schema_create(WT_SESSION_IMPL *session, const char *uri, const char *config)
      * We track create operations: if we fail in the middle of creating a complex object, we want to
      * back it all out.
      */
-    if (!WT_PREFIX_MATCH(uri, "file:WiredTiger"))
-        __wt_errx(session, "SCHEMA_CREATE: uri %s", uri);
     WT_RET(__wt_meta_track_on(session));
     if (import)
         F_SET(session, WT_SESSION_IMPORT);
