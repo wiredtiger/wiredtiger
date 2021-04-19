@@ -610,6 +610,9 @@ __wt_hs_insert_updates(
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
+            if (strlen(btree->value_format) != 1) {
+                enable_reverse_modify = false;
+            }
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
