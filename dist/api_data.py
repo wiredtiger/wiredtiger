@@ -464,7 +464,7 @@ tiered_meta = common_meta + tiered_config + [
         list of data sources to combine into a tiered storage structure''', type='list'),
 ]
 
-tier_meta = tiered_tree_config
+tier_meta = file_meta + tiered_tree_config
 object_meta = file_meta + [
     Config('bucket_prefix', '', r'''
         unique string prefix to identify our objects in the bucket.

@@ -95,6 +95,9 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.pr("flush tier")
         self.session.flush_tier(None)
 
+        self.pr("flush tier again")
+        self.session.flush_tier(None)
+
         self.pr("verify stats")
         # Verify the table settings.
         obj = self.get_stat(stat.dsrc.tiered_object_size, self.uri)

@@ -125,6 +125,7 @@ struct __wt_tiered_object {
  *     objects that exist in this tree and how to access them.
  */
 struct __wt_tiered_tree {
+    WT_DATA_HANDLE iface;
     const char *name, *config;
     const char *key_format, *value_format;
     const char *file_config;

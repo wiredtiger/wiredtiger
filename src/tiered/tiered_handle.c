@@ -250,7 +250,6 @@ err:
 static int
 __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *orig_config)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
@@ -258,7 +257,6 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *newconfig;
 
-    conn = S2C(session);
     dhandle = &tiered->iface;
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
@@ -524,7 +522,8 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      * For the moment we don't have anything to return. But all the callers currently expect a real
      * return value from a close function. And this may become more complex later.
      */
-    WT_UNUSED(ret);
+#if 0
+    /* During connection close the other dhandles are closed and freed before this so we cannot do this. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         if (tiered->tier_names[i] != NULL)
             __wt_free(session, tiered->tier_names[i]);
@@ -540,6 +539,11 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ASSERT(session, dhandle->session_inuse > 0);
         (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
     }
+#else
+    WT_UNUSED(dhandle);
+    WT_UNUSED(i);
+    WT_UNUSED(ret);
+#endif
 
     return (ret);
 }
@@ -573,6 +577,7 @@ __wt_tiered_tree_close(WT_SESSION_IMPL *session, WT_TIERED_TREE *tiered_tree)
 {
     WT_DECL_RET;
 
+    __wt_errx(session, "TIERED_TREE_CLOSE: called %s", tiered_tree->iface.name);
     ret = 0;
     __wt_free(session, tiered_tree->key_format);
     __wt_free(session, tiered_tree->value_format);
