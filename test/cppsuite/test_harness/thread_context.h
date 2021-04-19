@@ -169,8 +169,7 @@ class thread_context {
     }
 
     /*
-     * Set a commit timestamp if the timestamp manager is enabled and always return the timestamp
-     * that should have been used for the commit.
+     * Set a commit timestamp if the timestamp manager is enabled.
      */
     void
     set_commit_timestamp(WT_SESSION *session, wt_timestamp_t ts)

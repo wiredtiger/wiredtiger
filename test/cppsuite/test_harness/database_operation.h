@@ -148,8 +148,7 @@ class database_operation {
      * Basic update operation that updates all the keys to a random value in each collection.
      */
     virtual void
-    update_operation(
-      thread_context &context, WT_SESSION *session)
+    update_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
         wt_timestamp_t ts;
