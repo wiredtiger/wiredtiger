@@ -553,13 +553,14 @@ __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_DECL_RET;
 
-    WT_UNUSED(session);
     WT_UNUSED(cfg);
     WT_UNUSED(ret);
     /*
      * Set dhandle->handle with tiered tree structure, initialized.
      */
-
+    __wt_errx(session, "TIERED_TREE_OPEN: Called");
+    WT_ASSERT(session, session->dhandle != NULL);
+    F_SET(session->dhandle, WT_DHANDLE_EXCLUSIVE);
     return (ret);
 }
 

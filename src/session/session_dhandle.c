@@ -111,8 +111,10 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
 
     dhandle = session->dhandle;
     btree = dhandle->handle;
+    __wt_errx(session, "LOCK_DH: uri %s btree %p flags 0x%x", dhandle->name, (void *)btree, (int)flags);
     lock_busy = false;
     want_exclusive = LF_ISSET(WT_DHANDLE_EXCLUSIVE);
+    __wt_errx(session, "LOCK_DH: Excl %d dh flags 0x%x LF flags 0x%x", want_exclusive, (int)dhandle->flags, (int)flags);
 
     /*
      * If this session already has exclusive access to the handle, there is no point trying to lock
@@ -123,11 +125,13 @@ __wt_session_lock_dhandle(WT_SESSION_IMPL *session, uint32_t flags, bool *is_dea
      * fail if attempting to checkpoint a handle opened for a bulk load, even in the same session.
      */
     if (dhandle->excl_session == session) {
+	__wt_errx(session, "LOCK_DH: Excl session");
         if (!LF_ISSET(WT_DHANDLE_LOCK_ONLY) &&
           (!F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
             (btree != NULL && F_ISSET(btree, WT_BTREE_SPECIAL_FLAGS))))
             return (__wt_set_return(session, EBUSY));
         ++dhandle->excl_ref;
+	__wt_errx(session, "LOCK_DH: Excl ref %d", (int)dhandle->excl_ref);
         return (0);
     }
 
@@ -469,6 +473,8 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
     bool is_dead;
 
     WT_ASSERT(session, !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES));
+    if (WT_PREFIX_MATCH(uri, "tier"))
+        __wt_errx(session, "WT_SESS_GET_DHANDLE: uri %s LF flags 0x%x", uri, (int)flags);
 
     for (;;) {
         WT_RET(__session_get_dhandle(session, uri, checkpoint));
