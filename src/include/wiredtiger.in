@@ -24,12 +24,7 @@ extern "C" {
 /*******************************************
  * Required includes
  *******************************************/
-@HAVE_SYS_TYPES_H_DECL@
-@HAVE_INTTYPES_H_DECL@
-@HAVE_STDARG_H_DECL@
-@HAVE_STDBOOL_H_DECL@
-@HAVE_STDINT_H_DECL@
-@HAVE_STDIO_H_DECL@
+@wiredtiger_includes_decl@
 
 /*******************************************
  * Portable type names
