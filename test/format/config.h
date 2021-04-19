@@ -182,8 +182,12 @@ static CONFIG c[] = {
   {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, 1000,
     &g.c_major_timeout, NULL},
 
-  /* 20% */
-  {"import", "import table from newly created database", C_BOOL, 20, 0, 0, &g.c_import, NULL},
+  /*
+   * 0%
+   * FIXME-WT-7416: Temporarily disable import until WT_ROLLBACK error and interaction with
+   * backup thread is fixed. Should be 20%
+   */
+  {"import", "import table from newly created database", C_BOOL, 0, 0, 0, &g.c_import, NULL},
 
   /* 50% */
   {"logging", "configure logging", C_BOOL, 50, 0, 0, &g.c_logging, NULL},
