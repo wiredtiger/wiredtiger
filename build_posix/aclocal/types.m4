@@ -10,8 +10,19 @@ AC_DEFUN([AM_TYPES], [
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>"
-	AC_SUBST(wiredtiger_includes_decl)
-	wiredtiger_includes_decl="$std_includes"
+
+    AC_SUBST(HAVE_SYS_TYPES_H_DECL)
+    HAVE_SYS_TYPES_H_DECL="#include <sys/types.h>"
+    AC_SUBST(HAVE_INTTYPES_H_DECL)
+    HAVE_INTTYPES_H_DECL="#include <inttypes.h>"
+    AC_SUBST(HAVE_STDARG_H_DECL)
+    HAVE_STDARG_H_DECL="#include <stdarg.h>"
+    AC_SUBST(HAVE_STDBOOL_H_DECL)
+    HAVE_STDBOOL_H_DECL="#include <stdbool.h>"
+    AC_SUBST(HAVE_STDINT_H_DECL)
+    HAVE_STDINT_H_DECL="#include <stdint.h>"
+    AC_SUBST(HAVE_STDIO_H_DECL)
+    HAVE_STDIO_H_DECL="#include <stdio.h>"
 
 	# We require FILE, pid_t, size_t, ssize_t, time_t, uintmax_t
 	# and uintptr_t.
