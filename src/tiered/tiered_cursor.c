@@ -26,6 +26,7 @@ __curtiered_open_cursors(WT_CURSOR_TIERED *curtiered)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TIERED *tiered;
     u_int i;
 
     cursor = &curtiered->iface;
