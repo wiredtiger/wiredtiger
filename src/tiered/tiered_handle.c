@@ -296,7 +296,6 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_RET_NOTFOUND_OK(ret);
 
     need_local = true;
-    tracking = false;
     need_object = tiered->tiers[WT_TIERED_LOCAL_INDEX] != NULL;
     need_tree = need_object && tiered->tiers[WT_TIERED_SHARED_INDEX] == NULL;
     /*
