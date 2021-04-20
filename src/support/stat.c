@@ -373,7 +373,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
     stats->cache_eviction_checkpoint = 0;
-    stats->cache_eviction_checkpoint_hs = 0;
+    stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -612,7 +612,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_bytes_read += from->cache_bytes_read;
     to->cache_bytes_write += from->cache_bytes_write;
     to->cache_eviction_checkpoint += from->cache_eviction_checkpoint;
-    to->cache_eviction_checkpoint_hs += from->cache_eviction_checkpoint_hs;
+    to->cache_eviction_blocked_checkpoint_hs += from->cache_eviction_blocked_checkpoint_hs;
     to->cache_eviction_target_page_lt10 += from->cache_eviction_target_page_lt10;
     to->cache_eviction_target_page_lt32 += from->cache_eviction_target_page_lt32;
     to->cache_eviction_target_page_ge128 += from->cache_eviction_target_page_ge128;
@@ -846,7 +846,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
-    to->cache_eviction_checkpoint_hs += WT_STAT_READ(from, cache_eviction_checkpoint_hs);
+    to->cache_eviction_blocked_checkpoint_hs +=
+      WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 += WT_STAT_READ(from, cache_eviction_target_page_ge128);
@@ -1854,7 +1855,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_bytes_read = 0;
     stats->cache_bytes_write = 0;
     stats->cache_eviction_checkpoint = 0;
-    stats->cache_eviction_checkpoint_hs = 0;
+    stats->cache_eviction_blocked_checkpoint_hs = 0;
     stats->cache_eviction_target_page_lt10 = 0;
     stats->cache_eviction_target_page_lt32 = 0;
     stats->cache_eviction_target_page_ge128 = 0;
@@ -2366,7 +2367,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_bytes_read += WT_STAT_READ(from, cache_bytes_read);
     to->cache_bytes_write += WT_STAT_READ(from, cache_bytes_write);
     to->cache_eviction_checkpoint += WT_STAT_READ(from, cache_eviction_checkpoint);
-    to->cache_eviction_checkpoint_hs += WT_STAT_READ(from, cache_eviction_checkpoint_hs);
+    to->cache_eviction_blocked_checkpoint_hs +=
+      WT_STAT_READ(from, cache_eviction_blocked_checkpoint_hs);
     to->cache_eviction_target_page_lt10 += WT_STAT_READ(from, cache_eviction_target_page_lt10);
     to->cache_eviction_target_page_lt32 += WT_STAT_READ(from, cache_eviction_target_page_lt32);
     to->cache_eviction_target_page_ge128 += WT_STAT_READ(from, cache_eviction_target_page_ge128);

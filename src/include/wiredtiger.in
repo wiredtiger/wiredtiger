@@ -5783,7 +5783,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: checkpoint of history store file blocked non-history store page
  * eviction
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_CHECKPOINT_HS	1373
+#define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	1373
 /*! cache: eviction walk target pages histogram - 0-9 */
 #define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1374
 /*! cache: eviction walk target pages histogram - 10-31 */
@@ -6407,7 +6407,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * cache: checkpoint of history store file blocked non-history store page
  * eviction
  */
-#define	WT_STAT_DSRC_CACHE_EVICTION_CHECKPOINT_HS	2113
+#define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_CHECKPOINT_HS	2113
 /*! cache: eviction walk target pages histogram - 0-9 */
 #define	WT_STAT_DSRC_CACHE_EVICTION_TARGET_PAGE_LT10	2114
 /*! cache: eviction walk target pages histogram - 10-31 */
