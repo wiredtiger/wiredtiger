@@ -517,7 +517,6 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 #if 0
     WT_DATA_HANDLE *dhandle;
 #endif
-    WT_DECL_RET;
     uint32_t i;
 
     __wt_free(session, tiered->key_format);
@@ -543,7 +542,7 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         }
     }
 
-    return (ret);
+    return (0);
 }
 
 /*
