@@ -795,10 +795,7 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
   bool position, bool reserve)
 {
     WT_CURSOR *primary;
-    WT_TIERED *tiered;
     int (*func)(WT_CURSOR *);
-
-    tiered = curtiered->tiered;
 
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
