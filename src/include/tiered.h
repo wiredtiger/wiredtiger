@@ -59,9 +59,13 @@ struct __wt_cursor_tiered {
 #define WT_TIERED_SHARED_INDEX 1
 
 /* Object name types */
-#define WT_TIERED_LOCAL 1
-#define WT_TIERED_OBJECT 2
-#define WT_TIERED_SHARED 3
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_TIERED_NAME_LOCAL 0x1u
+#define WT_TIERED_NAME_OBJECT 0x2u
+#define WT_TIERED_NAME_PREFIX 0x4u
+#define WT_TIERED_NAME_SHARED 0x8u
+/* AUTOMATIC FLAG VALUE GENERATION STOP */
+
 /*
  * WT_TIERED --
  *	Handle for a tiered data source. This data structure is used as the basis for metadata
@@ -121,8 +125,7 @@ struct __wt_tiered_object {
 
 /*
  * WT_TIERED_TREE --
- *     Definition of the shared tiered portion of a tree. This contains the list of individual
- *     objects that exist in this tree and how to access them.
+ *     Definition of the shared tiered portion of a tree.
  */
 struct __wt_tiered_tree {
     WT_DATA_HANDLE iface;

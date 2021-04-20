@@ -1451,8 +1451,8 @@ extern int __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg,
   WT_BUCKET_STORAGE *bstorage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_tiered_name(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id, uint32_t type,
-  const char **retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint64_t id,
+  uint32_t flags, const char **retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)

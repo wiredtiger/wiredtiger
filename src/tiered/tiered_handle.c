@@ -8,26 +8,6 @@
 
 #include "wt_internal.h"
 
-#if 0
-/*
- * __tiered_tree_find --
- *     Given a tiered table, find the tier: entry if one exists yet for this table.
- */
-static void
-__tiered_tree_find(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_TIERED_TREE **tiered_tree)
-{
-    WT_DATA_HANDLE *dhandle;
-
-    *tiered_tree = NULL;
-    dhandle = tiered->tiers[WT_TIERED_SHARED_INDEX];
-    if (dhandle == NULL)
-        return;
-    WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_TIERED_TREE);
-    *tiered_tree = (WT_TIERED_TREE *)dhandle->handle;
-    return;
-}
-#endif
-
 /*
  * __tiered_init_tiers --
  *     Given a tiered table 'tiers' configuration set up the dhandle array.
@@ -88,7 +68,10 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 
     /* This is the only place that touches this value. No need for atomic operation. */
     tiered->current_id = tiered->next_id++;
-    WT_ERR(__wt_tiered_name(session, tiered, tiered->current_id, WT_TIERED_LOCAL, &name));
+    /* XXX Remove when we have real flags. */
+    F_SET(tiered, WT_TIERED_FLAG_UNUSED);
+    WT_ERR(
+      __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
     WT_ASSERT(session, conn->tiered_prefix != NULL);
@@ -135,7 +118,8 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      * The data structure keeps this id so that we don't have to parse and manipulate strings.
      *   I.e. if we have file:example-000000002.wt we want object:example-000000002.wtobj.
      */
-    WT_ERR(__wt_tiered_name(session, tiered, tiered->current_id, WT_TIERED_OBJECT, &name));
+    WT_ERR(
+      __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
     WT_ASSERT(session, conn->tiered_prefix != NULL);
@@ -171,7 +155,7 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Create tier:example for the new tiered tree. */
-    WT_ERR(__wt_tiered_name(session, tiered, 0, WT_TIERED_SHARED, &name));
+    WT_ERR(__wt_tiered_name(session, &tiered->iface, 0, WT_TIERED_NAME_SHARED, &name));
     cfg[0] = WT_CONFIG_BASE(session, tier_meta);
     WT_ASSERT(session, conn->tiered_prefix != NULL);
     WT_ASSERT(session, conn->bstorage != NULL);
@@ -232,8 +216,7 @@ __tiered_update_dhandles(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 err:
     __wt_verbose(session, WT_VERB_TIERED, "UPDATE_DH: DONE ret %d", ret);
     if (ret != 0) {
-#if 0
-        /* XXX Need to undo our dhandles. Close and remove all. */
+        /* Need to undo our dhandles. Close and remove all. */
         for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
             if (tiered->tiers[i] != NULL)
                 (void)__wt_atomic_subi32(&tiered->tiers[i]->session_inuse, 1);
@@ -241,9 +224,6 @@ err:
             tiered->tiers[i] = NULL;
             tiered->tier_names[i] = NULL;
         }
-#else
-        WT_RET_PANIC(session, WT_PANIC, "updating dhandles failed");
-#endif
     }
     return (ret);
 }
@@ -394,32 +374,46 @@ __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
 /*
  * __wt_tiered_name --
- *     Given a tiered table structure and object number generate the URI name of the given type. XXX
+ *     Given a dhandle structure and object number generate the URI name of the given type. XXX
  *     Currently this is only used in this file but I anticipate it may be of use outside. If not,
  *     make this static and tiered_name instead.
  */
 int
 __wt_tiered_name(
-  WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id, uint32_t type, const char **retp)
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint64_t id, uint32_t flags, const char **retp)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *name;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    name = tiered->iface.name;
-    WT_PREFIX_SKIP_REQUIRED(session, name, "tiered:");
+    name = dhandle->name;
+    /* Skip the prefix depending on what we're given. */
+    if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
+        WT_PREFIX_SKIP_REQUIRED(session, name, "tiered:");
+    else {
+        WT_ASSERT(session, dhandle->type == WT_DHANDLE_TYPE_TIERED_TREE);
+        WT_ASSERT(session, !LF_ISSET(WT_TIERED_NAME_SHARED));
+        WT_PREFIX_SKIP_REQUIRED(session, name, "tier:");
+    }
 
     /*
      * Separate object numbers from the base table name with a dash. Separate from the suffix with a
      * dot. We generate a different name style based on the type.
      */
-    if (type == WT_TIERED_LOCAL) {
-        WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wt", name, id));
-    } else if (type == WT_TIERED_OBJECT) {
-        WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-%010" PRIu64 ".wtobj", name, id));
+    if (LF_ISSET(WT_TIERED_NAME_LOCAL)) {
+        if (LF_ISSET(WT_TIERED_NAME_PREFIX))
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-", name));
+        else
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wt", name, id));
+    } else if (LF_ISSET(WT_TIERED_NAME_OBJECT)) {
+        if (LF_ISSET(WT_TIERED_NAME_PREFIX))
+            WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-", name));
+        else
+            WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-%010" PRIu64 ".wtobj", name, id));
     } else {
-        WT_ASSERT(session, type == WT_TIERED_SHARED);
+        WT_ASSERT(session, !LF_ISSET(WT_TIERED_NAME_PREFIX));
+        WT_ASSERT(session, LF_ISSET(WT_TIERED_NAME_SHARED));
         WT_ERR(__wt_buf_fmt(session, tmp, "tier:%s", name));
     }
     WT_ERR(__wt_strndup(session, tmp->data, tmp->size, retp));
@@ -514,12 +508,15 @@ __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_tiered_close --
- *     Close a tiered data handle.
+ *     Close a tiered data handle. TODO: When this returns an actual meaningful return value, remove
+ *     its entry from s_void.
  */
 int
 __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
+#if 0
     WT_DATA_HANDLE *dhandle;
+#endif
     WT_DECL_RET;
     uint32_t i;
 
@@ -528,30 +525,23 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_CLOSE: called");
     /*
      * For the moment we don't have anything to return. But all the callers currently expect a real
-     * return value from a close function. And this may become more complex later.
+     * return value from a close function. And this may become more complex later. During connection
+     * close the other dhandles may be closed and freed before this dhandle. So just free the names.
      */
-#if 0
-    /* During connection close the other dhandles are closed and freed before this so we cannot do this. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        if (tiered->tier_names[i] != NULL)
+#if 0
+	dhandle = tiered->tiers[i];
+        /*
+         * XXX We cannot decrement on connection close but we need to decrement on sweep close or
+         * other individual close.
+         */
+        (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
+#endif
+        if (tiered->tier_names[i] != NULL) {
             __wt_free(session, tiered->tier_names[i]);
-        else {
-            WT_ASSERT(session, tiered->tiers[i] == NULL);
             continue;
         }
-        dhandle = tiered->tiers[i];
-        WT_ASSERT(session, dhandle != NULL);
-        WT_ASSERT(session, dhandle->name != NULL);
-        __wt_verbose(session, WT_VERB_TIERED
-          session, "TIERED_CLOSE: DHANDLE %s inuse %d", dhandle->name, dhandle->session_inuse);
-        WT_ASSERT(session, dhandle->session_inuse > 0);
-        (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
     }
-#else
-    WT_UNUSED(dhandle);
-    WT_UNUSED(i);
-    WT_UNUSED(ret);
-#endif
 
     return (ret);
 }
@@ -563,16 +553,37 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 int
 __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CURSOR *cursor;
     WT_DECL_RET;
+    const char *key, *object, *value;
 
     WT_UNUSED(cfg);
-    WT_UNUSED(ret);
+    object = NULL;
     /*
      * Set dhandle->handle with tiered tree structure, initialized.
      */
-    __wt_verbose(session, WT_VERB_TIERED, "%s", "TIERED_TREE_OPEN: Called");
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: Called %s", session->dhandle->name);
     WT_ASSERT(session, session->dhandle != NULL);
-    F_SET(session->dhandle, WT_DHANDLE_EXCLUSIVE);
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    WT_ERR(__wt_tiered_name(
+      session, session->dhandle, 0, WT_TIERED_NAME_OBJECT | WT_TIERED_NAME_PREFIX, &object));
+    /*
+     * Walk looking for our objects.
+     */
+    while (cursor->next(cursor) == 0) {
+        cursor->get_key(cursor, &key);
+        cursor->get_value(cursor, &value);
+        if (!WT_PREFIX_MATCH(key, object))
+            continue;
+        /*
+         * NOTE: We need to now check the string for an exact match to our table so that we don't
+         * match on a superset. Here we do anything we need to do to open or access each shared
+         * object. We know we have a match for the object we're looking for.
+         */
+    }
+err:
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    __wt_free(session, object);
     return (ret);
 }
 
