@@ -292,11 +292,11 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
          * set the flag on both sessions because we may call clear_walk when we are walking with the
          * walk session, locked.
          */
-        F_SET(session, WT_SESSION_LOCKED_PASS);
-        F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
+        FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_SET(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
-        F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
-        F_CLR(session, WT_SESSION_LOCKED_PASS);
+        FLD_CLR(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
         was_intr = cache->pass_intr != 0;
         __wt_spin_unlock(session, &cache->evict_pass_lock);
         WT_ERR(ret);
@@ -733,11 +733,11 @@ __evict_pass(WT_SESSION_IMPL *session)
              * race conditions that other threads can enter into the flow of evict server when there
              * is already another server is running.
              */
-            F_CLR(session, WT_SESSION_LOCKED_PASS);
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
             __wt_spin_unlock(session, &cache->evict_pass_lock);
             ret = __evict_lru_pages(session, true);
             __wt_spin_lock(session, &cache->evict_pass_lock);
-            F_SET(session, WT_SESSION_LOCKED_PASS);
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
             WT_RET(ret);
         }
 
@@ -809,7 +809,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_PASS));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
     if (session->dhandle == cache->walk_tree)
         cache->walk_tree = NULL;
 
