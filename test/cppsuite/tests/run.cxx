@@ -67,26 +67,20 @@ value_missing_error(const std::string &str)
 
 /*
  * Run a specific test.
- * config_name is the configuration name. The default configuration is used if it is left empty.
+ * test_name is the test to run
+ * config is the configuration that is used for the test.
  */
 int64_t
-run_test(const std::string &test_name, const std::string &config_name = "")
+run_test(const std::string &test_name, const std::string &config)
 {
-    std::string cfg, cfg_path;
     int error_code = 0;
 
-    if (config_name.empty())
-        cfg_path = "configs/config_" + test_name + "_default.txt";
-    else
-        cfg_path = config_name;
-    cfg = parse_configuration_from_file(cfg_path);
-
-    test_harness::debug_print("Configuration\t:" + cfg, DEBUG_INFO);
+    test_harness::debug_print("Configuration\t:" + config, DEBUG_INFO);
 
     if (test_name == "poc_test")
-        poc_test(cfg, test_name).run();
+        poc_test(config, test_name).run();
     else if (test_name == "example_test")
-        example_test(cfg, test_name).run();
+        example_test(config, test_name).run();
     else {
         test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
         error_code = -1;
@@ -101,19 +95,21 @@ run_test(const std::string &test_name, const std::string &config_name = "")
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, config_name, test_name;
+    std::string cfg, config_filename, test_name, current_test_name;
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {"example_test", "poc_test"};
 
     /* Parse args
-     * -C   : Configuration. Cannot be used with -f.
-     * -f   : Filename that contains the configuration. Cannot be used with -C.
+     * -C   : Configuration. Cannot be used with -f. If no specific test is specified to be run, the
+     * same coniguration will be used for all existing tests.
+     * -f   : Filename that contains the configuration. Cannot be used with -C. If no specific test
+     * is specified to be run, the same coniguration will be used for all existing tests.
      * -l   : Trace level.
      * -t   : Test to run. All tests are run if not specified.
      */
     for (int i = 1; (i < argc) && (error_code == 0); ++i) {
         if (std::string(argv[i]) == "-C") {
-            if (!config_name.empty()) {
+            if (!config_filename.empty()) {
                 test_harness::debug_print("Option -C cannot be used with -f", DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
@@ -127,7 +123,7 @@ main(int argc, char *argv[])
                 test_harness::debug_print("Option -f cannot be used with -C", DEBUG_ERROR);
                 error_code = -1;
             } else if ((i + 1) < argc)
-                config_name = argv[++i];
+                config_filename = argv[++i];
             else {
                 value_missing_error(argv[i]);
                 error_code = -1;
@@ -156,14 +152,33 @@ main(int argc, char *argv[])
             /* Run all tests. */
             test_harness::debug_print("Running all tests.", DEBUG_INFO);
             for (auto const &it : all_tests) {
-                error_code = run_test(it);
-                if (error_code != 0) {
-                    test_harness::debug_print("Test " + it + " failed.", DEBUG_ERROR);
-                    break;
+                current_test_name = it;
+                /* Configuration parsing. */
+                if (!config_filename.empty())
+                    cfg = parse_configuration_from_file(config_filename);
+                else if (cfg.empty()) {
+                    config_filename = "configs/config_" + current_test_name + "_default.txt";
+                    cfg = parse_configuration_from_file(config_filename);
                 }
+
+                error_code = run_test(current_test_name, cfg);
+                if (error_code != 0)
+                    break;
             }
-        } else
-            error_code = run_test(test_name, config_name);
+        } else {
+            current_test_name = test_name;
+            /* Configuration parsing. */
+            if (!config_filename.empty())
+                cfg = parse_configuration_from_file(config_filename);
+            else if (cfg.empty()) {
+                config_filename = "configs/config_" + test_name + "_default.txt";
+                cfg = parse_configuration_from_file(config_filename);
+            }
+            error_code = run_test(current_test_name, cfg);
+        }
+
+        if (error_code != 0)
+            test_harness::debug_print("Test " + current_test_name + " failed.", DEBUG_ERROR);
     }
 
     return (error_code);
