@@ -239,6 +239,8 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     if (!reconfig) {
         WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
         WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+        if (bucket.len == 0)
+            WT_RET_MSG(session, EINVAL, "Must specify a bucket");
         WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
     }
     /* If the connection is not set up for tiered storage there is nothing more to do. */

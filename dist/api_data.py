@@ -753,6 +753,21 @@ connection_runtime_config = [
             this will update the value if one is already set''',
             min='1MB', max='10TB')
         ]),
+    Config('statistics', 'none', r'''
+        Maintain database statistics, which may impact performance.
+        Choosing "all" maintains all statistics regardless of cost,
+        "fast" maintains a subset of statistics that are relatively
+        inexpensive, "none" turns off all statistics. The "clear"
+        configuration resets statistics after they are gathered,
+        where appropriate (for example, a cache size statistic is
+        not cleared, while the count of cursor insert operations will
+        be cleared).   When "clear" is configured for the database,
+        gathered statistics are reset each time a statistics cursor
+        is used to gather statistics, as well as each time statistics
+        are logged using the \c statistics_log configuration.  See
+        @ref statistics for more information''',
+        type='list',
+        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('tiered_manager', '', r'''
         tiered storage manager configuration options''',
         type='category', undoc=True, subconfig=[
@@ -771,21 +786,6 @@ connection_runtime_config = [
                 management inside WiredTiger''',
                 min='0', max='100000'),
             ]),
-    Config('statistics', 'none', r'''
-        Maintain database statistics, which may impact performance.
-        Choosing "all" maintains all statistics regardless of cost,
-        "fast" maintains a subset of statistics that are relatively
-        inexpensive, "none" turns off all statistics. The "clear"
-        configuration resets statistics after they are gathered,
-        where appropriate (for example, a cache size statistic is
-        not cleared, while the count of cursor insert operations will
-        be cleared).   When "clear" is configured for the database,
-        gathered statistics are reset each time a statistics cursor
-        is used to gather statistics, as well as each time statistics
-        are logged using the \c statistics_log configuration.  See
-        @ref statistics for more information''',
-        type='list',
-        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal
         of uncovering race conditions and unexpected blocking. This option is
