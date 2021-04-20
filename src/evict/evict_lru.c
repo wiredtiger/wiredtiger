@@ -1741,9 +1741,11 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
      */
     if (!WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
         /* If target pages are less than 10, keep it like that. */
-        target_pages = target_pages < 10 ? target_pages : target_pages / 10;
-        WT_STAT_CONN_INCR(session, cache_eviction_target_page_reduced);
-        WT_STAT_DATA_INCR(session, cache_eviction_target_page_reduced);
+        if (target_pages >= 10) {
+            target_pages = target_pages / 10;
+            WT_STAT_CONN_INCR(session, cache_eviction_target_page_reduced);
+            WT_STAT_DATA_INCR(session, cache_eviction_target_page_reduced);
+        }
     }
 
     /* If we don't want any pages from this tree, move on. */
