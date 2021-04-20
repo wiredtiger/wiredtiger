@@ -206,7 +206,7 @@ TAB_SIZE               = 8
 # You can put \n's in the value part of an alias to insert newlines.
 
 ALIASES                = \
-                         arch_page_table{2}="<div class="arch_head"><table><tr><th rowspan=2 style=\"width:10%;\">@htmlonly <div><a href=\"arch-index.html\"><img class=\"arch_thumbnail\" src=\"wt_diagram.png\" style=\"background-image: url(wt_diagram.png)\"></a></div>@endhtmlonly</th><th style=\"width:44%\">Data Structures</th><th style=\"width:45%\">Source Location</th></tr><tr><td><code>\1</code></td><td><code>\2</code></td></tr></table></div>" \
+                         arch_page_table{2}="<div class=\"arch_head\"><table><tr><th rowspan=2 style=\"width:10%;\">@htmlonly <div><a href=\"arch-index.html\"><img class=\"arch_thumbnail\" src=\"wt_diagram.png\" style=\"background-image: url(wt_diagram.png)\"></a></div>@endhtmlonly</th><th style=\"width:44%\">Data Structures</th><th style=\"width:45%\">Source Location</th></tr><tr><td><code>\1</code></td><td><code>\2</code></td></tr></table></div>" \
                          arch_page_top{2}="@page \1 \2 (Architecture Guide)"  \
                          config{3}="  @row{<tt>\1</tt>,\2,\3}" \
                          configempty{2}="@param config configuration string, see @ref config_strings.  No values currently permitted." \
@@ -226,7 +226,7 @@ ALIASES                = \
                          hrow{7}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th></tr>" \
                          hrow{8}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th><th>\8</th></tr>" \
                          hrow{9}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th><th>\8</th><th>\9</th></tr>" \
-                         notyet{1}="Note: <b>"\1"</b> not yet supported in WiredTiger.\n@todo fix when \1 supported\n\n" \
+                         notyet{1}="Note: <b>\"\1\"</b> not yet supported in WiredTiger.\n@todo fix when \1 supported\n\n" \
                          plantuml_end="PlantUML template end -->" \
                          plantuml_start{1}="\image html \1\n\image latex \1\n<!-- PlantUML template begins" \
                          requires_notransaction="This method must not be called on a session with an active transaction.\n\n" \
