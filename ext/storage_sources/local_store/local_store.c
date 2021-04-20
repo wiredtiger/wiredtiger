@@ -182,8 +182,6 @@ static int local_file_write(WT_FILE_HANDLE *, WT_SESSION *, wt_off_t, size_t, co
  * macro will too.
  */
 #define FS2LOCAL(fs) (((LOCAL_FILE_SYSTEM *)(fs))->local_storage)
-#define local_file_err(fh, session, ret, str) \
-    local_err((fh)->local, session, ret, "\"%s\": %s", fh->iface.name, str)
 
 #define VERBOSE(local, ...)               \
     do {                                  \
