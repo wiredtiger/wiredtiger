@@ -610,6 +610,9 @@ __wt_hs_insert_updates(
             else
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
+            /*
+             * Reverse modifies can only be applied on a single value field.
+             */
             if (strlen(btree->value_format) != 1) {
                 enable_reverse_modify = false;
             }
@@ -627,8 +630,6 @@ __wt_hs_insert_updates(
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (!F_ISSET(upd, WT_UPDATE_DS) &&
-            //   (upd->type == WT_UPDATE_MODIFY || upd->type == WT_UPDATE_STANDARD) &&
-              (upd->type == WT_UPDATE_MODIFY) &&
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
