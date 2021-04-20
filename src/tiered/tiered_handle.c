@@ -112,6 +112,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     const char *config, *name;
 
     conn = S2C(session);
+    config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     /*
      * First create the name and metadata of the new shared object of the current local object.
@@ -152,6 +153,7 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     const char *config, *name;
 
     conn = S2C(session);
+    config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Create tier:example for the new tiered tree. */
@@ -171,8 +173,8 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     tiered->tier_names[WT_TIERED_SHARED_INDEX] = name;
 
     if (0)
-        /* Only free on error. */
 err:
+        /* Only free on error. */
         __wt_free(session, name);
     __wt_free(session, config);
     __wt_scr_free(session, &tmp);
