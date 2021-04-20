@@ -48,8 +48,8 @@ __curtiered_open_cursors(WT_CURSOR_TIERED *curtiered)
 
     /* Open the cursors for tiers that have changed. */
     __wt_verbose(session, WT_VERB_TIERED,
-      "tiered opening cursor session(%p):tiered cursor(%p), tiers: %u", (void *)session,
-      (void *)curtiered, WT_TIERED_MAX_TIERS);
+      "tiered opening cursor session(%p):tiered cursor(%p), tiers: %d", (void *)session,
+      (void *)curtiered, (int)WT_TIERED_MAX_TIERS);
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         dhandle = tiered->tiers[i];
         if (dhandle == NULL)

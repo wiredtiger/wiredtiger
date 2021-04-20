@@ -36,7 +36,7 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
         else {
             type = (uint32_t)session->dhandle->type;
             WT_TRET(__wt_session_release_dhandle(session));
-            WT_ERR_MSG(session, EINVAL, "Unknown or unsupported tiered dhandle type %d", type);
+            WT_ERR_MSG(session, EINVAL, "Unknown or unsupported tiered dhandle type %d", (int)type);
         }
         (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
         __wt_verbose(session, WT_VERB_TIERED, "INIT_TIERS: DHANDLE %s inuse %d",
@@ -246,14 +246,14 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRId64 ",tiers=(\"", tiered->current_id));
+    WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRIu64 ",tiers=(\"", tiered->current_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tier_names[i] == NULL) {
-            __wt_verbose(session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%d] NULL", i);
+            __wt_verbose(session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%" PRIu32 "] NULL", i);
             continue;
         }
-        __wt_verbose(
-          session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%d]: %s", i, tiered->tier_names[i]);
+        __wt_verbose(session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%" PRIu32 "]: %s", i,
+          tiered->tier_names[i]);
         WT_RET(__wt_buf_catfmt(session, tmp, "%s%s\"", i == 0 ? "" : ",", tiered->tier_names[i]));
     }
     WT_RET(__wt_buf_catfmt(session, tmp, ")"));
