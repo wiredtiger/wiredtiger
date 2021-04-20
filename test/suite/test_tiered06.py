@@ -105,8 +105,12 @@ class test_tiered06(wttest.WiredTigerTestCase):
         fh.close(session)    # zero length
         self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), ['foobar', 'zzz' ])
 
+        # See that we can rename objects.
+        fs.fs_rename(session, 'zzz', 'yyy', 0)
+        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), ['foobar', 'yyy' ])
+
         # See that we can remove objects.
-        fs.fs_remove(session, 'zzz', 0)
+        fs.fs_remove(session, 'yyy', 0)
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         # Flushing doesn't do anything that's visible.

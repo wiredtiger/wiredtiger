@@ -311,12 +311,11 @@ local_is_flushed(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, bo
     struct stat sb;
     int ret;
 
-    ret = stat(name, &sb);
-
     /*
      * If a file is not flushed, it must exist locally. Therefore if it doesn't exist locally (and
-     * we knew its name via metadata), then it must be flushed, and locally removed.
+     * we know it exists somewhere), then it must have been flushed, and locally removed.
      */
+    ret = stat(name, &sb);
     if (ret == ENOENT) {
         *flushedp = true;
         ret = 0;
