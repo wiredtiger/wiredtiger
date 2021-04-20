@@ -135,7 +135,7 @@ static int local_configure_int(LOCAL_STORAGE *, WT_CONFIG_ARG *, const char *, u
 static int local_delay(LOCAL_STORAGE *);
 static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static void local_flush_free(LOCAL_FLUSH_ITEM *);
-static int local_is_flushed(LOCAL_STORAGE *, WT_SESSION *, const char *, bool *);
+static int local_writeable(LOCAL_STORAGE *, WT_SESSION *, const char *, bool *);
 static int local_location_path(WT_FILE_SYSTEM *, const char *, char **);
 
 /*
@@ -302,30 +302,30 @@ local_flush_free(LOCAL_FLUSH_ITEM *flush)
 }
 
 /*
- * local_is_flushed --
- *     Check if a file has been flushed.
+ * local_writeable --
+ *     Check if a file is local and writeable.
  */
 static int
-local_is_flushed(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, bool *flushedp)
+local_writeable(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, bool *writeablep)
 {
     struct stat sb;
     int ret;
 
-    /*
-     * If a file is not flushed, it must exist locally. Therefore if it doesn't exist locally (and
-     * we know it exists somewhere), then it must have been flushed, and locally removed.
-     */
+    *writeablep = false;
     ret = stat(name, &sb);
-    if (ret == ENOENT) {
-        *flushedp = true;
-        ret = 0;
-    } else if (ret != 0)
-        ret = local_err(local, session, errno, "%s: ss_rename stat", name);
-    else
+    if (ret == 0) {
         /*
          * Check the write bits. If the file is not writeable, it has been flushed.
          */
-        *flushedp = ((sb.st_mode & 0x222) == 0);
+        *writeablep = ((sb.st_mode & 0222) != 0);
+    } else if (errno == ENOENT) {
+        /*
+         * Does not exist locally.  It could be in the cloud,
+         * at any rate it is not writeable, but not an error.
+         */
+        ret = 0;
+    } else if (ret != 0)
+        ret = local_err(local, session, errno, "%s: stat", name);
 
     return (ret);
 }
@@ -857,8 +857,10 @@ err:
 
 /*
  * local_rename --
- *     POSIX rename. This must work for files not yet flushed to the cloud. If a file has been
- *     flushed, we don't support this operation, as cloud implementations may not support it.
+ *     POSIX rename, for files not yet flushed to the cloud. If a file has been flushed, we don't
+ *     support this operation. That is because cloud implementations may not support it, and more
+ *     importantly, we consider anything in the cloud to be readonly as far as the custom file
+ *     system is concerned.
  */
 static int
 local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
@@ -870,29 +872,30 @@ local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
     WT_FILE_SYSTEM *wt_fs;
     int ret, t_ret;
     char *copy, *from_path, *to_path;
-    bool flushed;
+    bool writeable;
 
     local = FS2LOCAL(file_system);
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
     wt_fs = local_fs->wt_fs;
     from_path = to_path = NULL;
-    flushed = false;
+    writeable = false;
 
     local->op_count++;
     if ((ret = local_location_path(file_system, from, &from_path)) != 0)
         goto err;
-    if ((ret = local_is_flushed(local, session, from_path, &flushed)) != 0)
+    if ((ret = local_writeable(local, session, from_path, &writeable)) != 0)
         goto err;
-    if (flushed) {
-        ret = local_err(
-          FS2LOCAL(file_system), session, ENOTSUP, "%s: rename of flushed file not allowed", from);
+    if (!writeable) {
+        /* If not writeable, we assume it is flushed and rename is not allowed. */
+        ret = local_err(local, session, ENOTSUP, "%s: rename of flushed file not allowed", from);
         goto err;
     }
+
     if ((ret = local_location_path(file_system, to, &to_path)) != 0)
         goto err;
 
     if ((ret = wt_fs->fs_rename(wt_fs, session, from_path, to_path, flags)) != 0) {
-        ret = local_err(FS2LOCAL(file_system), session, ret, "fs_rename");
+        ret = local_err(local, session, ret, "fs_rename");
         goto err;
     }
 
@@ -931,7 +934,9 @@ err:
 
 /*
  * local_remove --
- *     POSIX remove.
+ *     POSIX remove, for files not yet flushed to the cloud. If a file has been flushed, we don't
+ *     support this operation. We consider anything in the cloud to be readonly as far as the custom
+ *     file system is concerned.
  */
 static int
 local_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
@@ -940,15 +945,24 @@ local_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     LOCAL_STORAGE *local;
     int ret;
     char *path;
+    bool writeable;
 
     (void)flags; /* Unused */
 
     local = FS2LOCAL(file_system);
     path = NULL;
+    writeable = false;
 
     local->op_count++;
     if ((ret = local_location_path(file_system, name, &path)) != 0)
         goto err;
+    if ((ret = local_writeable(local, session, path, &writeable)) != 0)
+        goto err;
+    if (!writeable) {
+        /* If not writeable, we assume it is flushed and remove is not allowed. */
+        ret = local_err(local, session, ENOTSUP, "%s: remove of flushed file not allowed", name);
+        goto err;
+    }
 
     ret = unlink(path);
     if (ret != 0) {

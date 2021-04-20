@@ -117,6 +117,18 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local.ss_flush(session, fs, None, '')
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
+        # Files that have been flushed cannot be manipulated.
+        with self.expectedStderrPattern('foobar: rename of flushed file not allowed'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: fs.fs_rename(session, 'foobar', 'barfoo', 0))
+        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+
+        # Files that have been flushed cannot be manipulated through the custom file system.
+        with self.expectedStderrPattern('foobar: remove of flushed file not allowed'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: fs.fs_remove(session, 'foobar', 0))
+        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+
         fs.terminate(session)
 
     def test_local_write_read(self):
