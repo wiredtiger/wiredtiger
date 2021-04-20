@@ -71,11 +71,11 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         fh = fs.fs_open_file(session, 'foobar', FileSystem.open_file_type_data, FileSystem.open_create)
 
+        # Just like a regular file system, the object exists now.
+        self.assertTrue(fs.fs_exist(session, 'foobar'))
+
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         fh.fh_write(session, 0, outbytes)
-
-        # The object doesn't even exist now.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # The object exists after close
         fh.close(session)
@@ -97,15 +97,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
 
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
-        # Make sure any new object is not in the list until it is closed.
+        # Newly created objects are in the list.
         fh = fs.fs_open_file(session, 'zzz', FileSystem.open_file_type_data, FileSystem.open_create)
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), ['foobar', 'zzz' ])
         # Sync merely syncs to the local disk.
         fh.fh_sync(session)
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
         fh.close(session)    # zero length
-        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')),
-          ['foobar', 'zzz'])
+        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), ['foobar', 'zzz' ])
 
         # See that we can remove objects.
         fs.fs_remove(session, 'zzz', 0)
