@@ -58,7 +58,7 @@ class test_backup21(backup_base):
             for i in range(0, self.ops):
                 bkup_c = self.session.open_cursor('backup:', None, None)
                 work_queue.put_nowait((op, str(iteration), 'value'))
-                
+
                 all_files = self.take_full_backup(self.dir, bkup_c)
                 if op == 't':
                     # Newly created table shouldn't be present in backup.
