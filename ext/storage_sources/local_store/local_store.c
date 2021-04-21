@@ -320,8 +320,8 @@ local_writeable(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, boo
         *writeablep = ((sb.st_mode & 0222) != 0);
     } else if (errno == ENOENT) {
         /*
-         * Does not exist locally.  It could be in the cloud,
-         * at any rate it is not writeable, but not an error.
+         * Does not exist locally. It could be in the cloud, at any rate it is not writeable, but
+         * not an error.
          */
         ret = 0;
     } else if (ret != 0)
