@@ -1168,7 +1168,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t yield_count, sleep_usecs;
-    // bool leaf_found, valid;
+    bool leaf_found, valid;
 
     btree = CUR2BT(cbt);
     cursor = &cbt->iface;
@@ -1221,13 +1221,13 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_ERR(__cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
-    /* If our caller configures for a local search and we have a page pinned, do that search. */
-    // if (F_ISSET(cursor, WT_CURSTD_UPDATE_LOCAL) && __cursor_page_pinned(cbt, true)) {
-    //     __wt_txn_cursor_op(session);
-    //     WT_ERR(__wt_txn_autocommit_check(session));
+    /* If we have a page pinned, do that search. */
+    if (__cursor_page_pinned(cbt, true)) {
+        __wt_txn_cursor_op(session);
+        WT_ERR(__wt_txn_autocommit_check(session));
 
-    //     WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
-    //                                       __cursor_col_search(cbt, cbt->ref, &leaf_found));
+        WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, cbt->ref, &leaf_found) :
+                                          __cursor_col_search(cbt, cbt->ref, &leaf_found));
         /*
          * Only use the pinned page search results if search returns an exact match or a slot other
          * than the page's boundary slots, if that's not the case, the record might belong on an
@@ -1235,51 +1235,51 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
          * may be no page slots or we might be legitimately positioned after the last page slot).
          * Ignore those cases, it makes things too complicated.
          */
-    //     if (leaf_found &&
-    //       (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
-    //         goto update_local;
-    // }
+        if (leaf_found &&
+          (cbt->compare == 0 || (cbt->slot != 0 && cbt->slot != cbt->ref->page->entries - 1)))
+            goto update_local;
+    }
 
 retry:
     WT_ERR(__cursor_func_init(cbt, true));
     WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
-// update_local:
-//     if (btree->type == BTREE_ROW) {
-//         /*
-//          * If not overwriting, check for conflicts and fail if the key does not exist.
-//          */
-//         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-//             WT_ERR(__curfile_update_check(cbt));
-//             if (cbt->compare != 0)
-//                 WT_ERR(WT_NOTFOUND);
-//             WT_WITH_UPDATE_VALUE_SKIP_BUF(
-//               ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
-//             WT_ERR(ret);
-//             if (!valid)
-//                 WT_ERR(WT_NOTFOUND);
-//         }
-//         ret = __cursor_row_modify(cbt, value, modify_type);
-//     } else {
-//         /*
-//          * If not overwriting, fail if the key doesn't exist. If we find an update for the key,
-//          * check for conflicts. Update the record if it exists. Creating a record past the end of
-//          * the tree in a fixed-length column-store implicitly fills the gap with empty records.
-//          * Update the record in that case, the record exists.
-//          */
-//         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
-//             WT_ERR(__curfile_update_check(cbt));
-//             valid = false;
-//             if (cbt->compare == 0) {
-//                 WT_WITH_UPDATE_VALUE_SKIP_BUF(
-//                   ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
-//                 WT_ERR(ret);
-//             }
-//             if ((cbt->compare != 0 || !valid) && !__cursor_fix_implicit(btree, cbt))
-//                 WT_ERR(WT_NOTFOUND);
-//         }
-//         ret = __cursor_col_modify(cbt, value, modify_type);
-//     }
+update_local:
+    if (btree->type == BTREE_ROW) {
+        /*
+         * If not overwriting, check for conflicts and fail if the key does not exist.
+         */
+        if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+            WT_ERR(__curfile_update_check(cbt));
+            if (cbt->compare != 0)
+                WT_ERR(WT_NOTFOUND);
+            WT_WITH_UPDATE_VALUE_SKIP_BUF(
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+            WT_ERR(ret);
+            if (!valid)
+                WT_ERR(WT_NOTFOUND);
+        }
+        ret = __cursor_row_modify(cbt, value, modify_type);
+    } else {
+        /*
+         * If not overwriting, fail if the key doesn't exist. If we find an update for the key,
+         * check for conflicts. Update the record if it exists. Creating a record past the end of
+         * the tree in a fixed-length column-store implicitly fills the gap with empty records.
+         * Update the record in that case, the record exists.
+         */
+        if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
+            WT_ERR(__curfile_update_check(cbt));
+            valid = false;
+            if (cbt->compare == 0) {
+                WT_WITH_UPDATE_VALUE_SKIP_BUF(
+                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                WT_ERR(ret);
+            }
+            if ((cbt->compare != 0 || !valid) && !__cursor_fix_implicit(btree, cbt))
+                WT_ERR(WT_NOTFOUND);
+        }
+        ret = __cursor_col_modify(cbt, value, modify_type);
+    }
 
 err:
     if (ret == WT_RESTART) {
