@@ -403,7 +403,7 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) &&
+        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
           !__wt_prefix_match(session, prefix, &cbt->iface.key)) {
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
