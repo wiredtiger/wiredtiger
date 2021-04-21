@@ -361,9 +361,9 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 7},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"raw", "boolean", NULL, NULL, NULL, 0},
-  {"read_once", "boolean", NULL, NULL, NULL, 0}, {"readonly", "boolean", NULL, NULL, NULL, 0},
-  {"skip_sort_check", "boolean", NULL, NULL, NULL, 0},
+  {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"prefix_search", "boolean", NULL, NULL, NULL, 0},
+  {"raw", "boolean", NULL, NULL, NULL, 0}, {"read_once", "boolean", NULL, NULL, NULL, 0},
+  {"readonly", "boolean", NULL, NULL, NULL, 0}, {"skip_sort_check", "boolean", NULL, NULL, NULL, 0},
   {"statistics", "list", NULL,
     "choices=[\"all\",\"cache_walk\",\"fast\",\"clear\","
     "\"size\",\"tree_walk\"]",
@@ -1057,9 +1057,9 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "debug=(release_evict=false),dump=,incremental=(consolidate=false"
     ",enabled=false,file=,force_stop=false,granularity=16MB,src_id=,"
     "this_id=),next_random=false,next_random_sample_size=0,"
-    "overwrite=true,raw=false,read_once=false,readonly=false,"
-    "skip_sort_check=false,statistics=,target=",
-    confchk_WT_SESSION_open_cursor, 16},
+    "overwrite=true,prefix_search=false,raw=false,read_once=false,"
+    "readonly=false,skip_sort_check=false,statistics=,target=",
+    confchk_WT_SESSION_open_cursor, 17},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
     1},
   {"WT_SESSION.query_timestamp", "get=read", confchk_WT_SESSION_query_timestamp, 1},

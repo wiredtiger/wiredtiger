@@ -111,6 +111,17 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
 }
 
 /*
+ * __wt_prefix_match --
+ *     Check if the prefix item is equal to the leading bytes of the tree item.
+ */
+static inline bool
+__wt_prefix_match(WT_SESSION_IMPL *session, const WT_ITEM *prefix, const WT_ITEM *tree_item)
+{
+    WT_ASSERT(session, prefix != NULL);
+    return (memcmp(prefix->data, tree_item->data, prefix->size) == 0);
+}
+
+/*
  * __wt_lex_compare_skip --
  *     Lexicographic comparison routine, skipping leading bytes. Returns: < 0 if user_item is
  *     lexicographically < tree_item = 0 if user_item is lexicographically = tree_item > 0 if

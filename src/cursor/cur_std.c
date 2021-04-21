@@ -1052,6 +1052,15 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 
+    /* Set the prefix search near flag. */
+    if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+        if (cval.val)
+            F_SET(cursor, WT_CURSTD_PREFIX_SEARCH);
+        else
+            F_CLR(cursor, WT_CURSTD_PREFIX_SEARCH);
+    } else
+        WT_ERR_NOTFOUND_OK(ret, false);
+
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
