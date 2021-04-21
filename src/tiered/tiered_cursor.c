@@ -1009,21 +1009,6 @@ err:
 }
 
 /*
- * __curtiered_random_tier --
- *     Pick a tier at random, weighted by the size of all tiers. Weighting proportional to documents
- *     avoids biasing towards small tiers. Then return the cursor on the tier we have picked.
- */
-static void
-__curtiered_random_tier(WT_SESSION_IMPL *session, WT_CURSOR_TIERED *curtiered, WT_CURSOR **cursor)
-{
-    u_int i;
-
-    /* TODO: make randomness respect tree size. */
-    i = __wt_random(&session->rnd) % WT_TIERED_MAX_TIERS;
-    *cursor = curtiered->cursors[i];
-}
-
-/*
  * __curtiered_next_random --
  *     WT_CURSOR->next method for the tiered cursor type when configured with next_random.
  */
@@ -1034,7 +1019,7 @@ __curtiered_next_random(WT_CURSOR *cursor)
     WT_CURSOR_TIERED *curtiered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i, ntiers, tier;
+    u_int i, tier;
     int exact;
 
     c = NULL;
@@ -1048,13 +1033,12 @@ __curtiered_next_random(WT_CURSOR *cursor)
      * Select a random tier. If it is empty, try the next tier and so on, wrapping around until we
      * find something or run out of tiers.
      */
-    ntiers = curtiered->tiered->ntiers;
-    tier = __wt_random(&session->rnd) % ntiers;
-    for (i = 0; i < ntiers; i++) {
+    tier = __wt_random(&session->rnd) % WT_TIERED_MAX_TIERS;
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         c = curtiered->cursors[tier];
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND) {
-            if (++tier == ntiers)
+            if (++tier == WT_TIERED_MAX_TIERS)
                 tier = 0;
             continue;
         }
