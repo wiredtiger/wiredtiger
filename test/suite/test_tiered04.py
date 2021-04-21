@@ -101,6 +101,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, 2)
+        obj = self.get_stat(stat.conn.tiered_object_size, None)
+        self.assertEqual(obj, self.object_sys_val)
 
         self.pr("verify stats")
         # Verify the table settings.
@@ -125,14 +127,17 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.flush_tier('force=true')
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, 4)
-        #new = self.retention * 2
-        #config = 'tiered_storage=(local_retention=%d)' % new
-        #self.conn.reconfigure(config)
-        #self.session.flush_tier(None)
-        #retain = self.get_stat(stat.conn.tiered_retention, None)
-        #calls = self.get_stat(stat.conn.flush_tier, None)
-        #self.assertEqual(retain, new)
-        #self.assertEqual(calls, 5)
+
+        # Test reconfiguration.
+        new = self.retention * 2
+        config = 'tiered_storage=(local_retention=%d)' % new
+        self.pr("reconfigure")
+        self.conn.reconfigure(config)
+        self.session.flush_tier(None)
+        retain = self.get_stat(stat.conn.tiered_retention, None)
+        calls = self.get_stat(stat.conn.flush_tier, None)
+        self.assertEqual(retain, new)
+        self.assertEqual(calls, 5)
 
 if __name__ == '__main__':
     wttest.run()
