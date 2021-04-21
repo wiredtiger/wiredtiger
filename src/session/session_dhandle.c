@@ -404,26 +404,32 @@ static int
 __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *checkpoint)
 {
     WT_DECL_RET;
+    bool is_checkpoint;
 
     /*
      * If we get called as part of the checkpoint, and the handle is the checkpoint to be created,
      * it is guaranteed that the handle won't exist in the shared dhandle list. Skip searching
      * through the list, and directly insert into it.
      */
-    if (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
-      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT))) {
-        /*
-         * Let's check that our assumption that this handle is not already there in the shared list
-         * is actually correct.
-         */
-        WT_ASSERT(session, __wt_conn_dhandle_find(session, uri, checkpoint) != 0);
-    } else {
+    is_checkpoint = (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
+      WT_PREFIX_MATCH(checkpoint, WT_CHECKPOINT));
+    if (!is_checkpoint) {
         WT_WITH_HANDLE_LIST_READ_LOCK(session,
           if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
             WT_DHANDLE_ACQUIRE(session->dhandle));
 
         if (ret != WT_NOTFOUND)
             return (ret);
+    } else {
+#ifdef HAVE_DIAGNOSTIC
+        /*
+         * Let's check our assumption that this handle is not already there in the shared list is
+         * actually correct.
+         */
+        WT_WITH_HANDLE_LIST_READ_LOCK(session,
+          if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
+            WT_ASSERT(session, ret != WT_NOTFOUND));
+#endif // HAVE_DIAGNOSTIC
     }
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
@@ -450,7 +456,7 @@ __session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *che
      * Skip searching through the session dhandle list.
      */
     is_checkpoint = (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
-      WT_STRING_MATCH(checkpoint, WT_CHECKPOINT, strlen(WT_CHECKPOINT)));
+      WT_PREFIX_MATCH(checkpoint, WT_CHECKPOINT));
     if (!is_checkpoint) {
         __session_find_dhandle(session, uri, checkpoint, &dhandle_cache);
         if (dhandle_cache != NULL) {
