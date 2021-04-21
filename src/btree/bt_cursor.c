@@ -1221,7 +1221,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
     WT_ERR(__cursor_localvalue(cursor));
     __cursor_state_save(cursor, &state);
 
-    /* If our caller configures for a local search and we have a page pinned, do that search. */
+    /* If we have a page pinned, do that search. */
     if (__cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
         WT_ERR(__wt_txn_autocommit_check(session));
