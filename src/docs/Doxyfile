@@ -200,10 +200,16 @@ TAB_SIZE               = 8
 
 # This tag can be used to specify a number of aliases that acts
 # as commands in the documentation. An alias has the form "name=value".
-# For example adding "sideeffect=\par Side Effects:\n" will allow you to
+# For example adding "sideeffect=\par Side Effects:" will allow you to
 # put the command \sideeffect (or @sideeffect) in the documentation, which
 # will result in a user-defined paragraph with heading "Side Effects:".
-# You can put \n's in the value part of an alias to insert newlines.
+# You can put \n's in the value part of an alias to insert newlines 
+# (in the resulting output). You can put ^^ in the value part of an
+# alias to insert a newline as if a physical newline was in the original file.
+# When you need a literal { or } or , in the value part of an alias you have to
+# escape them by means of a backslash (\), this can lead to conflicts with the
+# commands \{ and \} for these it is advised to use the version @{ and @} or use
+# a double escape (\\{ and \\})
 
 ALIASES                = \
                          arch_page_table{2}="<div class=\"arch_head\"><table><tr><th rowspan=2 style=\"width:10%;\">@htmlonly <div><a href=\"arch-index.html\"><img class=\"arch_thumbnail\" src=\"wt_diagram.png\" style=\"background-image: url(wt_diagram.png)\"></a></div>@endhtmlonly</th><th style=\"width:44%\">Data Structures</th><th style=\"width:45%\">Source Location</th></tr><tr><td><code>\1</code></td><td><code>\2</code></td></tr></table></div>" \
@@ -211,10 +217,10 @@ ALIASES                = \
                          config{3}="  @row{<tt>\1</tt>,\2,\3}" \
                          configempty{2}="@param config configuration string, see @ref config_strings.  No values currently permitted." \
                          configend="  </table>" \
-                         configstart{2}="@param config configuration string, see @ref config_strings. Permitted values:\n  <table>@hrow{Name,Effect,Values}" \
+                         configstart{2}="@param config configuration string, see @ref config_strings. Permitted values:^^  <table>@hrow{Name,Effect,Values}" \
                          ebusy_errors="@returns zero on success, EBUSY if the object is not available for exclusive access, and a non-zero error code on failure.  See @ref error_handling \"Error handling\" for details." \
                          errors="@returns zero on success and a non-zero error code on failure.  See @ref error_handling \"Error handling\" for details." \
-                         exclusive="This method requires exclusive access to the specified data source(s).  If any cursors are open with the specified name(s) or a data source is otherwise in use, the call will fail and return \c EBUSY.\n\n" \
+                         exclusive="This method requires exclusive access to the specified data source(s).  If any cursors are open with the specified name(s) or a data source is otherwise in use, the call will fail and return \c EBUSY.^^^^" \
                          not_transactional="This method is not transactional, and will not guarantee ACID properties, see @ref transactions for more details." \
                          ex_ref{1}="@ref \1 \"\1\"" \
                          hrow{1}="<tr><th>\1</th></tr>" \
@@ -226,11 +232,11 @@ ALIASES                = \
                          hrow{7}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th></tr>" \
                          hrow{8}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th><th>\8</th></tr>" \
                          hrow{9}="<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th><th>\8</th><th>\9</th></tr>" \
-                         notyet{1}="Note: <b>\"\1\"</b> not yet supported in WiredTiger.\n@todo fix when \1 supported\n\n" \
+                         notyet{1}="Note: <b>\"\1\"</b> not yet supported in WiredTiger.^^@todo fix when \1 supported^^^^" \
                          plantuml_end="PlantUML template end -->" \
-                         plantuml_start{1}="\image html \1\n\image latex \1\n<!-- PlantUML template begins" \
-                         requires_notransaction="This method must not be called on a session with an active transaction.\n\n" \
-                         requires_transaction="This method must be called on a session with an active transaction.\n\n" \
+                         plantuml_start{1}="\image html \1 ^^\image latex \1 ^^<!-- PlantUML template begins" \
+                         requires_notransaction="This method must not be called on a session with an active transaction.^^^^" \
+                         requires_transaction="This method must be called on a session with an active transaction.^^^^" \
                          ref_single="@ref" \
                          row{1}="<tr><td>\1</td></tr>" \
                          row{2}="<tr><td>\1</td><td>\2</td></tr>" \
@@ -242,13 +248,6 @@ ALIASES                = \
                          row{8}="<tr><td>\1</td><td>\2</td><td>\3</td><td>\4</td><td>\5</td><td>\6</td><td>\7</td><td>\8</td></tr>" \
                          row{9}="<tr><td>\1</td><td>\2</td><td>\3</td><td>\4</td><td>\5</td><td>\6</td><td>\7</td><td>\8</td><td>\9</td></tr>" \
                          subpage_single="@subpage" \
-
-# This tag can be used to specify a number of word-keyword mappings (TCL only).
-# A mapping has the form "name=value". For example adding
-# "class=itcl::class" will allow you to use the command class in the
-# itcl::class meaning.
-
-TCL_SUBST              =
 
 # Set the OPTIMIZE_OUTPUT_FOR_C tag to YES if your project consists of C
 # sources only. Doxygen will then generate output that is more tailored for C.
@@ -919,12 +918,6 @@ VERBATIM_HEADERS       = NO
 
 ALPHABETICAL_INDEX     = NO
 
-# If the alphabetical index is enabled (see ALPHABETICAL_INDEX) then
-# the COLS_IN_ALPHA_INDEX tag can be used to specify the number of columns
-# in which this list will be split (can be a number in the range [1..20])
-
-COLS_IN_ALPHA_INDEX    = 5
-
 # In case all classes in a project start with a common prefix, all
 # classes will be put under the same header in the alphabetical index.
 # The IGNORE_PREFIX tag can be used to specify one or more prefixes that
@@ -1333,11 +1326,14 @@ MAKEINDEX_CMD_NAME     = makeindex
 
 COMPACT_LATEX          = NO
 
-# The PAPER_TYPE tag can be used to set the paper type that is used
-# by the printer. Possible values are: a4, letter, legal and
-# executive. If left blank a4wide will be used.
+# The PAPER_TYPE tag can be used to set the paper type that is used by the
+# printer.
+# Possible values are: a4 (210 x 297 mm), letter (8.5 x 11 inches), legal (8.5 x
+# 14 inches) and executive (7.25 x 10.5 inches).
+# The default value is: a4.
+# This tag requires that the tag GENERATE_LATEX is set to YES.
 
-PAPER_TYPE             = a4wide
+PAPER_TYPE             = a4
 
 # The EXTRA_PACKAGES tag can be to specify one or more names of LaTeX
 # packages that should be included in the LaTeX output.
@@ -1645,11 +1641,6 @@ ALLEXTERNALS           = NO
 
 EXTERNAL_GROUPS        = YES
 
-# The PERL_PATH should be the absolute path and name of the perl script
-# interpreter (i.e. the result of `which perl').
-
-PERL_PATH              = /usr/bin/perl
-
 #---------------------------------------------------------------------------
 # Configuration options related to the dot tool
 #---------------------------------------------------------------------------
@@ -1661,15 +1652,6 @@ PERL_PATH              = /usr/bin/perl
 # install and use dot, since it yields more powerful graphs.
 
 CLASS_DIAGRAMS         = NO
-
-# You can define message sequence charts within doxygen comments using the \msc
-# command. Doxygen will then run the mscgen tool (see
-# http://www.mcternan.me.uk/mscgen/) to produce the chart and insert it in the
-# documentation. The MSCGEN_PATH tag allows you to specify the directory where
-# the mscgen tool resides. If left empty the tool is assumed to be found in the
-# default search path.
-
-MSCGEN_PATH            =
 
 # If set to YES, the inheritance and collaboration graphs will hide
 # inheritance and usage relations if the target is undocumented
