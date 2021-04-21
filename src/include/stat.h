@@ -379,7 +379,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
     int64_t cache_eviction_force_fail_time;
-    int64_t cache_eviction_force_rollback;
     int64_t cache_hazard_checks;
     int64_t cache_hazard_walks;
     int64_t cache_hazard_max;
@@ -644,6 +643,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_checkpoint_running;
+    int64_t txn_checkpoint_running_hs;
     int64_t txn_checkpoint_generation;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_checkpoint_time_max;
@@ -686,6 +686,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -903,6 +904,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;

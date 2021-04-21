@@ -2025,7 +2025,6 @@ __wt_txn_global_init(WT_SESSION_IMPL *session, const char *cfg[])
     txn_global->current = txn_global->last_running = txn_global->metadata_pinned =
       txn_global->oldest_id = WT_TXN_FIRST;
 
-    WT_RET(__wt_spin_init(session, &txn_global->id_lock, "transaction id lock"));
     WT_RWLOCK_INIT_TRACKED(session, &txn_global->rwlock, txn_global);
     WT_RET(__wt_rwlock_init(session, &txn_global->visibility_rwlock));
 
@@ -2053,7 +2052,6 @@ __wt_txn_global_destroy(WT_SESSION_IMPL *session)
     if (txn_global == NULL)
         return;
 
-    __wt_spin_destroy(session, &txn_global->id_lock);
     __wt_rwlock_destroy(session, &txn_global->rwlock);
     __wt_rwlock_destroy(session, &txn_global->visibility_rwlock);
     __wt_free(session, txn_global->txn_shared_list);
@@ -2127,7 +2125,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
         }
 
         s = NULL;
-        WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, &s));
+        WT_TRET(__wt_open_internal_session(conn, "close_ckpt", true, 0, 0, &s));
         if (s != NULL) {
             const char *checkpoint_cfg[] = {
               WT_CONFIG_BASE(session, WT_SESSION_checkpoint), ckpt_cfg, NULL};
@@ -2152,7 +2150,7 @@ __wt_txn_global_shutdown(WT_SESSION_IMPL *session, const char **cfg)
  *     eviction.
  */
 int
-__wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
+__wt_txn_is_blocking(WT_SESSION_IMPL *session)
 {
     WT_TXN *txn;
     WT_TXN_SHARED *txn_shared;
@@ -2166,32 +2164,12 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session, bool conservative)
     if (F_ISSET(txn, WT_TXN_PREPARE))
         return (0);
 
-    /* The checkpoint transaction shouldn't be blocking but if it is don't roll it back. */
-    if (WT_SESSION_IS_CHECKPOINT(session))
-        return (0);
-
     /*
      * MongoDB can't (yet) handle rolling back read only transactions. For this reason, don't check
      * unless there's at least one update or we're configured to time out thread operations (a way
      * to confirm our caller is prepared for rollback).
      */
     if (txn->mod_count == 0 && !__wt_op_timer_fired(session))
-        return (0);
-
-    /*
-     * Be less aggressive about aborting the oldest transaction in the case of trying to make
-     * forced eviction successful. Specifically excuse it if:
-     *  * Hasn't done many updates
-     *  * Is in the middle of a commit or abort
-     *
-     * This threshold that we're comparing the number of updates to is related and must be greater
-     * than the threshold we use in reconciliation's "need split" helper. If we're going to rollback
-     * a transaction, we need to have considered splitting the page in the case that its updates are
-     * on a single page.
-     */
-    if (conservative &&
-      (txn->mod_count < (10 + WT_REC_SPLIT_MIN_ITEMS_USE_MEM) ||
-        F_ISSET(session, WT_SESSION_RESOLVING_TXN)))
         return (0);
 
     /*
