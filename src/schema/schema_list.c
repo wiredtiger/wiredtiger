@@ -13,28 +13,16 @@
  *     Get the tiered handle for the named table. This function overwrites the dhandle.
  */
 static int
-__schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
-  uint32_t flags, WT_TIERED **tieredp)
+__schema_get_tiered_uri(
+  WT_SESSION_IMPL *session, const char *uri, uint32_t flags, WT_TIERED **tieredp)
 {
     WT_DECL_RET;
     WT_TIERED *tiered;
-    uint32_t i;
 
     *tieredp = NULL;
 
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     tiered = (WT_TIERED *)session->dhandle;
-    if (!ok_incomplete)
-        /* XXX: I don't think we need this for tiered. */
-        for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
-            if (tiered->tiers[i] == NULL)
-                continue;
-            WT_ERR(__wt_session_release_dhandle(session));
-            ret = __wt_set_return(session, EINVAL);
-            WT_ERR_MSG(session, ret, "'%s' cannot be used until all tiered parts are created",
-              tiered->iface.name);
-        }
-
     *tieredp = tiered;
 err:
     return (ret);
@@ -44,13 +32,12 @@ err:
  *     Get the tiered handle for the named table.
  */
 int
-__wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
-  uint32_t flags, WT_TIERED **tieredp)
+__wt_schema_get_tiered_uri(
+  WT_SESSION_IMPL *session, const char *uri, uint32_t flags, WT_TIERED **tieredp)
 {
     WT_DECL_RET;
 
-    WT_SAVE_DHANDLE(
-      session, ret = __schema_get_tiered_uri(session, uri, ok_incomplete, flags, tieredp));
+    WT_SAVE_DHANDLE(session, ret = __schema_get_tiered_uri(session, uri, flags, tieredp));
     return (ret);
 }
 

@@ -840,7 +840,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
         WT_ERR(__wt_config_merge(session, cfg, NULL, &metadata));
         WT_ERR(__wt_metadata_insert(session, uri, metadata));
     }
-    WT_ERR(__wt_schema_get_tiered_uri(session, uri, true, WT_DHANDLE_EXCLUSIVE, &tiered));
+    WT_ERR(__wt_schema_get_tiered_uri(session, uri, WT_DHANDLE_EXCLUSIVE, &tiered));
     if (WT_META_TRACKING(session)) {
         WT_WITH_DHANDLE(session, &tiered->iface, ret = __wt_meta_track_handle_lock(session, true));
         WT_ERR(ret);
