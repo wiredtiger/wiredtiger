@@ -33,18 +33,11 @@ from wtthread import op_thread
 
 # test_backup21.py
 #    Run create/drop operations while backup is ongoing.
-# Two scenarios running in parallel while performing backup:
-# 1. Create a new table
-# 2. Drop one the original table
 class test_backup21(backup_base):
-    dir='backup.dir'                    # Backup directory name
+    dir='backup.dir'                    # Backup directory name.
     uri = 'test_backup21'
+    ops = 50
     key_fmt = "S"
-
-    scenarios = make_scenarios([
-        ('create_new_table', dict(op='t',key='second',value='value')),
-        ('drop_table', dict(op='d',key='',value=None)),
-    ])
 
     def test_concurrent_operations_with_backup(self):
         done = threading.Event()
@@ -57,19 +50,29 @@ class test_backup21(backup_base):
         work_queue = queue.Queue()
         t = op_thread(self.conn, [table_uri], self.key_fmt, work_queue, done)
         # Open backup cursor.
-        bkup_c = self.session.open_cursor('backup:', None, None)
         try:
             t.start()
-            # Place create or drop operation into work queue
-            work_queue.put_nowait((self.op, self.key, self.value))
-
-            all_files = self.take_full_backup(self.dir, bkup_c)
-            if self.op == 't':
-                # newly created table shouldn't be present in backup
-                self.assertTrue(self.uri + "second.wt" not in all_files)
-            else:
-                # dropped table should still be present in backup
-                self.assertTrue(self.uri + ".wt" in all_files)
+            # Place create or drop operation into work queue.
+            iteration = 0
+            op = 't'
+            for i in range(0, self.ops):
+                bkup_c = self.session.open_cursor('backup:', None, None)
+                work_queue.put_nowait((op, str(iteration), 'value'))
+                
+                all_files = self.take_full_backup(self.dir, bkup_c)
+                if op == 't':
+                    # Newly created table shouldn't be present in backup.
+                    self.assertTrue(self.uri + str(iteration) + ".wt" not in all_files)
+                    iteration = iteration + 1
+                else:
+                    # Dropped table should still be present in backup.
+                    self.assertTrue(self.uri + str(iteration) + ".wt" in all_files)
+                    iteration = iteration + 1
+                bkup_c.close()
+                # Once we reach midway point, start drop operations.
+                if iteration == self.ops/2:
+                    iteration = 0
+                    op = 'd'
         except:
             # Deplete the work queue if there's an error.
             while not work_queue.empty():
@@ -80,7 +83,6 @@ class test_backup21(backup_base):
             work_queue.join()
             done.set()
             t.join()
-        bkup_c.close()
 
 if __name__ == '__main__':
     wttest.run()

@@ -153,6 +153,7 @@ class op_thread(threading.Thread):
                             sess.drop(self.uris[0] + str(key))
                             break
                         except wiredtiger.WiredTigerError as e:
+                            #print("continued... " + self.uris[0] + str(key))
                             continue
                 elif op == 't': # Create a table, add an entry
                     sess.create(self.uris[0] + str(key),
