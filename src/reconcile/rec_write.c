@@ -1528,7 +1528,14 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     page = r->page;
 
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
-    dsk->write_gen = 0;
+
+    /*
+     * Set the write generation of disk header with the minimum write generation
+     * of the btree. This is to ensure that the transaction ids that are present
+     * on the disk to be reset when the page is in-memory restored without writing
+     * it to disk.
+     */
+    dsk->write_gen = S2BT(session)->base_write_gen + 1;
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
