@@ -52,7 +52,7 @@ __truncate_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
     WT_STAT_DATA_INCR(session, cursor_truncate);
 
-    /* Truncate the column groups. */
+    /* Truncate the tiered entries. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         if (tiered->tiers[i] == NULL)
             continue;
