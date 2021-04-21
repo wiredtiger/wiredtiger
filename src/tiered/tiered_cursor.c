@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-#define WT_FORALL_CURSORS(curtiered, c, i)    \
-    for ((i) = WT_TIERED_MAX_TIERS; (i) > 0;) \
-        if (((c) = (curtiered)->cursors[--(i)]) != NULL)
+#define WT_FORALL_CURSORS(curtiered, c, i)  \
+    for ((i) = 0; i < WT_TIERED_MAX_TIERS;) \
+        if (((c) = (curtiered)->cursors[(i)++]) != NULL)
 
 #define WT_TIERED_CURCMP(s, tiered, c1, c2, cmp) \
     __wt_compare(s, (tiered)->collator, &(c1)->key, &(c2)->key, &(cmp))
@@ -801,7 +801,7 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
      * anyway.
      */
-    primary = curtiered->cursors[WT_TIERED_MAX_TIERS - 1];
+    primary = curtiered->cursors[WT_TIERED_INDEX_WRITEABLE];
     WT_RET(__curtiered_reset_cursors(curtiered, primary));
 
     /* If necessary, set the position for future scans. */

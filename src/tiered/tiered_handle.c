@@ -30,9 +30,9 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
           session, WT_VERB_TIERED, "INIT_TIERS: tiered URI dhandle %s", (char *)tmp->data);
         WT_ERR(__wt_session_get_dhandle(session, (const char *)tmp->data, NULL, NULL, 0));
         if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
-            tiered->tiers[WT_TIERED_LOCAL_INDEX] = session->dhandle;
+            tiered->tiers[WT_TIERED_INDEX_WRITEABLE] = session->dhandle;
         else if (session->dhandle->type == WT_DHANDLE_TYPE_TIERED)
-            tiered->tiers[WT_TIERED_SHARED_INDEX] = session->dhandle;
+            tiered->tiers[WT_TIERED_INDEX_READONLY] = session->dhandle;
         else {
             type = (uint32_t)session->dhandle->type;
             WT_TRET(__wt_session_release_dhandle(session));
@@ -85,9 +85,9 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: schema create LOCAL: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    if (tiered->tier_names[WT_TIERED_LOCAL_INDEX] == NULL)
-        __wt_free(session, tiered->tier_names[WT_TIERED_LOCAL_INDEX]);
-    tiered->tier_names[WT_TIERED_LOCAL_INDEX] = name;
+    if (tiered->tier_names[WT_TIERED_INDEX_WRITEABLE] == NULL)
+        __wt_free(session, tiered->tier_names[WT_TIERED_INDEX_WRITEABLE]);
+    tiered->tier_names[WT_TIERED_INDEX_WRITEABLE] = name;
 
     if (0)
         /* Only free name on error. */
@@ -169,8 +169,8 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    WT_ASSERT(session, tiered->tier_names[WT_TIERED_SHARED_INDEX] == NULL);
-    tiered->tier_names[WT_TIERED_SHARED_INDEX] = name;
+    WT_ASSERT(session, tiered->tier_names[WT_TIERED_INDEX_READONLY] == NULL);
+    tiered->tier_names[WT_TIERED_INDEX_READONLY] = name;
 
     if (0)
 err:
@@ -296,8 +296,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_RET_NOTFOUND_OK(ret);
 
     need_local = true;
-    need_object = tiered->tiers[WT_TIERED_LOCAL_INDEX] != NULL;
-    need_tree = need_object && tiered->tiers[WT_TIERED_SHARED_INDEX] == NULL;
+    need_object = tiered->tiers[WT_TIERED_INDEX_WRITEABLE] != NULL;
+    need_tree = need_object && tiered->tiers[WT_TIERED_INDEX_READONLY] == NULL;
     /*
      * There are four possibilities to our tiers configuration. In all of them we need to create
      * a new local tier file object dhandle and add it as element index zero of the tiers array.

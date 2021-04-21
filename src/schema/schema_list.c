@@ -9,21 +9,18 @@
 #include "wt_internal.h"
 
 /*
- * __wt_schema_get_tiered_uri --
- *     Get the tiered handle for the named table.
+ * __schema_get_tiered_uri --
+ *     Get the tiered handle for the named table. This function overwrites the dhandle.
  */
-int
-__wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
+static int
+__schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
   uint32_t flags, WT_TIERED **tieredp)
 {
-    WT_DATA_HANDLE *saved_dhandle;
     WT_DECL_RET;
     WT_TIERED *tiered;
     uint32_t i;
 
     *tieredp = NULL;
-
-    saved_dhandle = session->dhandle;
 
     WT_ERR(__wt_session_get_dhandle(session, uri, NULL, NULL, flags));
     tiered = (WT_TIERED *)session->dhandle;
@@ -39,9 +36,21 @@ __wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_in
         }
 
     *tieredp = tiered;
-
 err:
-    session->dhandle = saved_dhandle;
+    return (ret);
+}
+/*
+ * __wt_schema_get_tiered_uri --
+ *     Get the tiered handle for the named table.
+ */
+int
+__wt_schema_get_tiered_uri(WT_SESSION_IMPL *session, const char *uri, bool ok_incomplete,
+  uint32_t flags, WT_TIERED **tieredp)
+{
+    WT_DECL_RET;
+
+    WT_SAVE_DHANDLE(
+      session, ret = __schema_get_tiered_uri(session, uri, ok_incomplete, flags, tieredp));
     return (ret);
 }
 

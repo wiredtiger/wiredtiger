@@ -54,9 +54,11 @@ struct __wt_cursor_tiered {
  * worrying about the memory management. For now also assign types to slots. Local files in slot 0.
  * Shared tier top level in slot 1.
  */
+/* In index order instead of alphabetical order. */
+#define WT_TIERED_INDEX_WRITEABLE 0
+#define WT_TIERED_INDEX_READONLY 1
+
 #define WT_TIERED_MAX_TIERS 4
-#define WT_TIERED_LOCAL_INDEX 0
-#define WT_TIERED_SHARED_INDEX 1
 
 /* Object name types */
 /* AUTOMATIC FLAG VALUE GENERATION START */
@@ -71,10 +73,11 @@ struct __wt_cursor_tiered {
  *	Handle for a tiered data source. This data structure is used as the basis for metadata
  *	as the top level definition of a tiered table. This structure tells us where to find the
  *	parts of the tree and in what order we should look at the tiers. Prior to the first call
- *	to flush_tier the only tier that exists will be the local disk represented by a file: URI.
- *	Then a second (or more) set of tiers will be where the tiered data lives. The non-local
- *	tier will point to a tier: URI and that is described by a WT_TIERED_TREE data structure
- *	that will encapsulate what the current state of the individual objects is.
+ *	to flush_tier after the creation of this table the only tier that exists will be the local
+ *	disk represented by a file: URI. Then a second (or more) set of tiers will be where the
+ *	tiered data lives. The non-local tier will point to a tier: URI and that is described by a
+ *	WT_TIERED_TREE data structure that will encapsulate what the current state of the
+ *	individual objects is.
  */
 struct __wt_tiered {
     WT_DATA_HANDLE iface;
