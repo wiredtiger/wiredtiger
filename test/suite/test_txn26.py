@@ -37,6 +37,9 @@ class test_txn26(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     def test_commit_larger_than_active_timestamp(self):
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build')
+
         uri = 'table:test_txn26'
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
