@@ -92,9 +92,12 @@ typedef struct {
 } LOCAL_STORAGE;
 
 typedef struct {
-    WT_FILE_SYSTEM file_system; /* Must come first */
+    /* Must come first - this is the interface for the file system we are implementing. */
+    WT_FILE_SYSTEM file_system;
     LOCAL_STORAGE *local_storage;
-    WT_FILE_SYSTEM *wt_fs; /* WiredTiger's file system */
+
+    /* This is WiredTiger's file system, it is used in implementing the local file system. */
+    WT_FILE_SYSTEM *wt_fs;
 
     char *auth_token; /* Identifier for key management system */
     char *bucket;     /* Actually a directory path for local implementation */
@@ -135,8 +138,8 @@ static int local_configure_int(LOCAL_STORAGE *, WT_CONFIG_ARG *, const char *, u
 static int local_delay(LOCAL_STORAGE *);
 static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static void local_flush_free(LOCAL_FLUSH_ITEM *);
-static int local_writeable(LOCAL_STORAGE *, WT_SESSION *, const char *, bool *);
 static int local_location_path(WT_FILE_SYSTEM *, const char *, char **);
+static int local_writeable(LOCAL_STORAGE *, WT_SESSION *, const char *, bool *);
 
 /*
  * Forward function declarations for storage source API implementation
@@ -752,8 +755,15 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     wt_fs = local_fs->wt_fs;
 
     /*
-     * If needed we could relax this, and allow opens of other kinds of files to use the regular
-     * WiredTiger file system.
+     * We expect that the local file system will be used narrowly, like when creating or opening a
+     * data file or turtle file. It would be unexpected to try to open a non-data file (like a log
+     * file) in that narrow part of code, so we make it an error here.
+     *
+     * Relaxing this constraint to allow opening of, say, log files, would be straightforward - we
+     * would not translate the path or do any tracking for flushing. But there's a catch. Other
+     * parts of the API, like remove and rename, have no flag indicating that they are operating on
+     * a log file, so we wouldn't know whether to do path translation. Of course, we could peek at
+     * the name, but that would be bad form.
      */
     if (file_type != WT_FS_OPEN_FILE_TYPE_DATA && file_type != WT_FS_OPEN_FILE_TYPE_REGULAR)
         return (local_err(

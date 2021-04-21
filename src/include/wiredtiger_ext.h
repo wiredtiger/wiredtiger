@@ -245,7 +245,7 @@ struct __wt_extension_api {
      * @param session the session handle (or NULL if none available)
      * @param file_system the returned file system handle.
      * @errors
-     * If called when from an extension's initialization routine, this may
+     * If called from an extension's initialization routine, this may
      * return WT_NOTFOUND if the file system has not yet been established.
      *
      * @snippet ex_data_source.c WT_EXTENSION metadata insert
