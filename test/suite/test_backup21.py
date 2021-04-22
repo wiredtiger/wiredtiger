@@ -35,7 +35,7 @@ from wtthread import op_thread
 #    Run create/drop operations while backup is ongoing.
 class test_backup21(backup_base):
     # Backup directory name.
-    dir='backup.dir'
+    dir = 'backup.dir'
     uri = 'test_backup21'
     ops = 50
     key_fmt = "S"
