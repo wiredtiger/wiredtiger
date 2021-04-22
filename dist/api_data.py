@@ -831,6 +831,7 @@ connection_runtime_config = [
             'split',
             'temporary',
             'thread_group',
+            'tiered',
             'timestamp',
             'transaction',
             'verify',
