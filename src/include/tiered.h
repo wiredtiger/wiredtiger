@@ -54,9 +54,9 @@ struct __wt_cursor_tiered {
  * worrying about the memory management. For now also assign types to slots. Local files in slot 0.
  * Shared tier top level in slot 1.
  */
-/* In index order instead of alphabetical order. */
-#define WT_TIERED_INDEX_WRITEABLE 0
-#define WT_TIERED_INDEX_READONLY 1
+#define WT_TIERED_INDEX_INVALID (uint32_t) - 1
+#define WT_TIERED_INDEX_LOCAL 0
+#define WT_TIERED_INDEX_SHARED 1
 
 #define WT_TIERED_MAX_TIERS 4
 
@@ -67,6 +67,15 @@ struct __wt_cursor_tiered {
 #define WT_TIERED_NAME_PREFIX 0x4u
 #define WT_TIERED_NAME_SHARED 0x8u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+/*
+ * WT_TIERED_TIERS --
+ *	Information we need to keep about each tier such as its data handle and name.
+ */
+struct __wt_tiered_tiers {
+    WT_DATA_HANDLE *tier; /* Data handle for this tier */
+    const char *name;     /* Tier's metadata name */
+};
 
 /*
  * WT_TIERED --
@@ -87,8 +96,7 @@ struct __wt_tiered {
 
     WT_BUCKET_STORAGE *bstorage;
 
-    WT_DATA_HANDLE *tiers[WT_TIERED_MAX_TIERS];  /* Tiers array */
-    const char *tier_names[WT_TIERED_MAX_TIERS]; /* Tiers metadata name array */
+    WT_TIERED_TIERS tiers[WT_TIERED_MAX_TIERS]; /* Tiers array */
 
     uint64_t current_id; /* Current object id number */
     uint64_t next_id;    /* Next object number */

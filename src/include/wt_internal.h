@@ -325,6 +325,8 @@ struct __wt_tiered_manager;
 typedef struct __wt_tiered_manager WT_TIERED_MANAGER;
 struct __wt_tiered_object;
 typedef struct __wt_tiered_object WT_TIERED_OBJECT;
+struct __wt_tiered_tiers;
+typedef struct __wt_tiered_tiers WT_TIERED_TIERS;
 struct __wt_tiered_tree;
 typedef struct __wt_tiered_tree WT_TIERED_TREE;
 struct __wt_time_aggregate;

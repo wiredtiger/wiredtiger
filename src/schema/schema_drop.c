@@ -187,7 +187,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
     /* Drop the tiers. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        tier = tiered->tiers[i];
+        tier = tiered->tiers[i].tier;
         if (tier != NULL)
             WT_ERR(__wt_schema_drop(session, tier->name, cfg));
     }

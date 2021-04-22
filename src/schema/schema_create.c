@@ -272,25 +272,20 @@ __wt_schema_colgroup_source(
         prefix = cval.str;
         len = cval.len;
         suffix = "";
-    } else if (S2C(session)->bstorage != NULL) {
+    } else if ((S2C(session)->bstorage == NULL) ||
+      ((ret = __wt_config_getones(session, config, "tiered_storage.name", &cval)) == 0 &&
+        cval.len != 0 && WT_STRING_MATCH("none", cval.str, cval.len))) {
         /*
          * If we're using tiered storage, the default is not file unless the user explicitly turns
          * off using tiered storage for this create. Otherwise the default prefix is tiered.
          */
-        if ((ret = __wt_config_getones(session, config, "tiered_storage.name", &cval)) == 0 &&
-          cval.len != 0 && WT_STRING_MATCH("none", cval.str, cval.len)) {
-            prefix = "file";
-            len = strlen(prefix);
-            suffix = ".wt";
-        } else {
-            prefix = "tiered";
-            len = strlen(prefix);
-            suffix = "";
-        }
-    } else {
         prefix = "file";
         len = strlen(prefix);
         suffix = ".wt";
+    } else {
+        prefix = "tiered";
+        len = strlen(prefix);
+        suffix = "";
     }
     WT_RET_NOTFOUND_OK(ret);
 

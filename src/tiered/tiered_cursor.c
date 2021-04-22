@@ -51,7 +51,7 @@ __curtiered_open_cursors(WT_CURSOR_TIERED *curtiered)
       "tiered opening cursor session(%p):tiered cursor(%p), tiers: %d", (void *)session,
       (void *)curtiered, (int)WT_TIERED_MAX_TIERS);
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        dhandle = tiered->tiers[i];
+        dhandle = tiered->tiers[i].tier;
         if (dhandle == NULL)
             continue;
 
@@ -801,7 +801,7 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
      * anyway.
      */
-    primary = curtiered->cursors[WT_TIERED_INDEX_WRITEABLE];
+    primary = curtiered->cursors[WT_TIERED_INDEX_LOCAL];
     WT_RET(__curtiered_reset_cursors(curtiered, primary));
 
     /* If necessary, set the position for future scans. */

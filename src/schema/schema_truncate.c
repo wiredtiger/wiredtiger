@@ -54,9 +54,9 @@ __truncate_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
 
     /* Truncate the tiered entries. */
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        if (tiered->tiers[i] == NULL)
+        if (tiered->tiers[i].tier == NULL)
             continue;
-        WT_ERR(__wt_schema_truncate(session, tiered->tiers[i]->name, cfg));
+        WT_ERR(__wt_schema_truncate(session, tiered->tiers[i].name, cfg));
     }
 
 err:

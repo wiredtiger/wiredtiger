@@ -60,7 +60,7 @@ __wt_schema_tiered_worker(WT_SESSION_IMPL *session, const char *uri,
     tiered = (WT_TIERED *)session->dhandle;
 
     for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        dhandle = tiered->tiers[i];
+        dhandle = tiered->tiers[i].tier;
         if (dhandle == NULL)
             continue;
         WT_SAVE_DHANDLE(session,
