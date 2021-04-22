@@ -38,11 +38,11 @@ import glob
 class test_backup15(backup_base):
     bkp_home = "WT_BLOCK"
     bkup_id=0
-    conn_config='cache_size=1G,log=(enabled,file_max=100K)'
+    conn_config='cache_size=1G,log=(enabled,file_max=100K),verbose=[backup]'
     logmax="100K"
-    max_iteration=5
+    max_iteration=3
     mult=0
-    nops=100000
+    nops=100
     savefirst=0
     savekey='NOTSET'
     uri="table:main"

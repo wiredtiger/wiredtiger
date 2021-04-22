@@ -944,6 +944,7 @@ __wt_meta_ckptlist_set(
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
+    //WT_ERR(__wt_msg(session, "CKPT_SET: %s: %s", fname, (char *)buf->mem));
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:
