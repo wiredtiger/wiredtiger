@@ -49,13 +49,13 @@ class test_backup21(backup_base):
 
         work_queue = queue.Queue()
         t = op_thread(self.conn, [table_uri], self.key_fmt, work_queue, done)
-        # Open backup cursor.
         try:
             t.start()
             # Place create or drop operation into work queue.
             iteration = 0
             op = 't'
-            for i in range(0, self.ops):
+            for _ in range(0, self.ops):
+                # Open backup cursor.
                 bkup_c = self.session.open_cursor('backup:', None, None)
                 work_queue.put_nowait((op, str(iteration), 'value'))
 
