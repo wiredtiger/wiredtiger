@@ -50,7 +50,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
     retention1 = 350
     def conn_config(self):
         return \
-          'statistics=(all),verbose=(tiered),' + \
+          'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
