@@ -482,7 +482,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
     else {
         __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: create %s", dhandle->name);
-        WT_ERR(__tiered_switch(session, config));
+        WT_ERR(__wt_tiered_switch(session, config));
 
         /* XXX brute force, need to figure out functions to use to do this properly. */
         /* We need to update the dhandle config entry to reflect the new tiers metadata. */
