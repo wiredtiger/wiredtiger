@@ -1072,12 +1072,10 @@ __curtiered_insert_bulk(WT_CURSOR *cursor)
     WT_CURSOR *bulk_cursor;
     WT_CURSOR_TIERED *curtiered;
     WT_SESSION_IMPL *session;
-    WT_TIERED *tiered;
 
     curtiered = (WT_CURSOR_TIERED *)cursor;
     session = CUR2S(curtiered);
-    tiered = curtiered->tiered;
-    bulk_cursor = curtiered->cursors[tiered->ntiers - 1];
+    bulk_cursor = curtiered->cursors[WT_TIERED_INDEX_LOCAL];
 
     WT_ASSERT(session, bulk_cursor != NULL);
     bulk_cursor->set_key(bulk_cursor, &cursor->key);
@@ -1099,7 +1097,6 @@ __curtiered_open_bulk(WT_CURSOR_TIERED *curtiered, const char *cfg[])
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TIERED *tiered;
-    u_int primary;
 
     cursor = &curtiered->iface;
     session = CUR2S(curtiered);
@@ -1111,15 +1108,14 @@ __curtiered_open_bulk(WT_CURSOR_TIERED *curtiered, const char *cfg[])
     cursor->close = __wt_curtiered_close;
 
     WT_ASSERT(session, curtiered->cursors == NULL);
-    WT_ERR(__wt_calloc_def(session, tiered->ntiers, &curtiered->cursors));
+    WT_ERR(__wt_calloc_def(session, WT_TIERED_MAX_TIERS, &curtiered->cursors));
 
-    /* The top table is the last one in the tier array. Open a bulk cursor on it. */
-    primary = tiered->ntiers - 1;
-    dhandle = tiered->tiers[primary];
-    WT_ERR(__wt_open_cursor(session, dhandle->name, cursor, cfg, &curtiered->cursors[primary]));
+    /* Open a bulk cursor on the local tier. */
+    dhandle = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    WT_ERR(__wt_open_cursor(session, dhandle->name, cursor, cfg, &curtiered->cursors[WT_TIERED_INDEX_LOCAL]));
 
     /* Child cursors always use overwrite and raw mode. */
-    F_SET(curtiered->cursors[primary], WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+    F_SET(curtiered->cursors[WT_TIERED_INDEX_LOCAL], WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
 
     if (0) {
 err:
