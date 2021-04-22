@@ -1225,17 +1225,17 @@ retry:
     WT_ERR(__cursor_func_init(cbt, true));
     WT_ERR(btree->type == BTREE_ROW ? __cursor_row_search(cbt, true, NULL, NULL) :
                                       __cursor_col_search(cbt, NULL, NULL));
-    
+
     if (btree->type == BTREE_ROW) {
         /*
-            * If not overwriting, check for conflicts and fail if the key does not exist.
-            */
+         * If not overwriting, check for conflicts and fail if the key does not exist.
+         */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             WT_ERR(__curfile_update_check(cbt));
             if (cbt->compare != 0)
                 WT_ERR(WT_NOTFOUND);
             WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
+              ret = __wt_cursor_valid(cbt, cbt->tmp, WT_RECNO_OOB, &valid));
             WT_ERR(ret);
             if (!valid)
                 WT_ERR(WT_NOTFOUND);
@@ -1243,17 +1243,17 @@ retry:
         ret = __cursor_row_modify(cbt, value, modify_type);
     } else {
         /*
-            * If not overwriting, fail if the key doesn't exist. If we find an update for the key,
-            * check for conflicts. Update the record if it exists. Creating a record past the end of
-            * the tree in a fixed-length column-store implicitly fills the gap with empty records.
-            * Update the record in that case, the record exists.
-            */
+         * If not overwriting, fail if the key doesn't exist. If we find an update for the key,
+         * check for conflicts. Update the record if it exists. Creating a record past the end of
+         * the tree in a fixed-length column-store implicitly fills the gap with empty records.
+         * Update the record in that case, the record exists.
+         */
         if (!F_ISSET(cursor, WT_CURSTD_OVERWRITE)) {
             WT_ERR(__curfile_update_check(cbt));
             valid = false;
             if (cbt->compare == 0) {
                 WT_WITH_UPDATE_VALUE_SKIP_BUF(
-                    ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
+                  ret = __wt_cursor_valid(cbt, NULL, cbt->recno, &valid));
                 WT_ERR(ret);
             }
             if ((cbt->compare != 0 || !valid) && !__cursor_fix_implicit(btree, cbt))
