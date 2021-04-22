@@ -217,7 +217,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         __wt_verbose(session, WT_VERB_BACKUP, "Set key with incr block offset %" PRIu64 " gran %" PRIu64,
           cb->offset + cb->granularity * start_bitoff, total_len);
         __wt_cursor_set_key(
-          cursor, cb->offset + cb->granularity * start_bitoff, start_bitoff, WT_BACKUP_RANGE);
+          cursor, cb->offset + cb->granularity * start_bitoff, total_len, WT_BACKUP_RANGE);
     }
 
 done:
