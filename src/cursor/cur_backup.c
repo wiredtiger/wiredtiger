@@ -474,6 +474,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             if (conn->incr_granularity != 0)
                 WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
             conn->incr_granularity = (uint64_t)cval.val;
+            __wt_verbose(session, WT_VERB_BACKUP, "BACKUP_CONFIG: Set granularity %" PRIu64, conn->incr_granularity);
         }
         /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
