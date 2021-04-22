@@ -132,13 +132,28 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *config, *name;
+    const char *config, *name, *orig_name;
+    char *metaconf;
 
     conn = S2C(session);
-    config = name = NULL;
+    config = name = orig_name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    orig_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
     /*
-     * First create the name and metadata of the new shared object of the current local object.
+     * If we have an already existing local file in the tier, update its metadata to indicate this
+     * one is now readonly.
+     */
+    if (orig_name != NULL) {
+        WT_ERR(__wt_metadata_search(session, orig_name, &metaconf));
+        cfg[0] = metaconf;
+        cfg[1] = "readonly=true";
+        WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
+        __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: Readonly original: %s %s",
+          orig_name, config);
+        WT_ERR(__wt_metadata_update(session, orig_name, config));
+    }
+    /*
+     * Create the name and metadata of the new shared object of the current local object.
      * The data structure keeps this id so that we don't have to parse and manipulate strings.
      *   I.e. if we have file:example-000000002.wt we want object:example-000000002.wtobj.
      */
@@ -147,7 +162,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
     WT_ASSERT(session, conn->tiered_prefix != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", conn->tiered_prefix));
+    WT_ERR(__wt_buf_fmt(session, tmp, ",readonly=true,bucket_prefix=%s", conn->tiered_prefix));
     cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     __wt_verbose(
