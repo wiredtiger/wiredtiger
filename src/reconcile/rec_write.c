@@ -1530,12 +1530,19 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
 
     /*
-     * Set the write generation of disk header to the minimum write generation of the btree that is
-     * possible during the server start. This is to ensure that the transaction ids written to the
-     * disk image during recovery must be reset at the end of the recovery in case if the page is
-     * in-memory restored as part of reconciliation.
+     * We increment the block's write generation so it's easy to identify newer versions of blocks
+     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
+     * multiple blocks to be internally consistent with identical first and last keys, so we need a
+     * way to know the most recent state of the block. We could check which leaf is referenced by a
+     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
+     * it's not as good anyway, because the internal page may not have been written after the leaf
+     * page was updated. So, write generations it is.
+     *
+     * Nothing is locked at this point but two versions of a page with the same generation is pretty
+     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
+     * anyway.
      */
-    dsk->write_gen = btree->base_write_gen + 1;
+    dsk->write_gen = ++btree->write_gen;
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
