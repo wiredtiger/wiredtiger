@@ -411,6 +411,7 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
      * it is guaranteed that the handle won't exist in the shared dhandle list. Skip searching
      * through the list, and directly insert into it.
      */
+
     is_checkpoint = (WT_SESSION_IS_CHECKPOINT(session) && checkpoint != NULL &&
       WT_PREFIX_MATCH(checkpoint, WT_CHECKPOINT));
     if (!is_checkpoint) {
@@ -426,10 +427,10 @@ __session_find_shared_dhandle(WT_SESSION_IMPL *session, const char *uri, const c
          * Let's check our assumption that this handle is not already there in the shared list is
          * actually correct.
          */
-        WT_WITH_HANDLE_LIST_READ_LOCK(session,
-          if ((ret = __wt_conn_dhandle_find(session, uri, checkpoint)) == 0)
-            WT_ASSERT(session, ret != WT_NOTFOUND));
-#endif // HAVE_DIAGNOSTIC
+        WT_WITH_HANDLE_LIST_READ_LOCK(
+          session, ret = __wt_conn_dhandle_find(session, uri, checkpoint));
+        WT_ASSERT(session, ret == WT_NOTFOUND);
+#endif
     }
 
     WT_WITH_HANDLE_LIST_WRITE_LOCK(session,
