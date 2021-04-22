@@ -518,6 +518,166 @@ err:
     return (ret);
 }
 
+#ifdef HAVE_DIAGNOSTIC
+/*
+ * __assert_ckpt_matches --
+ *     Assert that given two checkpoints match.
+ */
+static void
+__assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b)
+{
+    if (ckpt_a->order != ckpt_b->order)
+        WT_ASSERT(session, false);
+    /*
+    if (ckpt_a->sec != ckpt_b->sec)
+        WT_ASSERT(session, false);
+    */
+    if (ckpt_a->size != ckpt_b->size)
+        WT_ASSERT(session, false);
+    if (ckpt_a->write_gen != ckpt_b->write_gen)
+        WT_ASSERT(session, false);
+    if (ckpt_a->run_write_gen != ckpt_b->run_write_gen)
+        WT_ASSERT(session, false);
+    if (ckpt_a->flags != ckpt_b->flags)
+        WT_ASSERT(session, false);
+
+    if ((ckpt_a->name == NULL && ckpt_b->name != NULL) ||
+      (ckpt_a->name != NULL && ckpt_b->name == NULL))
+        WT_ASSERT(session, false);
+
+    if ((ckpt_a->name != NULL && ckpt_b->name != NULL) && strcmp(ckpt_a->name, ckpt_b->name) != 0)
+        WT_ASSERT(session, false);
+}
+/*
+ * __assert_checkpoint_list_matches --
+ *     Assert that two given checkpoint lists match.
+ */
+static void
+__assert_checkpoint_list_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, WT_CKPT *new_list)
+{
+    WT_CKPT *ckpt_saved, *ckpt_new;
+
+    for (ckpt_saved = saved_list, ckpt_new = new_list;
+         ckpt_saved != NULL && ckpt_saved->order != 0 && ckpt_new != NULL && ckpt_new->order != 0;
+         ckpt_saved++, ckpt_new++)
+        __assert_ckpt_matches(session, ckpt_saved, ckpt_new);
+
+    if (!((ckpt_saved == NULL && ckpt_new == NULL) ||
+          ((ckpt_saved != NULL && ckpt_saved->order == 0) &&
+            (ckpt_new != NULL && ckpt_new->order == 0))))
+        WT_ASSERT(session, false);
+}
+#endif
+
+/*
+ * __wt_meta_saved_ckptlist_get --
+ *     Append the ckptlist with a new checkpoint to be added.
+ */
+int
+__wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKPT **ckptbasep)
+{
+    WT_BTREE *btree;
+    WT_CKPT *ckpt, *ckpt_prev, *ckptbase;
+#ifdef HAVE_DIAGNOSTIC
+    WT_CKPT *ckptbase_comp;
+#endif
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    size_t slot;
+    uint64_t most_recent;
+
+    *ckptbasep = NULL;
+
+    btree = S2BT(session);
+    conn = S2C(session);
+    slot = 0;
+
+    /* If we do not have a saved ckptlist, return not found. */
+    if (btree->ckpt == NULL)
+        return (WT_NOTFOUND);
+
+    /* Make sure we have one or more saved checkpoints. */
+    WT_CKPT_FOREACH (btree->ckpt, ckpt)
+        slot++;
+    WT_ASSERT(session, slot != 0);
+
+    /*
+     * This isn't clean, but there's necessary cooperation between the schema layer (that maintains
+     * the list of checkpoints), the btree layer (that knows when the root page is written, creating
+     * a new checkpoint), and the block manager (which actually creates the checkpoint). All of that
+     * cooperation is handled in the array of checkpoint structures referenced from the WT_BTREE
+     * structure.
+     *
+     * Allocate a slot for a new value, plus a slot to mark the end.
+     */
+    WT_ASSERT(session, btree->ckpt->name != NULL);
+    WT_ERR(__wt_realloc_def(session, &btree->ckpt_allocated, slot + 2, &btree->ckpt));
+    WT_ASSERT(session, btree->ckpt->name != NULL);
+    ckptbase = btree->ckpt;
+
+    /* The caller may be adding a value, initialize it. */
+    ckpt = &ckptbase[slot];
+    ckpt_prev = &ckptbase[slot - 1];
+    ckpt->order = ckpt_prev->order + 1;
+    __wt_seconds(session, &ckpt->sec);
+    /*
+     * Update time value for most recent checkpoint, not letting it move backwards. It is possible
+     * to race here, so use atomic CAS. This code relies on the fact that anyone we race with will
+     * only increase (never decrease) the most recent checkpoint time value.
+     */
+    for (;;) {
+        WT_ORDERED_READ(most_recent, conn->ckpt_most_recent);
+        if (ckpt->sec <= most_recent ||
+          __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
+            break;
+    }
+
+    /*
+     * TODO: Handle backups WT_ERR(__ckpt_load_blk_mods(session, config, ckpt));
+     */
+
+    /*
+     * Let's just copy the block metadata from the last checkpoint, we would have invalidated the
+     * saved ckptlist if the configuration changed.
+     */
+    WT_ERR(__wt_strndup(session, ckpt_prev->block_metadata, strlen(ckpt_prev->block_metadata),
+      &ckpt->block_metadata));
+
+    F_SET(ckpt, WT_CKPT_ADD);
+    /*
+     * TODO: Handle backups:
+     * if is set(conn, WT_CONN_INCR_BACKUP)) {
+     *   F_SET(ckpt, WT_CKPT_BLOCK_MODS);
+     *   WT_ERR(__ckpt_valid_blk_mods(session, ckpt, false));
+     * }
+     */
+
+    /* Return the array to our caller. */
+    *ckptbasep = ckptbase;
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Sanity check: Let's compare to a list generated from metadata. There should be no
+     * differences.
+     */
+    if ((ret = __wt_meta_ckptlist_get(session, fname, true, &ckptbase_comp)) == 0)
+        __assert_checkpoint_list_matches(session, ckptbase, ckptbase_comp);
+    __wt_meta_ckptlist_free(session, &ckptbase_comp);
+    WT_ERR(ret);
+#else
+    WT_UNUSED(fname);
+#endif
+
+    if (0) {
+err:
+        __wt_meta_ckptlist_free(session, &btree->ckpt);
+    }
+
+    /* Clear the saved list for now, let the caller decide if the returned list gets saved. */
+    btree->ckpt = NULL;
+    return (ret);
+}
+
 /*
  * __wt_meta_ckptlist_get_from_config --
  *     Provided a metadata config, load all available checkpoint information for a file.
@@ -592,6 +752,7 @@ __wt_meta_ckptlist_get_from_config(
 
     /* Return the array to our caller. */
     *ckptbasep = ckptbase;
+    S2BT(session)->ckpt_allocated = allocated;
 
     if (0) {
 err:
