@@ -217,7 +217,7 @@ __curbackup_incr_next(WT_CURSOR *cursor)
         WT_ASSERT(session, cb->granularity != 0);
         WT_ASSERT(session, total_len != 0);
         __wt_verbose(session, WT_VERB_BACKUP,
-          "Set key WT_BACKUP_RANGE %s offset %" PRIu64 " gran %" PRIu64, cb->incr_file,
+          "Set key WT_BACKUP_RANGE %s offset %" PRIu64 " length %" PRIu64, cb->incr_file,
           cb->offset + cb->granularity * start_bitoff, total_len);
         __wt_cursor_set_key(
           cursor, cb->offset + cb->granularity * start_bitoff, total_len, WT_BACKUP_RANGE);
