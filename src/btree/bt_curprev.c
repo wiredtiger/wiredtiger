@@ -558,7 +558,7 @@ restart_read_page:
         if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL) {
             WT_RET(__wt_prefix_match(
               session, CUR2BT(cbt)->collator, prefix, &cbt->iface.key, &prefix_match));
-            if (prefix_match) {
+            if (!prefix_match) {
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
