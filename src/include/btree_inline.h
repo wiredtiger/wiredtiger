@@ -1144,19 +1144,21 @@ __wt_row_leaf_key(
     const void *group_key, *key_data;
 
     /*
-     * A front-end for __wt_row_leaf_key_work, here to inline fast paths. Handle on-page keys (which
-     * should be a common case), keys built using the most-used prefix, and instantiated keys (rare
-     * initially, but possibly more common as leaf page search instantiates prefix-compressed keys).
+     * A front-end for __wt_row_leaf_key_work, here to inline fast paths.
      *
      * The row-store key can change underfoot; explicitly take a copy.
      */
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * Check for on-page keys. If an on-page key without a prefix, we're done. If an on-page key
-     * with a prefix: the longest group of compressed key prefixes on the page was tracked when it
-     * was read. Build keys within that group by appending this key's bytes to the key from which it
-     * was compressed.
+     * Handle keys taken directly from the disk image (which should be a common case), instantiated
+     * keys (rare initially, but possibly more common as leaf page search instantiates keys), and
+     * keys built using the most-used page key prefix.
+     *
+     * The most-used page key prefix: the longest group of compressed key prefixes on the page that
+     * can be built from a single, fully instantiated key on the page, was tracked when the page was
+     * read. Build keys in that group by appending the key's bytes to the root key from which it was
+     * compressed.
      */
     __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
     if (key_data != NULL && key_prefix == 0) {
@@ -1170,7 +1172,6 @@ __wt_row_leaf_key(
         copy = WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]);
         __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
         if (group_key != NULL) {
-            WT_ASSERT(session, group_size >= key_prefix);
             WT_RET(__wt_buf_grow(session, key, key_prefix + key_size));
             memcpy(key->mem, group_key, key_prefix);
             memcpy((uint8_t *)key->mem + key_prefix, key_data, key_size);

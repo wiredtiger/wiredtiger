@@ -569,7 +569,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
         switch (unpack.type) {
         case WT_CELL_KEY:
             /*
-             * Simple keys without prefix compression can be directly referenced on the page to
+             * Simple keys and prefix-compressed keys can be directly referenced on the page to
              * avoid repeatedly unpacking their cells.
              *
              * Review groups of prefix-compressed keys, and track the biggest group as the page's
@@ -590,16 +590,19 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
              * build a subsequent key using the original key and the key's suffix bytes, that is the
              * prefix length could increase and then decrease to the same prefix length as before
              * and those latter keys could be built without rolling forward through intermediate
-             * keys. However, it's tricky: once a key prefix grows, we can never include a prefix
+             * keys.
+             *
+             * However, that gets tricky: once a key prefix grows, we can never include a prefix
              * smaller than the smallest prefix found so far, in the group, as a subsequent key
              * prefix larger than the smallest prefix found so far might include bytes not present
              * in the original instantiated key. Growing and shrinking is complicated to track, so
              * rather than code up that complexity, we close out a group whenever the prefix grows.
-             * Plus, any key with a larger prefix cannot be instantiated without rolling forward
-             * through intermediate keys, and so while such a key isn't required to close out the
-             * prefix group in all cases, it's not a useful entry for finding the best group of
-             * prefix-compressed keys, either, it's only possible keys after the prefix shrinks
-             * again that might be worth including in the group.
+             * Plus, growing has additional issues. Any key with a larger prefix cannot be
+             * instantiated without rolling forward through intermediate keys, and so while such a
+             * key isn't required to close out the prefix group in all cases, it's not a useful
+             * entry for finding the best group of prefix-compressed keys, either, it's only
+             * possible keys after the prefix shrinks again that are potentially worth including in
+             * a group.
              */
             slot = WT_ROW_SLOT(page, rip);
             if (unpack.prefix == 0) {
