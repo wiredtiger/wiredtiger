@@ -23,11 +23,12 @@
  * __wt_lex_compare --
  *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item
  *     = 0 if user_item is lexicographically = tree_item > 0 if user_item is lexicographically >
- *     tree_item We use the names "user" and "tree" so it's clear in the btree code which the
- *     application is looking at when we call its comparison function.
+ *     tree_item. We use the names "user" and "tree" so it's clear in the btree code which the
+ *     application is looking at when we call its comparison function. If prefix is specified, 0 can
+ *     be returned when the user_item is equal to the tree_item for the minimum size.
  */
 static inline int
-__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
+__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix)
 {
     size_t len, usz, tsz;
     const uint8_t *userp, *treep;
@@ -92,7 +93,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
             return (*userp < *treep ? -1 : 1);
 
     /* Contents are equal up to the smallest length. */
-    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    return ((usz == tsz || prefix) ? 0 : (usz < tsz) ? -1 : 1);
 }
 
 /*
@@ -104,7 +105,7 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
   const WT_ITEM *tree_item, int *cmpp)
 {
     if (collator == NULL) {
-        *cmpp = __wt_lex_compare(user_item, tree_item);
+        *cmpp = __wt_lex_compare(user_item, tree_item, false);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
@@ -114,11 +115,22 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
  * __wt_prefix_match --
  *     Check if the prefix item is equal to the leading bytes of the tree item.
  */
-static inline bool
-__wt_prefix_match(WT_SESSION_IMPL *session, const WT_ITEM *prefix, const WT_ITEM *tree_item)
+static inline int
+__wt_prefix_match(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
+  const WT_ITEM *tree_item, bool *equal)
 {
-    WT_ASSERT(session, prefix != NULL);
-    return (memcmp(prefix->data, tree_item->data, prefix->size) == 0);
+    WT_DECL_RET;
+    int cmp;
+
+    if (collator == NULL) {
+        cmp = __wt_lex_compare(user_item, tree_item, false);
+        *equal = cmp == 0;
+        return (0);
+    }
+
+    ret = collator->compare(collator, &session->iface, user_item, tree_item, &cmp);
+    *equal = cmp == 0;
+    return (ret);
 }
 
 /*
