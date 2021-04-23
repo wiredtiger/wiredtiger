@@ -33,10 +33,10 @@
 #include <atomic>
 #include <map>
 
-#include "database_model.h"
-#include "database_operation.h"
-#include "random_generator.h"
-#include "workload_tracking.h"
+#include "workload/database_model.h"
+#include "workload/database_operation.h"
+#include "workload/random_generator.h"
+#include "workload/workload_tracking.h"
 
 namespace test_harness {
 /*

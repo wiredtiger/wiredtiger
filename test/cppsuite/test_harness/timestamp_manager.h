@@ -34,7 +34,7 @@
 #include <sstream>
 #include <thread>
 
-#include "component.h"
+#include "core/component.h"
 
 namespace test_harness {
 /*

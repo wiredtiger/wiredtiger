@@ -38,15 +38,15 @@ extern "C" {
 #include "wiredtiger.h"
 }
 
-#include "api_const.h"
-#include "component.h"
-#include "configuration.h"
+#include "util/api_const.h"
+#include "core/component.h"
+#include "core/configuration.h"
 #include "connection_manager.h"
 #include "runtime_monitor.h"
 #include "timestamp_manager.h"
 #include "thread_manager.h"
 #include "workload_generator.h"
-#include "workload_validation.h"
+#include "workload/workload_validation.h"
 
 namespace test_harness {
 /*

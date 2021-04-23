@@ -35,10 +35,10 @@ extern "C" {
 #include "wiredtiger.h"
 }
 
-#include "api_const.h"
-#include "component.h"
+#include "util/api_const.h"
+#include "core/component.h"
 #include "connection_manager.h"
-#include "debug_utils.h"
+#include "util/debug_utils.h"
 
 namespace test_harness {
 /* Static statistic get function. */
