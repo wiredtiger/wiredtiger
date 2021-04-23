@@ -1112,6 +1112,7 @@ __curtiered_open_bulk(WT_CURSOR_TIERED *curtiered, const char *cfg[])
 
     /* Open a bulk cursor on the local tier. */
     dhandle = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    WT_ASSERT(session, dhandle != NULL);
     WT_ERR(__wt_open_cursor(
       session, dhandle->name, cursor, cfg, &curtiered->cursors[WT_TIERED_INDEX_LOCAL]));
 
