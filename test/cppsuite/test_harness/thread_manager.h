@@ -31,6 +31,7 @@
 
 #include <thread>
 
+#include "database_operation.h"
 #include "thread_context.h"
 
 namespace test_harness {
@@ -41,8 +42,7 @@ class thread_manager {
     {
         for (auto &it : _workers) {
             if (it != nullptr && it->joinable()) {
-                debug_info(
-                  "You should've called join on the thread manager", _trace_level, DEBUG_ERROR);
+                debug_print("You should've called join on the thread manager", DEBUG_ERROR);
                 it->join();
             }
             delete it;
@@ -57,10 +57,10 @@ class thread_manager {
      */
     template <typename Callable>
     void
-    add_thread(thread_context *tc, Callable &&fct)
+    add_thread(thread_context *tc, database_operation *db_operation, Callable &&fct)
     {
         tc->set_running(true);
-        std::thread *t = new std::thread(fct, std::ref(*tc));
+        std::thread *t = new std::thread(fct, std::ref(*tc), std::ref(*db_operation));
         _workers.push_back(t);
     }
 

@@ -21,6 +21,7 @@ Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
+Async
 AsyncOp
 Athanassoulis
 Athlon
@@ -739,6 +740,7 @@ dup
 eee
 eg
 egrep
+el
 emp
 encodings
 encryptor
@@ -894,6 +896,7 @@ indx
 infeasible
 inflateInit
 infmt
+informations
 init
 initCStream
 initializers
@@ -1043,6 +1046,7 @@ metadata's
 metafile
 mfence
 minorp
+mips
 mkdir
 mmap
 mmrand
@@ -1107,6 +1111,7 @@ nuls
 num
 numSymbols
 numbare
+objs
 offpage
 ok
 oldv
@@ -1479,6 +1484,7 @@ wrlsn
 ws
 wtbench
 wti
+wtobj
 wtperf
 wtperf's
 wts

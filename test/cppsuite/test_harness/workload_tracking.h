@@ -33,7 +33,7 @@
  * Default schema for tracking operations on collections (key_format: Collection name / Key /
  * Timestamp, value_format: Operation type / Value)
  */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Sii)
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SSQ)
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
 #define OPERATION_TRACKING_TABLE_CONFIG \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
@@ -42,7 +42,7 @@
  * Default schema for tracking schema operations on collections (key_format: Collection name /
  * Timestamp, value_format: Operation type)
  */
-#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(Si)
+#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SQ)
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
@@ -57,15 +57,12 @@ class workload_tracking : public component {
     workload_tracking(configuration *_config, const std::string &operation_table_config,
       const std::string &operation_table_name, const std::string &schema_table_config,
       const std::string &schema_table_name)
-        : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr), _enabled(false),
+        : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr),
           _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
           _schema_table_name(schema_table_name)
     {
     }
-
-    /* Delete the copy constructor. */
-    workload_tracking(const workload_tracking &) = delete;
 
     const std::string &
     get_schema_table_name() const
@@ -83,8 +80,8 @@ class workload_tracking : public component {
     load()
     {
         WT_SESSION *session;
-        /* Is tracking enabled? */
-        testutil_check(_config->get_bool(ENABLE_TRACKING, _enabled));
+
+        testutil_check(_config->get_bool(ENABLED, _enabled));
         if (!_enabled)
             return;
 
@@ -94,14 +91,14 @@ class workload_tracking : public component {
           session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
         testutil_check(
           session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
-        debug_info("Schema tracking initiated", _trace_level, DEBUG_INFO);
+        debug_print("Schema tracking initiated", DEBUG_TRACE);
 
         /* Initiate operations tracking. */
         testutil_check(
           session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
         testutil_check(session->open_cursor(
           session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
-        debug_info("Operations tracking created", _trace_level, DEBUG_INFO);
+        debug_print("Operations tracking created", DEBUG_TRACE);
     }
 
     void
@@ -140,9 +137,9 @@ class workload_tracking : public component {
         error_code = cursor->insert(cursor);
 
         if (error_code == 0)
-            debug_info("Workload tracking saved operation.", _trace_level, DEBUG_INFO);
+            debug_print("Workload tracking saved operation.", DEBUG_TRACE);
         else
-            debug_info("Workload tracking failed to save operation !", _trace_level, DEBUG_ERROR);
+            debug_print("Workload tracking failed to save operation !", DEBUG_ERROR);
 
         return error_code;
     }
@@ -150,7 +147,6 @@ class workload_tracking : public component {
     private:
     WT_CURSOR *_cursor_operations;
     WT_CURSOR *_cursor_schema;
-    bool _enabled;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;

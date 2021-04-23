@@ -29,6 +29,8 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
+#include <string>
+
 extern "C" {
 #include "test_util.h"
 }
@@ -41,22 +43,20 @@ class configuration {
         int ret = wiredtiger_test_config_validate(
           nullptr, nullptr, test_config_name.c_str(), config.c_str());
         if (ret != 0)
-            throw std::invalid_argument(
-              "failed to validate given config, ensure test config exists");
-        if (wiredtiger_config_parser_open(
-              nullptr, config.c_str(), config.size(), &_config_parser) != 0)
-            throw std::invalid_argument(
-              "failed to create configuration parser for provided config");
+            testutil_die(EINVAL, "failed to validate given config, ensure test config exists");
+        ret =
+          wiredtiger_config_parser_open(nullptr, config.c_str(), config.size(), &_config_parser);
+        if (ret != 0)
+            testutil_die(EINVAL, "failed to create configuration parser for provided config");
     }
 
     configuration(const WT_CONFIG_ITEM &nested)
     {
         if (nested.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
-            throw std::invalid_argument("provided config item isn't a structure");
+            testutil_die(EINVAL, "provided config item isn't a structure");
         int ret = wiredtiger_config_parser_open(nullptr, nested.str, nested.len, &_config_parser);
         if (ret != 0)
-            throw std::invalid_argument(
-              "failed to create configuration parser for provided sub config");
+            testutil_die(EINVAL, "failed to create configuration parser for provided sub config");
     }
 
     ~configuration()
@@ -83,7 +83,7 @@ class configuration {
     {
         WT_CONFIG_ITEM temp_value;
         testutil_check(_config_parser->get(_config_parser, key.c_str(), &temp_value));
-        if (temp_value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING ||
+        if (temp_value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
           temp_value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID)
             return (-1);
         value = std::string(temp_value.str, temp_value.len);
@@ -110,6 +110,14 @@ class configuration {
             return (-1);
         value = temp_value.val;
         return (0);
+    }
+
+    configuration *
+    get_subconfig(const std::string &key) const
+    {
+        WT_CONFIG_ITEM subconfig;
+        testutil_check(get(key, &subconfig));
+        return new configuration(subconfig);
     }
 
     /*

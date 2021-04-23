@@ -29,6 +29,8 @@
 #ifndef DEBUG_UTILS_H
 #define DEBUG_UTILS_H
 
+#include <iostream>
+
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
@@ -41,10 +43,14 @@ static int64_t _trace_level = 0;
 
 /* Used to print out traces for debugging purpose. */
 static void
-debug_info(const std::string &str, int64_t trace_threshold, int64_t trace_level)
+debug_print(const std::string &str, int64_t trace_type)
 {
-    if (trace_threshold >= trace_level)
-        std::cout << str << std::endl;
+    if (_trace_level >= trace_type) {
+        if (trace_type >= DEBUG_ERROR)
+            std::cerr << str << std::endl;
+        else
+            std::cout << str << std::endl;
+    }
 }
 
 } // namespace test_harness

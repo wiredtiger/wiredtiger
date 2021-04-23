@@ -23,18 +23,46 @@
  * __flush_tier_once --
  *     Perform one iteration of tiered storage maintenance.
  */
-static void
+static int
 __flush_tier_once(WT_SESSION_IMPL *session, bool force)
 {
-    WT_UNUSED(session);
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    const char *key, *value;
+
     WT_UNUSED(force);
+    __wt_verbose(session, WT_VERB_TIERED, "%s", "FLUSH_TIER_ONCE: Called");
     /*
      * - See if there is any "merging" work to do to prepare and create an object that is
      *   suitable for placing onto tiered storage.
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    return;
+    cursor = NULL;
+    WT_RET(__wt_metadata_cursor(session, &cursor));
+    while (cursor->next(cursor) == 0) {
+        cursor->get_key(cursor, &key);
+        cursor->get_value(cursor, &value);
+        /* For now just switch tiers which just does metadata manipulation. */
+        if (WT_PREFIX_MATCH(key, "tiered:")) {
+            __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s", key, value);
+            WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+            /*
+             * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
+             * the arg is the config string that is currently in the metadata.
+             */
+            WT_ERR(__wt_tiered_switch(session, value));
+            WT_ERR(__wt_session_release_dhandle(session));
+        }
+    }
+    WT_ERR(__wt_metadata_cursor_release(session, &cursor));
+
+    return (0);
+
+err:
+    WT_TRET(__wt_session_release_dhandle(session));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
+    return (ret);
 }
 
 /*
@@ -77,9 +105,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session, const char *uri, bool forc
      */
     cfg[0] = config;
     cfg[1] = NULL;
-    WT_ERR(__wt_config_gets(session, cfg, "local_retain", &cval));
+    WT_ERR(__wt_config_gets(session, cfg, "local_retention", &cval));
     __wt_seconds(session, &now);
-    if (force || (uint64_t)cval.val + S2C(session)->tiered_retain_secs >= now)
+    if (force || (uint64_t)cval.val + S2C(session)->bstorage->retain_secs >= now)
         /*
          * We want to remove the entry and the file. Probably do a schema_drop on the file:uri.
          */
@@ -117,6 +145,7 @@ int
 __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
     const char *cfg[3];
     bool force;
 
@@ -131,8 +160,8 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     force = cval.val != 0;
 
-    __flush_tier_once(session, force);
-    return (0);
+    WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, force));
+    return (ret);
 }
 
 /*
@@ -171,36 +200,78 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 }
 
 /*
+ * __wt_tiered_common_config --
+ *     Parse configuration options common to connection and btrees.
+ */
+int
+__wt_tiered_common_config(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE *bstorage)
+{
+    WT_CONFIG_ITEM cval;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
+    bstorage->retain_secs = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
+    bstorage->object_size = (uint64_t)cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
+    /*
+     * This call is purposely the last configuration processed so we don't need memory management
+     * code and an error label to free it. Note this if any code is added after this line.
+     */
+    WT_RET(__wt_strndup(session, cval.str, cval.len, &bstorage->auth_token));
+    return (0);
+}
+
+/*
  * __tiered_config --
  *     Parse and setup the storage server options.
  */
 static int
-__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
+__tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool reconfig)
 {
-    WT_CONFIG_ITEM cval;
+    WT_CONFIG_ITEM bucket, cval;
     WT_CONNECTION_IMPL *conn;
-    bool enabled;
+    WT_DECL_RET;
 
     conn = S2C(session);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.enabled", &cval));
-    enabled = cval.val != 0;
+    if (!reconfig) {
+        conn->bstorage = NULL;
+        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
+        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+        if (cval.len != 0) {
+            if (bucket.len != 0)
+                WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, &conn->bstorage));
+            else
+                WT_RET_MSG(session, EINVAL, "Must specify a bucket");
+        }
+    }
+    /* If the connection is not set up for tiered storage there is nothing more to do. */
+    if (conn->bstorage == NULL)
+        return (0);
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: bucket %s", conn->bstorage->bucket);
 
-    if (enabled)
-        FLD_SET(conn->tiered_flags, WT_CONN_TIERED_ENABLED);
-    else
-        FLD_CLR(conn->tiered_flags, WT_CONN_TIERED_ENABLED);
+    WT_ASSERT(session, conn->bstorage != NULL);
+    WT_RET(__wt_tiered_common_config(session, cfg, conn->bstorage));
+    WT_STAT_CONN_SET(session, tiered_object_size, conn->bstorage->object_size);
+    WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.auth_token", &cval));
-    conn->tiered_auth_token = cval.str;
+    /* The strings for unique identification are connection level. */
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &cval));
+    if (cval.len == 0)
+        WT_RET_MSG(session, EINVAL, "Must specify a bucket prefix");
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_prefix));
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->tiered_prefix);
+    WT_ASSERT(session, conn->tiered_prefix != NULL);
 
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.local_retention", &cval));
-    conn->tiered_retain_secs = (uint64_t)cval.val;
-    WT_STAT_CONN_SET(session, tiered_retention, conn->tiered_retain_secs);
-
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.object_target_size", &cval));
-    conn->tiered_object_size = (uint64_t)cval.val;
     return (__tiered_manager_config(session, cfg, runp));
+err:
+    __wt_free(session, conn->bstorage->auth_token);
+    __wt_free(session, conn->bstorage->bucket);
+    __wt_free(session, conn->bstorage);
+    __wt_free(session, conn->tiered_prefix);
+    return (ret);
 }
 
 /*
@@ -267,24 +338,25 @@ err:
  *     Start the tiered storage server thread.
  */
 int
-__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     bool start;
 
     conn = S2C(session);
+    start = false;
 
     /* Destroy any existing thread since we could be a reconfigure. */
     WT_RET(__wt_tiered_storage_destroy(session));
-    WT_RET(__tiered_config(session, cfg, &start));
-    if (!F_ISSET(conn, WT_CONN_TIERED_ENABLED) || !start)
+    WT_RET(__tiered_config(session, cfg, &start, reconfig));
+    if (!start)
         return (0);
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
-    WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, &conn->tiered_session));
+    WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
     session = conn->tiered_session;
 
     WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
@@ -311,10 +383,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     conn = S2C(session);
-    /*
-     * This may look a lot more like __wt_lsm_manager_destroy instead. It depends on what the final
-     * API looks like. For now handle it like a single internal worker thread.
-     */
+    __wt_free(session, conn->tiered_prefix);
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);

@@ -897,8 +897,24 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         time_start_hs = __wt_clock(session);
+        conn->txn_global.checkpoint_running_hs = true;
+        WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 1);
+
         WT_WITH_DHANDLE(session, hs_dhandle, ret = __wt_checkpoint(session, cfg));
+
+        WT_STAT_CONN_SET(session, txn_checkpoint_running_hs, 0);
+        conn->txn_global.checkpoint_running_hs = false;
         WT_ERR(ret);
+
+        /*
+         * Once the history store checkpoint is complete, we increment the checkpoint generation of
+         * the associated b-tree. The checkpoint generation controls whether we include the
+         * checkpoint transaction in our calculations of the pinned and oldest_ids for a given
+         * btree. We increment it here to ensure that the visibility checks performed on updates in
+         * the history store do not include the checkpoint transaction.
+         */
+        __checkpoint_update_generation(session);
+
         time_stop_hs = __wt_clock(session);
         hs_ckpt_duration_usecs = WT_CLOCKDIFF_US(time_stop_hs, time_start_hs);
         WT_STAT_CONN_SET(session, txn_hs_ckpt_duration, hs_ckpt_duration_usecs);
@@ -1860,8 +1876,9 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, session->dhandle->checkpoint == NULL);
 
     /* We must hold the metadata lock if checkpointing the metadata. */
-    WT_ASSERT(
-      session, !WT_IS_METADATA(session->dhandle) || F_ISSET(session, WT_SESSION_LOCKED_METADATA));
+    WT_ASSERT(session,
+      !WT_IS_METADATA(session->dhandle) ||
+        FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_METADATA));
 
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
