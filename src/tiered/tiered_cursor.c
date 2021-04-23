@@ -1102,7 +1102,7 @@ __curtiered_open_bulk(WT_CURSOR_TIERED *curtiered, const char *cfg[])
     session = CUR2S(curtiered);
     tiered = curtiered->tiered;
 
-    /* Bulk cursors are limited to insert and close. */
+    /* Bulk cursors only support insert and close. */
     __wt_cursor_set_notsup(cursor);
     cursor->insert = __curtiered_insert_bulk;
     cursor->close = __wt_curtiered_close;
