@@ -335,11 +335,12 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     blk = NULL;
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        __wt_verbose(session, WT_VERB_BACKUP, "Added backup entry blk[%u] with flags 0x%" PRIx64, i,
-          blk->flags);
         /* If it isn't already in use, we can use it. */
-        if (!F_ISSET(blk, WT_BLKINCR_INUSE))
+        if (!F_ISSET(blk, WT_BLKINCR_INUSE)) {
+            __wt_verbose(session, WT_VERB_BACKUP, "New blk[%u] entry", i);
             break;
+        }
+        __wt_verbose(session, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx64, i, blk->flags);
     }
     /*
      * We didn't find an entry. This should not happen.
@@ -370,7 +371,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
           WT_METAFILE_URI);
         F_SET(blk, WT_BLKINCR_FULL);
     } else {
-        __wt_verbose(session, WT_VERB_BACKUP, "Backup id %s: using backup slot %u", blk->id_str, i);
+        __wt_verbose(session, WT_VERB_BACKUP, "Backup id %s using backup slot %u", blk->id_str, i);
         F_CLR(blk, WT_BLKINCR_FULL);
     }
     F_SET(blk, WT_BLKINCR_VALID);
@@ -405,11 +406,11 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
             if (incrp != NULL)
                 *incrp = blk;
             __wt_verbose(
-              session, WT_VERB_BACKUP, "Found source id %s with backup slot %u", blk->id_str, i);
+              session, WT_VERB_BACKUP, "Found src id %s at backup slot %u", blk->id_str, i);
             return (0);
         }
     }
-    __wt_verbose(session, WT_VERB_BACKUP, "Search for %.*s not found", (int)cval->len, cval->str);
+    __wt_verbose(session, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
     return (WT_NOTFOUND);
 }
 
@@ -477,8 +478,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             if (conn->incr_granularity != 0)
                 WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
             conn->incr_granularity = (uint64_t)cval.val;
-            __wt_verbose(session, WT_VERB_BACKUP,
-              "Backup config set granularity with value %" PRIu64, conn->incr_granularity);
+            __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
+              conn->incr_granularity);
         }
         /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
