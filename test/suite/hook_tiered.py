@@ -106,7 +106,7 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     # Is this test one we should skip? We skip tests of features supported on standard
     # tables but not tiered tables, specififically cursor caching and checkpoint cursors.
     def skip_test(self, test):
-        skip = ["test_bulk_backup",
+        skip = ["bulk_backup",
                 "checkpoint",
                 "test_cursor13_big",
                 "test_cursor13_drops",
