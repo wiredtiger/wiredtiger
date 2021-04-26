@@ -154,8 +154,6 @@ __wt_row_leaf_key_work(
     for (slot_offset = 0;;) {
         if (0) {
 switch_and_jump:
-            /* KEITH: we can lose some code by checking slot_offset == 0 here and returning. */
-
             /* Switching to a forward roll. */
             WT_ASSERT(session, direction == BACKWARD);
             direction = FORWARD;
