@@ -355,14 +355,6 @@ __wt_hs_insert_updates(
         first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
         enable_reverse_modify = true;
 
-        __wt_update_vector_clear(&updates);
-        /*
-         * In the case that the onpage value is an out of order timestamp update, it remains in the
-         * stack. Clean it up.
-         */
-        WT_ASSERT(session, out_of_order_ts_updates.size == 0 || out_of_order_ts_updates.size == 1);
-        __wt_update_vector_clear(&out_of_order_ts_updates);
-
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
          * update or a tombstone.
@@ -627,6 +619,22 @@ __wt_hs_insert_updates(
 
         if (updates.size > 0)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
+
+        __wt_update_vector_clear(&updates);
+        /*
+         * In the case that the onpage value is an out of order timestamp update, it remains in the
+         * stack. Clean it up.
+         */
+        WT_ASSERT(session, out_of_order_ts_updates.size == 0 || out_of_order_ts_updates.size == 1);
+#ifdef HAVE_DIAGNOSTICS
+        if (out_of_order_ts_updates.size == 1) {
+            __wt_update_vector_peek(&out_of_order_ts_updates, &upd);
+            WT_ASSERT(session,
+              upd->txnid == list->onpage_value->txnid &&
+                upd->start_ts == list->onpage_value->start_ts);
+        }
+#endif
+        __wt_update_vector_clear(&out_of_order_ts_updates);
     }
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
