@@ -908,8 +908,8 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * key, 0x03 to mark an on-page key/value pair, otherwise it's a WT_IKEY reference. The bit
      * pattern for on-page cells is:
      *
-     *	29 bits		offset of the key's cell (512MB)
-     *	 2 bits		0x01 flag
+     *  29 bits		offset of the key's cell (512MB)
+     *   2 bits		0x01 flag
      *
      * The on-page cell is our fallback: if a key or value won't fit into our encoding (unlikely,
      * but possible), we fall back to using a cell reference, which obviously has enough room for
@@ -917,11 +917,11 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *
      * The next encoding is for on-page keys:
      *
-     *	19 bits		key length (512KB)
+     *  19 bits		key length (512KB)
      *   6 bits		offset of the key's bytes from the key's cell (32B)
      *   8 bits		key prefix (256B)
-     *	29 bits		offset of the key's cell (512MB)
-     *	 2 bits		0x02 flag
+     *  29 bits		offset of the key's cell (512MB)
+     *   2 bits		0x02 flag
      *
      * But, while that allows us to skip decoding simple key cells, we also want to skip decoding
      * value cells in the case where the value cell is also simple/short. We use bit 0x03 to mark
@@ -933,7 +933,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *   6 bits		offset of the key's bytes from the key's cell (32B)
      *   8 bits		key's prefix (256B, the maximum possible value))
      *  17 bits		offset of the key's cell (128KB)
-     *	 2 bits		0x03 flag
+     *   2 bits		0x03 flag
      *
      * A reason for the complexity here is we need to be able to find the key and value cells from
      * the encoded form: for that reason we store an offset to the key cell plus a second offset to
