@@ -532,6 +532,27 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
 }
 
 /*
+ * __wt_cursor_get_hash --
+ *     Return hash value from the given uri.
+ */
+uint64_t
+__wt_cursor_get_hash(WT_SESSION_IMPL *session, const char **uri, WT_CURSOR *to_dup)
+{
+    uint64_t hash_value;
+
+    if (to_dup != NULL) {
+        WT_ASSERT(session, *uri == NULL);
+        *uri = to_dup->uri;
+        hash_value = to_dup->uri_hash;
+    } else {
+        WT_ASSERT(session, uri != NULL);
+        hash_value = __wt_hash_city64(*uri, strlen(*uri));
+    }
+
+    return (hash_value);
+}
+
+/*
  * __wt_open_cursor --
  *     Internal version of WT_SESSION::open_cursor.
  */
@@ -540,18 +561,27 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
   WT_CURSOR **cursorp)
 {
     WT_DECL_RET;
+    uint64_t hash_value;
+
+    hash_value = 0;
 
     /* We should not open other cursors when there are open history store cursors in the session. */
     WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0);
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {
-        if ((ret = __wt_cursor_cache_get(session, uri, NULL, cfg, cursorp)) == 0)
+        hash_value = __wt_cursor_get_hash(session, &uri, NULL);
+        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, cfg, cursorp)) == 0)
             return (0);
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, cursorp));
+    ret = __session_open_cursor_int(session, uri, owner, NULL, cfg, cursorp);
+
+    if (*cursorp != NULL)
+        (*cursorp)->uri_hash = hash_value;
+
+    return (ret);
 }
 
 /*
@@ -565,10 +595,11 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t hash_value;
     bool dup_backup, statjoin;
 
     cursor = *cursorp = NULL;
-
+    hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, open_cursor, config, cfg);
@@ -579,7 +610,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
             WT_ERR_MSG(session, EINVAL,
               "should be passed either a URI or a cursor to duplicate, but not both");
 
-        if ((ret = __wt_cursor_cache_get(session, uri, to_dup, cfg, &cursor)) == 0)
+        hash_value = __wt_cursor_get_hash(session, &uri, to_dup);
+        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, cfg, &cursor)) == 0)
             goto done;
 
         /*
@@ -600,8 +632,13 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
         }
     }
 
-    WT_ERR(__session_open_cursor_int(
-      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, &cursor));
+    ret = __session_open_cursor_int(
+      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, &cursor);
+
+    if (*cursorp != NULL)
+        (*cursorp)->uri_hash = hash_value;
+
+    WT_ERR(ret);
 
 done:
     if (to_dup != NULL && !statjoin && !dup_backup)
