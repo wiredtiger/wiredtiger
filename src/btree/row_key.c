@@ -269,11 +269,11 @@ switch_and_jump:
             if (slot_offset == 0) {
                 __wt_readlock(session, &btree->ovfl_lock);
                 /*
-                 * KEITH I think there's a race here -- it's a long one, but if the object is
-                 * removed after we check the row-store info and decide to read the cell, but before
-                 * we acquire this read lock, the cell might have been removed when we try to read
-                 * it here. The comment above seems to indicate there was additional work going on
-                 * here at some point.
+                 * There may be a race here: it's a long one, but if the object is removed after we
+                 * check the row-store info and decide to read the cell, but before we acquire this
+                 * read lock, the cell might have been removed when we try to read it here. The
+                 * comment above seems to indicate there was additional work going on here at some
+                 * point.
                  */
                 ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 __wt_readunlock(session, &btree->ovfl_lock);
