@@ -314,11 +314,10 @@ __cursor_row_next(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool kpack_used, prefix_match;
+    bool kpack_used;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
-    prefix_match = false;
     key = &cbt->iface.key;
     *skippedp = 0;
 
@@ -404,13 +403,10 @@ restart_read_insert:
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL) {
-            WT_RET(__wt_prefix_match(
-              session, CUR2BT(cbt)->collator, prefix, &cbt->iface.key, &prefix_match));
-            if (!prefix_match) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
-                return (WT_NOTFOUND);
-            }
+        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
+          !__wt_prefix_match(prefix, &cbt->iface.key)) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
+            return (WT_NOTFOUND);
         }
         WT_RET(__wt_txn_read(
           session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL));

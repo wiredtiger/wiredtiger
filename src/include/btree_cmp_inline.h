@@ -115,22 +115,10 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
  * __wt_prefix_match --
  *     Check if the prefix item is equal to the leading bytes of the tree item.
  */
-static inline int
-__wt_prefix_match(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *user_item,
-  const WT_ITEM *tree_item, bool *equal)
+static inline bool
+__wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 {
-    WT_DECL_RET;
-    int cmp;
-
-    if (collator == NULL) {
-        cmp = __wt_lex_compare(user_item, tree_item, true);
-        *equal = cmp == 0;
-        return (0);
-    }
-
-    ret = collator->compare(collator, &session->iface, user_item, tree_item, &cmp);
-    *equal = cmp == 0;
-    return (ret);
+    return (__wt_lex_compare(prefix, tree_item, true) == 0);
 }
 
 /*
