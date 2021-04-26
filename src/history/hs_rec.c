@@ -175,9 +175,15 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         if (!hs_read_all_flag)
             F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
     }
-    if (ret == 0)
+    if (ret == 0) {
+        F_SET(cursor, WT_CURSTD_HS_READ_ALL);
+
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, &counter));
+
+        if (!hs_read_all_flag)
+            F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
+    }
 
 #ifdef HAVE_DIAGNOSTIC
     /*
