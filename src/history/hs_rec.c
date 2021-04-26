@@ -356,7 +356,12 @@ __wt_hs_insert_updates(
         enable_reverse_modify = true;
 
         __wt_update_vector_clear(&updates);
-        WT_ASSERT(session, out_of_order_ts_updates.size == 0);
+        /*
+         * In the case that the onpage value is an out of order timestamp update, it remains in the
+         * stack. Clean it up.
+         */
+        WT_ASSERT(session, out_of_order_ts_updates.size == 0 || out_of_order_ts_updates.size == 1);
+        __wt_update_vector_clear(&out_of_order_ts_updates);
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
