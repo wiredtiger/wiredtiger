@@ -1121,13 +1121,13 @@ monitor(void *arg)
         cur_updates = (updates - last_updates) / opts->sample_interval;
 
         (void)fprintf(fp,
-          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%" PRIu32
+          "%s,%" PRIu32 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%" PRIu64 ",%c,%c,%c%" PRIu32
           ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32
           ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 ",%" PRIu32 "\n",
           buf, wtperf->totalsec, cur_inserts, cur_modifies, cur_reads, cur_updates,
-          wtperf->ckpt ? 'Y' : 'N', wtperf->scan ? 'Y' : 'N', insert_avg, insert_min, insert_max,
-          modify_avg, modify_min, modify_max, read_avg, read_min, read_max, update_avg, update_min,
-          update_max);
+          wtperf->backup ? 'Y' : 'N', wtperf->ckpt ? 'Y' : 'N', wtperf->scan ? 'Y' : 'N',
+          insert_avg, insert_min, insert_max, modify_avg, modify_min, modify_max, read_avg,
+          read_min, read_max, update_avg, update_min, update_max);
         if (jfp != NULL) {
             buf_size = strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S", &localt);
             testutil_assert(buf_size != 0);

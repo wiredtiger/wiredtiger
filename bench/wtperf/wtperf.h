@@ -84,7 +84,6 @@ typedef struct {
 #define WORKER_READ 4       /* Read */
 #define WORKER_TRUNCATE 5   /* Truncate */
 #define WORKER_UPDATE 6     /* Update */
-#define WORKER_BACKUP 7     /* Backup */
     uint8_t ops[100];       /* Operation schedule */
 } WORKLOAD;
 
