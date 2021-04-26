@@ -1054,6 +1054,12 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
 
     /* Set the prefix search near flag. */
     if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+        /* Prefix search near configuration can only be used for row-store. */
+        if (WT_CURSOR_RECNO(cursor))
+            WT_ERR_MSG(
+              session, EINVAL, "cannot use prefix key search near for column store formats");
+        if (CUR2BT(cursor)->collator != NULL)
+            WT_ERR_MSG(session, EINVAL, "cannot use prefix key search near with a custom collator");
         if (cval.val)
             F_SET(cursor, WT_CURSTD_PREFIX_SEARCH);
         else
