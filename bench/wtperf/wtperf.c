@@ -1217,6 +1217,83 @@ err:
 }
 
 static WT_THREAD_RET
+backup_worker(void *arg)
+{
+    CONFIG_OPTS *opts;
+    WT_DECL_RET;
+    WTPERF *wtperf;
+    WTPERF_THREAD *thread;
+    WT_CONNECTION *conn;
+    WT_CURSOR *backup_cursor;
+    WT_SESSION *session;
+    const char *key;
+    uint32_t i;
+
+    thread = (WTPERF_THREAD *)arg;
+    wtperf = thread->wtperf;
+    opts = wtperf->opts;
+    conn = wtperf->conn;
+    session = NULL;
+
+    if ((ret = conn->open_session(conn, NULL, opts->sess_config, &session)) != 0) {
+        lprintf(wtperf, ret, 0, "open_session failed in backup thread.");
+        goto err;
+    }
+
+    while (!wtperf->stop) {
+        /* Break the sleep up, so we notice interrupts faster. */
+        for (i = 0; i < opts->backup_interval; i++) {
+            sleep(1);
+            if (wtperf->stop)
+                break;
+        }
+        /* If the workers are done, don't bother with a final call. */
+        if (wtperf->stop)
+            break;
+
+        wtperf->backup = true;
+        /* Create the backup directories. */
+        testutil_create_backup_directory(wtperf->home);
+
+        /*
+         * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
+         */
+        while (
+          (ret = session->open_cursor(session, "backup:", NULL, NULL, &backup_cursor)) == EBUSY)
+            __wt_yield();
+        if (ret != 0)
+            goto err;
+
+        while ((ret = backup_cursor->next(backup_cursor)) == 0) {
+            testutil_check(backup_cursor->get_key(backup_cursor, &key));
+            testutil_copy_file(session, key);
+        }
+
+        if (ret != 0) {
+            testutil_check(backup_cursor->close(backup_cursor));
+            goto err;
+        }
+
+        testutil_check(backup_cursor->close(backup_cursor));
+        wtperf->backup = false;
+        ++thread->backup.ops;
+    }
+
+    if (session != NULL && ((ret = session->close(session, NULL)) != 0)) {
+        lprintf(wtperf, ret, 0, "Error closing session in backup worker.");
+        goto err;
+    }
+
+    /* Notify our caller we failed and shut the system down. */
+    if (0) {
+err:
+        wtperf->error = wtperf->stop = true;
+    }
+
+    return (WT_THREAD_RET_VALUE);
+}
+
+static WT_THREAD_RET
 checkpoint_worker(void *arg)
 {
     CONFIG_OPTS *opts;
@@ -1515,7 +1592,7 @@ execute_workload(WTPERF *wtperf)
     WT_CONNECTION *conn;
     WT_SESSION **sessions;
     wt_thread_t idle_table_cycle_thread;
-    uint64_t last_ckpts, last_scans;
+    uint64_t last_backup, last_ckpts, last_scans;
     uint64_t last_inserts, last_reads, last_truncates;
     uint64_t last_modifies, last_updates;
     uint32_t interval, run_ops, run_time;
@@ -1528,7 +1605,7 @@ execute_workload(WTPERF *wtperf)
     wtperf->insert_ops = wtperf->read_ops = wtperf->truncate_ops = 0;
     wtperf->modify_ops = wtperf->update_ops = 0;
 
-    last_ckpts = last_scans = 0;
+    last_backup = last_ckpts = last_scans = 0;
     last_inserts = last_reads = last_truncates = 0;
     last_modifies = last_updates = 0;
     ret = 0;
@@ -1614,12 +1691,13 @@ execute_workload(WTPERF *wtperf)
 
         lprintf(wtperf, 0, 1,
           "%" PRIu64 " inserts, %" PRIu64 " modifies, %" PRIu64 " reads, %" PRIu64
-          " truncates, %" PRIu64 " updates, %" PRIu64 " checkpoints, %" PRIu64 " scans in %" PRIu32
-          " secs (%" PRIu32 " total secs)",
+          " truncates, %" PRIu64 " updates, %" PRIu64 " checkpoints, %" PRIu64 " scans, %" PRIu64
+          " backup in %" PRIu32 " secs (%" PRIu32 " total secs)",
           wtperf->insert_ops - last_inserts, wtperf->modify_ops - last_modifies,
           wtperf->read_ops - last_reads, wtperf->truncate_ops - last_truncates,
           wtperf->update_ops - last_updates, wtperf->ckpt_ops - last_ckpts,
-          wtperf->scan_ops - last_scans, opts->report_interval, wtperf->totalsec);
+          wtperf->scan_ops - last_scans, wtperf->backup_ops - last_backup, opts->report_interval,
+          wtperf->totalsec);
         last_inserts = wtperf->insert_ops;
         last_modifies = wtperf->modify_ops;
         last_reads = wtperf->read_ops;
@@ -1627,6 +1705,7 @@ execute_workload(WTPERF *wtperf)
         last_updates = wtperf->update_ops;
         last_ckpts = wtperf->ckpt_ops;
         last_scans = wtperf->scan_ops;
+        last_backup = wtperf->backup_ops;
     }
 
 /* Notify the worker threads they are done. */
@@ -2066,6 +2145,12 @@ start_run(WTPERF *wtperf)
             wtperf->scanthreads = dcalloc(1, sizeof(WTPERF_THREAD));
             start_threads(wtperf, NULL, wtperf->scanthreads, 1, scan_worker);
         }
+        /* Start the backup thread. */
+        if (opts->backup_interval != 0) {
+            lprintf(wtperf, 0, 1, "Starting 1 backup thread");
+            wtperf->backupthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+            start_threads(wtperf, NULL, wtperf->backupthreads, 1, backup_worker);
+        }
         if (opts->pre_load_data)
             pre_load_data(wtperf);
 
@@ -2081,6 +2166,7 @@ start_run(WTPERF *wtperf)
         wtperf->update_ops = sum_update_ops(wtperf);
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
+        wtperf->backup_ops = sum_backup_ops(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
         run_time = opts->run_time == 0 ? 1 : opts->run_time;
