@@ -175,15 +175,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         if (!hs_read_all_flag)
             F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
     }
-    if (ret == 0) {
-        F_SET(cursor, WT_CURSTD_HS_READ_ALL);
-
+    if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, &counter));
-
-        if (!hs_read_all_flag)
-            F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
-    }
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -674,7 +668,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     wt_timestamp_t hs_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    bool hs_read_committed;
+    bool hs_read_all_flag, hs_read_committed;
 
     /*
      * If we will delete all the updates of the key from the history store, we should not reinsert
@@ -682,12 +676,18 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      */
     WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
+    hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     if (!hs_read_committed)
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
+    
+    if (!hs_read_all_flag)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
+
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND) {
         ret = 0;
