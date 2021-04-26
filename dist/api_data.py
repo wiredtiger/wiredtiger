@@ -1472,7 +1472,8 @@ methods = {
         the key range defined by the prefix. This is relevant when the table
         contains a large number of records which potentially aren't visible to
         the caller of search near, as such a large number of records could be skipped.
-        The prefix_search configuration provides a fast exit in this scenario.''', type='boolean'),
+        The prefix_search configuration provides a fast exit in this scenario.''', type='boolean',
+        undoc=True),
     Config('raw', 'false', r'''
         ignore the encodings for the key and value, manage data as if
         the formats were \c "u".  See @ref cursor_raw for details''',

@@ -123,7 +123,7 @@ __wt_prefix_match(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM
     int cmp;
 
     if (collator == NULL) {
-        cmp = __wt_lex_compare(user_item, tree_item, false);
+        cmp = __wt_lex_compare(user_item, tree_item, true);
         *equal = cmp == 0;
         return (0);
     }
