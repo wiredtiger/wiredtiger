@@ -538,9 +538,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_RET;
     WT_ROW *rip;
     WT_UPDATE *tombstone, *upd;
-    uint8_t smallest_prefix;
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
+    uint8_t smallest_prefix;
     size_t size, total_size;
 
     btree = S2BT(session);
