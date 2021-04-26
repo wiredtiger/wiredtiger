@@ -332,7 +332,13 @@ prefix_continue:
          */
         slot = WT_ROW_SLOT(page, rip);
         if (slot > page->prefix_start && slot <= page->prefix_stop) {
-            /* The row-store key can change underfoot; explicitly take a copy. */
+            /*
+             * Get the root key's information (the row-store key can change underfoot; explicitly
+             * take a copy). Ignore the root key's size and prefix information because it must be
+             * large enough (else the current key couldn't have been prefix-compressed based on its
+             * value), and it can't have a prefix-compression value, it's a root key which is never
+             * prefix-compressed.
+             */
             copy = WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]);
 
             __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
