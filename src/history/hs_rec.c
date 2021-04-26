@@ -684,7 +684,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
-    
+
     if (!hs_read_all_flag)
         F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
