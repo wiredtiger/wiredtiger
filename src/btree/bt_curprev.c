@@ -453,11 +453,10 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool kpack_used, prefix_match;
+    bool kpack_used;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
-    prefix_match = false;
     key = &cbt->iface.key;
     *skippedp = 0;
 
