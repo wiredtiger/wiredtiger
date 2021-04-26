@@ -1089,8 +1089,11 @@ __wt_row_leaf_value_set(WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
 
     if (WT_K_DECODE_KEY_CELL_OFFSET(v) > WT_KV_MAX_KEY_CELL_OFFSET) /* Key cell offset */
         return;
-    /* Not checking the prefix size, the field sizes are the same in both encodings. */
-    /* Not checking the key offset, the field sizes are the same in both encodings. */
+    /*
+     * Not checking the prefix size, the field sizes are the same in both encodings.
+     *
+     * Not checking the key offset, the field sizes are the same in both encodings.
+     */
     if (WT_K_DECODE_KEY_LEN(v) > WT_KV_MAX_KEY_LEN) /* Key len */
         return;
     value_offset = (uintptr_t)WT_PTRDIFF(unpack->cell, unpack->data);
