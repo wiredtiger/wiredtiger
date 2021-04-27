@@ -617,6 +617,7 @@ __wt_hs_insert_updates(
             }
         }
 
+        /* If we squash the onpage value, there may be one or more updates left in the stack. */
         if (updates.size > 0)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
 
