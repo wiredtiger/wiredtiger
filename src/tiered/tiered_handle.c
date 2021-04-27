@@ -587,13 +587,12 @@ __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
     while (cursor->next(cursor) == 0) {
         cursor->get_key(cursor, &key);
         cursor->get_value(cursor, &value);
-        if (!WT_PREFIX_MATCH(key, object))
-            continue;
         /*
-         * NOTE: We need to now check the string for an exact match to our table so that we don't
-         * match on a superset. Here we do anything we need to do to open or access each shared
-         * object. We know we have a match for the object we're looking for.
+         * NOTE: Here we do anything we need to do to open or access each shared object.
          */
+	if (!WT_STRING_MATCH(key, object, strlen(object)))
+            continue;
+        __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: metadata for %s: %s", object, value);
     }
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
