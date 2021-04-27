@@ -318,13 +318,12 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 {
     WT_DECL_RET;
     WT_TIERED *tiered;
-    bool need_local, need_object, need_tree, tracking;
+    bool need_object, need_tree, tracking;
 
     tiered = (WT_TIERED *)session->dhandle;
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_SWITCH: called %s %s", session->dhandle->name, config);
 
-    need_local = true;
     need_object = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier != NULL;
     need_tree = need_object && tiered->tiers[WT_TIERED_INDEX_SHARED].tier == NULL;
     /*
@@ -365,8 +364,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     if (need_tree)
         WT_ERR(__tiered_create_tier_tree(session, tiered));
 
-    if (need_local)
-        WT_ERR(__tiered_create_local(session, tiered));
+    /* We always need to create a local object. */
+    WT_ERR(__tiered_create_local(session, tiered));
 
     /*
      * Note that removal of overlapping local objects is not in the purview of this function. Some
