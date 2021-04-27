@@ -1,4 +1,3 @@
-
 #!/usr/bin/env python
 #
 # Public Domain 2014-present MongoDB, Inc.
@@ -63,29 +62,29 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor.set_value(key)
         self.assertEqual(cursor.insert(), 0)
 
-    @unittest.skip("Fin")
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
         session2 = self.conn.open_session()
         cursor3 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        # Insert an update without timestamp
+
+        # Basic character array.
         l = "abcdefghijklmnopqrstuvwxyz"
+
+        # Start our older reader.
         session2.begin_transaction()
 
         key_count = 26*26*26
-
-        # Insert keys aaa -> zzz
+        # Insert keys aaa -> zzz.
         self.session.begin_transaction()
         for i in range (0, 26):
             for j in range (0, 26):
                 for k in range (0, 26):
                     cursor[l[i] + l[j] + l[k]] = l[i] + l[j] + l[k]
-
         self.session.commit_transaction()
 
-        # Evict the whole range probably
+        # Evict the whole range.
         for i in range (0, 26):
             for j in range(0, 26):
                 cursor3.set_key(l[i] + l[j] + 'a')
@@ -111,9 +110,9 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2)
         skip_count = prefix_skip_count
 
-        # The prefix code will have come into play at least once as we walked to "aba". The prev
+        # The prefix code will have come into play at once as we walked to "aba". The prev
         # traversal will go off the end of the file and as such we don't expect it to increment
-        # this statistic.
+        # this statistic again.
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 1)
 
         # Search for a key not at the start.
@@ -128,16 +127,27 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # Here we should've hit the prefix fast path code twice. Plus the time we already did.
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 2+1)
 
-        # TODO: Test cacheable cursor issues
+        cursor2.close()
+        cursor2 = session2.open_cursor(uri)
+        cursor2.set_key('bb')
+        cursor2.search_near()
+        # Assert that we've incremented the stat key_count times, as we closed the cursor and
+        # reopened it.
+        #
+        # This validates cursor caching logic, as if we don't clear the flag correctly this will
+        # fail.
+        #
+        # It should be closer to key_count * 2 but this an approximation.
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
+        self.assertGreaterEqual(prefix_skip_count - skip_count, key_count)
 
-    @unittest.skip("skip")
+    # This test aims to simulate a unique index insertion.
     def test_unique_index_case(self):
         uri = 'table:test_unique_index_case'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
         session2 = self.conn.open_session()
         cursor3 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        # Insert an update without timestamp
         l = "abcdefghijklmnopqrstuvwxyz"
 
         # A unique index has the following insertion method:
@@ -158,7 +168,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cc_id = 0
         keys = []
 
-        # Insert keys aa,1 -> zz,26
+        # Insert keys aa,1 -> zz,N
         for i in range (0, 26):
             for j in range (0, 26):
                 # Skip inserting 'c'.
@@ -185,7 +195,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
 
         skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
-        # This should be equal to roughly key_count * 2 as we're going to traverse the whole
+        # This should be equal to roughly key_count * 2 as we're going to traverse most of the
         # range forward, and then the whole range backwards.
         self.assertGreater(skip_count, key_count * 2)
 
@@ -194,15 +204,13 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 2)
 
-        # Insert the key 'cc,13'
+        # This still isn't visible to our older reader and as such we expect this statistic to
+        # increment twice.
         self.unique_insert(cursor2, 'cc', cc_id, keys)
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 4)
-        # What if someone inserts a key behind us
-        # Scenarios with prepared keys?
 
     # In order for prefix key fast pathing to work we rely on some guarantees provided by row
     # search. Test some of the guarantees.
-    @unittest.skip("don")
     def test_row_search(self):
         uri = 'table:test_row_search'
         self.session.create(uri, 'key_format=u,value_format=u')
@@ -224,7 +232,8 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor['cc'] = 'cc'
         cursor['ccc'] = 'ccc'
         self.session.commit_transaction()
-        # Search_near for 'c' and assert we skip 3 entries.
+        # Search_near for 'c' and assert we skip 3 entries. Internally the row search is landing on
+        # 'c'.
         cursor2 = session2.open_cursor(uri)
         cursor2.set_key('c')
         cursor2.search_near()
@@ -236,7 +245,6 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # Perform an insertion and removal of a key next to another key, then search for the
         # removed key.
         self.session.begin_transaction()
-        self.insert_unique('dd', )
         cursor.set_key('dd')
         cursor.set_value('dd')
         cursor.insert()
@@ -316,7 +324,6 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertEqual(prefix_skip_count - skip_count, 2)
         skip_count = prefix_skip_count
 
-        self.session.breakpoint()
         cursor4.reconfigure("prefix_key=false")
         cursor4.set_key('c')
         cursor4.search_near()

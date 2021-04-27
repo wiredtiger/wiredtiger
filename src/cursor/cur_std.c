@@ -848,7 +848,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
+            F_CLR(cursor,
+              WT_CURSTD_APPEND | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
