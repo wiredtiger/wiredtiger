@@ -100,8 +100,8 @@ typedef struct {
     WT_FILE_SYSTEM *wt_fs;
 
     char *auth_token; /* Identifier for key management system */
-    char *cache_dir;  /* Directory for pre-flushed objects and cached objects */
     char *bucket_dir; /* Directory that stands in for cloud storage bucket */
+    char *cache_dir;  /* Directory for pre-flushed objects and cached objects */
     char *fs_prefix;  /* File system prefix, allowing for a "directory" within a bucket */
 } LOCAL_FILE_SYSTEM;
 
@@ -599,8 +599,8 @@ err:
 static int
 local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flush)
 {
-    WT_FILE_SYSTEM *wt_fs;
     WT_FILE_HANDLE *dest, *src;
+    WT_FILE_SYSTEM *wt_fs;
     int ret, t_ret;
     char *object_name;
     char buffer[1024 * 64];
