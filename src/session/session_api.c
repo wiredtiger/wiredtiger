@@ -616,8 +616,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     ret = __session_open_cursor_int(
       session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, &cursor);
 
-    if (*cursorp != NULL)
-        (*cursorp)->uri_hash = hash_value;
+    if (cursor != NULL)
+        cursor->uri_hash = hash_value;
 
     WT_ERR(ret);
 
