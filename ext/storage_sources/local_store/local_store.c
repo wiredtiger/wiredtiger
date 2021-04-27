@@ -660,6 +660,10 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
             goto err;
         }
     }
+    if ((ret = dest->fh_sync(dest, session)) != 0) {
+        ret = local_err(local, session, ret, "%s: cannot sync", dest_path);
+        goto err;
+    }
     local->object_flushes++;
 
 err:
