@@ -1269,7 +1269,7 @@ backup_worker(void *arg)
             testutil_copy_file(session, key);
         }
 
-        if (ret != 0) {
+        if (ret != WT_NOTFOUND) {
             testutil_check(backup_cursor->close(backup_cursor));
             goto err;
         }
@@ -1909,6 +1909,7 @@ wtperf_copy(const WTPERF *src, WTPERF **retp)
             dest->uris[i] = dstrdup(src->uris[i]);
     }
 
+    dest->backupthreads = NULL;
     dest->ckptthreads = NULL;
     dest->scanthreads = NULL;
     dest->popthreads = NULL;
@@ -1952,6 +1953,7 @@ wtperf_free(WTPERF *wtperf)
         free(wtperf->uris);
     }
 
+    free(wtperf->backupthreads);
     free(wtperf->ckptthreads);
     free(wtperf->scanthreads);
     free(wtperf->popthreads);
@@ -2131,6 +2133,12 @@ start_run(WTPERF *wtperf)
         /* Didn't create, set insert count. */
         if (opts->create == 0 && opts->random_range == 0 && find_table_count(wtperf) != 0)
             goto err;
+        /* Start the backup thread. */
+        if (opts->backup_interval != 0) {
+            lprintf(wtperf, 0, 1, "Starting 1 backup thread");
+            wtperf->backupthreads = dcalloc(1, sizeof(WTPERF_THREAD));
+            start_threads(wtperf, NULL, wtperf->backupthreads, 1, backup_worker);
+        }
         /* Start the checkpoint thread. */
         if (opts->checkpoint_threads != 0) {
             lprintf(
@@ -2144,12 +2152,6 @@ start_run(WTPERF *wtperf)
             lprintf(wtperf, 0, 1, "Starting 1 scan thread");
             wtperf->scanthreads = dcalloc(1, sizeof(WTPERF_THREAD));
             start_threads(wtperf, NULL, wtperf->scanthreads, 1, scan_worker);
-        }
-        /* Start the backup thread. */
-        if (opts->backup_interval != 0) {
-            lprintf(wtperf, 0, 1, "Starting 1 backup thread");
-            wtperf->backupthreads = dcalloc(1, sizeof(WTPERF_THREAD));
-            start_threads(wtperf, NULL, wtperf->backupthreads, 1, backup_worker);
         }
         if (opts->pre_load_data)
             pre_load_data(wtperf);
@@ -2189,6 +2191,7 @@ start_run(WTPERF *wtperf)
           "Executed %" PRIu64 " update operations (%" PRIu64 "%%) %" PRIu64 " ops/sec",
           wtperf->update_ops, (wtperf->update_ops * 100) / total_ops,
           wtperf->update_ops / run_time);
+        lprintf(wtperf, 0, 1, "Executed %" PRIu64 " backup operations", wtperf->backup_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " checkpoint operations", wtperf->ckpt_ops);
         lprintf(wtperf, 0, 1, "Executed %" PRIu64 " scan operations", wtperf->scan_ops);
 
@@ -2204,6 +2207,7 @@ err:
     /* Notify the worker threads they are done. */
     wtperf->stop = true;
 
+    stop_threads(1, wtperf->backupthreads);
     stop_threads(1, wtperf->ckptthreads);
     stop_threads(1, wtperf->scanthreads);
 
