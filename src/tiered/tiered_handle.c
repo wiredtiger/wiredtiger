@@ -590,9 +590,10 @@ __wt_tiered_tree_open(WT_SESSION_IMPL *session, const char *cfg[])
         /*
          * NOTE: Here we do anything we need to do to open or access each shared object.
          */
-	if (!WT_STRING_MATCH(key, object, strlen(object)))
+        if (!WT_STRING_MATCH(key, object, strlen(object)))
             continue;
-        __wt_verbose(session, WT_VERB_TIERED, "TIERED_TREE_OPEN: metadata for %s: %s", object, value);
+        __wt_verbose(
+          session, WT_VERB_TIERED, "TIERED_TREE_OPEN: metadata for %s: %s", object, value);
     }
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
