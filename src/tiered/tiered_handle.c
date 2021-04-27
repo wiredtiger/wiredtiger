@@ -550,10 +550,8 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          */
         (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 #endif
-        if (tiered->tiers[i].name != NULL) {
+        if (tiered->tiers[i].name != NULL)
             __wt_free(session, tiered->tiers[i].name);
-            continue;
-        }
     }
 
     return (0);
