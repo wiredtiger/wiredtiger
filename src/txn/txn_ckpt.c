@@ -1954,8 +1954,8 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
      * between the versions of data.
      */
     WT_ASSERT(session,
-      FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT | WT_SESSION_LOCKED_SCHEMA) &&
-        !final);
+       ((FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT) ||
+         FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) && !final) || final);
     /*
      * Turn on metadata tracking if:
      * - The session is not already doing metadata tracking.
