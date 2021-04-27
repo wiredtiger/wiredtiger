@@ -626,7 +626,7 @@ __wt_hs_insert_updates(
          * In the case that the onpage value is an out of order timestamp update, it remains in the
          * stack. Clean it up.
          */
-        WT_ASSERT(session, out_of_order_ts_updates.size == 0 || out_of_order_ts_updates.size == 1);
+        WT_ASSERT(session, out_of_order_ts_updates.size <= 1);
 #ifdef HAVE_DIAGNOSTICS
         if (out_of_order_ts_updates.size == 1) {
             __wt_update_vector_peek(&out_of_order_ts_updates, &upd);
