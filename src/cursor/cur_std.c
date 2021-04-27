@@ -757,12 +757,29 @@ err:
 }
 
 /*
+ * __wt_cursor_get_hash --
+ *     Set hash value from the given uri.
+ */
+void
+__wt_cursor_get_hash(
+  WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value)
+{
+    if (to_dup != NULL) {
+        WT_ASSERT(session, uri == NULL);
+        *hash_value = to_dup->uri_hash;
+    } else {
+        WT_ASSERT(session, uri != NULL);
+        *hash_value = __wt_hash_city64(uri, strlen(uri));
+    }
+}
+
+/*
  * __wt_cursor_cache_get --
  *     Open a matching cursor from the cache.
  */
 int
 __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
-  const char *cfg[], WT_CURSOR **cursorp)
+  WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
@@ -818,6 +835,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
             return (WT_NOTFOUND);
     }
 
+    if (to_dup != NULL)
+        uri = to_dup->uri;
     /*
      * Walk through all cursors, if there is a cached cursor that matches uri and configuration, use
      * it.
