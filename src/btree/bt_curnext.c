@@ -634,11 +634,11 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_next --
+ * __wt_btcur_next_prefix --
  *     Move to the next record in the tree.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
+__wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -705,6 +705,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
                 break;
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_next(cbt, newpage, restart, &skipped, prefix);
+                total_skipped += skipped;
                 /* Special return case for prefix search near. */
                 if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
                     return (WT_NOTFOUND);
@@ -787,4 +788,14 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
     return (ret);
+}
+
+/*
+ * __wt_btcur_next --
+ *     Move to the next record in the tree.
+ */
+int
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
+{
+    return (__wt_btcur_next_prefix(cbt, truncating, NULL));
 }

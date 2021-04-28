@@ -690,7 +690,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * here because at low isolation levels, new records could appear as we are stepping through
          * the tree.
          */
-        while ((ret = __wt_btcur_next(cbt, false, &state.key)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_next_prefix(cbt, false, &state.key)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -703,7 +703,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev(cbt, false, &state.key)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev_prefix(cbt, false, &state.key)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -1651,7 +1651,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true, NULL));
+        WT_ERR(__wt_btcur_next(start, true));
 
         start->compare = 0; /* Exact match */
     }
@@ -1710,7 +1710,7 @@ retry:
         if (stop != NULL && __cursor_equals(start, stop))
             return (0);
 
-        WT_ERR(__wt_btcur_next(start, true, NULL));
+        WT_ERR(__wt_btcur_next(start, true));
 
         start->compare = 0; /* Exact match */
     }

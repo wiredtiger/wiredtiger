@@ -90,7 +90,7 @@ __curfile_next(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, next, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    WT_ERR(__wt_btcur_next(cbt, false, NULL));
+    WT_ERR(__wt_btcur_next(cbt, false));
 
     /* Next maintains a position, key and value. */
     WT_ASSERT(session,
@@ -143,7 +143,7 @@ __curfile_prev(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, prev, CUR2BT(cbt));
     WT_ERR(__cursor_copy_release(cursor));
 
-    WT_ERR(__wt_btcur_prev(cbt, false, NULL));
+    WT_ERR(__wt_btcur_prev(cbt, false));
 
     /* Prev maintains a position, key and value. */
     WT_ASSERT(session,
