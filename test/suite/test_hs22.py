@@ -37,13 +37,11 @@ def timestamp_str(t):
 # test_hs22.py
 # Test we don't crash when the out of order timestamp update is followed by a tombstone.
 class test_hs22(wttest.WiredTigerTestCase):
-    # Configure handle sweeping to occur within a specific amount of time.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     def test_onpage_out_of_order_timestamp_update(self):
         uri = 'table:test_hs22'
-        # Set a very small maximum leaf value to trigger writing overflow values
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
@@ -83,7 +81,6 @@ class test_hs22(wttest.WiredTigerTestCase):
 
     def test_out_of_order_timestamp_update_newer_than_tombstone(self):
         uri = 'table:test_hs22'
-        # Set a very small maximum leaf value to trigger writing overflow values
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
