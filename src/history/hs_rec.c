@@ -636,7 +636,7 @@ __wt_hs_insert_updates(
          * older than it is a tombstone, it remains in the stack. Clean it up.
          */
         WT_ASSERT(session, out_of_order_ts_updates.size <= 1);
-#ifdef HAVE_DIAGNOSTICS
+#ifdef HAVE_DIAGNOSTIC
         if (out_of_order_ts_updates.size == 1) {
             __wt_update_vector_peek(&out_of_order_ts_updates, &upd);
             WT_ASSERT(session,
