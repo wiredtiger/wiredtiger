@@ -441,7 +441,8 @@ restart_read:
 
 /*
  * __cursor_row_prev --
- *     Move to the previous row-store item.
+ *     Move to the previous row-store item. Taking an optional prefix item for a special case of
+ *     search near.
  */
 static inline int
 __cursor_row_prev(
@@ -667,7 +668,10 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
-                /* Special return case for prefix search near. */
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
+                 * us, this way we don't leave the cursor positioned after returning WT_NOTFOUND.
+                 */
                 if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
                     return (WT_NOTFOUND);
                 break;

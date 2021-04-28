@@ -635,7 +635,8 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 
 /*
  * __wt_btcur_next_prefix --
- *     Move to the next record in the tree.
+ *     Move to the next record in the tree. Taking an optional prefix item for a special case of
+ *     search near.
  */
 int
 __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
@@ -706,7 +707,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_next(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
-                /* Special return case for prefix search near. */
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
+                 * positioned when traversing keys for prefix search near.
+                 */
                 if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
                     return (WT_NOTFOUND);
                 break;
