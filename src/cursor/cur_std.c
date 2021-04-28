@@ -758,7 +758,7 @@ err:
 
 /*
  * __wt_cursor_get_hash --
- *     Set hash value from the given uri.
+ *     Get hash value from the given uri.
  */
 void
 __wt_cursor_get_hash(

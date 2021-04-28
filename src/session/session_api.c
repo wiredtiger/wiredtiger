@@ -429,7 +429,7 @@ err:
  */
 static int
 __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
-  WT_CURSOR *other, const char *cfg[], WT_CURSOR **cursorp)
+  WT_CURSOR *other, const char *cfg[], uint64_t hash_value, WT_CURSOR **cursorp)
 {
     WT_COLGROUP *colgroup;
     WT_DATA_SOURCE *dsrc;
@@ -528,6 +528,9 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         *cursorp = NULL;
     }
 
+    if (*cursorp != NULL)
+        (*cursorp)->uri_hash = hash_value;
+
     return (ret);
 }
 
@@ -555,12 +558,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    ret = __session_open_cursor_int(session, uri, owner, NULL, cfg, cursorp);
-
-    if (*cursorp != NULL)
-        (*cursorp)->uri_hash = hash_value;
-
-    return (ret);
+    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
 }
 
 /*
@@ -613,13 +611,9 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
 
     if (config != NULL && (WT_PREFIX_MATCH(uri, "backup:") || to_dup != NULL))
         __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", config);
-    ret = __session_open_cursor_int(
-      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, &cursor);
 
-    if (cursor != NULL)
-        cursor->uri_hash = hash_value;
-
-    WT_ERR(ret);
+    WT_ERR(__session_open_cursor_int(
+      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, hash_value, &cursor));
 
 done:
     if (to_dup != NULL && !statjoin && !dup_backup)
