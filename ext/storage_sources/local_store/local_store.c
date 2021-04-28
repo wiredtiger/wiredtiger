@@ -358,7 +358,7 @@ local_writeable(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, boo
          * not an error.
          */
         ret = 0;
-    } else if (ret != 0)
+    } else
         ret = local_err(local, session, errno, "%s: stat", name);
 
     return (ret);
