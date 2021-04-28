@@ -35,13 +35,13 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs22.py
-# Test we don't crash when the onpage value is an out of order timestamp update.
+# Test we don't crash when the out of order timestamp update is followed by a tombstone.
 class test_hs22(wttest.WiredTigerTestCase):
     # Configure handle sweeping to occur within a specific amount of time.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
-    def test_onpage_out_of_order_timestamp(self):
+    def test_onpage_out_of_order_timestamp_update(self):
         uri = 'table:test_hs22'
         # Set a very small maximum leaf value to trigger writing overflow values
         self.session.create(uri, 'key_format=S,value_format=S')
@@ -63,11 +63,55 @@ class test_hs22(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Do an out of order update
+        # Do an out of order timestamp update
         self.session.begin_transaction()
         cursor[str(0)] = value2
-        cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Insert another key
+        self.session.begin_transaction()
+        cursor[str(1)] = value1
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
+
+        # Update the key
+        self.session.begin_transaction()
+        cursor[str(1)] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        # Do a checkpoint to trigger history store reconciliation
+        self.session.checkpoint()
+
+    def test_out_of_order_timestamp_update_newer_than_tombstone(self):
+        uri = 'table:test_hs22'
+        # Set a very small maximum leaf value to trigger writing overflow values
+        self.session.create(uri, 'key_format=S,value_format=S')
+        cursor = self.session.open_cursor(uri)
+        self.conn.set_timestamp(
+            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+
+        value1 = 'a'
+        value2 = 'b'
+
+        # Insert a value
+        self.session.begin_transaction()
+        cursor[str(0)] = value1
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+
+        # Remove the value
+        self.session.begin_transaction()
+        cursor.set_key(str(0))
+        self.assertEqual(cursor.remove(), 0)
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
+
+        # Do an out of order timestamp update
+        self.session.begin_transaction()
+        cursor[str(0)] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
+
+        # Add another update
+        self.session.begin_transaction()
+        cursor[str(0)] = value1
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
         # Insert another key
         self.session.begin_transaction()
