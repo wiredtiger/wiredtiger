@@ -9,6 +9,57 @@
 #include "wt_internal.h"
 
 /*
+ * __tiered_config_bstorage --
+ *     Return a bucket storage handle based on the configuration.
+ */
+static int
+__tiered_config_bstorage(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
+{
+    WT_BUCKET_STORAGE *bstorage;
+    WT_CONFIG_ITEM bucket, cval;
+    WT_DECL_RET;
+    bool local_free;
+
+    /*
+     * We do not use __wt_config_gets_none for name because "none" and the empty string have
+     * different meanings. The empty string means inherit the system tiered storage setting and
+     * "none" means this table is not using tiered storage.
+     */
+    *bstoragep = NULL;
+    local_free = false;
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
+    if (cval.len == 0)
+        *bstoragep = S2C(session)->bstorage;
+    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
+        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
+        /* Look up the bucket in the connection's list. */
+        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
+        local_free = true;
+        WT_ASSERT(session, *bstoragep != NULL);
+    }
+    bstorage = *bstoragep;
+    if (bstorage != NULL) {
+        /*
+         * If we get here then we have a valid bucket storage entry. Now see if the config overrides
+         * any of the other settings.
+         */
+        if (bstorage != S2C(session)->bstorage)
+            WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
+        WT_STAT_DATA_SET(session, tiered_object_size, bstorage->object_size);
+        WT_STAT_DATA_SET(session, tiered_retention, bstorage->retain_secs);
+    }
+    return (0);
+err:
+    /* If the bucket storage was set up with copies of the strings, free them here. */
+    if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
+        __wt_free(session, bstorage->auth_token);
+        __wt_free(session, bstorage->bucket);
+        __wt_free(session, bstorage);
+    }
+    return (ret);
+}
+
+/*
  * __tiered_dhandle_setup --
  *     Given a tiered index and name, set up the dhandle information.
  */
@@ -78,13 +129,11 @@ static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
 
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
-    conn = S2C(session);
     config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
@@ -96,8 +145,9 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    WT_ASSERT(session, conn->tiered_prefix != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket_prefix=%s)", conn->tiered_prefix));
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket=%s,bucket_prefix=%s)",
+      tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
     cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     /*
@@ -128,13 +178,11 @@ err:
 static int
 __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
-    conn = S2C(session);
     config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     /*
@@ -146,8 +194,8 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    WT_ASSERT(session, conn->tiered_prefix != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", conn->tiered_prefix));
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",bucket_prefix=%s", tiered->bstorage->bucket_prefix));
     cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     __wt_verbose(
@@ -169,28 +217,24 @@ err:
 static int
 __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
-    conn = S2C(session);
     config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* Create tier:example for the new tiered tree. */
     WT_ERR(__wt_tiered_name(session, &tiered->iface, 0, WT_TIERED_NAME_SHARED, &name));
     cfg[0] = WT_CONFIG_BASE(session, tier_meta);
-    WT_ASSERT(session, conn->tiered_prefix != NULL);
-    WT_ASSERT(session, conn->bstorage != NULL);
-    WT_ERR(__wt_buf_fmt(
-      session, tmp, ",bucket=%s,bucket_prefix=%s", conn->bstorage->bucket, conn->tiered_prefix));
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    WT_ERR(__wt_buf_fmt(session, tmp, ",bucket=%s,bucket_prefix=%s", tiered->bstorage->bucket,
+      tiered->bstorage->bucket_prefix));
     cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, cfg, NULL, &config));
     /* Set up a tier:example metadata for the first time. */
-    __wt_verbose(
-      session, WT_VERB_TIERED, "TIER_SWITCH: schema create TIERED_TREE: %s : %s", name, config);
+    __wt_verbose(session, WT_VERB_TIERED, "CREATE_TIER_TREE: schema create: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
     WT_ASSERT(session, tiered->tiers[WT_TIERED_INDEX_SHARED].name == NULL);
     tiered->tiers[WT_TIERED_INDEX_SHARED].name = name;
@@ -458,7 +502,14 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     config = NULL;
     metaconf = NULL;
 
+#if 1
+    if (cfg != NULL)
+        for (unused = 0; cfg[unused] != NULL; ++unused)
+            __wt_verbose(
+              session, WT_VERB_TIERED, "TIERED_OPEN: cfg[%d] %s", (int)unused, cfg[unused]);
+#else
     WT_UNUSED(cfg);
+#endif
     /* Collapse into one string for later use in switch. */
     WT_RET(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
@@ -473,6 +524,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: current %d, next %d",
       (int)tiered->current_id, (int)tiered->next_id);
 
+    WT_ERR(__tiered_config_bstorage(session, tiered_cfg, &tiered->bstorage));
     ret = __wt_config_getones(session, config, "tiers", &tierconf);
     WT_ERR_NOTFOUND_OK(ret, true);
 
@@ -480,7 +532,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     if (tiered->current_id != 0)
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
     else {
-        __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: create %s", dhandle->name);
+        __wt_verbose(
+          session, WT_VERB_TIERED, "TIERED_OPEN: create %s config %s", dhandle->name, config);
         WT_ERR(__wt_tiered_switch(session, config));
 
         /* XXX brute force, need to figure out functions to use to do this properly. */

@@ -261,16 +261,16 @@ __tiered_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp, bool rec
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &cval));
     if (cval.len == 0)
         WT_RET_MSG(session, EINVAL, "Must specify a bucket prefix");
-    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->tiered_prefix));
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->tiered_prefix);
-    WT_ASSERT(session, conn->tiered_prefix != NULL);
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &conn->bstorage->bucket_prefix));
+    __wt_verbose(
+      session, WT_VERB_TIERED, "TIERED_CONFIG: prefix %s", conn->bstorage->bucket_prefix);
 
     return (__tiered_manager_config(session, cfg, runp));
 err:
     __wt_free(session, conn->bstorage->auth_token);
     __wt_free(session, conn->bstorage->bucket);
+    __wt_free(session, conn->bstorage->bucket_prefix);
     __wt_free(session, conn->bstorage);
-    __wt_free(session, conn->tiered_prefix);
     return (ret);
 }
 
@@ -383,7 +383,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     conn = S2C(session);
-    __wt_free(session, conn->tiered_prefix);
 
     /* Stop the server thread. */
     FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
