@@ -890,7 +890,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * likely), the key's offset, size and prefix is encoded in the 8B of pointer. Otherwise, the
      * offset is to the key's on-page cell.
      *
-     * This function returns information from set of things about the key (WT_IKEY reference, cell
+     * This function returns information from a set of things about the key (WT_IKEY reference, cell
      * reference and/or key/length/prefix triplet). Our callers know the order we resolve items and
      * what information will be returned. Specifically, the caller gets a key (in the form of a
      * pointer to the bytes, a length and a prefix length in all cases where we can get it without
