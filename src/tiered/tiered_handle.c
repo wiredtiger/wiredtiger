@@ -77,13 +77,11 @@ err:
 static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
-    conn = S2C(session);
     config = name = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
@@ -125,12 +123,10 @@ err:
 static int
 __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name, *orig_name;
 
-    conn = S2C(session);
     config = name = orig_name = NULL;
     orig_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
     /*
