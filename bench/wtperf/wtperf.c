@@ -1220,11 +1220,11 @@ static WT_THREAD_RET
 backup_worker(void *arg)
 {
     CONFIG_OPTS *opts;
-    WT_DECL_RET;
     WTPERF *wtperf;
     WTPERF_THREAD *thread;
     WT_CONNECTION *conn;
     WT_CURSOR *backup_cursor;
+    WT_DECL_RET;
     WT_SESSION *session;
     const char *key;
     uint32_t i;
@@ -1252,7 +1252,7 @@ backup_worker(void *arg)
             break;
 
         wtperf->backup = true;
-        /* Create the backup directories. */
+        /* Cleanup the data from the previous backup and create the backup directories. */
         testutil_create_backup_directory(wtperf->home);
 
         /*
@@ -1691,12 +1691,12 @@ execute_workload(WTPERF *wtperf)
 
         lprintf(wtperf, 0, 1,
           "%" PRIu64 " inserts, %" PRIu64 " modifies, %" PRIu64 " reads, %" PRIu64
-          " truncates, %" PRIu64 " updates, %" PRIu64 " checkpoints, %" PRIu64 " scans, %" PRIu64
-          " backup in %" PRIu32 " secs (%" PRIu32 " total secs)",
+          " truncates, %" PRIu64 " updates, %" PRIu64 " backups, %" PRIu64 " checkpoints, %" PRIu64
+          " scans in %" PRIu32 " secs (%" PRIu32 " total secs)",
           wtperf->insert_ops - last_inserts, wtperf->modify_ops - last_modifies,
           wtperf->read_ops - last_reads, wtperf->truncate_ops - last_truncates,
-          wtperf->update_ops - last_updates, wtperf->ckpt_ops - last_ckpts,
-          wtperf->scan_ops - last_scans, wtperf->backup_ops - last_backup, opts->report_interval,
+          wtperf->update_ops - last_updates, wtperf->backup_ops - last_backup,
+          wtperf->ckpt_ops - last_ckpts, wtperf->scan_ops - last_scans, opts->report_interval,
           wtperf->totalsec);
         last_inserts = wtperf->insert_ops;
         last_modifies = wtperf->modify_ops;
@@ -2166,9 +2166,9 @@ start_run(WTPERF *wtperf)
         wtperf->read_ops = sum_read_ops(wtperf);
         wtperf->truncate_ops = sum_truncate_ops(wtperf);
         wtperf->update_ops = sum_update_ops(wtperf);
+        wtperf->backup_ops = sum_backup_ops(wtperf);
         wtperf->ckpt_ops = sum_ckpt_ops(wtperf);
         wtperf->scan_ops = sum_scan_ops(wtperf);
-        wtperf->backup_ops = sum_backup_ops(wtperf);
         total_ops = wtperf->insert_ops + wtperf->modify_ops + wtperf->read_ops + wtperf->update_ops;
 
         run_time = opts->run_time == 0 ? 1 : opts->run_time;
