@@ -128,13 +128,11 @@ err:
 static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
     config = name = NULL;
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     /* If this ever can be multi-threaded, this would need to be atomic. */
     tiered->current_id = tiered->next_id++;
@@ -142,13 +140,11 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     F_SET(tiered, WT_TIERED_FLAG_UNUSED);
     WT_ERR(
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &name));
+    __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: LOCAL: %s", name);
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
+    __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: obj_config: %s : %s", name, cfg[1]);
     WT_ASSERT(session, tiered->obj_config != NULL);
-    WT_ASSERT(session, tiered->bstorage != NULL);
-    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket=%s,bucket_prefix=%s)",
-      tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
-    cfg[2] = tmp->data;
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     /*
      * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
@@ -167,7 +163,6 @@ err:
         __wt_free(session, name);
     }
     __wt_free(session, config);
-    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
@@ -511,14 +506,15 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     metaconf = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-#if 1
-    if (cfg != NULL)
-        for (unused = 0; cfg[unused] != NULL; ++unused)
+    if (tiered_cfg != NULL)
+        for (unused = 0; tiered_cfg[unused] != NULL; ++unused)
             __wt_verbose(
-              session, WT_VERB_TIERED, "TIERED_OPEN: cfg[%d] %s", (int)unused, cfg[unused]);
-#else
+              session, WT_VERB_TIERED, "TIERED_OPEN: cfg[%d] %s", (int)unused, tiered_cfg[unused]);
+
     WT_UNUSED(cfg);
-#endif
+
+    /* Set up the bstorage from the configuration first. */
+    WT_ERR(__tiered_config_bstorage(session, tiered_cfg, &tiered->bstorage));
     /* Collapse into one string for later use in switch. */
     WT_RET(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
@@ -526,8 +522,8 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->key_format));
     WT_ERR(__wt_config_getones(session, config, "value_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->value_format));
-    WT_ERR(__wt_buf_fmt(
-      session, tmp, ",tiered_storage=(bucket_prefix=%s)", tiered->bstorage->bucket_prefix));
+    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket=%s,bucket_prefix=%s)",
+      tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
     WT_ERR(__wt_strdup(session, tmp->data, &tiered->obj_config));
 
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
@@ -536,7 +532,6 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: current %d, next %d",
       (int)tiered->current_id, (int)tiered->next_id);
 
-    WT_ERR(__tiered_config_bstorage(session, tiered_cfg, &tiered->bstorage));
     ret = __wt_config_getones(session, config, "tiers", &tierconf);
     WT_ERR_NOTFOUND_OK(ret, true);
 
