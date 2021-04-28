@@ -605,7 +605,8 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
     char *object_name;
     char buffer[1024 * 64];
     char dest_path[1024];
-    ssize_t copy_size, file_size, left, pos;
+    wt_off_t file_size;
+    ssize_t copy_size, left, pos;
 
     ret = 0;
     src = dest = NULL;
@@ -649,7 +650,7 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
         ret = local_err(local, session, ret, "%s: cannot get size", flush->src_path);
         goto err;
     }
-    for (pos = 0, left = file_size; left > 0; pos += copy_size, left -= copy_size) {
+    for (pos = 0, left = (ssize_t)file_size; left > 0; pos += copy_size, left -= copy_size) {
         copy_size = left < (ssize_t)sizeof(buffer) ? left : (ssize_t)sizeof(buffer);
         if ((ret = src->fh_read(src, session, pos, (size_t)copy_size, buffer)) != 0) {
             ret = local_err(local, session, ret, "%s: cannot read", flush->src_path);
