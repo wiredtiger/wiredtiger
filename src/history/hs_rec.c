@@ -519,8 +519,17 @@ __wt_hs_insert_updates(
                  */
                 WT_ASSERT(session, prev_upd->start_ts <= prev_upd->durable_ts);
 
-                if (out_of_order_ts_upd != NULL && out_of_order_ts_upd->txnid == prev_upd->txnid &&
-                  out_of_order_ts_upd->start_ts == prev_upd->start_ts) {
+                /*
+                 * Pop from the out of order timestamp updates stack if the previous update or the
+                 * current update is at the head of the stack. We need to check both cases because
+                 * if there is a tombstone older than the out of order timestamp, we would not pop
+                 * it because we skip the tombstone. Pop it when we are inserting it instead.
+                 */
+                if (out_of_order_ts_upd != NULL &&
+                  ((out_of_order_ts_upd->txnid == prev_upd->txnid &&
+                     out_of_order_ts_upd->start_ts == prev_upd->start_ts) ||
+                    (out_of_order_ts_upd->txnid == upd->txnid &&
+                      out_of_order_ts_upd->start_ts == upd->start_ts))) {
                     __wt_update_vector_pop(&out_of_order_ts_updates, &out_of_order_ts_upd);
                 }
 
@@ -623,8 +632,8 @@ __wt_hs_insert_updates(
 
         __wt_update_vector_clear(&updates);
         /*
-         * In the case that the onpage value is an out of order timestamp update, it remains in the
-         * stack. Clean it up.
+         * In the case that the onpage value is an out of order timestamp update and the update
+         * older than it is a tombstone, it remains in the stack. Clean it up.
          */
         WT_ASSERT(session, out_of_order_ts_updates.size <= 1);
 #ifdef HAVE_DIAGNOSTICS
