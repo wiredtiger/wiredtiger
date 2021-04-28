@@ -640,8 +640,7 @@ __wt_hs_insert_updates(
         if (out_of_order_ts_updates.size == 1) {
             __wt_update_vector_peek(&out_of_order_ts_updates, &upd);
             WT_ASSERT(session,
-              upd->txnid == list->onpage_value->txnid &&
-                upd->start_ts == list->onpage_value->start_ts);
+              upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
         }
 #endif
         __wt_update_vector_clear(&out_of_order_ts_updates);
