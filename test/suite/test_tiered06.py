@@ -343,10 +343,45 @@ class test_tiered06(wttest.WiredTigerTestCase):
                            'pre2-deer', 'pre2-bat', 'pre2-badger', 'pre2-baboon', 'pre2-beagle'])
 
         self.create_with_fs(fs4, 'zebra')         # should do nothing in the objects directories
+        self.create_with_fs(fs4, 'yeti')          # should do nothing in the objects directories
         self.check_objects(['pre1-alpaca', 'pre1-beagle', 'pre1-bird', 'pre1-bison', 'pre1-bat',
                             'pre2-crab', 'pre2-bison', 'pre2-bat', 'pre2-badger', 'pre2-baboon'],
                            ['pre1-bear', 'pre1-bird', 'pre1-bison', 'pre1-bat', 'pre1-badger',
                            'pre2-deer', 'pre2-bat', 'pre2-badger', 'pre2-baboon', 'pre2-beagle'])
+
+        # Try remove and rename, should be possible until we flush
+        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle', 'yeti', 'zebra'])
+        fs4.fs_remove(session, 'yeti', 0)
+        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle', 'zebra'])
+        fs4.fs_rename(session, 'zebra', 'okapi', 0)
+        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle', 'okapi'])
+        local.ss_flush(session, None, None, '')
+        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle', 'okapi'])
+        self.check_objects(['pre1-alpaca', 'pre1-beagle', 'pre1-bird', 'pre1-bison', 'pre1-bat',
+                            'pre2-crab', 'pre2-bison', 'pre2-bat', 'pre2-badger', 'pre2-baboon'],
+                           ['pre1-bear', 'pre1-bird', 'pre1-bison', 'pre1-bat', 'pre1-badger',
+                            'pre2-deer', 'pre2-bat', 'pre2-badger', 'pre2-baboon', 'pre2-beagle',
+                            'pre2-okapi'])
+
+        errmsg = '/rename of flushed file not allowed/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: fs4.fs_rename(session, 'okapi', 'zebra', 0), errmsg)
+
+        # XXX
+        # At the moment, removal of flushed files is not allowed - as flushed files are immutable.
+        # We may need to explicitly evict flushed files from cache directory via the API, if so,
+        # the API to do that might be on the local store object, not the file system.
+        errmsg = '/remove of flushed file not allowed/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: fs4.fs_remove(session, 'okapi', 0), errmsg)
+
+        # No change since last time.
+        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle', 'okapi'])
+        self.check_objects(['pre1-alpaca', 'pre1-beagle', 'pre1-bird', 'pre1-bison', 'pre1-bat',
+                            'pre2-crab', 'pre2-bison', 'pre2-bat', 'pre2-badger', 'pre2-baboon'],
+                           ['pre1-bear', 'pre1-bird', 'pre1-bison', 'pre1-bat', 'pre1-badger',
+                            'pre2-deer', 'pre2-bat', 'pre2-badger', 'pre2-baboon', 'pre2-beagle',
+                            'pre2-okapi'])
 
 if __name__ == '__main__':
     wttest.run()

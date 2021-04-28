@@ -1040,7 +1040,7 @@ local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
                 ret = ENOMEM;
             else {
                 free(flush->src_path);
-                flush->src_path = to_path;
+                flush->src_path = copy;
             }
             break;
         }
