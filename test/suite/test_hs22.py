@@ -32,7 +32,9 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs22.py
-# Test we don't crash when the out of order timestamp update is followed by a tombstone.
+# Test we don't crash when the out of order
+# timestamp update is followed by a
+# tombstone.
 class test_hs22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
@@ -47,33 +49,36 @@ class test_hs22(wttest.WiredTigerTestCase):
         value1 = 'a'
         value2 = 'b'
 
-        # Insert a value
+        # Insert a key.
         self.session.begin_transaction()
         cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        # Remove the value
+        # Remove the key.
         self.session.begin_transaction()
         cursor.set_key(str(0))
         self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Do an out of order timestamp update
+        # Do an out of order timestamp
+        # update and write it to the data
+        # store later.
         self.session.begin_transaction()
         cursor[str(0)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
-        # Insert another key
+        # Insert another key.
         self.session.begin_transaction()
         cursor[str(1)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Update the key
+        # Update the key.
         self.session.begin_transaction()
         cursor[str(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
 
-        # Do a checkpoint to trigger history store reconciliation
+        # Do a checkpoint to trigger
+        # history store reconciliation.
         self.session.checkpoint()
 
     def test_out_of_order_timestamp_update_newer_than_tombstone(self):
@@ -86,36 +91,39 @@ class test_hs22(wttest.WiredTigerTestCase):
         value1 = 'a'
         value2 = 'b'
 
-        # Insert a value
+        # Insert a key.
         self.session.begin_transaction()
         cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
 
-        # Remove the value
+        # Remove a key.
         self.session.begin_transaction()
         cursor.set_key(str(0))
         self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Do an out of order timestamp update
+        # Do an out of order timestamp
+        # update and write it to the
+        # history store later.
         self.session.begin_transaction()
         cursor[str(0)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(15))
 
-        # Add another update
+        # Add another update.
         self.session.begin_transaction()
         cursor[str(0)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Insert another key
+        # Insert another key.
         self.session.begin_transaction()
         cursor[str(1)] = value1
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(20))
 
-        # Update the key
+        # Update the key.
         self.session.begin_transaction()
         cursor[str(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
 
-        # Do a checkpoint to trigger history store reconciliation
+        # Do a checkpoint to trigger
+        # history store reconciliation.
         self.session.checkpoint()
