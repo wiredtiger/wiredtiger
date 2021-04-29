@@ -177,6 +177,7 @@ __create_file(
                 }
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
                 filecfg[2] = filemeta;
+                WT_ERR(__wt_msg(session, "old %s", filemeta));
             } else {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
@@ -205,13 +206,18 @@ __create_file(
     }
 
     /*
-     * If creating an ordinary file, append the file ID and current version numbers to the passed-in
-     * configuration and insert the resulting configuration into the metadata.
+     * When creating an ordinary file reconfigure parts of the metadata and insert the resulting
+     * configuration into the metadata.
+     *
+     * Strip out any incremental backup information, an imported file has not been part of a backup.
+     * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Append
+     * the file ID and current version numbers to the passed-in configuration
      */
     if (!is_metadata) {
         if (!import_repair) {
             WT_ERR(__wt_scr_alloc(session, 0, &val));
-            WT_ERR(__wt_buf_fmt(session, val, "id=%" PRIu32 ",version=(major=%d,minor=%d)",
+            WT_ERR(__wt_buf_fmt(session, val,
+              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_backup_info=,checkpoint_lsn=",
               ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
               WT_BTREE_MINOR_VERSION_MAX));
             for (p = filecfg; *p != NULL; ++p)
