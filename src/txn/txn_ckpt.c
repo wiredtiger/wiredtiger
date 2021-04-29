@@ -1949,15 +1949,15 @@ __wt_checkpoint_close(WT_SESSION_IMPL *session, bool final)
         return (__wt_set_return(session, EBUSY));
 
     /*
-     * Checkpoint shouldn't occur when final is set to false, without either checkpoint lock or
-     * schema lock. Potential race condition arises when backup is ongoing, causing inconsistencies
-     * between the versions of data.
+     * Make sure there isn't a potential race between backup copying the metadata and a checkpoint
+     * changing the metadata. Backup holds both the checkpoint and schema locks. Checkpoint should
+     * hold those also except on the final checkpoint during close. Confirm the caller either is the
+     * final checkpoint or holds at least one of the locks.
      */
     WT_ASSERT(session,
       final ||
-        ((FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT) ||
-           FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) &&
-          !final));
+        (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT) ||
+          FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)));
     /*
      * Turn on metadata tracking if:
      * - The session is not already doing metadata tracking.
