@@ -177,7 +177,6 @@ __create_file(
                 }
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
                 filecfg[2] = filemeta;
-                WT_ERR(__wt_msg(session, "old %s", filemeta));
             } else {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
