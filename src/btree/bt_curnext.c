@@ -404,11 +404,11 @@ restart_read_page:
         rip = &page->pg_row[cbt->slot];
         WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
         /*
-         * If the cursor has prefix search configured we can early exit here, given the supplied
-         * prefix doesn't match the key we have.
+         * If the cursor has prefix search configured we can early exit here if the key that we are
+         * visiting is after our prefix.
          */
         if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
-          !__wt_prefix_match(prefix, &cbt->iface.key)) {
+          __wt_prefix_match(prefix, &cbt->iface.key) == -1) {
             /* It is not okay for the user to have a custom collator. */
             WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);

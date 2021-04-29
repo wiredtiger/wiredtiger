@@ -725,6 +725,11 @@ err:
 #endif
 
     if (ret != 0) {
+        /*
+         * It is important that this reset is kept as the cursor state is modified in the above prev
+         * and next loops. Those internally do reset the cursor but not when performing a prefix
+         * search near.
+         */
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
