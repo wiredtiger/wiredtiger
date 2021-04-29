@@ -589,7 +589,7 @@ restart_read_page:
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, bool truncating, WT_ITEM *prefix)
+__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -753,5 +753,5 @@ err:
 int
 __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    return (__wt_btcur_prev_prefix(cbt, truncating, NULL));
+    return (__wt_btcur_prev_prefix(cbt, NULL, truncating));
 }
