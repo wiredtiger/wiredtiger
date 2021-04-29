@@ -64,7 +64,6 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_FILE_SYSTEM *file_system;
     size_t root_addr_size;
     uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
     const char *filename;
@@ -116,8 +115,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     if (!WT_PREFIX_SKIP(filename, "file:"))
         WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
 
-    file_system = (btree->bstorage == NULL) ? session->file_system : btree->bstorage->file_system;
-    WT_WITH_FILE_SYSTEM(session, file_system,
+    WT_WITH_BUCKET_STORAGE(btree->bstorage, session,
       ret = __wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
         F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
     WT_ERR(ret);

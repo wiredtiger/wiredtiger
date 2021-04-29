@@ -2666,7 +2666,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
             WT_ERR(__wt_os_posix(session));
 #endif
     }
-    session->file_system = conn->file_system;
     WT_ERR(__conn_chk_file_system(session, F_ISSET(conn, WT_CONN_READONLY)));
 
     /* Make sure no other thread of control already owns this database. */

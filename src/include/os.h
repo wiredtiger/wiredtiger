@@ -78,15 +78,6 @@
         (t1).tv_nsec < (t2).tv_nsec ? -1 : (t1).tv_nsec == (t2).tv_nsec ? 0 : 1 : \
         1)
 
-/* Call a function with a file system in session->file_system and restore afterwards. */
-#define WT_WITH_FILE_SYSTEM(s, fs, e)                  \
-    do {                                               \
-        WT_FILE_SYSTEM *__saved_fs = (s)->file_system; \
-        (s)->file_system = (fs);                       \
-        e;                                             \
-        (s)->file_system = __saved_fs;                 \
-    } while (0)
-
 /*
  * Macros to ensure a file handle is inserted or removed from both the main and the hashed queue,
  * used by connection-level and in-memory data structures.

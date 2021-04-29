@@ -2070,9 +2070,6 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         TAILQ_INIT(&session_ret->cursor_cache[i]);
     session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
-    /* Initialize the session's file system to the connection's. */
-    session_ret->file_system = conn->file_system;
-
     /* Initialize transaction support: default to snapshot. */
     session_ret->isolation = WT_ISO_SNAPSHOT;
     WT_ERR(__wt_txn_init(session, session_ret));

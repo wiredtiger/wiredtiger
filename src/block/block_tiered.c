@@ -48,6 +48,7 @@ __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_STORAGE_SOURCE *storage_source;
     const char *filename;
 
     /* Bump to a new file ID. */
@@ -57,6 +58,17 @@ __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
     filename = tmp->data;
     WT_ERR(__wt_close(session, &block->fh));
+
+    /*
+     * TODO: tiered: Assert that session->bucket_storage is not NULL. We can't do that while we have
+     * tests that use block_allocation=log without setting up bucket storage.
+     */
+    if (session->bucket_storage != NULL) {
+        storage_source = session->bucket_storage->storage_source;
+        WT_ASSERT(session, storage_source != NULL);
+        WT_ERR(storage_source->ss_flush(storage_source, &session->iface,
+          session->bucket_storage->file_system, block->name, NULL));
+    }
     WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
       WT_FS_OPEN_CREATE | block->file_flags, &block->fh));
     WT_ERR(__wt_desc_write(session, block->fh, block->allocsize));
