@@ -358,7 +358,7 @@ local_writeable(LOCAL_STORAGE *local, WT_SESSION *session, const char *name, boo
          * not an error.
          */
         ret = 0;
-    } else if (ret != 0)
+    } else
         ret = local_err(local, session, errno, "%s: stat", name);
 
     return (ret);
@@ -601,11 +601,12 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
 {
     WT_FILE_HANDLE *dest, *src;
     WT_FILE_SYSTEM *wt_fs;
+    wt_off_t copy_size, file_size, left;
     int ret, t_ret;
     char *object_name;
     char buffer[1024 * 64];
     char dest_path[1024];
-    ssize_t copy_size, file_size, left, pos;
+    ssize_t pos;
 
     ret = 0;
     src = dest = NULL;
@@ -650,7 +651,7 @@ local_flush_one(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FLUSH_ITEM *flu
         goto err;
     }
     for (pos = 0, left = file_size; left > 0; pos += copy_size, left -= copy_size) {
-        copy_size = left < (ssize_t)sizeof(buffer) ? left : (ssize_t)sizeof(buffer);
+        copy_size = left < (wt_off_t)sizeof(buffer) ? left : (wt_off_t)sizeof(buffer);
         if ((ret = src->fh_read(src, session, pos, (size_t)copy_size, buffer)) != 0) {
             ret = local_err(local, session, ret, "%s: cannot read", flush->src_path);
             goto err;
@@ -1039,7 +1040,7 @@ local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
                 ret = ENOMEM;
             else {
                 free(flush->src_path);
-                flush->src_path = to_path;
+                flush->src_path = copy;
             }
             break;
         }
