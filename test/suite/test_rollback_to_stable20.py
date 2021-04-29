@@ -33,25 +33,10 @@ from wtdataset import SimpleDataSet
 from wiredtiger import stat
 from wtscenario import make_scenarios
 from helper import simulate_crash_restart
+from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
     return '%x' % t
-
-# test_rollback_to_stable19.py
-# Shared base class used by rollback to stable tests.
-class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(1, nrows + 1):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            if commit_ts == 0:
-                session.commit_transaction()
-            else:
-                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
 
 # Test that rollback to stable does not open any dhandles after checkpoint and restart.
 class test_rollback_to_stable19(test_rollback_to_stable_base):
