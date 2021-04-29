@@ -121,19 +121,32 @@ void
 key_gen_common(WT_ITEM *key, uint64_t keyno, const char *const suffix)
 {
     char *p;
+    const char *bucket;
+    uint64_t n;
 
     testutil_assert(g.type == ROW);
 
     p = key->mem;
 
     /*
-     * The workload we're trying to mimic with a common prefix is a long path followed by a record
-     * number. Use a leading string of characters. The standard key prefix sorts lexicographically
-     * but will adjust up-and-down by a few bytes as the number increments, causing the common key
-     * prefix to grow and shrink by a few bytes, which is a good thing for testing.
+     * The workload we're trying to mimic with a prefix is a long common prefix followed by a record
+     * number, the tricks are creating a prefix that won't re-order keys, and to change the prefix
+     * with some regularity to test prefix boundaries. Split the key space into power-of-2 buckets:
+     * that results in tiny runs of prefix strings at the beginning of the tree, and increasingly
+     * large common prefixes as the tree grows (with a testing sweet spot in the middle). After the
+     * bucket value, append a string of common bytes. The standard, zero-padded key itself sorts
+     * lexicographically, meaning the common key prefix will grow and shrink by a few bytes as the
+     * number increments, which is a good thing for testing.
      */
     if (g.prefix_len > 0) {
-        memset(p, 'C', g.prefix_len);
+        bucket = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"; /* 2^26 == 67M */
+        for (n = keyno; n > 0; n >>= 1) {
+            if (*bucket == 'z')
+                break;
+            ++bucket;
+        }
+        p[0] = *bucket;
+        memset(p + 1, 'C', g.prefix_len - 1);
         p += g.prefix_len;
     }
 
