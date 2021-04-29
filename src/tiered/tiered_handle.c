@@ -9,57 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __tiered_config_bstorage --
- *     Return a bucket storage handle based on the configuration.
- */
-static int
-__tiered_config_bstorage(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
-{
-    WT_BUCKET_STORAGE *bstorage;
-    WT_CONFIG_ITEM bucket, cval;
-    WT_DECL_RET;
-    bool local_free;
-
-    /*
-     * We do not use __wt_config_gets_none for name because "none" and the empty string have
-     * different meanings. The empty string means inherit the system tiered storage setting and
-     * "none" means this table is not using tiered storage.
-     */
-    *bstoragep = NULL;
-    local_free = false;
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-    if (cval.len == 0)
-        *bstoragep = S2C(session)->bstorage;
-    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
-        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
-        /* Look up the bucket in the connection's list. */
-        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
-        local_free = true;
-        WT_ASSERT(session, *bstoragep != NULL);
-    }
-    bstorage = *bstoragep;
-    if (bstorage != NULL) {
-        /*
-         * If we get here then we have a valid bucket storage entry. Now see if the config overrides
-         * any of the other settings.
-         */
-        if (bstorage != S2C(session)->bstorage)
-            WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
-        WT_STAT_DATA_SET(session, tiered_object_size, bstorage->object_size);
-        WT_STAT_DATA_SET(session, tiered_retention, bstorage->retain_secs);
-    }
-    return (0);
-err:
-    /* If the bucket storage was set up with copies of the strings, free them here. */
-    if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
-        __wt_free(session, bstorage->auth_token);
-        __wt_free(session, bstorage->bucket);
-        __wt_free(session, bstorage);
-    }
-    return (ret);
-}
-
-/*
  * __tiered_dhandle_setup --
  *     Given a tiered index and name, set up the dhandle information.
  */
@@ -514,7 +463,12 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UNUSED(cfg);
 
     /* Set up the bstorage from the configuration first. */
-    WT_ERR(__tiered_config_bstorage(session, tiered_cfg, &tiered->bstorage));
+    WT_RET(__wt_config_gets(session, tiered_cfg, "tiered_storage.name", &cval));
+    if (cval.len == 0)
+        tiered->bstorage = S2C(session)->bstorage;
+    else
+        WT_ERR(__wt_tiered_bucket_config(session, tiered_cfg, &tiered->bstorage));
+    WT_ASSERT(session, tiered->bstorage != NULL);
     /* Collapse into one string for later use in switch. */
     WT_RET(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
@@ -525,6 +479,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket=%s,bucket_prefix=%s)",
       tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
     WT_ERR(__wt_strdup(session, tmp->data, &tiered->obj_config));
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
 
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
     tiered->current_id = (uint64_t)cval.val;
