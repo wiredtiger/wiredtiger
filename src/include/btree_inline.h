@@ -919,7 +919,7 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *
      *  19 bits		key's length (512KB)
      *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix length (256B)
+     *   8 bits		key's prefix length (256B, the maximum possible value)
      *  29 bits		offset of the key's cell (512MB)
      *   2 bits		0x02 flag
      *
@@ -929,9 +929,9 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      *
      *  13 bits		value's length (8KB)
      *   6 bits		offset of the value's bytes from the end of the key's cell (32B)
-     *  12 bits		key's prefix length (4KB)
+     *  12 bits		key's length (4KB)
      *   6 bits		offset of the key's bytes from the key's cell (32B)
-     *   8 bits		key's prefix (256B, the maximum possible value))
+     *   8 bits		key's prefix length (256B, the maximum possible value)
      *  17 bits		offset of the key's cell (128KB)
      *   2 bits		0x03 flag
      *
