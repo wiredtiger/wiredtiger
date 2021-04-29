@@ -1502,13 +1502,13 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          */
         WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL)));
 
-        if (ret == 0 && S2BT(session)->modified) {
+        if (ret == 0 && S2BT(session)->modified)
             perform_rts = true;
-        }
+
+        WT_ERR_NOTFOUND_OK(ret, false);
 
         if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
           !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-            WT_ERR_NOTFOUND_OK(ret, false);
             /* Set this flag to return error instead of panic if file is corrupted. */
             F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
             ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
@@ -1543,8 +1543,6 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
-        WT_ERR_NOTFOUND_OK(ret, false);
-
         /*
          * Truncate history store entries for the non-timestamped table.
          * Exceptions:
@@ -1554,8 +1552,9 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * timestamp to WT_TS_NONE, We need this exception.
          * 2. In-memory database - In this scenario, there is no history store to truncate.
          */
-        if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
-          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+
+        if (S2BT_SAFE(session) != NULL && (!dhandle_allocated || !S2BT(session)->modified) &&
+          max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
 
         if (dhandle_allocated)
