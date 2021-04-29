@@ -38,7 +38,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # Test that rollback to stable does not open any dhandles that don't have unstable updates.
-class test_rollback_to_stable19(test_rollback_to_stable_base):
+class test_rollback_to_stable20(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
     def conn_config(self):
@@ -49,7 +49,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         nrows = 10000
         ntables = 100
         create_params = 'key_format=i,value_format=S'
-        uri = "table:rollback_to_stable19"
+        uri = "table:rollback_to_stable20"
         ds = SimpleDataSet(
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
@@ -61,7 +61,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         valuea = "aaaaa" * 100
 
         for i in range(0, ntables):
-            uri = 'table:rollback_to_stable19_' + str(i)
+            uri = 'table:rollback_to_stable20_' + str(i)
             self.session.create(uri, create_params)
             self.large_updates(uri, valuea, ds, nrows, 0, 10)
 
