@@ -401,6 +401,8 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     WT_CONFIG_ITEM cachedir;
     WT_FILE_SYSTEM *wt_fs;
     int ret;
+    const char *p;
+    char buf[1024];
 
     local = (LOCAL_STORAGE *)storage_source;
 
@@ -417,11 +419,6 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
             ret = local_err(local, session, ret, "customize_file_system: config parsing");
             goto err;
         }
-    }
-    /* Default is "." directory. */
-    if (cachedir.len == 0) {
-        cachedir.str = ".";
-        cachedir.len = 1;
     }
 
     if ((ret = local->wt_api->file_system_get(local->wt_api, session, &wt_fs)) != 0) {
@@ -446,6 +443,21 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     if ((ret = local_get_directory(bucket_name, -1, &fs->bucket_dir)) != 0) {
         ret = local_err(local, session, ret, "%s: bucket directory", bucket_name);
         goto err;
+    }
+
+    /*
+     * The default cache directory is named "cache-<name>", where name is the last component of the
+     * bucket name's path. We'll create it if it doesn't exist.
+     */
+    if (cachedir.len == 0) {
+        if ((p = strrchr(bucket_name, '/')) != NULL)
+            p++;
+        else
+            p = bucket_name;
+        snprintf(buf, sizeof(buf), "cache-%s", p);
+        cachedir.str = buf;
+        cachedir.len = strlen(buf);
+        (void)mkdir(buf, 0777);
     }
     if ((ret = local_get_directory(cachedir.str, (ssize_t)cachedir.len, &fs->cache_dir)) != 0) {
         ret = local_err(local, session, ret, "%*s: cache directory", cachedir.len, cachedir.str);

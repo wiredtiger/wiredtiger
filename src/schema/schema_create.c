@@ -191,17 +191,19 @@ __create_file(
         }
     } else {
         /* Create the file. */
-        WT_ERR(__wt_block_manager_create(session, filename, allocsize));
+        WT_WITH_BUCKET_STORAGE(S2C(session)->bstorage, session,
+                               WT_ERR(__wt_block_manager_create(session, filename, allocsize));
 
-        /*
-         * Track the creation of this file.
-         *
-         * If something down the line fails, we're going to need to roll this back. Specifically do
-         * NOT track the op in the import case since we do not want to wipe a data file just because
-         * we fail to import it.
-         */
-        if (WT_META_TRACKING(session))
-            WT_ERR(__wt_meta_track_fileop(session, NULL, uri));
+                               /*
+                                * Track the creation of this file.
+                                *
+                                * If something down the line fails, we're going to need to roll this
+                                * back. Specifically do NOT track the op in the import case since we
+                                * do not want to wipe a data file just because we fail to import it.
+                                */
+                               // TODO: tiered: save current file system in meta tracking??
+                               if (WT_META_TRACKING(session))
+                                 WT_ERR(__wt_meta_track_fileop(session, NULL, uri)););
     }
 
     /*

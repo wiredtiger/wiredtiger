@@ -53,6 +53,16 @@ struct __wt_bucket_storage {
     uint32_t flags;
 };
 
+/* Call a function with the file system from the bucket storage. */
+#define WT_WITH_BUCKET_STORAGE(bstorage, s, e)                                              \
+    do {                                                                                    \
+        WT_FILE_SYSTEM *__saved_fs = (s)->file_system;                                      \
+        WT_FILE_SYSTEM *__fs = ((bstorage) == NULL) ? __saved_fs : (bstorage)->file_system; \
+        (s)->file_system = (__fs);                                                          \
+        e;                                                                                  \
+        (s)->file_system = __saved_fs;                                                      \
+    } while (0)
+
 /*
  * WT_KEYED_ENCRYPTOR --
  *	A list entry for an encryptor with a unique (name, keyid).
