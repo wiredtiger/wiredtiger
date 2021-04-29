@@ -2947,21 +2947,21 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     verify_meta = cval.val;
 
     /*
-     * Do the following with the file system for the configured bucket storage, if any.
-     * Check on the turtle and metadata files, creating them if necessary (which avoids application
-     * threads racing to create the metadata file later). Once the metadata file exists, get a
-     * reference to it in the connection's session.
+     * Do the following with the file system for the configured bucket storage, if any. Check on the
+     * turtle and metadata files, creating them if necessary (which avoids application threads
+     * racing to create the metadata file later). Once the metadata file exists, get a reference to
+     * it in the connection's session.
      *
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE DATABASE HOME, IT'S WHAT
      * WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
     WT_WITH_BUCKET_STORAGE(conn->bstorage, session, {
-          ret = __wt_turtle_init(session);
+        ret = __wt_turtle_init(session);
 
-          /* Only verify the metadata file first. We will verify the history store table later.  */
-          if (ret == 0 && verify_meta)
-              ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
-      });
+        /* Only verify the metadata file first. We will verify the history store table later.  */
+        if (ret == 0 && verify_meta)
+            ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
+    });
     WT_ERR(ret);
 
     /*

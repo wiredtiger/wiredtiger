@@ -101,17 +101,17 @@ err:
  *     Create a new file in the block manager, and track it.
  */
 static int
-__create_file_block_manager(WT_SESSION_IMPL *session, const char *uri, const char *filename,
-  uint32_t allocsize)
+__create_file_block_manager(
+  WT_SESSION_IMPL *session, const char *uri, const char *filename, uint32_t allocsize)
 {
     WT_RET(__wt_block_manager_create(session, filename, allocsize));
 
     /*
      * Track the creation of this file.
      *
-     * If something down the line fails, we're going to need to roll this
-     * back. Specifically do NOT track the op in the import case since we
-     * do not want to wipe a data file just because we fail to import it.
+     * If something down the line fails, we're going to need to roll this back. Specifically do NOT
+     * track the op in the import case since we do not want to wipe a data file just because we fail
+     * to import it.
      */
     // TODO: tiered: save current file system in meta tracking??
     if (WT_META_TRACKING(session))
