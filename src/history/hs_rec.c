@@ -376,8 +376,9 @@ __wt_hs_insert_updates(
          * The algorithm walks from the oldest update, or the most recently inserted into history
          * store update, to the newest update and build full updates along the way. It sets the stop
          * time point of the update to the start time point of the next update, squashes the updates
-         * that are from the same transaction and of the same start timestamp, calculates reverse
-         * modification if prev_upd is a MODIFY, and inserts the update to the history store.
+         * that are from the same transaction and of the same start timestamp, checks if the update
+         * can be written as reverse modification, and inserts the update to the history store
+         * either as a full update or a reverse modification.
          *
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to
@@ -602,6 +603,12 @@ __wt_hs_insert_updates(
 #endif
 
             /*
+            * Reverse deltas are only supported on 'S' and 'u' value formats.
+            */
+            if (!WT_STREQ(btree->value_format, "S") && !WT_STREQ(btree->value_format, "u"))
+                enable_reverse_modify = false;
+
+            /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
              * store as a full update because the on-disk update will be the base update for all the
@@ -613,7 +620,7 @@ __wt_hs_insert_updates(
              * the RTS.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
-            if (!F_ISSET(upd, WT_UPDATE_DS) && upd->type == WT_UPDATE_MODIFY &&
+            if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
