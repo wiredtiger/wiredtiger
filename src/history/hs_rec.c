@@ -604,9 +604,18 @@ __wt_hs_insert_updates(
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-            } else
+                if (upd->type == WT_UPDATE_MODIFY)
+                    WT_STAT_CONN_INCR(session, rev_modifies_upd_modify);
+                else
+                    WT_STAT_CONN_INCR(session, rev_modifies_upd_std);
+            } else {
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+                if (upd->type == WT_UPDATE_MODIFY)
+                    WT_STAT_CONN_INCR(session, full_updates_upd_modify);
+                else
+                    WT_STAT_CONN_INCR(session, full_updates_upd_std);
+            }
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);

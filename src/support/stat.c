@@ -1032,7 +1032,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: hazard pointer maximum array length",
   "cache: history store score",
   "cache: history store table max on-disk size",
-  "cache: history store table on-disk size",
   "cache: internal pages queued for eviction",
   "cache: internal pages seen by eviction walk",
   "cache: internal pages seen by eviction walk that are already queued",
@@ -1087,7 +1086,12 @@ static const char *const __stats_connection_desc[] = {
   "connection: pthread mutex shared lock read-lock calls",
   "connection: pthread mutex shared lock write-lock calls",
   "connection: total fsync I/Os",
+  "connection: total full updates modify interface",
+  "connection: total full updates standard update",
+  "connection: total history store table on-disk size",
   "connection: total read I/Os",
+  "connection: total reverse modifies modify interface",
+  "connection: total reverse modifies standard update",
   "connection: total write I/Os",
   "cursor: cached cursor count",
   "cursor: cursor bulk loaded cursor insert calls",
@@ -1550,7 +1554,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_hazard_max = 0;
     /* not clearing cache_hs_score */
     /* not clearing cache_hs_ondisk_max */
-    /* not clearing cache_hs_ondisk */
     stats->cache_eviction_internal_pages_queued = 0;
     stats->cache_eviction_internal_pages_seen = 0;
     stats->cache_eviction_internal_pages_already_queued = 0;
@@ -1604,7 +1607,12 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rwlock_read = 0;
     stats->rwlock_write = 0;
     stats->fsync_io = 0;
+    /* not clearing full_updates_upd_modify */
+    /* not clearing full_updates_upd_std */
+    /* not clearing cache_hs_ondisk */
     stats->read_io = 0;
+    /* not clearing rev_modifies_upd_modify */
+    /* not clearing rev_modifies_upd_std */
     stats->write_io = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_insert_bulk = 0;
@@ -2042,7 +2050,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
         to->cache_hazard_max = v;
     to->cache_hs_score += WT_STAT_READ(from, cache_hs_score);
     to->cache_hs_ondisk_max += WT_STAT_READ(from, cache_hs_ondisk_max);
-    to->cache_hs_ondisk += WT_STAT_READ(from, cache_hs_ondisk);
     to->cache_eviction_internal_pages_queued +=
       WT_STAT_READ(from, cache_eviction_internal_pages_queued);
     to->cache_eviction_internal_pages_seen +=
@@ -2108,7 +2115,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rwlock_read += WT_STAT_READ(from, rwlock_read);
     to->rwlock_write += WT_STAT_READ(from, rwlock_write);
     to->fsync_io += WT_STAT_READ(from, fsync_io);
+    to->full_updates_upd_modify += WT_STAT_READ(from, full_updates_upd_modify);
+    to->full_updates_upd_std += WT_STAT_READ(from, full_updates_upd_std);
+    to->cache_hs_ondisk += WT_STAT_READ(from, cache_hs_ondisk);
     to->read_io += WT_STAT_READ(from, read_io);
+    to->rev_modifies_upd_modify += WT_STAT_READ(from, rev_modifies_upd_modify);
+    to->rev_modifies_upd_std += WT_STAT_READ(from, rev_modifies_upd_std);
     to->write_io += WT_STAT_READ(from, write_io);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);

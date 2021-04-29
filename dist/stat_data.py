@@ -173,7 +173,11 @@ connection_stats = [
     ConnStat('rwlock_write', 'pthread mutex shared lock write-lock calls'),
     ConnStat('time_travel', 'detected system time went backwards'),
     ConnStat('write_io', 'total write I/Os'),
-
+    ConnStat('rev_modifies_upd_modify', 'total reverse modifies modify interface', 'no_clear'),
+    ConnStat('rev_modifies_upd_std', 'total reverse modifies standard update', 'no_clear'),
+    ConnStat('full_updates_upd_modify', 'total full updates modify interface', 'no_clear'),
+    ConnStat('full_updates_upd_std', 'total full updates standard update', 'no_clear'),
+    ConnStat('cache_hs_ondisk', 'total history store table on-disk size', 'no_clear,no_scale,size'),
     ##########################################
     # Block manager statistics
     ##########################################
@@ -258,7 +262,7 @@ connection_stats = [
     CacheStat('cache_hazard_checks', 'hazard pointer check calls'),
     CacheStat('cache_hazard_max', 'hazard pointer maximum array length', 'max_aggregate,no_scale'),
     CacheStat('cache_hazard_walks', 'hazard pointer check entries walked'),
-    CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
+    #CacheStat('cache_hs_ondisk', 'history store table on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_ondisk_max', 'history store table max on-disk size', 'no_clear,no_scale,size'),
     CacheStat('cache_hs_score', 'history store score', 'no_clear,no_scale'),
     CacheStat('cache_lookaside_score', 'cache overflow score', 'no_clear,no_scale'),

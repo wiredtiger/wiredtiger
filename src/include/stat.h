@@ -384,7 +384,6 @@ struct __wt_connection_stats {
     int64_t cache_hazard_max;
     int64_t cache_hs_score;
     int64_t cache_hs_ondisk_max;
-    int64_t cache_hs_ondisk;
     int64_t cache_eviction_internal_pages_queued;
     int64_t cache_eviction_internal_pages_seen;
     int64_t cache_eviction_internal_pages_already_queued;
@@ -438,7 +437,12 @@ struct __wt_connection_stats {
     int64_t rwlock_read;
     int64_t rwlock_write;
     int64_t fsync_io;
+    int64_t full_updates_upd_modify;
+    int64_t full_updates_upd_std;
+    int64_t cache_hs_ondisk;
     int64_t read_io;
+    int64_t rev_modifies_upd_modify;
+    int64_t rev_modifies_upd_std;
     int64_t write_io;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
