@@ -531,6 +531,7 @@ __wt_hs_insert_updates(
                     (out_of_order_ts_upd->txnid == upd->txnid &&
                       out_of_order_ts_upd->start_ts == upd->start_ts))) {
                     __wt_update_vector_pop(&out_of_order_ts_updates, &out_of_order_ts_upd);
+                    out_of_order_ts_upd = NULL;
                 }
 
                 if (out_of_order_ts_upd != NULL &&

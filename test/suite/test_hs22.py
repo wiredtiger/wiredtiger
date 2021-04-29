@@ -85,6 +85,7 @@ class test_hs22(wttest.WiredTigerTestCase):
         # Search the key to evict it.
         self.session.begin_transaction("read_timestamp=" + timestamp_str(15))
         self.assertEqual(evict_cursor[str(0)], value2)
+        self.assertEqual(evict_cursor.reset(), 0)
         self.session.rollback_transaction()
 
         # Search the key again to verify the data is still as expected.
@@ -144,4 +145,10 @@ class test_hs22(wttest.WiredTigerTestCase):
         # Search the key to evict it.
         self.session.begin_transaction("read_timestamp=" + timestamp_str(15))
         self.assertEqual(evict_cursor[str(0)], value2)
+        self.assertEqual(evict_cursor.reset(), 0)
+        self.session.rollback_transaction()
+
+        # Search the key again to verify the data is still as expected.
+        self.session.begin_transaction("read_timestamp=" + timestamp_str(15))
+        self.assertEqual(cursor[str(0)], value2)
         self.session.rollback_transaction()
