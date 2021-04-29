@@ -139,7 +139,7 @@ key_gen_common(WT_ITEM *key, uint64_t keyno, const char *const suffix)
      * number increments, which is a good thing for testing.
      */
     if (g.prefix_len > 0) {
-        bucket = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"; /* 2^26 == 67M */
+        bucket = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
         for (n = keyno; n > 0; n >>= 1) {
             if (*bucket == 'z')
                 break;
