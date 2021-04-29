@@ -69,7 +69,7 @@ static CONFIG c[] = {
     NULL},
 
   /* 20% */
-  {"backup", "configure backups", C_BOOL, 20, 0, 0, &g.c_backups, NULL},
+  {"backup", "configure backups", C_BOOL, 100, 0, 0, &g.c_backups, NULL},
 
   {"backup.incremental", "backup type (block | log | off)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_backup_incremental},
@@ -189,7 +189,7 @@ static CONFIG c[] = {
    * FIXME-WT-7418 and FIXME-WT-7416: Temporarily disable import until WT_ROLLBACK error and
    * interaction with backup thread is fixed. Should be 20%
    */
-  {"import", "import table from newly created database", C_BOOL, 0, 0, 0, &g.c_import, NULL},
+  {"import", "import table from newly created database", C_BOOL, 100, 0, 0, &g.c_import, NULL},
 
   /* 50% */
   {"logging", "configure logging", C_BOOL, 50, 0, 0, &g.c_logging, NULL},

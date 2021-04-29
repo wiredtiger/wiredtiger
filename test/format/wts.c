@@ -440,10 +440,10 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     if (g.c_in_memory != 0)
         conn = g.wts_conn_inmemory;
     else {
-        config = "";
+        config = "verbose=[backup]";
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (g.c_verify && allow_verify)
-            config = ",verify_metadata=true";
+            config = ",verify_metadata=true,verbose=[backup]";
 #else
         WT_UNUSED(allow_verify);
 #endif
