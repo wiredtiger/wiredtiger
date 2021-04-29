@@ -10,7 +10,7 @@
 
 /*
  * __wt_block_tiered_flush --
- *     Flush the tiered for this file.
+ *     Flush this file, start another file.
  */
 int
 __wt_block_tiered_flush(
