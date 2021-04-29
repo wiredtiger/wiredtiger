@@ -37,7 +37,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable19.py
-# Test the rollback to stable abort both insert and remove updates from a single prepared transaction
+# Test that rollback to stable aborts both insert and remove updates from a single prepared transaction
 class test_rollback_to_stable19(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
@@ -79,7 +79,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        # Pin oldest and stable to timestamp 10.
+        # Pin oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
             ',stable_timestamp=' + timestamp_str(10))
 
@@ -145,7 +145,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        # Pin oldest and stable to timestamp 10.
+        # Pin oldest and stable timestamps to 10.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
             ',stable_timestamp=' + timestamp_str(10))
 

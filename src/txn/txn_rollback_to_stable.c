@@ -648,12 +648,13 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
 
         /*
          * For prepared transactions, it is possible that both the on-disk key start and stop time
-         * windows can be same. To abort these updates, check for any stable update from history
+         * windows can be the same. To abort these updates, check for any stable update from history
          * store or remove the key.
          */
         if (vpack->tw.start_ts == vpack->tw.stop_ts &&
           vpack->tw.durable_start_ts == vpack->tw.durable_stop_ts &&
           vpack->tw.start_txn == vpack->tw.stop_txn) {
+            WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 return (__rollback_ondisk_fixup_key(
                   session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
