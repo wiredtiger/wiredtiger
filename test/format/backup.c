@@ -102,7 +102,7 @@ active_files_init(ACTIVE_FILES *active)
     WT_CLEAR(*active);
 }
 
-#if 0
+#if 1
 /*
  * active_files_print --
  *     Print the set of active files for debugging.
@@ -171,7 +171,7 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur)
 
     if (prev == NULL)
         return;
-#if 0
+#if 1
     active_files_print(prev, "computing removals: previous list of active files");
     active_files_print(cur, "computing removals: current list of active files");
 #endif
@@ -196,7 +196,7 @@ again:
              */
             testutil_check(__wt_snprintf(
               filename, sizeof(filename), "%s/BACKUP/%s", g.home, prev->names[prevpos]));
-#if 0
+#if 1
             fprintf(stderr, "Removing file from backup: %s\n", filename);
 #endif
             error_sys_check(unlink(filename));
@@ -347,6 +347,22 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
         error_sys_check(close(wfd2));
     }
     free(tmp);
+    if (strcmp(name, "import.wt") == 0 || strcmp(name, "import") == 0) {
+        len = strlen(g.home) + strlen(name) + 10;
+        tmp = dmalloc(len);
+        testutil_check(__wt_snprintf(tmp, len, "%s/%s", g.home, name));
+        error_sys_check(rfd = open(tmp, O_RDONLY, 0));
+        free(tmp);
+        tmp = NULL;
+
+        len = strlen(g.home) + strlen("BACKUP") + strlen(name) + 10;
+        tmp = dmalloc(len);
+        testutil_check(__wt_snprintf(tmp, len, "%s/BACKUP/%s", g.home, name));
+        error_sys_check(wfd1 = open(tmp, O_RDONLY, 0));
+        free(tmp);
+        tmp = NULL;
+        fprintf(stdout, "passed testing\n");
+    }
 }
 
 #define RESTORE_SKIP 1
@@ -511,7 +527,7 @@ backup(void *arg)
      * larger intervals, optionally do incremental backups between full backups.
      */
     this_id = 0;
-    for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 20, 45)) {
+    for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 1, 10)) {
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
             --period;

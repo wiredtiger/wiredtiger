@@ -106,6 +106,8 @@ import(void *arg)
         /* Perform import with either repair or file metadata. */
         memset(buf, 0, sizeof(buf));
         import_value = mmrand(NULL, 0, 1);
+
+        fprintf(stdout, "importing.... %u\n", import_value);
         if (import_value == 0) {
             testutil_check(__wt_snprintf(buf, sizeof(buf), "import=(enabled,repair=true)"));
             if ((ret = session->create(session, IMPORT_URI, buf)) != 0)
@@ -118,7 +120,8 @@ import(void *arg)
         }
 
         verify_import(session);
-
+        __wt_sleep(5, 0);
+        fprintf(stdout, "checkpointing....\n");
         /* Perform checkpoint, to make sure we perform drop */
         session->checkpoint(session, NULL);
 
