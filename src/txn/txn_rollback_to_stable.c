@@ -1537,31 +1537,30 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
               !durable_ts_found ? "true" : "false", rollback_txnid,
               has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
             WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
-        } else {
+        } else
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
               __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
               __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
-        }
 
         WT_ERR_NOTFOUND_OK(ret, false);
 
-        if (dhandle_allocated) {
-            /*
-             * Truncate history store entries for the non-timestamped table.
-             * Exceptions:
-             * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
-             * durable timestamp even they are timestamped tables. Until we have a special
-             * indication of letting to know the table type other than checking checkpointed durable
-             * timestamp to WT_TS_NONE, We need this exception.
-             * 2. In-memory database - In this scenario, there is no history store to truncate.
-             */
-            if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
-              !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
+        /*
+         * Truncate history store entries for the non-timestamped table.
+         * Exceptions:
+         * 1. Modified tree - Scenarios where the tree is never checkpointed lead to zero
+         * durable timestamp even they are timestamped tables. Until we have a special
+         * indication of letting to know the table type other than checking checkpointed durable
+         * timestamp to WT_TS_NONE, We need this exception.
+         * 2. In-memory database - In this scenario, there is no history store to truncate.
+         */
+        if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+            WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
 
+        if (dhandle_allocated)
             WT_TRET(__wt_session_release_dhandle(session));
-        }
+
         /*
          * Continue when the table is corrupted and proceed to perform rollback to stable on other
          * tables.

@@ -38,7 +38,7 @@ from test_rollback_to_stable01 import test_rollback_to_stable_base
 def timestamp_str(t):
     return '%x' % t
 
-# Test that rollback to stable does not open any dhandles after checkpoint and restart.
+# Test that rollback to stable does not open any dhandles that don't have unstable updates.
 class test_rollback_to_stable19(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
