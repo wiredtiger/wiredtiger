@@ -95,7 +95,7 @@ class test_txn16(wttest.WiredTigerTestCase, suite_subprocess):
                 # There can be overlap with the log files that were
                 # there originally. Because some pages are rolled back
                 # as part of RTS.
-                self.assertEqual(scur.isdisjoint(sorig), False)
+                self.assertEqual(scur.isdisjoint(sorig), True)
                 if loop > 1:
                     # We should be creating the same log files each time.
                     for l in cur_logs:

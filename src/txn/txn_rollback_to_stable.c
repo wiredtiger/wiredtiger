@@ -1394,12 +1394,11 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates, has_txn_updates_gt_than_ckpt_snap;
-    bool dhandle_allocated;
+    bool dhandle_allocated, perform_rts;
 
     txn_global = &S2C(session)->txn_global;
     rollback_txnid = 0;
     addr_size = 0;
-    dhandle_allocated = false;
 
     /*
      * Copy the stable timestamp, otherwise we'd need to lock it each time it's accessed. Even
@@ -1424,7 +1423,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
-        dhandle_allocated = false;
+        dhandle_allocated = perform_rts = false;
 
         /* Ignore metadata and history store files. */
         if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
@@ -1504,11 +1503,11 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         WT_WITH_HANDLE_LIST_READ_LOCK(session, (ret = __wt_conn_dhandle_find(session, uri, NULL)));
 
         if (ret == 0 && S2BT(session)->modified) {
-            WT_TRET(__wt_session_get_dhandle(session, uri, NULL, NULL, 0));
-            dhandle_allocated = true;
-            WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
-        } else if (max_durable_ts > rollback_timestamp || prepared_updates || !durable_ts_found ||
-          has_txn_updates_gt_than_ckpt_snap) {
+            perform_rts = true;
+        }
+
+        if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
+          !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
             WT_ERR_NOTFOUND_OK(ret, false);
             /* Set this flag to return error instead of panic if file is corrupted. */
             F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
@@ -1557,7 +1556,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
              * timestamp to WT_TS_NONE, We need this exception.
              * 2. In-memory database - In this scenario, there is no history store to truncate.
              */
-            if (!S2BT(session)->modified && max_durable_ts == WT_TS_NONE &&
+            if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
               !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
 
@@ -1633,9 +1632,11 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
      * entire table sequentially.
      */
+    WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
     ret = __rollback_to_stable(session);
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
+    WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
     WT_RET(ret);
 
     /* Rollback the global durable timestamp to the stable timestamp. */
