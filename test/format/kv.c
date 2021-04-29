@@ -120,9 +120,9 @@ key_gen_teardown(WT_ITEM *key)
 void
 key_gen_common(WT_ITEM *key, uint64_t keyno, const char *const suffix)
 {
+    uint64_t n;
     char *p;
     const char *bucket;
-    uint64_t n;
 
     testutil_assert(g.type == ROW);
 
