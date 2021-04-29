@@ -8,9 +8,9 @@
 
 #include "wt_internal.h"
 
-#define WT_FORALL_CURSORS(curtiered, c, i)            \
-    for ((i) = (curtiered)->tiered->ntiers; (i) > 0;) \
-        if (((c) = (curtiered)->cursors[--(i)]) != NULL)
+#define WT_FORALL_CURSORS(curtiered, c, i)  \
+    for ((i) = 0; i < WT_TIERED_MAX_TIERS;) \
+        if (((c) = (curtiered)->cursors[(i)++]) != NULL)
 
 #define WT_TIERED_CURCMP(s, tiered, c1, c2, cmp) \
     __wt_compare(s, (tiered)->collator, &(c1)->key, &(c2)->key, &(cmp))
@@ -34,8 +34,6 @@ __curtiered_open_cursors(WT_CURSOR_TIERED *curtiered)
     dhandle = NULL;
     tiered = curtiered->tiered;
 
-    WT_ASSERT(session, tiered->ntiers > 0);
-
     /*
      * If the key is pointing to memory that is pinned by a tier cursor, take a copy before closing
      * cursors.
@@ -46,14 +44,16 @@ __curtiered_open_cursors(WT_CURSOR_TIERED *curtiered)
     F_CLR(curtiered, WT_CURTIERED_ITERATE_NEXT | WT_CURTIERED_ITERATE_PREV);
 
     WT_ASSERT(session, curtiered->cursors == NULL);
-    WT_ERR(__wt_calloc_def(session, tiered->ntiers, &curtiered->cursors));
+    WT_ERR(__wt_calloc_def(session, WT_TIERED_MAX_TIERS, &curtiered->cursors));
 
     /* Open the cursors for tiers that have changed. */
     __wt_verbose(session, WT_VERB_TIERED,
-      "tiered opening cursor session(%p):tiered cursor(%p), tiers: %u", (void *)session,
-      (void *)curtiered, tiered->ntiers);
-    for (i = 0; i != tiered->ntiers; i++) {
-        dhandle = tiered->tiers[i];
+      "tiered opening cursor session(%p):tiered cursor(%p), tiers: %d", (void *)session,
+      (void *)curtiered, (int)WT_TIERED_MAX_TIERS);
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
+        dhandle = tiered->tiers[i].tier;
+        if (dhandle == NULL)
+            continue;
 
         /*
          * Read from the checkpoint if the file has been written. Once all cursors switch, the
@@ -87,7 +87,7 @@ __curtiered_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_TIERED *curtiered)
         return (0);
 
     /* Walk the cursors, closing them. */
-    for (i = 0; i < curtiered->tiered->ntiers; i++) {
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         if ((c = (curtiered)->cursors[i]) != NULL) {
             curtiered->cursors[i] = NULL;
             WT_RET(c->close(c));
@@ -795,16 +795,13 @@ __curtiered_put(WT_CURSOR_TIERED *curtiered, const WT_ITEM *key, const WT_ITEM *
   bool position, bool reserve)
 {
     WT_CURSOR *primary;
-    WT_TIERED *tiered;
     int (*func)(WT_CURSOR *);
-
-    tiered = curtiered->tiered;
 
     /*
      * Clear the existing cursor position. Don't clear the primary cursor: we're about to use it
      * anyway.
      */
-    primary = curtiered->cursors[tiered->ntiers - 1];
+    primary = curtiered->cursors[WT_TIERED_INDEX_LOCAL];
     WT_RET(__curtiered_reset_cursors(curtiered, primary));
 
     /* If necessary, set the position for future scans. */
@@ -1022,7 +1019,7 @@ __curtiered_next_random(WT_CURSOR *cursor)
     WT_CURSOR_TIERED *curtiered;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    u_int i, ntiers, tier;
+    u_int i, tier;
     int exact;
 
     c = NULL;
@@ -1036,13 +1033,12 @@ __curtiered_next_random(WT_CURSOR *cursor)
      * Select a random tier. If it is empty, try the next tier and so on, wrapping around until we
      * find something or run out of tiers.
      */
-    ntiers = curtiered->tiered->ntiers;
-    tier = __wt_random(&session->rnd) % ntiers;
-    for (i = 0; i < ntiers; i++) {
+    tier = __wt_random(&session->rnd) % WT_TIERED_MAX_TIERS;
+    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
         c = curtiered->cursors[tier];
         WT_ERR_NOTFOUND_OK(__wt_curfile_next_random(c), true);
         if (ret == WT_NOTFOUND) {
-            if (++tier == ntiers)
+            if (++tier == WT_TIERED_MAX_TIERS)
                 tier = 0;
             continue;
         }
@@ -1064,6 +1060,70 @@ err:
     }
     __curtiered_leave(curtiered);
     API_END_RET(session, ret);
+}
+
+/*
+ * __curtiered_insert_bulk --
+ *     WT_CURSOR->insert method for tiered bulk cursors.
+ */
+static int
+__curtiered_insert_bulk(WT_CURSOR *cursor)
+{
+    WT_CURSOR *bulk_cursor;
+    WT_CURSOR_TIERED *curtiered;
+    WT_SESSION_IMPL *session;
+
+    curtiered = (WT_CURSOR_TIERED *)cursor;
+    session = CUR2S(curtiered);
+    bulk_cursor = curtiered->cursors[WT_TIERED_INDEX_LOCAL];
+
+    WT_ASSERT(session, bulk_cursor != NULL);
+    bulk_cursor->set_key(bulk_cursor, &cursor->key);
+    bulk_cursor->set_value(bulk_cursor, &cursor->value);
+    WT_RET(bulk_cursor->insert(bulk_cursor));
+
+    return (0);
+}
+
+/*
+ * __curtiered_open_bulk --
+ *     WT_SESSION->open_cursor method for tiered bulk cursors.
+ */
+static int
+__curtiered_open_bulk(WT_CURSOR_TIERED *curtiered, const char *cfg[])
+{
+    WT_CURSOR *cursor;
+    WT_DATA_HANDLE *dhandle;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    WT_TIERED *tiered;
+
+    cursor = &curtiered->iface;
+    session = CUR2S(curtiered);
+    tiered = curtiered->tiered;
+
+    /* Bulk cursors only support insert and close. */
+    __wt_cursor_set_notsup(cursor);
+    cursor->insert = __curtiered_insert_bulk;
+    cursor->close = __wt_curtiered_close;
+
+    WT_ASSERT(session, curtiered->cursors == NULL);
+    WT_ERR(__wt_calloc_def(session, WT_TIERED_MAX_TIERS, &curtiered->cursors));
+
+    /* Open a bulk cursor on the local tier. */
+    dhandle = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    WT_ASSERT(session, dhandle != NULL);
+    WT_ERR(__wt_open_cursor(
+      session, dhandle->name, cursor, cfg, &curtiered->cursors[WT_TIERED_INDEX_LOCAL]));
+
+    /* Child cursors always use overwrite and raw mode. */
+    F_SET(curtiered->cursors[WT_TIERED_INDEX_LOCAL], WT_CURSTD_OVERWRITE | WT_CURSTD_RAW);
+
+    if (0) {
+err:
+        __wt_free(session, curtiered->cursors);
+    }
+    return (ret);
 }
 
 /*
@@ -1122,7 +1182,7 @@ __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
 
     /* Check whether the exclusive open for a bulk load succeeded. */
     if (bulk && ret == EBUSY)
-        WT_ERR_MSG(session, EINVAL, "bulk-load is only supported on newly created trees");
+        ret = EINVAL;
     /* Flag any errors from the tree get. */
     WT_ERR(ret);
 
@@ -1152,7 +1212,7 @@ __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
     WT_ERR(__wt_cursor_init(cursor, cursor->uri, owner, cfg, cursorp));
 
     if (bulk)
-        WT_ERR(ENOTSUP); /* TODO */
+        WT_ERR(__curtiered_open_bulk(curtiered, cfg));
 
     if (0) {
 err:
