@@ -584,6 +584,9 @@ __wt_hs_insert_updates(
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
 
+            if (!WT_STREQ(btree->value_format, "S") && !WT_STREQ(btree->value_format, "u"))
+                enable_reverse_modify = false;
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
@@ -596,7 +599,7 @@ __wt_hs_insert_updates(
              * the RTS.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
-            if (!F_ISSET(upd, WT_UPDATE_DS) && upd->type == WT_UPDATE_MODIFY &&
+            if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
               enable_reverse_modify &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {

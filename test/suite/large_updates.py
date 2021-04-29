@@ -115,6 +115,8 @@ class test_foo(wttest.WiredTigerTestCase):
             if(number_of_updates >= total_nb_updates):
                 break
 
+        self.prout("Eviction...")
+        self.evict(self.uri, ds, nrows)
         # Check all values are correct
         cur_letter = 0
         offset = 0
