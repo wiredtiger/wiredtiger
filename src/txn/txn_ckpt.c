@@ -1376,6 +1376,7 @@ __checkpoint_lock_dirty_tree(
     btree = S2BT(session);
     ckpt = ckptbase = NULL;
     dhandle = session->dhandle;
+    ckpt_allocated = 0;
     name_alloc = NULL;
 
     /*
