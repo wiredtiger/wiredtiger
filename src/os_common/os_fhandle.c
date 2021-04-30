@@ -215,7 +215,7 @@ __wt_open(WT_SESSION_IMPL *session, const char *name, WT_FS_OPEN_FILE_TYPE file_
     *fhp = NULL;
 
     conn = S2C(session);
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, name, false);
     fh = NULL;
     open_called = false;
     path = NULL;

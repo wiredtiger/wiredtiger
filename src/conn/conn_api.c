@@ -2887,7 +2887,6 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__wt_connection_open(conn, cfg));
     session = conn->default_session;
-    wt_session = &session->iface;
 
     /*
      * This function expects the cache to be created so parse this after the rest of the connection
@@ -2942,26 +2941,24 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      */
     WT_ERR(__conn_write_base_config(session, cfg));
 
-    WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
-    verify_meta = cval.val;
-
     /*
-     * Do the following with the file system for the configured bucket storage, if any. Check on the
-     * turtle and metadata files, creating them if necessary (which avoids application threads
-     * racing to create the metadata file later). Once the metadata file exists, get a reference to
-     * it in the connection's session.
+     * Check on the turtle and metadata files, creating them if necessary (which avoids application
+     * threads racing to create the metadata file later). Once the metadata file exists, get a
+     * reference to it in the connection's session.
      *
      * THE TURTLE FILE MUST BE THE LAST FILE CREATED WHEN INITIALIZING THE DATABASE HOME, IT'S WHAT
      * WE USE TO DECIDE IF WE'RE CREATING OR NOT.
      */
-    WT_WITH_BUCKET_STORAGE(conn->bstorage, session, {
-        ret = __wt_turtle_init(session);
+    WT_ERR(__wt_turtle_init(session));
+    WT_ERR(__wt_config_gets(session, cfg, "verify_metadata", &cval));
+    verify_meta = cval.val;
 
-        /* Only verify the metadata file first. We will verify the history store table later.  */
-        if (ret == 0 && verify_meta)
-            ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
-    });
-    WT_ERR(ret);
+    /* Only verify the metadata file first. We will verify the history store table later.  */
+    if (verify_meta) {
+        wt_session = &session->iface;
+        ret = wt_session->verify(wt_session, WT_METAFILE_URI, NULL);
+        WT_ERR(ret);
+    }
 
     /*
      * If the user wants to salvage, do so before opening the metadata cursor. We do this after the
@@ -2969,6 +2966,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * overwrite any salvage we did if done before that call.
      */
     if (F_ISSET(conn, WT_CONN_SALVAGE)) {
+        wt_session = &session->iface;
         WT_ERR(__wt_copy_and_sync(wt_session, WT_METAFILE, WT_METAFILE_SLVG));
         WT_ERR(wt_session->salvage(wt_session, WT_METAFILE_URI, NULL));
     }

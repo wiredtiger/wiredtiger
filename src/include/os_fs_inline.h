@@ -7,6 +7,38 @@
  */
 
 /*
+ * __wt_fs_file_system --
+ *     Get the active file system handle.
+ */
+static inline WT_FILE_SYSTEM *
+__wt_fs_file_system(WT_SESSION_IMPL *session, const char *name, bool directory)
+{
+    WT_FILE_SYSTEM *file_system;
+    const char *p;
+
+    /*
+     * TODO: tiered: Ideally, this function could be replaced by a call to S2FS(session). To get
+     * there, we'd need to use WT_WITH_BUCKET_STORE in exactly right places to make sure that the
+     * right files live in buckets. This function ensures that, for now, all WiredTiger files live
+     * in the local home directory, that directory lists only local in the local directory.
+     */
+    if (session->bucket_storage == NULL || directory)
+        return (S2C(session)->file_system);
+
+    p = strrchr(name, '/');
+    if (p == NULL)
+        p = name;
+    else
+        p++;
+
+    if (WT_PREFIX_MATCH(p, "WiredTiger"))
+        file_system = S2C(session)->file_system;
+    else
+        file_system = S2FS(session);
+    return (file_system);
+}
+
+/*
  * __wt_fs_directory_list --
  *     Return a list of files from a directory.
  */
@@ -27,7 +59,7 @@ __wt_fs_directory_list(
 
     WT_RET(__wt_filename(session, dir, &path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, dir, true);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_directory_list(file_system, wt_session, path, prefix, dirlistp, countp);
 
@@ -56,7 +88,7 @@ __wt_fs_directory_list_single(
 
     WT_RET(__wt_filename(session, dir, &path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, dir, true);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_directory_list_single(
       file_system, wt_session, path, prefix, dirlistp, countp);
@@ -77,7 +109,7 @@ __wt_fs_directory_list_free(WT_SESSION_IMPL *session, char ***dirlistp, u_int co
     WT_SESSION *wt_session;
 
     if (*dirlistp != NULL) {
-        file_system = S2FS(session);
+        file_system = __wt_fs_file_system(session, NULL, true);
         wt_session = (WT_SESSION *)session;
         ret = file_system->fs_directory_list_free(file_system, wt_session, *dirlistp, count);
     }
@@ -102,7 +134,7 @@ __wt_fs_exist(WT_SESSION_IMPL *session, const char *name, bool *existp)
 
     WT_RET(__wt_filename(session, name, &path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, name, false);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_exist(file_system, wt_session, path, existp);
 
@@ -137,7 +169,7 @@ __wt_fs_remove(WT_SESSION_IMPL *session, const char *name, bool durable)
 
     WT_RET(__wt_filename(session, name, &path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, name, false);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_remove(file_system, wt_session, path, durable ? WT_FS_DURABLE : 0);
 
@@ -176,7 +208,7 @@ __wt_fs_rename(WT_SESSION_IMPL *session, const char *from, const char *to, bool 
     WT_ERR(__wt_filename(session, from, &from_path));
     WT_ERR(__wt_filename(session, to, &to_path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, from, false);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_rename(
       file_system, wt_session, from_path, to_path, durable ? WT_FS_DURABLE : 0);
@@ -203,7 +235,7 @@ __wt_fs_size(WT_SESSION_IMPL *session, const char *name, wt_off_t *sizep)
 
     WT_RET(__wt_filename(session, name, &path));
 
-    file_system = S2FS(session);
+    file_system = __wt_fs_file_system(session, name, false);
     wt_session = (WT_SESSION *)session;
     ret = file_system->fs_size(file_system, wt_session, path, sizep);
 
