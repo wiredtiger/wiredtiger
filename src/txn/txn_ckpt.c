@@ -1443,8 +1443,10 @@ __checkpoint_lock_dirty_tree(
 
     /*
      * Discard the saved list of checkpoints, and slow path if this is not a WiredTiger checkpoint.
+     * Also, if we do not have checkpoint array size, the regular checkpoint process did not create
+     * the array, it is safer to discard the array in such a case.
      */
-    if (!is_wt_ckpt)
+    if (!is_wt_ckpt || btree->ckpt_allocated == 0)
         __wt_meta_ckptlist_free(session, &btree->ckpt);
 
     /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
