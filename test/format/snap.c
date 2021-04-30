@@ -41,14 +41,16 @@ void
 snap_init(TINFO *tinfo)
 {
     /*
-     * We maintain two snap lists. The current one is indicated by tinfo->s, and keeps the most
-     * recent operations. The other one is used when we are running with rollback_to_stable. When
-     * each thread notices that the stable timestamp has changed, it stashes the current snap list
-     * and starts fresh with the other snap list. After we've completed a rollback_to_stable, we can
-     * the secondary snap list to see the state of keys/values seen and updated at the time of the
-     * rollback.
+     * We maintain two snap lists, where the current one is indicated by tinfo->s, and keeps the
+     * most recent operations.
+     *
+     * The other one is used when we are running timestamp transactions with rollback_to_stable.
+     * When each thread notices that the stable timestamp has changed, it stashes the current snap
+     * list and starts fresh with the other snap list. After we've completed a rollback_to_stable,
+     * we can the secondary snap list to see the state of keys/values seen and updated at the time
+     * of the rollback.
      */
-    if (g.c_txn_rollback_to_stable) {
+    if (g.c_txn_timestamps) {
         tinfo->s = &tinfo->snap_states[1];
         tinfo->snap_list = dcalloc(SNAP_LIST_SIZE, sizeof(SNAP_OPS));
         tinfo->snap_end = &tinfo->snap_list[SNAP_LIST_SIZE];
@@ -113,7 +115,7 @@ snap_op_init(TINFO *tinfo, uint64_t read_ts, bool repeatable_reads)
 
     ++tinfo->opid;
 
-    if (g.c_txn_rollback_to_stable) {
+    if (g.c_txn_timestamps) {
         /*
          * If the stable timestamp has changed and we've advanced beyond it, preserve the current
          * snapshot history up to this point, we'll use it verify rollback_to_stable. Switch our

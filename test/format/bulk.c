@@ -38,7 +38,8 @@ bulk_begin_transaction(WT_SESSION *session)
     uint64_t ts;
     char buf[64];
 
-    wiredtiger_begin_transaction(session, "isolation=snapshot");
+    /* Writes require snapshot isolation. */
+    wiredtiger_begin_transaction(session, NULL);
     ts = __wt_atomic_addv64(&g.timestamp, 1);
     testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, ts));
     testutil_check(session->timestamp_transaction(session, buf));
