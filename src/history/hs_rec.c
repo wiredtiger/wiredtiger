@@ -274,6 +274,8 @@ __wt_hs_insert_updates(
     WT_DECL_ITEM(prev_full_value);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+/* Limit the number of consecutive reverse modifies. */
+#define WT_MAX_CONSECUTIVE_REVERSE_MODIFY 10
 /* If the limit is exceeded, we will insert a full update to the history store */
 #define MAX_REVERSE_MODIFY_NUM 16
     WT_MODIFY entries[MAX_REVERSE_MODIFY_NUM];
@@ -284,7 +286,7 @@ __wt_hs_insert_updates(
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size;
+    uint64_t insert_cnt, max_hs_size, total_nb_modifies;
     uint32_t i;
     uint8_t *p;
     int nentries;
@@ -487,6 +489,7 @@ __wt_hs_insert_updates(
          * time point, we can squash updates with the same start time point as the onpage update
          * away.
          */
+        total_nb_modifies = 0;
         for (; updates.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                upd->start_ts == list->onpage_upd->start_ts);
@@ -603,9 +606,18 @@ __wt_hs_insert_updates(
 #endif
 
             /*
-            * Reverse deltas are only supported on 'S' and 'u' value formats.
-            */
+             * Reverse deltas are only supported on 'S' and 'u' value formats.
+             */
             if (!WT_STREQ(btree->value_format, "S") && !WT_STREQ(btree->value_format, "u"))
+                enable_reverse_modify = false;
+
+            /*
+             * Limit the number of consecutive reverse modifies for standard updates. We want to
+             * ensure we do not store a large chain of reverse modifies as to impact read
+             * performance.
+             */
+            if (upd->type == WT_UPDATE_STANDARD &&
+              total_nb_modifies >= WT_MAX_CONSECUTIVE_REVERSE_MODIFY)
                 enable_reverse_modify = false;
 
             /*
@@ -628,9 +640,13 @@ __wt_hs_insert_updates(
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-            } else
+                if (upd->type == WT_UPDATE_STANDARD)
+                    ++total_nb_modifies;
+            } else {
+                total_nb_modifies = 0;
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+            }
 
             /* Flag the update as now in the history store. */
             F_SET(upd, WT_UPDATE_HS);
