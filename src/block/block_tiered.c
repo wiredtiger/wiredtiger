@@ -59,7 +59,8 @@ __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     /*
      * TODO: tiered: Assert that session->bucket_storage is not NULL. We can't do that while we have
-     * tests that use block_allocation=log without setting up bucket storage.
+     * tests that use block_allocation=log without setting up bucket storage. This whole function is
+     * going to look very different when flush_tier is fully integrated.
      */
     if (session->bucket_storage != NULL && block->logid != 0) {
         storage_source = session->bucket_storage->storage_source;
