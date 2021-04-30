@@ -29,16 +29,15 @@
 #ifndef RUNTIME_MONITOR_H
 #define RUNTIME_MONITOR_H
 
-#include <thread>
-
 extern "C" {
 #include "wiredtiger.h"
 }
 
+#include "util/debug_utils.h"
 #include "util/api_const.h"
 #include "core/component.h"
+#include "core/throttle.h"
 #include "connection_manager.h"
-#include "util/debug_utils.h"
 
 namespace test_harness {
 /* Static statistic get function. */
@@ -117,7 +116,7 @@ class cache_limit_statistic : public statistic {
  */
 class runtime_monitor : public component {
     public:
-    runtime_monitor(configuration *config) : component(config), _ops(1) {}
+    runtime_monitor(configuration *config) : component(config) {}
 
     ~runtime_monitor()
     {
@@ -133,10 +132,12 @@ class runtime_monitor : public component {
     void
     load()
     {
+        int64_t _ops;
         configuration *sub_config;
         std::string statistic_list;
         /* Parse the configuration for the runtime monitor. */
-        testutil_check(_config->get_int(RATE_PER_SECOND, _ops));
+        testutil_check(_config->get_int(OPS_PER_SECOND, _ops));
+        _throttle = throttle(_ops);
 
         /* Load known statistics. */
         sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
@@ -155,8 +156,7 @@ class runtime_monitor : public component {
         testutil_check(session->open_cursor(session, STATISTICS_URI, nullptr, nullptr, &cursor));
 
         while (_running) {
-            /* Sleep so that we do x operations per second. To be replaced by throttles. */
-            std::this_thread::sleep_for(std::chrono::milliseconds(1000 / _ops));
+            _throttle.sleep();
             for (const auto &it : _stats) {
                 if (it->is_enabled())
                     it->check(cursor);
@@ -165,7 +165,7 @@ class runtime_monitor : public component {
     }
 
     private:
-    int64_t _ops;
+    throttle _throttle;
     std::vector<statistic *> _stats;
 };
 } // namespace test_harness

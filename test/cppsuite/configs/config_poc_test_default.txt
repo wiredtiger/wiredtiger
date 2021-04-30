@@ -6,7 +6,7 @@ cache_size_mb=1000,
 enable_logging=true,
 runtime_monitor=
 (
-    rate_per_second=3,
+    ops_per_second=3,
     stat_cache_size=
     (
         enabled=true,
@@ -31,6 +31,14 @@ workload_generator=
     ),
     read_threads=1,
     update_threads=1,
+    update_config=
+    (
+        ops_per_second=1
+    ),
+    insert_config=
+    (
+        ops_per_second=1
+    ),
     value_size=10
 ),
 workload_tracking=

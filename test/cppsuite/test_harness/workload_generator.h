@@ -33,6 +33,7 @@
 #include <atomic>
 #include <map>
 
+#include "core/throttle.h"
 #include "workload/database_model.h"
 #include "workload/database_operation.h"
 #include "workload/random_generator.h"
@@ -65,9 +66,9 @@ class workload_generator : public component {
     void
     run()
     {
-        configuration *sub_config;
+        configuration *sub_config, *update_config, *insert_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
-          update_threads, value_size;
+          update_threads, update_ops_per_second, insert_ops_per_second, value_size;
 
         /* Populate the database. */
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
@@ -76,28 +77,34 @@ class workload_generator : public component {
         testutil_check(_config->get_int(READ_THREADS, read_threads));
         testutil_check(_config->get_int(UPDATE_THREADS, update_threads));
         sub_config = _config->get_subconfig(OPS_PER_TRANSACTION);
+        update_config = _config->get_subconfig(UPDATE_CONFIG);
+        insert_config = _config->get_subconfig(INSERT_CONFIG);
         testutil_check(sub_config->get_int(MIN, min_operation_per_transaction));
         testutil_check(sub_config->get_int(MAX, max_operation_per_transaction));
         testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
         testutil_check(_config->get_int(VALUE_SIZE, value_size));
         testutil_assert(value_size >= 0);
+        testutil_check(update_config->get_int(OPS_PER_SECOND, update_ops_per_second));
+        testutil_check(insert_config->get_int(OPS_PER_SECOND, insert_ops_per_second));
 
         delete sub_config;
+        delete update_config;
+        delete insert_config;
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc =
-              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::READ,
-                max_operation_per_transaction, min_operation_per_transaction, value_size);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
+              thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
+              value_size, throttle(1));
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }
 
         /* Generate threads to execute update operations on the collections. */
         for (int i = 0; i < update_threads; ++i) {
-            thread_context *tc =
-              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::UPDATE,
-                max_operation_per_transaction, min_operation_per_transaction, value_size);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
+              thread_operation::UPDATE, max_operation_per_transaction,
+              min_operation_per_transaction, value_size, throttle(update_ops_per_second));
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }

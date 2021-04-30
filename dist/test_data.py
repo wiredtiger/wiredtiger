@@ -41,11 +41,18 @@ class Config:
 
     def __ge__(self, other):
         return self.name >= other.name
+#
+# A generic configuration used by some components to define their tick rate.
+#
+throttle_config = [
+    Config('ops_per_second',1,r'''
+        The number of times an operation should be performed per second''', min=1,max=1000),
+]
 
 #
 # Record config specifies the format of the keys and values used in the database
 #
-record_config = [
+record_config = throttle_config + [
     Config('key_size', 0, r'''
         The size of the keys created''', min=0, max=10000),
     Config('value_size', 0, r'''
@@ -60,14 +67,6 @@ populate_config = [
         The number of collections the workload generator operates over''', min=0, max=200000),
     Config('key_count', 0, r'''
         The number of keys to be operated on per collection''', min=0, max=1000000),
-]
-
-#
-# A generic configuration used by some components to define their tick rate.
-#
-throttle_config = [
-    Config('rate_per_second',1,r'''
-        The number of times an operation should be performed per second''', min=1,max=1000),
 ]
 
 #
