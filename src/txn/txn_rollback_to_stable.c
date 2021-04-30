@@ -1440,7 +1440,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         durable_ts_found = prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
 
         /* Get the btree ID. */
-        WT_RET(__wt_config_gets(session, &config, "id", &cval));
+        WT_ERR(__wt_config_getones(session, config, "id", &cval));
         btree_id = (uint32_t)cval.val;
 
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
