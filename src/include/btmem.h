@@ -1186,6 +1186,7 @@ struct __wt_update_value {
  * avoid heap allocation, add a few additional slots to that array.
  */
 #define WT_MAX_MODIFY_UPDATE 10
+#define WT_MAX_CONSECUTIVE_REVERSE_MODIFY 250
 #define WT_UPDATE_VECTOR_STACK_SIZE 20
 
 /*

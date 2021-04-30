@@ -274,7 +274,7 @@ __wt_hs_insert_updates(
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size;
+    uint64_t insert_cnt, max_hs_size, total_nb_modifies;
     uint32_t i;
     uint8_t *p;
     int nentries;
@@ -284,6 +284,7 @@ __wt_hs_insert_updates(
     btree = S2BT(session);
     prev_upd = NULL;
     insert_cnt = 0;
+    total_nb_modifies = 0;
     WT_TIME_WINDOW_INIT(&tw);
 
     WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
@@ -587,6 +588,9 @@ __wt_hs_insert_updates(
             if (!WT_STREQ(btree->value_format, "S") && !WT_STREQ(btree->value_format, "u"))
                 enable_reverse_modify = false;
 
+            if(total_nb_modifies >= WT_MAX_CONSECUTIVE_REVERSE_MODIFY)
+                enable_reverse_modify = false;
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
@@ -607,11 +611,13 @@ __wt_hs_insert_updates(
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
+                ++total_nb_modifies;
                 if (upd->type == WT_UPDATE_MODIFY)
                     WT_STAT_CONN_INCR(session, rev_modifies_upd_modify);
                 else
                     WT_STAT_CONN_INCR(session, rev_modifies_upd_std);
             } else {
+                total_nb_modifies = 0;
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
                 if (upd->type == WT_UPDATE_MODIFY)
