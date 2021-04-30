@@ -212,6 +212,10 @@ tinfo_rollback_to_stable(WT_SESSION *session)
     WT_DECL_RET;
     char cmd[512];
 
+    /* Rollback-to-stable only makes sense for on-disk stores. */
+    if (g.c_in_memory != 0)
+        return;
+
     testutil_check(__wt_snprintf(cmd, sizeof(cmd), ROLLBACK_STABLE_COPY_CMD, g.home));
     if ((ret = system(cmd)) != 0)
         testutil_die(ret, "rollback to stable copy (\"%s\") failed", cmd);
