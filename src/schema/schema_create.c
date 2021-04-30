@@ -206,7 +206,7 @@ __create_file(
 
     /*
      * If creating an ordinary file, update the file ID and current version numbers and strip the
-     * incremental backup information and checkpoint LSN from the extracted metadata
+     * incremental backup information and checkpoint LSN from the extracted metadata.
      */
     if (!is_metadata) {
         if (!import_repair) {
