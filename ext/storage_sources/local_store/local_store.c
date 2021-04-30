@@ -379,6 +379,14 @@ local_location_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
     ret = 0;
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
 
+    /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
+    while (*name == '.') {
+        if (name[1] != '/')
+            break;
+        name += 2;
+        while (*name == '/')
+            name++;
+    }
     len = strlen(local_fs->cache_dir) + strlen(local_fs->fs_prefix) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
         return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_location_path"));
