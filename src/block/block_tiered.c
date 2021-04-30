@@ -30,6 +30,10 @@ __wt_block_tiered_flush(
 int
 __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
 {
+    /*
+     * TODO: tiered: this call currently advances the object id, that's probably not appropriate for
+     * readonly opens. Perhaps it's also not appropriate for opening at an older checkpoint?
+     */
     if (block->log_structured) {
         block->logid = ci->root_logid;
 
