@@ -205,12 +205,8 @@ __create_file(
     }
 
     /*
-     * When creating an ordinary file reconfigure parts of the metadata and insert the resulting
-     * configuration into the metadata.
-     *
-     * Strip out any incremental backup information, an imported file has not been part of a backup.
-     * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Append
-     * the file ID and current version numbers to the passed-in configuration
+     * If creating an ordinary file, update the file ID and current version numbers and strip the
+     * incremental backup information and checkpoint LSN from the extracted metadata
      */
     if (!is_metadata) {
         if (!import_repair) {
