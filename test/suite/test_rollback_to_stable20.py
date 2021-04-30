@@ -54,7 +54,7 @@ class test_rollback_to_stable20(test_rollback_to_stable_base):
             self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
         ds.populate()
 
-        # Pin oldest and stable to timestamp 1.
+        # Pin oldest and stable timestamp to 1.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
             ',stable_timestamp=' + timestamp_str(1))
 

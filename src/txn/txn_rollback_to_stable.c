@@ -1390,6 +1390,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
     uint64_t rollback_txnid;
+    uint32_t btree_id;
     size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
@@ -1437,6 +1438,11 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         /* Find out the max durable timestamp of the object from checkpoint. */
         newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
         durable_ts_found = prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
+
+        /* Get the btree ID. */
+        WT_RET(__wt_config_gets(session, &config, "id", &cval));
+        btree_id = (uint32_t)cval.val;
+
         WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
         __wt_config_subinit(session, &ckptconf, &cval);
         for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
@@ -1553,9 +1559,9 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. In-memory database - In this scenario, there is no history store to truncate.
          */
 
-        if (S2BT_SAFE(session) != NULL && (!dhandle_allocated || !S2BT(session)->modified) &&
+        if ((!dhandle_allocated || !S2BT(session)->modified) &&
           max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            WT_TRET(__rollback_to_stable_btree_hs_truncate(session, S2BT(session)->id));
+            WT_TRET(__rollback_to_stable_btree_hs_truncate(session, btree_id));
 
         if (dhandle_allocated)
             WT_TRET(__wt_session_release_dhandle(session));
