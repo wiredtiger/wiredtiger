@@ -1559,8 +1559,8 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
          * 2. In-memory database - In this scenario, there is no history store to truncate.
          */
 
-        if ((!dhandle_allocated || !S2BT(session)->modified) &&
-          max_durable_ts == WT_TS_NONE && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        if ((!dhandle_allocated || !S2BT(session)->modified) && max_durable_ts == WT_TS_NONE &&
+          !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             WT_TRET(__rollback_to_stable_btree_hs_truncate(session, btree_id));
 
         if (dhandle_allocated)
