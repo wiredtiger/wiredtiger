@@ -115,7 +115,7 @@ hs_cursor(void *arg)
         testutil_check(cursor->close(cursor));
 
         /* Sleep for some number of seconds, in short intervals so we don't make the run wait. */
-        for (period = 0; period > 0 && !g.workers_finished; --period)
+        for (period = mmrand(NULL, 1, 10); period > 0 && !g.workers_finished; --period)
             __wt_sleep(1, 0);
         if (g.workers_finished)
             break;
