@@ -76,9 +76,12 @@ class configuration {
     }
 
     /*
-     * Wrapper functions for retrieving basic configuration values. Ideally the tests can avoid
-     * using the config item struct provided by wiredtiger. However if they still wish to use it the
-     * get and next functions can be used. Error checking should be performed at the test level.
+     * Wrapper functions for retrieving basic configuration values. Ideally tests can avoid using
+     * the config item struct provided by wiredtiger.
+     *
+     * When getting a configuration value that may not exist for that configuration string or
+     * component, the optional forms of the functions can be used. In this case a default value must
+     * be passed and it will be set to that value.
      */
     std::string
     get_string(const std::string &key)
@@ -87,7 +90,7 @@ class configuration {
     }
 
     std::string
-    get_optional_string(const std::string &key, std::string def)
+    get_optional_string(const std::string &key, const std::string &def)
     {
         return get<std::string>(key, true, types::STRING, def, config_item_to_string);
     }
@@ -99,7 +102,7 @@ class configuration {
     }
 
     bool
-    get_optional_bool(const std::string &key, bool def)
+    get_optional_bool(const std::string &key, const bool def)
     {
         return get<bool>(key, true, types::BOOL, def, config_item_to_bool);
     }
@@ -111,43 +114,33 @@ class configuration {
     }
 
     int64_t
-    get_optional_int(const std::string &key, int64_t def)
+    get_optional_int(const std::string &key, const int64_t def)
     {
         return get<int64_t>(key, true, types::INT, def, config_item_to_int);
     }
 
     configuration *
-    get_subconfig(const std::string &key) const
+    get_subconfig(const std::string &key)
     {
-        WT_CONFIG_ITEM subconfig;
-        testutil_check(get(key, &subconfig));
-        return new configuration(subconfig);
-    }
-
-    /*
-     * Basic configuration get function.
-     */
-    int
-    get(const std::string &key, WT_CONFIG_ITEM *value) const
-    {
-        return (_config_parser->get(_config_parser, key.c_str(), value));
+        return get<configuration *>(key, false, types::STRUCT, nullptr,
+          [](WT_CONFIG_ITEM item) { return new configuration(item); });
     }
 
     private:
     static bool
-    config_item_to_bool(WT_CONFIG_ITEM item)
+    config_item_to_bool(const WT_CONFIG_ITEM item)
     {
         return (item.val != 0);
     }
 
     static int64_t
-    config_item_to_int(WT_CONFIG_ITEM item)
+    config_item_to_int(const WT_CONFIG_ITEM item)
     {
         return (item.val);
     }
 
     static std::string
-    config_item_to_string(WT_CONFIG_ITEM item)
+    config_item_to_string(const WT_CONFIG_ITEM item)
     {
         return std::string(item.str, item.len);
     }
@@ -174,7 +167,7 @@ class configuration {
             testutil_die(-1, error_msg);
         else if (type == types::INT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
             testutil_die(-1, error_msg);
-        else if (value.type == WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+        else if (type == types::STRUCT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
             testutil_die(-1, error_msg);
 
         return func(value);
