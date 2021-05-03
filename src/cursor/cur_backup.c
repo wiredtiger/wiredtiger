@@ -202,6 +202,7 @@ __curbackup_close(WT_CURSOR *cursor)
 err:
 
     if (F_ISSET(cb, WT_CURBACKUP_FORCE_STOP)) {
+        /* TODO: Not sure if a cached checkpoint list invalidation is required here. */
         __wt_verbose(
           session, WT_VERB_BACKUP, "%s", "Releasing resources from forced stop incremental");
         __wt_backup_destroy(session);
