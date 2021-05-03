@@ -90,7 +90,7 @@ __wt_tiered_bucket_config(
         if (bucket.len != 0)
             WT_ERR_MSG(
               session, EINVAL, "tiered_storage.bucket requires tiered_storage.name to be set");
-        goto out;
+        goto done;
     }
     /*
      * Check if tiered storage is set on the connection. If someone wants tiered storage on a table,
@@ -100,10 +100,10 @@ __wt_tiered_bucket_config(
         WT_ERR_MSG(
           session, EINVAL, "table tiered storage requires connection tiered storage to be set");
     /* A bucket and bucket_prefix are required. */
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
     if (bucket.len == 0)
         WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket to be set");
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &prefix));
+    WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &prefix));
     if (prefix.len == 0)
         WT_ERR_MSG(session, EINVAL, "table tiered storage requires bucket_prefix to be set");
 
@@ -113,7 +113,7 @@ __wt_tiered_bucket_config(
         if (WT_STRING_MATCH(bstorage->bucket, bucket.str, bucket.len) &&
           (WT_STRING_MATCH(bstorage->bucket_prefix, prefix.str, prefix.len))) {
             *bstoragep = bstorage;
-            goto out;
+            goto done;
         }
     }
 
@@ -139,10 +139,7 @@ __wt_tiered_bucket_config(
     WT_ERR(__tiered_common_config(session, cfg, new));
     *bstoragep = new;
 
-out:
-    __wt_spin_unlock(session, &conn->storage_lock);
-    return (0);
-
+done:
 err:
     __wt_spin_unlock(session, &conn->storage_lock);
     return (ret);
@@ -198,7 +195,6 @@ int
 __wt_tiered_config_bstorage(
   WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
 {
-    WT_BUCKET_STORAGE *bstorage;
     WT_CONFIG_ITEM cval;
 
     /*
@@ -215,6 +211,5 @@ __wt_tiered_config_bstorage(
         WT_RET(__wt_tiered_bucket_config(session, cfg, bstoragep));
         WT_ASSERT(session, *bstoragep != NULL);
     }
-    bstorage = *bstoragep;
     return (0);
 }

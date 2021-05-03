@@ -470,7 +470,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_tiered_bucket_config(session, tiered_cfg, &tiered->bstorage));
     WT_ASSERT(session, tiered->bstorage != NULL);
     /* Collapse into one string for later use in switch. */
-    WT_RET(__wt_config_merge(session, tiered_cfg, NULL, &config));
+    WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
     WT_ERR(__wt_config_getones(session, config, "key_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->key_format));

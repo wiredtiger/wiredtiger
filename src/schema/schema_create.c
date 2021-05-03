@@ -817,12 +817,10 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
     char *meta_value;
     const char *cfg[5] = {WT_CONFIG_BASE(session, tiered_meta), NULL, NULL, NULL, NULL};
     const char *metadata;
-    bool tmp_free;
 
     conn = S2C(session);
     metadata = NULL;
     tiered = NULL;
-    tmp_free = false;
 
     /* Check if the tiered table already exists. */
     if ((ret = __wt_metadata_search(session, uri, &meta_value)) != WT_NOTFOUND) {
@@ -838,7 +836,6 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
      */
     if (!F_ISSET(conn, WT_CONN_READONLY)) {
         WT_RET(__wt_scr_alloc(session, 0, &tmp));
-        tmp_free = true;
         /*
          * By default use the connection level bucket and prefix. Then we add in any user
          * configuration that may override the system one.
@@ -860,8 +857,7 @@ __create_tiered(WT_SESSION_IMPL *session, const char *uri, bool exclusive, const
 
 err:
     WT_TRET(__wt_schema_release_tiered(session, &tiered));
-    if (tmp_free)
-        __wt_scr_free(session, &tmp);
+    __wt_scr_free(session, &tmp);
     __wt_free(session, meta_value);
     __wt_free(session, metadata);
     return (ret);
