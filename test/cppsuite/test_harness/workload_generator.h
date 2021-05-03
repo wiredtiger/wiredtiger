@@ -66,7 +66,7 @@ class workload_generator : public component {
     void
     run()
     {
-        configuration *sub_config, *update_config, *insert_config;
+        configuration *transaction_config, *update_config, *insert_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
           update_threads, update_ops_per_second, insert_ops_per_second, value_size;
 
@@ -74,20 +74,21 @@ class workload_generator : public component {
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
 
         /* Retrieve useful parameters from the test configuration. */
-        testutil_check(_config->get_int(READ_THREADS, read_threads));
-        testutil_check(_config->get_int(UPDATE_THREADS, update_threads));
-        sub_config = _config->get_subconfig(OPS_PER_TRANSACTION);
+        transaction_config = _config->get_subconfig(OPS_PER_TRANSACTION);
         update_config = _config->get_subconfig(UPDATE_CONFIG);
         insert_config = _config->get_subconfig(INSERT_CONFIG);
-        testutil_check(sub_config->get_int(MIN, min_operation_per_transaction));
-        testutil_check(sub_config->get_int(MAX, max_operation_per_transaction));
-        testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
-        testutil_check(_config->get_int(VALUE_SIZE, value_size));
-        testutil_assert(value_size >= 0);
-        testutil_check(update_config->get_int(OPS_PER_SECOND, update_ops_per_second));
-        testutil_check(insert_config->get_int(OPS_PER_SECOND, insert_ops_per_second));
+        read_threads = _config->get_int(READ_THREADS);
+        update_threads = _config->get_int(UPDATE_THREADS);
 
-        delete sub_config;
+        min_operation_per_transaction = transaction_config->get_int(MIN);
+        max_operation_per_transaction = transaction_config->get_int(MAX);
+        testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
+        value_size = _config->get_int(VALUE_SIZE);
+        testutil_assert(value_size >= 0);
+        update_ops_per_second = update_config->get_int(OPS_PER_SECOND);
+        insert_ops_per_second = insert_config->get_int(OPS_PER_SECOND);
+
+        delete transaction_config;
         delete update_config;
         delete insert_config;
 

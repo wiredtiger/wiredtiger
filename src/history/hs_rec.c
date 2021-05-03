@@ -87,6 +87,16 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     counter = 0;
 
     /*
+     * We might be entering this code from application thread's context. We should make sure that we
+     * are not using snapshot associated with application session to perform visibility checks on
+     * history store records. Note that the history store cursor performs visibility checks based on
+     * snapshot if none of WT_CURSTD_HS_READ_ALL or WT_CURSTD_HS_READ_COMMITTED flags are set.
+     */
+    WT_ASSERT(session,
+      F_ISSET(session, WT_SESSION_INTERNAL) ||
+        F_ISSET(cursor, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_COMMITTED));
+
+    /*
      * Keep track if the caller had set WT_CURSTD_HS_READ_ALL flag on the history store cursor. We
      * want to preserve the flags set by the caller when we exit from this function. Also, we want
      * to explicitly set the flag WT_CURSTD_HS_READ_ALL only for the search_near operations on the
@@ -668,7 +678,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     wt_timestamp_t hs_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    bool hs_read_committed;
+    bool hs_read_all_flag;
 
     /*
      * If we will delete all the updates of the key from the history store, we should not reinsert
@@ -676,11 +686,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      */
     WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
-    hs_read_committed = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-    if (!hs_read_committed)
-        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
     /* Empty history store is fine. */
     if (ret == WT_NOTFOUND) {
@@ -695,8 +704,8 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
       __hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, ts, reinsert, &hs_counter));
 done:
 err:
-    if (!hs_read_committed)
-        F_CLR(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+    if (!hs_read_all_flag)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
     return (ret);
 }
 
