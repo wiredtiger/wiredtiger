@@ -186,30 +186,3 @@ err:
     __wt_free(session, conn->bstorage);
     return (ret);
 }
-
-/*
- * __wt_tiered_config_bstorage --
- *     Return a bucket storage handle based on the configuration.
- */
-int
-__wt_tiered_config_bstorage(
-  WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
-{
-    WT_CONFIG_ITEM cval;
-
-    /*
-     * We do not use __wt_config_gets_none for name because "none" and the empty string have
-     * different meanings. The empty string means inherit the system tiered storage setting and
-     * "none" means this table is not using tiered storage.
-     */
-    *bstoragep = NULL;
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-    if (cval.len == 0)
-        *bstoragep = S2C(session)->bstorage;
-    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
-        /* Look up or create the bucket in the connection's list. */
-        WT_RET(__wt_tiered_bucket_config(session, cfg, bstoragep));
-        WT_ASSERT(session, *bstoragep != NULL);
-    }
-    return (0);
-}
