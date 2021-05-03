@@ -115,7 +115,7 @@ class cache_limit_statistic : public statistic {
  */
 class runtime_monitor : public component {
     public:
-    runtime_monitor(configuration *config) : component(config) {}
+    runtime_monitor(configuration *config) : component("runtime_monitor", config) {}
 
     ~runtime_monitor()
     {
@@ -131,39 +131,37 @@ class runtime_monitor : public component {
     void
     load()
     {
-        int64_t _ops;
         configuration *sub_config;
         std::string statistic_list;
-        /* Parse the configuration for the runtime monitor. */
-        _ops = _config->get_int(OPS_PER_SECOND);
-        _throttle = throttle(_ops);
 
-        /* Load known statistics. */
-        sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
-        _stats.push_back(new cache_limit_statistic(sub_config));
-        delete sub_config;
+        /* Load the general component things. */
         component::load();
+
+        if (_enabled) {
+            _session = connection_manager::instance().create_session();
+
+            /* Open our statistic cursor. */
+            _session->open_cursor(_session, STATISTICS_URI, nullptr, nullptr, &_cursor);
+
+            /* Load known statistics. */
+            sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
+            _stats.push_back(new cache_limit_statistic(sub_config));
+            delete sub_config;
+        }
     }
 
     void
-    run()
+    do_work()
     {
-        WT_SESSION *session = connection_manager::instance().create_session();
-        WT_CURSOR *cursor = nullptr;
-
-        /* Open a statistics cursor. */
-        testutil_check(session->open_cursor(session, STATISTICS_URI, nullptr, nullptr, &cursor));
-
-        while (_running) {
-            _throttle.sleep();
-            for (const auto &it : _stats) {
-                if (it->is_enabled())
-                    it->check(cursor);
-            }
+        for (const auto &it : _stats) {
+            if (it->is_enabled())
+                it->check(_cursor);
         }
     }
 
     private:
+    WT_CURSOR *_cursor = nullptr;
+    WT_SESSION *_session = nullptr;
     throttle _throttle;
     std::vector<statistic *> _stats;
 };

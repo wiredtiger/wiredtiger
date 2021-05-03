@@ -34,10 +34,13 @@
 namespace test_harness {
 class throttle {
     public:
-    throttle(int64_t ops_per_second) : _ops_per_second(ops_per_second) {}
+    throttle(int64_t ops_per_second)
+    {
+        _ms = 1000 / ops_per_second;
+    }
 
     /* Default to a second per operation. */
-    throttle() : _ops_per_second(1) {}
+    throttle() : throttle(1) {}
 
     void
     sleep()
@@ -45,24 +48,11 @@ class throttle {
         std::this_thread::sleep_for(std::chrono::milliseconds(_ms));
     }
 
-    int64_t
-    get_sleep_ms()
-    {
-        return 1000 / _ops_per_second;
-    }
-
-    int64_t
-    get_ops_per_second()
-    {
-        return _ops_per_second;
-    }
-
     /*
      * We shouldn't need to delete the copy constructor or assignment operator here as there are no
      * pointer types.
      */
     private:
-    int64_t _ops_per_second;
     int64_t _ms;
 };
 } // namespace test_harness

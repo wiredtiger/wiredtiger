@@ -57,8 +57,8 @@ class workload_tracking : public component {
     workload_tracking(configuration *_config, const std::string &operation_table_config,
       const std::string &operation_table_name, const std::string &schema_table_config,
       const std::string &schema_table_name)
-        : component(_config), _cursor_operations(nullptr), _cursor_schema(nullptr),
-          _operation_table_config(operation_table_config),
+        : component("workload_tracking", _config), _cursor_operations(nullptr),
+          _cursor_schema(nullptr), _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
           _schema_table_name(schema_table_name)
     {
@@ -81,7 +81,8 @@ class workload_tracking : public component {
     {
         WT_SESSION *session;
 
-        _enabled = _config->get_bool(ENABLED);
+        component::load();
+
         if (!_enabled)
             return;
 

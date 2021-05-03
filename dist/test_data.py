@@ -93,6 +93,8 @@ range_config = [
         The maximum a value can be in a range''')
 ]
 
+component_config = enable_config + throttle_config
+
 transaction_config = [
     Config('ops_per_transaction', '', r'''
         Defines how many operations a transaction can perform, the range is defined with a minimum
@@ -104,7 +106,7 @@ transaction_config = [
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
 # that need to be checked by the component.
 #
-runtime_monitor = throttle_config + [
+runtime_monitor = component_config + [
     Config('stat_cache_size', '', '''
         The maximum cache percentage that can be hit while running.''',
         type='category', subconfig=limit_stat)
@@ -113,7 +115,7 @@ runtime_monitor = throttle_config + [
 #
 # Configuration that applies to the timestamp_manager component.
 #
-timestamp_manager = enable_config +  [
+timestamp_manager = component_config +  [
     Config('oldest_lag', 0, r'''
         The duration between the stable and oldest timestamps''', min=0, max=1000000),
     Config('stable_lag', 0, r'''
@@ -128,7 +130,7 @@ workload_tracking = enable_config
 #
 # Configuration that applies to the workload_generator component.
 #
-workload_generator = transaction_config + record_config + populate_config + [
+workload_generator = component_config + transaction_config + record_config + populate_config + [
     Config('read_threads', 0, r'''
         The number of threads performing read operations''', min=0, max=100),
     Config('insert_threads', 0, r'''

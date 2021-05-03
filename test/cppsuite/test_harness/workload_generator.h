@@ -47,7 +47,7 @@ class workload_generator : public component {
     public:
     workload_generator(configuration *configuration, database_operation *db_operation,
       timestamp_manager *timestamp_manager, workload_tracking *tracking)
-        : component(configuration), _database_operation(db_operation),
+        : component("workload_generator", configuration), _database_operation(db_operation),
           _timestamp_manager(timestamp_manager), _tracking(tracking)
     {
     }
@@ -114,6 +114,8 @@ class workload_generator : public component {
     void
     finish()
     {
+        component::finish();
+
         for (const auto &it : _workers)
             it->finish();
         _thread_manager.join();
