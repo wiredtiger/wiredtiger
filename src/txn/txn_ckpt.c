@@ -1855,7 +1855,7 @@ err:
         conn->modified = true;
     }
 
-    if (WT_IS_METADATA(session->dhandle))
+    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
         __wt_meta_ckptlist_free(session, &btree->ckpt);
     else {
         /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */

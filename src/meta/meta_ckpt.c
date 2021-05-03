@@ -660,8 +660,10 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
     *ckptbasep = ckptbase;
 
 #ifdef HAVE_DIAGNOSTIC
-    /* Sanity check: Let's compare to a list generated from metadata. There should be no
-     * differences. */
+    /*
+     * Sanity check: Let's compare to a list generated from metadata. There should be no
+     * differences.
+     */
     if ((ret = __wt_meta_ckptlist_get(session, fname, true, &ckptbase_comp, NULL)) == 0)
         __assert_checkpoint_list_matches(session, ckptbase, ckptbase_comp);
     __wt_meta_ckptlist_free(session, &ckptbase_comp);
@@ -1128,8 +1130,12 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
     if ((ckptbase = *ckptbasep) == NULL)
         return;
 
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        __wt_meta_checkpoint_free(session, ckpt);
+    /*
+     * Sometimes the checkpoint list has a checkpoint which has not been named yet, but carries an
+     * order number.
+     */
+    WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt)
+    __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
 
