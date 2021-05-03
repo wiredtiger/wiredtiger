@@ -87,6 +87,7 @@ __wt_tiered_bucket_config(
 
     WT_ERR(__tiered_confchk(session, &name, &nstorage));
     if (nstorage == NULL) {
+        WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket", &bucket));
         if (bucket.len != 0)
             WT_ERR_MSG(
               session, EINVAL, "tiered_storage.bucket requires tiered_storage.name to be set");
