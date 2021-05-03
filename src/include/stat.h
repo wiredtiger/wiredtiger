@@ -634,6 +634,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_tree_walk_skip_pages;
     int64_t txn_rts_upd_aborted;
+    int64_t txn_sessions_walked;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
@@ -675,6 +676,7 @@ struct __wt_connection_stats {
     int64_t txn_pinned_timestamp_reader;
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
+    int64_t txn_rollback_to_stable_running;
     int64_t txn_sync;
     int64_t txn_walk_sessions;
     int64_t txn_commit;
