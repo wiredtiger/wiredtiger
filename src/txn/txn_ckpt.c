@@ -1442,12 +1442,15 @@ __checkpoint_lock_dirty_tree(
     }
 
     /*
-     * Discard the saved list of checkpoints, and slow path if this is not a WiredTiger checkpoint.
-     * Also, if we do not have checkpoint array size, the regular checkpoint process did not create
-     * the array, it is safer to discard the array in such a case.
+     * Discard the saved list of checkpoints, and slow path if this is not a WiredTiger checkpoint
+     * or if checkpoint drops are involved. Also, if we do not have checkpoint array size, the
+     * regular checkpoint process did not create the array, it is safer to discard the array in such
+     * a case.
      */
-    if (!is_wt_ckpt || btree->ckpt_allocated == 0)
+    if (!is_wt_ckpt || is_drop || btree->ckpt_allocated == 0) {
         __wt_meta_ckptlist_free(session, &btree->ckpt);
+        btree->ckpt_allocated = 0;
+    }
 
     /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
@@ -1855,15 +1858,18 @@ err:
         conn->modified = true;
     }
 
-    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
+    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING)) {
         __wt_meta_ckptlist_free(session, &btree->ckpt);
-    else {
+        btree->ckpt_allocated = 0;
+    } else {
         /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
         if (ret == 0)
             ret = __checkpoint_save_ckptlist(session, btree->ckpt);
         /* Discard the saved checkpoint list in case of any errors. */
-        if (ret != 0)
+        if (ret != 0) {
             __wt_meta_ckptlist_free(session, &btree->ckpt);
+            btree->ckpt_allocated = 0;
+        }
     }
 
     return (ret);

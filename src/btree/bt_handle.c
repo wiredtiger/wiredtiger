@@ -221,6 +221,7 @@ __wt_btree_close(WT_SESSION_IMPL *session)
 
     /* Clear the saved checkpoint information. */
     __wt_meta_ckptlist_free(session, &btree->ckpt);
+    btree->ckpt_allocated = 0;
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter

@@ -195,8 +195,10 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
      */
     if (root->page != NULL) {
         /* Free the existing list */
-        if (btree->ckpt != NULL)
+        if (btree->ckpt != NULL) {
             __wt_meta_ckptlist_free(session, &btree->ckpt);
+            btree->ckpt_allocated = 0;
+        }
         btree->ckpt = ckptbase;
         ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);
         root->page = NULL;

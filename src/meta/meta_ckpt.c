@@ -675,6 +675,7 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
     if (0) {
 err:
         __wt_meta_ckptlist_free(session, &btree->ckpt);
+        btree->ckpt_allocated = 0;
     }
 
     /* Clear the saved list for now, let the caller decide if the returned list gets saved. */
