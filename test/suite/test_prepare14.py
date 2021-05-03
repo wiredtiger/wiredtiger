@@ -34,9 +34,9 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_prepare14.py
-# Test that visiblity check is OK when both the stop time
-# point and the start time point are from the same prepared
-# transaction.
+# Test that the transaction visibility of an on-disk update
+# that has both the start and the stop time points from the
+# same uncommitted prepared transaction.
 class test_prepare14(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
