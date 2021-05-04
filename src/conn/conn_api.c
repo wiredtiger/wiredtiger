@@ -664,104 +664,6 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
- * __tiered_confchk --
- *     Check for a valid tiered storage source.
- */
-static int
-__tiered_confchk(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_NAMED_STORAGE_SOURCE **nstoragep)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-
-    *nstoragep = NULL;
-
-    if (cname->len == 0 || WT_STRING_MATCH("none", cname->str, cname->len))
-        return (0);
-
-    conn = S2C(session);
-    TAILQ_FOREACH (nstorage, &conn->storagesrcqh, q)
-        if (WT_STRING_MATCH(nstorage->name, cname->str, cname->len)) {
-            *nstoragep = nstorage;
-            return (0);
-        }
-    WT_RET_MSG(session, EINVAL, "unknown storage source '%.*s'", (int)cname->len, cname->str);
-}
-
-/*
- * __wt_tiered_bucket_config --
- *     Given a configuration, configure the bucket storage.
- */
-int
-__wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_ITEM *bucket,
-  WT_CONFIG_ITEM *auth, WT_BUCKET_STORAGE **bstoragep)
-{
-    WT_BUCKET_STORAGE *bstorage, *new;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-    WT_STORAGE_SOURCE *storage;
-    uint64_t hash_bucket, hash;
-
-    *bstoragep = NULL;
-
-    bstorage = new = NULL;
-    conn = S2C(session);
-
-    __wt_spin_lock(session, &conn->storage_lock);
-
-    WT_ERR(__tiered_confchk(session, cval, &nstorage));
-    if (nstorage == NULL) {
-        if (bucket->len != 0)
-            WT_ERR_MSG(
-              session, EINVAL, "tiered_storage.bucket requires tiered_storage.name to be set");
-        goto out;
-    }
-
-    /*
-     * Check if tiered storage is set on the connection. If someone wants tiered storage on a table,
-     * it needs to be configured on the database as well.
-     */
-    if (conn->bstorage == NULL && bstoragep != &conn->bstorage)
-        WT_ERR_MSG(
-          session, EINVAL, "table tiered storage requires connection tiered storage to be set");
-    hash = __wt_hash_city64(bucket->str, bucket->len);
-    hash_bucket = hash & (conn->hash_size - 1);
-    TAILQ_FOREACH (bstorage, &nstorage->buckethashqh[hash_bucket], q)
-        if (WT_STRING_MATCH(bstorage->bucket, bucket->str, bucket->len))
-            goto out;
-
-    WT_ERR(__wt_calloc_one(session, &new));
-    WT_ERR(__wt_strndup(session, auth->str, auth->len, &new->auth_token));
-    WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
-    storage = nstorage->storage_source;
-    WT_ERR(storage->ss_customize_file_system(
-      storage, &session->iface, new->bucket, "", new->auth_token, NULL, &new->file_system));
-    new->storage_source = storage;
-    TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
-    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
-    F_SET(new, WT_BUCKET_FREE);
-    bstorage = new;
-
-out:
-    __wt_spin_unlock(session, &conn->storage_lock);
-    *bstoragep = bstorage;
-    return (0);
-
-err:
-    if (bstorage != NULL) {
-        WT_ASSERT(session, new != NULL);
-        if (new->file_system != NULL && new->file_system->terminate != NULL)
-            WT_TRET(new->file_system->terminate(new->file_system, &session->iface));
-        __wt_free(session, new->auth_token);
-        __wt_free(session, new->bucket);
-        __wt_free(session, new);
-    }
-    __wt_spin_unlock(session, &conn->storage_lock);
-    return (ret);
-}
-
-/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -2905,7 +2807,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * Do some early initialization for tiered storage, as this may affect our choice of file system
      * for some operations.
      */
-    WT_ERR(__wt_tiered_storage_init(session, cfg));
+    WT_ERR(__wt_tiered_conn_config(session, cfg, false));
 
     /*
      * The metadata/log encryptor is configured after extensions, since

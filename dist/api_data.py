@@ -465,12 +465,9 @@ tiered_meta = common_meta + tiered_config + [
 ]
 
 tier_meta = file_meta + tiered_tree_config
-object_meta = file_meta + [
-    Config('bucket_prefix', '', r'''
-        unique string prefix to identify our objects in the bucket.
-        Multiple instances can share the storage bucket and this
-        identifier is used in naming objects'''),
-]
+# Objects need to have the readonly setting set and bucket_prefix.
+# The file_meta already contains those pieces.
+object_meta = file_meta
 
 table_only_config = [
     Config('colgroups', '', r'''
@@ -1248,6 +1245,14 @@ cursor_runtime_config = [
         if the record exists, WT_CURSOR::update fails with ::WT_NOTFOUND
         if the record does not exist''',
         type='boolean'),
+    Config('prefix_search', 'false', r'''
+        when performing a search near for a prefix, if set to true this
+        configuration will allow the search near to exit early if it has left
+        the key range defined by the prefix. This is relevant when the table
+        contains a large number of records which potentially aren't visible to
+        the caller of search near, as such a large number of records could be skipped.
+        The prefix_search configuration provides a fast exit in this scenario.''', type='boolean',
+        undoc=True),
 ]
 
 methods = {

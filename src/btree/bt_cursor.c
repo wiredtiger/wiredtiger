@@ -348,6 +348,15 @@ __cursor_col_search(WT_CURSOR_BTREE *cbt, WT_REF *leaf, bool *leaf_foundp)
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
+     * them back on after a successful search.
+     */
+    __wt_cursor_key_order_reset(cbt);
+#endif
+
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_col_search(cbt, cbt->iface.recno, leaf, false, leaf_foundp));
     return (ret);
@@ -364,6 +373,15 @@ __cursor_row_search(WT_CURSOR_BTREE *cbt, bool insert, WT_REF *leaf, bool *leaf_
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
+     * them back on after a successful search.
+     */
+    __wt_cursor_key_order_reset(cbt);
+#endif
+
     WT_WITH_PAGE_INDEX(
       session, ret = __wt_row_search(cbt, &cbt->iface.key, insert, leaf, false, leaf_foundp));
     return (ret);
@@ -690,7 +708,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * here because at low isolation levels, new records could appear as we are stepping through
          * the tree.
          */
-        while ((ret = __wt_btcur_next(cbt, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_next_prefix(cbt, &state.key, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -703,7 +721,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev_prefix(cbt, &state.key, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -725,6 +743,11 @@ err:
 #endif
 
     if (ret != 0) {
+        /*
+         * It is important that this reset is kept as the cursor state is modified in the above prev
+         * and next loops. Those internally do reset the cursor but not when performing a prefix
+         * search near.
+         */
         WT_TRET(__cursor_reset(cbt));
         __cursor_state_restore(cursor, &state);
     }
