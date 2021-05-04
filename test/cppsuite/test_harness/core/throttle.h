@@ -38,7 +38,7 @@ class throttle {
     public:
     throttle(const int64_t op_count, const char interval)
     {
-        testutil_assert(op_count != 0);
+        testutil_assert(op_count > 0);
         /* Lazily compute the ms for every type. */
         if (interval == 's')
             _ms = 1000 / op_count;
