@@ -212,8 +212,8 @@ tinfo_rollback_to_stable(WT_SESSION *session)
     WT_DECL_RET;
     char cmd[512];
 
-    /* Rollback-to-stable only makes sense for on-disk stores. */
-    if (g.c_in_memory != 0)
+    /* Rollback-to-stable only makes sense for timestamps and on-disk stores. */
+    if (g.c_txn_timestamps == 0 || g.c_in_memory != 0)
         return;
 
     testutil_check(__wt_snprintf(cmd, sizeof(cmd), ROLLBACK_STABLE_COPY_CMD, g.home));
@@ -223,15 +223,10 @@ tinfo_rollback_to_stable(WT_SESSION *session)
 
     g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
 
-    /*
-     * When running with timestamp transactions, we can check the saved snap operations for
-     * consistency.
-     */
-    if (g.c_txn_timestamps) {
-        testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
-        snap_repeat_rollback(cursor, tinfo_list, g.c_threads);
-        testutil_check(cursor->close(cursor));
-    }
+    /* Check the saved snap operations for consistency. */
+    testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
+    snap_repeat_rollback(cursor, tinfo_list, g.c_threads);
+    testutil_check(cursor->close(cursor));
 }
 
 /*
