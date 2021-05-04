@@ -639,6 +639,13 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
     WT_ASSERT(session, slot != 0);
 
     /*
+     * If we do not have the metadata from the last cached checkpoint, we will have to go slow path
+     * and read the metadata instead.
+     */
+    if (btree->ckpt[slot - 1].block_metadata == NULL)
+        WT_ERR(WT_NOTFOUND);
+
+    /*
      * This isn't clean, but there's necessary cooperation between the schema layer (that maintains
      * the list of checkpoints), the btree layer (that knows when the root page is written, creating
      * a new checkpoint), and the block manager (which actually creates the checkpoint). All of that
@@ -647,9 +654,7 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
      *
      * Allocate a slot for a new value, plus a slot to mark the end.
      */
-    WT_ASSERT(session, btree->ckpt->name != NULL);
     WT_ERR(__wt_realloc_def(session, &btree->ckpt_allocated, slot + 2, &btree->ckpt));
-    WT_ASSERT(session, btree->ckpt->name != NULL);
     ckptbase = btree->ckpt;
 
     /* The caller may be adding a value, initialize it. */
@@ -692,8 +697,6 @@ err:
         btree->ckpt_allocated = 0;
     }
 
-    /* Clear the saved list for now, let the caller decide if the returned list gets saved. */
-    btree->ckpt = NULL;
     return (ret);
 }
 
@@ -769,6 +772,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
                 break;
         }
         WT_ERR(__wt_meta_blk_mods_load(session, config, NULL, ckpt, false));
+        WT_ASSERT(session, ckpt->block_metadata != NULL);
     }
 
     /* Return the array to our caller. */
