@@ -554,10 +554,12 @@ connection_stats = [
     TxnStat('txn_prepared_updates_count', 'Number of prepared updates'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
     TxnStat('txn_rollback', 'transactions rolled back'),
+    TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
+    TxnStat('txn_sessions_walked', 'sessions scanned in each walk of concurrent sessions'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
     TxnStat('txn_set_ts_durable_upd', 'set timestamp durable updates'),
@@ -811,6 +813,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
+    CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
     ##########################################
     # Checkpoint cleanup statistics
