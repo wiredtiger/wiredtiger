@@ -560,15 +560,29 @@ err:
 static void
 __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b)
 {
-    /* These are separate checks so that we can easily know which one failed. */
+    /*
+     * We are not checking checkpoint time, because there could be a minute difference depending
+     * upon when the checkpoint information was generated. This is acceptable.
+     */
+    WT_ASSERT(session,
+      (ckpt_a->name == NULL && ckpt_b->name == NULL) ||
+        (ckpt_a->name != NULL && ckpt_b->name != NULL && strcmp(ckpt_a->name, ckpt_b->name) == 0));
     WT_ASSERT(session, ckpt_a->order == ckpt_b->order);
     WT_ASSERT(session, ckpt_a->size == ckpt_b->size);
     WT_ASSERT(session, ckpt_a->write_gen == ckpt_b->write_gen);
     WT_ASSERT(session, ckpt_a->run_write_gen == ckpt_b->run_write_gen);
-    WT_ASSERT(session, ckpt_a->flags == ckpt_b->flags);
     WT_ASSERT(session,
-      (ckpt_a->name == NULL && ckpt_b->name == NULL) ||
-        (ckpt_a->name != NULL && ckpt_b->name != NULL && strcmp(ckpt_a->name, ckpt_b->name) == 0));
+      ckpt_a->ta.newest_start_durable_ts == ckpt_b->ta.newest_start_durable_ts &&
+        ckpt_a->ta.newest_stop_durable_ts == ckpt_b->ta.newest_stop_durable_ts &&
+        ckpt_a->ta.oldest_start_ts == ckpt_b->ta.oldest_start_ts &&
+        ckpt_a->ta.newest_txn == ckpt_b->ta.newest_txn &&
+        ckpt_a->ta.newest_stop_ts == ckpt_b->ta.newest_stop_ts &&
+        ckpt_a->ta.newest_stop_txn == ckpt_b->ta.newest_stop_txn &&
+        ckpt_a->ta.prepare == ckpt_b->ta.prepare &&
+        __wt_check_addr_validity(session, &ckpt_a->ta, true) == 0);
+    //WT_ASSERT(session, memcmp(ckpt_a->addr.data, ckpt_b->addr.data, ckpt_a->addr.size) == 0);
+    WT_ASSERT(session, ckpt_a->bpriv == NULL && ckpt_b->bpriv == NULL);
+    WT_ASSERT(session, ckpt_a->flags == ckpt_b->flags);
 }
 
 /*
