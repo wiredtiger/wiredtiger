@@ -68,7 +68,7 @@ class workload_generator : public component {
     {
         configuration *transaction_config, *update_config, *insert_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
-          update_threads, update_ops, value_size;
+          update_threads, value_size;
 
         /* Populate the database. */
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
@@ -85,12 +85,6 @@ class workload_generator : public component {
         testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
         value_size = _config->get_int(VALUE_SIZE);
         testutil_assert(value_size >= 0);
-        update_ops = update_config->get_int(OPS_PER_SECOND);
-        testutil_assert(update_ops > 0);
-
-        delete transaction_config;
-        delete update_config;
-        delete insert_config;
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
@@ -105,10 +99,14 @@ class workload_generator : public component {
         for (int i = 0; i < update_threads; ++i) {
             thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
               thread_operation::UPDATE, max_operation_per_transaction,
-              min_operation_per_transaction, value_size, throttle(update_ops));
+              min_operation_per_transaction, value_size, throttle(update_config));
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }
+
+        delete transaction_config;
+        delete update_config;
+        delete insert_config;
     }
 
     void

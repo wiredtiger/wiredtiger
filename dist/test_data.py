@@ -45,8 +45,14 @@ class Config:
 # A generic configuration used by some components to define their tick rate.
 #
 throttle_config = [
-    Config('ops_per_second',1,r'''
-        The number of times an operation should be performed per second''', min=1,max=1000),
+    Config('op_count',1,r'''
+        The number of operations to be performed within the defined interval, e.g.
+        20 op_count with an interval of a second is equal to 20 ops per second.''',
+        min=1,max=10000),
+    Config('interval', 's', r'''
+        The interval to considered, either second, minute or hour.
+        The default interval is seconds.''',
+        choices=['s', 'm', 'h'])
 ]
 
 #

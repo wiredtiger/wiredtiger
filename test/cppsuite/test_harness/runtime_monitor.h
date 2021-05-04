@@ -162,7 +162,6 @@ class runtime_monitor : public component {
     private:
     WT_CURSOR *_cursor = nullptr;
     WT_SESSION *_session = nullptr;
-    throttle _throttle;
     std::vector<statistic *> _stats;
 };
 } // namespace test_harness

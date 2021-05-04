@@ -31,16 +31,33 @@
 
 #include <thread>
 
+#include "configuration.h"
+
 namespace test_harness {
 class throttle {
     public:
-    throttle(int64_t ops_per_second)
+    throttle(const int64_t op_count, const char interval)
     {
-        _ms = 1000 / ops_per_second;
+        testutil_assert(op_count != 0);
+        /* Lazily compute the ms for every type. */
+        if (interval == 's')
+            _ms = 1000 / op_count;
+        else if (interval == 'm')
+            _ms = (60 * 1000) / op_count;
+        else if (interval == 'h')
+            _ms = (60 * 60 * 1000) / op_count;
+        else
+            testutil_die(-1, "Specified throttle interval not supported.");
+    }
+
+    throttle(configuration *config)
+        : throttle(
+            config->get_optional_int(OP_COUNT, 1), config->get_optional_string(INTERVAL, "s")[0])
+    {
     }
 
     /* Default to a second per operation. */
-    throttle() : throttle(1) {}
+    throttle() : throttle(1, 's') {}
 
     void
     sleep()
@@ -49,7 +66,7 @@ class throttle {
     }
 
     private:
-    uint64_t _ms;
+    uint64_t _ms = 1000;
 };
 } // namespace test_harness
 
