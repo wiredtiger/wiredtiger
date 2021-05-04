@@ -52,9 +52,8 @@ class thread_context {
     public:
     thread_context(timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db,
       thread_operation type, int64_t max_op, int64_t min_op, int64_t value_size, throttle throttle)
-        : _database(db), _current_op_count(0U), _in_txn(false), _running(false), _min_op(min_op),
-          _max_op(max_op), _max_op_count(0), _timestamp_manager(timestamp_manager), _type(type),
-          _tracking(tracking), _value_size(value_size), _throttle(throttle)
+        : _database(db), _min_op(min_op), _max_op(max_op), _timestamp_manager(timestamp_manager),
+          _type(type), _tracking(tracking), _value_size(value_size), _throttle(throttle)
     {
     }
 
@@ -195,8 +194,8 @@ class thread_context {
      * _current_op_count is the current number of operations that have been executed in the current
      * transaction.
      */
-    uint64_t _current_op_count;
-    bool _in_txn, _running;
+    uint64_t _current_op_count = 0U;
+    bool _in_txn = false, _running = false;
     /*
      * _min_op and _max_op are the minimum and maximum number of operations within one transaction.
      * _max_op_count is the current maximum number of operations that can be executed in the current

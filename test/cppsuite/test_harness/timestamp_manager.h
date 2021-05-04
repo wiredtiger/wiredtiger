@@ -44,11 +44,7 @@ namespace test_harness {
  */
 class timestamp_manager : public component {
     public:
-    timestamp_manager(configuration *config)
-        : component("timestamp_manager", config), _increment_ts(0U), _latest_ts(0U), _oldest_lag(0),
-          _oldest_ts(0U), _stable_lag(0), _stable_ts(0U)
-    {
-    }
+    timestamp_manager(configuration *config) : component("timestamp_manager", config) {}
 
     void
     load()
@@ -136,12 +132,12 @@ class timestamp_manager : public component {
 
     private:
     std::atomic<wt_timestamp_t> _increment_ts;
-    wt_timestamp_t _latest_ts, _oldest_ts, _stable_ts;
+    wt_timestamp_t _latest_ts = 0U, _oldest_ts = 0U, _stable_ts = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
      * _stable_lag is the time window between the latest and stable timestamps.
      */
-    int64_t _oldest_lag, _stable_lag;
+    int64_t _oldest_lag = 0, _stable_lag = 0;
 };
 } // namespace test_harness
 

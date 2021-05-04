@@ -68,7 +68,7 @@ class workload_generator : public component {
     {
         configuration *transaction_config, *update_config, *insert_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
-          update_threads, update_ops_per_second, insert_ops_per_second, value_size;
+          update_threads, update_ops, value_size;
 
         /* Populate the database. */
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
@@ -85,8 +85,8 @@ class workload_generator : public component {
         testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
         value_size = _config->get_int(VALUE_SIZE);
         testutil_assert(value_size >= 0);
-        update_ops_per_second = update_config->get_int(OPS_PER_SECOND);
-        insert_ops_per_second = insert_config->get_int(OPS_PER_SECOND);
+        update_ops = update_config->get_int(OPS_PER_SECOND);
+        testutil_assert(update_ops > 0);
 
         delete transaction_config;
         delete update_config;
@@ -96,7 +96,7 @@ class workload_generator : public component {
         for (int i = 0; i < read_threads; ++i) {
             thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
               thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
-              value_size, throttle(1));
+              value_size, throttle());
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }
@@ -105,7 +105,7 @@ class workload_generator : public component {
         for (int i = 0; i < update_threads; ++i) {
             thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
               thread_operation::UPDATE, max_operation_per_transaction,
-              min_operation_per_transaction, value_size, throttle(update_ops_per_second));
+              min_operation_per_transaction, value_size, throttle(update_ops));
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }

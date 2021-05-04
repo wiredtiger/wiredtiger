@@ -48,12 +48,8 @@ class throttle {
         std::this_thread::sleep_for(std::chrono::milliseconds(_ms));
     }
 
-    /*
-     * We shouldn't need to delete the copy constructor or assignment operator here as there are no
-     * pointer types.
-     */
     private:
-    int64_t _ms;
+    uint64_t _ms;
 };
 } // namespace test_harness
 

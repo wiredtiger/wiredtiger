@@ -55,8 +55,6 @@ namespace test_harness {
 class test : public database_operation {
     public:
     test(const std::string &config, const std::string &name)
-        : _runtime_monitor(nullptr), _thread_manager(nullptr), _timestamp_manager(nullptr),
-          _workload_generator(nullptr), _workload_tracking(nullptr)
     {
         _config = new configuration(name, config);
         _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR));
@@ -179,11 +177,11 @@ class test : public database_operation {
     std::string _name;
     std::vector<component *> _components;
     configuration *_config;
-    runtime_monitor *_runtime_monitor;
-    thread_manager *_thread_manager;
-    timestamp_manager *_timestamp_manager;
-    workload_generator *_workload_generator;
-    workload_tracking *_workload_tracking;
+    runtime_monitor *_runtime_monitor = nullptr;
+    thread_manager *_thread_manager = nullptr;
+    timestamp_manager *_timestamp_manager = nullptr;
+    workload_generator *_workload_generator = nullptr;
+    workload_tracking *_workload_tracking = nullptr;
 };
 } // namespace test_harness
 

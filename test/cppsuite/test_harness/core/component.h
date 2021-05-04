@@ -39,10 +39,7 @@ namespace test_harness {
  */
 class component {
     public:
-    component(std::string name, configuration *config)
-        : _enabled(true), _running(false), _name(name), _config(config)
-    {
-    }
+    component(const std::string &name, configuration *config) : _name(name), _config(config) {}
 
     ~component()
     {
@@ -63,7 +60,8 @@ class component {
         debug_print("Loading component: " + _name, DEBUG_INFO);
         _enabled = _config->get_optional_bool(ENABLED, true);
         _throttle = throttle(_config->get_optional_int(OPS_PER_SECOND, 1));
-        _running = true;
+        /* If we're not enabled we should've be running. */
+        _running = _enabled && true;
     }
 
     /*
@@ -73,13 +71,11 @@ class component {
      *
      * If a component does not wish to use the standard run function, it can be overloaded.
      */
-    void
+    virtual void
     run()
     {
         debug_print("Running component: " + _name, DEBUG_INFO);
-        if (!_enabled)
-            return;
-        while (_running) {
+        while (_enabled && _running) {
             do_work();
             _throttle.sleep();
         }
@@ -110,8 +106,8 @@ class component {
     }
 
     protected:
-    bool _enabled;
-    volatile bool _running;
+    bool _enabled = false;
+    volatile bool _running = false;
     throttle _throttle;
     configuration *_config;
 
