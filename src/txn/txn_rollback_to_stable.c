@@ -1638,10 +1638,9 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      */
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
     F_SET(session, WT_SESSION_ROLLBACK_TO_STABLE);
-    ret = __rollback_to_stable(session);
+    WT_ERR(__rollback_to_stable(session));
     F_CLR(session, WT_SESSION_ROLLBACK_TO_STABLE);
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
-    WT_RET(ret);
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
@@ -1654,7 +1653,8 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
      */
     if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY) && !no_ckpt)
         WT_TRET(session->iface.checkpoint(&session->iface, "force=1"));
-    WT_TRET(__wt_session_close_internal(session));
 
+err:
+    WT_TRET(__wt_session_close_internal(session));
     return (ret);
 }
