@@ -60,8 +60,8 @@ class component {
         debug_print("Loading component: " + _name, DEBUG_INFO);
         _enabled = _config->get_optional_bool(ENABLED, true);
         _throttle = throttle(_config->get_optional_int(OPS_PER_SECOND, 1));
-        /* If we're not enabled we should've be running. */
-        _running = _enabled && true;
+        /* If we're not enabled we shouldn't be running. */
+        _running = _enabled;
     }
 
     /*
