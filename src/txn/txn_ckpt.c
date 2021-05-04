@@ -1679,11 +1679,15 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     /* Remove any deleted checkpoints, by shifting the array. */
     ckpt_itr = ckptbase;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        /* Mark the deleted checkpoints as no longer valid. */
+        /* Get rid of the deleted checkpoints. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
             __wt_meta_checkpoint_free(session, ckpt);
             continue;
         }
+
+        /* Clean up block manager information. */
+        __wt_free(session, ckpt->bpriv);
+        ckpt->bpriv = NULL;
 
         /* Update the internal checkpoints to their full names, with the generation count suffix. */
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0) {
