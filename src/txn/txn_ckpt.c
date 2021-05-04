@@ -1885,7 +1885,8 @@ err:
         conn->modified = true;
     }
 
-    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING)) {
+    if (WT_IS_METADATA(session->dhandle) || WT_IS_HS(session->dhandle) ||
+      F_ISSET(conn, WT_CONN_CLOSING)) {
         __wt_meta_ckptlist_free(session, &btree->ckpt);
         btree->ckpt_allocated = 0;
     } else {
