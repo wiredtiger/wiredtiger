@@ -60,12 +60,6 @@ parse_configuration_from_file(const std::string &filename)
 }
 
 void
-value_missing_error(const std::string &str)
-{
-    test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
-}
-
-void
 print_help()
 {
     std::cout << "NAME" << std::endl;
@@ -95,6 +89,13 @@ print_help()
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
     std::cout << "\t-l Trace level from 0 (default) to 2." << std::endl;
     std::cout << "\t-t Test name to be executed." << std::endl;
+}
+
+void
+value_missing_error(const std::string &str)
+{
+    test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
+    std::cout << "Try './run -h' for more information." << std::endl;
 }
 
 /*
