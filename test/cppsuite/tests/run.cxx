@@ -65,10 +65,42 @@ value_missing_error(const std::string &str)
     test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
 }
 
+void
+print_help()
+{
+    std::cout << "NAME" << std::endl;
+    std::cout << "\trun" << std::endl;
+    std::cout << std::endl;
+    std::cout << "SYNOPSIS" << std::endl;
+    std::cout << "\trun [OPTIONS]" << std::endl;
+    std::cout << "\trun -C [CONFIGURATION]" << std::endl;
+    std::cout << "\trun -f [FILE]" << std::endl;
+    std::cout << "\trun -l [TRACEL_LEVEL]" << std::endl;
+    std::cout << "\trun -t [TEST_NAME]" << std::endl;
+    std::cout << std::endl;
+    std::cout << "DESCRIPTION" << std::endl;
+    std::cout << "\trun  executes the test framework." << std::endl;
+    std::cout << "\tIf no test is indicated, all tests are executed." << std::endl;
+    std::cout
+      << "\tIf no configuration is indicated, the default configuration for each test will be used."
+      << std::endl;
+    std::cout
+      << "\tIf a configuration is indicated, the given configuration will be used either for "
+         "all tests or the test indicated."
+      << std::endl;
+    std::cout << std::endl;
+    std::cout << "OPTIONS" << std::endl;
+    std::cout << "\t-h Output a usage message and exit." << std::endl;
+    std::cout << "\t-C Configuration. Cannot be used with -f." << std::endl;
+    std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
+    std::cout << "\t-l Trace level from 0 (default) to 2." << std::endl;
+    std::cout << "\t-t Test name to be executed." << std::endl;
+}
+
 /*
  * Run a specific test.
- * test_name is the test to run
- * config is the configuration that is used for the test.
+ * test_name: specifies which test to run.
+ * config: defines the configuration used for the test.
  */
 int64_t
 run_test(const std::string &test_name, const std::string &config)
@@ -108,7 +140,10 @@ main(int argc, char *argv[])
      * -t   : Test to run. All tests are run if not specified.
      */
     for (int i = 1; (i < argc) && (error_code == 0); ++i) {
-        if (std::string(argv[i]) == "-C") {
+        if (std::string(argv[i]) == "-h") {
+            print_help();
+            return 0;
+        } else if (std::string(argv[i]) == "-C") {
             if (!config_filename.empty()) {
                 test_harness::debug_print("Option -C cannot be used with -f", DEBUG_ERROR);
                 error_code = -1;
