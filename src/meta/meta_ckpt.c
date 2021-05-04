@@ -843,6 +843,7 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     /*
      * If the existing block modifications are not valid, there is nothing to do.
      */
+
     if (!valid) {
         WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_backup_info="));
         return (0);
@@ -851,6 +852,8 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
     /*
      * We have at least one valid modified block list.
      */
+
+
     WT_RET(__wt_buf_catfmt(session, buf, ",checkpoint_backup_info=("));
     for (i = 0, blk = &ckpt->backup_blocks[0]; i < WT_BLKINCR_MAX; ++i, ++blk) {
         if (!F_ISSET(blk, WT_BLOCK_MODS_VALID))
@@ -877,6 +880,7 @@ __wt_ckpt_blkmod_to_meta(WT_SESSION_IMPL *session, WT_ITEM *buf, WT_CKPT *ckpt)
         __wt_buf_free(session, &bitstring);
     }
     WT_RET(__wt_buf_catfmt(session, buf, ")"));
+
     return (0);
 }
 

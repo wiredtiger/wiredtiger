@@ -249,6 +249,7 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # values and adding in get_values returns ENOTSUP and causes the usage to fail.
         # If that changes then this, and the use of the duplicate below can change.
         while incr_c.next() == 0:
+            print(newfile)
             incrlist = incr_c.get_keys()
             offset = incrlist[0]
             size = incrlist[1]
