@@ -23,10 +23,9 @@ typedef struct __wt_meta_track {
         WT_ST_REMOVE,      /* Remove a metadata entry */
         WT_ST_SET          /* Reset a metadata entry */
     } op;
-    char *a, *b;                 /* Strings */
-    WT_DATA_HANDLE *dhandle;     /* Locked handle */
-    WT_BUCKET_STORAGE *bstorage; /* Implied file system for operation */
-    bool created;                /* Handle on newly created file */
+    char *a, *b;             /* Strings */
+    WT_DATA_HANDLE *dhandle; /* Locked handle */
+    bool created;            /* Handle on newly created file */
 } WT_META_TRACK;
 
 /*
@@ -145,9 +144,7 @@ __meta_track_apply(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
         WT_WITH_DHANDLE(session, trk->dhandle, ret = bm->checkpoint_resolve(bm, session, false));
         break;
     case WT_ST_DROP_COMMIT:
-        WT_WITH_BUCKET_STORAGE(
-          trk->bstorage, session, ret = __wt_block_manager_drop(session, trk->a, false));
-        if (ret != 0)
+        if ((ret = __wt_block_manager_drop(session, trk->a, false)) != 0)
             __wt_err(session, ret, "metadata remove dropped file %s", trk->a);
         break;
     case WT_ST_LOCK:
@@ -194,19 +191,14 @@ __meta_track_unroll(WT_SESSION_IMPL *session, WT_META_TRACK *trk)
                         * For renames, both a and b are set. For creates, a is NULL. For removes, b
                         * is NULL.
                         */
-        if (trk->a != NULL && trk->b != NULL) {
-            WT_WITH_BUCKET_STORAGE(trk->bstorage, session,
-              ret =
-                __wt_fs_rename(session, trk->b + strlen("file:"), trk->a + strlen("file:"), true));
-            if (ret != 0)
-                __wt_err(session, ret, "metadata unroll rename %s to %s", trk->b, trk->a);
-        }
-        if (trk->a == NULL) {
-            WT_WITH_BUCKET_STORAGE(trk->bstorage, session,
-              ret = __wt_fs_remove(session, trk->b + strlen("file:"), false));
-            if (ret != 0)
-                __wt_err(session, ret, "metadata unroll create %s", trk->b);
-        }
+        if (trk->a != NULL && trk->b != NULL &&
+          (ret = __wt_fs_rename(
+             session, trk->b + strlen("file:"), trk->a + strlen("file:"), true)) != 0)
+            __wt_err(session, ret, "metadata unroll rename %s to %s", trk->b, trk->a);
+
+        if (trk->a == NULL && (ret = __wt_fs_remove(session, trk->b + strlen("file:"), false)) != 0)
+            __wt_err(session, ret, "metadata unroll create %s", trk->b);
+
         /*
          * We can't undo removes yet: that would imply some kind of temporary rename and remove in
          * roll forward.
@@ -462,7 +454,6 @@ __wt_meta_track_fileop(WT_SESSION_IMPL *session, const char *olduri, const char 
     WT_RET(__meta_track_next(session, &trk));
 
     trk->op = WT_ST_FILEOP;
-    trk->bstorage = session->bucket_storage;
     WT_ERR(__wt_strdup(session, olduri, &trk->a));
     WT_ERR(__wt_strdup(session, newuri, &trk->b));
     return (0);
@@ -485,7 +476,6 @@ __wt_meta_track_drop(WT_SESSION_IMPL *session, const char *filename)
     WT_RET(__meta_track_next(session, &trk));
 
     trk->op = WT_ST_DROP_COMMIT;
-    trk->bstorage = session->bucket_storage;
     WT_ERR(__wt_strdup(session, filename, &trk->a));
     return (0);
 
