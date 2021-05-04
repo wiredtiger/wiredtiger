@@ -968,7 +968,8 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
             goto err;
         }
         exists = (ret == 0);
-    }
+    } else
+        exists = false;
     if (create || exists) {
         /* The file has not been flushed, use the file directly in the file system. */
         if ((local_fh->path = strdup(name)) == NULL) {
