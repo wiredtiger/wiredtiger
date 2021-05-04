@@ -55,12 +55,12 @@ struct __wt_bucket_storage {
 };
 
 /* Call a function with the bucket storage and its associated file system. */
-#define WT_WITH_BUCKET_STORAGE(bstorage, s, e)          \
-    do {                                                \
-        WT_BUCKET_STORAGE *__saved_bstorage = bstorage; \
-        (s)->bucket_storage = bstorage;                 \
-        e;                                              \
-        (s)->bucket_storage = __saved_bstorage;         \
+#define WT_WITH_BUCKET_STORAGE(bsto, s, e)                                  \
+    do {                                                                    \
+        WT_BUCKET_STORAGE *__saved_bstorage = (s)->bucket_storage;          \
+        (s)->bucket_storage = ((bsto) == NULL ? S2C(s)->bstorage : (bsto)); \
+        e;                                                                  \
+        (s)->bucket_storage = __saved_bstorage;                             \
     } while (0)
 
 /*
@@ -388,7 +388,8 @@ struct __wt_connection_impl {
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
 
-    WT_BUCKET_STORAGE *bstorage; /* Bucket storage for the connection */
+    WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
+    WT_BUCKET_STORAGE bstorage_none; /* Bucket storage for "none" */
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 

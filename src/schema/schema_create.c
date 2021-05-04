@@ -113,7 +113,6 @@ __create_file_block_manager(
      * track the op in the import case since we do not want to wipe a data file just because we fail
      * to import it.
      */
-    /* TODO: tiered: save current file system in meta tracking? */
     if (WT_META_TRACKING(session))
         WT_RET(__wt_meta_track_fileop(session, NULL, uri));
 
@@ -213,12 +212,9 @@ __create_file(
                   uri);
             }
         }
-    } else {
+    } else
         /* Create the file. */
-        WT_WITH_BUCKET_STORAGE(S2C(session)->bstorage, session,
-          ret = __create_file_block_manager(session, uri, filename, allocsize));
-        WT_ERR(ret);
-    }
+        WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
 
     /*
      * If creating an ordinary file, update the file ID and current version numbers and strip the

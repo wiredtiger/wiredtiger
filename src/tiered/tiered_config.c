@@ -62,6 +62,7 @@ __wt_tiered_bucket_config(
     WT_BUCKET_STORAGE *bstorage, *new;
     WT_CONFIG_ITEM auth, bucket, name, prefix;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage;
     WT_STORAGE_SOURCE *storage;
@@ -72,6 +73,7 @@ __wt_tiered_bucket_config(
     WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &name));
     bstorage = new = NULL;
     conn = S2C(session);
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     __wt_spin_lock(session, &conn->storage_lock);
 
@@ -114,6 +116,13 @@ __wt_tiered_bucket_config(
     WT_ERR(__wt_strndup(session, bucket.str, bucket.len, &new->bucket));
     WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new->bucket_prefix));
     storage = nstorage->storage_source;
+
+    /*
+     * For now, we use the home directory as the file system cache. TODO: tiered: revisit how files
+     * get migrated to the storage source cache.
+     */
+    // TODO: yank out the cache_dir=<HOME> changes.
+    WT_ERR(__wt_buf_catfmt(session, tmp, "cache_dir=%s", conn->home));
     WT_ERR(storage->ss_customize_file_system(storage, &session->iface, new->bucket,
       new->bucket_prefix, new->auth_token, NULL, &new->file_system));
     new->storage_source = storage;
@@ -127,6 +136,7 @@ __wt_tiered_bucket_config(
 done:
 err:
     __wt_spin_unlock(session, &conn->storage_lock);
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 
@@ -161,6 +171,12 @@ __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, bool reconfi
 
     WT_STAT_CONN_SET(session, tiered_object_size, conn->bstorage->object_size);
     WT_STAT_CONN_SET(session, tiered_retention, conn->bstorage->retain_secs);
+
+    /*
+     * Set up the designated file system for the "none" bucket.
+     */
+    WT_ASSERT(session, conn->file_system != NULL);
+    conn->bstorage_none.file_system = conn->file_system;
 
     return (0);
 
