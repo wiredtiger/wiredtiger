@@ -1461,7 +1461,7 @@ __checkpoint_lock_dirty_tree(
      * ckptlist. So, use a cached ckptlist if there is one, otherwise go through slow path of
      * re-generating the ckptlist by reading the metadata.
      */
-    if (WT_IS_METADATA(dhandle) || WT_IS_HS(dhandle)) /* Should skip HS? */
+    if (WT_IS_METADATA(dhandle)) /* Should skip HS? */
         WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_allocated));
     else if (__wt_meta_saved_ckptlist_get(session, dhandle->name, &ckptbase) != 0)
         WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_allocated));
@@ -1885,8 +1885,7 @@ err:
         conn->modified = true;
     }
 
-    if (WT_IS_METADATA(session->dhandle) || WT_IS_HS(session->dhandle) ||
-      F_ISSET(conn, WT_CONN_CLOSING)) {
+    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING)) {
         __wt_meta_ckptlist_free(session, &btree->ckpt);
         btree->ckpt_allocated = 0;
     } else {
