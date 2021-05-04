@@ -78,7 +78,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Create three tables. One using the system tiered storage, one
         # specifying its own bucket and object size and one using no
         # tiered storage. Use stats to verify correct setup.
-        base_create = 'key_format=S'
+        base_create = 'key_format=S,internal_page_max=16K'
         self.pr("create sys")
         self.session.create(self.uri, base_create)
         conf = \
