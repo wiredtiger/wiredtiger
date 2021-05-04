@@ -94,8 +94,8 @@ print_help()
 void
 value_missing_error(const std::string &str)
 {
-    test_harness::debug_print("Value missing for option " + str, DEBUG_ERROR);
-    std::cout << "Try './run -h' for more information." << std::endl;
+    test_harness::debug_print(
+      "Value missing for option " + str + ".\nTry './run -h' for more information.", DEBUG_ERROR);
 }
 
 /*
