@@ -634,6 +634,7 @@ struct __wt_connection_stats {
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_tree_walk_skip_pages;
     int64_t txn_rts_upd_aborted;
+    int64_t txn_sessions_walked;
     int64_t txn_set_ts;
     int64_t txn_set_ts_durable;
     int64_t txn_set_ts_durable_upd;
@@ -643,6 +644,7 @@ struct __wt_connection_stats {
     int64_t txn_set_ts_stable_upd;
     int64_t txn_begin;
     int64_t txn_checkpoint_running;
+    int64_t txn_checkpoint_running_hs;
     int64_t txn_checkpoint_generation;
     int64_t txn_hs_ckpt_duration;
     int64_t txn_checkpoint_time_max;
@@ -674,6 +676,7 @@ struct __wt_connection_stats {
     int64_t txn_pinned_timestamp_reader;
     int64_t txn_pinned_timestamp_oldest;
     int64_t txn_timestamp_oldest_active_read;
+    int64_t txn_rollback_to_stable_running;
     int64_t txn_sync;
     int64_t txn_walk_sessions;
     int64_t txn_commit;
@@ -685,6 +688,7 @@ struct __wt_connection_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -703,8 +707,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_order_lose_durable_timestamp;
-    int64_t cache_hs_order_fixup_move;
-    int64_t cache_hs_order_fixup_insert;
+    int64_t cache_hs_order_reinsert;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -712,7 +715,7 @@ struct __wt_connection_stats {
     int64_t cache_hs_key_truncate_rts;
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_key_truncate_onpage_removal;
-    int64_t cache_hs_key_truncate_non_ts;
+    int64_t cache_hs_order_remove;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
@@ -739,6 +742,7 @@ struct __wt_connection_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_next_hs_tombstone;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
@@ -903,6 +907,7 @@ struct __wt_dsrc_stats {
     int64_t cache_bytes_read;
     int64_t cache_bytes_write;
     int64_t cache_eviction_checkpoint;
+    int64_t cache_eviction_blocked_checkpoint_hs;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -921,8 +926,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_insert;
     int64_t cache_hs_insert_restart;
     int64_t cache_hs_order_lose_durable_timestamp;
-    int64_t cache_hs_order_fixup_move;
-    int64_t cache_hs_order_fixup_insert;
+    int64_t cache_hs_order_reinsert;
     int64_t cache_hs_read;
     int64_t cache_hs_read_miss;
     int64_t cache_hs_read_squash;
@@ -930,7 +934,7 @@ struct __wt_dsrc_stats {
     int64_t cache_hs_key_truncate_rts;
     int64_t cache_hs_key_truncate;
     int64_t cache_hs_key_truncate_onpage_removal;
-    int64_t cache_hs_key_truncate_non_ts;
+    int64_t cache_hs_order_remove;
     int64_t cache_hs_write_squash;
     int64_t cache_inmem_splittable;
     int64_t cache_inmem_split;
@@ -957,6 +961,7 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_next_hs_tombstone;
     int64_t cursor_next_skip_ge_100;
     int64_t cursor_next_skip_lt_100;
