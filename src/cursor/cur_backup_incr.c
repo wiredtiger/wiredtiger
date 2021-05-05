@@ -188,8 +188,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                     __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
                     goto done;
                 }
-                __wt_verbose(session, WT_VERB_BACKUP,
-                      "looking for notfound %s %d %d", "1", F_ISSET(cb, WT_CURBACKUP_CKPT_FAKE), F_ISSET(cb, WT_CURBACKUP_HAS_CB_INFO));
+                __wt_verbose(session, WT_VERB_BACKUP, "looking for notfound %s %d %d", "1",
+                  F_ISSET(cb, WT_CURBACKUP_CKPT_FAKE), F_ISSET(cb, WT_CURBACKUP_HAS_CB_INFO));
                 WT_ERR(WT_NOTFOUND);
             }
         }
