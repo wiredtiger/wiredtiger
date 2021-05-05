@@ -115,10 +115,6 @@ __wt_tiered_bucket_config(
     WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new->bucket_prefix));
     storage = nstorage->storage_source;
 
-    /*
-     * For now, we use the home directory as the file system cache. TODO: tiered: revisit how files
-     * get migrated to the storage source cache.
-     */
     WT_ERR(storage->ss_customize_file_system(storage, &session->iface, new->bucket,
       new->bucket_prefix, new->auth_token, NULL, &new->file_system));
     new->storage_source = storage;
