@@ -467,11 +467,13 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
 
 err:
     if (ret != 0) {
-        free(fs->auth_token);
-        free(fs->bucket_dir);
-        free(fs->cache_dir);
-        free(fs->fs_prefix);
-        free(fs);
+        if (fs != NULL) {
+            free(fs->auth_token);
+            free(fs->bucket_dir);
+            free(fs->cache_dir);
+            free(fs->fs_prefix);
+            free(fs);
+        }
     } else
         *file_systemp = &fs->file_system;
     return (ret);
