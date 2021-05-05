@@ -61,12 +61,12 @@ class test_import11(backup_base):
 
         os.mkdir(self.dir)
         os.mkdir(self.dir + "_incr")
-        config = 'incremental=(enabled,granularity=1M,this_id="ID1")'
+        config = 'incremental=(enabled,granularity=4k,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
         self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
-        self.session.drop(table_uri, 'remove_files=true')
-        
+        self.session.drop(table_uri, 'remove_files=false')
+
         # First construct the config string for the default or repair import scenario,
         # then call create to import the table.
         if self.repair:
@@ -74,13 +74,13 @@ class test_import11(backup_base):
         else:
             import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
                 original_db_table_config, original_db_file_config)
-        self.session.create(table_uri, self.create_config)
-        cursor = self.session.open_cursor(table_uri)
-        for i in range(1, 1000):
-            cursor[i] = i
-        cursor.close()
-        self.session.checkpoint()
-        
+        self.session.create(table_uri, import_config)
+        #cursor = self.session.open_cursor(table_uri)
+        #for i in range(1, 1000):
+        #    cursor[i] = i
+        #cursor.close()
+        #self.session.checkpoint()
+
         # Open backup cursor.
         self.take_incr_backup(self.dir + "_incr", 2)
         self.compare_backups(self.uri, self.dir, self.dir + "_incr", str(self.bkup_id))

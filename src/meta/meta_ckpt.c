@@ -443,7 +443,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             free = true;
             setup = true;
         }
-
+        __wt_verbose(session, WT_VERB_BACKUP, "Testing block mods %d %d\n", free, setup);
         /* If we are keeping or setting up an entry on a rename, set the flag. */
         if (rename && (!free || setup))
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
@@ -1115,4 +1115,29 @@ __ckpt_version_chk(WT_SESSION_IMPL *session, const char *fname, const char *conf
           fname, majorv, minorv, WT_BTREE_MAJOR_VERSION_MIN, WT_BTREE_MINOR_VERSION_MIN,
           WT_BTREE_MAJOR_VERSION_MAX, WT_BTREE_MINOR_VERSION_MAX);
     return (0);
+}
+
+/*
+ * __wt_reset_blkmod --
+ *     Reset the incremental backup information, and recreate incremental backup information to
+ *     indicate copying the entire file.
+ */
+int
+__wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *buf)
+{
+    WT_CKPT ckpt;
+    WT_DECL_RET;
+
+    WT_CLEAR(ckpt);
+    /*
+     * Replace the old file entries with new file entries. We need to recreate the incremental
+     * backup information to indicate copying the entire file in its bitmap.
+     */
+    /* First load any existing backup information into a temp checkpoint structure. */
+    WT_RET(__wt_meta_blk_mods_load(session, orig_config, &ckpt, true));
+
+    /* Take the checkpoint structure and generate the metadata string. */
+    ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
+    __wt_meta_checkpoint_free(session, &ckpt);
+    return (ret);
 }

@@ -128,10 +128,11 @@ __create_file(
   WT_SESSION_IMPL *session, const char *uri, bool exclusive, bool import, const char *config)
 {
     WT_CONFIG_ITEM cval;
+    WT_DECL_ITEM(buf);
     WT_DECL_ITEM(val);
     WT_DECL_RET;
     const char *filename, **p,
-      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL};
+      *filecfg[] = {WT_CONFIG_BASE(session, file_meta), config, NULL, NULL, NULL, NULL};
     char *fileconf, *filemeta;
     uint32_t allocsize;
     bool exists, import_repair, is_metadata;
@@ -140,6 +141,7 @@ __create_file(
 
     import_repair = false;
     is_metadata = strcmp(uri, WT_METAFILE_URI) == 0;
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
 
     filename = uri;
     WT_PREFIX_SKIP_REQUIRED(session, filename, "file:");
@@ -200,6 +202,9 @@ __create_file(
                 }
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
                 filecfg[2] = filemeta;
+                WT_ERR(__wt_reset_blkmod(session, config, buf));
+                filecfg[3] = buf->mem;
+                __wt_verbose(session, WT_VERB_BACKUP, "Config after reset_blkmod %s", (char *)buf->mem);
             } else {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
@@ -223,14 +228,14 @@ __create_file(
     if (!is_metadata) {
         if (!import_repair) {
             WT_ERR(__wt_scr_alloc(session, 0, &val));
-            WT_ERR(__wt_buf_fmt(session, val,
-              "id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_backup_info=,checkpoint_lsn=",
+            WT_ERR(__wt_buf_fmt(session, val,"id=%" PRIu32 ",version=(major=%d,minor=%d),checkpoint_lsn=",
               ++S2C(session)->next_file_id, WT_BTREE_MAJOR_VERSION_MAX,
               WT_BTREE_MINOR_VERSION_MAX));
             for (p = filecfg; *p != NULL; ++p)
                 ;
             *p = val->data;
             WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
+            __wt_verbose(session, WT_VERB_BACKUP, "Testing here %s", (char *)fileconf);
         } else {
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
@@ -260,6 +265,7 @@ __create_file(
         WT_ERR(__wt_session_release_dhandle(session));
 
 err:
+    __wt_scr_free(session, &buf);
     __wt_scr_free(session, &val);
     __wt_free(session, fileconf);
     __wt_free(session, filemeta);

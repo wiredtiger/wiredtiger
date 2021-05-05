@@ -20,6 +20,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_CONFIG_ITEM v;
     WT_DECL_ITEM(a);
     WT_DECL_ITEM(b);
+    WT_DECL_ITEM(buf);
     WT_DECL_ITEM(checkpoint);
     WT_DECL_RET;
     WT_KEYED_ENCRYPTOR *kencryptor;
@@ -33,6 +34,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
 
     WT_ERR(__wt_scr_alloc(session, 0, &a));
     WT_ERR(__wt_scr_alloc(session, 0, &b));
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_scr_alloc(session, 0, &checkpoint));
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
@@ -98,13 +100,15 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      */
     cfg[1] = a->data;
     cfg[2] = checkpoint_list;
-    cfg[3] = "checkpoint_backup_info=";
+    WT_ERR(__wt_reset_blkmod(session, a->data, buf));
+    cfg[3] = buf->mem;
     cfg[4] = "checkpoint_lsn=";
     WT_WITH_SCHEMA_LOCK(session,
       ret = __wt_snprintf(fileid, sizeof(fileid), "id=%" PRIu32, ++S2C(session)->next_file_id));
     WT_ERR(ret);
     cfg[5] = fileid;
     WT_ERR(__wt_config_collapse(session, cfg, &config_tmp));
+    __wt_verbose(session, WT_VERB_BACKUP, "printing after config (import repair) %s\n", (char *)config_tmp);
 
     /* Now that we've retrieved the configuration, let's get the real allocation size. */
     WT_ERR(__wt_config_getones(session, config_tmp, "allocation_size", &v));
@@ -154,6 +158,7 @@ err:
 
     __wt_scr_free(session, &a);
     __wt_scr_free(session, &b);
+    __wt_scr_free(session, &buf);
     __wt_scr_free(session, &checkpoint);
 
     return (ret);
