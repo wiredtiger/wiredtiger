@@ -189,21 +189,21 @@ wts_load(void)
         }
     }
 
+    if (g.c_txn_timestamps)
+        bulk_commit_transaction(session);
+
     /*
      * Ideally, the insert loop runs until the number of rows plus one, in which case row counts are
      * correct. If the loop exited early, reset the counters and rewrite the CONFIG file (so reopens
      * aren't surprised).
      */
     if (keyno != g.c_rows + 1) {
-        testutil_assert(committed_keyno > 0);
+        g.c_rows = g.c_txn_timestamps ? committed_keyno : (keyno - 1);
+        testutil_assert(g.c_rows > 0);
+        g.rows = g.c_rows;
 
-        g.rows = committed_keyno;
-        g.c_rows = (uint32_t)committed_keyno;
         config_print(false);
     }
-
-    if (g.c_txn_timestamps)
-        bulk_commit_transaction(session);
 
     testutil_check(cursor->close(cursor));
 
