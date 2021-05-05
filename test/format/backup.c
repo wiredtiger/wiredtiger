@@ -102,7 +102,7 @@ active_files_init(ACTIVE_FILES *active)
     WT_CLEAR(*active);
 }
 
-#if 1
+#if 0
 /*
  * active_files_print --
  *     Print the set of active files for debugging.
@@ -171,7 +171,7 @@ active_files_remove_missing(ACTIVE_FILES *prev, ACTIVE_FILES *cur)
 
     if (prev == NULL)
         return;
-#if 1
+#if 0
     active_files_print(prev, "computing removals: previous list of active files");
     active_files_print(cur, "computing removals: current list of active files");
 #endif
@@ -196,7 +196,7 @@ again:
              */
             testutil_check(__wt_snprintf(
               filename, sizeof(filename), "%s/BACKUP/%s", g.home, prev->names[prevpos]));
-#if 1
+#if 0
             fprintf(stderr, "Removing file from backup: %s\n", filename);
 #endif
             error_sys_check(unlink(filename));

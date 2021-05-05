@@ -108,7 +108,8 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(ret);
     cfg[5] = fileid;
     WT_ERR(__wt_config_collapse(session, cfg, &config_tmp));
-    __wt_verbose(session, WT_VERB_BACKUP, "printing after config (import repair) %s\n", (char *)config_tmp);
+    __wt_verbose(
+      session, WT_VERB_BACKUP, "printing after config (import repair) %s\n", (char *)config_tmp);
 
     /* Now that we've retrieved the configuration, let's get the real allocation size. */
     WT_ERR(__wt_config_getones(session, config_tmp, "allocation_size", &v));
