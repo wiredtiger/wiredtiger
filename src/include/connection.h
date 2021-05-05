@@ -616,6 +616,7 @@ struct __wt_connection_impl {
 #define WT_CONN_SERVER_STATISTICS 0x10u
 #define WT_CONN_SERVER_SWEEP 0x20u
 #define WT_CONN_SERVER_TIERED 0x40u
+#define WT_CONN_SERVER_TIERED_MGR 0x80u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t server_flags;
 

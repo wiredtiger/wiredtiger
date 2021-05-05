@@ -165,7 +165,7 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     bool force;
 
     WT_STAT_CONN_INCR(session, flush_tier);
-    if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED))
+    if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED_MGR))
         WT_RET_MSG(
           session, EINVAL, "Cannot call flush_tier when storage manager thread is configured");
 
@@ -221,11 +221,7 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
 static bool
 __tiered_server_run_chk(WT_SESSION_IMPL *session)
 {
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-    return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED)) &&
-      !F_ISSET(&conn->tiered_mgr, WT_TIERED_MANAGER_SHUTDOWN));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED));
 }
 
 /*
@@ -284,7 +280,7 @@ __tiered_mgr_run_chk(WT_SESSION_IMPL *session)
     WT_CONNECTION_IMPL *conn;
 
     conn = S2C(session);
-    return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED)) &&
+    return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED_MGR)) &&
       !F_ISSET(&conn->tiered_mgr, WT_TIERED_MANAGER_SHUTDOWN));
 }
 
@@ -367,6 +363,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     if (!start)
         return (0);
 
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED_MGR);
     WT_ERR(__wt_open_internal_session(
       conn, "storage-mgr-server", true, 0, 0, &conn->tiered_mgr_session));
     session = conn->tiered_mgr_session;
@@ -397,7 +394,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     /* Stop the server thread. */
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED | WT_CONN_SERVER_TIERED_MGR);
     if (conn->tiered_tid_set) {
         __wt_cond_signal(session, conn->tiered_cond);
         WT_TRET(__wt_thread_join(session, &conn->tiered_tid));
