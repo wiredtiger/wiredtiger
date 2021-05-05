@@ -1,11 +1,12 @@
-# Same parameters as config_poc_test_default
+# Sets up a basic database with 2 collections and 50000 keys and run thread for 10 seconds.
+# All components are enabled.
+# Used as a stress test for the framework.
 duration_seconds=10,
-cache_size_mb=1000,
+cache_size_mb=5000,
 enable_logging=true,
 runtime_monitor=
 (
-    op_count=3,
-    interval=s,
+    rate_per_second=3,
     stat_cache_size=
     (
         enabled=true,
@@ -21,8 +22,8 @@ timestamp_manager=
 workload_generator=
 (
     collection_count=2,
-    key_count=5,
-    key_size=1,
+    key_count=50000,
+    key_size=10,
     ops_per_transaction=
     (
         min=5,
@@ -30,17 +31,7 @@ workload_generator=
     ),
     read_threads=1,
     update_threads=1,
-    value_size=10,
-    update_config=
-    (
-        op_count=1,
-        interval=s
-    ),
-    insert_config=
-    (
-        op_count=1,
-        interval=s
-    )
+    value_size=2000
 ),
 workload_tracking=
 (

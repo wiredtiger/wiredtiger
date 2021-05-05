@@ -33,10 +33,11 @@
 #include <atomic>
 #include <map>
 
-#include "database_model.h"
-#include "database_operation.h"
-#include "random_generator.h"
-#include "workload_tracking.h"
+#include "core/throttle.h"
+#include "workload/database_model.h"
+#include "workload/database_operation.h"
+#include "workload/random_generator.h"
+#include "workload/workload_tracking.h"
 
 namespace test_harness {
 /*
@@ -46,7 +47,7 @@ class workload_generator : public component {
     public:
     workload_generator(configuration *configuration, database_operation *db_operation,
       timestamp_manager *timestamp_manager, workload_tracking *tracking)
-        : component(configuration), _database_operation(db_operation),
+        : component("workload_generator", configuration), _database_operation(db_operation),
           _timestamp_manager(timestamp_manager), _tracking(tracking)
     {
     }
@@ -65,7 +66,7 @@ class workload_generator : public component {
     void
     run()
     {
-        configuration *sub_config;
+        configuration *transaction_config, *update_config, *insert_config;
         int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
           update_threads, value_size;
 
@@ -73,39 +74,46 @@ class workload_generator : public component {
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
 
         /* Retrieve useful parameters from the test configuration. */
-        testutil_check(_config->get_int(READ_THREADS, read_threads));
-        testutil_check(_config->get_int(UPDATE_THREADS, update_threads));
-        sub_config = _config->get_subconfig(OPS_PER_TRANSACTION);
-        testutil_check(sub_config->get_int(MIN, min_operation_per_transaction));
-        testutil_check(sub_config->get_int(MAX, max_operation_per_transaction));
-        testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
-        testutil_check(_config->get_int(VALUE_SIZE, value_size));
-        testutil_assert(value_size >= 0);
+        transaction_config = _config->get_subconfig(OPS_PER_TRANSACTION);
+        update_config = _config->get_subconfig(UPDATE_CONFIG);
+        insert_config = _config->get_subconfig(INSERT_CONFIG);
+        read_threads = _config->get_int(READ_THREADS);
+        update_threads = _config->get_int(UPDATE_THREADS);
 
-        delete sub_config;
+        min_operation_per_transaction = transaction_config->get_int(MIN);
+        max_operation_per_transaction = transaction_config->get_int(MAX);
+        testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
+        value_size = _config->get_int(VALUE_SIZE);
+        testutil_assert(value_size >= 0);
 
         /* Generate threads to execute read operations on the collections. */
         for (int i = 0; i < read_threads; ++i) {
-            thread_context *tc =
-              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::READ,
-                max_operation_per_transaction, min_operation_per_transaction, value_size);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
+              thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
+              value_size, throttle());
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }
 
         /* Generate threads to execute update operations on the collections. */
         for (int i = 0; i < update_threads; ++i) {
-            thread_context *tc =
-              new thread_context(_timestamp_manager, _tracking, _database, thread_operation::UPDATE,
-                max_operation_per_transaction, min_operation_per_transaction, value_size);
+            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
+              thread_operation::UPDATE, max_operation_per_transaction,
+              min_operation_per_transaction, value_size, throttle(update_config));
             _workers.push_back(tc);
             _thread_manager.add_thread(tc, _database_operation, &execute_operation);
         }
+
+        delete transaction_config;
+        delete update_config;
+        delete insert_config;
     }
 
     void
     finish()
     {
+        component::finish();
+
         for (const auto &it : _workers)
             it->finish();
         _thread_manager.join();
