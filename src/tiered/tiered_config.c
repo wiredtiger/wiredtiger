@@ -141,7 +141,14 @@ __wt_tiered_bucket_config(
     *bstoragep = new;
 
 done:
+    if (0) {
 err:
+        if (new != NULL) {
+            __wt_free(new->bucket);
+            __wt_free(new->bucket_prefix);
+        }
+        __wt_free(new);
+    }
     __wt_spin_unlock(session, &conn->storage_lock);
     return (ret);
 }
