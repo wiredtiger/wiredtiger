@@ -141,6 +141,7 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	# TODO: Figure out whether we want to disable these or change the code.
 	w="$w -Wno-implicit-fallthrough"
 	w="$w -Wno-implicit-int-float-conversion"
+	w="$w -Wno-maybe-uninitialized"
 
 	# Ignore unrecognized options.
 	w="$w -Wno-unknown-warning-option"
