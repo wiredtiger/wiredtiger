@@ -504,11 +504,12 @@ __wt_meta_blk_mods_load(
   WT_SESSION_IMPL *session, const char *config, WT_CKPT *base_ckpt, WT_CKPT *ckpt, bool rename)
 {
     /*
-     * Load most recent checkpoint backup blocks to this checkpoint. Prefer to use metadata
-     * configuration if available.
+     * Load most recent checkpoint backup blocks to this checkpoint, either from metadata or from a
+     * previous checkpoint.
      */
     if (config != NULL) {
         /* Load from metadata. */
+        WT_ASSERT(session, base_ckpt == NULL);
         WT_RET(__ckpt_load_blk_mods(session, config, ckpt));
         WT_RET(__wt_meta_block_metadata(session, config, ckpt));
     } else {
@@ -633,7 +634,7 @@ __meta_ckptlist_allocate_new_ckpt(
 
     /*
      * If we are using an existing checkpoint, we must have the associated metadata, otherwise we
-     * will have to go slow path and read the metadata instead.
+     * will have to go slow path and read the metadata.
      */
     if (config == NULL && ckptbase[slot - 1].block_metadata == NULL)
         WT_RET(WT_NOTFOUND);
@@ -664,7 +665,12 @@ __meta_ckptlist_allocate_new_ckpt(
           __wt_atomic_cas64(&conn->ckpt_most_recent, most_recent, ckpt->sec))
             break;
     }
-    WT_RET(__wt_meta_blk_mods_load(session, config, &ckptbase[slot - 1], ckpt, false));
+
+    /* Either load block mods from the config, or from the previous checkpoint. */
+    if (config != NULL)
+        WT_RET(__wt_meta_blk_mods_load(session, config, NULL, ckpt, false));
+    else
+        WT_RET(__wt_meta_blk_mods_load(session, NULL, &ckptbase[slot - 1], ckpt, false));
     WT_ASSERT(session, ckpt->block_metadata != NULL);
 
     return (0);
@@ -1144,8 +1150,8 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
      * Sometimes the checkpoint list has a checkpoint which has not been named yet, but carries an
      * order number.
      */
-    WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt)
-    __wt_meta_checkpoint_free(session, ckpt);
+    WT_CKPT_NAME_OR_ORDER_FOREACH (ckptbase, ckpt)
+        __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
 

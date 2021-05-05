@@ -119,7 +119,7 @@ struct __wt_block_mods {
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CHECKPOINT_MAX_LEN 40 /* WT_CHECKPOINT.INT64_MAX = 20+1+19 */
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
-#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
+#define WT_CKPT_NAME_OR_ORDER_FOREACH(ckptbase, ckpt) \
     for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
