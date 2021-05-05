@@ -303,7 +303,7 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
     if (encrypted)
         F_SET(dsk, WT_PAGE_ENCRYPTED);
 
-    WT_ASSERT(session, (dsk->write_gen != 0 && dsk->write_gen > btree->base_write_gen));
+    WT_ASSERT(session, dsk->write_gen != 0);
 
     /*
      * Checksum the data if the buffer isn't compressed or checksums are configured.
