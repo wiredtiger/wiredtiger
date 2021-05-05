@@ -693,8 +693,7 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
 
     if (0) {
 err:
-        __wt_meta_ckptlist_free(session, &btree->ckpt);
-        btree->ckpt_allocated = 0;
+        __wt_meta_saved_ckptlist_free(session);
     }
 
     return (ret);
@@ -1156,6 +1155,23 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
     WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt)
     __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
+}
+
+/*
+ * __wt_meta_saved_ckptlist_free --
+ *     Discard the saved checkpoint list.
+ */
+void
+__wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session)
+{
+    WT_BTREE *btree;
+
+    btree = S2BT_SAFE(session);
+    if (btree == NULL)
+        return;
+
+    __wt_meta_ckptlist_free(session, &btree->ckpt);
+    btree->ckpt_allocated = 0;
 }
 
 /*
