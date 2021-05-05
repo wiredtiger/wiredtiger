@@ -113,11 +113,12 @@ __wt_tiered_bucket_config(
     WT_ERR(__wt_strndup(session, auth.str, auth.len, &new->auth_token));
     WT_ERR(__wt_strndup(session, bucket.str, bucket.len, &new->bucket));
     WT_ERR(__wt_strndup(session, prefix.str, prefix.len, &new->bucket_prefix));
-    storage = nstorage->storage_source;
 
+    storage = nstorage->storage_source;
     WT_ERR(storage->ss_customize_file_system(storage, &session->iface, new->bucket,
       new->bucket_prefix, new->auth_token, NULL, &new->file_system));
     new->storage_source = storage;
+
     /* If we're creating a new bucket storage, parse the other settings into it.  */
     TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
     TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
