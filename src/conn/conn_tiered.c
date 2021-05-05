@@ -120,6 +120,21 @@ err:
 }
 
 /*
+ * __tier_storage_copy --
+ *     Perform one iteration of copying newly flushed objects to the shared storage.
+ */
+static int
+__tier_storage_copy(WT_SESSION_IMPL *session)
+{
+    WT_UNUSED(session);
+
+    /*
+     * Walk the work queue and copy file:<name> to shared storage object:<name>.
+     */
+    return (0);
+}
+
+/*
  * __tier_storage_remove --
  *     Perform one iteration of tiered storage local tier removal.
  */
@@ -176,7 +191,7 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     WT_TIERED_MANAGER *mgr;
 
     conn = S2C(session);
-    mgr = &conn->tiered_manager;
+    mgr = &conn->tiered_mgr;
 
     /* Only start the server if wait time is non-zero */
     WT_RET(__wt_config_gets(session, cfg, "tiered_manager.wait", &cval));
@@ -210,7 +225,7 @@ __tiered_server_run_chk(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
     return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED)) &&
-      !F_ISSET(&conn->tiered_manager, WT_TIERED_MANAGER_SHUTDOWN));
+      !F_ISSET(&conn->tiered_mgr, WT_TIERED_MANAGER_SHUTDOWN));
 }
 
 /*
@@ -228,7 +243,7 @@ __tiered_server(void *arg)
 
     session = arg;
     conn = S2C(session);
-    mgr = &conn->tiered_manager;
+    mgr = &conn->tiered_mgr;
 
     WT_CLEAR(path);
     WT_CLEAR(tmp);
@@ -243,7 +258,66 @@ __tiered_server(void *arg)
 
         /*
          * Here is where we do work. Work we expect to do:
-         *
+         *  - Copy any files that need moving from a flush tier call.
+         *  - Remove any cached objects that are aged out.
+         */
+        WT_ERR(__tier_storage_copy(session));
+        WT_ERR(__tier_storage_remove(session, false));
+    }
+
+    if (0) {
+err:
+        WT_IGNORE_RET(__wt_panic(session, ret, "storage server error"));
+    }
+    __wt_buf_free(session, &path);
+    __wt_buf_free(session, &tmp);
+    return (WT_THREAD_RET_VALUE);
+}
+
+/*
+ * __tiered_mgr_run_chk --
+ *     Check to decide if the tiered storage manager should continue running.
+ */
+static bool
+__tiered_mgr_run_chk(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    return ((FLD_ISSET(conn->server_flags, WT_CONN_SERVER_TIERED)) &&
+      !F_ISSET(&conn->tiered_mgr, WT_TIERED_MANAGER_SHUTDOWN));
+}
+
+/*
+ * __tiered_mgr_server --
+ *     The tiered storage manager thread.
+ */
+static WT_THREAD_RET
+__tiered_mgr_server(void *arg)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+    WT_ITEM path, tmp;
+    WT_SESSION_IMPL *session;
+    WT_TIERED_MANAGER *mgr;
+
+    session = arg;
+    conn = S2C(session);
+    mgr = &conn->tiered_mgr;
+
+    WT_CLEAR(path);
+    WT_CLEAR(tmp);
+
+    for (;;) {
+        /* Wait until the next event. */
+        __wt_cond_wait(session, conn->tiered_mgr_cond, mgr->wait_usecs, __tiered_mgr_run_chk);
+
+        /* Check if we're quitting or being reconfigured. */
+        if (!__tiered_mgr_run_chk(session))
+            break;
+
+        /*
+         * Here is where we do work. Work we expect to do:
          */
         __flush_tier_once(session, false);
         WT_ERR(__tier_storage_remove(session, false));
@@ -260,7 +334,7 @@ err:
 
 /*
  * __wt_tiered_storage_create --
- *     Start the tiered storage server thread.
+ *     Start the tiered storage subsystem.
  */
 int
 __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
@@ -276,8 +350,6 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     WT_RET(__wt_tiered_storage_destroy(session));
     WT_RET(__wt_tiered_conn_config(session, cfg, reconfig));
     WT_RET(__tiered_manager_config(session, cfg, &start));
-    if (!start)
-        return (0);
 
     /* Set first, the thread might run before we finish up. */
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
@@ -290,6 +362,20 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     /* Start the thread. */
     WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
     conn->tiered_tid_set = true;
+
+    /* After starting non-configurable threads, start the tiered manager if needed. */
+    if (!start)
+        return (0);
+
+    WT_ERR(__wt_open_internal_session(
+      conn, "storage-mgr-server", true, 0, 0, &conn->tiered_mgr_session));
+    session = conn->tiered_mgr_session;
+
+    WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_mgr_cond));
+
+    /* Start the thread. */
+    WT_ERR(__wt_thread_create(session, &conn->tiered_mgr_tid, __tiered_mgr_server, session));
+    conn->tiered_mgr_tid_set = true;
 
     if (0) {
 err:
@@ -318,11 +404,24 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_tid_set = false;
     }
     __wt_cond_destroy(session, &conn->tiered_cond);
-
     /* Close the server thread's session. */
     if (conn->tiered_session != NULL) {
         WT_TRET(__wt_session_close_internal(conn->tiered_session));
         conn->tiered_session = NULL;
+    }
+
+    /* Stop the storage manager thread. */
+    if (conn->tiered_mgr_tid_set) {
+        __wt_cond_signal(session, conn->tiered_mgr_cond);
+        WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
+        conn->tiered_mgr_tid_set = false;
+    }
+    __wt_cond_destroy(session, &conn->tiered_mgr_cond);
+
+    /* Close the server thread's session. */
+    if (conn->tiered_mgr_session != NULL) {
+        WT_TRET(__wt_session_close_internal(conn->tiered_mgr_session));
+        conn->tiered_mgr_session = NULL;
     }
 
     return (ret);
