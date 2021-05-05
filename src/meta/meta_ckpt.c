@@ -504,11 +504,11 @@ __wt_meta_blk_mods_load(
   WT_SESSION_IMPL *session, const char *config, WT_CKPT *base_ckpt, WT_CKPT *ckpt, bool rename)
 {
     /*
-     * Load most recent checkpoint backup blocks to this checkpoint.
+     * Load most recent checkpoint backup blocks to this checkpoint. Prefer to use metadata
+     * configuration if available.
      */
     if (config != NULL) {
         /* Load from metadata. */
-        WT_ASSERT(session, base_ckpt == NULL);
         WT_RET(__ckpt_load_blk_mods(session, config, ckpt));
         WT_RET(__wt_meta_block_metadata(session, config, ckpt));
     } else {
@@ -608,8 +608,8 @@ __assert_checkpoint_list_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, 
 
 /*
  * __meta_ckptlist_allocate_new_ckpt --
- *     Provided a checkpoint list, allocate a new checkpoint to be taken. Either use the last
- *     checkpoint in the list or the file metadata to initialize this new checkpoint.
+ *     Provided a checkpoint list, allocate a new checkpoint. Either use the last checkpoint in the
+ *     list or the file metadata to initialize this new checkpoint.
  */
 static int
 __meta_ckptlist_allocate_new_ckpt(
@@ -624,9 +624,9 @@ __meta_ckptlist_allocate_new_ckpt(
     conn = S2C(session);
     slot = 0;
 
-    WT_ASSERT(session, ckptbase != NULL);
-    WT_CKPT_FOREACH (ckptbase, ckpt)
-        slot++;
+    if (ckptbase != NULL)
+        WT_CKPT_FOREACH (ckptbase, ckpt)
+            slot++;
 
     /* Either we have a configuration or an existing checkpoint to initialize with. */
     WT_ASSERT(session, config != NULL || slot != 0);
