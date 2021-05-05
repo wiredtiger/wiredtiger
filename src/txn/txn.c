@@ -1060,6 +1060,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
 
+    __wt_verbose(session, WT_VERB_TRANSACTION,
+      "resolving prepared op for txnid: %" PRIu64 " that %s", txn->id,
+      commit ? "committed" : "roll backed");
     /*
      * Aborted updates can exist in the update chain of our transaction. Generally this will occur
      * due to a reserved update. As such we should skip over these updates.
