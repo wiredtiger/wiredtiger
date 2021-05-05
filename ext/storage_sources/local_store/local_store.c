@@ -791,7 +791,7 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
     LOCAL_FILE_SYSTEM *local_fs;
     LOCAL_FLUSH_ITEM *flush;
     LOCAL_STORAGE *local;
-    size_t fs_prefix_len, dir_len, prefix_len;
+    size_t dir_len, fs_prefix_len, prefix_len;
     uint32_t allocated, count;
     int ret, t_ret;
     char **entries;
