@@ -483,6 +483,11 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     metaconf = NULL;
     __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
 
+    WT_ERR(__wt_config_getones(session, config, "key_format", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->key_format));
+    WT_ERR(__wt_config_getones(session, config, "value_format", &cval));
+    WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->value_format));
+
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
     tiered->current_id = (uint64_t)cval.val;
     tiered->next_id = tiered->current_id + 1;
