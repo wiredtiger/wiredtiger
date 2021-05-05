@@ -1308,7 +1308,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: transaction checkpoint most recent duration for gathering applied handles (usecs)",
   "transaction: transaction checkpoint most recent duration for gathering skipped handles (usecs)",
   "transaction: transaction checkpoint most recent handles applied",
+  "transaction: transaction checkpoint most recent handles read checkpoint list from metadata",
   "transaction: transaction checkpoint most recent handles skipped",
+  "transaction: transaction checkpoint most recent handles used cached checkpoint list",
   "transaction: transaction checkpoint most recent handles walked",
   "transaction: transaction checkpoint most recent time (msecs)",
   "transaction: transaction checkpoint prepare currently running",
@@ -1827,7 +1829,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing txn_checkpoint_handle_duration_apply */
     /* not clearing txn_checkpoint_handle_duration_skip */
     stats->txn_checkpoint_handle_applied = 0;
+    stats->txn_checkpoint_handle_ckptlist_meta = 0;
     stats->txn_checkpoint_handle_skipped = 0;
+    stats->txn_checkpoint_handle_ckptlist_saved = 0;
     stats->txn_checkpoint_handle_walked = 0;
     /* not clearing txn_checkpoint_time_recent */
     /* not clearing txn_checkpoint_prep_running */
@@ -2340,7 +2344,11 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_checkpoint_handle_duration_skip +=
       WT_STAT_READ(from, txn_checkpoint_handle_duration_skip);
     to->txn_checkpoint_handle_applied += WT_STAT_READ(from, txn_checkpoint_handle_applied);
+    to->txn_checkpoint_handle_ckptlist_meta +=
+      WT_STAT_READ(from, txn_checkpoint_handle_ckptlist_meta);
     to->txn_checkpoint_handle_skipped += WT_STAT_READ(from, txn_checkpoint_handle_skipped);
+    to->txn_checkpoint_handle_ckptlist_saved +=
+      WT_STAT_READ(from, txn_checkpoint_handle_ckptlist_saved);
     to->txn_checkpoint_handle_walked += WT_STAT_READ(from, txn_checkpoint_handle_walked);
     to->txn_checkpoint_time_recent += WT_STAT_READ(from, txn_checkpoint_time_recent);
     to->txn_checkpoint_prep_running += WT_STAT_READ(from, txn_checkpoint_prep_running);

@@ -679,6 +679,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
     } else {
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             conn->ckpt_apply = conn->ckpt_skip = 0;
+            conn->ckpt_apply_saved_list = conn->ckpt_apply_meta_list = 0;
             conn->ckpt_apply_time = conn->ckpt_skip_time = 0;
             time_start = __wt_clock(session);
             F_SET(conn, WT_CONN_CKPT_GATHER);
@@ -702,6 +703,10 @@ done:
             time_diff = WT_CLOCKDIFF_US(time_stop, time_start);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_applied, conn->ckpt_apply);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_skipped, conn->ckpt_skip);
+            WT_STAT_CONN_SET(
+              session, txn_checkpoint_handle_ckptlist_meta, conn->ckpt_apply_meta_list);
+            WT_STAT_CONN_SET(
+              session, txn_checkpoint_handle_ckptlist_saved, conn->ckpt_apply_saved_list);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_walked, conn->dhandle_count);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration, time_diff);
             WT_STAT_CONN_SET(session, txn_checkpoint_handle_duration_apply, conn->ckpt_apply_time);

@@ -518,6 +518,8 @@ connection_stats = [
     TxnStat('txn_checkpoint_fsync_post', 'transaction fsync calls for checkpoint after allocating the transaction ID'),
     TxnStat('txn_checkpoint_fsync_post_duration', 'transaction fsync duration for checkpoint after allocating the transaction ID (usecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_handle_applied', 'transaction checkpoint most recent handles applied'),
+    TxnStat('txn_checkpoint_handle_ckptlist_meta', 'transaction checkpoint most recent handles read checkpoint list from metadata'),
+    TxnStat('txn_checkpoint_handle_ckptlist_saved', 'transaction checkpoint most recent handles used cached checkpoint list'),
     TxnStat('txn_checkpoint_handle_skipped', 'transaction checkpoint most recent handles skipped'),
     TxnStat('txn_checkpoint_handle_walked', 'transaction checkpoint most recent handles walked'),
     TxnStat('txn_checkpoint_handle_duration', 'transaction checkpoint most recent duration for gathering all handles (usecs)', 'no_clear,no_scale'),
