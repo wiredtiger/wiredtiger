@@ -448,7 +448,8 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
         goto err;
     }
     if ((ret = local_get_directory(cachedir.str, (ssize_t)cachedir.len, &fs->cache_dir)) != 0) {
-        ret = local_err(local, session, ret, "%*s: cache directory", cachedir.len, cachedir.str);
+        ret =
+          local_err(local, session, ret, "%*s: cache directory", (int)cachedir.len, cachedir.str);
         goto err;
     }
     if ((fs->fs_prefix = strdup(prefix)) == NULL) {
@@ -466,14 +467,15 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     fs->file_system.terminate = local_fs_terminate;
 
 err:
-    if (ret != 0) {
+    if (ret == 0)
+        *file_systemp = &fs->file_system;
+    else if (fs != NULL) {
         free(fs->auth_token);
         free(fs->bucket_dir);
         free(fs->cache_dir);
         free(fs->fs_prefix);
         free(fs);
-    } else
-        *file_systemp = &fs->file_system;
+    }
     return (ret);
 }
 
