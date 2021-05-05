@@ -43,7 +43,7 @@ class test_backup17(backup_base):
     uri="table:test"
     uri2="table:test2"
 
-    conn_config='cache_size=1G,log=(enabled,file_max=%s),verbose=[backup]' % logmax
+    conn_config='cache_size=1G,log=(enabled,file_max=%s)' % logmax
 
     pfx = 'test_backup'
     # Set the key and value big enough that we modify a few blocks.
@@ -84,28 +84,26 @@ class test_backup17(backup_base):
         bkup_c = self.session.open_cursor('backup:', None, config)
 
         # Now make a full backup and track the log files.
-        all_files = self.take_full_backup(self.dir, bkup_c)
+        self.take_full_backup(self.dir, bkup_c)
         bkup_c.close()
 
         # This is the main part of the test for consolidate. Add data to the first table.
         # Then perform the incremental backup with consolidate off (the default). Then add the
         # same data to the second table. Perform an incremental backup with consolidate on and
         # verify we get fewer, consolidated values.
-        #self.mult = 1
-        #self.add_data(self.uri, self.bigkey, self.bigval, True)
-        self.session.checkpoint()
-        # Do an incremental backup with id 2.
+        self.mult = 1
+        self.add_data(self.uri, self.bigkey, self.bigval, True)
 
-        print(all_files)
-        (all_files2, uri1_lens) = self.take_incr_backup(self.dir, 2, False)
+        # Do an incremental backup with id 2.
+        (_, uri1_lens) = self.take_incr_backup(self.dir, 2, False)
         self.check_consolidate_sizes(uri1_lens, False)
 
-        #self.mult = 1
-        #self.add_data(self.uri2, self.bigkey, self.bigval, True)
+        self.mult = 1
+        self.add_data(self.uri2, self.bigkey, self.bigval, True)
 
         # Now do an incremental backup with id 3.
-        #(_, uri2_lens) = self.take_incr_backup(self.dir, 3, False)
-        #self.check_consolidate_sizes(uri2_lens, True)
+        (_, uri2_lens) = self.take_incr_backup(self.dir, 3, True)
+        self.check_consolidate_sizes(uri2_lens, True)
 
         # Assert that we recorded fewer lengths on the consolidated backup.
         self.assertLess(len(uri2_lens), len(uri1_lens))
