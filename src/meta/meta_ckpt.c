@@ -509,7 +509,6 @@ __wt_meta_blk_mods_load(
      */
     if (config != NULL) {
         /* Load from metadata. */
-        WT_ASSERT(session, base_ckpt == NULL);
         WT_RET(__ckpt_load_blk_mods(session, config, ckpt));
         WT_RET(__wt_meta_block_metadata(session, config, ckpt));
     } else {
@@ -633,11 +632,11 @@ __meta_ckptlist_allocate_new_ckpt(
     WT_ASSERT(session, config != NULL || slot != 0);
 
     /*
-     * If we are using an existing checkpoint, we must have the associated metadata, otherwise we
+     * If we are using an existing checkpoint, we must have the associated metadata. Otherwise we
      * will have to go slow path and read the metadata.
      */
     if (config == NULL && ckptbase[slot - 1].block_metadata == NULL)
-        WT_RET(WT_NOTFOUND);
+        return (WT_NOTFOUND);
 
     /*
      * This isn't clean, but there's necessary cooperation between the schema layer (that maintains
@@ -667,10 +666,8 @@ __meta_ckptlist_allocate_new_ckpt(
     }
 
     /* Either load block mods from the config, or from the previous checkpoint. */
-    if (config != NULL)
-        WT_RET(__wt_meta_blk_mods_load(session, config, NULL, ckpt, false));
-    else
-        WT_RET(__wt_meta_blk_mods_load(session, NULL, &ckptbase[slot - 1], ckpt, false));
+    WT_RET(__wt_meta_blk_mods_load(
+      session, config, (slot == 0 ? NULL : &ckptbase[slot - 1]), ckpt, false));
     WT_ASSERT(session, ckpt->block_metadata != NULL);
 
     return (0);

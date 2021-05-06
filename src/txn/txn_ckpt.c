@@ -1370,7 +1370,7 @@ __checkpoint_lock_dirty_tree(
     uint64_t now;
     char *name_alloc;
     const char *name;
-    bool is_drop, is_wt_ckpt, skip_ckpt, seen_ckpt_add;
+    bool is_drop, is_wt_ckpt, seen_ckpt_add, skip_ckpt;
 
     btree = S2BT(session);
     ckpt = ckptbase = NULL;
@@ -1443,7 +1443,7 @@ __checkpoint_lock_dirty_tree(
     /*
      * Discard the saved list of checkpoints, and slow path if this is not a WiredTiger checkpoint
      * or if checkpoint drops are involved. Also, if we do not have checkpoint array size, the
-     * regular checkpoint process did not create the array, it is safer to discard the array in such
+     * regular checkpoint process did not create the array. It is safer to discard the array in such
      * a case.
      */
     if (!is_wt_ckpt || is_drop || btree->ckpt_allocated == 0)
@@ -1456,12 +1456,12 @@ __checkpoint_lock_dirty_tree(
     /*
      * Get the list of checkpoints for this file: We try to cache the ckptlist between the
      * checkpoints. But there might not be one, as there are operations that can invalidate a
-     * ckptlist. So, use a cached ckptlist if there is one, otherwise go through slow path of
-     * re-generating the ckptlist by reading the metadata.
+     * ckptlist. So, use a cached ckptlist if there is one. Otherwise go through slow path of
+     * re-generating the ckptlist by reading the metadata. Also, we avoid using a cached checkpoint
+     * list for metadata.
      */
-    if (WT_IS_METADATA(dhandle))
-        WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_allocated));
-    else if (__wt_meta_saved_ckptlist_get(session, dhandle->name, &ckptbase) != 0)
+    if (WT_IS_METADATA(dhandle) ||
+      __wt_meta_saved_ckptlist_get(session, dhandle->name, &ckptbase) != 0)
         WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_allocated));
 
     /* We may be dropping specific checkpoints, check the configuration. */
@@ -1881,13 +1881,12 @@ err:
         conn->modified = true;
     }
 
-    if (WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
+    /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
+    if (ret != 0 || WT_IS_METADATA(session->dhandle) || F_ISSET(conn, WT_CONN_CLOSING))
         __wt_meta_saved_ckptlist_free(session);
     else {
-        /* For a successful checkpoint, post process the ckptlist, to keep a cached copy around. */
-        if (ret == 0)
-            ret = __checkpoint_save_ckptlist(session, btree->ckpt);
-        /* Discard the saved checkpoint list in case of any errors. */
+        ret = __checkpoint_save_ckptlist(session, btree->ckpt);
+        /* Discard the saved checkpoint list if processing the list did not work. */
         if (ret != 0)
             __wt_meta_saved_ckptlist_free(session);
     }
@@ -1973,12 +1972,9 @@ __checkpoint_tree_helper(WT_SESSION_IMPL *session, const char *cfg[])
 int
 __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_BTREE *btree;
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     bool force;
-
-    btree = S2BT(session);
 
     /* Should not be called with a checkpoint handle. */
     WT_ASSERT(session, session->dhandle->checkpoint == NULL);
@@ -1994,7 +1990,7 @@ __wt_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_config_gets_def(session, cfg, "force", 0, &cval));
     force = cval.val != 0;
     WT_SAVE_DHANDLE(session, ret = __checkpoint_lock_dirty_tree(session, true, force, true, cfg));
-    if (ret != 0 || F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+    if (ret != 0 || F_ISSET(S2BT(session), WT_BTREE_SKIP_CKPT))
         goto done;
     ret = __checkpoint_tree(session, true, cfg);
 
