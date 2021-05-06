@@ -126,11 +126,13 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
-    WT_UNUSED(session);
-
     /*
      * Walk the work queue and copy file:<name> to shared storage object:<name>.
      */
+    /* XXX: We don't want to call this here, it is just to quiet the compiler that this function
+     * can return NULL. So it is a placeholder until we have real content here.
+     */
+    WT_RET(__tier_storage_remove_local(session, NULL, 0));
     return (0);
 }
 
