@@ -1009,17 +1009,10 @@ __wt_rec_row_leaf(
              * Grow the buffer as necessary as well as ensure data has been copied into local buffer
              * space, then append the suffix to the prefix already in the buffer. Don't grow the
              * buffer unnecessarily or copy data we don't need, truncate the item's CURRENT data
-             * length to the prefix bytes before growing the buffer. Additionally take into account
-             * any data pointer offset in the buffer, overflow keys offset the buffer data pointer
-             * to skip page headers. Using an overflow record for our prefix bytes (after skipping
-             * overflow records when creating prefix compressed keys), is OK. If an overflow record
-             * appears between the key we used for prefix compression and our key, then the prefix
-             * bytes must still be correct.
+             * length to the prefix bytes before growing the buffer.
              */
             tmpkey->size = key_prefix;
-            WT_ERR(__wt_buf_grow(session, tmpkey,
-              (WT_DATA_IN_ITEM(tmpkey) ? WT_PTRDIFF(tmpkey->data, tmpkey->mem) : 0) + key_prefix +
-                key_size));
+            WT_ERR(__wt_buf_grow(session, tmpkey, key_prefix + key_size));
             memcpy((uint8_t *)tmpkey->mem + key_prefix, key_data, key_size);
             tmpkey->size = key_prefix + key_size;
 

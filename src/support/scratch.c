@@ -21,15 +21,23 @@ __wt_buf_grow_worker(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)
 
     /*
      * Maintain the existing data: there are 3 cases:
-     *	No existing data: allocate the required memory, and initialize
-     * the data to reference it.
-     *	Existing data local to the buffer: set the data to the same
-     * offset in the re-allocated memory.
-     *	Existing data not-local to the buffer: copy the data into the
-     * buffer and set the data to reference it.
+     *
+     * 1. No existing data: allocate the required memory, and initialize the data to reference it.
+     * 2. Existing data local to the buffer: set the data to the same offset in the re-allocated
+     *    memory. The offset in this case is likely a read of an overflow item, the data pointer
+     *    is offset in the buffer in order to skip over the leading data block page header. For
+     *    the same reason, take any offset in the buffer into account when calculating the size
+     *    to allocate, it saves complex calculations in our callers to decide if the buffer is large
+     *    enough in the case of buffers with offset data pointers.
+     * 3. Existing data not-local to the buffer: copy the data into the buffer and set the data to
+     *    reference it.
+     *
+     * Take the offset of the data pointer in the buffer when calculating the size
+     * needed, overflow items use the data pointer to skip the leading data block page header
      */
     if (WT_DATA_IN_ITEM(buf)) {
         offset = WT_PTRDIFF(buf->data, buf->mem);
+        size += offset;
         copy_data = false;
     } else {
         offset = 0;

@@ -343,7 +343,7 @@ prefix_continue:
 
             __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
             if (group_key != NULL) {
-                WT_RET(__wt_buf_grow(session, keyb, key_prefix + key_size));
+                WT_RET(__wt_buf_init(session, keyb, key_prefix + key_size));
                 memcpy(keyb->mem, group_key, key_prefix);
                 memcpy((uint8_t *)keyb->mem + key_prefix, key_data, key_size);
                 keyb->size = key_prefix + key_size;
@@ -390,12 +390,9 @@ prefix_continue:
              * space, then append the suffix to the prefix already in the buffer.
              *
              * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's
-             * CURRENT data length to the prefix bytes before growing the buffer. Assert the buffer
-             * data begins at the allocated memory (overflow keys use WT_ITEM.data offsets to skip
-             * page headers), as that can make the calculation incorrect.
+             * CURRENT data length to the prefix bytes before growing the buffer.
              */
             WT_ASSERT(session, keyb->size >= key_prefix);
-            WT_ASSERT(session, !WT_DATA_IN_ITEM(keyb) || keyb->data == keyb->mem);
             keyb->size = key_prefix;
             WT_RET(__wt_buf_grow(session, keyb, key_prefix + key_size));
             memcpy((uint8_t *)keyb->data + key_prefix, key_data, key_size);

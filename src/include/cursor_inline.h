@@ -499,17 +499,11 @@ __cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_K
      * Grow the buffer as necessary as well as ensure data has been copied into local buffer space,
      * then append the suffix to the prefix already in the buffer. Don't grow the buffer
      * unnecessarily or copy data we don't need, truncate the item's CURRENT data length to the
-     * prefix bytes before growing the buffer. Additionally take into account any data pointer
-     * offset in the buffer, overflow keys offset the buffer data pointer to skip page headers.
-     * Using an overflow record for our prefix bytes (after skipping overflow records when creating
-     * prefix compressed keys), is OK. If an overflow record appears between the key we used for
-     * prefix compression and our key, then the prefix bytes must still be correct.
+     * prefix bytes before growing the buffer.
      */
     WT_ASSERT(session, cbt->row_key->size >= key_prefix);
     cbt->row_key->size = key_prefix;
-    WT_RET(__wt_buf_grow(session, cbt->row_key,
-      (WT_DATA_IN_ITEM(cbt->row_key) ? WT_PTRDIFF(cbt->row_key->data, cbt->row_key->mem) : 0) +
-        key_prefix + key_size));
+    WT_RET(__wt_buf_grow(session, cbt->row_key, key_prefix + key_size));
     memcpy((uint8_t *)cbt->row_key->data + key_prefix, key_data, key_size);
     cbt->row_key->size = key_prefix + key_size;
 

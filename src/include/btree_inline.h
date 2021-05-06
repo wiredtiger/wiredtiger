@@ -1055,7 +1055,7 @@ __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
      *
      * Not checking the prefix and cell offset sizes, the fields hold any legitimate value.
      */
-    key_offset = (uintptr_t)WT_PTRDIFF(unpack->cell, unpack->data);
+    key_offset = (uintptr_t)WT_PTRDIFF(unpack->data, unpack->cell);
     if (unpack->type != WT_CELL_KEY || key_offset > WT_K_MAX_KEY_OFFSET ||
       unpack->size > WT_K_MAX_KEY_LEN)
         v = WT_CELL_ENCODE_OFFSET(WT_PAGE_DISK_OFFSET(page, unpack->cell)) | WT_CELL_FLAG;
@@ -1074,7 +1074,7 @@ __wt_row_leaf_key_set(WT_PAGE *page, WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
 static inline void
 __wt_row_leaf_value_set(WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
 {
-    uintptr_t value_offset, v;
+    uintptr_t value_offset, value_size, v;
 
     /* The row-store key can change underfoot; explicitly take a copy. */
     v = (uintptr_t)WT_ROW_KEY_COPY(rip);
@@ -1096,17 +1096,24 @@ __wt_row_leaf_value_set(WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
      */
     if (WT_K_DECODE_KEY_LEN(v) > WT_KV_MAX_KEY_LEN) /* Key len */
         return;
-    value_offset = (uintptr_t)WT_PTRDIFF(unpack->cell, unpack->data);
-    if (value_offset > WT_KV_MAX_VALUE_OFFSET) /* Value offset */
-        return;
-    if (unpack->size > WT_KV_MAX_VALUE_LEN) /* Value length */
-        return;
+
+    /* No value cell is passed for zero-length values. */
+    if (unpack == NULL)
+        value_offset = value_size = 0;
+    else {
+        value_offset = (uintptr_t)WT_PTRDIFF(unpack->data, unpack->cell);
+        if (value_offset > WT_KV_MAX_VALUE_OFFSET) /* Value offset */
+            return;
+        value_size = unpack->size;
+        if (value_size > WT_KV_MAX_VALUE_LEN) /* Value length */
+            return;
+    }
 
     v = WT_KV_ENCODE_KEY_CELL_OFFSET(WT_K_DECODE_KEY_CELL_OFFSET(v)) |
       WT_KV_ENCODE_KEY_PREFIX(WT_K_DECODE_KEY_PREFIX(v)) |
       WT_KV_ENCODE_KEY_OFFSET(WT_K_DECODE_KEY_OFFSET(v)) |
       WT_KV_ENCODE_KEY_LEN(WT_K_DECODE_KEY_LEN(v)) | WT_KV_ENCODE_VALUE_OFFSET(value_offset) |
-      WT_KV_ENCODE_VALUE_LEN(unpack->size) | WT_KV_FLAG;
+      WT_KV_ENCODE_VALUE_LEN(value_size) | WT_KV_FLAG;
     WT_ROW_KEY_SET(rip, v);
 }
 
@@ -1175,7 +1182,7 @@ __wt_row_leaf_key(
         copy = WT_ROW_KEY_COPY(&page->pg_row[page->prefix_start]);
         __wt_row_leaf_key_info(page, copy, NULL, NULL, &group_key, &group_size, &group_prefix);
         if (group_key != NULL) {
-            WT_RET(__wt_buf_grow(session, key, key_prefix + key_size));
+            WT_RET(__wt_buf_init(session, key, key_prefix + key_size));
             memcpy(key->mem, group_key, key_prefix);
             memcpy((uint8_t *)key->mem + key_prefix, key_data, key_size);
             key->size = key_prefix + key_size;
@@ -1233,6 +1240,9 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
          * key's size, plus the value's offset: in other words, we know where the key's cell starts,
          * the key's data ends the key's cell, and the value cell immediately follows, Skip past the
          * key cell to the value cell, then skip to the start of the value's data.
+         *
+         * Zero-length values don't have on-page cells so the data pointer won't be useful. As the
+         * length is zero, callers shouldn't use it for anything.
          */
         value->data = (uint8_t *)WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v)) +
           WT_KV_DECODE_KEY_OFFSET(v) + WT_KV_DECODE_KEY_LEN(v) + WT_KV_DECODE_VALUE_OFFSET(v);
