@@ -1,7 +1,5 @@
 #! /bin/sh
 
-exit 0
-
 t=__wt.$$
 trap 'rm -f $t' 0 1 2 3 13 15
 
