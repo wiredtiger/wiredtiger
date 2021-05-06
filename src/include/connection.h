@@ -330,9 +330,9 @@ struct __wt_connection_impl {
     bool ckpt_signalled;   /* Checkpoint signalled */
 
     uint64_t ckpt_apply;            /* Checkpoint handles applied */
-    uint64_t ckpt_apply_time;       /* Checkpoint applied handles gather time */
-    uint64_t ckpt_apply_saved_list; /* Checkpoint handles that used saved ckptlist */
     uint64_t ckpt_apply_meta_list;  /* Checkpoint handles that built ckptlist from metadata */
+    uint64_t ckpt_apply_saved_list; /* Checkpoint handles that used saved ckptlist */
+    uint64_t ckpt_apply_time;       /* Checkpoint applied handles gather time */
     uint64_t ckpt_skip;             /* Checkpoint handles skipped */
     uint64_t ckpt_skip_time;        /* Checkpoint skipped handles gather time */
     uint64_t ckpt_usecs;            /* Checkpoint timer */
