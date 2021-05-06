@@ -1073,7 +1073,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * we rolled back all associated updates in the previous iteration of this function.
      */
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS) {
-        WT_ASSERT(session, (upd == NULL || upd->next == NULL || upd->next->txnid != txn->id));
+        WT_ASSERT(session,
+          (upd == NULL || upd->next == NULL || upd->prepare_state == WT_PREPARE_RESOLVED ||
+            upd->next->txnid != txn->id));
         return (0);
     }
 
@@ -1668,8 +1670,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd, *tmp;
-    int64_t prepared_updates_count, prepared_updates_key_repeated_count;
-    u_int i;
+    u_int i, prepared_updates_count, prepared_updates_key_repeated_count;
 
     txn = session->txn;
     prepared_updates_count = prepared_updates_key_repeated_count = 0;
