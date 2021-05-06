@@ -40,10 +40,12 @@ class test_backup22(backup_base):
     dir='backup.dir'
     incr_dir = 'incr_backup.dir'
     uri = 'test_backup22'
-    #conn_config = 'verbose=[]'
+    #conn_config = 'verbose=[backup]'
     scenarios = make_scenarios([
-        ('import_with_metadata', dict(repair=False)),
-        ('import_repair', dict(repair=True)),
+        ('import_with_metadata', dict(repair=False,checkpoint=False)),
+        ('import_repair', dict(repair=True,checkpoint=False)),
+        ('import_with_metadata_ckpt', dict(repair=False,checkpoint=True)),
+        ('import_repair_ckpt', dict(repair=True,checkpoint=True)),
     ])
 
     def test_import_with_open_backup_cursor(self):
@@ -81,6 +83,8 @@ class test_backup22(backup_base):
                 original_db_table_config, original_db_file_config)
         self.session.create(table_uri, import_config)
 
+        if self.checkpoint:
+            self.session.checkpoint()
         # Perform incremental backup on empty directory. We want empty directory because we
         # expect all files to be copied over in it's entirety.
         self.take_incr_backup(self.incr_dir, 2)

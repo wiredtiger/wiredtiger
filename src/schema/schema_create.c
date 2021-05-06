@@ -238,7 +238,6 @@ __create_file(
                 ;
             *p = val->data;
             WT_ERR(__wt_config_collapse(session, filecfg, &fileconf));
-            __wt_verbose(session, WT_VERB_BACKUP, "Testing here %s", (char *)fileconf);
         } else {
             /* Try to recreate the associated metadata from the imported data source. */
             WT_ERR(__wt_import_repair(session, uri, &fileconf));
