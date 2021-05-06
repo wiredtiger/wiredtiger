@@ -15,7 +15,7 @@ config_choice(
     "Target architecture for WiredTiger"
     OPTIONS
         "x86;WT_X86;"
-        "arm64;WT_ARM64;"
+        "aarch64;WT_AARCH64;"
         "ppc64;WT_PPC64;"
         "zseries;WT_ZSERIES;"
 )

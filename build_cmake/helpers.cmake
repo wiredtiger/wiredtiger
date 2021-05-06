@@ -593,7 +593,7 @@ function(parse_filelist_source filelist output_var)
     # Determine architecture host for our filelist parse.
     if(WT_X86)
         set(arch_host "X86_HOST")
-    elseif(WT_ARM64)
+    elseif(WT_AARCH64)
         set(arch_host "ARM64_HOST")
     elseif(WT_PPC64)
         set(arch_host "POWERPC_HOST")
