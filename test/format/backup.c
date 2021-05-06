@@ -347,22 +347,6 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
         error_sys_check(close(wfd2));
     }
     free(tmp);
-    if (strcmp(name, "import.wt") == 0 || strcmp(name, "import") == 0) {
-        len = strlen(g.home) + strlen(name) + 10;
-        tmp = dmalloc(len);
-        testutil_check(__wt_snprintf(tmp, len, "%s/%s", g.home, name));
-        error_sys_check(rfd = open(tmp, O_RDONLY, 0));
-        free(tmp);
-        tmp = NULL;
-
-        len = strlen(g.home) + strlen("BACKUP") + strlen(name) + 10;
-        tmp = dmalloc(len);
-        testutil_check(__wt_snprintf(tmp, len, "%s/BACKUP/%s", g.home, name));
-        error_sys_check(wfd1 = open(tmp, O_RDONLY, 0));
-        free(tmp);
-        tmp = NULL;
-        fprintf(stdout, "passed testing\n");
-    }
 }
 
 #define RESTORE_SKIP 1
@@ -527,7 +511,7 @@ backup(void *arg)
      * larger intervals, optionally do incremental backups between full backups.
      */
     this_id = 0;
-    for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 1, 10)) {
+    for (period = mmrand(NULL, 1, 10);; period = mmrand(NULL, 20, 45)) {
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
             --period;

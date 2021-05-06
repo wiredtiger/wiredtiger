@@ -30,19 +30,26 @@ import wiredtiger, os
 from wtscenario import make_scenarios
 from wtbackup import backup_base
 
-# test_import11.py
-#    Run import/export while backup cursor is open.
-class test_import11(backup_base):
+# test_backup22.py
+#    Test interaction between import and incremental backup.
+# This reproduces the issue from WT-7416 when the imported table doesn't get copied to
+# backup directory when incremental backup is run
+class test_backup22(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=i'
-    dir='backup.dir'                    # Backup directory name
-    uri = 'test_import11'
-    conn_config = 'verbose=[backup]'
+    # Backup directory name
+    dir='backup.dir'                    
+    incr_dir = 'incr_backup.dir'
+    uri = 'test_backup22'
+    #conn_config = 'verbose=[]'
     scenarios = make_scenarios([
-        #('import_with_metadata', dict(repair=False)),
+        ('import_with_metadata', dict(repair=False)),
         ('import_repair', dict(repair=True)),
     ])
 
     def test_import_with_open_backup_cursor(self):
+        os.mkdir(self.dir)
+        os.mkdir(self.incr_dir)
+        
         # Create and populate the table.
         table_uri = 'table:' + self.uri
         self.session.create(table_uri, self.create_config)
@@ -59,8 +66,6 @@ class test_import11(backup_base):
         original_db_file_config = c[file_uri]
         c.close()
 
-        os.mkdir(self.dir)
-        os.mkdir(self.dir + "_incr")
         config = 'incremental=(enabled,granularity=4k,this_id="ID1")'
         bkup_c = self.session.open_cursor('backup:', None, config)
         self.take_full_backup(self.dir, bkup_c)
@@ -75,15 +80,11 @@ class test_import11(backup_base):
             import_config = '{},import=(enabled,repair=false,file_metadata=({}))'.format(
                 original_db_table_config, original_db_file_config)
         self.session.create(table_uri, import_config)
-        #cursor = self.session.open_cursor(table_uri)
-        #for i in range(1, 1000):
-        #    cursor[i] = i
-        #cursor.close()
-        #self.session.checkpoint()
 
-        # Open backup cursor.
-        self.take_incr_backup(self.dir + "_incr", 2)
-        self.compare_backups(self.uri, self.dir, self.dir + "_incr", str(self.bkup_id))
+        # Perform incremental backup on empty directory. We want empty directory because we 
+        # expect all files to be copied over in it's entirety. 
+        self.take_incr_backup(self.incr_dir, 2)
+        self.compare_backups(self.uri, self.dir, self.incr_dir)
 
 if __name__ == '__main__':
     wttest.run()
