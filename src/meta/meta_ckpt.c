@@ -443,6 +443,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             free = true;
             setup = true;
         }
+
         /* If we are keeping or setting up an entry on a rename, set the flag. */
         if (rename && (!free || setup))
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
