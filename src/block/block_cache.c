@@ -112,7 +112,7 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     blkcache = &conn->blkcache;
 
     if ((double)(blkcache->inserts + blkcache->removals)/
-	(double)(blkcache->hits) > blkcache->overhead_pct)
+	(double)(blkcache->lookups) > blkcache->overhead_pct)
 	return true;
 
     return false;
@@ -366,7 +366,6 @@ __wt_blkcache_get_or_check(
                 blkcache_item->freq_rec_counter = 0;
 	    blkcache_item->freq_rec_counter++;
 
-	    blkcache->hits++;
 #if BLKCACHE_TRACE == 1
 	    time_stop = __wt_clock(session);
 #endif

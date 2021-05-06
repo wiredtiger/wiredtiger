@@ -96,7 +96,6 @@ struct __wt_blkcache {
      * rate for all variables, the ratio should remain roughly
      * accurate. We care about the ratio.
      */
-    size_t hits;
     size_t lookups;
     size_t inserts;
     size_t removals;
