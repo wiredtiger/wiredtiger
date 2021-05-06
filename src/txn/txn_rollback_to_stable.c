@@ -1612,8 +1612,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
      * current value is already in use, and hence we need to add one here.
      */
     conn->stable_rollback_maxfile = conn->next_file_id + 1;
-    WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable_btree_apply(session));
-    WT_ERR(ret);
+    WT_ERR(__rollback_to_stable_btree_apply(session));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
     txn_global->has_durable_timestamp = txn_global->has_stable_timestamp;
@@ -1634,7 +1633,7 @@ err:
 
 /*
  * __wt_rollback_to_stable --
- *     Rollback all modifications with timestamps more recent than the passed in timestamp.
+ *     Rollback the database to the stable timestamp.
  */
 int
 __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckpt)
@@ -1653,7 +1652,8 @@ __wt_rollback_to_stable(WT_SESSION_IMPL *session, const char *cfg[], bool no_ckp
       F_MASK(session, WT_SESSION_NO_LOGGING), 0, &session));
 
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 1);
-    WT_WITH_CHECKPOINT_LOCK(session, ret = __rollback_to_stable(session, no_ckpt));
+    WT_WITH_CHECKPOINT_LOCK(
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __rollback_to_stable(session, no_ckpt)));
     WT_STAT_CONN_SET(session, txn_rollback_to_stable_running, 0);
 
     WT_TRET(__wt_session_close_internal(session));
