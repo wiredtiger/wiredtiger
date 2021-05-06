@@ -237,18 +237,16 @@ __tiered_server(void *arg)
     WT_DECL_RET;
     WT_ITEM path, tmp;
     WT_SESSION_IMPL *session;
-    WT_TIERED_MANAGER *mgr;
 
     session = arg;
     conn = S2C(session);
-    mgr = &conn->tiered_mgr;
 
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait(session, conn->tiered_cond, mgr->wait_usecs, __tiered_server_run_chk);
+        __wt_cond_wait(session, conn->tiered_cond, WT_MINUTE, __tiered_server_run_chk);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
