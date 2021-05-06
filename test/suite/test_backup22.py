@@ -37,7 +37,7 @@ from wtbackup import backup_base
 class test_backup22(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=i'
     # Backup directory name
-    dir='backup.dir'                    
+    dir='backup.dir'
     incr_dir = 'incr_backup.dir'
     uri = 'test_backup22'
     #conn_config = 'verbose=[]'
@@ -49,7 +49,7 @@ class test_backup22(backup_base):
     def test_import_with_open_backup_cursor(self):
         os.mkdir(self.dir)
         os.mkdir(self.incr_dir)
-        
+
         # Create and populate the table.
         table_uri = 'table:' + self.uri
         self.session.create(table_uri, self.create_config)
@@ -81,8 +81,8 @@ class test_backup22(backup_base):
                 original_db_table_config, original_db_file_config)
         self.session.create(table_uri, import_config)
 
-        # Perform incremental backup on empty directory. We want empty directory because we 
-        # expect all files to be copied over in it's entirety. 
+        # Perform incremental backup on empty directory. We want empty directory because we
+        # expect all files to be copied over in it's entirety.
         self.take_incr_backup(self.incr_dir, 2)
         self.compare_backups(self.uri, self.dir, self.incr_dir)
 
