@@ -59,18 +59,6 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
-    const keys_iterator_t
-    get_collection_keys_begin(const std::string &collection_name) const
-    {
-        return (collections.at(collection_name).keys.begin());
-    }
-
-    const keys_iterator_t
-    get_collection_keys_end(const std::string &collection_name) const
-    {
-        return (collections.at(collection_name).keys.end());
-    }
-
     const std::vector<std::string>
     get_collection_names() const
     {
