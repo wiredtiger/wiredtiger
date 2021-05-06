@@ -443,7 +443,6 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             free = true;
             setup = true;
         }
-        __wt_verbose(session, WT_VERB_BACKUP, "Testing block mods %d %d\n", free, setup);
         /* If we are keeping or setting up an entry on a rename, set the flag. */
         if (rename && (!free || setup))
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);

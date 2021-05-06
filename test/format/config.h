@@ -186,8 +186,7 @@ static CONFIG c[] = {
 
   /*
    * 0%
-   * FIXME-WT-7418 and FIXME-WT-7416: Temporarily disable import until WT_ROLLBACK error and
-   * interaction with backup thread is fixed. Should be 20%
+   * FIXME-WT-7418: Temporarily disable import until WT_ROLLBACK error is fixed. Should be 20%
    */
   {"import", "import table from newly created database", C_BOOL, 100, 0, 0, &g.c_import, NULL},
 

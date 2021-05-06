@@ -41,7 +41,6 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     WT_ASSERT(session, btree->dhandle != NULL);
     WT_ASSERT(session, cb->incr_src != NULL);
 
-    __wt_verbose(session, WT_VERB_BACKUP, "__curbackup_incr_blkmod \"%s\"", "stuff");
     WT_RET(__wt_metadata_search(session, btree->dhandle->name, &config));
     /* Check if this is a file with no checkpointed content. */
     ret = __wt_meta_checkpoint(session, btree->dhandle->name, 0, &ckpt);
@@ -53,13 +52,11 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
     if (v.len)
         F_SET(cb, WT_CURBACKUP_HAS_CB_INFO);
     __wt_config_subinit(session, &blkconf, &v);
-
     __wt_verbose(session, WT_VERB_BACKUP, "__wt_config_next \"%s\"", config);
     while ((ret = __wt_config_next(&blkconf, &k, &v)) == 0) {
         /*
          * First see if we have information for this source identifier.
          */
-        __wt_verbose(session, WT_VERB_BACKUP, "Incremental src id: \"%s\"", cb->incr_src->id_str);
         if (WT_STRING_MATCH(cb->incr_src->id_str, k.str, k.len) == 0)
             continue;
 
@@ -188,8 +185,6 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                     __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
                     goto done;
                 }
-                __wt_verbose(session, WT_VERB_BACKUP, "looking for notfound %s %d %d", "1",
-                  F_ISSET(cb, WT_CURBACKUP_CKPT_FAKE), F_ISSET(cb, WT_CURBACKUP_HAS_CB_INFO));
                 WT_ERR(WT_NOTFOUND);
             }
         }
@@ -218,10 +213,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
                 ++cb->bit_offset;
 
         /* We either have this object's incremental information or we're done. */
-        if (!found) {
-            __wt_verbose(session, WT_VERB_BACKUP, "looking for notfound %s", "2");
+        if (!found)
             WT_ERR(WT_NOTFOUND);
-        }
         WT_ASSERT(session, cb->granularity != 0);
         WT_ASSERT(session, total_len != 0);
         __wt_verbose(session, WT_VERB_BACKUP,
