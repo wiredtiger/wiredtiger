@@ -365,7 +365,12 @@ __wt_hs_insert_updates(
         }
 
         first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
-        enable_reverse_modify = true;
+
+        /*
+         * Reverse deltas are only supported on 'S' and 'u' value formats.
+         */
+        enable_reverse_modify =
+          (WT_STREQ(btree->value_format, "S") || WT_STREQ(btree->value_format, "u"));
 
         /*
          * The algorithm assumes the oldest update on the update chain in memory is either a full
@@ -606,25 +611,12 @@ __wt_hs_insert_updates(
 #endif
 
             /*
-             * Reverse deltas are only supported on 'S' and 'u' value formats.
-             */
-            if (!WT_STREQ(btree->value_format, "S") && !WT_STREQ(btree->value_format, "u"))
-                enable_reverse_modify = false;
-
-            /*
-             * Limit the number of consecutive reverse modifies for standard updates. We want to
-             * ensure we do not store a large chain of reverse modifies as to impact read
-             * performance.
-             */
-            if (upd->type == WT_UPDATE_STANDARD &&
-              total_nb_modifies >= WT_MAX_CONSECUTIVE_REVERSE_MODIFY)
-                enable_reverse_modify = false;
-
-            /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
              * store as a full update because the on-disk update will be the base update for all the
-             * updates that are older than the on-disk update.
+             * updates that are older than the on-disk update. Limit the number of consecutive
+             * reverse modifies for standard updates. We want to ensure we do not store a large
+             * chain of reverse modifies as to impact read performance.
              *
              * Due to concurrent operation of checkpoint and eviction, it is possible that history
              * store may have more recent versions of a key than the on-disk version. Without a
@@ -634,6 +626,8 @@ __wt_hs_insert_updates(
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
               enable_reverse_modify &&
+              (upd->type == WT_UPDATE_MODIFY ||
+                total_nb_modifies < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
