@@ -94,9 +94,9 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * Build and flatten the metadata and the checkpoint list, then insert it into the metadata for
      * this file.
      *
-     * Strip out any incremental backup information, an imported file has not been part of a backup.
-     * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Assign a
-     * unique file ID.
+     * Reconstruct the incremental backup information, to indicate copying the whole file as an
+     * imported file has not been part of backup. Strip out the checkpoint LSN, an imported file
+     * isn't associated with any log files. Assign a unique file ID.
      */
     cfg[1] = a->data;
     cfg[2] = checkpoint_list;
@@ -108,8 +108,6 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_ERR(ret);
     cfg[5] = fileid;
     WT_ERR(__wt_config_collapse(session, cfg, &config_tmp));
-    __wt_verbose(
-      session, WT_VERB_BACKUP, "printing after config (import repair) %s\n", (char *)config_tmp);
 
     /* Now that we've retrieved the configuration, let's get the real allocation size. */
     WT_ERR(__wt_config_getones(session, config_tmp, "allocation_size", &v));
@@ -143,7 +141,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     F_SET(ckpt, WT_CKPT_UPDATE);
     WT_ERR(__wt_buf_set(session, &ckpt->raw, checkpoint->data, checkpoint->size));
     WT_ERR(__wt_meta_ckptlist_update_config(session, ckptbase, config_tmp, &config));
-    __wt_verbose(session, WT_VERB_BACKUP, "import metadata: %s", config);
+    __wt_verbose(session, WT_VERB_CHECKPOINT, "import metadata: %s", config);
     *configp = config;
 
 err:
