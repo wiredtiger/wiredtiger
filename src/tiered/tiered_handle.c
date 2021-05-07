@@ -37,6 +37,10 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
     tier = &tiered->tiers[id];
     (void)__wt_atomic_addi32(&session->dhandle->session_inuse, 1);
     tier->tier = session->dhandle;
+
+    /* The Btree needs to use the bucket storage to do file system operations. */
+    if (session->dhandle->type == WT_DHANDLE_TYPE_BTREE)
+        ((WT_BTREE *)session->dhandle->handle)->bstorage = tiered->bstorage;
 err:
     WT_RET(__wt_session_release_dhandle(session));
     return (ret);
@@ -78,6 +82,7 @@ static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
+    WT_TIERED_TIERS *this_tier;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
@@ -102,9 +107,11 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: schema create LOCAL: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    if (tiered->tiers[WT_TIERED_INDEX_LOCAL].name != NULL)
-        __wt_free(session, tiered->tiers[WT_TIERED_INDEX_LOCAL].name);
-    tiered->tiers[WT_TIERED_INDEX_LOCAL].name = name;
+    this_tier = &tiered->tiers[WT_TIERED_INDEX_LOCAL];
+    if (this_tier->name != NULL)
+        __wt_free(session, this_tier->name);
+    this_tier->name = name;
+    F_SET(this_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
 
     if (0) {
 err:
@@ -170,6 +177,7 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_TIERED_TIERS *this_tier;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
@@ -187,8 +195,10 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     /* Set up a tier:example metadata for the first time. */
     __wt_verbose(session, WT_VERB_TIERED, "CREATE_TIER_TREE: schema create: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    WT_ASSERT(session, tiered->tiers[WT_TIERED_INDEX_SHARED].name == NULL);
-    tiered->tiers[WT_TIERED_INDEX_SHARED].name = name;
+    this_tier = &tiered->tiers[WT_TIERED_INDEX_SHARED];
+    WT_ASSERT(session, this_tier->name == NULL);
+    this_tier->name = name;
+    F_SET(this_tier, WT_TIERS_OP_FLUSH | WT_TIERS_OP_READ);
 
     if (0)
 err:
@@ -446,6 +456,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TIERED *tiered;
     uint32_t unused;
     char *metaconf;
+    const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
     const char **tiered_cfg, *config;
 
     dhandle = session->dhandle;
@@ -454,11 +465,6 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     config = NULL;
     metaconf = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
-
-    if (tiered_cfg != NULL)
-        for (unused = 0; tiered_cfg[unused] != NULL; ++unused)
-            __wt_verbose(
-              session, WT_VERB_TIERED, "TIERED_OPEN: cfg[%d] %s", (int)unused, tiered_cfg[unused]);
 
     WT_UNUSED(cfg);
 
@@ -472,14 +478,20 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     /* Collapse into one string for later use in switch. */
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
+    /*
+     * Pull in any configuration of the original table for the object and file components that may
+     * have been sent in on the create.
+     */
+    obj_cfg[1] = config;
+    WT_ERR(__wt_config_collapse(session, obj_cfg, &metaconf));
+    tiered->obj_config = metaconf;
+    metaconf = NULL;
+    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
+
     WT_ERR(__wt_config_getones(session, config, "key_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->key_format));
     WT_ERR(__wt_config_getones(session, config, "value_format", &cval));
     WT_ERR(__wt_strndup(session, cval.str, cval.len, &tiered->value_format));
-    WT_ERR(__wt_buf_fmt(session, tmp, ",tiered_storage=(bucket=%s,bucket_prefix=%s)",
-      tiered->bstorage->bucket, tiered->bstorage->bucket_prefix));
-    WT_ERR(__wt_strdup(session, tmp->data, &tiered->obj_config));
-    __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: obj_config %s", tiered->obj_config);
 
     WT_ERR(__wt_config_getones(session, config, "last", &cval));
     tiered->current_id = (uint64_t)cval.val;

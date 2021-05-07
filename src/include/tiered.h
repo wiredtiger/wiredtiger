@@ -71,10 +71,19 @@ struct __wt_cursor_tiered {
 /*
  * WT_TIERED_TIERS --
  *	Information we need to keep about each tier such as its data handle and name.
+ *	We define operations that each tier can accept. The local tier should be able to accept
+ *	reads and writes. The shared tier can do reads and flushes. Other ideas for future tiers
+ *	may include a merge tier that is read only or an archival tier that is flush only.
  */
 struct __wt_tiered_tiers {
     WT_DATA_HANDLE *tier; /* Data handle for this tier */
     const char *name;     /* Tier's metadata name */
+/* AUTOMATIC FLAG VALUE GENERATION START */
+#define WT_TIERS_OP_FLUSH 0x1u
+#define WT_TIERS_OP_READ 0x2u
+#define WT_TIERS_OP_WRITE 0x4u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    uint32_t flags; /* Flags including operations */
 };
 
 /*
@@ -142,7 +151,6 @@ struct __wt_tiered_tree {
     WT_DATA_HANDLE iface;
     const char *name, *config;
     const char *key_format, *value_format;
-    const char *file_config;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TIERED_TREE_UNUSED 0x1u
