@@ -151,8 +151,8 @@ __curbackup_incr_next(WT_CURSOR *cursor)
          * incremental cursor below and return WT_NOTFOUND.
          */
         F_SET(cb, WT_CURBACKUP_INCR_INIT);
-        __wt_verbose(session, WT_VERB_BACKUP, "Set key WT_BACKUP_FILE %s %s size %" PRIuMAX,
-          (char *)cb->bitstring.mem, cb->incr_file, (uintmax_t)size);
+        __wt_verbose(session, WT_VERB_BACKUP, "Set key WT_BACKUP_FILE %s size %" PRIuMAX,
+          cb->incr_file, (uintmax_t)size);
         __wt_cursor_set_key(cursor, 0, size, WT_BACKUP_FILE);
     } else {
         if (!F_ISSET(cb, WT_CURBACKUP_INCR_INIT)) {
