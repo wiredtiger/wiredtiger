@@ -61,4 +61,8 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
         )
+    target_compile_options(
+        wiredtiger_zstd
+        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
 endif()

@@ -62,4 +62,8 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
         )
+    target_compile_options(
+        wiredtiger_snappy
+        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
 endif()

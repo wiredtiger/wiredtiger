@@ -46,6 +46,7 @@ include(build_cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(build_cmake/configs/base.cmake)
 
+set(COMPILER_DIAGNOSTIC_FLAGS "" CACHE INTERNAL "" FORCE)
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(build_cmake/strict/gcc_strict.cmake)
@@ -79,6 +80,10 @@ target_include_directories(
     wiredtiger
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
+)
+target_compile_options(
+    wiredtiger
+    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
 )
 
 # Ensure we link any available library dependencies to our wiredtiger target.
