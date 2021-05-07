@@ -203,10 +203,12 @@ __create_file(
                 }
                 WT_ERR(__wt_strndup(session, cval.str, cval.len, &filemeta));
                 filecfg[2] = filemeta;
+                /*
+                 * If there is a file metadata provided, reconstruct the incremental backup
+                 * information as the imported file was not part of any backup.
+                 */
                 WT_ERR(__wt_reset_blkmod(session, config, buf));
                 filecfg[3] = buf->mem;
-                __wt_verbose(
-                  session, WT_VERB_BACKUP, "Config after reset_blkmod %s", (char *)buf->mem);
             } else {
                 /*
                  * If there is no file metadata provided, the user should be specifying a "repair".
@@ -224,8 +226,9 @@ __create_file(
         WT_ERR(__create_file_block_manager(session, uri, filename, allocsize));
 
     /*
-     * If creating an ordinary file, update the file ID and current version numbers and strip the
-     * incremental backup information and checkpoint LSN from the extracted metadata.
+     * If creating an ordinary file, update the file ID and current version numbers and strip
+     * checkpoint LSN from the extracted metadata. If importing an existing file, incremental backup
+     * information is reconstructed inside import repair or when grabbing file metadata.
      */
     if (!is_metadata) {
         if (!import_repair) {

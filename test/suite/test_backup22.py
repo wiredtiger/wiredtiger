@@ -40,7 +40,6 @@ class test_backup22(backup_base):
     dir='backup.dir'
     incr_dir = 'incr_backup.dir'
     uri = 'test_backup22'
-    #conn_config = 'verbose=[backup]'
     scenarios = make_scenarios([
         ('import_with_metadata', dict(repair=False,checkpoint=False)),
         ('import_repair', dict(repair=True,checkpoint=False)),
