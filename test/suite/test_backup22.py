@@ -33,7 +33,7 @@ from wtbackup import backup_base
 # test_backup22.py
 #    Test interaction between import and incremental backup.
 # This reproduces the issue from WT-7416 when the imported table doesn't get copied to
-# backup directory when incremental backup is run
+# backup directory when incremental backup is run.
 class test_backup22(backup_base):
     create_config = 'allocation_size=512,key_format=i,value_format=i'
     # Backup directory name
@@ -84,8 +84,8 @@ class test_backup22(backup_base):
 
         if self.checkpoint:
             self.session.checkpoint()
-        # Perform incremental backup on empty directory. We want empty directory because we
-        # expect all files to be copied over in it's entirety.
+        # Perform incremental backup with id 2 on empty directory. We want empty directory
+        # because we expect all files to be copied over in it's entirety.
         self.take_incr_backup(self.incr_dir, 2)
         self.compare_backups(self.uri, self.dir, self.incr_dir)
 
