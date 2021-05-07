@@ -1189,11 +1189,12 @@ prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
     for (; head_upd != NULL; head_upd = head_upd->next) {
         /*
-         * Assert if we still have an update from the current transaction that hasn't been aborted.
-         * Only perform this check if aborting the prepared transaction.
+         * Assert if we still have an update from the current transaction that hasn't been resolved
+         * or aborted.
          */
-        WT_ASSERT(
-          session, commit || head_upd->txnid == WT_TXN_ABORTED || head_upd->txnid != txn->id);
+        WT_ASSERT(session,
+          head_upd->txnid == WT_TXN_ABORTED || head_upd->prepare_state == WT_PREPARE_RESOLVED ||
+            head_upd->txnid != txn->id);
 
         if (head_upd->txnid == WT_TXN_ABORTED)
             continue;
