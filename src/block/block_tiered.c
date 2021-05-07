@@ -74,8 +74,10 @@ __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
     if (session->bucket_storage != NULL && block->logid != 0) {
         storage_source = session->bucket_storage->storage_source;
         WT_ASSERT(session, storage_source != NULL);
-        WT_ERR(storage_source->ss_flush(
-          storage_source, &session->iface, session->bucket_storage->file_system, filename, NULL));
+        WT_ERR(storage_source->ss_flush(storage_source, &session->iface,
+          session->bucket_storage->file_system, filename, filename, NULL));
+        WT_ERR(storage_source->ss_flush_finish(storage_source, &session->iface,
+          session->bucket_storage->file_system, filename, filename, NULL));
     }
     /* Bump to a new file ID. */
     ++block->logid;
