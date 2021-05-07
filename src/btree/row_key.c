@@ -162,12 +162,13 @@ switch_and_jump:
             rip = jump_rip;
             slot_offset = jump_slot_offset;
         }
-        /* The row-store key can change underfoot; explicitly take a copy. */
-        copy = WT_ROW_KEY_COPY(rip);
 
+overflow_retry:
         /*
-         * Figure out what the key looks like.
+         * Figure out what the key looks like. The row-store key can change underfoot; explicitly
+         * take a copy.
          */
+        copy = WT_ROW_KEY_COPY(rip);
         __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
 
         /* 1: the test for a directly referenced on-page key. */
@@ -254,27 +255,22 @@ switch_and_jump:
         __wt_cell_unpack_kv(session, page->dsk, cell, unpack);
 
         /* 3: the test for an on-page reference to an overflow key. */
-        if (unpack->type == WT_CELL_KEY_OVFL) {
+        if (unpack->type == WT_CELL_KEY_OVFL || unpack->type == WT_CELL_KEY_OVFL_RM) {
             /*
              * If this is the key we wanted from the start, we don't care if it's an overflow key,
              * get a copy and wrap up.
              *
-             * Avoid racing with reconciliation deleting overflow keys. Deleted overflow keys must
-             * be instantiated first, acquire the overflow lock and check. Read the key if we still
-             * need to do so, but holding the overflow lock. Note we are not using the version of
-             * the cell-data-ref calls that acquire the overflow lock and do a look-aside into the
-             * tracking cache: this is an overflow key, not a value, meaning it's instantiated
-             * before being deleted, not copied into the tracking cache.
+             * We can race with reconciliation deleting overflow keys. Deleted overflow keys must be
+             * instantiated before deletion, acquire the overflow lock and check. If the key has
+             * been deleted, restart the slot and get the instantiated key, else read the key before
+             * releasing the lock.
              */
             if (slot_offset == 0) {
                 __wt_readlock(session, &btree->ovfl_lock);
-                /*
-                 * There may be a race here: it's a long one, but if the object is removed after we
-                 * check the row-store info and decide to read the cell, but before we acquire this
-                 * read lock, the cell might have been removed when we try to read it here. The
-                 * comment above seems to indicate there was additional work going on here at some
-                 * point.
-                 */
+                if (__wt_cell_type_raw(unpack->cell) == WT_CELL_KEY_OVFL_RM) {
+                    __wt_readunlock(session, &btree->ovfl_lock);
+                    goto overflow_retry;
+                }
                 ret = __wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, unpack, keyb);
                 __wt_readunlock(session, &btree->ovfl_lock);
                 WT_RET(ret);
