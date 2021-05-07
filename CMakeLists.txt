@@ -117,3 +117,7 @@ endif()
 
 # Establish our install target configuration.
 include(build_cmake/install/install.cmake)
+
+if(ENABLE_PYTHON)
+   add_subdirectory(lang/python)
+endif()
