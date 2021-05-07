@@ -1282,7 +1282,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
-  "transaction: Number of prepared updates rollback-ed",
+  "transaction: Number of prepared updates rollbacked",
   "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",

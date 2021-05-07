@@ -1081,12 +1081,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * of the key are resolved. The head of the update chain can also be null in the scenario that
      * we rolled back all associated updates in the previous iteration of this function.
      */
-    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS) {
-        WT_ASSERT(session,
-          (upd == NULL || upd->next == NULL || upd->prepare_state == WT_PREPARE_RESOLVED ||
-            upd->next->txnid != txn->id));
-        return (0);
-    }
+    if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
+        goto prepare_verify;
 
     WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
     /*
@@ -1139,10 +1135,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
-        if (upd->txnid != txn->id) {
-            WT_ASSERT(session, (upd->next == NULL || upd->next->txnid != txn->id));
+        if (upd->txnid != txn->id)
             break;
-        }
 
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
@@ -1191,6 +1185,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (fix_upd != NULL)
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
 
+prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
     for (; head_upd != NULL; head_upd = head_upd->next) {
         /*

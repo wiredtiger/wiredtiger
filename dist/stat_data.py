@@ -554,7 +554,7 @@ connection_stats = [
     TxnStat('txn_prepared_updates_commit_count', 'Number of prepared updates committed'),
     TxnStat('txn_prepared_updates_count', 'Number of prepared updates'),
     TxnStat('txn_prepared_updates_key_repeated_count', 'Number of prepared updates repeated on the same key'),
-    TxnStat('txn_prepared_updates_rollback_count', 'Number of prepared updates rollback-ed'),
+    TxnStat('txn_prepared_updates_rollback_count', 'Number of prepared updates rollbacked'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
     TxnStat('txn_rollback', 'transactions rolled back'),
     TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),

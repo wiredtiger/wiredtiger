@@ -5624,7 +5624,7 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_COMMIT_COUNT	1312
 /*! transaction: Number of prepared updates repeated on the same key */
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_KEY_REPEATED_COUNT	1313
-/*! transaction: Number of prepared updates rollback-ed */
+/*! transaction: Number of prepared updates rollbacked */
 #define	WT_STAT_CONN_TXN_PREPARED_UPDATES_ROLLBACK_COUNT	1314
 /*! transaction: prepared transactions */
 #define	WT_STAT_CONN_TXN_PREPARE			1315
