@@ -4780,9 +4780,9 @@ struct __wt_storage_source {
 	 * @param bucket_name the name of the bucket.  Use of '/' is implementation dependent.
 	 * @param auth_token the authorization identifier.
 	 * @param config additional configuration. The only allowable value is \c cache_directory,
-         *    the name of a directory holding cached objects. Its default is
-         *    \c "<home>/cache-<bucket>" with \c <home> replaced by the @ref home, and
-         *    \c <bucket> replaced by the bucket_name.
+	 *    the name of a directory holding cached objects. Its default is
+	 *    \c "<home>/cache-<bucket>" with \c <home> replaced by the @ref home, and
+	 *    \c <bucket> replaced by the bucket_name.
 	 * @param[out] file_system the customized file system returned
 	 */
 	int (*ss_customize_file_system)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -4803,11 +4803,11 @@ struct __wt_storage_source {
 	 */
 	int (*ss_flush)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 	    WT_FILE_SYSTEM *file_system, const char *source, const char *object,
-            const char *config);
+	    const char *config);
 
 	/*!
 	 * After a flush, rename the source file from the default file system to be cached in
-         * the shared object storage.
+	 * the shared object storage.
 	 *
 	 * @errors
 	 *
@@ -4820,7 +4820,7 @@ struct __wt_storage_source {
 	 */
 	int (*ss_flush_finish)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
 	    WT_FILE_SYSTEM *file_system, const char *source, const char *object,
-            const char *config);
+	    const char *config);
 
 	/*!
 	 * A callback performed when the storage source is closed and will no
