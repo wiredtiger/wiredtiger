@@ -634,8 +634,7 @@ __wt_hs_insert_updates(
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-                if (upd->type == WT_UPDATE_STANDARD)
-                    ++total_nb_modifies;
+                ++total_nb_modifies;
             } else {
                 total_nb_modifies = 0;
                 WT_ERR(__hs_insert_record(
