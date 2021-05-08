@@ -1,9 +1,17 @@
-#! /bin/sh
+#! /bin/bash
 
 # First argument needs to be the name of the script.
 if [ $# -eq 0 ]
   then
     echo "Please give a name to your test i.e ./s_new_test my_test"
+    exit 128
+fi
+
+# Check the test name
+if [[ $1 =~ ^[0-9a-zA-Z_-]+$ ]];then
+    echo "Generating test $1..."
+else
+    echo "Invalid test name. Only alphanumeric characters are allowed. \"_\" and \"-\" can be used too."
     exit 128
 fi
 
@@ -23,18 +31,19 @@ fi
 
 # Copy the default template.
 cp ../test/cppsuite/tests/example_test.cxx $FILE
-echo "created $FILE."
+echo "Created $FILE."
 cp ../test/cppsuite/configs/config_example_test_default.txt $CONFIG
-echo "created $CONFIG."
+echo "Created $CONFIG."
 
 # Replace example_test with the new test name.
-sed -i "s/example_test/$1/" $FILE
-echo "updated $FILE."
+SEARCH="example_test"
+sed -i "s/$SEARCH/$1/" $FILE
+echo "Updated $FILE."
 
 # Replace the first line of the configuration file.
 REPLACE="# Configuration for $1."
 sed -i "1s/.*/$REPLACE/" $CONFIG
-echo "updated $CONFIG."
+echo "Updated $CONFIG."
 
 # Include the new test in run.cxx
 FILE=../test/cppsuite/tests/run.cxx
