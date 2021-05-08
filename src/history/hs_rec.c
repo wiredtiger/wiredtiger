@@ -286,7 +286,7 @@ __wt_hs_insert_updates(
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size, total_nb_modifies;
+    uint64_t insert_cnt, max_hs_size, modify_count;
     uint32_t i;
     uint8_t *p;
     int nentries;
@@ -381,11 +381,11 @@ __wt_hs_insert_updates(
          * newer than a TOMBSTONE must be a full update.
          *
          * The algorithm walks from the oldest update, or the most recently inserted into history
-         * store update, to the newest update and build full updates along the way. It sets the stop
-         * time point of the update to the start time point of the next update, squashes the updates
-         * that are from the same transaction and of the same start timestamp, checks if the update
-         * can be written as reverse modification, and inserts the update to the history store
-         * either as a full update or a reverse modification.
+         * store update, to the newest update and builds full updates along the way. It sets the
+         * stop time point of the update to the start time point of the next update, squashes the
+         * updates that are from the same transaction and of the same start timestamp, checks if the
+         * update can be written as reverse modification, and inserts the update to the history
+         * store either as a full update or a reverse modification.
          *
          * It deals with the following scenarios:
          * 1) We only have full updates on the chain and we only insert full updates to
@@ -494,7 +494,7 @@ __wt_hs_insert_updates(
          * time point, we can squash updates with the same start time point as the onpage update
          * away.
          */
-        total_nb_modifies = 0;
+        modify_count = 0;
         for (; updates.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                upd->start_ts == list->onpage_upd->start_ts);
@@ -625,18 +625,16 @@ __wt_hs_insert_updates(
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
-              enable_reverse_modify &&
-              (upd->type == WT_UPDATE_MODIFY ||
-                total_nb_modifies < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
+              enable_reverse_modify && (modify_count < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-                ++total_nb_modifies;
+                ++modify_count;
             } else {
-                total_nb_modifies = 0;
+                modify_count = 0;
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
             }
