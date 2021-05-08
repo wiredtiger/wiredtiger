@@ -286,7 +286,7 @@ __wt_hs_insert_updates(
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
-    uint64_t insert_cnt, max_hs_size, modify_count;
+    uint64_t insert_cnt, max_hs_size, modify_cnt;
     uint32_t i;
     uint8_t *p;
     int nentries;
@@ -494,7 +494,7 @@ __wt_hs_insert_updates(
          * time point, we can squash updates with the same start time point as the onpage update
          * away.
          */
-        modify_count = 0;
+        modify_cnt = 0;
         for (; updates.size > 0 &&
              !(upd->txnid == list->onpage_upd->txnid &&
                upd->start_ts == list->onpage_upd->start_ts);
@@ -625,16 +625,16 @@ __wt_hs_insert_updates(
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
-              enable_reverse_modify && (modify_count < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
+              enable_reverse_modify && (modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
                 __wt_scr_free(session, &modify_value);
-                ++modify_count;
+                ++modify_cnt;
             } else {
-                modify_count = 0;
+                modify_cnt = 0;
                 WT_ERR(__hs_insert_record(
                   session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
             }
