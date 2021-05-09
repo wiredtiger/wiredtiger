@@ -940,6 +940,12 @@ __wt_row_leaf_key_info(WT_PAGE *page, void *copy, WT_IKEY **ikeyp, WT_CELL **cel
      * the start of the key's bytes. Finding the value cell is reasonably straight-forward, we use
      * the location of the key to find the cell immediately following the key.
      *
+     * A simple extension of this encoding would be to encode zero-length values similarly to how we
+     * encode short values. However, zero-length values are noted by adjacent key cells on the page,
+     * and we detect that without decoding the second cell by checking the cell's type byte. Tests
+     * indicate it's slightly slower to encode missing value cells than to check the cell type, so
+     * we don't bother with the encoding.
+     *
      * Generally, the bitfields are expected to be larger than the stored items (4/8KB keys/values,
      * 128KB pages), but the underlying limits are larger and we can see items we cannot encode in
      * this way.  For example, if an application creates pages larger than 128KB, encoded key/value
@@ -1097,17 +1103,12 @@ __wt_row_leaf_value_set(WT_ROW *rip, WT_CELL_UNPACK_KV *unpack)
     if (WT_K_DECODE_KEY_LEN(v) > WT_KV_MAX_KEY_LEN) /* Key len */
         return;
 
-    /* No value cell is passed for zero-length values. */
-    if (unpack == NULL)
-        value_offset = value_size = 0;
-    else {
-        value_offset = (uintptr_t)WT_PTRDIFF(unpack->data, unpack->cell);
-        if (value_offset > WT_KV_MAX_VALUE_OFFSET) /* Value offset */
-            return;
-        value_size = unpack->size;
-        if (value_size > WT_KV_MAX_VALUE_LEN) /* Value length */
-            return;
-    }
+    value_offset = (uintptr_t)WT_PTRDIFF(unpack->data, unpack->cell);
+    if (value_offset > WT_KV_MAX_VALUE_OFFSET) /* Value offset */
+        return;
+    value_size = unpack->size;
+    if (value_size > WT_KV_MAX_VALUE_LEN) /* Value length */
+        return;
 
     v = WT_KV_ENCODE_KEY_CELL_OFFSET(WT_K_DECODE_KEY_CELL_OFFSET(v)) |
       WT_KV_ENCODE_KEY_PREFIX(WT_K_DECODE_KEY_PREFIX(v)) |
@@ -1240,9 +1241,6 @@ __wt_row_leaf_value(WT_PAGE *page, WT_ROW *rip, WT_ITEM *value)
          * key's size, plus the value's offset: in other words, we know where the key's cell starts,
          * the key's data ends the key's cell, and the value cell immediately follows, Skip past the
          * key cell to the value cell, then skip to the start of the value's data.
-         *
-         * Zero-length values don't have on-page cells so the data pointer won't be useful. As the
-         * length is zero, callers shouldn't use it for anything.
          */
         value->data = (uint8_t *)WT_PAGE_REF_OFFSET(page, WT_KV_DECODE_KEY_CELL_OFFSET(v)) +
           WT_KV_DECODE_KEY_OFFSET(v) + WT_KV_DECODE_KEY_LEN(v) + WT_KV_DECODE_VALUE_OFFSET(v);

@@ -525,22 +525,6 @@ __inmem_row_leaf_entries(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, ui
 }
 
 /*
- * __inmem_row_leaf_ignore_ts_info --
- *     Return if the cell has no interesting timestamp information.
- */
-static inline bool
-__inmem_row_leaf_ignore_ts_info(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack)
-{
-    /*
-     * The visibility information is not referenced on the page so we need to ensure that the value
-     * is globally visible at the point in time where we read the page into cache.
-     */
-    return (WT_TIME_WINDOW_IS_EMPTY(&unpack->tw) ||
-      (!WT_TIME_WINDOW_HAS_STOP(&unpack->tw) &&
-        __wt_txn_tw_start_visible_all(session, &unpack->tw)));
-}
-
-/*
  * __inmem_row_leaf --
  *     Build in-memory index for row-store leaf pages.
  */
@@ -558,13 +542,11 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
     size_t size, total_size;
-    bool empty_value;
 
     btree = S2BT(session);
     tombstone = upd = NULL;
     last_slot = 0;
     size = total_size = 0;
-    empty_value = false;
 
     /* The code depends on the prefix count variables, other initialization shouldn't matter. */
     best_prefix_count = prefix_count = 0;
@@ -586,13 +568,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_CELL_FOREACH_KV (session, page->dsk, unpack) {
         switch (unpack.type) {
         case WT_CELL_KEY:
-            /*
-             * Zero-length values without additional timestamp information can be encoded to avoid
-             * repeatedly unpacking their cells.
-             */
-            if (empty_value && __inmem_row_leaf_ignore_ts_info(session, &unpack))
-                __wt_row_leaf_value_set(rip - 1, NULL);
-
             /*
              * Simple keys and prefix-compressed keys can be directly referenced on the page to
              * avoid repeatedly unpacking their cells.
@@ -650,7 +625,6 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
             }
             __wt_row_leaf_key_set(page, rip, &unpack);
             ++rip;
-            empty_value = true;
             continue;
         case WT_CELL_KEY_OVFL:
             /*
@@ -662,19 +636,22 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 
             __wt_row_leaf_key_set(page, rip, &unpack);
             ++rip;
-            empty_value = true;
             continue;
         case WT_CELL_VALUE:
             /*
-             * Uncompressed values without additional timestamp information can be encoded to avoid
+             * Simple values without compression can be directly referenced on the page to avoid
              * repeatedly unpacking their cells.
+             *
+             * The visibility information is not referenced on the page so we need to ensure that
+             * the value is globally visible at the point in time where we read the page into cache.
              */
-            if (!btree->huffman_value && __inmem_row_leaf_ignore_ts_info(session, &unpack))
+            if (!btree->huffman_value &&
+              (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw) ||
+                (!WT_TIME_WINDOW_HAS_STOP(&unpack.tw) &&
+                  __wt_txn_tw_start_visible_all(session, &unpack.tw))))
                 __wt_row_leaf_value_set(rip - 1, &unpack);
-            empty_value = false;
             break;
         case WT_CELL_VALUE_OVFL:
-            empty_value = false;
             break;
         default:
             WT_ERR(__wt_illegal_value(session, unpack.type));
