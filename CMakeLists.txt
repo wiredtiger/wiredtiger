@@ -115,6 +115,9 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger wiredtiger_zstd)
 endif()
 
+# Build the wt utility.
+add_subdirectory(src/utilities)
+
 # Establish our install target configuration.
 include(build_cmake/install/install.cmake)
 
