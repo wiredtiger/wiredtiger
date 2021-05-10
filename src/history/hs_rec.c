@@ -625,7 +625,7 @@ __wt_hs_insert_updates(
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
             if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
-              enable_reverse_modify && (modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY) &&
+              enable_reverse_modify && modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
