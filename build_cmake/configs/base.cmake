@@ -166,7 +166,7 @@ config_string(
 config_string(
     VERSION_PATCH
     "Path version number for WiredTiger"
-    DEFAULT 0
+    DEFAULT 1
 )
 
 
@@ -174,7 +174,7 @@ string(TIMESTAMP config_date "%Y-%m-%d")
 config_string(
     VERSION_STRING
     "Version string for WiredTiger"
-    DEFAULT "\"WiredTiger 10.0.0 (${config_date})\""
+    DEFAULT "\"WiredTiger ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} (${config_date})\""
 )
 
 if(HAVE_DIAGNOSTIC)
