@@ -1140,7 +1140,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
         if (!commit) {
             upd->txnid = WT_TXN_ABORTED;
-            WT_STAT_CONN_INCR(session, txn_prepared_updates_rollback_count);
+            WT_STAT_CONN_INCR(session, txn_prepared_updates_rolledback);
             continue;
         }
 
@@ -1173,7 +1173,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          * Resolve the prepared update to be committed update.
          */
         __txn_resolve_prepared_update(session, upd);
-        WT_STAT_CONN_INCR(session, txn_prepared_updates_commit_count);
+        WT_STAT_CONN_INCR(session, txn_prepared_updates_committed);
     }
 
     /*
@@ -1697,10 +1697,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd, *tmp;
-    u_int i, prepared_updates_count, prepared_updates_key_repeated_count;
+    u_int i, prepared_updates, prepared_updates_key_repeated;
 
     txn = session->txn;
-    prepared_updates_count = prepared_updates_key_repeated_count = 0;
+    prepared_updates = prepared_updates_key_repeated = 0;
 
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR));
@@ -1765,7 +1765,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
                 break;
             }
 
-            ++prepared_updates_count;
+            ++prepared_updates;
 
             /* Set prepare timestamp. */
             upd->start_ts = txn->prepare_timestamp;
@@ -1792,7 +1792,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
                 if (tmp->type != WT_UPDATE_RESERVE &&
                   !F_ISSET(tmp, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
                     F_SET(op, WT_TXN_OP_KEY_REPEATED);
-                    ++prepared_updates_key_repeated_count;
+                    ++prepared_updates_key_repeated;
                     break;
                 }
             break;
@@ -1805,11 +1805,10 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
             break;
         }
     }
-    WT_STAT_CONN_INCRV(session, txn_prepared_updates_count, prepared_updates_count);
-    WT_STAT_CONN_INCRV(
-      session, txn_prepared_updates_key_repeated_count, prepared_updates_key_repeated_count);
+    WT_STAT_CONN_INCRV(session, txn_prepared_updates, prepared_updates);
+    WT_STAT_CONN_INCRV(session, txn_prepared_updates_key_repeated, prepared_updates_key_repeated);
 #ifdef HAVE_DIAGNOSTIC
-    txn->prepare_count = prepared_updates_count;
+    txn->prepare_count = prepared_updates;
 #endif
 
     /* Set transaction state to prepare. */

@@ -1282,7 +1282,7 @@ static const char *const __stats_connection_desc[] = {
   "transaction: Number of prepared updates",
   "transaction: Number of prepared updates committed",
   "transaction: Number of prepared updates repeated on the same key",
-  "transaction: Number of prepared updates rollbacked",
+  "transaction: Number of prepared updates rolled back",
   "transaction: prepared transactions",
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
@@ -1801,10 +1801,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->page_sleep = 0;
     stats->page_del_rollback_blocked = 0;
     stats->child_modify_blocked_page = 0;
-    stats->txn_prepared_updates_count = 0;
-    stats->txn_prepared_updates_commit_count = 0;
-    stats->txn_prepared_updates_key_repeated_count = 0;
-    stats->txn_prepared_updates_rollback_count = 0;
+    stats->txn_prepared_updates = 0;
+    stats->txn_prepared_updates_committed = 0;
+    stats->txn_prepared_updates_key_repeated = 0;
+    stats->txn_prepared_updates_rolledback = 0;
     stats->txn_prepare = 0;
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
@@ -2315,12 +2315,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->page_sleep += WT_STAT_READ(from, page_sleep);
     to->page_del_rollback_blocked += WT_STAT_READ(from, page_del_rollback_blocked);
     to->child_modify_blocked_page += WT_STAT_READ(from, child_modify_blocked_page);
-    to->txn_prepared_updates_count += WT_STAT_READ(from, txn_prepared_updates_count);
-    to->txn_prepared_updates_commit_count += WT_STAT_READ(from, txn_prepared_updates_commit_count);
-    to->txn_prepared_updates_key_repeated_count +=
-      WT_STAT_READ(from, txn_prepared_updates_key_repeated_count);
-    to->txn_prepared_updates_rollback_count +=
-      WT_STAT_READ(from, txn_prepared_updates_rollback_count);
+    to->txn_prepared_updates += WT_STAT_READ(from, txn_prepared_updates);
+    to->txn_prepared_updates_committed += WT_STAT_READ(from, txn_prepared_updates_committed);
+    to->txn_prepared_updates_key_repeated += WT_STAT_READ(from, txn_prepared_updates_key_repeated);
+    to->txn_prepared_updates_rolledback += WT_STAT_READ(from, txn_prepared_updates_rolledback);
     to->txn_prepare += WT_STAT_READ(from, txn_prepare);
     to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
