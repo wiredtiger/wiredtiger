@@ -78,12 +78,16 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
         /*
          * The rename configuration string component was added later. So don't error if we don't
-         * find it in the string. If we don't have it, we're not doing a rename.
+         * find it in the string. If we don't have it, we're not doing a rename. Otherwise rename 
+         * forces full copies, there is no need to traverse the blocks information.
          */
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, &v, "rename", &b), true);
-        if (ret == 0 && b.val)
+        if (ret == 0 && b.val) {
+            cb->nbits = 0;
+            cb->offset = 0;
+            cb->bit_offset = 0;
             F_SET(cb, WT_CURBACKUP_RENAME);
-        else {
+        } else {
             F_CLR(cb, WT_CURBACKUP_RENAME);
 
             /*
@@ -176,10 +180,6 @@ __curbackup_incr_next(WT_CURSOR *cursor)
              *    Return no file information as there is no new information.
              */
             if (cb->bitstring.mem == NULL || F_ISSET(cb, WT_CURBACKUP_RENAME)) {
-                cb->nbits = 0;
-                cb->offset = 0;
-                cb->bit_offset = 0;
-
                 F_SET(cb, WT_CURBACKUP_INCR_INIT);
                 if (F_ISSET(cb, WT_CURBACKUP_RENAME) ||
                   (F_ISSET(cb, WT_CURBACKUP_CKPT_FAKE) && F_ISSET(cb, WT_CURBACKUP_HAS_CB_INFO))) {
