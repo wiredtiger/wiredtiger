@@ -78,7 +78,7 @@ __curbackup_incr_blkmod(WT_SESSION_IMPL *session, WT_BTREE *btree, WT_CURSOR_BAC
 
         /*
          * The rename configuration string component was added later. So don't error if we don't
-         * find it in the string. If we don't have it, we're not doing a rename. Otherwise rename 
+         * find it in the string. If we don't have it, we're not doing a rename. Otherwise rename
          * forces full copies, there is no need to traverse the blocks information.
          */
         WT_ERR_NOTFOUND_OK(__wt_config_subgets(session, &v, "rename", &b), true);
