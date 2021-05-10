@@ -194,8 +194,8 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
      * We may not have found any pages during salvage and there's no tree to flush.
      */
     if (root->page != NULL) {
-        /* Clear the saved checkpoint information. */
-        __wt_meta_saved_ckptlist_free(session);
+        /* Make sure that the saved checkpoint information has been cleared. */
+        WT_ASSERT(session, btree->ckpt == NULL);
 
         btree->ckpt = ckptbase;
         ret = __wt_evict(session, root, WT_REF_MEM, WT_EVICT_CALL_CLOSING);

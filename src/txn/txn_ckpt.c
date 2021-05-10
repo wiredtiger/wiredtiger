@@ -1366,7 +1366,7 @@ __checkpoint_lock_dirty_tree(
     WT_CONFIG_ITEM cval, k, v;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
-    size_t ckpt_allocated;
+    size_t ckpt_bytes_allocated;
     uint64_t now;
     char *name_alloc;
     const char *name;
@@ -1375,7 +1375,7 @@ __checkpoint_lock_dirty_tree(
     btree = S2BT(session);
     ckpt = ckptbase = NULL;
     dhandle = session->dhandle;
-    ckpt_allocated = 0;
+    ckpt_bytes_allocated = 0;
     name_alloc = NULL;
 
     /*
@@ -1446,7 +1446,7 @@ __checkpoint_lock_dirty_tree(
      * regular checkpoint process did not create the array. It is safer to discard the array in such
      * a case.
      */
-    if (!is_wt_ckpt || is_drop || btree->ckpt_allocated == 0)
+    if (!is_wt_ckpt || is_drop || btree->ckpt_bytes_allocated == 0)
         __wt_meta_saved_ckptlist_free(session);
 
     /* If we have to process this btree for any reason, reset the timer and obsolete pages flag. */
@@ -1462,7 +1462,8 @@ __checkpoint_lock_dirty_tree(
      */
     if (WT_IS_METADATA(dhandle) ||
       __wt_meta_saved_ckptlist_get(session, dhandle->name, &ckptbase) != 0)
-        WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_allocated));
+        WT_ERR(
+          __wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
 
     /* We may be dropping specific checkpoints, check the configuration. */
     if (cfg != NULL) {
@@ -1525,7 +1526,7 @@ __checkpoint_lock_dirty_tree(
 
     if (ckptbase->name != NULL) {
         btree->ckpt = ckptbase;
-        btree->ckpt_allocated = ckpt_allocated;
+        btree->ckpt_bytes_allocated = ckpt_bytes_allocated;
     } else {
         /* It is possible that we do not have any checkpoint in the list. */
 err:
@@ -1684,10 +1685,8 @@ static int
 __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 {
     WT_CKPT *ckpt, *ckpt_itr;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    size_t ckpt_name_str_max_len;
-
-    ckpt_name_str_max_len = WT_CHECKPOINT_MAX_LEN + 1;
 
     ckpt_itr = ckptbase;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
@@ -1703,14 +1702,11 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 
         /* Update the internal checkpoints to their full names, with the generation count suffix. */
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0) {
+            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+            WT_ERR(__wt_buf_fmt(session, tmp, "%s.%" PRId64, WT_CHECKPOINT, ckpt->order));
             __wt_free(session, ckpt->name);
-            WT_RET(__wt_calloc(session, 1, ckpt_name_str_max_len, &ckpt->name));
-            ret = __wt_snprintf(
-              ckpt->name, ckpt_name_str_max_len, "%s.%" PRId64, WT_CHECKPOINT, ckpt->order);
-            if (ret != 0) {
-                __wt_free(session, ckpt->name);
-                break;
-            }
+            WT_ERR(__wt_strdup(session, tmp->mem, &ckpt->name));
+            __wt_scr_free(session, &tmp);
         }
 
         /* Reset the flags, and mark a checkpoint fake if there is no address. */
@@ -1734,6 +1730,9 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
      */
     ckpt_itr--;
     WT_ASSERT(session, ckpt_itr->block_metadata != NULL);
+
+err:
+    __wt_scr_free(session, &tmp);
     return (ret);
 }
 

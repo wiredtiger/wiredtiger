@@ -599,10 +599,10 @@ __assert_checkpoint_list_matches(WT_SESSION_IMPL *session, WT_CKPT *saved_list, 
          ckpt_saved++, ckpt_new++)
         __assert_ckpt_matches(session, ckpt_saved, ckpt_new);
 
-    if (!((ckpt_saved == NULL && ckpt_new == NULL) ||
-          ((ckpt_saved != NULL && ckpt_saved->order == 0) &&
-            (ckpt_new != NULL && ckpt_new->order == 0))))
-        WT_ASSERT(session, false);
+    WT_ASSERT(session,
+      (ckpt_saved == NULL && ckpt_new == NULL) ||
+        ((ckpt_saved != NULL && ckpt_saved->order == 0) &&
+          (ckpt_new != NULL && ckpt_new->order == 0)));
 }
 #endif
 
@@ -694,7 +694,8 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
     if (btree->ckpt == NULL)
         return (WT_NOTFOUND);
 
-    WT_ERR(__meta_ckptlist_allocate_new_ckpt(session, &btree->ckpt, &btree->ckpt_allocated, NULL));
+    WT_ERR(
+      __meta_ckptlist_allocate_new_ckpt(session, &btree->ckpt, &btree->ckpt_bytes_allocated, NULL));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -1157,12 +1158,11 @@ __wt_meta_saved_ckptlist_free(WT_SESSION_IMPL *session)
 {
     WT_BTREE *btree;
 
-    btree = S2BT_SAFE(session);
-    if (btree == NULL)
-        return;
+    btree = S2BT(session);
+    WT_ASSERT(session, btree != NULL);
 
     __wt_meta_ckptlist_free(session, &btree->ckpt);
-    btree->ckpt_allocated = 0;
+    btree->ckpt_bytes_allocated = 0;
 }
 
 /*
