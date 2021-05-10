@@ -221,8 +221,9 @@ struct __wt_bm {
  *	Block manager handle, references a single file.
  */
 struct __wt_block {
-    const char *name;   /* Name */
-    uint64_t name_hash; /* Hash of name */
+    const char *name;             /* Name */
+    uint64_t name_hash;           /* Hash of name */
+    WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
 
     /* A list of block manager handles, sharing a file descriptor. */
     uint32_t ref;                  /* References */
@@ -239,7 +240,7 @@ struct __wt_block {
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
-    bool log_structured; /* Write checkpoint as separate files */
+    bool has_objects;    /* Checkpoint cookies contain object id */
     size_t os_cache;     /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
@@ -314,6 +315,17 @@ struct __wt_block_desc {
  * of the file for this information, but it would be worth investigation, regardless).
  */
 #define WT_BLOCK_DESC_SIZE 16
+
+/*
+ * WT_BLOCK_FILE_OPENER --
+ *	An open callback for the block manager.  This hides details about how to access the
+ * different objects that make up a tiered file.
+ */
+struct __wt_block_file_opener {
+    int (*open)(WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, void *, uint64_t object_id,
+      WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
+    void *cookie; /* Used in open call */
+};
 
 /*
  * __wt_block_desc_byteswap --

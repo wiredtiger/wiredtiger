@@ -9,6 +9,41 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_block_tiered_fh --
+ *     Open an object from the shared tier.
+ */
+int
+__wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, WT_FH **fhp)
+{
+    WT_DECL_ITEM(tmp);
+    WT_DECL_RET;
+
+    /* TODO: tiered: fh readlock; we may want a reference count on each file handle given out. */
+
+    if (object_id * sizeof(WT_FILE_HANDLE *) < block->lfh_alloc &&
+      (*fhp = block->lfh[object_id]) != NULL)
+        return (0);
+
+    /* TODO: tiered: fh writelock */
+    /* Ensure the array goes far enough. */
+    WT_RET(__wt_realloc_def(session, &block->lfh_alloc, object_id + 1, &block->lfh));
+    if (object_id >= block->max_logid)
+        block->max_logid = object_id + 1;
+    if ((*fhp = block->lfh[object_id]) != NULL)
+        return (0);
+
+    WT_RET(__wt_scr_alloc(session, 0, &tmp));
+    WT_ERR(block->opener->open(block->opener, session, block->opener->cookie, object_id,
+      WT_FS_OPEN_FILE_TYPE_DATA, WT_FS_OPEN_READONLY | block->file_flags, &block->lfh[object_id]));
+    *fhp = block->lfh[object_id];
+    WT_ASSERT(session, *fhp != NULL);
+
+err:
+    __wt_scr_free(session, &tmp);
+    return (ret);
+}
+
+/*
  * __wt_block_tiered_flush --
  *     Flush this file, start another file.
  */
@@ -34,7 +69,7 @@ __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * TODO: tiered: this call currently advances the object id, that's probably not appropriate for
      * readonly opens. Perhaps it's also not appropriate for opening at an older checkpoint?
      */
-    if (block->log_structured) {
+    if (block->has_objects) {
         block->logid = ci->root_logid;
 
         /* Advance to the next file for future changes. */

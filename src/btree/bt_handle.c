@@ -57,6 +57,7 @@ __btree_clear(WT_SESSION_IMPL *session)
 int
 __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 {
+    WT_BLOCK_FILE_OPENER *opener;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT ckpt;
@@ -111,14 +112,10 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_ERR(__btree_conf(session, &ckpt));
 
     /* Connect to the underlying block manager. */
-    filename = dhandle->name;
-    if (!WT_PREFIX_SKIP(filename, "file:"))
-        WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
+    WT_ERR(__wt_tiered_opener(session, dhandle, &opener, &filename));
 
-    WT_WITH_BUCKET_STORAGE(btree->bstorage, session,
-      ret = __wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
-        F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
-    WT_ERR(ret);
+    WT_ERR(__wt_block_manager_open(session, filename, opener, dhandle->cfg, forced_salvage,
+      F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
 
     bm = btree->bm;
 

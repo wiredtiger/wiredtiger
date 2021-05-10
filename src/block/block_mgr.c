@@ -633,8 +633,9 @@ __bm_method_set(WT_BM *bm, bool readonly)
  *     Open a file.
  */
 int
-__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
+__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
+  WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
+  uint32_t allocsize, WT_BM **bmp)
 {
     WT_BM *bm;
     WT_DECL_RET;
@@ -644,8 +645,8 @@ __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const ch
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
 
-    WT_ERR(
-      __wt_block_open(session, filename, cfg, forced_salvage, readonly, allocsize, &bm->block));
+    WT_ERR(__wt_block_open(
+      session, filename, opener, cfg, forced_salvage, readonly, allocsize, &bm->block));
 
     *bmp = bm;
     return (0);

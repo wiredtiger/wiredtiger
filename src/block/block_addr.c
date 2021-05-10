@@ -19,7 +19,7 @@ __block_buffer_to_addr(WT_BLOCK *block, const uint8_t **pp, uint32_t *logidp, wt
 {
     uint64_t l, o, s, c;
 
-    if (block->log_structured)
+    if (block->has_objects)
         WT_RET(__wt_vunpack_uint(pp, 0, &l));
     else
         l = 0;
@@ -71,7 +71,7 @@ __wt_block_addr_to_buffer(
         s = size / block->allocsize;
         c = checksum;
     }
-    if (block->log_structured)
+    if (block->has_objects)
         WT_RET(__wt_vpack_uint(pp, 0, l));
     WT_RET(__wt_vpack_uint(pp, 0, o));
     WT_RET(__wt_vpack_uint(pp, 0, s));

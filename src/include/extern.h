@@ -166,8 +166,8 @@ extern int __wt_block_manager_drop(WT_SESSION_IMPL *session, const char *filenam
 extern int __wt_block_manager_named_size(WT_SESSION_IMPL *session, const char *name,
   wt_off_t *sizep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
-  const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
+  uint32_t allocsize, WT_BM **bmp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_manager_size(WT_BM *bm, WT_SESSION_IMPL *session, wt_off_t *sizep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_map(WT_SESSION_IMPL *session, WT_BLOCK *block, void *mapped_regionp,
@@ -179,9 +179,9 @@ extern int __wt_block_off_free(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32
   wt_off_t offset, wt_off_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_off_remove_overlap(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_EXTLIST *el,
   wt_off_t off, wt_off_t size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_open(WT_SESSION_IMPL *session, const char *filename,
+  WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
+  uint32_t allocsize, WT_BLOCK **blockp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf,
   uint32_t logid, wt_off_t offset, uint32_t size, uint32_t checksum)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -197,6 +197,8 @@ extern int __wt_block_salvage_valid(WT_SESSION_IMPL *session, WT_BLOCK *block, u
   size_t addr_size, bool valid) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_size_alloc(WT_SESSION_IMPL *session, WT_SIZE **szp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id,
+  WT_FH **fhp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_tiered_flush(WT_SESSION_IMPL *session, WT_BLOCK *block,
   uint8_t **flush_cookie, size_t *cookie_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
@@ -1462,6 +1464,9 @@ extern int __wt_tiered_conn_config(WT_SESSION_IMPL *session, const char **cfg, b
 extern int __wt_tiered_name(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, uint64_t id,
   uint32_t flags, const char **retp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_tiered_opener(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
+  WT_BLOCK_FILE_OPENER **openerp, const char **filenamep)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
