@@ -9,30 +9,30 @@ fi
 
 # Check the test name
 if [[ $1 =~ ^[0-9a-zA-Z_-]+$ ]];then
-    echo "Generating test $1..."
+    echo "Generating test: $1..."
 else
     echo "Invalid test name. Only alphanumeric characters are allowed. \"_\" and \"-\" can be used too."
     exit 128
 fi
 
 # Check if the test already exists.
-FILE=../test/cppsuite/tests/$1.cxx
+FILE=tests/$1.cxx
 if test -f "$FILE"; then
     echo "$FILE cannot be created as it already exists."
     exit 1
 fi
 
 # Check if default configuration associated to the test already exists.
-CONFIG=../test/cppsuite/configs/config_$1_default.txt
+CONFIG=configs/config_$1_default.txt
 if test -f "$CONFIG"; then
     echo "$CONFIG cannot be created as it already exists."
     exit 1
 fi
 
 # Copy the default template.
-cp ../test/cppsuite/tests/example_test.cxx $FILE
+cp tests/example_test.cxx $FILE
 echo "Created $FILE."
-cp ../test/cppsuite/configs/config_example_test_default.txt $CONFIG
+cp configs/config_example_test_default.txt $CONFIG
 echo "Created $CONFIG."
 
 # Replace example_test with the new test name.
@@ -46,7 +46,7 @@ sed -i "1s/.*/$REPLACE/" $CONFIG
 echo "Updated $CONFIG."
 
 # Include the new test in run.cxx
-FILE=../test/cppsuite/tests/run.cxx
+FILE=tests/run.cxx
 SEARCH="#include \"example_test.cxx\""
 VALUE="#include \"$1.cxx\""
 sed -i "/$SEARCH/a $VALUE" $FILE
@@ -64,7 +64,7 @@ sed -i "s/$SEARCH/$REPLACE/" $FILE
 echo "Updated $FILE."
 
 # Add the new test to test_data.py
-FILE=test_data.py
+FILE=../../dist/test_data.py
 SEARCH="example_test"
 LINE_1="\    '$1' : Method(test_config),"
 sed -i "/$SEARCH/a $LINE_1" $FILE
@@ -72,6 +72,7 @@ echo "Updated $FILE."
 
 # Trigger s_all
 echo "Running s_all.."
+cd ../../dist
 ./s_all
 
 # Last changes to be done manually
