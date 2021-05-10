@@ -124,3 +124,7 @@ include(build_cmake/install/install.cmake)
 if(ENABLE_PYTHON)
    add_subdirectory(lang/python)
 endif()
+
+# Build the wiredtiger test suites.
+enable_testing()
+add_subdirectory(test)
