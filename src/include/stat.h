@@ -653,9 +653,7 @@ struct __wt_connection_stats {
     int64_t txn_checkpoint_handle_duration_apply;
     int64_t txn_checkpoint_handle_duration_skip;
     int64_t txn_checkpoint_handle_applied;
-    int64_t txn_checkpoint_handle_ckptlist_meta;
     int64_t txn_checkpoint_handle_skipped;
-    int64_t txn_checkpoint_handle_ckptlist_saved;
     int64_t txn_checkpoint_handle_walked;
     int64_t txn_checkpoint_time_recent;
     int64_t txn_checkpoint_prep_running;

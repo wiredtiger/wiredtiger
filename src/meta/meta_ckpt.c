@@ -711,8 +711,6 @@ __wt_meta_saved_ckptlist_get(WT_SESSION_IMPL *session, const char *fname, WT_CKP
 
     /* Return the array to our caller. */
     *ckptbasep = btree->ckpt;
-    /* Increment the number of times we returned a saved checkpoint list. */
-    S2C(session)->ckpt_apply_saved_list++;
 
     if (0) {
 err:
@@ -771,8 +769,6 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
     *ckptbasep = ckptbase;
     if (allocatedp != NULL)
         *allocatedp = allocated;
-    /* Increment the number of times we created the checkpoint list from metadata. */
-    S2C(session)->ckpt_apply_meta_list++;
 
     if (0) {
 err:
