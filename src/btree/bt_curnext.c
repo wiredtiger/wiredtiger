@@ -679,6 +679,11 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
+            /*
+             * At this point there's no way the page to be NULL, but Coverity is unconvinced. So,
+             * added this assert to skip Coverity failures.
+             */
+            WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
                 ret = __cursor_fix_append_next(cbt, newpage, restart);
