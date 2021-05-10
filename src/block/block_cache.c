@@ -114,7 +114,43 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     if ((double)(blkcache->inserts + blkcache->removals)/
 	(double)(blkcache->lookups) > blkcache->overhead_pct)
 	return true;
+    return false;
+}
 
+static inline bool
+__blkcache_cache_not_useful(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_BLKCACHE *blkcache;
+    size_t delta_removals, delta_inserts;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    /*
+     * We started the epoch less recently than the wait period,
+     * so we may not have accumulated enough data to make sensible
+     * decisions.
+     */
+    if (blkcache->time_counter - blkcache->last_epoch_start_time < BLKCACHE_EPOCH_WAIT_PERIOD)
+	return false;
+
+    /*
+     * An epoch has passed measure current values of the metrics,
+     * which will be used as the baseline for computing the ratio.
+     */
+    if (blkcache->time_counter - blkcache->last_epoch_start_time >= BLKCACHE_EPOCH_LENGTH){
+	blkcache->last_epoch_start_time = blkcache->time_counter;
+	blkcache->inserts_as_of_last_epoch = blkcache->inserts;
+	blkcache->removals_as_of_last_epoch = blkcache->removals;
+	return false;
+    }
+
+    delta_removals = blkcache->removals - blkcache->removals_as_of_last_epoch;
+    delta_inserts = WT_MAX(blkcache->inserts - blkcache->inserts_as_of_last_epoch, 1);
+
+    if ((double)delta_removals / (double)(delta_inserts) > 0.9)
+	return true;
     return false;
 }
 
@@ -195,6 +231,7 @@ __blkcache_eviction_thread(void *arg)
 
     while (!blkcache->blkcache_exiting) {
 
+	blkcache->time_counter++;
 	/* Sweep the cache every second to ensure time-based decay of
 	 * frequency/recency counters of resident blocks.
 	 */
@@ -448,6 +485,12 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     /* Bypass on high overhead */
     if (__blkcache_high_overhead(session) == true) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
+	return WT_BLKCACHE_BYPASS;
+    }
+
+    /* Bypass if the cache is not useful, because of block turnover */
+    if (__blkcache_cache_not_useful(session)) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_not_useful);
 	return WT_BLKCACHE_BYPASS;
     }
     /*

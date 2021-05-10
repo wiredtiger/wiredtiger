@@ -897,6 +897,7 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: block cache number of bypasses due to overhead on put",
   "block-manager: block cache number of bypasses on get",
   "block-manager: block cache number of bypasses on put",
+  "block-manager: block cache number of bypasses on put because of high block turnover",
   "block-manager: block cache number of eviction passes",
   "block-manager: block cache number of hits including existence checks",
   "block-manager: block cache number of misses including existence checks",
@@ -1453,6 +1454,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_bypass_overhead_put = 0;
     stats->block_cache_bypass_get = 0;
     stats->block_cache_bypass_put = 0;
+    stats->block_cache_bypass_not_useful = 0;
     stats->block_cache_eviction_passes = 0;
     stats->block_cache_hits = 0;
     stats->block_cache_misses = 0;
@@ -1975,6 +1977,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_bypass_overhead_put += WT_STAT_READ(from, block_cache_bypass_overhead_put);
     to->block_cache_bypass_get += WT_STAT_READ(from, block_cache_bypass_get);
     to->block_cache_bypass_put += WT_STAT_READ(from, block_cache_bypass_put);
+    to->block_cache_bypass_not_useful += WT_STAT_READ(from, block_cache_bypass_not_useful);
     to->block_cache_eviction_passes += WT_STAT_READ(from, block_cache_eviction_passes);
     to->block_cache_hits += WT_STAT_READ(from, block_cache_hits);
     to->block_cache_misses += WT_STAT_READ(from, block_cache_misses);

@@ -100,6 +100,17 @@ struct __wt_blkcache {
     size_t inserts;
     size_t removals;
 
+    /*
+     * These variables are for tracking a running ratio of blocks
+     * removed vs. blocks inserted.
+     */
+#define BLKCACHE_EPOCH_LENGTH 10
+#define BLKCACHE_EPOCH_WAIT_PERIOD 1
+    size_t inserts_as_of_last_epoch;
+    size_t removals_as_of_last_epoch;
+    uint32_t time_counter;
+    uint32_t last_epoch_start_time;
+
 #ifdef HAVE_LIBMEMKIND
     struct memkind *pmem_kind;
 #endif /* HAVE_LIBMEMKIND */
