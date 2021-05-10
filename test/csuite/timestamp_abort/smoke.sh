@@ -13,14 +13,21 @@ while getopts ":s" opt; do
 done
 
 
-# If $top_builddir/$top_srcdir aren't set, default to building in build_posix
-# and running in test/csuite.
-top_builddir=${top_builddir:-../../build_posix}
-top_srcdir=${top_srcdir:-../..}
+if [ -n "$1" ]
+then
+    # If the test binary is passed in manually.
+    test_bin=$1
+else
+    # If $top_builddir/$top_srcdir aren't set, default to building in build_posix
+    # and running in test/csuite.
+    top_builddir=${top_builddir:-../../build_posix}
+    top_srcdir=${top_srcdir:-../..}
+    test_bin=$top_builddir/test/csuite/test_timestamp_abort
+fi
 
-$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort $default_test_args
-#$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort $default_test_args -L
-$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -m $default_test_args
-#$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -m $default_test_args -L
-$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -C $default_test_args
-$TEST_WRAPPER $top_builddir/test/csuite/test_timestamp_abort -C -m $default_test_args
+$TEST_WRAPPER $test_bin $default_test_args
+#$TEST_WRAPPER $test_bin $default_test_args -L
+$TEST_WRAPPER $test_bin -m $default_test_args
+#$TEST_WRAPPER $test_bin -m $default_test_args -L
+$TEST_WRAPPER $test_bin -C $default_test_args
+$TEST_WRAPPER $test_bin -C -m $default_test_args
