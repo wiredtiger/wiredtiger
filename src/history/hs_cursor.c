@@ -31,8 +31,10 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
      * perform a full search.
      */
     if (hs_cbt->ref != NULL) {
-        /* The page must be pinned and we should have a hazard pointer on that. Ensure the page is
-         * not evictable. */
+        /*
+         * The page must be pinned and we should have a hazard pointer on that. Ensure the page is
+         * not evictable.
+         */
         WT_ASSERT(session, __wt_hazard_check(session, hs_cbt->ref, NULL) != NULL);
         WT_WITH_BTREE(session, hs_btree,
           ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
