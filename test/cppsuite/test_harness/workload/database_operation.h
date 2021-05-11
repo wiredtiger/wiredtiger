@@ -73,7 +73,8 @@ class database_operation {
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = timestamp_manager->get_next_ts();
-            tracking->save_collection(tracking_operation::CREATE_COLLECTION, collection_name, ts);
+            tracking->save_schema_operation(
+              tracking_operation::CREATE_COLLECTION, collection_name, ts);
         }
         debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
 

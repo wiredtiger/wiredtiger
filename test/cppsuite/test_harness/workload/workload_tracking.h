@@ -108,7 +108,7 @@ class workload_tracking : public component {
     }
 
     void
-    save_collection(
+    save_schema_operation(
       const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
     {
         std::string error_message;
@@ -122,11 +122,11 @@ class workload_tracking : public component {
             _cursor_schema->set_value(_cursor_schema, static_cast<int>(operation));
             testutil_check(_cursor_schema->insert(_cursor_schema));
         } else {
-            error_message =
-              "save_collection: invalid operation " + std::to_string(static_cast<int>(operation));
+            error_message = "save_schema_operation: invalid operation " +
+              std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         }
-        debug_print("save_collection: workload tracking saved operation.", DEBUG_TRACE);
+        debug_print("save_schema_operation: workload tracking saved operation.", DEBUG_TRACE);
         return;
     }
 
@@ -142,8 +142,8 @@ class workload_tracking : public component {
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
-            error_message =
-              "save_collection: invalid operation " + std::to_string(static_cast<int>(operation));
+            error_message = "save_operation: invalid operation " +
+              std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         } else {
             _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);
