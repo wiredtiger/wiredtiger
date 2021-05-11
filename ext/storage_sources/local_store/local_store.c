@@ -124,6 +124,7 @@ static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static int local_file_copy(
   LOCAL_STORAGE *, WT_SESSION *, const char *, const char *, WT_FS_OPEN_FILE_TYPE);
 static int local_get_directory(const char *, ssize_t len, char **);
+static int local_path(WT_FILE_SYSTEM *, const char *, const char *, char **);
 static int local_writeable(LOCAL_STORAGE *, const char *name, bool *writeable);
 
 /*
@@ -328,49 +329,36 @@ local_writeable(LOCAL_STORAGE *local, const char *name, bool *writeablep)
 
 /*
  * local_bucket_path --
- *     Construct a pathname from the file system and local name.
+ *     Construct the bucket pathname from the file system and local name.
  */
-int
+static int
 local_bucket_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 {
-    LOCAL_FILE_SYSTEM *local_fs;
-    size_t len;
-    int ret;
-    char *p;
-
-    ret = 0;
-    local_fs = (LOCAL_FILE_SYSTEM *)file_system;
-
-    /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
-    while (*name == '.') {
-        if (name[1] != '/')
-            break;
-        name += 2;
-        while (*name == '/')
-            name++;
-    }
-    len = strlen(local_fs->bucket_dir) + strlen(name) + 2;
-    if ((p = malloc(len)) == NULL)
-        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_bucket_path"));
-    snprintf(p, len, "%s/%s", local_fs->bucket_dir, name);
-    *pathp = p;
-    return (ret);
+    return (local_path(file_system, ((LOCAL_FILE_SYSTEM *)file_system)->bucket_dir, name, pathp));
 }
 
 /*
  * local_cache_path --
- *     Construct a pathname from the file system and local name.
+ *     Construct the cache pathname from the file system and local name.
  */
-int
+static int
 local_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 {
-    LOCAL_FILE_SYSTEM *local_fs;
+    return (local_path(file_system, ((LOCAL_FILE_SYSTEM *)file_system)->cache_dir, name, pathp));
+}
+
+/*
+ * local_path --
+ *     Construct a pathname from the file system and local name.
+ */
+static int
+local_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
+{
     size_t len;
     int ret;
     char *p;
 
     ret = 0;
-    local_fs = (LOCAL_FILE_SYSTEM *)file_system;
 
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
@@ -380,10 +368,10 @@ local_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
         while (*name == '/')
             name++;
     }
-    len = strlen(local_fs->cache_dir) + strlen(name) + 2;
+    len = strlen(dir) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
-        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_cache_path"));
-    snprintf(p, len, "%s/%s", local_fs->cache_dir, name);
+        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_path"));
+    snprintf(p, len, "%s/%s", dir, name);
     *pathp = p;
     return (ret);
 }
