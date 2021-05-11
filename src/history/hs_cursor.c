@@ -55,10 +55,11 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
           (hs_cbt->compare != 0 &&
             (hs_cbt->slot == 0 || hs_cbt->slot == hs_cbt->ref->page->entries - 1)))
             leaf_found = false;
-        if (!leaf_found)
-            hs_cursor->reset(hs_cursor);
+
         /* Ensure there is no eviction happened on this page. */
         WT_ASSERT(session, page == hs_cbt->ref->page);
+        if (!leaf_found)
+            hs_cursor->reset(hs_cursor);
     }
 
     if (!leaf_found)
