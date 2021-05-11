@@ -624,6 +624,13 @@ function(parse_filelist_source filelist output_var)
             list(GET file_contents 1 file_group)
             if ((${file_group} STREQUAL "${plat_host}") OR (${file_group} STREQUAL "${arch_host}"))
                 list(APPEND output_files ${file_name})
+                get_filename_component(file_ext ${file_name} EXT)
+                # POWERPC and ZSERIES hosts use the '.sx' extension for their ASM files. We need to
+                # manually tell CMake to ASM compile these files otherwise it will ignore them during
+                # compilation process.
+                if("${file_ext}" STREQUAL ".sx")
+                    set_source_files_properties(${file_name} PROPERTIES LANGUAGE ASM)
+                endif()
             endif()
         else()
             message(FATAL_ERROR "filelist (${filelist}) has an unexpected format [Invalid Line: \"${file}]\"")
