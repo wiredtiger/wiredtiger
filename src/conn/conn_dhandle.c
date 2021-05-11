@@ -502,9 +502,6 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     dhandle = session->dhandle;
     btree = dhandle->handle;
 
-    /* Make sure we haven't defined too many dhandle flags. */
-    WT_ASSERT(session, WT_DHANDLE_ZZZ_ENDFLAG <= WT_DHANDLE_MAX_FLAG);
-
     WT_ASSERT(session, F_ISSET(dhandle, WT_DHANDLE_EXCLUSIVE) && !LF_ISSET(WT_DHANDLE_LOCK_ONLY));
 
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
