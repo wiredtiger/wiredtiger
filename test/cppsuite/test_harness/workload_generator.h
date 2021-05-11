@@ -148,7 +148,7 @@ class workload_generator : public component {
             db_operation.update_operation(context, session);
             break;
         default:
-            testutil_die(DEBUG_ABORT, "system: thread_operation is unknown : %d",
+            testutil_die(DEBUG_ERROR, "system: thread_operation is unknown : %d",
               static_cast<int>(context.get_thread_operation()));
             break;
         }
