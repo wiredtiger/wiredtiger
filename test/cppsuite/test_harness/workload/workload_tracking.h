@@ -132,7 +132,7 @@ class workload_tracking : public component {
 
     template <typename K, typename V>
     void
-    save_operation(const tracking_operation &operation, const std::string &collection_name,
+    save_schema_operation(const tracking_operation &operation, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
         std::string error_message;
@@ -150,7 +150,7 @@ class workload_tracking : public component {
             _cursor_operations->set_value(_cursor_operations, static_cast<int>(operation), value);
             testutil_check(_cursor_operations->insert(_cursor_operations));
         }
-        debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
+        debug_print("save_schema_operation: workload tracking saved operation.", DEBUG_TRACE);
         return;
     }
 
