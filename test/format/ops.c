@@ -189,38 +189,19 @@ tinfo_teardown(void)
 }
 
 /*
- * Command used before rollback to stable to save the interesting files so we can replay the command
- * as necessary.
- *
- * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
- * directory to our output.
- */
-#define ROLLBACK_STABLE_COPY_CMD                      \
-    "cd %s > /dev/null && "                           \
-    "rm -rf ROLLBACK.copy && mkdir ROLLBACK.copy && " \
-    "cp WiredTiger* wt* ROLLBACK.copy/"
-
-/*
  * tinfo_rollback_to_stable --
- *     Do a rollback to stable. If running with timestamps, check that changes are correct from what
- *     we know in the worker thread structures.
+ *     Do a rollback to stable and verify operations.
  */
 static void
 tinfo_rollback_to_stable(WT_SESSION *session)
 {
     WT_CURSOR *cursor;
-    WT_DECL_RET;
-    char cmd[512];
 
     /* Rollback-to-stable only makes sense for timestamps and on-disk stores. */
     if (g.c_txn_timestamps == 0 || g.c_in_memory != 0)
         return;
 
-    testutil_check(__wt_snprintf(cmd, sizeof(cmd), ROLLBACK_STABLE_COPY_CMD, g.home));
-    if ((ret = system(cmd)) != 0)
-        testutil_die(ret, "rollback to stable copy (\"%s\") failed", cmd);
     trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
-
     testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
 
     /* Check the saved snap operations for consistency. */
@@ -406,6 +387,12 @@ operations(u_int ops_seconds, bool lastrun)
 
     trace_msg("%s", "=============== thread ops stop");
 
+    /*
+     * The system should be quiescent at this point, call rollback to stable. Generally, we expect
+     * applications to do rollback-to-stable as part of the database open, but calling it outside of
+     * the open path is expected in the case of applications that are "restarting" but skipping the
+     * close/re-open pair.
+     */
     tinfo_rollback_to_stable(session);
 
     if (lastrun) {
