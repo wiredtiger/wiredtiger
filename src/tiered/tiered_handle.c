@@ -151,13 +151,20 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = "readonly=true";
+    cfg[2] = "flush=false,readonly=true";
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
+
+#if 0
+    /*
+     * If we get here we have successfully created the object. It is ready to be fully flushed to
+     * the cloud. Push a work element to let the internal thread do that here.
+     */
+#endif
 
 err:
     __wt_free(session, config);
