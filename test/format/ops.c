@@ -221,7 +221,7 @@ tinfo_rollback_to_stable(WT_SESSION *session)
         testutil_die(ret, "rollback to stable copy (\"%s\") failed", cmd);
     trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
 
-    g.wts_conn->rollback_to_stable(g.wts_conn, NULL);
+    testutil_check(g.wts_conn->rollback_to_stable(g.wts_conn, NULL));
 
     /* Check the saved snap operations for consistency. */
     testutil_check(session->open_cursor(session, g.uri, NULL, NULL, &cursor));
