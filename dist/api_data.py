@@ -468,9 +468,8 @@ tier_meta = file_meta + tiered_tree_config
 # Objects need to have the readonly setting set and bucket_prefix.
 # The file_meta already contains those pieces.
 object_meta = file_meta + [
-    Config('flush', 'false', r'''
-        indicates if this object has been flushed to shared storage''',
-        type='boolean'),
+    Config('flush', '0', r'''
+        indicates the time this object was flushed to shared storage or 0 if unflushed'''),
 ]
 
 table_only_config = [
