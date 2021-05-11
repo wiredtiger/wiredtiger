@@ -79,7 +79,7 @@ class workload_validation {
             if (!verify_collection_state(session, it, false))
                 testutil_die(DEBUG_ERROR,
                   "validate: collection %s present on disk while it has been tracked as deleted.",
-                  it);
+                  it.c_str());
         }
 
         /* Parse the tracking table. */
@@ -241,7 +241,7 @@ class workload_validation {
             testutil_die(DEBUG_ERROR,
               "check_reference: collection %s not present on disk while it has been tracked as "
               "created.",
-              collection_name);
+              collection_name.c_str());
 
         /* Walk through each key/value pair of the current collection. */
         for (const auto &keys : collection.keys) {
@@ -256,7 +256,7 @@ class workload_validation {
 
             if (!is_valid)
                 testutil_die(DEBUG_ERROR, "check_reference: failed for key %s in collection %s.",
-                  key_str, collection_name);
+                  key_str.c_str(), collection_name.c_str());
 
             /* Check the associated value is valid. */
             if (key.exists) {
@@ -265,7 +265,7 @@ class workload_validation {
                       collection.values->at(key_str).value))
                     testutil_die(DEBUG_ERROR,
                       "check_reference: failed for key %s / value %s in collection %s.", key_str,
-                      collection.values->at(key_str).value, collection_name);
+                      collection.values->at(key_str).value.c_str(), collection_name.c_str());
             }
         }
     }
