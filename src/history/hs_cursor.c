@@ -33,7 +33,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
      * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
      * perform a full search.
      */
-    if (hs_cbt->ref != NULL) {
+    if (__wt_cursor_page_pinned(hs_cbt, true)) {
 #ifdef HAVE_DIAGNOSTIC
         page = hs_cbt->ref->page;
 #endif
