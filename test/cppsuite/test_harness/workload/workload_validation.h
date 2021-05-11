@@ -57,17 +57,20 @@ class workload_validation {
     validate(const std::string &operation_table_name, const std::string &schema_table_name,
       database &database)
     {
+        WT_CURSOR *cursor;
         WT_SESSION *session;
-        std::string collection_name;
+        wt_timestamp_t key_timestamp;
         std::vector<std::string> created_collections, deleted_collections;
+        const char *key, *key_collection_name, *value;
+        int value_operation_type;
+        std::string current_collection_name;
         bool is_valid = true;
 
         session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
-        collection_name = schema_table_name;
         parse_schema_tracking_table(
-          session, collection_name, created_collections, deleted_collections);
+          session, schema_table_name, created_collections, deleted_collections);
 
         /*
          * Make sure the deleted collections do not exist on disk. The created collections are
@@ -83,26 +86,67 @@ class workload_validation {
             }
         }
 
-        for (auto const &collection_name : created_collections) {
-            if (!is_valid)
-                break;
+        /* Parse the tracking table. */
+        if (is_valid)
+            testutil_check(
+              session->open_cursor(session, operation_table_name.c_str(), NULL, NULL, &cursor));
+        while (is_valid && cursor->next(cursor) == 0) {
+            testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
+            testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
+
+            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
+            debug_print("Key is " + std::string(key), DEBUG_TRACE);
+            debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
+            debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
+            debug_print("Value is " + std::string(value), DEBUG_TRACE);
+
             /*
-             * Update the database object with the keys and values of the current collection using
-             * the tracking table.
+             * If the cursor points to values from a collection that has been created during the
+             * test, update the data model.
              */
-            parse_operation_tracking_table(
-              session, operation_table_name, collection_name, database);
-            /* Check all tracked operations against the database on disk. */
-            if (!check_reference(
-                  session, collection_name, database.collections.at(collection_name))) {
-                debug_print(
-                  "check_reference failed for collection " + collection_name, DEBUG_ERROR);
+            if (std::find(created_collections.begin(), created_collections.end(),
+                  key_collection_name) != created_collections.end())
+                update_data_model(static_cast<tracking_operation>(value_operation_type),
+                  key_collection_name, key, value, database);
+            /*
+             * The collection should be part of the deleted collections if it has not be found in
+             * the created ones.
+             */
+            else if (std::find(deleted_collections.begin(), deleted_collections.end(),
+                       key_collection_name) == deleted_collections.end()) {
+                debug_print("validate: The collection " + std::string(key_collection_name) +
+                    " is not part of the created or deleted collections.",
+                  DEBUG_ERROR);
                 is_valid = false;
+                break;
             }
-            /* Clear memory. */
-            delete database.collections[collection_name].values;
-            database.collections[collection_name].values = nullptr;
-        }
+
+            if (current_collection_name.empty())
+                current_collection_name = key_collection_name;
+            else if (current_collection_name != key_collection_name) {
+                /*
+                 * The data model is now fully updated for the last read collection. It can be
+                 * checked.
+                 */
+                is_valid = check_reference(session, current_collection_name,
+                  database.collections.at(current_collection_name));
+                /* Clear memory. */
+                delete database.collections[current_collection_name].values;
+                database.collections[current_collection_name].values = nullptr;
+
+                current_collection_name = key_collection_name;
+            }
+        };
+        /*
+         * The last collection still needs to be checked once the cursor has read the entire table.
+         */
+        if (is_valid)
+            is_valid = check_reference(
+              session, current_collection_name, database.collections.at(current_collection_name));
+
+        /* Clear memory. */
+        delete database.collections[current_collection_name].values;
+        database.collections[current_collection_name].values = nullptr;
 
         return (is_valid);
     }
@@ -148,96 +192,44 @@ class workload_validation {
         }
     }
 
-    /*
-     * Parse the tracked operations to build a representation in memory of the collections at the
-     * end of the test. tracking_collection_name is the tracking collection used to save the
-     * operations performed on the collections during the test. collection_name is the collection
-     * that needs to be represented in memory.
-     */
+    /* Update the data model. */
     void
-    parse_operation_tracking_table(WT_SESSION *session, const std::string &tracking_collection_name,
-      const std::string &collection_name, database &database)
+    update_data_model(const tracking_operation &operation, const std::string &collection_name,
+      const char *key, const char *value, database &database)
     {
-        WT_CURSOR *cursor;
-        wt_timestamp_t key_timestamp;
-        int exact, value_operation_type;
-        const char *key, *key_collection_name, *value;
-        std::vector<key_value_t> collection_keys;
-        // TODO - How to find the first key in the collection ?
-        key_value_t first_key = "0";
-        std::string key_str;
-
-        testutil_check(
-          session->open_cursor(session, tracking_collection_name.c_str(), NULL, NULL, &cursor));
-
-        cursor->set_key(cursor, collection_name.c_str(), first_key.c_str());
-        testutil_check(cursor->search_near(cursor, &exact));
-        /*
-         * Since the timestamp which is part of the key is not provided, exact cannot be 0. If it is
-         * -1, we need to go to the next key.
-         */
-        testutil_assert(exact != 0);
-        if (exact < 0)
-            testutil_check(cursor->next(cursor));
-
-        do {
-            testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
-            testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
-
-            key_str = std::string(key);
-
-            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
-            debug_print("Key is " + key_str, DEBUG_TRACE);
-            debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
-            debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
-            debug_print("Value is " + std::string(value), DEBUG_TRACE);
-
+        switch (operation) {
+        case tracking_operation::DELETE_KEY:
             /*
-             * If the cursor is reading an operation for a different collection, we know all the
-             * operations have been parsed for the collection we were interested in.
+             * Operations are parsed from the oldest to the most recent one. It is safe to assume
+             * the key has been inserted previously in an existing collection and can be safely
+             * deleted.
              */
-            if (std::string(key_collection_name) != collection_name)
-                break;
-
-            /* Replay the current operation. */
-            switch (static_cast<tracking_operation>(value_operation_type)) {
-            case tracking_operation::DELETE_KEY:
-                /*
-                 * Operations are parsed from the oldest to the most recent one. It is safe to
-                 * assume the key has been inserted previously in an existing collection and can be
-                 * safely deleted.
-                 */
-                database.collections.at(key_collection_name).keys.at(key_str).exists = false;
-                delete database.collections.at(key_collection_name).values;
-                database.collections.at(key_collection_name).values = nullptr;
-                break;
-            case tracking_operation::INSERT: {
-                /* Keys are unique, it is safe to assume the key has not been encountered before. */
-                database.collections[key_collection_name].keys[key_str].exists = true;
-                if (database.collections[key_collection_name].values == nullptr) {
-                    database.collections[key_collection_name].values =
-                      new std::map<key_value_t, value_t>();
-                }
-                value_t v;
-                v.value = key_value_t(value);
-                std::pair<key_value_t, value_t> pair(key_value_t(key_str), v);
-                database.collections[key_collection_name].values->insert(pair);
-                break;
+            database.collections.at(collection_name).keys.at(key).exists = false;
+            delete database.collections.at(collection_name).values;
+            database.collections.at(collection_name).values = nullptr;
+            break;
+        case tracking_operation::INSERT: {
+            /*
+             * Keys are unique, it is safe to assume the key has not been encountered before.
+             */
+            database.collections[collection_name].keys[key].exists = true;
+            if (database.collections[collection_name].values == nullptr) {
+                database.collections[collection_name].values = new std::map<key_value_t, value_t>();
             }
-            case tracking_operation::UPDATE:
-                database.collections[key_collection_name].values->at(key_str).value =
-                  key_value_t(value);
-                break;
-            default:
-                testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
-                  value_operation_type);
-                break;
-            }
-
-        } while (cursor->next(cursor) == 0);
-
-        if (cursor->reset(cursor) != 0)
-            debug_print("Cursor could not be reset !", DEBUG_ERROR);
+            value_t v;
+            v.value = key_value_t(value);
+            std::pair<key_value_t, value_t> pair(key_value_t(key), v);
+            database.collections[collection_name].values->insert(pair);
+            break;
+        }
+        case tracking_operation::UPDATE:
+            database.collections[collection_name].values->at(key).value = key_value_t(value);
+            break;
+        default:
+            testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
+              static_cast<tracking_operation>(operation));
+            break;
+        }
     }
 
     /*
