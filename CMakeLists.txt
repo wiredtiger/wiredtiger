@@ -6,7 +6,7 @@
 # See the file LICENSE for redistribution information.
 #
 
-cmake_minimum_required(VERSION 3.11.0)
+cmake_minimum_required(VERSION 3.10.0)
 
 # Try to use CCACHE if available - speeds up build times.
 find_program(CCACHE_FOUND ccache)
