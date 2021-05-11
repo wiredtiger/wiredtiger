@@ -369,10 +369,10 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
             fs, old_filename, object_name, NULL));
 
     /*
-     * During the flush, the metadata for the old local object should be marked as "flush=0". When
-     * the flush call completes, it can be marked as "flush=1". When that's done, we can finish the
-     * flush. The flush finish call moves the file from the home directory to the extension's cache.
-     * Then the extension will own it.
+     * The metadata for the old local object will be initialized with "flush=0". When the flush call
+     * completes, it can be marked as "flush=1". When that's done, we can finish the flush. The
+     * flush finish call moves the file from the home directory to the extension's cache. Then the
+     * extension will own it.
      *
      * We may need a way to restart flushes for those not completed (after a crash), or failed (due
      * to previous network outage).
