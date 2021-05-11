@@ -578,9 +578,17 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
         ckpt_a->ta.newest_txn == ckpt_b->ta.newest_txn &&
         ckpt_a->ta.newest_stop_ts == ckpt_b->ta.newest_stop_ts &&
         ckpt_a->ta.newest_stop_txn == ckpt_b->ta.newest_stop_txn &&
-        ckpt_a->ta.prepare == ckpt_b->ta.prepare &&
-        __wt_check_addr_validity(session, &ckpt_a->ta, true) == 0);
-    // WT_ASSERT(session, compare ckpt_a->addr.data, ckpt_b->addr.data, ckpt_a->addr.size == 0);
+        ckpt_a->ta.prepare == ckpt_b->ta.prepare);
+    /*
+     * The two WT_CKPT structures are created through different paths, specifically in one path the
+     * WT_CKPT.addr and WT_CKPT.raw fields are taken from a configuration file as strings including
+     * a training nul byte. Use the minimum size of the data to ignore that nul byte.
+     */
+    WT_ASSERT(session,
+      memcmp(ckpt_a->addr.data, ckpt_b->addr.data, WT_MIN(ckpt_a->addr.size, ckpt_b->addr.size)) ==
+        0);
+    WT_ASSERT(session,
+      memcmp(ckpt_a->raw.data, ckpt_b->raw.data, WT_MIN(ckpt_a->raw.size, ckpt_b->raw.size)) == 0);
     WT_ASSERT(session, ckpt_a->bpriv == NULL && ckpt_b->bpriv == NULL);
     WT_ASSERT(session, ckpt_a->flags == ckpt_b->flags);
 }
