@@ -229,8 +229,7 @@ class database_operation {
         testutil_check(cursor->insert(cursor));
         debug_print("key/value inserted", DEBUG_TRACE);
 
-        tracking->save_schema_operation(
-          tracking_operation::INSERT, collection_name, key, value, ts);
+        tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
     }
 
     template <typename K, typename V>
@@ -246,8 +245,7 @@ class database_operation {
         testutil_check(cursor->update(cursor));
         debug_print("key/value updated", DEBUG_TRACE);
 
-        tracking->save_schema_operation(
-          tracking_operation::UPDATE, collection_name, key, value, ts);
+        tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
     }
 
     /*
