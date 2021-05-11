@@ -17,7 +17,7 @@ config_choice(
         "x86;WT_X86;"
         "aarch64;WT_AARCH64;"
         "ppc64;WT_PPC64;"
-        "zseries;WT_ZSERIES;"
+        "s390x;WT_S390X;"
 )
 
 config_choice(

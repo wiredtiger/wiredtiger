@@ -597,7 +597,7 @@ function(parse_filelist_source filelist output_var)
         set(arch_host "ARM64_HOST")
     elseif(WT_PPC64)
         set(arch_host "POWERPC_HOST")
-    elseif(WT_ZSERIES)
+    elseif(WT_S390X)
         set(arch_host "ZSERIES_HOST")
     endif()
     # Determine platform host for our filelist parse.
