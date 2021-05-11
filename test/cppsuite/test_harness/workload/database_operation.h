@@ -73,8 +73,7 @@ class database_operation {
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = timestamp_manager->get_next_ts();
-            testutil_check(tracking->save_collection(
-              tracking_operation::CREATE_COLLECTION, collection_name, ts));
+            tracking->save_collection(tracking_operation::CREATE_COLLECTION, collection_name, ts);
         }
         debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
 
@@ -109,8 +108,8 @@ class database_operation {
                 ts = timestamp_manager->get_next_ts();
                 if (ts_enabled)
                     testutil_check(session->begin_transaction(session, ""));
-                testutil_check(insert(cursor, tracking, collection_name, generated_key.c_str(),
-                  generated_value.c_str(), ts));
+                insert(cursor, tracking, collection_name, generated_key.c_str(),
+                  generated_value.c_str(), ts);
                 if (ts_enabled) {
                     cfg = std::string(COMMIT_TS) + "=" + timestamp_manager->decimal_to_hex(ts);
                     testutil_check(session->commit_transaction(session, cfg.c_str()));
@@ -156,7 +155,6 @@ class database_operation {
         std::vector<std::string> collection_names = context.get_collection_names();
         key_value_t generated_value;
         const char *key;
-        std::string error_message;
         int64_t value_size = context.get_value_size();
         uint64_t i;
 
@@ -180,13 +178,10 @@ class database_operation {
                 cursors[i]->reset(cursors[i]);
                 ++i;
                 continue;
-            }
-            /* Stop updating in case of an error. */
-            else if (ret != 0) {
-                error_message = "update_operation: cursor->next() failed " + std::to_string(ret);
-                debug_print(error_message, DEBUG_ERROR);
-                break;
-            } else {
+            } else if (ret != 0)
+                /* Stop updating in case of an error. */
+                testutil_die(DEBUG_ERROR, "update_operation: cursor->next() failed: %d", ret);
+            else {
                 testutil_check(cursors[i]->get_key(cursors[i], &key));
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
@@ -198,8 +193,8 @@ class database_operation {
                     context.set_commit_timestamp(session, ts);
                 }
 
-                testutil_check(update(context.get_tracking(), cursors[i], collection_names[i], key,
-                  generated_value.c_str(), ts));
+                update(context.get_tracking(), cursors[i], collection_names[i], key,
+                  generated_value.c_str(), ts);
 
                 /* Commit the current transaction if possible. */
                 context.increment_operation_count();
@@ -223,48 +218,34 @@ class database_operation {
     private:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
-    int
+    void
     insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
-        int error_code;
-
         testutil_assert(cursor != nullptr);
+
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
-        error_code = cursor->insert(cursor);
+        testutil_check(cursor->insert(cursor));
+        debug_print("key/value inserted", DEBUG_TRACE);
 
-        if (error_code == 0) {
-            debug_print("key/value inserted", DEBUG_TRACE);
-            error_code =
-              tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
-        } else
-            debug_print("key/value insertion failed", DEBUG_ERROR);
-
-        return (error_code);
+        tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
     }
 
     template <typename K, typename V>
-    static int
+    static void
     update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
       K key, V value, wt_timestamp_t ts)
     {
-        int error_code;
-
         testutil_assert(tracking != nullptr);
         testutil_assert(cursor != nullptr);
+
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
-        error_code = cursor->update(cursor);
+        testutil_check(cursor->update(cursor));
+        debug_print("key/value updated", DEBUG_TRACE);
 
-        if (error_code == 0) {
-            debug_print("key/value update", DEBUG_TRACE);
-            error_code =
-              tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
-        } else
-            debug_print("key/value update failed", DEBUG_ERROR);
-
-        return (error_code);
+        tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
     }
 
     /*

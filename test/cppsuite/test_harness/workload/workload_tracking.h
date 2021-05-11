@@ -107,46 +107,38 @@ class workload_tracking : public component {
         /* Does not do anything. */
     }
 
-    int
+    void
     save_collection(
       const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
     {
-        int error_code = 0;
         std::string error_message;
 
         if (!_enabled)
-            return (error_code);
+            return;
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
             _cursor_schema->set_key(_cursor_schema, collection_name.c_str(), ts);
             _cursor_schema->set_value(_cursor_schema, static_cast<int>(operation));
-            error_code = _cursor_schema->insert(_cursor_schema);
+            testutil_check(_cursor_schema->insert(_cursor_schema));
         } else {
             error_message =
               "save_collection: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         }
-
-        if (error_code == 0)
-            debug_print("save_collection: workload tracking saved operation.", DEBUG_TRACE);
-        else
-            debug_print(
-              "save_collection: workload tracking failed to save operation !", DEBUG_ERROR);
-
-        return (error_code);
+        debug_print("save_collection: workload tracking saved operation.", DEBUG_TRACE);
+        return;
     }
 
     template <typename K, typename V>
-    int
+    void
     save_operation(const tracking_operation &operation, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
-        int error_code = 0;
         std::string error_message;
 
         if (!_enabled)
-            return (error_code);
+            return;
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
@@ -156,16 +148,10 @@ class workload_tracking : public component {
         } else {
             _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);
             _cursor_operations->set_value(_cursor_operations, static_cast<int>(operation), value);
-            error_code = _cursor_operations->insert(_cursor_operations);
+            testutil_check(_cursor_operations->insert(_cursor_operations));
         }
-
-        if (error_code == 0)
-            debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
-        else
-            debug_print(
-              "save_operation: workload tracking failed to save operation !", DEBUG_ERROR);
-
-        return error_code;
+        debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
+        return;
     }
 
     private:

@@ -137,7 +137,7 @@ class test : public database_operation {
         /* Validation stage. */
         if (_workload_tracking->is_enabled()) {
             workload_validation wv;
-            is_success = wv.validate(_workload_tracking->get_operation_table_name(),
+            wv.validate(_workload_tracking->get_operation_table_name(),
               _workload_tracking->get_schema_table_name(), _workload_generator->get_database());
         }
 

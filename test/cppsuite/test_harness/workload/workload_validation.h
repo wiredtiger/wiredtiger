@@ -45,26 +45,25 @@ namespace test_harness {
 class workload_validation {
     public:
     /*
-     * Validate the on disk data against what has been tracked during the test.
-     * - The first step is to replay the tracked operations so a representation in memory of the
-     * collections is created. This representation is then compared to what is on disk.
-     * operation_table_name: collection that contains all the operations about the key/value
-     * pairs in the different collections used during the test.
-     * schema_table_name: collection that contains all the operations about the creation or deletion
-     * of collections during the test.
+     * Validate the on disk data against what has been tracked during the test. This is done by
+     * replaying the tracked operations so a representation in memory of the collections is created.
+     * This representation is then compared to what is on disk. operation_table_name: collection
+     * that contains all the operations about the key/value pairs in the different collections used
+     * during the test. schema_table_name: collection that contains all the operations about the
+     * creation or deletion of collections during the test.
      */
-    bool
+    void
     validate(const std::string &operation_table_name, const std::string &schema_table_name,
       database &database)
     {
+        WT_DECL_RET;
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t key_timestamp;
         std::vector<std::string> created_collections, deleted_collections;
         const char *key, *key_collection_name, *value;
         int value_operation_type;
-        std::string current_collection_name;
-        bool is_valid = true;
+        std::string collection_name;
 
         session = connection_manager::instance().create_session();
 
@@ -77,20 +76,16 @@ class workload_validation {
          * checked in check_reference.
          */
         for (auto const &it : deleted_collections) {
-            if (!verify_collection_state(session, it, false)) {
-                debug_print(
-                  "Collection present on disk while it has been tracked as deleted: " + it,
-                  DEBUG_ERROR);
-                is_valid = false;
-                break;
-            }
+            if (!verify_collection_state(session, it, false))
+                testutil_die(DEBUG_ERROR,
+                  "validate: collection %s present on disk while it has been tracked as deleted.",
+                  it);
         }
 
         /* Parse the tracking table. */
-        if (is_valid)
-            testutil_check(
-              session->open_cursor(session, operation_table_name.c_str(), NULL, NULL, &cursor));
-        while (is_valid && cursor->next(cursor) == 0) {
+        testutil_check(
+          session->open_cursor(session, operation_table_name.c_str(), NULL, NULL, &cursor));
+        while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
 
@@ -113,42 +108,39 @@ class workload_validation {
              * the created ones.
              */
             else if (std::find(deleted_collections.begin(), deleted_collections.end(),
-                       key_collection_name) == deleted_collections.end()) {
-                debug_print("validate: The collection " + std::string(key_collection_name) +
-                    " is not part of the created or deleted collections.",
-                  DEBUG_ERROR);
-                is_valid = false;
-                break;
-            }
+                       key_collection_name) == deleted_collections.end())
+                testutil_die(DEBUG_ERROR,
+                  "validate: The collection %s is not part of the created or deleted collections.",
+                  key_collection_name);
 
-            if (current_collection_name.empty())
-                current_collection_name = key_collection_name;
-            else if (current_collection_name != key_collection_name) {
+            if (collection_name.empty())
+                collection_name = key_collection_name;
+            else if (collection_name != key_collection_name) {
                 /*
                  * The data model is now fully updated for the last read collection. It can be
                  * checked.
                  */
-                is_valid = check_reference(session, current_collection_name,
-                  database.collections.at(current_collection_name));
+                check_reference(session, collection_name, database.collections.at(collection_name));
                 /* Clear memory. */
-                delete database.collections[current_collection_name].values;
-                database.collections[current_collection_name].values = nullptr;
+                delete database.collections[collection_name].values;
+                database.collections[collection_name].values = nullptr;
 
-                current_collection_name = key_collection_name;
+                collection_name = key_collection_name;
             }
         };
+
+        /* The value of ret should be WT_NOTFOUND once the cursor has read all rows. */
+        if (ret != WT_NOTFOUND)
+            testutil_die(DEBUG_ERROR, "validate: cursor->next() %d.", ret);
+
         /*
          * The last collection still needs to be checked once the cursor has read the entire table.
          */
-        if (is_valid)
-            is_valid = check_reference(
-              session, current_collection_name, database.collections.at(current_collection_name));
+        check_reference(session, collection_name, database.collections.at(collection_name));
 
         /* Clear memory. */
-        delete database.collections[current_collection_name].values;
-        database.collections[current_collection_name].values = nullptr;
-
-        return (is_valid);
+        delete database.collections[collection_name].values;
+        database.collections[collection_name].values = nullptr;
     }
 
     private:
@@ -226,7 +218,7 @@ class workload_validation {
             database.collections[collection_name].values->at(key).value = key_value_t(value);
             break;
         default:
-            testutil_die(DEBUG_ABORT, "Unexpected operation in the tracking table: %d",
+            testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
               static_cast<tracking_operation>(operation));
             break;
         }
@@ -236,7 +228,7 @@ class workload_validation {
      * Compare the tracked operations against what has been saved on disk. collection:
      * representation in memory of the collection values and keys according to the tracking table.
      */
-    bool
+    void
     check_reference(
       WT_SESSION *session, const std::string &collection_name, const collection_t &collection)
     {
@@ -245,44 +237,37 @@ class workload_validation {
         key_value_t key_str;
 
         /* Check the collection exists on disk. */
-        is_valid = verify_collection_state(session, collection_name, true);
+        if (!verify_collection_state(session, collection_name, true))
+            testutil_die(DEBUG_ERROR,
+              "check_reference: collection %s not present on disk while it has been tracked as "
+              "created.",
+              collection_name);
 
-        if (is_valid) {
-            /* Walk through each key/value pair of the current collection. */
-            for (const auto &keys : collection.keys) {
-                key_str = keys.first;
-                key = keys.second;
-                /* The key/value pair exists. */
-                if (key.exists)
-                    is_valid = (is_key_present(session, collection_name, key_str.c_str()) == true);
-                /* The key has been deleted. */
-                else
-                    is_valid = (is_key_present(session, collection_name, key_str.c_str()) == false);
+        /* Walk through each key/value pair of the current collection. */
+        for (const auto &keys : collection.keys) {
+            key_str = keys.first;
+            key = keys.second;
+            /* The key/value pair exists. */
+            if (key.exists)
+                is_valid = (is_key_present(session, collection_name, key_str.c_str()) == true);
+            /* The key has been deleted. */
+            else
+                is_valid = (is_key_present(session, collection_name, key_str.c_str()) == false);
 
-                if (!is_valid) {
-                    debug_print("check_reference failed for key " + key_str, DEBUG_ERROR);
-                    break;
-                }
+            if (!is_valid)
+                testutil_die(DEBUG_ERROR, "check_reference: failed for key %s in collection %s.",
+                  key_str, collection_name);
 
-                /* Check the associated value is valid. */
-                if (key.exists) {
-                    testutil_assert(collection.values != nullptr);
-                    is_valid = verify_value(session, collection_name, key_str.c_str(),
-                      collection.values->at(key_str).value);
-                    if (!is_valid) {
-                        debug_print("check_reference failed for value " +
-                            collection.values->at(key_str).value,
-                          DEBUG_ERROR);
-                        break;
-                    }
-                }
+            /* Check the associated value is valid. */
+            if (key.exists) {
+                testutil_assert(collection.values != nullptr);
+                if (!verify_value(session, collection_name, key_str.c_str(),
+                      collection.values->at(key_str).value))
+                    testutil_die(DEBUG_ERROR,
+                      "check_reference: failed for key %s / value %s in collection %s.", key_str,
+                      collection.values->at(key_str).value, collection_name);
             }
         }
-
-        if (!is_valid)
-            debug_print("check_reference failed for collection " + collection_name, DEBUG_ERROR);
-
-        return (is_valid);
     }
 
     /*
