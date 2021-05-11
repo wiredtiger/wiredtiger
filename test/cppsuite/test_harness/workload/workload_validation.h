@@ -264,8 +264,9 @@ class workload_validation {
                 if (!verify_value(session, collection_name, key_str.c_str(),
                       collection.values->at(key_str).value))
                     testutil_die(DEBUG_ERROR,
-                      "check_reference: failed for key %s / value %s in collection %s.", key_str,
-                      collection.values->at(key_str).value.c_str(), collection_name.c_str());
+                      "check_reference: failed for key %s / value %s in collection %s.",
+                      key_str.c_str(), collection.values->at(key_str).value.c_str(),
+                      collection_name.c_str());
             }
         }
     }
