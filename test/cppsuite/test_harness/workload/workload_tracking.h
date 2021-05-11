@@ -142,8 +142,8 @@ class workload_tracking : public component {
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
-            error_message = "save_operation: invalid operation " +
-              std::to_string(static_cast<int>(operation));
+            error_message =
+              "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         } else {
             _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);

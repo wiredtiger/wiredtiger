@@ -134,13 +134,17 @@ class workload_validation {
             testutil_die(DEBUG_ERROR, "validate: cursor->next() %d.", ret);
 
         /*
-         * The last collection still needs to be checked once the cursor has read the entire table.
+         * Once the cursor has read the entire table, the last parsed collection has not been
+         * checked yet. We still have to make sure collection_name has been updated. It will remain
+         * empty if there is no collections to check after the end of the test (no collections
+         * created or all deleted).
          */
-        check_reference(session, collection_name, database.collections.at(collection_name));
-
-        /* Clear memory. */
-        delete database.collections[collection_name].values;
-        database.collections[collection_name].values = nullptr;
+        if (!collection_name.empty()) {
+            check_reference(session, collection_name, database.collections.at(collection_name));
+            /* Clear memory. */
+            delete database.collections[collection_name].values;
+            database.collections[collection_name].values = nullptr;
+        }
     }
 
     private:
