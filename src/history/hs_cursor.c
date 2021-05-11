@@ -20,6 +20,9 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool leaf_found;
+#ifdef HAVE_DIAGNOSTIC
+    WT_PAGE *page;
+#endif
 
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
@@ -31,6 +34,9 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
      * perform a full search.
      */
     if (hs_cbt->ref != NULL) {
+#ifdef HAVE_DIAGNOSTIC
+        page = hs_cbt->ref->page;
+#endif
         /*
          * The page must be pinned and we should have a hazard pointer on that. Ensure the page is
          * not evictable.
@@ -51,6 +57,8 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
             leaf_found = false;
         if (!leaf_found)
             hs_cursor->reset(hs_cursor);
+        /* Ensure there is no eviction happened on this page. */
+        WT_ASSERT(session, page == hs_cbt->ref->page);
     }
 
     if (!leaf_found)
