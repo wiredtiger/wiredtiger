@@ -1,9 +1,9 @@
-/*! @page build-posix Building and installing WiredTiger on POSIX
+/*! @page build-autoconf Building and installing WiredTiger with autoconf/libtool
 
-@section posix_github Building using Git and GitHub
+@section autconf_github Building using Git and GitHub
 
 Skip this step if you are building from a WiredTiger release package,
-and proceed with @ref posix_building.
+and proceed with @ref autconf_building.
 
 To build from the WiredTiger GitHub repository requires
 <a href="http://git-scm.com/">git</a>,
@@ -26,9 +26,9 @@ cd wiredtiger
 sh autogen.sh
 @endcode
 
-Now proceed with @ref posix_building.
+Now proceed with @ref autconf_building.
 
-@section posix_building Building WiredTiger
+@section autconf_building Building WiredTiger
 
 To build the WiredTiger software on a POSIX system, change directory to
 the top-level directory, then configure and build the software:
@@ -58,7 +58,7 @@ and <a href="http://www.gnu.org/software/libtool/libtool.html">libtool</a>
 to create the configure script and Makefiles.  The standard options for those
 tools can be specified when configuring and building WiredTiger.
 
-@section posix_installing Installing WiredTiger
+@section autoconf_installing Installing WiredTiger
 
 The WiredTiger software consists of a library and a single standalone
 utility.
@@ -108,7 +108,7 @@ a different location:
 ./configure --prefix=/c/wiredtiger
 @endcode
 
-@section posix_configure Configuring WiredTiger
+@section autconf_configure Configuring WiredTiger
 
 The WiredTiger software supports some additional configuration options:
 
@@ -161,7 +161,7 @@ WiredTiger to use POSIX 1003.1c pthread mutexes configured to be
 adaptive (where that functionality is available), or \c gcc (which
 configures WiredTiger to use gcc-based spinlocks).
 
-@section posix_compiler Changing compiler or loader options
+@section autconf_compiler Changing compiler or loader options
 
 To change the compiler or loader behavior during the build, use the
 <code>CC</code>, <code>CFLAGS</code>, <code>LDFLAGS</code>, or
