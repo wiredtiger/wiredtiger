@@ -869,7 +869,7 @@ retry:
 
 #ifdef HAVE_DIAGNOSTIC
     WT_ASSERT(session, __wt_hs_row_search(cbt, &file_cursor->key, false) == 0);
-    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+    WT_TRET(__wt_cursor_key_order_init(cbt));
     WT_ASSERT(session, __wt_cursor_key_order_check(session, cbt, true) == 0);
 #endif
 
