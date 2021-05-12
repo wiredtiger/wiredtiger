@@ -1689,6 +1689,7 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
     WT_DECL_RET;
 
     ckpt_itr = ckptbase;
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
     WT_CKPT_FOREACH (ckptbase, ckpt) {
         /* Remove any deleted checkpoints, by shifting the array. */
         if (F_ISSET(ckpt, WT_CKPT_DELETE)) {
@@ -1702,11 +1703,9 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
 
         /* Update the internal checkpoints to their full names, with the generation count suffix. */
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0) {
-            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%" PRId64, WT_CHECKPOINT, ckpt->order));
             __wt_free(session, ckpt->name);
             WT_ERR(__wt_strdup(session, tmp->mem, &ckpt->name));
-            __wt_scr_free(session, &tmp);
         }
 
         /* Reset the flags, and mark a checkpoint fake if there is no address. */
