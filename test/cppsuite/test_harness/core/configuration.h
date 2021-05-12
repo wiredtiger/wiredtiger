@@ -194,23 +194,24 @@ class configuration {
         auto split_user_config = split(user_config);
         auto user_it = split_user_config.begin();
         for (auto it = split_default_config.begin(); it != split_default_config.end(); ++it) {
-            if (user_it->first != it->first) {
-                /* Add default to final list. */
+            if (user_it->first != it->first)
+                /* The default does not exist in the user configuration, add it. */
                 merged_config += it->first + "=" + it->second;
-            } else {
+            else {
                 /* If we have a sub config merge it in. */
                 if (user_it->second[0] == '(')
                     merged_config +=
                       it->first + "=(" + merge_default_config(it->second, user_it->second) + ')';
                 else
+                    /* Add the user configuration as it exists. */
                     merged_config += user_it->first + "=" + user_it->second;
                 user_it++;
             }
-            if (split_default_config.end() - it != 1) {
+            /* Add a comma after every item we add except the last one. */
+            if (split_default_config.end() - it != 1)
                 merged_config += ",";
-            }
         }
-        return merged_config;
+        return (merged_config);
     }
 
     /*
@@ -267,13 +268,13 @@ class configuration {
 
         /* We have to sort the config here otherwise we will match incorrectly while merging. */
         std::sort(split_config.begin(), split_config.end(), comparitor);
-        return split_config;
+        return (split_config);
     }
 
     static bool
     comparitor(std::pair<std::string, std::string> a, std::pair<std::string, std::string> b)
     {
-        return a.first < b.first;
+        return (a.first < b.first);
     }
 
     std::string _config;
