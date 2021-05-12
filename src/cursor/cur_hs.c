@@ -867,6 +867,10 @@ retry:
         goto retry;
     WT_ERR(ret);
 
+#ifdef HAVE_DIAGNOSTIC
+    WT_ASSERT(session, __wt_cursor_key_order_check(session, cbt, true) == 0);
+#endif
+
     /* Insert doesn't maintain a position across calls, clear resources. */
     if (0) {
 err:
