@@ -44,13 +44,11 @@ class configuration {
     public:
     configuration(const std::string &test_config_name, const std::string &config)
     {
-        WT_CONFIG_ITEM value;
         std::string default_config =
           std::string(__wt_test_config_match(test_config_name.c_str())->base);
         /* Merge in the default configuration. */
-        std::string updated_config = merge_default_config(default_config, config);
-        _config = updated_config;
-        debug_print("Running with enriched config: " + updated_config, DEBUG_INFO);
+        _config = merge_default_config(default_config, config);
+        debug_print("Running with enriched config: " + _config, DEBUG_INFO);
 
         int ret = wiredtiger_test_config_validate(
           nullptr, nullptr, test_config_name.c_str(), _config.c_str());
