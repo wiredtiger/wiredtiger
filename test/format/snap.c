@@ -249,7 +249,11 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
         }
     }
 
-    switch (ret = read_op(cursor, SEARCH, NULL)) {
+    if (snap->op != REMOVE)
+        ((WT_SESSION_IMPL *)cursor->session)->expect_visible = true;
+    ret = read_op(cursor, SEARCH, NULL);
+    ((WT_SESSION_IMPL *)cursor->session)->expect_visible = false;
+    switch (ret) {
     case 0:
         if (g.type == FIX) {
             testutil_check(cursor->get_value(cursor, &bitfield));

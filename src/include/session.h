@@ -62,6 +62,8 @@ struct __wt_session_impl {
 
     void *lang_private; /* Language specific private storage */
 
+    bool expect_visible; /* Expect to find a visible value */
+
     u_int active; /* Non-zero if the session is in-use */
 
     const char *name;   /* Name */

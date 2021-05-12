@@ -588,6 +588,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
     if (ret == 0)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
+    WT_ASSERT(session, session->expect_visible == false || ret != WT_NOTFOUND);
 
 err:
     if (ret != 0) {
