@@ -29,7 +29,9 @@
 #ifndef CONFIGURATION_H
 #define CONFIGURATION_H
 
+#include <algorithm>
 #include <string>
+#include <stack>
 
 extern "C" {
 #include "test_util.h"
@@ -40,14 +42,22 @@ enum class types { BOOL, INT, STRING, STRUCT };
 namespace test_harness {
 class configuration {
     public:
-    configuration(const std::string &test_config_name, const std::string &config) : _config(config)
+    configuration(const std::string &test_config_name, const std::string &config)
     {
+        WT_CONFIG_ITEM value;
+        std::string default_config =
+          std::string(__wt_test_config_match(test_config_name.c_str())->base);
+        /* Merge in the default configuration. */
+        std::string updated_config = merge_default_config(default_config, config);
+        _config = updated_config;
+        debug_print("Running with enriched config: " + updated_config, DEBUG_INFO);
+
         int ret = wiredtiger_test_config_validate(
-          nullptr, nullptr, test_config_name.c_str(), config.c_str());
+          nullptr, nullptr, test_config_name.c_str(), _config.c_str());
         if (ret != 0)
             testutil_die(EINVAL, "failed to validate given config, ensure test config exists");
         ret =
-          wiredtiger_config_parser_open(nullptr, config.c_str(), config.size(), &_config_parser);
+          wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
         if (ret != 0)
             testutil_die(EINVAL, "failed to create configuration parser for provided config");
     }
@@ -171,6 +181,99 @@ class configuration {
             testutil_die(-1, error_msg);
 
         return func(value);
+    }
+
+    /*
+     * Merge together two configuration strings, the user one and the default one.
+     */
+    std::string
+    merge_default_config(const std::string &default_config, const std::string &user_config)
+    {
+        std::string merged_config;
+        auto split_default_config = split(default_config);
+        auto split_user_config = split(user_config);
+        auto user_it = split_user_config.begin();
+        for (auto it = split_default_config.begin(); it != split_default_config.end(); ++it) {
+            if (user_it->first != it->first) {
+                /* Add default to final list. */
+                merged_config += it->first + "=" + it->second;
+            } else {
+                /* If we have a sub config merge it in. */
+                if (user_it->second[0] == '(')
+                    merged_config +=
+                      it->first + "=(" + merge_default_config(it->second, user_it->second) + ')';
+                else
+                    merged_config += user_it->first + "=" + user_it->second;
+                user_it++;
+            }
+            if (split_default_config.end() - it != 1) {
+                merged_config += ",";
+            }
+        }
+        return merged_config;
+    }
+
+    /*
+     * Split a config string into keys and values, taking care to not split incorrectly when we have
+     * a sub config.
+     */
+    static std::vector<std::pair<std::string, std::string>>
+    split(const std::string &config)
+    {
+        std::string cut_config = config;
+        std::vector<std::pair<std::string, std::string>> split_config;
+        std::string key = "", value = "";
+        bool in_subconfig = false;
+        bool expect_value = false;
+        std::stack<char> subconfig_parens;
+
+        /* Remove prefix and trailing "()". */
+        if (config[0] == '(')
+            cut_config = config.substr(1, config.size() - 2);
+
+        size_t start = 0, len = 0;
+        for (size_t i = 0; i < cut_config.size(); ++i) {
+            if (cut_config[i] == '(') {
+                subconfig_parens.push(cut_config[i]);
+                in_subconfig = true;
+            }
+            if (cut_config[i] == ')') {
+                subconfig_parens.pop();
+                in_subconfig = !subconfig_parens.empty();
+            }
+            if (cut_config[i] == '=' && !in_subconfig) {
+                expect_value = true;
+                key = cut_config.substr(start, len);
+                start += len + 1;
+                len = 0;
+                continue;
+            }
+            if (cut_config[i] == ',' && !in_subconfig) {
+                expect_value = false;
+                if (start + len >= cut_config.size())
+                    break;
+                value = cut_config.substr(start, len);
+                start += len + 1;
+                len = 0;
+                split_config.push_back(std::pair<std::string, std::string>(key, value));
+                continue;
+            }
+            ++len;
+        }
+        if (expect_value) {
+            value = cut_config.substr(start, len);
+            split_config.push_back(std::pair<std::string, std::string>(key, value));
+        }
+
+        /* We have to sort the config here otherwise we will match incorrectly while merging. */
+        std::sort(split_config.begin(), split_config.end(), comparitor);
+        return split_config;
+    }
+
+    static bool
+    comparitor(std::pair<std::string, std::string> a, std::pair<std::string, std::string> b)
+    {
+        return a.first < b.first;
     }
 
     std::string _config;
