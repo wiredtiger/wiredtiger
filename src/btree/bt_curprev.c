@@ -454,7 +454,6 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool kpack_used;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -554,7 +553,7 @@ restart_read_insert:
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
-        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
         /*
          * If the cursor has prefix search configured we can early exit here if the key we are
          * visiting is before our prefix.
@@ -638,6 +637,8 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             F_SET(cbt, WT_CBT_ITERATE_APPEND);
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
+            /* The page cannot be NULL if the above flag is set. */
+            WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
                 ret = __cursor_fix_append_prev(cbt, newpage, restart);
