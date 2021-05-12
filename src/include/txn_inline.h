@@ -985,7 +985,6 @@ retry:
     /* If there is no ondisk value, there can't be anything in the history store either. */
     if (cbt->ref->page->dsk == NULL || cbt->slot == UINT32_MAX) {
         cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_TETSUO));
         return (0);
     }
 
@@ -1030,7 +1029,6 @@ retry:
             cbt->upd_value->tw.stop_txn = tw.stop_txn;
             cbt->upd_value->tw.prepare = tw.prepare;
             cbt->upd_value->type = WT_UPDATE_TOMBSTONE;
-            WT_ASSERT(session, !F_ISSET(session, WT_SESSION_TETSUO));
             return (0);
         }
 
@@ -1053,7 +1051,6 @@ retry:
             cbt->upd_value->tw.start_txn = tw.start_txn;
             cbt->upd_value->tw.prepare = tw.prepare;
             cbt->upd_value->type = WT_UPDATE_STANDARD;
-            WT_ASSERT(session, !F_ISSET(session, WT_SESSION_TETSUO));
             return (0);
         }
     }
@@ -1096,7 +1093,6 @@ retry:
 
     /* Return invalid not tombstone if nothing is found in history store. */
     WT_ASSERT(session, cbt->upd_value->type != WT_UPDATE_TOMBSTONE);
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_TETSUO));
     return (0);
 }
 

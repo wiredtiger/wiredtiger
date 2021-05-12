@@ -219,7 +219,6 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
 {
     WT_DECL_RET;
     WT_ITEM *key, *value;
-    WT_SESSION_IMPL *session;
     uint64_t keyno;
     uint8_t bitfield;
 
@@ -294,12 +293,6 @@ snap_verify(WT_CURSOR *cursor, TINFO *tinfo, SNAP_OPS *snap)
     case ROW:
         fprintf(
           stderr, "snapshot-isolation %.*s search mismatch\n", (int)key->size, (char *)key->data);
-
-        /* Do another search and set the TETSUO flag this time. */
-        session = (WT_SESSION_IMPL *)cursor->session;
-        F_SET(session, WT_SESSION_TETSUO);
-        read_op(cursor, SEARCH, NULL);
-        F_CLR(session, WT_SESSION_TETSUO);
 
         if (snap->op == REMOVE)
             fprintf(stderr, "expected {deleted}\n");
