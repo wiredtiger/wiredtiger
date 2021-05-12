@@ -35,7 +35,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
      */
     if (hs_cbt->ref != NULL) {
 #ifdef HAVE_DIAGNOSTIC
-        page = hs_cbt->ref->page;
+        WT_ORDERED_READ(page, hs_cbt->ref->page);
 #endif
         /*
          * The page must be pinned and we should have a hazard pointer on that. Ensure the page is
