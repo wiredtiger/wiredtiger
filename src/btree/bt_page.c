@@ -538,10 +538,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     WT_DECL_RET;
     WT_ROW *rip;
     WT_UPDATE *tombstone, *upd;
+    size_t size, total_size;
     uint32_t best_prefix_count, best_prefix_start, best_prefix_stop;
     uint32_t last_slot, prefix_count, prefix_start, prefix_stop, slot;
     uint8_t smallest_prefix;
-    size_t size, total_size;
 
     btree = S2BT(session);
     tombstone = upd = NULL;
@@ -735,6 +735,15 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     }
     page->prefix_start = best_prefix_start;
     page->prefix_stop = best_prefix_stop;
+
+    /*
+     * We will have to instantiate some set of keys or backward cursor traversal can be too slow if
+     * we're forced to read large stretches of prefix-compressed keys in order to instantiate every
+     * key as we walk backwards through the page. If this page is known not to have large stretches
+     * of prefix-compressed keys, flag it so we can skip that work.
+     */
+    if (best_prefix_count <= 10)
+        F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
 
     __wt_cache_page_inmem_incr(session, page, total_size);
 

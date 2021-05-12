@@ -364,11 +364,6 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         allowed value are both one-tenth the size of a newly split internal
         page''',
         min='0'),
-    Config('key_gap', '10', r'''
-        the maximum gap between instantiated keys in a Btree leaf page,
-        constraining the number of keys processed to instantiate a
-        random Btree leaf page key''',
-        min='0', undoc=True),
     Config('leaf_key_max', '0', r'''
         the largest key stored in a leaf node, in bytes.  If set, keys
         larger than the specified size are stored as overflow items (which
