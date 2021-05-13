@@ -927,42 +927,63 @@ config_prefix(void)
 static void
 config_transaction(void)
 {
-    /*
-     * Transaction prepare requires timestamps and is incompatible with logging; prepare overrides
-     * both because it's only rarely configured.
-     */
+    /* Transaction prepare requires timestamps and is incompatible with logging. */
     if (g.c_prepare && config_is_perm("ops.prepare")) {
-        if (!g.c_txn_timestamps && config_is_perm("transaction.timestamps"))
-            testutil_die(EINVAL, "prepare requires transaction timestamps");
-        if (g.c_logging && config_is_perm("logging"))
-            testutil_die(EINVAL, "prepare is incompatible with logging");
-    }
-    if (g.c_prepare) {
-        if (!g.c_txn_timestamps)
-            config_single("transaction.timestamps=on", false);
-        if (g.c_logging)
+        if (g.c_logging) {
+            if (config_is_perm("logging"))
+                testutil_die(EINVAL, "prepare is incompatible with logging");
             config_single("logging=off", false);
+        }
+        if (!g.c_txn_timestamps) {
+            if (config_is_perm("transaction.timestamps"))
+                testutil_die(EINVAL, "prepare requires transaction timestamps");
+            config_single("transaction.timestamps=on", false);
+        }
+    }
+
+    /* Transaction timestamps are incompatible with implicit transactions. */
+    if (g.c_txn_timestamps && config_is_perm("transaction.timestamps")) {
+        if (g.c_txn_implicit) {
+            if (config_is_perm("transaction.implicit"))
+                testutil_die(
+                  EINVAL, "transaction.timestamps is incompatible with implicit transactions");
+            config_single("transaction.implicit=0", false);
+        }
+
+        /* FIXME-WT-6431: temporarily disable salvage with timestamps. */
+        if (g.c_salvage) {
+            if (config_is_perm("ops.salvage"))
+                testutil_die(EINVAL, "transaction.timestamps is incompatible with salvage");
+            config_single("ops.salvage=off", false);
+        }
     }
 
     /*
-     * Transaction timestamps are incompatible with implicit transactions and salvage; timestamps
-     * overrides both because we might have just turned timestamps on for prepare.
-     *
-     * FIXME-WT-6431: temporarily disable salvage with timestamps.
+     * Incompatible permanent configurations have been checked, now turn off any incompatible flags.
+     * The choices are inclined to prepare (it's only rarely configured), then timestamps. Note any
+     * of the options may still be set as required for the run, so we still have to check if that's
+     * the case until we run out of combinations (for example, prepare turns off logging, so by the
+     * time we check logging, it must have been required for the run if prepare is still set, so we
+     * can just turn off prepare in that case).
      */
-    if (g.c_txn_timestamps && config_is_perm("transaction.timestamps")) {
-        if (g.c_txn_implicit != 0 && config_is_perm("transaction.implicit"))
-            testutil_die(
-              EINVAL, "transaction.timestamps is incompatible with implicit transactions");
-        if (g.c_salvage != 0 && config_is_perm("ops.salvage"))
-            testutil_die(EINVAL, "transaction.timestamps is incompatible with salvage");
+    if (g.c_prepare) {
+        if (!config_is_perm("logging"))
+            config_single("logging=off", false);
+        if (!config_is_perm("transaction.timestamps"))
+            config_single("transaction.timestamps=on", false);
     }
     if (g.c_txn_timestamps) {
-        if (g.c_txn_implicit != 0)
+        if (!config_is_perm("transaction.implicit"))
             config_single("transaction.implicit=0", false);
-        if (g.c_salvage != 0)
+        if (!config_is_perm("ops.salvage"))
             config_single("ops.salvage=off", false);
     }
+    if (g.c_logging)
+        config_single("ops.prepare=off", false);
+    if (g.c_txn_implicit)
+        config_single("transaction.timestamps=off", false);
+    if (g.c_salvage)
+        config_single("transaction.timestamps=off", false);
 }
 
 /*
