@@ -82,6 +82,7 @@ static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
+    WT_TIERED_TIERS *this_tier;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
@@ -106,9 +107,11 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: schema create LOCAL: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    if (tiered->tiers[WT_TIERED_INDEX_LOCAL].name != NULL)
-        __wt_free(session, tiered->tiers[WT_TIERED_INDEX_LOCAL].name);
-    tiered->tiers[WT_TIERED_INDEX_LOCAL].name = name;
+    this_tier = &tiered->tiers[WT_TIERED_INDEX_LOCAL];
+    if (this_tier->name != NULL)
+        __wt_free(session, this_tier->name);
+    this_tier->name = name;
+    F_SET(this_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
 
     /*
      * We should have a better way to handle the initial case of setting the object number.
@@ -152,21 +155,27 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ERR(ret);
     }
     /*
-     * Create the name and metadata of the new shared object of the current local object.
-     * The data structure keeps this id so that we don't have to parse and manipulate strings.
-     *   I.e. if we have file:example-000000002.wt we want object:example-000000002.wtobj.
+     * Create the name and metadata of the new shared object of the current local object. The data
+     * structure keeps this id so that we don't have to parse and manipulate strings.
      */
     WT_ERR(
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = "readonly=true";
+    cfg[2] = "flush=0,readonly=true";
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
     __wt_verbose(
       session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
+
+#if 0
+    /*
+     * If we get here we have successfully created the object. It is ready to be fully flushed to
+     * the cloud. Push a work element to let the internal thread do that here.
+     */
+#endif
 
 err:
     __wt_free(session, config);
@@ -183,6 +192,7 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_TIERED_TIERS *this_tier;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
@@ -200,8 +210,10 @@ __tiered_create_tier_tree(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     /* Set up a tier:example metadata for the first time. */
     __wt_verbose(session, WT_VERB_TIERED, "CREATE_TIER_TREE: schema create: %s : %s", name, config);
     WT_ERR(__wt_schema_create(session, name, config));
-    WT_ASSERT(session, tiered->tiers[WT_TIERED_INDEX_SHARED].name == NULL);
-    tiered->tiers[WT_TIERED_INDEX_SHARED].name = name;
+    this_tier = &tiered->tiers[WT_TIERED_INDEX_SHARED];
+    WT_ASSERT(session, this_tier->name == NULL);
+    this_tier->name = name;
+    F_SET(this_tier, WT_TIERS_OP_FLUSH | WT_TIERS_OP_READ);
 
     if (0)
 err:
@@ -367,11 +379,6 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* We always need to create a local object. */
     WT_ERR(__tiered_create_local(session, tiered));
 
-    /*
-     * Note that removal of overlapping local objects is not in the purview of this function. Some
-     * other mechanism will remove outdated tiers. Here's where it could be done though.
-     */
-
     /* Update the tiered: metadata to new object number and tiered array. */
     WT_ERR(__tiered_update_metadata(session, tiered, config));
     tracking = false;
@@ -380,7 +387,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
     if (tiered->current_id > 1 && tiered->current_id != prev_id) {
         /*
-         * This code should be done in its own thread, as it may incur network delays or failure.
+         * We expect this part to be done asynchronously in its own thread. First flush the contents of
+         * the data file to the new cloud object.
          */
         WT_ERR(__wt_tiered_name(session, &tiered->iface, prev_id, WT_TIERED_NAME_LOCAL, &prev_uri));
         WT_ERR(__wt_tiered_name(
@@ -394,10 +402,19 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
         new_object_name = new_object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, new_object_name, "object:");
 
+        /* This call make take a while, and may fail due to network timeout. */
         WT_ERR(storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
 
-        /* Set flush=1 in metadata before this call */
+        /*
+         * The metadata for the old local object will be initialized with "flush=0". When the flush call
+         * completes, it can be marked as "flush=1". When that's done, we can finish the flush. The
+         * flush finish call moves the file from the home directory to the extension's cache. Then the
+         * extension will own it.
+         *
+         * We may need a way to restart flushes for those not completed (after a crash), or failed (due
+         * to previous network outage).
+         */
         WT_ERR(storage_source->ss_flush_finish(
           storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
     }
@@ -462,7 +479,7 @@ __wt_tiered_name(
         if (LF_ISSET(WT_TIERED_NAME_PREFIX))
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-", name));
         else
-            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wt", name, id));
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wtobj", name, id));
     } else if (LF_ISSET(WT_TIERED_NAME_OBJECT)) {
         if (LF_ISSET(WT_TIERED_NAME_PREFIX))
             WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-", name));

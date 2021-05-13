@@ -113,6 +113,8 @@ static CONFIG c[] = {
 
   {"btree.memory_page_max", "maximum cache page size", 0x0, 1, 10, 128, &g.c_memory_page_max, NULL},
 
+  {"btree.prefix", "common key prefix", C_BOOL, 3, 0, 0, &g.c_prefix, NULL},
+
   /* 80% */
   {"btree.prefix_compression", "configure prefix compressed keys", C_BOOL, 80, 0, 0,
     &g.c_prefix_compression, NULL},
@@ -184,8 +186,8 @@ static CONFIG c[] = {
 
   /*
    * 0%
-   * FIXME-WT-7418 and FIXME-WT-7416: Temporarily disable import until WT_ROLLBACK error and
-   * interaction with backup thread is fixed. Should be 20%
+   * FIXME-WT-7418 and FIXME-WT-7510: Temporarily disable import until WT_ROLLBACK error and
+   * wt_copy_and_sync error is fixed. It should be (C_BOOL, 20, 0, 0).
    */
   {"import", "import table from newly created database", C_BOOL, 0, 0, 0, &g.c_import, NULL},
 

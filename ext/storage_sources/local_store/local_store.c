@@ -107,7 +107,6 @@ typedef struct local_file_handle {
 
     LOCAL_STORAGE *local; /* Enclosing storage source */
     WT_FILE_HANDLE *fh;   /* File handle */
-    char *path;           /* Path name of file */
 
     TAILQ_ENTRY(local_file_handle) q; /* Queue of handles */
 } LOCAL_FILE_HANDLE;
@@ -124,6 +123,7 @@ static int local_err(LOCAL_STORAGE *, WT_SESSION *, int, const char *, ...);
 static int local_file_copy(
   LOCAL_STORAGE *, WT_SESSION *, const char *, const char *, WT_FS_OPEN_FILE_TYPE);
 static int local_get_directory(const char *, ssize_t len, char **);
+static int local_path(WT_FILE_SYSTEM *, const char *, const char *, char **);
 static int local_writeable(LOCAL_STORAGE *, const char *name, bool *writeable);
 
 /*
@@ -328,49 +328,36 @@ local_writeable(LOCAL_STORAGE *local, const char *name, bool *writeablep)
 
 /*
  * local_bucket_path --
- *     Construct a pathname from the file system and local name.
+ *     Construct the bucket pathname from the file system and local name.
  */
-int
+static int
 local_bucket_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 {
-    LOCAL_FILE_SYSTEM *local_fs;
-    size_t len;
-    int ret;
-    char *p;
-
-    ret = 0;
-    local_fs = (LOCAL_FILE_SYSTEM *)file_system;
-
-    /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
-    while (*name == '.') {
-        if (name[1] != '/')
-            break;
-        name += 2;
-        while (*name == '/')
-            name++;
-    }
-    len = strlen(local_fs->bucket_dir) + strlen(name) + 2;
-    if ((p = malloc(len)) == NULL)
-        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_bucket_path"));
-    snprintf(p, len, "%s/%s", local_fs->bucket_dir, name);
-    *pathp = p;
-    return (ret);
+    return (local_path(file_system, ((LOCAL_FILE_SYSTEM *)file_system)->bucket_dir, name, pathp));
 }
 
 /*
  * local_cache_path --
- *     Construct a pathname from the file system and local name.
+ *     Construct the cache pathname from the file system and local name.
  */
-int
+static int
 local_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 {
-    LOCAL_FILE_SYSTEM *local_fs;
+    return (local_path(file_system, ((LOCAL_FILE_SYSTEM *)file_system)->cache_dir, name, pathp));
+}
+
+/*
+ * local_path --
+ *     Construct a pathname from the file system and local name.
+ */
+static int
+local_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
+{
     size_t len;
     int ret;
     char *p;
 
     ret = 0;
-    local_fs = (LOCAL_FILE_SYSTEM *)file_system;
 
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
@@ -380,10 +367,10 @@ local_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
         while (*name == '/')
             name++;
     }
-    len = strlen(local_fs->cache_dir) + strlen(name) + 2;
+    len = strlen(dir) + strlen(name) + 2;
     if ((p = malloc(len)) == NULL)
-        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_cache_path"));
-    snprintf(p, len, "%s/%s", local_fs->cache_dir, name);
+        return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_path"));
+    snprintf(p, len, "%s/%s", dir, name);
     *pathp = p;
     return (ret);
 }
@@ -848,6 +835,8 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     WT_FILE_SYSTEM *wt_fs;
     struct stat sb;
     int ret;
+    char *alloced_path;
+    const char *path;
     bool create, exists;
 
     (void)flags; /* Unused */
@@ -858,6 +847,7 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
     local = local_fs->local_storage;
     wt_fs = local_fs->wt_fs;
+    alloced_path = NULL;
 
     /*
      * We expect that the local file system will be used narrowly, like when creating or opening a
@@ -889,18 +879,16 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
         exists = (ret == 0);
     } else
         exists = false;
-    if (create || exists) {
+    if (create || exists)
         /* The file has not been flushed, use the file directly in the file system. */
-        if ((local_fh->path = strdup(name)) == NULL) {
-            ret = local_err(local, session, ENOMEM, "local_open");
+        path = name;
+    else {
+        if ((ret = local_cache_path(file_system, name, &alloced_path)) != 0)
             goto err;
-        }
-    } else {
-        if ((ret = local_cache_path(file_system, name, &local_fh->path)) != 0)
-            goto err;
-        ret = stat(local_fh->path, &sb);
+        path = alloced_path;
+        ret = stat(path, &sb);
         if (ret != 0 && errno != ENOENT) {
-            ret = local_err(local, session, errno, "%s: local_open stat", local_fh->path);
+            ret = local_err(local, session, errno, "%s: local_open stat", path);
             goto err;
         }
         exists = (ret == 0);
@@ -914,9 +902,8 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     }
 #endif
 
-    if ((ret = wt_fs->fs_open_file(wt_fs, session, local_fh->path, file_type, flags, &wt_fh)) !=
-      0) {
-        ret = local_err(local, session, ret, "ss_open_object: open: %s", local_fh->path);
+    if ((ret = wt_fs->fs_open_file(wt_fs, session, path, file_type, flags, &wt_fh)) != 0) {
+        ret = local_err(local, session, ret, "ss_open_object: open: %s", path);
         goto err;
     }
     local_fh->fh = wt_fh;
@@ -962,9 +949,10 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     *file_handlep = file_handle;
 
     VERBOSE(
-      local, "File opened: %s final path=%s\n", SHOW_STRING(name), SHOW_STRING(local_fh->path));
+      local, "File opened: %s final path=%s\n", SHOW_STRING(name), SHOW_STRING(local_fh->fh->name));
 
 err:
+    free(alloced_path);
     if (ret != 0) {
         if (local_fh != NULL)
             local_file_close_internal(local, session, local_fh);
@@ -1161,7 +1149,6 @@ local_file_close_internal(LOCAL_STORAGE *local, WT_SESSION *session, LOCAL_FILE_
     if (wt_fh != NULL && (ret = wt_fh->close(wt_fh, session)) != 0)
         ret = local_err(local, session, ret, "WT_FILE_HANDLE->close: close");
 
-    free(local_fh->path);
     free(local_fh->iface.name);
     free(local_fh);
 
