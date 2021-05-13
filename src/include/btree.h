@@ -102,8 +102,7 @@ typedef enum { /* Start position for eviction walk */
 struct __wt_btree {
     WT_DATA_HANDLE *dhandle;
 
-    WT_CKPT *ckpt;               /* Checkpoint information */
-    size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
+    WT_CKPT *ckpt; /* Checkpoint information */
 
     WT_BTREE_TYPE type; /* Type */
 
