@@ -352,9 +352,6 @@ create_object(WT_CONNECTION *conn)
     /* Configure Btree internal key truncation. */
     CONFIG_APPEND(p, ",internal_key_truncate=%s", g.c_internal_key_truncation ? "true" : "false");
 
-    /* Configure Btree page key gap. */
-    CONFIG_APPEND(p, ",key_gap=%" PRIu32, g.c_key_gap);
-
     /* Configure Btree split page percentage. */
     CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
 

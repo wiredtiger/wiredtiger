@@ -103,8 +103,6 @@ static const char *list[] = {
   "btree.internal_page_max",
   "isolation=",
   "transaction.isolation",
-  "key_gap=",
-  "btree.key_gap",
   "key_max=",
   "btree.key_max",
   "key_min=",

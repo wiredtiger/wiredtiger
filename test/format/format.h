@@ -179,7 +179,6 @@ typedef struct {
     uint32_t c_internal_key_truncation;
     uint32_t c_intl_page_max;
     char *c_isolation;
-    uint32_t c_key_gap;
     uint32_t c_key_max;
     uint32_t c_key_min;
     uint32_t c_leaf_page_max;
