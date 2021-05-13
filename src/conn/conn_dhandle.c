@@ -67,6 +67,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_ERR(__wt_calloc_def(session, 3, &dhandle->cfg));
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
+    case WT_DHANDLE_TYPE_TIERED:
         /*
          * We are stripping out all checkpoint related information from the config string. We save
          * the rest of the metadata string, that is essentially static and unchanging and then
@@ -98,9 +99,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         break;
     case WT_DHANDLE_TYPE_TABLE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, table_meta), &dhandle->cfg[0]));
-        break;
-    case WT_DHANDLE_TYPE_TIERED:
-        WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, tiered_meta), &dhandle->cfg[0]));
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
         WT_ERR(__wt_strdup(session, WT_CONFIG_BASE(session, tier_meta), &dhandle->cfg[0]));
