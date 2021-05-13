@@ -1170,6 +1170,10 @@ __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
     if (!WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_unexpected_object_type(session, uri, "tiered:"));
 
+    /* TODO: tiered: hack! */
+    if (1)
+        return (__wt_curfile_open(session, uri, owner, cfg, cursorp));
+
     WT_RET(__wt_config_gets_def(session, cfg, "checkpoint", 0, &cval));
     if (cval.len != 0)
         WT_RET_MSG(session, EINVAL, "tiered tables do not support opening by checkpoint");

@@ -213,7 +213,10 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
     if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
         LF_SET(WT_FS_OPEN_DIRECTIO);
     block->file_flags = flags;
-    if (!block->has_objects)
+    if (block->has_objects)
+        WT_ERR(opener->open(opener, session, WT_TIERED_TOP_OBJECT_ID, WT_FS_OPEN_FILE_TYPE_DATA,
+          block->file_flags, &block->fh));
+    else
         WT_ERR(
           __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
 

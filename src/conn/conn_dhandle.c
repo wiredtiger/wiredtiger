@@ -191,7 +191,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
-    if (dhandle->type == WT_DHANDLE_TYPE_BTREE) {
+    if (dhandle->type == WT_DHANDLE_TYPE_BTREE || dhandle->type == WT_DHANDLE_TYPE_TIERED) {
         WT_ERR(__wt_calloc_one(session, &btree));
         dhandle->handle = btree;
         btree->dhandle = dhandle;
@@ -548,6 +548,18 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
         WT_ERR(__wt_schema_open_table(session));
         break;
     case WT_DHANDLE_TYPE_TIERED:
+        /* Set any special flags on the btree handle. */
+        F_SET(btree, LF_MASK(WT_BTREE_SPECIAL_FLAGS));
+
+        /*
+         * Allocate data-source statistics memory. We don't allocate that memory when allocating the
+         * data handle because not all data handles need statistics (for example, handles used for
+         * checkpoint locking). If we are reopening the handle, then it may already have statistics
+         * memory, check to avoid the leak.
+         */
+        if (dhandle->stat_array == NULL)
+            WT_ERR(__wt_stat_dsrc_init(session, dhandle));
+
         WT_ERR(__wt_tiered_open(session, cfg));
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:

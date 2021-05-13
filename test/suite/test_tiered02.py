@@ -82,21 +82,19 @@ class test_tiered02(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(self, self.uri, 10, config=args)
         ds.populate()
         ds.check()
-        self.session.checkpoint()
-        # For some reason, every checkpoint does not cause a flush.
-        # As we're about to move to a new model of flushing, we're not going to chase this error.
-        #self.confirm_flush()
+        self.session.flush_tier(None)
+        self.confirm_flush()
 
         ds = SimpleDataSet(self, self.uri, 50, config=args)
         ds.populate()
         ds.check()
-        self.session.checkpoint()
+        self.session.flush_tier(None)
         self.confirm_flush()
 
         ds = SimpleDataSet(self, self.uri, 100, config=args)
         ds.populate()
         ds.check()
-        self.session.checkpoint()
+        self.session.flush_tier(None)
         self.confirm_flush()
 
         ds = SimpleDataSet(self, self.uri, 200, config=args)

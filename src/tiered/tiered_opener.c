@@ -12,35 +12,35 @@
  * __tiered_opener_open --
  *     Open an object by number.
  */
-int
-__tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, void *cookie,
-  uint64_t object_id, WT_FS_OPEN_FILE_TYPE type, u_int flags, WT_FH **fhp)
+static int
+__tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uint64_t object_id,
+  WT_FS_OPEN_FILE_TYPE type, u_int flags, WT_FH **fhp)
 {
     WT_BUCKET_STORAGE *bstorage;
     WT_DECL_RET;
     WT_TIERED *tiered;
-    const char *object_name;
+    const char *object_name, *object_uri;
 
-    WT_UNUSED(opener);
-    tiered = (WT_TIERED *)cookie;
+    tiered = opener->cookie;
+    object_uri = NULL;
 
-    WT_ASSERT(session, object_id <= tiered->current_id);
-    if (object_id == tiered->current_id) {
+    WT_ASSERT(session, object_id <= tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID);
+    if (object_id == tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID) {
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         if (!WT_PREFIX_SKIP(object_name, "file:"))
             WT_RET_MSG(session, EINVAL, "expected a 'file:' URI");
     } else {
-#if 0
-        WT_TIERED_TREE *tiered_tree;
-        tiered_tree = (WT_TIERED_TREE *)tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
-        /* TODO: get the WT_TIERED_OBJECT for this object_id, and hence its name */
-#endif
-        object_name = NULL;
+        WT_ERR(
+          __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &object_uri));
+        object_name = object_uri;
+        WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
         bstorage = tiered->bstorage;
     }
     WT_WITH_BUCKET_STORAGE(
       bstorage, session, { ret = __wt_open(session, object_name, type, flags, fhp); });
+err:
+    __wt_free(session, object_uri);
     return (ret);
 }
 

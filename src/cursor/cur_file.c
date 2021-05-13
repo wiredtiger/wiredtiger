@@ -820,7 +820,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
     if (bulk)
         LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
 
-    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
+    WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:") || WT_PREFIX_MATCH(uri, "tiered:"));
 
     /* Get the handle and lock it while the cursor is using it. */
     /*

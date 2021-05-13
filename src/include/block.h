@@ -185,7 +185,6 @@ struct __wt_bm {
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
-    int (*flush_tier)(WT_BM *, WT_SESSION_IMPL *, uint8_t **, size_t *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
@@ -197,6 +196,7 @@ struct __wt_bm {
     int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
+    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint64_t, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -316,14 +316,15 @@ struct __wt_block_desc {
  */
 #define WT_BLOCK_DESC_SIZE 16
 
+#define WT_TIERED_TOP_OBJECT_ID 0xFFFFFFFFFFFFFFFFULL
 /*
  * WT_BLOCK_FILE_OPENER --
  *	An open callback for the block manager.  This hides details about how to access the
  * different objects that make up a tiered file.
  */
 struct __wt_block_file_opener {
-    int (*open)(WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, void *, uint64_t object_id,
-      WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
+    int (*open)(WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint64_t object_id, WT_FS_OPEN_FILE_TYPE,
+      u_int, WT_FH **);
     void *cookie; /* Used in open call */
 };
 

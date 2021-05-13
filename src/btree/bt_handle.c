@@ -1001,3 +1001,16 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
               (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) &&
       !F_ISSET(btree, WT_BTREE_NO_LOGGING));
 }
+
+/*
+ * __wt_btree_switch_object --
+ *     Switch to a writeable object for a tiered btree.
+ */
+int
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint64_t object_id, uint32_t flags)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+    return (bm->switch_object(bm, session, object_id, flags));
+}
