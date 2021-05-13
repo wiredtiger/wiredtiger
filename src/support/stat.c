@@ -207,6 +207,9 @@ static const char *const __stats_dsrc_desc[] = {
   "reconciliation: records written including a stop durable timestamp",
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
+  "session: tiered operations discarded",
+  "session: tiered operations executed",
+  "session: tiered operations scheduled",
   "session: tiered storage local retention time (secs)",
   "session: tiered storage object size",
   "transaction: race to read prepared update retry",
@@ -460,6 +463,9 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->rec_time_window_durable_stop_ts = 0;
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
+    stats->tiered_work_units_discarded = 0;
+    stats->tiered_work_units_done = 0;
+    stats->tiered_work_units_created = 0;
     /* not clearing tiered_retention */
     /* not clearing tiered_object_size */
     stats->txn_read_race_prepare_update = 0;
@@ -699,6 +705,9 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += from->rec_time_window_durable_stop_ts;
     to->rec_time_window_stop_ts += from->rec_time_window_stop_ts;
     to->rec_time_window_stop_txn += from->rec_time_window_stop_txn;
+    to->tiered_work_units_discarded += from->tiered_work_units_discarded;
+    to->tiered_work_units_done += from->tiered_work_units_done;
+    to->tiered_work_units_created += from->tiered_work_units_created;
     to->tiered_retention += from->tiered_retention;
     to->tiered_object_size += from->tiered_object_size;
     to->txn_read_race_prepare_update += from->txn_read_race_prepare_update;
@@ -945,6 +954,9 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
+    to->tiered_work_units_discarded += WT_STAT_READ(from, tiered_work_units_discarded);
+    to->tiered_work_units_done += WT_STAT_READ(from, tiered_work_units_done);
+    to->tiered_work_units_created += WT_STAT_READ(from, tiered_work_units_created);
     to->tiered_retention += WT_STAT_READ(from, tiered_retention);
     to->tiered_object_size += WT_STAT_READ(from, tiered_object_size);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
@@ -1436,6 +1448,9 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop durable timestamp",
   "reconciliation: records written including a stop timestamp",
   "reconciliation: records written including a stop transaction ID",
+  "session: tiered operations discarded",
+  "session: tiered operations executed",
+  "session: tiered operations scheduled",
   "session: tiered storage local retention time (secs)",
   "session: tiered storage object size",
   "transaction: race to read prepared update retry",
@@ -1954,6 +1969,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_durable_stop_ts = 0;
     stats->rec_time_window_stop_ts = 0;
     stats->rec_time_window_stop_txn = 0;
+    stats->tiered_work_units_discarded = 0;
+    stats->tiered_work_units_done = 0;
+    stats->tiered_work_units_created = 0;
     /* not clearing tiered_retention */
     /* not clearing tiered_object_size */
     stats->txn_read_race_prepare_update = 0;
@@ -2483,6 +2501,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_durable_stop_ts += WT_STAT_READ(from, rec_time_window_durable_stop_ts);
     to->rec_time_window_stop_ts += WT_STAT_READ(from, rec_time_window_stop_ts);
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
+    to->tiered_work_units_discarded += WT_STAT_READ(from, tiered_work_units_discarded);
+    to->tiered_work_units_done += WT_STAT_READ(from, tiered_work_units_done);
+    to->tiered_work_units_created += WT_STAT_READ(from, tiered_work_units_created);
     to->tiered_retention += WT_STAT_READ(from, tiered_retention);
     to->tiered_object_size += WT_STAT_READ(from, tiered_object_size);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);

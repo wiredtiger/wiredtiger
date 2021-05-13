@@ -162,13 +162,6 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
 
-#if 0
-    /*
-     * If we get here we have successfully created the object. It is ready to be fully flushed to
-     * the cloud. Push a work element to let the internal thread do that here.
-     */
-#endif
-
 err:
     __wt_free(session, config);
     __wt_free(session, name);
@@ -314,10 +307,6 @@ static int
 __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 {
     WT_DECL_RET;
-#if 0
-    WT_FILE_SYSTEM *fs;
-    WT_STORAGE_SOURCE *storage_source;
-#endif
     WT_TIERED *tiered;
     bool need_object, need_tree, tracking;
 
@@ -358,41 +347,17 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
     WT_RET(__wt_meta_track_on(session));
     tracking = true;
-    /* Create the object: entry in the metadata. */
-    if (need_object)
-        WT_ERR(__tiered_create_object(session, tiered));
-
     if (need_tree)
         WT_ERR(__tiered_create_tier_tree(session, tiered));
 
+    /* Create the object: entry in the metadata. */
+    if (need_object) {
+        WT_ERR(__tiered_create_object(session, tiered));
+        WT_ERR(__wt_tiered_put_flush(session, tiered));
+    }
+
     /* We always need to create a local object. */
     WT_ERR(__tiered_create_local(session, tiered));
-
-#if 0
-    /*
-     * We expect this part to be done asynchronously in its own thread. First flush the contents of
-     * the data file to the new cloud object.
-     */
-    storage_source = tiered->bstorage->storage_source;
-    fs = tiered->bucket_storage->file_system;
-    WT_ASSERT(session, storage_source != NULL);
-
-    /* This call make take a while, and may fail due to network timeout. */
-    WT_ERR(storage_source->ss_flush(storage_source, &session->iface,
-            fs, old_filename, object_name, NULL));
-
-    /*
-     * The metadata for the old local object will be initialized with "flush=0". When the flush call
-     * completes, it can be marked as "flush=1". When that's done, we can finish the flush. The
-     * flush finish call moves the file from the home directory to the extension's cache. Then the
-     * extension will own it.
-     *
-     * We may need a way to restart flushes for those not completed (after a crash), or failed (due
-     * to previous network outage).
-     */
-    WT_ERR(storage_source->ss_flush_finish(storage_source, &session->iface,
-            fs, old_filename, object_name, NULL));
-#endif
 
     /* Update the tiered: metadata to new object number and tiered array. */
     WT_ERR(__tiered_update_metadata(session, tiered, config));
