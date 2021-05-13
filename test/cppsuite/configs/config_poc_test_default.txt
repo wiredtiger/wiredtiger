@@ -3,13 +3,22 @@
 # Used as a basic test for the framework.
 duration_seconds=10,
 cache_size_mb=1000,
+enable_logging=true,
 runtime_monitor=
 (
+    op_count=3,
+    interval=s,
     stat_cache_size=
     (
         enabled=true,
         limit=100
     )
+),
+timestamp_manager=
+(
+    enabled=true,
+    oldest_lag=1,
+    stable_lag=1
 ),
 workload_generator=
 (
@@ -22,5 +31,20 @@ workload_generator=
         max=50
     ),
     read_threads=1,
-    update_threads=1
+    update_threads=1,
+    update_config=
+    (
+        op_count=1,
+        interval=s
+    ),
+    insert_config=
+    (
+        op_count=1,
+        interval=s
+    ),
+    value_size=10
 ),
+workload_tracking=
+(
+    enabled=true
+)
