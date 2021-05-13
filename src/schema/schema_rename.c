@@ -24,7 +24,7 @@ __rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, WT_ITEM *buf)
      * backup information to indicate copying the entire file in its bitmap.
      */
     /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(__wt_meta_blk_mods_load(session, oldvalue, NULL, &ckpt, true));
+    WT_RET(__wt_meta_blk_mods_load(session, oldvalue, &ckpt, true));
 
     /* Take the checkpoint structure and generate the metadata string. */
     ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
