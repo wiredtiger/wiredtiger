@@ -227,11 +227,8 @@ class configuration {
         bool expect_value = false;
         std::stack<char> subconfig_parens;
 
-        if (config.size() <= 1) {
+        if (config.size() <= 1)
             debug_print("Cannot split provided config string: " + config, DEBUG_WARN);
-            split_config.push_back(std::make_pair("", ""));
-            return (split_config);
-        }
 
         /* Remove prefix and trailing "()". */
         if (config[0] == '(')
