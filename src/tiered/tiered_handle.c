@@ -146,9 +146,8 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
         WT_ERR(ret);
     }
     /*
-     * Create the name and metadata of the new shared object of the current local object.
-     * The data structure keeps this id so that we don't have to parse and manipulate strings.
-     *   I.e. if we have file:example-000000002.wt we want object:example-000000002.wtobj.
+     * Create the name and metadata of the new shared object of the current local object. The data
+     * structure keeps this id so that we don't have to parse and manipulate strings.
      */
     WT_ERR(
       __wt_tiered_name(session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_OBJECT, &name));
@@ -456,7 +455,7 @@ __wt_tiered_name(
         if (LF_ISSET(WT_TIERED_NAME_PREFIX))
             WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-", name));
         else
-            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wt", name, id));
+            WT_ERR(__wt_buf_fmt(session, tmp, "file:%s-%010" PRIu64 ".wtobj", name, id));
     } else if (LF_ISSET(WT_TIERED_NAME_OBJECT)) {
         if (LF_ISSET(WT_TIERED_NAME_PREFIX))
             WT_ERR(__wt_buf_fmt(session, tmp, "object:%s-", name));
