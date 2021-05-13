@@ -176,7 +176,7 @@ class database_operation {
             ret = cursors[i]->next(cursors[i]);
             /* If we have reached the end of the collection, reset. */
             if (ret == WT_NOTFOUND) {
-                cursors[i]->reset(cursors[i]);
+                testutil_check(cursors[i]->reset(cursors[i]));
                 ++i;
                 continue;
             } else if (ret != 0)
