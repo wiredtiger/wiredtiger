@@ -87,7 +87,7 @@ print_help()
     std::cout << "\t-h Output a usage message and exit." << std::endl;
     std::cout << "\t-C Configuration. Cannot be used with -f." << std::endl;
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
-    std::cout << "\t-l Trace level from 0 (default) to 3." << std::endl;
+    std::cout << "\t-l Trace level from 0 (default) to 2." << std::endl;
     std::cout << "\t-t Test name to be executed." << std::endl;
 }
 

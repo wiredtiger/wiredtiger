@@ -36,28 +36,20 @@ namespace test_harness {
 
 #define DEBUG_ABORT -1
 #define DEBUG_ERROR 0
-#define DEBUG_WARN 1
-#define DEBUG_INFO 2
-#define DEBUG_TRACE 3
+#define DEBUG_INFO 1
+#define DEBUG_TRACE 2
 
-static int64_t _trace_level = DEBUG_WARN;
+static int64_t _trace_level = 0;
 
 /* Used to print out traces for debugging purpose. */
 static void
 debug_print(const std::string &str, int64_t trace_type)
 {
     if (_trace_level >= trace_type) {
-        switch (trace_type) {
-        case (DEBUG_ERROR):
-            std::cerr << "ERROR: " << str << std::endl;
-            return;
-        case (DEBUG_WARN):
-            std::cout << "WARNING: " << str << std::endl;
-            return;
-        default:
+        if (trace_type >= DEBUG_ERROR)
+            std::cerr << str << std::endl;
+        else
             std::cout << str << std::endl;
-            break;
-        }
     }
 }
 
