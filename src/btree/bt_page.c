@@ -737,10 +737,10 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
     page->prefix_stop = best_prefix_stop;
 
     /*
-     * We will have to instantiate some set of keys or backward cursor traversal can be too slow if
-     * we're forced to read large stretches of prefix-compressed keys in order to instantiate every
-     * key as we walk backwards through the page. If this page is known not to have large stretches
-     * of prefix-compressed keys, flag it so we can skip that work.
+     * Backward cursor traversal can be too slow if we're forced to process long stretches of
+     * prefix-compressed keys to create every key as we walk backwards through the page, and we
+     * handle that by instantiating periodic keys when backward cursor traversal enters a new page.
+     * Mark the page as not needing that work if there aren't stretches of prefix-compressed keys.
      */
     if (best_prefix_count <= 10)
         F_SET_ATOMIC(page, WT_PAGE_BUILD_KEYS);
