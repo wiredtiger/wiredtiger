@@ -14,7 +14,7 @@ static int __ckpt_load(WT_SESSION_IMPL *, WT_CONFIG_ITEM *, WT_CONFIG_ITEM *, WT
 static int __ckpt_named(WT_SESSION_IMPL *, const char *, const char *, WT_CKPT *);
 static int __ckpt_set(WT_SESSION_IMPL *, const char *, const char *, bool);
 static int __ckpt_version_chk(WT_SESSION_IMPL *, const char *, const char *);
-static int meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, bool);
+static int meta_blk_mods_load(WT_SESSION_IMPL *, const char *, WT_CKPT *, WT_CKPT *, bool);
 /*
  * __ckpt_load_blk_mods --
  *     Load the block information from the config string.
@@ -1130,7 +1130,7 @@ __wt_reset_blkmod(WT_SESSION_IMPL *session, const char *orig_config, WT_ITEM *bu
      * backup information to indicate copying the entire file in its bitmap.
      */
     /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(meta_blk_mods_load(session, orig_config, &ckpt, true));
+    WT_RET(meta_blk_mods_load(session, orig_config, NULL, &ckpt, true));
 
     /* Take the checkpoint structure and generate the metadata string. */
     ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
