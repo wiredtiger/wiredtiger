@@ -868,7 +868,7 @@ retry:
     WT_ERR(ret);
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
     WT_ASSERT(session, ret == 0);
     WT_TRET(__wt_cursor_key_order_init(cbt));
     WT_ASSERT(session, __wt_cursor_key_order_check(session, cbt, true) == 0);
