@@ -154,8 +154,8 @@ class database_operation {
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
         std::vector<std::string> collection_names = context.get_collection_names();
-        key_value_t generated_value;
-        const char *key;
+        key_value_t key, generated_value;
+        const char *key_tmp;
         int64_t value_size = context.get_value_size();
         uint64_t i;
 
@@ -183,7 +183,13 @@ class database_operation {
                 /* Stop updating in case of an error. */
                 testutil_die(DEBUG_ERROR, "update_operation: cursor->next() failed: %d", ret);
             else {
-                testutil_check(cursors[i]->get_key(cursors[i], &key));
+                testutil_check(cursors[i]->get_key(cursors[i], &key_tmp));
+                /*
+                 * The retrieved key needs to be passed inside the update function. However, the
+                 * update API doesn't guarantee our buffer will still be valid once it
+                 * is called, as such we copy the buffer and then pass it into the API.
+                 */
+                key = key_value_t(key_tmp);
                 generated_value =
                   random_generator::random_generator::instance().generate_string(value_size);
                 ts = context.get_timestamp_manager()->get_next_ts();
@@ -194,7 +200,7 @@ class database_operation {
                     context.set_commit_timestamp(session, ts);
                 }
 
-                update(context.get_tracking(), cursors[i], collection_names[i], key,
+                update(context.get_tracking(), cursors[i], collection_names[i], key.c_str(),
                   generated_value.c_str(), ts);
 
                 /* Commit the current transaction if possible. */
