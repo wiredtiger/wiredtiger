@@ -186,8 +186,8 @@ class database_operation {
                 testutil_check(cursors[i]->get_key(cursors[i], &key_tmp));
                 /*
                  * The retrieved key needs to be passed inside the update function. However, the
-                 * update API doesn't guarantee our buffer will still be valid once it
-                 * is called, as such we copy the buffer and then pass it into the API.
+                 * update API doesn't guarantee our buffer will still be valid once it is called, as
+                 * such we copy the buffer and then pass it into the API.
                  */
                 key = key_value_t(key_tmp);
                 generated_value =
