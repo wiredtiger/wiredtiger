@@ -24,15 +24,5 @@ workload_generator=
     ),
     read_threads=1,
     update_threads=1,
-    update_config=
-    (
-        op_count=1,
-        interval=s
-    ),
-    insert_config=
-    (
-        op_count=1,
-        interval=s
-    ),
     value_size=2000
 ),
