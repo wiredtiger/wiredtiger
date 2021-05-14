@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_compress02.py
-#   This test runs checkpoint and eviction tasks but the main focus is to 
+#   This test runs checkpoint and eviction tasks but the main focus is to
 #   check that the compression level can be reconfigured after restart if
 #   we are using zstd as the block compressor.
 #
