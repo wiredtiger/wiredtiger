@@ -413,6 +413,7 @@ __curhs_prev_visible(WT_SESSION_IMPL *session, WT_CURSOR_HS *hs_cursor)
              * If the stop time point of a record is visible to us, we won't be able to see anything
              * for this entire key.
              */
+            // tetsuo-cpp: Is this it? Looks fishy...
             if (F_ISSET(hs_cursor, WT_HS_CUR_KEY_SET)) {
                 ret = WT_NOTFOUND;
                 goto err;
@@ -633,7 +634,9 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_BTREE_ID_SET));
     WT_ERR(__wt_buf_set(session, srch_key, file_cursor->key.data, file_cursor->key.size));
     /* Reset cursor if we get WT_NOTFOUND. */
-    WT_ERR(__curhs_file_cursor_search_near(session, file_cursor, &exact));
+    ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
+    if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
+    WT_ERR(ret);
 
     if (exact >= 0) {
         /*
@@ -665,6 +668,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * us in the specified key range.
                      */
                     if (cmp < 0) {
+                        WT_ASSERT(session, !session->expect_visible);
                         ret = WT_NOTFOUND;
                         goto err;
                     }
@@ -675,6 +679,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id < hs_cursor->btree_id) {
+                    WT_ASSERT(session, !session->expect_visible);
                     ret = WT_NOTFOUND;
                     goto err;
                 }
@@ -684,7 +689,9 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * Keep looking for the first visible update in the specified range when walking
              * backwards.
              */
-            WT_ERR(__curhs_prev_visible(session, hs_cursor));
+            ret = __curhs_prev_visible(session, hs_cursor);
+            if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
+            WT_ERR(ret);
             /*
              * We can't find anything visible when first walking forwards so we must have found an
              * update that is smaller than the specified key.
@@ -733,6 +740,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * us in the specified key range.
                      */
                     if (cmp > 0) {
+                        WT_ASSERT(session, !session->expect_visible);
                         ret = WT_NOTFOUND;
                         goto err;
                     }
@@ -743,6 +751,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id > hs_cursor->btree_id) {
+                    WT_ASSERT(session, !session->expect_visible);
                     ret = WT_NOTFOUND;
                     goto err;
                 }
@@ -752,7 +761,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * Keep looking for the first visible update in the specified range when walking
              * forwards.
              */
-            WT_ERR(__curhs_next_visible(session, hs_cursor));
+            ret = __curhs_next_visible(session, hs_cursor);
+            if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
             /*
              * We can't find anything visible when first walking backwards so we must have found an
              * update that is larger than the specified key.
