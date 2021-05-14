@@ -132,6 +132,7 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
         ret = __wt_schema_close_table(session, (WT_TABLE *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TIERED:
+        WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
         ret = __wt_tiered_close(session, (WT_TIERED *)dhandle);
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
@@ -293,7 +294,7 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
      * The only data handle type that uses the "handle" field is btree. For other data handle types,
      * it should be NULL.
      */
-    is_btree = dhandle->type == WT_DHANDLE_TYPE_BTREE;
+    is_btree = WT_DHANDLE_BTREE(dhandle);
     btree = is_btree ? dhandle->handle : NULL;
 
     if (is_btree) {
@@ -385,6 +386,8 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
         WT_TRET(__wt_schema_close_table(session, (WT_TABLE *)dhandle));
         break;
     case WT_DHANDLE_TYPE_TIERED:
+        WT_TRET(__wt_btree_close(session));
+        F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
         WT_TRET(__wt_tiered_close(session, (WT_TIERED *)dhandle));
         break;
     case WT_DHANDLE_TYPE_TIERED_TREE:
@@ -505,7 +508,7 @@ __wt_conn_dhandle_open(WT_SESSION_IMPL *session, const char *cfg[], uint32_t fla
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_CLOSING_NO_MORE_OPENS));
 
     /* Turn off eviction. */
-    if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+    if (WT_DHANDLE_BTREE(dhandle))
         WT_RET(__wt_evict_file_exclusive_on(session));
 
     /*
@@ -588,7 +591,7 @@ err:
             F_CLR(btree, WT_BTREE_SPECIAL_FLAGS);
     }
 
-    if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+    if (WT_DHANDLE_BTREE(dhandle))
         __wt_evict_file_exclusive_off(session);
 
     if (ret == ENOENT && F_ISSET(dhandle, WT_DHANDLE_IS_METADATA)) {
@@ -700,8 +703,7 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 goto done;
 
             if (!F_ISSET(dhandle, WT_DHANDLE_OPEN) || F_ISSET(dhandle, WT_DHANDLE_DEAD) ||
-              dhandle->type != WT_DHANDLE_TYPE_BTREE || dhandle->checkpoint != NULL ||
-              WT_IS_METADATA(dhandle))
+              !WT_DHANDLE_BTREE(dhandle) || dhandle->checkpoint != NULL || WT_IS_METADATA(dhandle))
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
