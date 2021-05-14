@@ -403,7 +403,7 @@ __wt_blkcache_get_or_check(
  */
 int
 __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
-		  uint32_t checksum, void *data, bool write)
+		  uint32_t checksum, void *data, bool checkpoint_io, bool write)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -442,6 +442,21 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
     if (blkcache->system_ram >=
 	__blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_put);
+	return WT_BLKCACHE_BYPASS;
+    }
+
+    /*
+     * Do not write allocate if this block is written as part of checkpoint.
+     * Hot blocks get written and over-written a lot as part of checkpoint,
+     * so we don't want to cache them, because (a) they are in the DRAM
+     * cache anyway, and (b) they are likely to be overwritten anyway.
+     *
+     * Writes that are not part of checkpoint I/O are done in the service
+     * of eviction. Those are the blocks that the DRAM cache would like to
+     * keep but can't, and we definitely want to keep them.
+     */
+    if (checkpoint_io) {
+	WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
 	return WT_BLKCACHE_BYPASS;
     }
 

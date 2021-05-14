@@ -358,17 +358,17 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_of
 
     if (block->fh->file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
 #if BLKCACHE_TRACE == 1
-    time_start = __wt_clock(session);
+	time_start = __wt_clock(session);
 #endif
-    WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, align_size, checksum,
-				       buf->mem, true), WT_BLKCACHE_FULL);
+	WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, align_size, checksum,
+					   buf->mem, checkpoint_io, true), WT_BLKCACHE_FULL);
 #if BLKCACHE_TRACE == 1
-    time_stop = __wt_clock(session);
-    __wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
-		 "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
-		 "latency=%" PRIu64 " ns.",
-		 (uintmax_t)offset, (uint32_t)align_size, hash,
-		 WT_CLOCKDIFF_NS(time_stop, time_start));
+	time_stop = __wt_clock(session);
+	__wt_verbose(session, WT_VERB_BLKCACHE, "put latency: "
+		     "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64 ", "
+		     "latency=%" PRIu64 " ns.",
+		     (uintmax_t)offset, (uint32_t)align_size, hash,
+		     WT_CLOCKDIFF_NS(time_stop, time_start));
 #endif
     }
     /*
