@@ -263,7 +263,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, wt_
 	    WT_RET(__wt_read(session, block->fh, offset, size, buf->mem));
 	    if (cret != WT_BLKCACHE_BYPASS) {
 		WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum,
-						   buf->mem, false), WT_BLKCACHE_FULL);
+						   buf->mem, false, false), WT_BLKCACHE_FULL);
 	    }
 	}
     }
