@@ -24,7 +24,12 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     tiered = opener->cookie;
     object_uri = NULL;
 
-    WT_ASSERT(session, object_id <= tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID);
+    WT_ASSERT(session,
+      (object_id > 0 && object_id <= tiered->current_id) || object_id == WT_TIERED_TOP_OBJECT_ID);
+    /*
+     * TODO: tiered: we will need some kind of locking while we're looking at the tiered structure.
+     * This can be called at any time, because we are opening the objects lazily.
+     */
     if (object_id == tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID) {
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
@@ -42,6 +47,24 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
 err:
     __wt_free(session, object_uri);
     return (ret);
+}
+
+/*
+ * __tiered_opener_current_id --
+ *     Get the current writeable object id.
+ */
+static uint64_t
+__tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
+{
+    WT_TIERED *tiered;
+
+    tiered = opener->cookie;
+
+    /*
+     * TODO: tiered: we will need some kind of locking while we're looking at the tiered structure.
+     * This can be called at any time, because we are opening the objects lazily.
+     */
+    return (tiered->current_id);
 }
 
 /*
@@ -65,6 +88,7 @@ __wt_tiered_opener(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     } else if (dhandle->type == WT_DHANDLE_TYPE_TIERED) {
         tiered = (WT_TIERED *)dhandle;
         tiered->opener.open = __tiered_opener_open;
+        tiered->opener.current_object_id = __tiered_opener_current_id;
         tiered->opener.cookie = tiered;
         *openerp = &tiered->opener;
         *filenamep = dhandle->name;

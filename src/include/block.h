@@ -323,8 +323,9 @@ struct __wt_block_desc {
  * different objects that make up a tiered file.
  */
 struct __wt_block_file_opener {
-    int (*open)(WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint64_t object_id, WT_FS_OPEN_FILE_TYPE,
-      u_int, WT_FH **);
+    int (*open)(
+      WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint64_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
+    uint64_t (*current_object_id)(WT_BLOCK_FILE_OPENER *);
     void *cookie; /* Used in open call */
 };
 
