@@ -69,7 +69,10 @@ struct __wt_data_handle {
     const char *checkpoint; /* Checkpoint name (or NULL) */
     const char **cfg;       /* Configuration information */
     const char *meta_base;  /* Base metadata configuration */
-
+#ifdef HAVE_DIAGNOSTIC
+    const char *orig_meta_base; /* Copy of the base metadata configuration */
+#endif
+    uint64_t orig_meta_base_length; /* Base metadata length */
     /*
      * Sessions holding a connection's data handle will have a non-zero reference count; sessions
      * using a connection's data handle will have a non-zero in-use count. Instances of cached

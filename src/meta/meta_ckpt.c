@@ -195,8 +195,9 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    size_t meta_base_length;
     char *config, *newcfg;
-    const char *cfg[3], *str;
+    const char *cfg[3], *meta_base, *str;
 
     /*
      * If the caller knows we're on a path like checkpoints where we have a valid checkpoint and
@@ -209,8 +210,30 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
     if (use_base && session->dhandle != NULL) {
         WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         WT_ASSERT(session, strcmp(session->dhandle->name, fname) == 0);
+
+        /* Check the metadata is not corrupted. */
+        meta_base = session->dhandle->meta_base;
+        meta_base_length = meta_base == NULL ? 0 : strlen(meta_base);
+#ifdef HAVE_DIAGNOSTIC
+        if (session->dhandle->orig_meta_base_length != meta_base_length ||
+          (session->dhandle->orig_meta_base == NULL && meta_base != NULL) ||
+          (session->dhandle->orig_meta_base != NULL && meta_base == NULL) ||
+          !WT_STREQ(session->dhandle->orig_meta_base, meta_base))
+            WT_ERR_PANIC(session, WT_PANIC,
+              "Corrupted metadata. The original metadata length was %lu while the new one is "
+              "%lu. The original metadata inserted was %s and the current metadata is now %s.",
+              session->dhandle->orig_meta_base_length, meta_base_length,
+              session->dhandle->orig_meta_base, meta_base);
+#endif
+        WT_ASSERT(session, session->dhandle->orig_meta_base_length == meta_base_length);
+
         /* Concatenate the metadata base string with the checkpoint string. */
-        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", session->dhandle->meta_base, str));
+        WT_ERR(__wt_buf_fmt(session, tmp, "%s,%s", meta_base, str));
+        /*
+         * Check the new metadata length is at least as long as the original metadata string with
+         * the checkpoint base stripped out.
+         */
+        WT_ASSERT(session, tmp->size >= session->dhandle->orig_meta_base_length);
         WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
     } else {
         /* Retrieve the metadata for this file. */
