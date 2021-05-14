@@ -556,7 +556,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
     WT_ERR(__wt_buf_set(session, srch_key, cursor->key.data, cursor->key.size));
     ret = cursor->search_near(cursor, &cmp);
     if (ret != 0) {
-        WT_ASSERT(session, !session->expect_visible);
+        WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
         goto err;
     }
     if (before) {
@@ -576,7 +576,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
                     break;
             }
             if (ret != 0) {
-                WT_ASSERT(session, !session->expect_visible);
+                WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
             }
         }
     } else {
@@ -594,7 +594,7 @@ __curhs_search_near_helper(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool bef
                     break;
             }
             if (ret != 0) {
-                WT_ASSERT(session, !session->expect_visible);
+                WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
             }
         }
     }
@@ -635,7 +635,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
     WT_ERR(__wt_buf_set(session, srch_key, file_cursor->key.data, file_cursor->key.size));
     /* Reset cursor if we get WT_NOTFOUND. */
     ret = __curhs_file_cursor_search_near(session, file_cursor, &exact);
-    if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
+    if (ret == WT_NOTFOUND)
+        WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
     WT_ERR(ret);
 
     if (exact >= 0) {
@@ -668,7 +669,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * us in the specified key range.
                      */
                     if (cmp < 0) {
-                        WT_ASSERT(session, !session->expect_visible);
+                        WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
                         ret = WT_NOTFOUND;
                         goto err;
                     }
@@ -679,7 +680,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id < hs_cursor->btree_id) {
-                    WT_ASSERT(session, !session->expect_visible);
+                    WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
                     ret = WT_NOTFOUND;
                     goto err;
                 }
@@ -690,7 +691,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * backwards.
              */
             ret = __curhs_prev_visible(session, hs_cursor);
-            if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
+            if (ret == WT_NOTFOUND)
+                WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
             WT_ERR(ret);
             /*
              * We can't find anything visible when first walking forwards so we must have found an
@@ -740,7 +742,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * us in the specified key range.
                      */
                     if (cmp > 0) {
-                        WT_ASSERT(session, !session->expect_visible);
+                        WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
                         ret = WT_NOTFOUND;
                         goto err;
                     }
@@ -751,7 +753,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                  * in the specified btree range.
                  */
                 if (btree_id > hs_cursor->btree_id) {
-                    WT_ASSERT(session, !session->expect_visible);
+                    WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
                     ret = WT_NOTFOUND;
                     goto err;
                 }
@@ -762,7 +764,8 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
              * forwards.
              */
             ret = __curhs_next_visible(session, hs_cursor);
-            if (ret == WT_NOTFOUND) WT_ASSERT(session, !session->expect_visible);
+            if (ret == WT_NOTFOUND)
+                WT_ASSERT(session, !F_ISSET((WT_CURSOR_HS*)cursor, WT_HS_CUR_TETSUO) || !session->expect_visible);
             /*
              * We can't find anything visible when first walking backwards so we must have found an
              * update that is larger than the specified key.
