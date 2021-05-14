@@ -1223,7 +1223,7 @@ __wt_cursor_init(
         cursor->modify = __cursor_modify;
 
     /* Tiered cursors are not yet candidates for caching. */
-    if (WT_PREFIX_MATCH(uri, "tiered:"))
+    if (uri != NULL && WT_PREFIX_MATCH(uri, "tiered:"))
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
 
     /*
