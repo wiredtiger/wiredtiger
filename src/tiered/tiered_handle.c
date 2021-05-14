@@ -286,7 +286,7 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRIu64 ",tiers=(\"", tiered->current_id));
+    WT_RET(__wt_buf_fmt(session, tmp, "last=%" PRIu64 ",tiers=(", tiered->current_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
             __wt_verbose(session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%" PRIu32 "] NULL", i);
@@ -294,7 +294,7 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
         }
         __wt_verbose(session, WT_VERB_TIERED, "TIER_UPDATE_META: names[%" PRIu32 "]: %s", i,
           tiered->tiers[i].name);
-        WT_RET(__wt_buf_catfmt(session, tmp, "%s%s\"", i == 0 ? "" : ",", tiered->tiers[i].name));
+        WT_RET(__wt_buf_catfmt(session, tmp, "%s\"%s\"", i == 0 ? "" : ",", tiered->tiers[i].name));
     }
     WT_RET(__wt_buf_catfmt(session, tmp, ")"));
 
@@ -387,8 +387,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
     if (tiered->current_id > 1 && tiered->current_id != prev_id) {
         /*
-         * We expect this part to be done asynchronously in its own thread. First flush the contents of
-         * the data file to the new cloud object.
+         * We expect this part to be done asynchronously in its own thread. First flush the contents
+         * of the data file to the new cloud object.
          */
         WT_ERR(__wt_tiered_name(session, &tiered->iface, prev_id, WT_TIERED_NAME_LOCAL, &prev_uri));
         WT_ERR(__wt_tiered_name(
@@ -407,13 +407,13 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
           storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
 
         /*
-         * The metadata for the old local object will be initialized with "flush=0". When the flush call
-         * completes, it can be marked as "flush=1". When that's done, we can finish the flush. The
-         * flush finish call moves the file from the home directory to the extension's cache. Then the
-         * extension will own it.
+         * The metadata for the old local object will be initialized with "flush=0". When the flush
+         * call completes, it can be marked as "flush=1". When that's done, we can finish the flush.
+         * The flush finish call moves the file from the home directory to the extension's cache.
+         * Then the extension will own it.
          *
-         * We may need a way to restart flushes for those not completed (after a crash), or failed (due
-         * to previous network outage).
+         * We may need a way to restart flushes for those not completed (after a crash), or failed
+         * (due to previous network outage).
          */
         WT_ERR(storage_source->ss_flush_finish(
           storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
