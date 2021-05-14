@@ -190,7 +190,7 @@ __wt_conn_dhandle_alloc(WT_SESSION_IMPL *session, const char *uri, const char *c
         WT_RET_PANIC(session, EINVAL, "illegal handle allocation URI %s", uri);
 
     /* Btree handles keep their data separate from the interface. */
-    if (dhandle->type == WT_DHANDLE_TYPE_BTREE || dhandle->type == WT_DHANDLE_TYPE_TIERED) {
+    if (WT_DHANDLE_BTREE(dhandle)) {
         WT_ERR(__wt_calloc_one(session, &btree));
         dhandle->handle = btree;
         btree->dhandle = dhandle;
