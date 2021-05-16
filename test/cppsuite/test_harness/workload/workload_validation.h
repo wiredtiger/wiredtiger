@@ -209,9 +209,8 @@ class workload_validation {
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
             database.collections[collection_name].keys[key].exists = true;
-            if (database.collections[collection_name].values == nullptr) {
+            if (database.collections[collection_name].values == nullptr)
                 database.collections[collection_name].values = new std::map<key_value_t, value_t>();
-            }
             value_t v;
             v.value = key_value_t(value);
             std::pair<key_value_t, value_t> pair(key_value_t(key), v);

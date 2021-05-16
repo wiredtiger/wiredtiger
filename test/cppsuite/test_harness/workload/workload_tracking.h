@@ -127,7 +127,6 @@ class workload_tracking : public component {
             testutil_die(EINVAL, error_message.c_str());
         }
         debug_print("save_schema_operation: workload tracking saved operation.", DEBUG_TRACE);
-        return;
     }
 
     template <typename K, typename V>
@@ -151,7 +150,6 @@ class workload_tracking : public component {
             testutil_check(_cursor_operations->insert(_cursor_operations));
         }
         debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
-        return;
     }
 
     private:

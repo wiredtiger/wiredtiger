@@ -102,7 +102,7 @@ class test : public database_operation {
     run()
     {
         int64_t cache_size_mb, duration_seconds;
-        bool enable_logging, is_success = true;
+        bool enable_logging;
 
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
@@ -141,7 +141,7 @@ class test : public database_operation {
               _workload_tracking->get_schema_table_name(), _workload_generator->get_database());
         }
 
-        debug_print(is_success ? "SUCCESS" : "FAILED", DEBUG_INFO);
+        debug_print("SUCCESS", DEBUG_INFO);
         connection_manager::instance().close();
     }
 
