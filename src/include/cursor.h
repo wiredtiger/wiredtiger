@@ -289,7 +289,6 @@ struct __wt_cursor_hs {
     WT_TIME_WINDOW time_window;
     uint32_t btree_id;
     WT_ITEM *datastore_key;
-    WT_ITEM *lower_bound_key, *upper_bound_key;
 
     /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_HS_CUR_BTREE_ID_SET 0x1u

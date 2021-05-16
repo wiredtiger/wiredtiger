@@ -232,8 +232,6 @@ __curhs_close(WT_CURSOR *cursor)
       cursor, session, close, file_cursor == NULL ? NULL : CUR2BT(file_cursor));
 err:
     __wt_scr_free(session, &hs_cursor->datastore_key);
-    __wt_scr_free(session, &hs_cursor->lower_bound_key);
-    __wt_scr_free(session, &hs_cursor->upper_bound_key);
     if (file_cursor != NULL)
         WT_TRET(file_cursor->close(file_cursor));
     __wt_cursor_close(cursor);
@@ -263,10 +261,6 @@ __curhs_reset(WT_CURSOR *cursor)
     hs_cursor->btree_id = 0;
     hs_cursor->datastore_key->data = NULL;
     hs_cursor->datastore_key->size = 0;
-    hs_cursor->lower_bound_key->data = NULL;
-    hs_cursor->lower_bound_key->size = 0;
-    hs_cursor->upper_bound_key->data = NULL;
-    hs_cursor->upper_bound_key->size = 0;
     hs_cursor->flags = 0;
     cursor->key.data = NULL;
     cursor->key.size = 0;
@@ -314,16 +308,6 @@ __curhs_set_key(WT_CURSOR *cursor, ...)
         WT_IGNORE_RET(__wt_buf_set(
           session, hs_cursor->datastore_key, datastore_key->data, datastore_key->size));
         F_SET(hs_cursor, WT_HS_CUR_KEY_SET);
-
-        /* Set the upper and lower bound keys. */
-        file_cursor->set_key(
-          file_cursor, hs_cursor->btree_id, hs_cursor->datastore_key, WT_TS_NONE, 0);
-        WT_IGNORE_RET(__wt_buf_set(
-          session, hs_cursor->lower_bound_key, file_cursor->key.data, file_cursor->key.size));
-        file_cursor->set_key(
-          file_cursor, hs_cursor->btree_id, hs_cursor->datastore_key, WT_TS_MAX, UINT64_MAX);
-        WT_IGNORE_RET(__wt_buf_set(
-          session, hs_cursor->upper_bound_key, file_cursor->key.data, file_cursor->key.size));
     } else {
         hs_cursor->datastore_key->data = NULL;
         hs_cursor->datastore_key->size = 0;
@@ -670,8 +654,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * We are now smaller than the key range, which indicates nothing is visible to
                      * us in the specified key range.
                      */
-                    WT_ERR(__wt_compare(
-                      session, NULL, &file_cursor->key, hs_cursor->lower_bound_key, &cmp));
+                    WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                     if (cmp < 0) {
                         ret = WT_NOTFOUND;
                         goto err;
@@ -740,8 +723,7 @@ __curhs_search_near(WT_CURSOR *cursor, int *exactp)
                      * We are now larger than the key range, which indicates nothing is visible to
                      * us in the specified key range.
                      */
-                    WT_ERR(__wt_compare(
-                      session, NULL, &file_cursor->key, hs_cursor->upper_bound_key, &cmp));
+                    WT_ERR(__wt_compare(session, NULL, &file_cursor->key, srch_key, &cmp));
                     if (cmp > 0) {
                         ret = WT_NOTFOUND;
                         goto err;
@@ -1091,8 +1073,6 @@ __wt_curhs_open(WT_SESSION_IMPL *session, WT_CURSOR *owner, WT_CURSOR **cursorp)
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
     hs_cursor->btree_id = 0;
     WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->datastore_key));
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->lower_bound_key));
-    WT_ERR(__wt_scr_alloc(session, 0, &hs_cursor->upper_bound_key));
     hs_cursor->flags = 0;
 
     WT_TIME_WINDOW_INIT(&hs_cursor->time_window);
