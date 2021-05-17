@@ -126,7 +126,7 @@ class test : public database_operation {
 
         /* The initial population phase needs to be finished before starting the actual test. */
         while (_workload_generator->is_enabled() && !_workload_generator->is_db_populated())
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         /* The test will run for the duration as defined in the config. */
         duration_seconds = _config->get_int(DURATION_SECONDS);
