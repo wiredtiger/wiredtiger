@@ -19,7 +19,7 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 
     conn = S2C(session);
     __wt_spin_lock(session, &conn->tiered_lock);
-    TAILQ_INSERT_TAIL(conn->tieredqh, entry, q);
+    TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);
     __wt_cond_signal(session, conn->tiered_cond);
