@@ -29,7 +29,8 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 /*
  * __wt_tiered_pop_work --
  *     Pop a work unit of the given type from the queue. If a maximum value is given, only return a
- *     work unit that is less than the maximum value.
+ *     work unit that is less than the maximum value. The caller is responsible for freeing the
+ *     returned work unit structure.
  */
 void
 __wt_tiered_pop_work(
@@ -58,8 +59,8 @@ __wt_tiered_pop_work(
 
 /*
  * __wt_tiered_get_flush --
- *     Get the first flush work unit from the queue. id information cannot change between our caller
- *     and here.
+ *     Get the first flush work unit from the queue. The id information cannot change between our
+ *     caller and here. The caller is responsible for freeing the work unit.
  */
 int
 __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
@@ -70,7 +71,8 @@ __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 
 /*
  * __wt_tiered_get_drop_local --
- *     Get a drop local work unit if it is less than the time given.
+ *     Get a drop local work unit if it is less than the time given. The caller is responsible for
+ *     freeing the work unit.
  */
 int
 __wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp)
@@ -105,10 +107,15 @@ int
 __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id)
 {
     WT_TIERED_WORK_UNIT *entry;
+    uint64_t now;
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
-    entry->op_num = id;
+    entry->id = id;
+    WT_ASSERT(session, tiered->bstorage != NULL);
+    now = __wt_seconds(session);
+    /* Put a work unit in the queue with the time this object expires. */
+    entry->op_num = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
     return (0);

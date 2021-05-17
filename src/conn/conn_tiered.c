@@ -126,14 +126,24 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
+    WT_DECL_RET;
+    WT_TIERED_WORK_UNIT *entry;
+    bool done;
+
+    done = false;
+    while (!done) {
+        __wt_tiered_get_flush(session, &entry);
+        if (entry == NULL) {
+            done = true;
+            break;
+        }
+
     /*
      * Walk the work queue and copy file:<name> to shared storage object:<name>. Walk a tiered
      * table's tiers array and copy it to any tier that allows WT_TIERS_OP_FLUSH.
      */
-    /* XXX: We don't want to call this here, it is just to quiet the compiler that this function
-     * can return NULL. So it is a placeholder until we have real content here.
-     */
-    WT_RET(__tier_storage_remove_local(session, NULL, 0));
+    }
+
     return (0);
 }
 
@@ -238,6 +248,8 @@ __tiered_server(void *arg)
     WT_DECL_RET;
     WT_ITEM path, tmp;
     WT_SESSION_IMPL *session;
+    uint64_t time_start, time_stop, timediff;
+    bool did_work, signalled;
 
     session = arg;
     conn = S2C(session);
@@ -245,21 +257,29 @@ __tiered_server(void *arg)
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
+    timediff = WT_MINUTE;
+    time_start = __wt_clock(session);
+    did_work = true;
+    signalled = false;
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait(session, conn->tiered_cond, WT_MINUTE, __tiered_server_run_chk);
+        __wt_cond_auto_wait_signal(session, conn->tiered_cond, did_work, NULL, &signalled);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
             break;
 
+        time_stop = __wt_clock(session);
+        timediff = WT_CLOCKDIFF_SEC(time_stop, time_start);
         /*
          * Here is where we do work. Work we expect to do:
          *  - Copy any files that need moving from a flush tier call.
          *  - Remove any cached objects that are aged out.
          */
-        WT_ERR(__tier_storage_copy(session));
-        WT_ERR(__tier_storage_remove(session, false));
+        if (timediff >= WT_MINUTE || signalled) {
+            WT_ERR(__tier_storage_copy(session));
+            WT_ERR(__tier_storage_remove(session, false));
+        }
     }
 
     if (0) {
