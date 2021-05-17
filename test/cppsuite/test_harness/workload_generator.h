@@ -72,7 +72,7 @@ class workload_generator : public component {
 
         /* Populate the database. */
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
-        _is_db_populated = true;
+        _db_populated = true;
 
         /* Retrieve useful parameters from the test configuration. */
         transaction_config = _config->get_subconfig(OPS_PER_TRANSACTION);
@@ -128,9 +128,9 @@ class workload_generator : public component {
     }
 
     bool
-    is_db_populated() const
+    db_populated() const
     {
-        return (_is_db_populated);
+        return (_db_populated);
     }
 
     /* Workload threaded operations. */
@@ -168,7 +168,7 @@ class workload_generator : public component {
     timestamp_manager *_timestamp_manager;
     workload_tracking *_tracking;
     std::vector<thread_context *> _workers;
-    bool _is_db_populated = false;
+    bool _db_populated = false;
 };
 } // namespace test_harness
 
