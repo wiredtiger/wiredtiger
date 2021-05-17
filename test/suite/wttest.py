@@ -767,7 +767,7 @@ class WiredTigerTestCase(unittest.TestCase):
         'test_file.test_file.test_funcname(scen1.scen2.scen3)'.
         So transform '(', but remove final ')'.
         """
-        return self.shortid().translate(str.maketrans('($[]/','_____', ')'))
+        return self.shortid().translate(str.maketrans('($[]/ ','______', ')'))
 
     def className(self):
         return self.__class__.__name__
