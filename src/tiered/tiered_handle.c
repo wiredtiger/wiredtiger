@@ -138,7 +138,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     orig_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
     /*
      * If we have an existing local file in the tier, alter the table to indicate this one is now
-     * readonly.
+     * readonly. We are already holding the schema lock so we can call alter.
      */
     if (orig_name != NULL) {
         cfg[0] = "readonly=true";

@@ -126,25 +126,88 @@ err:
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    WT_FILE_SYSTEM *bucket_fs;
+    WT_STORAGE_SOURCE *storage_source;
+    WT_TIERED *tiered;
     WT_TIERED_WORK_UNIT *entry;
-    bool done;
+    uint64_t now;
+    char *obj_value;
+    const char *cfg[3] = {NULL, NULL, NULL};
+    const char *local_name, *local_uri, *obj_name, *obj_uri;
+    bool tracking;
 
-    done = false;
-    while (!done) {
+    __wt_src_alloc(sessin, 512, &buf);
+    tracking = false;
+    entry = NULL;
+    for (;;) {
+        /*
+         * We probably need some kind of flush generation so that we don't process flush items for
+         * tables that are added during an in-progress flush_tier. This thread could run due to a
+         * condition timeout rather than a signal. Checking that generation number would be part of
+         * calling __wt_tiered_get_flush so that we don't pull it off the queue until we're sure we
+         * want to process it.
+         */
         __wt_tiered_get_flush(session, &entry);
-        if (entry == NULL) {
-            done = true;
+        if (entry == NULL)
             break;
-        }
+        tiered = entry->tiered;
+        WT_ERR(
+          __wt_tiered_name(session, &tiered->iface, entry->id, WT_TIERED_NAME_LOCAL, &local_uri));
+        WT_ERR(
+          __wt_tiered_name(session, &tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &obj_uri));
 
-    /*
-     * Walk the work queue and copy file:<name> to shared storage object:<name>. Walk a tiered
-     * table's tiers array and copy it to any tier that allows WT_TIERS_OP_FLUSH.
-     */
+        storage_source = tiered->bstorage->storage_source;
+        bucket_fs = tiered->bstorage->file_system;
+
+        local_name = local_uri;
+        WT_PREFIX_SKIP_REQUIRED(session, local_name, "file:");
+        obj_name = obj_uri;
+        WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
+
+        /* This call make take a while, and may fail due to network timeout. */
+        WT_ERR(storage_source->ss_flush(
+          storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
+        WT_ERR(__wt_meta_track_on(session));
+        tracking = true;
+
+        /*
+         * Once the flush call succeeds we want to first remove the file: entry from the metadata
+         * and then update the object: metadata to indicate the flush is complete.
+         */
+        WT_ERR(__wt_metadata_remove(session, local_uri));
+        WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
+        now = __wt_seconds(session);
+        WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
+        cfg[0] = obj_value;
+        cfg[1] = buf->mem;
+        WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_alter(session, obj_uri, cfg));
+        WT_ERR(ret);
+        WT_ERR(__wt_meta_track_off(session));
+        tracking = false;
+
+        /*
+         * We may need a way to restart flushes for those not completed (after a crash), or failed
+         * (due to previous network outage).
+         */
+        WT_ERR(storage_source->ss_flush_finish(
+          storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
+
+        /*
+         * We are responsible for freeing the work unit when we're done with it.
+         */
+        __wt_free(session, entry);
+        entry = NULL;
     }
 
-    return (0);
+err:
+    __wt_src_free(session, &buf);
+    if (tracking)
+        WT_TRET(__wt_meta_track_off(session));
+    if (entry != NULL)
+        __wt_free(session, entry);
+    return (ret);
 }
 
 /*
