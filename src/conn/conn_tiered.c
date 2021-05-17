@@ -138,7 +138,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
     const char *local_name, *local_uri, *obj_name, *obj_uri;
     bool tracking;
 
-    __wt_src_alloc(sessin, 512, &buf);
+    WT_RET(__wt_src_alloc(session, 512, &buf));
     tracking = false;
     entry = NULL;
     for (;;) {
@@ -149,7 +149,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          * calling __wt_tiered_get_flush so that we don't pull it off the queue until we're sure we
          * want to process it.
          */
-        __wt_tiered_get_flush(session, &entry);
+        WT_ERR(__wt_tiered_get_flush(session, &entry));
         if (entry == NULL)
             break;
         tiered = entry->tiered;
