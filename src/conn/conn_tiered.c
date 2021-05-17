@@ -311,7 +311,7 @@ __tiered_server(void *arg)
     WT_DECL_RET;
     WT_ITEM path, tmp;
     WT_SESSION_IMPL *session;
-    uint64_t time_start, time_stop, timediff;
+    uint64_t cond_time, time_start, time_stop, timediff;
     bool did_work, signalled;
 
     session = arg;
@@ -320,13 +320,15 @@ __tiered_server(void *arg)
     WT_CLEAR(path);
     WT_CLEAR(tmp);
 
+    /* Condition timeout is in microseconds. */
+    cond_time = WT_MINUTE * WT_MILLION;
     timediff = WT_MINUTE;
     time_start = __wt_clock(session);
     did_work = true;
     signalled = false;
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_auto_wait_signal(session, conn->tiered_cond, did_work, NULL, &signalled);
+        __wt_cond_wait_signal(session, conn->tiered_cond, cond_time, NULL, &signalled);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))
