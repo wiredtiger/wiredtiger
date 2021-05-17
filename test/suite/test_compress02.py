@@ -35,9 +35,9 @@ from wtscenario import make_scenarios
 from wiredtiger import stat
 
 # test_compress02.py
-#   This test runs checkpoint and eviction tasks but the main focus is to
-#   check that the compression level can be reconfigured after restart if
-#   we are using zstd as the block compressor.
+#   This test checks that the compression level can be reconfigured after restart if
+#   we are using zstd as the block compressor. Tables created before reconfiguration
+#   will still use the previous compression level.
 #
 
 def timestamp_str(t):
@@ -49,7 +49,7 @@ class test_compress02(wttest.WiredTigerTestCase):
     nrows = 1000
 
     def conn_config(self):
-        config = 'builtin_extension_config={zstd={compression_level=6}},cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        config = 'builtin_extension_config={zstd={compression_level=6}},cache_size=10MB,log=(enabled=true)'
         return config
 
     def large_updates(self, uri, value, ds, nrows):
@@ -75,45 +75,21 @@ class test_compress02(wttest.WiredTigerTestCase):
 
     def test_compress02(self):
 
-        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='log=(enabled=false)')
+        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='block_compressor=zstd,log=(enabled=false)')
         ds.populate()
         valuea = "aaaaa" * 100
-        valueb = "bbbbb" * 100
-        valuec = "ccccc" * 100
-        valued = "ddddd" * 100
 
         cursor = self.session.open_cursor(self.uri)
         self.large_updates(self.uri, valuea, ds, self.nrows)
 
         self.check(valuea, self.uri, self.nrows)
-
-        session1 = self.conn.open_session()
-        session1.begin_transaction()
-        cursor1 = session1.open_cursor(self.uri)
-
-        for i in range(self.nrows, self.nrows*2):
-            cursor1.set_key(ds.key(i))
-            cursor1.set_value(valuea)
-            self.assertEqual(cursor1.insert(), 0)
-
-        # Create a checkpoint thread
-        done = threading.Event()
-        ckpt = checkpoint_thread(self.conn, done)
-        try:
-            ckpt.start()
-            # Sleep for sometime so that checkpoint starts before committing last transaction.
-            time.sleep(2)
-            session1.commit_transaction()
-
-        finally:
-            done.set()
-            ckpt.join()
+        self.session.checkpoint()
 
         #Simulate a crash by copying to a new directory(RESTART).
         copy_wiredtiger_home(self, ".", "RESTART")
 
         # Close the connection and reopen it with a different zstd compression level configuration.
-        restart_config = 'builtin_extension_config={zstd={compression_level=9}},cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
+        restart_config = 'builtin_extension_config={zstd={compression_level=9}},cache_size=10MB,log=(enabled=true)'
         self.close_conn()
         self.reopen_conn("RESTART", restart_config)
 
@@ -122,20 +98,6 @@ class test_compress02(wttest.WiredTigerTestCase):
 
         # Check the table contains the last checkpointed value.
         self.check(valuea, self.uri, self.nrows)
-
-        stat_cursor = self.session.open_cursor('statistics:', None, None)
-        inconsistent_ckpt = stat_cursor[stat.conn.txn_rts_inconsistent_ckpt][2]
-        keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
-        keys_restored = stat_cursor[stat.conn.txn_rts_keys_restored][2]
-        pages_visited = stat_cursor[stat.conn.txn_rts_pages_visited][2]
-        upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
-        stat_cursor.close()
-
-        self.assertGreater(inconsistent_ckpt, 0)
-        self.assertEqual(upd_aborted, 0)
-        self.assertGreaterEqual(keys_removed, 0)
-        self.assertEqual(keys_restored, 0)
-        self.assertGreaterEqual(pages_visited, 0)
 
 if __name__ == '__main__':
     wttest.run()
