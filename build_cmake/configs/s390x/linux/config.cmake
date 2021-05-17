@@ -5,7 +5,6 @@
 #
 #  See the file LICENSE for redistribution information
 #
-include(CheckCCompilerFlag)
 
 set(WT_ARCH "s390x" CACHE STRING "")
 set(WT_OS "linux" CACHE STRING "")
