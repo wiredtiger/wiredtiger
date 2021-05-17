@@ -73,6 +73,11 @@ class test_compress02(wttest.WiredTigerTestCase):
         session.commit_transaction()
         self.assertEqual(count, nrows)
 
+    # Load the compression extension, skip the test if missing
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('compressors', 'zstd')
+
     def test_compress02(self):
 
         ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='block_compressor=zstd,log=(enabled=false)')
