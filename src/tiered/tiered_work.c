@@ -28,8 +28,8 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 
 /*
  * __wt_tiered_pop_work --
- *     Pop a work unit of the given type from the queue. If a maximum value is given, only return
- *     a work unit that is less than the maximum value.
+ *     Pop a work unit of the given type from the queue. If a maximum value is given, only return a
+ *     work unit that is less than the maximum value.
  */
 void
 __wt_tiered_pop_work(
@@ -64,15 +64,7 @@ __wt_tiered_pop_work(
 int
 __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 {
-    WT_TIERED *tiered;
-
-    tiered = (WT_TIERED *)session->dhandle;
-    WT_RET(__wt_calloc_one(session, &entry));
-    entry->type = WT_TIERED_WORK_FLUSH;
-    entry->op_num = tiered->current_id;
-    entry->tiered = tiered;
-    entry->op_data = NULL;
-    __wt_tiered_push_work(session, entry);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, 0, entryp);
     return (0);
 }
 
@@ -81,16 +73,9 @@ __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
  *     Get a drop local work unit if it is less than the time given.
  */
 int
-__wt_tiered_get_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t now)
+__wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp)
 {
-    WT_TIERED_WORK_UNIT *entry;
-
-    WT_RET(__wt_calloc_one(session, &entry));
-    entry->type = WT_TIERED_WORK_DROP_LOCAL;
-    entry->op_num = id;
-    entry->tiered = tiered;
-    entry->op_data = NULL;
-    __wt_tiered_push_work(session, entry);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_LOCAL, now, entryp);
     return (0);
 }
 
@@ -108,7 +93,6 @@ __wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     entry->type = WT_TIERED_WORK_FLUSH;
     entry->op_num = tiered->current_id;
     entry->tiered = tiered;
-    entry->op_data = NULL;
     __wt_tiered_push_work(session, entry);
     return (0);
 }
@@ -126,7 +110,6 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
     entry->op_num = id;
     entry->tiered = tiered;
-    entry->op_data = NULL;
     __wt_tiered_push_work(session, entry);
     return (0);
 }
