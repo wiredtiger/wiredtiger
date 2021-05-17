@@ -113,7 +113,7 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t
     entry->type = WT_TIERED_WORK_DROP_LOCAL;
     entry->id = id;
     WT_ASSERT(session, tiered->bstorage != NULL);
-    now = __wt_seconds(session);
+    __wt_seconds(session, &now);
     /* Put a work unit in the queue with the time this object expires. */
     entry->op_num = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;

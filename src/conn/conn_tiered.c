@@ -138,7 +138,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
     const char *local_name, *local_uri, *obj_name, *obj_uri;
     bool tracking;
 
-    WT_RET(__wt_src_alloc(session, 512, &buf));
+    WT_RET(__wt_scr_alloc(session, 512, &buf));
     tracking = false;
     entry = NULL;
     for (;;) {
@@ -178,13 +178,13 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          */
         WT_ERR(__wt_metadata_remove(session, local_uri));
         WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
-        now = __wt_seconds(session);
+        __wt_seconds(session, &now);
         WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
         cfg[0] = obj_value;
         cfg[1] = buf->mem;
         WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_alter(session, obj_uri, cfg));
         WT_ERR(ret);
-        WT_ERR(__wt_meta_track_off(session));
+        WT_ERR(__wt_meta_track_off(session, true, ret != 0));
         tracking = false;
 
         /*
@@ -202,9 +202,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
     }
 
 err:
-    __wt_src_free(session, &buf);
+    __wt_scr_free(session, &buf);
     if (tracking)
-        WT_TRET(__wt_meta_track_off(session));
+        WT_TRET(__wt_meta_track_off(session, true, ret != 0));
     if (entry != NULL)
         __wt_free(session, entry);
     return (ret);
