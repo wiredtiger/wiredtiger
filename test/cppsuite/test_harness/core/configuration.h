@@ -44,7 +44,7 @@ class configuration {
     public:
     configuration(const std::string &test_config_name, const std::string &config)
     {
-        const auto* config_entry = __wt_test_config_match(test_config_name.c_str());
+        const auto *config_entry = __wt_test_config_match(test_config_name.c_str());
         if (config_entry == nullptr)
             testutil_die(EINVAL, "failed to match test config name");
         std::string default_config = std::string(config_entry->base);
