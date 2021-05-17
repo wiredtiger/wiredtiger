@@ -18,7 +18,6 @@ list(APPEND clang_base_c_flags "-Wno-zero-length-array")
 
 # We should turn on cast-qual, but not as a fatal error: see WT-2690.
 # For now, turn it off.
-# list(APPEND clang_base_c_flags "-Wno-error=cast-qual")
 list(APPEND clang_base_c_flags "-Wno-cast-qual")
 
 # Turn off clang thread-safety-analysis, it doesn't like some of the
