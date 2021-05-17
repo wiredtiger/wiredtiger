@@ -107,4 +107,5 @@ for f in `find bench examples ext src test -name '*.c' -o -name '*._inline.h'`; 
 		sed 's/^/function @ line:/' < $t
 	}
 done
+
 exit 0
