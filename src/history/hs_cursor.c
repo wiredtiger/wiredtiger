@@ -58,8 +58,6 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 
         /* Ensure there is no eviction happened on this page. */
         WT_ASSERT(session, page == hs_cbt->ref->page);
-        if (!leaf_found)
-            hs_cursor->reset(hs_cursor);
     }
 
     if (!leaf_found) {
