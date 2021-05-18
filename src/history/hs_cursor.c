@@ -62,9 +62,11 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
             hs_cursor->reset(hs_cursor);
     }
 
-    if (!leaf_found)
+    if (!leaf_found) {
+        WT_ERR(__wt_cursor_func_init(hs_cbt, true));
         WT_WITH_BTREE(
           session, hs_btree, ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+    }
 
     if (ret == 0 && !insert) {
         WT_ERR(__wt_key_return(hs_cbt));
