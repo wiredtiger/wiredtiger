@@ -36,6 +36,9 @@ class test_tiered03(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
+    # TODO: tiered: change this to a table: URI, otherwise we are
+    # not using tiered files.  The use of a second directory for
+    # sharing would probably need to be reworked.
     uri = 'file:test_tiered03'
 
     # Occasionally add a lot of records, so that merges (and bloom) happen.
