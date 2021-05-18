@@ -328,7 +328,8 @@ __tiered_server(void *arg)
     signalled = false;
     for (;;) {
         /* Wait until the next event. */
-        __wt_cond_wait_signal(session, conn->tiered_cond, cond_time, NULL, &signalled);
+        __wt_cond_wait_signal(
+          session, conn->tiered_cond, cond_time, __tiered_server_run_chk, &signalled);
 
         /* Check if we're quitting or being reconfigured. */
         if (!__tiered_server_run_chk(session))

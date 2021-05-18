@@ -93,7 +93,7 @@ __wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 
     WT_RET(__wt_calloc_one(session, &entry));
     entry->type = WT_TIERED_WORK_FLUSH;
-    entry->op_num = tiered->current_id;
+    entry->id = tiered->current_id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
     return (0);
