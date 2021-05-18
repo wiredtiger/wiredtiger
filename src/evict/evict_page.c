@@ -91,7 +91,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 int
 __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32_t flags)
 {
-    WT_ADDR addr;
+    WT_ADDR_COPY addr;
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *hs_cursor_saved;
     WT_DECL_RET;
@@ -222,9 +222,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     if (clean_page && __wt_ref_addr_copy(session, ref, &addr)) {
 
 	if (page->modify == NULL)
-	    __wt_blkcache_evicting_clean(session, addr, true /* never modified */);
+	    __wt_blkcache_evicting_clean(session, addr.addr, true /* never modified */);
 	else
-	    __wt_blkcache_evicting_clean(session, addr, false /* never modified */);
+	    __wt_blkcache_evicting_clean(session, addr.addr, false /* never modified */);
     }
     /*
      * Discard all page-deleted information. If a truncate call deleted this page, there's memory

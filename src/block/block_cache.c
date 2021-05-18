@@ -313,7 +313,7 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
  *     the DRAM cache.
  */
 void
-__wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, WT_ADDR addr, bool never_modified)
+__wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, uint8_t *addr, bool never_modified)
 {
     WT_BLKCACHE *blkcache;
     WT_BLKCACHE_ID id;
@@ -332,23 +332,23 @@ __wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, WT_ADDR addr, bool never_
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return;
 
-    if (__wt_block_buffer_to_addr(bm->block, addr.addr, &id.offset, &id.size, &id.checksum) != 0) {
-	printf("Couldn't crack the cookie\n");
+    if (__wt_block_buffer_to_addr(bm->block, addr, (wt_off_t *)&id.offset,
+				  (uint32_t *)&id.size, (uint32_t *)&id.checksum) != 0)
 	return;
-    }
 
     hash = __wt_hash_city64(&id, sizeof(id));
 
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
+        if (memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID)) == 0) {
 	    if (blkcache_item->freq_rec_counter <= 0 && never_modified) {
 		blkcache_item->freq_rec_counter = 0;
 		WT_STAT_CONN_INCR(session, block_cache_blocks_upgraded);
 	    }
 	}
     }
+    __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 }
 
 /*
@@ -883,5 +883,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     return __blkcache_init(session, cache_size, hash_size, cache_type,
 			   nvram_device_path, system_ram, percent_file_in_dram, write_allocate,
-			   overhead_pct, eviction_on, evict_aggressive, full_target);
+			   overhead_pct, eviction_on, evict_aggressive, full_target,
+			   chkpt_write_bypass);
 }

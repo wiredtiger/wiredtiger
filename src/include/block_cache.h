@@ -69,6 +69,7 @@ struct __wt_blkcache {
     wt_thread_t evict_thread_tid;
 
     volatile bool blkcache_exiting;
+    bool chkpt_write_bypass;
     bool eviction_on;
     int32_t evict_aggressive;
     bool write_allocate;
