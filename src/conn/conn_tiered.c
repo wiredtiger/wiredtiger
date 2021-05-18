@@ -125,21 +125,29 @@ err:
  *     that we can hold the schema lock while doing the metadata tracking.
  */
 static int
-__tier_flush_meta(WT_SESSION_IMPL *session, const char *local_uri, const char *obj_uri)
+__tier_flush_meta(
+  WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
 {
+    WT_CURSOR *cursor;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     uint64_t now;
-    char *obj_value;
+    char *newconfig, *obj_value;
     const char *cfg[3] = {NULL, NULL, NULL};
     bool tracking;
 
+    cursor = NULL;
     WT_RET(__wt_scr_alloc(session, 512, &buf));
+    WT_ERR(__wt_metadata_cursor(session, &cursor));
     tracking = false;
+    dhandle = &tiered->iface;
 
+    newconfig = NULL;
     WT_ERR(__wt_meta_track_on(session));
     tracking = true;
 
+    WT_ERR(__wt_session_get_dhandle(session, dhandle->name, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     /*
      * Once the flush call succeeds we want to first remove the file: entry from the metadata and
      * then update the object: metadata to indicate the flush is complete.
@@ -150,11 +158,15 @@ __tier_flush_meta(WT_SESSION_IMPL *session, const char *local_uri, const char *o
     WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
     cfg[0] = obj_value;
     cfg[1] = buf->mem;
-    WT_ERR(__wt_schema_alter(session, obj_uri, cfg));
+    WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
+    WT_ERR(__wt_metadata_update(session, obj_uri, newconfig));
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     tracking = false;
 
 err:
+    __wt_free(session, newconfig);
+    WT_TRET(__wt_session_release_dhandle(session));
+    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     __wt_scr_free(session, &buf);
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -205,8 +217,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         WT_ERR(storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
 
-        WT_WITH_SCHEMA_LOCK(session,
-            ret = __tier_flush_meta(session, tiered, local_uri, obj_uri));
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(
+            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
         WT_ERR(ret);
 
         /*
