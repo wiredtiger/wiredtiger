@@ -221,9 +221,9 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
           (session->dhandle->orig_meta_base != NULL && meta_base != NULL &&
             !WT_STREQ(session->dhandle->orig_meta_base, meta_base)))
             WT_ERR_PANIC(session, WT_PANIC,
-              "Corrupted metadata. The original metadata length was %" PRIu64
-              " while the new one is %" PRIu64
-              ". The original metadata inserted was %s and the current metadata is now %s.",
+              "Corrupted metadata. The original metadata length was %lu while the new one is %lu. "
+              "The original metadata inserted was %s and the current "
+              "metadata is now %s.",
               session->dhandle->orig_meta_base_length, meta_base_length,
               session->dhandle->orig_meta_base, meta_base);
 #endif

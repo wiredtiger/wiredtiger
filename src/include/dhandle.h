@@ -72,7 +72,7 @@ struct __wt_data_handle {
 #ifdef HAVE_DIAGNOSTIC
     const char *orig_meta_base; /* Copy of the base metadata configuration */
 #endif
-    uint64_t orig_meta_base_length; /* Base metadata length */
+    size_t orig_meta_base_length; /* Base metadata length */
     /*
      * Sessions holding a connection's data handle will have a non-zero reference count; sessions
      * using a connection's data handle will have a non-zero in-use count. Instances of cached
