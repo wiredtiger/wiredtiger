@@ -16,7 +16,6 @@ int
 __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 {
     WT_BTREE *hs_btree;
-    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     bool leaf_found;
@@ -26,7 +25,6 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
 
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
-    hs_cursor = &hs_cbt->iface;
     leaf_found = false;
 
     /*
