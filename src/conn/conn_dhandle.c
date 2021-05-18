@@ -114,7 +114,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
-    dhandle->orig_meta_base_length = base == NULL ? 0 : strlen(base);
+    dhandle->meta_base_length = base == NULL ? 0 : strlen(base);
 #ifdef HAVE_DIAGNOSTIC
     /*  Save the original metadata value for further check to avoid writing corrupted data. */
     if (base == NULL)
