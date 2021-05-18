@@ -100,7 +100,7 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
     __wt_free(session, block->name);
 
     if (block->log_structured && block->lfh != NULL) {
-        for (i = 0; i < block->max_logid; i++)
+        for (i = 0; i < block->max_objectid; i++)
             WT_TRET(__wt_close(session, &block->lfh[i]));
         __wt_free(session, block->lfh);
     }

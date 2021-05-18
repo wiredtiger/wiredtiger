@@ -51,7 +51,7 @@ struct __wt_extlist {
     uint64_t bytes;   /* Byte count */
     uint32_t entries; /* Entry count */
 
-    uint32_t logid;    /* Written log ID */
+    uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
@@ -141,7 +141,7 @@ struct __wt_size {
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
-    uint32_t root_logid;
+    uint32_t root_objectid;
     wt_off_t root_offset; /* The root */
     uint32_t root_checksum, root_size;
 
@@ -247,7 +247,7 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Log-structured tracking. */
-    uint32_t file_flags, logid, max_logid;
+    uint32_t file_flags, objectid, max_objectid;
     WT_FH **lfh;
     size_t lfh_alloc;
 
