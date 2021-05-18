@@ -34,7 +34,7 @@ __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * TODO: tiered: this call currently advances the object id, that's probably not appropriate for
      * readonly opens. Perhaps it's also not appropriate for opening at an older checkpoint?
      */
-    if (block->log_structured) {
+    if (block->has_objects) {
         block->objectid = ci->root_objectid;
 
         /* Advance to the next file for future changes. */

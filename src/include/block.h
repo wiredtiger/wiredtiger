@@ -239,17 +239,17 @@ struct __wt_block {
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
-    bool log_structured; /* Write checkpoint as separate files */
+    bool has_objects;    /* Address cookies contain object id */
     size_t os_cache;     /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
 
-    /* Log-structured tracking. */
+    /* Object file tracking. */
     uint32_t file_flags, objectid, max_objectid;
-    WT_FH **lfh;
-    size_t lfh_alloc;
+    WT_FH **ofh;
+    size_t ofh_alloc;
 
     /*
      * There is only a single checkpoint in a file that can be written. The information could

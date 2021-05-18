@@ -44,12 +44,30 @@ class test_tiered03(wttest.WiredTigerTestCase):
 
     scenarios = wtscenario.make_scenarios(record_count_scenarios, prune=100, prunelong=500)
 
+    auth_token = "test_token"
+    bucket = "mybucket"
+    bucket_prefix = "pfx_"
+    extension_name = "local_store"
+    prefix = "pfx-"
+
+    def conn_config(self):
+        if not os.path.exists(self.bucket):
+            os.mkdir(self.bucket)
+        return \
+          'statistics=(all),' + \
+          'tiered_storage=(auth_token=%s,' % self.auth_token + \
+          'bucket=%s,' % self.bucket + \
+          'bucket_prefix=%s,' % self.prefix + \
+          'name=%s)' % self.extension_name
+
+    # Load the local store extension, but skip the test if it is missing.
+    def conn_extensions(self, extlist):
+        extlist.skip_if_missing = True
+        extlist.extension('storage_sources', self.extension_name)
+
     # Test sharing data between a primary and a secondary
     def test_sharing(self):
-        args = 'block_allocation=log-structured'
-        self.verbose(3,
-            'Test log-structured allocation with config: ' + args + ' count: ' + str(self.nrecs))
-        ds = SimpleDataSet(self, self.uri, 10, config=args)
+        ds = SimpleDataSet(self, self.uri, 10)
         ds.populate()
         ds.check()
         self.session.checkpoint()
@@ -71,7 +89,7 @@ class test_tiered03(wttest.WiredTigerTestCase):
         ds.check_cursor(cursor2)
         cursor2.close()
 
-        newds = SimpleDataSet(self, self.uri, 10000, config=args)
+        newds = SimpleDataSet(self, self.uri, 10000)
         newds.populate()
         newds.check()
         self.session.checkpoint()
