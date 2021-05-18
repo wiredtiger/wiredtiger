@@ -448,6 +448,9 @@ connection_runtime_config = [
                Config('enabled', 'false', r'''
                       enable block cache''',
                       type='boolean'),
+               Config('checkpoint_write_bypass', 'true', r'''
+                      Do not allocate blocks that are written by a checkpoint''',
+                      type='boolean'),
                Config('eviction_on', 'true', r'''
                       Turn on eviction''',
                       type='boolean'),

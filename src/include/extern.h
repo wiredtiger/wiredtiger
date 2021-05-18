@@ -1616,6 +1616,8 @@ extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((nor
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_async_stats_update(WT_SESSION_IMPL *session);
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
+extern void __wt_blkcache_evicting_clean(
+  WT_SESSION_IMPL *session, WT_ADDR addr, bool never_modified);
 extern void __wt_blkcache_remove(
   WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum);
 extern void __wt_block_cache_destroy(WT_SESSION_IMPL *session);

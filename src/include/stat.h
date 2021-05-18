@@ -356,6 +356,7 @@ struct __wt_connection_stats {
     int64_t block_cache_blocks;
     int64_t block_cache_blocks_insert_read;
     int64_t block_cache_blocks_insert_write;
+    int64_t block_cache_blocks_upgraded;
     int64_t block_cache_bytes;
     int64_t block_cache_bytes_insert_read;
     int64_t block_cache_bytes_insert_write;

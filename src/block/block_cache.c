@@ -307,6 +307,51 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 
 
 /*
+ *  __wt_blkcache_evicting_clean --
+ *
+ *     Notify the block cache if a clean page is being evicted from
+ *     the DRAM cache.
+ */
+void
+__wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, WT_ADDR addr, bool never_modified)
+{
+    WT_BLKCACHE *blkcache;
+    WT_BLKCACHE_ID id;
+    WT_BLKCACHE_ITEM *blkcache_item;
+    WT_BM *bm;
+    WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
+    uint64_t bucket, hash;
+
+    btree = S2BT(session);
+    bm = btree->bm;
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+    blkcache_item = NULL;
+
+    if (blkcache->type == BLKCACHE_UNCONFIGURED)
+        return;
+
+    if (__wt_block_buffer_to_addr(bm->block, addr.addr, &id.offset, &id.size, &id.checksum) != 0) {
+	printf("Couldn't crack the cookie\n");
+	return;
+    }
+
+    hash = __wt_hash_city64(&id, sizeof(id));
+
+    bucket = hash % blkcache->hash_size;
+    __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
+    TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
+        if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
+	    if (blkcache_item->freq_rec_counter <= 0 && never_modified) {
+		blkcache_item->freq_rec_counter = 0;
+		WT_STAT_CONN_INCR(session, block_cache_blocks_upgraded);
+	    }
+	}
+    }
+}
+
+/*
  * __wt_blkcache_get_or_check --
  *     Get a block from the cache or check if one exists.
  */
@@ -455,7 +500,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size,
      * of eviction. Those are the blocks that the DRAM cache would like to
      * keep but can't, and we definitely want to keep them.
      */
-    if (checkpoint_io) {
+    if (blkcache->chkpt_write_bypass && checkpoint_io) {
 	WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
 	return WT_BLKCACHE_BYPASS;
     }
@@ -612,7 +657,8 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 		size_t hash_size, uint type, char *nvram_device_path,
 		size_t system_ram, uint percent_file_in_dram,
 		bool write_allocate, double overhead_pct,
-		bool eviction_on, uint evict_aggressive, double full_target)
+		bool eviction_on, uint evict_aggressive, double full_target,
+		bool chkpt_write_bypass)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -621,6 +667,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
+    blkcache->chkpt_write_bypass = chkpt_write_bypass;
     blkcache->hash_size = hash_size;
     blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
     blkcache->full_target = full_target;
@@ -630,9 +677,9 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size,
     blkcache->write_allocate = write_allocate;
 
     printf("Block cache: fraction in dram: %f, full_target %f,"
-	   "overhead percent: %f, evict_aggressive: %d\n",
+	   "overhead percent: %f, evict_aggressive: %d, chkpt_write_bypass: %d \n",
 	   (double)blkcache->fraction_in_dram, blkcache->full_target,
-	   blkcache->overhead_pct, -evict_aggressive);
+	   blkcache->overhead_pct, -evict_aggressive, chkpt_write_bypass);
 
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
@@ -758,7 +805,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
 
-    bool write_allocate, eviction_on;
+    bool chkpt_write_bypass, eviction_on, write_allocate;
     char *nvram_device_path;
     double overhead_pct, full_target;
     uint cache_type, evict_aggressive, percent_file_in_dram;
@@ -768,7 +815,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     blkcache = &conn->blkcache;
     cache_type = BLKCACHE_UNCONFIGURED;
     cache_size = hash_size = 0;
-    eviction_on = write_allocate = true;
+    chkpt_write_bypass = eviction_on = write_allocate = true;
     nvram_device_path = NULL;
 
     if (reconfig)
@@ -812,6 +859,10 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.percent_file_in_dram", &cval));
     percent_file_in_dram = cval.val;
+
+    WT_RET(__wt_config_gets(session, cfg, "block_cache.checkpoint_write_bypass", &cval));
+    if (cval.val == 0)
+	chkpt_write_bypass = false;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.eviction_on", &cval));
     if (cval.val == 0)
