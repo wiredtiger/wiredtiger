@@ -50,11 +50,11 @@ __cursor_state_restore(WT_CURSOR *cursor, WT_CURFILE_STATE *state)
 }
 
 /*
- * __cursor_page_pinned --
+ * __wt_cursor_page_pinned --
  *     Return if we have a page pinned.
  */
-static inline bool
-__cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
+bool
+__wt_cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
 {
     WT_CURSOR *cursor;
     WT_SESSION_IMPL *session;
@@ -541,7 +541,7 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
      * pinned page doesn't find an exact match, search from the root.
      */
     valid = false;
-    if (__cursor_page_pinned(cbt, true)) {
+    if (__wt_cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
         if (btree->type == BTREE_ROW) {
@@ -640,7 +640,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * search.
      */
     valid = false;
-    if (btree->type == BTREE_ROW && __cursor_page_pinned(cbt, true)) {
+    if (btree->type == BTREE_ROW && __wt_cursor_page_pinned(cbt, true)) {
         __wt_txn_cursor_op(session);
 
         /*
@@ -804,7 +804,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
      */
-    if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false) &&
+    if (btree->type != BTREE_COL_FIX && __wt_cursor_page_pinned(cbt, false) &&
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
         WT_ERR(__wt_txn_autocommit_check(session));
         /*
@@ -1035,7 +1035,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
      */
-    if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
+    if (btree->type != BTREE_COL_FIX && __wt_cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
 
         /*
@@ -1212,7 +1212,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
      */
-    if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
+    if (btree->type != BTREE_COL_FIX && __wt_cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
 
         /*

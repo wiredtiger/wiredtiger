@@ -33,7 +33,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
      * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
      * perform a full search.
      */
-    if (hs_cbt->ref != NULL) {
+    if (__wt_cursor_page_pinned(hs_cbt, true)) {
 #ifdef HAVE_DIAGNOSTIC
         WT_ORDERED_READ(page, hs_cbt->ref->page);
 #endif
@@ -44,7 +44,7 @@ __wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
         WT_ASSERT(session, __wt_hazard_check(session, hs_cbt->ref, NULL) != NULL);
         WT_WITH_BTREE(session, hs_btree,
           ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
-        WT_RET(ret);
+        WT_ERR(ret);
 
         /*
          * Only use the pinned page search results if search returns an exact match or a slot other
