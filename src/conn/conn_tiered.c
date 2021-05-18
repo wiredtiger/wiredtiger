@@ -120,26 +120,61 @@ err:
 }
 
 /*
+ * __tier_flush_meta --
+ *     Perform one iteration of altering the metadata after a flush. This is in its own function so
+ *     that we can hold the schema lock while doing the metadata tracking.
+ */
+static int
+__tier_flush_meta(WT_SESSION_IMPL *session, const char *local_uri, const char *obj_uri)
+{
+    WT_DECL_ITEM(buf);
+    WT_DECL_RET;
+    uint64_t now;
+    char *obj_value;
+    const char *cfg[3] = {NULL, NULL, NULL};
+    bool tracking;
+
+    WT_RET(__wt_scr_alloc(session, 512, &buf));
+    tracking = false;
+
+    WT_ERR(__wt_meta_track_on(session));
+    tracking = true;
+
+    /*
+     * Once the flush call succeeds we want to first remove the file: entry from the metadata and
+     * then update the object: metadata to indicate the flush is complete.
+     */
+    WT_ERR(__wt_metadata_remove(session, local_uri));
+    WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
+    __wt_seconds(session, &now);
+    WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
+    cfg[0] = obj_value;
+    cfg[1] = buf->mem;
+    WT_ERR(__wt_schema_alter(session, obj_uri, cfg));
+    WT_ERR(__wt_meta_track_off(session, true, ret != 0));
+    tracking = false;
+
+err:
+    __wt_scr_free(session, &buf);
+    if (tracking)
+        WT_TRET(__wt_meta_track_off(session, true, ret != 0));
+    return (ret);
+}
+
+/*
  * __tier_storage_copy --
  *     Perform one iteration of copying newly flushed objects to the shared storage.
  */
 static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
-    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
     WT_TIERED *tiered;
     WT_TIERED_WORK_UNIT *entry;
-    uint64_t now;
-    char *obj_value;
-    const char *cfg[3] = {NULL, NULL, NULL};
     const char *local_name, *local_uri, *obj_name, *obj_uri;
-    bool tracking;
 
-    WT_RET(__wt_scr_alloc(session, 512, &buf));
-    tracking = false;
     entry = NULL;
     for (;;) {
         /*
@@ -169,23 +204,9 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         /* This call make take a while, and may fail due to network timeout. */
         WT_ERR(storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
-        WT_ERR(__wt_meta_track_on(session));
-        tracking = true;
 
-        /*
-         * Once the flush call succeeds we want to first remove the file: entry from the metadata
-         * and then update the object: metadata to indicate the flush is complete.
-         */
-        WT_ERR(__wt_metadata_remove(session, local_uri));
-        WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
-        __wt_seconds(session, &now);
-        WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
-        cfg[0] = obj_value;
-        cfg[1] = buf->mem;
-        WT_WITH_SCHEMA_LOCK(session, ret = __wt_schema_alter(session, obj_uri, cfg));
+        WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, local_uri, obj_uri));
         WT_ERR(ret);
-        WT_ERR(__wt_meta_track_off(session, true, ret != 0));
-        tracking = false;
 
         /*
          * We may need a way to restart flushes for those not completed (after a crash), or failed
@@ -202,9 +223,6 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
     }
 
 err:
-    __wt_scr_free(session, &buf);
-    if (tracking)
-        WT_TRET(__wt_meta_track_off(session, true, ret != 0));
     if (entry != NULL)
         __wt_free(session, entry);
     return (ret);
