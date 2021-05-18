@@ -183,3 +183,18 @@
         if (WT_VERBOSE_ISSET(session, flag))                               \
             __wt_verbose_worker(session, "[" #flag "] " fmt, __VA_ARGS__); \
     } while (0)
+
+#define __wt_verbose_progress(session, flag, start_time, msg_count, closing, fmt, ...) \
+    do {                                                                               \
+        if (WT_VERBOSE_ISSET(session, flag)) {                                         \
+            struct timespec cur_time;                                                  \
+            uint64_t time_diff;                                                        \
+                                                                                       \
+            __wt_epoch(session, &cur_time);                                            \
+            time_diff = WT_TIMEDIFF_SEC(cur_time, start_time);                         \
+            if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > *msg_count) {        \
+                __wt_verbose_worker(session, "[" #flag "] " fmt, __VA_ARGS__);         \
+                ++(*msg_count);                                                        \
+            }                                                                          \
+        }                                                                              \
+    } while (0)

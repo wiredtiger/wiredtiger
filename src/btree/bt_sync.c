@@ -650,7 +650,11 @@ __wt_sync_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
 
                 /* Periodically log checkpoint progress. */
                 if (conn->ckpt_write_pages % 5000 == 0)
-                    __wt_checkpoint_progress(session, false);
+                    __wt_verbose_progress(session, WT_VERB_CHECKPOINT_PROGRESS,
+                      conn->ckpt_timer_start, &conn->ckpt_progress_msg_count, true,
+                      "Checkpoint has been running for %" PRIu64 " seconds and wrote: %" PRIu64
+                      " pages (%" PRIu64 " MB)",
+                      time_diff, conn->ckpt_write_pages, conn->ckpt_write_bytes / WT_MEGABYTE);
             }
         }
         break;

@@ -1375,29 +1375,6 @@ err:
 }
 
 /*
- * __rollback_progress_msg --
- *     Log a verbose message about the progress of the current rollback to stable.
- */
-static void
-__rollback_progress_msg(
-  WT_SESSION_IMPL *session, struct timespec rollback_start, size_t rollback_count)
-{
-    struct timespec cur_time;
-    uint64_t time_diff;
-
-    __wt_epoch(session, &cur_time);
-
-    /* Time since the rollback started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, rollback_start);
-
-    if (time_diff / WT_PROGRESS_MSG_PERIOD)
-        __wt_verbose(session, WT_VERB_RECOVERY_PROGRESS,
-          "Rollback to stable has been running for: %" PRIu64 " seconds and has "
-          "inspected: %" PRIu64 " files. For more detailed logging, enable WT_VERB_RTS",
-          time_diff, rollback_count);
-}
-
-/*
  * __rollback_to_stable_btree_apply --
  *     Perform rollback to stable to all files listed in the metadata, apart from the metadata and
  *     history store files.
@@ -1413,17 +1390,17 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts,
       rollback_timestamp;
     struct timespec rollback_timer;
-    uint64_t rollback_txnid;
+    uint64_t rollback_count, rollback_msg_count, rollback_txnid;
     uint32_t btree_id;
-    size_t addr_size, rollback_count;
+    size_t addr_size;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     const char *config, *uri;
     bool durable_ts_found, prepared_updates, has_txn_updates_gt_than_ckpt_snap;
     bool dhandle_allocated, perform_rts;
 
     txn_global = &S2C(session)->txn_global;
-    rollback_txnid = 0;
-    addr_size = rollback_count = 0;
+    rollback_count = rollback_msg_count = rollback_txnid = 0;
+    addr_size = 0;
 
     /* Initialize the verbose tracking timer */
     __wt_epoch(session, &rollback_timer);
@@ -1451,7 +1428,12 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
 
     while ((ret = cursor->next(cursor)) == 0) {
         /* Log a message about the progress of the current rollback to stable. */
-        __rollback_progress_msg(session, rollback_timer, rollback_count);
+        __wt_verbose_progress(session, WT_VERB_RECOVERY_PROGRESS, rollback_timer,
+          &rollback_msg_count, false,
+          "Rollback to stable has been running for: %" PRIu64 " seconds and has inspected: %" PRIu64
+          " files. For more detailed logging, enable"
+          " WT_VERB_RTS",
+          time_diff, rollback_count);
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));

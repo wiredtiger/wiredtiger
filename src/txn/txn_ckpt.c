@@ -405,32 +405,6 @@ __checkpoint_reduce_dirty_cache(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_checkpoint_progress --
- *     Output a checkpoint progress message.
- */
-void
-__wt_checkpoint_progress(WT_SESSION_IMPL *session, bool closing)
-{
-    struct timespec cur_time;
-    WT_CONNECTION_IMPL *conn;
-    uint64_t time_diff;
-
-    conn = S2C(session);
-    __wt_epoch(session, &cur_time);
-
-    /* Time since the full database checkpoint started */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, conn->ckpt_timer_start);
-
-    if (closing || (time_diff / WT_PROGRESS_MSG_PERIOD) > conn->ckpt_progress_msg_count) {
-        __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
-          "Checkpoint %s for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
-          closing ? "ran" : "has been running", time_diff, conn->ckpt_write_pages,
-          conn->ckpt_write_bytes / WT_MEGABYTE);
-        conn->ckpt_progress_msg_count++;
-    }
-}
-
-/*
  * __checkpoint_stats --
  *     Update checkpoint timer stats.
  */
@@ -445,7 +419,10 @@ __checkpoint_stats(WT_SESSION_IMPL *session)
 
     /* Output a verbose progress message for long running checkpoints. */
     if (conn->ckpt_progress_msg_count > 0)
-        __wt_checkpoint_progress(session, true);
+        __wt_verbose_progress(session, WT_VERB_CHECKPOINT_PROGRESS, conn->ckpt_timer_start,
+          &conn->ckpt_progress_msg_count, true,
+          "Checkpoint ran for %" PRIu64 " seconds and wrote: %" PRIu64 " pages (%" PRIu64 " MB)",
+          time_diff, conn->ckpt_write_pages, conn->ckpt_write_bytes / WT_MEGABYTE);
 
     /* Compute end-to-end timer statistics for checkpoint. */
     __wt_epoch(session, &stop);
