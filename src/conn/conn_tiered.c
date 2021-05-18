@@ -205,7 +205,8 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         WT_ERR(storage_source->ss_flush(
           storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
 
-        WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, local_uri, obj_uri));
+        WT_WITH_SCHEMA_LOCK(session,
+            ret = __tier_flush_meta(session, tiered, local_uri, obj_uri));
         WT_ERR(ret);
 
         /*
@@ -330,7 +331,7 @@ __tiered_server(void *arg)
     WT_ITEM path, tmp;
     WT_SESSION_IMPL *session;
     uint64_t cond_time, time_start, time_stop, timediff;
-    bool did_work, signalled;
+    bool signalled;
 
     session = arg;
     conn = S2C(session);
@@ -342,7 +343,6 @@ __tiered_server(void *arg)
     cond_time = WT_MINUTE * WT_MILLION;
     timediff = WT_MINUTE;
     time_start = __wt_clock(session);
-    did_work = true;
     signalled = false;
     for (;;) {
         /* Wait until the next event. */
