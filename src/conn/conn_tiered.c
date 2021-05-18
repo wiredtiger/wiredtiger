@@ -138,9 +138,9 @@ __tier_flush_meta(
     bool tracking;
 
     cursor = NULL;
+    tracking = false;
     WT_RET(__wt_scr_alloc(session, 512, &buf));
     WT_ERR(__wt_metadata_cursor(session, &cursor));
-    tracking = false;
     dhandle = &tiered->iface;
 
     newconfig = NULL;
