@@ -27,7 +27,7 @@ include(build_cmake/helpers.cmake)
 # we will infer the target from the host.
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
         set(WT_ARCH "x86")
     else()
         set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
