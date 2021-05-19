@@ -177,8 +177,15 @@ config_string(
     DEFAULT "\"WiredTiger ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH} (${config_date})\""
 )
 
-if(HAVE_DIAGNOSTIC)
+if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
+    # Avoid setting diagnostic flags if we are building with Debug mode.
+    # CMakes Debug config sets compilation with debug symbols by default.
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 endif()
 
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
+if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+    # Don't use the optimization level if we have specified a release config.
+    # CMakes Release config sets compilation to the highest optimization level
+    # by default.
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CC_OPTIMIZE_LEVEL}")
+endif()
