@@ -147,3 +147,4 @@ endif()
 # Build the wiredtiger test suites.
 enable_testing()
 add_subdirectory(test)
+add_subdirectory(examples)
