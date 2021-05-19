@@ -26,36 +26,27 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-project(test)
+project(libwinshim C)
 
-include(ctest_helpers.cmake)
+set(sources
+    windows_shim.c
+)
 
-if(WT_WIN)
-    # Compile the windows shim library.
-    add_subdirectory(windows)
+set(link_type)
+if(ENABLE_STATIC)
+    set(link_type "STATIC")
+else()
+    set(link_type "SHARED")
 endif()
+add_library(windows_shim ${link_type} ${sources})
 
-# Compile the test library utility
-add_subdirectory(utility)
+target_include_directories(
+    windows_shim
+    PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
+    PRIVATE ${CMAKE_BINARY_DIR}/include ${CMAKE_BINARY_DIR}/config ${CMAKE_SOURCE_DIR}/src/include
+)
 
-# Compile our tests.
-add_subdirectory(bloom)
-add_subdirectory(checkpoint)
-add_subdirectory(cursor_order)
-add_subdirectory(fops)
-add_subdirectory(format)
-add_subdirectory(huge)
-add_subdirectory(manydbs)
-add_subdirectory(packing)
-add_subdirectory(readonly)
-add_subdirectory(salvage)
-add_subdirectory(syscall)
-add_subdirectory(thread)
-add_subdirectory(cppsuite)
-add_subdirectory(csuite)
-
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
-    # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
-    # when using Clang.
-    add_subdirectory(fuzz)
-endif()
+target_compile_options(
+    windows_shim
+    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+)
