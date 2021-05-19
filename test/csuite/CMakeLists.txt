@@ -35,7 +35,7 @@ macro(define_csuite_test)
         "CSUITE"
         "SMOKE"
         "TARGET;DIR_NAME"
-        "SOURCES"
+        "SOURCES;FLAGS;ARGUMENTS"
         ${ARGN}
     )
     if (NOT "${CSUITE_UNPARSED_ARGUMENTS}" STREQUAL "")
@@ -50,21 +50,27 @@ macro(define_csuite_test)
     if ("${CSUITE_DIR_NAME}" STREQUAL "")
         message(FATAL_ERROR "No directory given to define_csuite_test")
     endif()
+    set(additional_executable_args)
+    if(NOT "${CSUITE_FLAGS}" STREQUAL "")
+        list(APPEND additional_executable_args FLAGS ${CSUITE_FLAGS})
+    endif()
     if (CSUITE_SMOKE)
         # csuite test comes with a smoke execution wrapper.
         create_test_executable(${CSUITE_TARGET}
             SOURCES ${CSUITE_SOURCES}
             ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${CSUITE_DIR_NAME}/smoke.sh
             BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
+            ${additional_executable_args}
         )
         add_test(NAME ${CSUITE_TARGET}
-            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh $<TARGET_FILE:${CSUITE_TARGET}>)
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh $<TARGET_FILE:${CSUITE_TARGET}> ${CSUITE_ARGUMENTS})
     else()
         create_test_executable(${CSUITE_TARGET}
             SOURCES ${CSUITE_SOURCES}
             BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
+            ${additional_executable_args}
         )
-        add_test(NAME ${CSUITE_TARGET} COMMAND ${CSUITE_TARGET})
+        add_test(NAME ${CSUITE_TARGET} COMMAND ${CSUITE_TARGET} ${CSUITE_ARGUMENTS})
     endif()
     list(APPEND csuite_tests ${CSUITE_TARGET})
 endmacro(define_csuite_test)
