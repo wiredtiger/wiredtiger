@@ -194,3 +194,73 @@ function(define_test_variants target)
         set_tests_properties(${defined_tests} PROPERTIES LABELS "${DEFINE_TEST_LABELS}")
     endif()
 endfunction()
+
+macro(define_c_test)
+    cmake_parse_arguments(
+        "C_TEST"
+        "SMOKE"
+        "TARGET;DIR_NAME;DEPENDS"
+        "SOURCES;FLAGS;ARGUMENTS"
+        ${ARGN}
+    )
+    if (NOT "${C_TEST_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to define_c_test: ${C_TEST_UNPARSED_ARGUMENTS}")
+    endif()
+    if ("${C_TEST_TARGET}" STREQUAL "")
+        message(FATAL_ERROR "No target name given to define_c_test")
+    endif()
+    if ("${C_TEST_SOURCES}" STREQUAL "")
+        message(FATAL_ERROR "No sources given to define_c_test")
+    endif()
+    if ("${C_TEST_DIR_NAME}" STREQUAL "")
+        message(FATAL_ERROR "No directory given to define_c_test")
+    endif()
+
+     # Check that the csuite dependencies are enabled before compiling and creating the test.
+     eval_dependency("${C_TEST_DEPENDS}" enabled)
+    if(enabled)
+        set(additional_executable_args)
+        if(NOT "${C_TEST_FLAGS}" STREQUAL "")
+            list(APPEND additional_executable_args FLAGS ${C_TEST_FLAGS})
+        endif()
+        if (C_TEST_SMOKE)
+            # csuite test comes with a smoke execution wrapper.
+            create_test_executable(${C_TEST_TARGET}
+                SOURCES ${C_TEST_SOURCES}
+                ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${C_TEST_DIR_NAME}/smoke.sh
+                BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
+                ${additional_executable_args}
+            )
+            add_test(NAME ${C_TEST_TARGET}
+                COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}/smoke.sh ${C_TEST_ARGUMENTS} $<TARGET_FILE:${C_TEST_TARGET}>
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
+            )
+        else()
+            create_test_executable(${C_TEST_TARGET}
+                SOURCES ${C_TEST_SOURCES}
+                BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
+                ${additional_executable_args}
+            )
+            # Take a CMake-based path and convert it to a platform-specfic path (/ for Unix, \ for Windows).
+            set(wt_test_home_dir ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}/WT_HOME_${C_TEST_TARGET})
+            file(TO_NATIVE_PATH "${wt_test_home_dir}" wt_test_home_dir)
+            # Ensure each DB home directory is run under the tests working directory.
+            set(command_args -h ${wt_test_home_dir})
+            list(APPEND command_args ${C_TEST_ARGUMENTS})
+            set(exec_wrapper)
+            if(WT_WIN)
+                # This is currently a workaround to successfully run our csuite tests under Windows using CTest.
+                # When executing a test, CTest by-passes the shell and directly execs the test as a child process (as this probably more efficient).
+                # Problematic to this is CTest executes the binary with forward-slash paths, which is valid under Windows, though breaks assumptions
+                # in our testing utilities where we expect all Windows paths to use back-slash based paths. To get around this, we wrap the execution of the
+                # the test in a powershell command, where powershell auto-converts forward-slash paths into native back-slash paths.
+                set(exec_wrapper "powershell.exe")
+            endif()
+            add_test(NAME ${C_TEST_TARGET}
+                COMMAND ${exec_wrapper} $<TARGET_FILE:${C_TEST_TARGET}> ${command_args}
+                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
+            )
+        endif()
+        list(APPEND c_tests ${C_TEST_TARGET})
+    endif()
+endmacro(define_c_test)
