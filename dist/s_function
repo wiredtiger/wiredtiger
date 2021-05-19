@@ -38,8 +38,7 @@ for f in `find bench examples ext src test -name '*.c' -o -name '*._inline.h'`; 
 	file_parse $f | sed "s=^=$f:="
 done | python dist/s_function_loop.py |
     egrep '\{@[^@]*(WT_RET[_A-Z]*)\([^@]*(WT_ERR[_A-Z]*)\(.*err:' |
-    sed -e 's/^\([^:]*\): *\([^:]*\):.*/\1:\2: mix of returns and jump to the error label within a loop/' ||
-	exit 1
+    sed -e 's/^\([^:]*\): *\([^:]*\):.*/\1:\2: mix of returns and jump to the error label within a loop/'
 
 # Early exits from WT_WITH_* macros.
 for f in $(grep -l 'WT_WITH_' $(find bench examples ext src test -name '*.c' -o -name '*_inline.h')); do
