@@ -145,10 +145,16 @@ config_bool(
     DEPENDS_ERROR ON "Failed to find tcmalloc library"
 )
 
+set(default_optimize_level)
+if("${WT_OS}" STREQUAL "windows")
+    set(default_optimize_level "/O2")
+else()
+    set(default_optimize_level "-O3")
+endif()
 config_string(
     CC_OPTIMIZE_LEVEL
     "CC optimization level"
-    DEFAULT "-O3"
+    DEFAULT "${default_optimize_level}"
 )
 
 config_string(
@@ -180,7 +186,12 @@ config_string(
 if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
     # Avoid setting diagnostic flags if we are building with Debug mode.
     # CMakes Debug config sets compilation with debug symbols by default.
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Z7")
+        set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+    endif()
 endif()
 
 if(NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Release")
