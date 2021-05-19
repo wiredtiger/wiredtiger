@@ -86,6 +86,15 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
 )
 
+if(ENABLE_STATIC)
+    # Avoid compiling with fPIC for static builds, this can often lead to
+    # GCC disabling many optimizations e.g. inlining, possibly introducing
+    # an overhead.
+    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
+else()
+    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
 # Ensure we link any available library dependencies to our wiredtiger target.
 if(HAVE_LIBPTHREAD)
     target_link_libraries(wiredtiger "pthread")
