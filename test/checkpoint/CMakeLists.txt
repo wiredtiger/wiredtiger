@@ -33,10 +33,15 @@ create_test_executable(test_checkpoint
         checkpointer.c
         workers.c
         test_checkpoint.c
-    # smoke.sh expects the output binary name is 't'.
-    EXECUTABLE_NAME "t"
-    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
-add_test(NAME test_checkpoint COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
-set_tests_properties(test_checkpoint PROPERTIES LABELS "check")
+define_test_variants(test_checkpoint
+    VARIANTS
+        "test_checkpoint_6_row;-T 6 -t r"
+        "test_checkpoint_6_row_named;\"-c TeSt\" -T 6 -t r"
+        "test_checkpoint_6_row_prepare;-T 6 -t r -p"
+        "test_checkpoint_6_row_named_prepare;\"-c TeSt\" -T 6 -t r -p"
+    LABELS
+        check
+        test_checkpoint
+)
