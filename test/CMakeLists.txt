@@ -43,19 +43,22 @@ add_subdirectory(bloom)
 add_subdirectory(checkpoint)
 add_subdirectory(cursor_order)
 add_subdirectory(fops)
-add_subdirectory(format)
 add_subdirectory(huge)
 add_subdirectory(manydbs)
-add_subdirectory(packing)
-add_subdirectory(readonly)
-add_subdirectory(salvage)
-add_subdirectory(syscall)
-add_subdirectory(thread)
-add_subdirectory(cppsuite)
 add_subdirectory(csuite)
 
-if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
-    # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
-    # when using Clang.
-    add_subdirectory(fuzz)
+if(WT_POSIX)
+    add_subdirectory(format)
+    add_subdirectory(packing)
+    add_subdirectory(readonly)
+    add_subdirectory(salvage)
+    add_subdirectory(syscall)
+    add_subdirectory(thread)
+    add_subdirectory(cppsuite)
+
+    if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+        # The fuzz test only works with llvm compilers. Restrict compilation of this test to only
+        # when using Clang.
+        add_subdirectory(fuzz)
+    endif()
 endif()
