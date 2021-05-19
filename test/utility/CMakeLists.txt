@@ -34,7 +34,13 @@ set(sources
     thread.c
 )
 
-add_library(test_util SHARED ${sources})
+set(link_type)
+if(ENABLE_STATIC)
+    set(link_type "STATIC")
+else()
+    set(link_type "SHARED")
+endif()
+add_library(test_util ${link_type} ${sources})
 
 target_include_directories(
     test_util
