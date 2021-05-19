@@ -582,7 +582,7 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.)''',
             min='0', max='1024'),
-        Config('page_evict_update_restore', 'false', r'''
+        Config('update_restore_evict', 'false', r'''
             if true, slow down checkpoint creation by slowing down internal
             page processing.''',
             type='boolean'),

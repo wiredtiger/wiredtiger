@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+from wiredtiger import stat
 import wiredtiger, wttest
 def timestamp_str(t):
     return '%x' % t
@@ -66,3 +67,8 @@ class test_prepare12(wttest.WiredTigerTestCase):
         # Read the prepared update
         self.session.begin_transaction('read_timestamp=' + timestamp_str(2))
         self.assertEqual(cursor[0], 'a')
+
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat.conn.cache_write_restore][2]
+        print(val)
+        stat_cursor.close()
