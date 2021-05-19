@@ -60,13 +60,13 @@ typedef struct {
 #define COMPRESSION_LIST " (none | lz4 | snappy | zlib | zstd)"
 
 static CONFIG c[] = {
-  /* 5% */
-  {"assert.commit_timestamp", "assert commit_timestamp", C_BOOL, 5, 0, 0,
-    &g.c_assert_commit_timestamp, NULL},
-
-  /* 5% */
-  {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 5, 0, 0, &g.c_assert_read_timestamp,
+  /* 2% */
+  {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0, &g.c_assert_read_timestamp,
     NULL},
+
+  /* 2% */
+  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp", C_BOOL, 2, 0,
+    0, &g.c_assert_write_timestamp, NULL},
 
   /* 20% */
   {"backup", "configure backups", C_BOOL, 20, 0, 0, &g.c_backups, NULL},
@@ -97,8 +97,6 @@ static CONFIG c[] = {
 
   {"btree.internal_page_max", "btree internal node maximum size", 0x0, 9, 17, 27,
     &g.c_intl_page_max, NULL},
-
-  {"btree.key_gap", "btree page instantiated key gap", 0x0, 0, 20, 20, &g.c_key_gap, NULL},
 
   {"btree.key_max", "maximum key size", 0x0, 20, 128, MEGABYTE(10), &g.c_key_max, NULL},
 
@@ -186,8 +184,8 @@ static CONFIG c[] = {
 
   /*
    * 0%
-   * FIXME-WT-7418 and FIXME-WT-7416: Temporarily disable import until WT_ROLLBACK error and
-   * interaction with backup thread is fixed. Should be 20%
+   * FIXME-WT-7418 and FIXME-WT-7510: Temporarily disable import until WT_ROLLBACK error and
+   * wt_copy_and_sync error is fixed. It should be (C_BOOL, 20, 0, 0).
    */
   {"import", "import table from newly created database", C_BOOL, 0, 0, 0, &g.c_import, NULL},
 
@@ -342,19 +340,11 @@ static CONFIG c[] = {
   /* 2% */
   {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL},
 
-  {"transaction.frequency", "operations inside an explicit transaction (percentage)", 0x0, 1, 100,
-    100, &g.c_txn_freq, NULL},
-
-  {"transaction.isolation",
-    "isolation level (random | read-uncommitted | read-committed | snapshot)", C_IGNORE | C_STRING,
-    0, 0, 0, NULL, &g.c_isolation},
-
-  /* 0% - By default, turned off until fallout has been debugged. */
-  {"transaction.rollback_to_stable", "configure rollback_to_stable", C_BOOL, 0, 0, 0,
-    &g.c_txn_rollback_to_stable, NULL},
+  {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0x0, 0, 100,
+    100, &g.c_txn_implicit, NULL},
 
   /* 70% */
-  {"transaction.timestamps", "configure transaction timestamps", C_BOOL, 70, 0, 0,
+  {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0,
     &g.c_txn_timestamps, NULL},
 
   {"wiredtiger.config", "wiredtiger_open API configuration string", C_IGNORE | C_STRING, 0, 0, 0,
