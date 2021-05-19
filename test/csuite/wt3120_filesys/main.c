@@ -46,7 +46,9 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
 
+#ifndef WT_FAIL_FS_LIB
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
+#endif
     testutil_build_dir(opts, buf, 1024);
     testutil_check(__wt_snprintf(
       config, sizeof(config), "create,extensions=(%s/%s=(early_load=true))", buf, WT_FAIL_FS_LIB));

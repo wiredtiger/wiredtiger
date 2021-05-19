@@ -206,6 +206,11 @@ define_csuite_test(
     TARGET test_wt2909_checkpoint_integrity
     SOURCES wt2909_checkpoint_integrity/main.c
     DIR_NAME wt2909_checkpoint_integrity
+    # We need to manually specify the location of the fail fs library
+    # and build directory as this path is more dynamic compared to layout autoconf
+    # produces in build_posix.
+    FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
+    ARGUMENTS -b ${CMAKE_BINARY_DIR}
 )
 
 define_csuite_test(
@@ -218,6 +223,11 @@ define_csuite_test(
     TARGET test_wt3120_filesys
     SOURCES wt3120_filesys/main.c
     DIR_NAME wt3120_filesys
+    # We need to manually specify the location of the fail fs library
+    # and build directory as this path is more dynamic compared to layout autoconf
+    # produces in build_posix.
+    FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
+    ARGUMENTS -b ${CMAKE_BINARY_DIR}
 )
 
 define_csuite_test(
