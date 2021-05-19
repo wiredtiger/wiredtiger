@@ -142,3 +142,55 @@ function(create_test_executable target)
         add_dependencies(${target} copy_dir_${target}_${dir_basename})
     endforeach()
 endfunction()
+
+function(define_test_variants target)
+    cmake_parse_arguments(
+        PARSE_ARGV
+        1
+        "DEFINE_TEST"
+        ""
+        ""
+        "VARIANTS;LABELS"
+    )
+    if (NOT "${DEFINE_TEST_UNPARSED_ARGUMENTS}" STREQUAL "")
+        message(FATAL_ERROR "Unknown arguments to define_test_variants: ${DEFINE_TEST_VARIANTS_UNPARSED_ARGUMENTS}")
+    endif()
+    if ("${DEFINE_TEST_VARIANTS}" STREQUAL "")
+        message(FATAL_ERROR "Need at least one variant for define_test_variants")
+    endif()
+
+    set(defined_tests)
+    foreach(variant ${DEFINE_TEST_VARIANTS})
+        list(LENGTH variant variant_length)
+        if (NOT variant_length EQUAL 2)
+            message(
+                FATAL_ERROR
+                "Invalid variant format: ${variant} - Expected format 'variant_name;variant args'"
+            )
+        endif()
+        list(GET variant 0 curr_variant_name)
+        list(GET variant 1 curr_variant_args)
+        set(variant_args)
+        if(WT_WIN)
+            separate_arguments(variant_args WINDOWS_COMMAND ${curr_variant_args})
+        else()
+            separate_arguments(variant_args UNIX_COMMAND ${curr_variant_args})
+        endif()
+        # Create a variant directory to run the test in.
+        add_custom_target(${curr_variant_name}_test_dir
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name})
+        # Ensure the variant target is created prior to building the test.
+        add_dependencies(${target} ${curr_variant_name}_test_dir)
+        add_test(
+            NAME ${curr_variant_name}
+            COMMAND $<TARGET_FILE:${target}> ${variant_args}
+            # Run each variant in its own subdirectory (allowing us to execute variants in
+            # parallel).
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name}
+        )
+        list(APPEND defined_tests ${curr_variant_name})
+    endforeach()
+    if(DEFINE_TEST_LABELS)
+        set_tests_properties(${defined_tests} PROPERTIES LABELS "${DEFINE_TEST_LABELS}")
+    endif()
+endfunction()
