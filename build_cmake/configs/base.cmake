@@ -85,6 +85,13 @@ config_bool(
     DEFAULT OFF
 )
 
+config_bool(
+    DYNAMIC_CRT
+    "Link with the MSVCRT DLL version"
+    DEFAULT OFF
+    DEPENDS "WT_WIN"
+)
+
 config_choice(
     SPINLOCK_TYPE
     "Set a spinlock type"
@@ -191,6 +198,14 @@ if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
+    endif()
+endif()
+
+if(WT_WIN)
+    if(DYNAMIC_CRT)
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MD")
+    else()
+        set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
     endif()
 endif()
 
