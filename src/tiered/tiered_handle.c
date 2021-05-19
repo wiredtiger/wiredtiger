@@ -352,7 +352,11 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* Create the object: entry in the metadata. */
     if (need_object) {
         WT_ERR(__tiered_create_object(session, tiered));
+#if 0
         WT_ERR(__wt_tiered_put_flush(session, tiered));
+#else
+        WT_ERR(__wt_tier_flush(session, tiered, tiered->current_id));
+#endif
     }
 
     /* We always need to create a local object. */

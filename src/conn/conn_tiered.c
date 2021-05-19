@@ -120,12 +120,12 @@ err:
 }
 
 /*
- * __tier_flush_meta --
+ * __wt_tier_flush_meta --
  *     Perform one iteration of altering the metadata after a flush. This is in its own function so
  *     that we can hold the schema lock while doing the metadata tracking.
  */
-static int
-__tier_flush_meta(
+int
+__wt_tier_flush_meta(
   WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
 {
     WT_CURSOR *cursor;
@@ -152,14 +152,18 @@ __tier_flush_meta(
      * Once the flush call succeeds we want to first remove the file: entry from the metadata and
      * then update the object: metadata to indicate the flush is complete.
      */
+#if 1
     WT_ERR(__wt_metadata_remove(session, local_uri));
+#endif
     WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
     __wt_seconds(session, &now);
     WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
     cfg[0] = obj_value;
     cfg[1] = buf->mem;
     WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
+#if 1
     WT_ERR(__wt_metadata_update(session, obj_uri, newconfig));
+#endif
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     tracking = false;
 
@@ -174,6 +178,68 @@ err:
 }
 
 /*
+ * __wt_tier_do_flush --
+ *     Perform one iteration of copying newly flushed objects to the shared storage.
+ */
+int
+__wt_tier_do_flush(
+  WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
+{
+    WT_FILE_SYSTEM *bucket_fs;
+    WT_STORAGE_SOURCE *storage_source;
+    const char *local_name, *obj_name;
+
+    storage_source = tiered->bstorage->storage_source;
+    bucket_fs = tiered->bstorage->file_system;
+
+    local_name = local_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, local_name, "file:");
+    obj_name = obj_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
+
+    /* This call make take a while, and may fail due to network timeout. */
+    WT_RET(storage_source->ss_flush(
+      storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
+
+#if 0
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(
+            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
+        WT_RET(ret);
+#else
+    WT_RET(__wt_tier_flush_meta(session, tiered, local_uri, obj_uri));
+#endif
+
+    /*
+     * We may need a way to restart flushes for those not completed (after a crash), or failed (due
+     * to previous network outage).
+     */
+    WT_RET(storage_source->ss_flush_finish(
+      storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
+    return (0);
+}
+
+/*
+ * __wt_tier_flush --
+ *     Given an ID generate the URI names and call the flush code.
+ */
+int
+__wt_tier_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id)
+{
+    WT_DECL_RET;
+    const char *local_uri, *obj_uri;
+
+    WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_LOCAL, &local_uri));
+    WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_OBJECT, &obj_uri));
+    WT_ERR(__wt_tier_do_flush(session, tiered, local_uri, obj_uri));
+
+err:
+    __wt_free(session, local_uri);
+    __wt_free(session, obj_uri);
+    return (ret);
+}
+
+/*
  * __tier_storage_copy --
  *     Perform one iteration of copying newly flushed objects to the shared storage.
  */
@@ -181,11 +247,11 @@ static int
 __tier_storage_copy(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
-    WT_FILE_SYSTEM *bucket_fs;
-    WT_STORAGE_SOURCE *storage_source;
-    WT_TIERED *tiered;
     WT_TIERED_WORK_UNIT *entry;
-    const char *local_name, *local_uri, *obj_name, *obj_uri;
+#if 0
+    WT_TIERED *tiered;
+    const char *local_uri, *obj_uri;
+#endif
 
     entry = NULL;
     for (;;) {
@@ -199,36 +265,10 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         WT_ERR(__wt_tiered_get_flush(session, &entry));
         if (entry == NULL)
             break;
-        tiered = entry->tiered;
-        WT_ERR(
-          __wt_tiered_name(session, &tiered->iface, entry->id, WT_TIERED_NAME_LOCAL, &local_uri));
-        WT_ERR(
-          __wt_tiered_name(session, &tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &obj_uri));
-
-        storage_source = tiered->bstorage->storage_source;
-        bucket_fs = tiered->bstorage->file_system;
-
-        local_name = local_uri;
-        WT_PREFIX_SKIP_REQUIRED(session, local_name, "file:");
-        obj_name = obj_uri;
-        WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
-
-        /* This call make take a while, and may fail due to network timeout. */
-        WT_ERR(storage_source->ss_flush(
-          storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
-
-        WT_WITH_CHECKPOINT_LOCK(session,
-          WT_WITH_SCHEMA_LOCK(
-            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
-        WT_ERR(ret);
-
-        /*
-         * We may need a way to restart flushes for those not completed (after a crash), or failed
-         * (due to previous network outage).
-         */
-        WT_ERR(storage_source->ss_flush_finish(
-          storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
-
+        WT_ERR(__wt_tier_flush(session, entry->tiered, entry->id));
+#if 0
+        WT_ERR(__wt_tier_do_flush(session, tiered, local_uri, obj_uri));
+#endif
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
@@ -239,6 +279,10 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 err:
     if (entry != NULL)
         __wt_free(session, entry);
+#if 0
+    __wt_free(session, local_uri);
+    __wt_free(session, obj_uri);
+#endif
     return (ret);
 }
 
