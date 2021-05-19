@@ -1159,9 +1159,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             continue;
         }
 
-        /* Ignore the already resolved updates. */
-        if (upd->prepare_state == WT_PREPARE_RESOLVED)
-            continue;
+        /* There should be only prepare in-progress updates. */
+        WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
 
         /*
          * Newer updates are inserted at head of update chain, and transaction operations are added
