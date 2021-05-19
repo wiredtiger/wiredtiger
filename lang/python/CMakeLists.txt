@@ -66,7 +66,7 @@ swig_add_library(_wiredtiger
 # CMP0078 policy is default set to OLD (leading to a potentially different target name).
 set(swig_wt_target ${SWIG_MODULE__wiredtiger_REAL_NAME})
 
-# Depending on the chosen compiler (clang or gcc), a slightly different set of compiler flags
+# Depending on the chosen compiler (cl, clang or gcc), a slightly different set of compiler flags
 # will be used.
 set(swig_c_flags)
 if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
@@ -76,6 +76,37 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUA
         -Wno-incompatible-pointer-types
         -Wno-int-conversion
         -Wno-sign-conversion
+    )
+elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+    set(swig_c_flags
+        # Ignore warning about mismatched const qualifiers.
+        /wd4090
+        # Ignore int conversion warnings.
+        /wd4267
+        # Ignore incompatible pointer type warnings.
+        /wd4133
+        # Ignore sign conversion warning.
+        /wd4244
+        # Ignore warnings about levels of pointer indirection.
+        /wd4047
+        # Ignore warnings about differing formal and actual qualifiers.
+        /wd4024
+        # Compile as C code.
+        /TC
+        # Inline expansion.
+        /Ob1
+        # Enable string pooling.
+        /GF
+        # Extern "C" does not throw.
+        /EHsc
+        # Enable security check.
+        /GS
+        # Separate functions for linker.
+        /Gy
+        # Conformance: wchar_t is a native type, not a typedef.
+        /Zc:wchar_t
+        # Use the __cdecl calling convention for all functions.
+        /Gd
     )
 else()
     set(swig_c_flags
@@ -88,11 +119,14 @@ endif()
 list(APPEND swig_c_flags -I${CMAKE_SOURCE_DIR})
 list(APPEND swig_c_flags -I${CMAKE_BINARY_DIR}/config)
 
-# Older versions of SWIG (<= 3) will generate deprecated python3 buffer protocols (being marked as
-# deprecated in Python 3.7+). Supress these warnings if we end up with an older SWIG compiler
-# and newer python3 version.
-if((${SWIG_VERSION} VERSION_LESS 4) AND (${python_version} VERSION_GREATER_EQUAL 3.7))
-    list(APPEND swig_c_flags -Wno-deprecated-declarations)
+# SWIG will generate deprecated python3 protocols (being marked as deprecated in Python 3.7+). Generally supress these warnings
+# as the SWIG compiler lags behind newer python3 versions.
+if(${python_version} VERSION_GREATER_EQUAL 3.7)
+    if(NOT "${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        list(APPEND swig_c_flags -Wno-deprecated-declarations)
+    else()
+        list(APPEND swig_c_flags /wd4996)
+    endif()
 endif()
 
 target_compile_options(${swig_wt_target}
@@ -123,11 +157,11 @@ add_custom_command(TARGET ${swig_wt_target}
 )
 
 # `swig_add_library` will end up prepending an extra '_' to our target name, resulting in
-# an output the  file '__wiredtiger.so'. We are unable to manually specify the output file
+# an output the  file '__wiredtiger.[so|pyd]'. We are unable to manually specify the output file
 # name.
 add_custom_command(TARGET ${swig_wt_target}
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rename
         $<TARGET_FILE:${swig_wt_target}>
-        $<TARGET_FILE_DIR:${swig_wt_target}>/_wiredtiger.so
+        $<TARGET_FILE_DIR:${swig_wt_target}>/_wiredtiger$<TARGET_FILE_SUFFIX:${swig_wt_target}>
 )
