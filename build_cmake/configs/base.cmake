@@ -70,7 +70,6 @@ config_bool(
     ENABLE_PYTHON
     "Configure the python API"
     DEFAULT OFF
-    DEPENDS "NOT ENABLE_STATIC"
 )
 
 config_bool(
