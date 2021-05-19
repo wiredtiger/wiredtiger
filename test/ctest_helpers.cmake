@@ -114,6 +114,7 @@ function(create_test_executable target)
             COMMAND ${CMAKE_COMMAND} -E copy
                 ${file}
                 ${test_binary_dir}/${file_basename}
+            DEPENDS ${file}
         )
         add_custom_target(copy_file_${target}_${file_basename} DEPENDS ${test_binary_dir}/${file_basename})
         add_dependencies(${target} copy_file_${target}_${file_basename})
