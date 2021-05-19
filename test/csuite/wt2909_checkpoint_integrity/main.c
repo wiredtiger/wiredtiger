@@ -502,8 +502,9 @@ subtest_main(int argc, char *argv[], bool close_test)
     testutil_check(__wt_snprintf(filename, sizeof(filename), "%s/%s", opts->home, STDOUT_FILE));
     testutil_assert(freopen(filename, "a", stdout) != NULL);
 
+#ifndef WT_FAIL_FS_LIB
 #define WT_FAIL_FS_LIB "ext/test/fail_fs/.libs/libwiredtiger_fail_fs.so"
-
+#endif
     testutil_build_dir(opts, buf, 1024);
     testutil_check(__wt_snprintf(config, sizeof(config),
       "create,cache_size=250M,log=(enabled),transaction_sync=(enabled,method=none),extensions=(%s/"
