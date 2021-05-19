@@ -104,6 +104,15 @@ function(create_test_executable target)
         target_link_libraries(${target} ${CREATE_TEST_LIBS})
     endif()
 
+    # If compiling for windows, additionally link in the shim library.
+    if(WT_WIN)
+        target_include_directories(
+            ${target}
+            PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
+        )
+        target_link_libraries(${target} windows_shim)
+    endif()
+
     # Install any additional files, scripts, etc in the output test binary
     # directory. Useful if we need to setup an additional wrappers needed to run the test
     # executable.
