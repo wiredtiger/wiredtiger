@@ -56,6 +56,8 @@ if(ENABLE_STRICT)
         include(build_cmake/strict/gcc_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
         include(build_cmake/strict/clang_strict.cmake)
+    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        include(build_cmake/strict/cl_strict.cmake)
     endif()
 endif()
 
