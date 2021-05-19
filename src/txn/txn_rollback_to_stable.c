@@ -1431,8 +1431,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         __wt_verbose_progress(session, WT_VERB_RECOVERY_PROGRESS, rollback_timer,
           &rollback_msg_count, false,
           "Rollback to stable has been running for: %" PRIu64 " seconds and has inspected: %" PRIu64
-          " files. For more detailed logging, enable"
-          " WT_VERB_RTS",
+          " files. For more detailed logging, enable WT_VERB_RTS",
           time_diff, rollback_count);
         ++rollback_count;
 
