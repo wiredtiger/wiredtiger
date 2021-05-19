@@ -63,14 +63,25 @@ macro(define_csuite_test)
             ${additional_executable_args}
         )
         add_test(NAME ${CSUITE_TARGET}
-            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh $<TARGET_FILE:${CSUITE_TARGET}> ${CSUITE_ARGUMENTS})
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh $<TARGET_FILE:${CSUITE_TARGET}> ${CSUITE_ARGUMENTS}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
+        )
     else()
         create_test_executable(${CSUITE_TARGET}
             SOURCES ${CSUITE_SOURCES}
             BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
             ${additional_executable_args}
         )
-        add_test(NAME ${CSUITE_TARGET} COMMAND ${CSUITE_TARGET} ${CSUITE_ARGUMENTS})
+        # Take a CMake-based path and convert it to a platform-specfic path (/ for Unix, \ for Windows).
+        set(wt_test_home_dir ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/WT_HOME_${CSUITE_TARGET})
+        file(TO_NATIVE_PATH "${wt_test_home_dir}" wt_test_home_dir)
+        # Ensure each DB home directory is run under the tests working directory.
+        set(command_args -h ${wt_test_home_dir})
+        list(APPEND command_args ${CSUITE_ARGUMENTS})
+        add_test(NAME ${CSUITE_TARGET}
+            COMMAND ${CSUITE_TARGET} ${command_args}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
+        )
     endif()
     list(APPEND csuite_tests ${CSUITE_TARGET})
 endmacro(define_csuite_test)
