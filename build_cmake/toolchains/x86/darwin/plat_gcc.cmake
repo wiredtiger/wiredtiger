@@ -10,5 +10,5 @@
 # prefix is not necessary when we are not cross-compiling. Just default to the host
 # installed 'gcc' binary.
 if(CMAKE_CROSSCOMPILING)
-    set(CROSS_COMPILER_PREFIX "x86_64-apple-darwin-" CACHE INTERNAL "" FORCE)
+    set(CROSS_COMPILER_PREFIX "x86_64-apple-darwin-")
 endif()

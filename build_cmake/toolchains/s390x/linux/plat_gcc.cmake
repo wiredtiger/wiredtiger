@@ -7,5 +7,5 @@
 #
 
 if(CMAKE_CROSSCOMPILING)
-    set(CROSS_COMPILER_PEFIX "s390x-linux-gnu-" CACHE INTERNAL "" FORCE)
+    set(CROSS_COMPILER_PEFIX "s390x-linux-gnu-")
 endif()
