@@ -550,6 +550,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_TIERED_WORK_UNIT *entry;
 
     conn = S2C(session);
 
@@ -559,6 +560,10 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         __wt_cond_signal(session, conn->tiered_cond);
         WT_TRET(__wt_thread_join(session, &conn->tiered_tid));
         conn->tiered_tid_set = false;
+        while ((entry = TAILQ_FIRST(&conn->tieredqh)) != NULL) {
+            TAILQ_REMOVE(&conn->tieredqh, entry, q);
+	    __wt_free(session, entry);
+        }
     }
     __wt_cond_destroy(session, &conn->tiered_cond);
     if (conn->tiered_session != NULL) {
