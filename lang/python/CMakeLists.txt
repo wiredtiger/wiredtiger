@@ -85,10 +85,11 @@ else()
 endif()
 list(APPEND swig_c_flags -I${CMAKE_SOURCE_DIR})
 list(APPEND swig_c_flags -I${CMAKE_BINARY_DIR}/config)
+
+# Older versions of SWIG (<= 3) will generate deprecated python3 buffer protocols (being marked as
+# deprecated in Python 3.7+). Supress these warnings if we end up with an older SWIG compiler
+# and newer python3 version.
 if((${SWIG_VERSION} VERSION_LESS 4) AND (${python_version} VERSION_GREATER_EQUAL 3.7))
-    # Older versions of SWIG (<= 3) will generate deprecated python3 buffer protocols (being marked as
-    # deprecated in Python 3.7+). Supress these warnings if we end up with an older SWIG compiler
-    # and newer python3 version.
     list(APPEND swig_c_flags -Wno-deprecated-declarations)
 endif()
 
