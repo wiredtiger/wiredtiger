@@ -44,7 +44,7 @@ endif()
 # when importing the generated swig library.
 list(APPEND swig_flags "-interface;_wiredtiger")
 
-list(APPEND swig_flags "-DPY_MAJOR_VERSION=${VERSION_MAJOR}")
+list(APPEND swig_flags "-DPY_MAJOR_VERSION=3")
 list(APPEND swig_flags "-threads")
 list(APPEND swig_flags "-O")
 list(APPEND swig_flags "-nodefaultctor")
