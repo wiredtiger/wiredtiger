@@ -39,7 +39,9 @@ else()
     set(python_version ${Python3_VERSION})
 endif()
 
-# Manually specify the interface name '_wiredtiger' over a generated name (for backwards compatibility).
+# Manually specify the interface name '_wiredtiger' over a generated name.
+# Our wiredtiger python module expects the swig interface name '_wiredtiger'
+# when importing the generated swig library.
 list(APPEND swig_flags "-interface;_wiredtiger")
 
 list(APPEND swig_flags "-DPY_MAJOR_VERSION=${VERSION_MAJOR}")
