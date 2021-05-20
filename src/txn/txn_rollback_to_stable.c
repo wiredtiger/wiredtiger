@@ -1427,7 +1427,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
     rollback_count = rollback_msg_count = rollback_txnid = 0;
     addr_size = 0;
 
-    /* Initialize the verbose tracking timer */
+    /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
 
     /*
