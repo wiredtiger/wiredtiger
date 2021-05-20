@@ -6,18 +6,15 @@ set -e
 # to add a stress timing in checkpoint prepare.
 
 default_test_args="-t 10 -T 5"
-while getopts ":s" opt; do
+while getopts ":sb:" opt; do
     case $opt in
         s) default_test_args="$default_test_args -s" ;;
+        b) test_bin=$OPTARG ;;
     esac
 done
 
-
-if [ -n "$1" ]
+if [ -z "$test_bin" ]
 then
-    # If the test binary is passed in manually.
-    test_bin=$1
-else
     # If $top_builddir/$top_srcdir aren't set, default to building in build_posix
     # and running in test/csuite.
     top_builddir=${top_builddir:-../../build_posix}
