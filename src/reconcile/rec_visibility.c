@@ -631,6 +631,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         upd_saved = upd_select->upd_saved = true;
     }
 
+    /*
+     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
+     * restores to both committed or uncommitted changes.
+     */
     if (supd_restore || F_ISSET(r, WT_REC_SCRUB))
         r->cache_write_restore = true;
 
