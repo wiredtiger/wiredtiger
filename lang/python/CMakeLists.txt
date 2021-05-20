@@ -23,7 +23,7 @@ include(${SWIG_USE_FILE})
 
 set(python_libs)
 set(python_version)
-if("${CMAKE_VERSION}" VERSION_LESS_EQUAL "3.12.0")
+if("${CMAKE_VERSION}" VERSION_LESS "3.12.0")
     # This method of finding python libs has been deprecated since version 3.12.
     # If we are running with a greater CMake version, opt to use the Python3 package.
     set(Python_ADDITIONAL_VERSIONS 3.9 3.8 3.7 3.6 3.5)
