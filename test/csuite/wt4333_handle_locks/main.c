@@ -335,6 +335,7 @@ run(int argc, char *argv[])
             break;
         case 'h':
             strncpy(home, __wt_optarg, HOME_LEN);
+            home[HOME_LEN - 1] = '\0';
             default_home = false;
             break;
         default:
