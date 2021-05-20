@@ -278,6 +278,8 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
     else {
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
         ckpt_session = S2C(session)->meta_ckpt_session;
+	ckpt_session->x = session->x;
+	ckpt_session->m = session->m;
         /*
          * If this operation is part of a running transaction, that should be included in the
          * checkpoint.

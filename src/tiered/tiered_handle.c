@@ -344,6 +344,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
      *    - Copy the current one to the cloud. It also remains in the local store.
      */
 
+    session->x = true;
+    session->m = "TIER_SWITCH: ";
     WT_RET(__wt_meta_track_on(session));
     tracking = true;
     if (need_tree)
@@ -352,7 +354,7 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     /* Create the object: entry in the metadata. */
     if (need_object) {
         WT_ERR(__tiered_create_object(session, tiered));
-#if 0
+#if 1
         WT_ERR(__wt_tiered_put_flush(session, tiered));
 #else
         WT_ERR(__wt_tier_flush(session, tiered, tiered->current_id));
@@ -366,6 +368,8 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_ERR(__tiered_update_metadata(session, tiered, config));
     tracking = false;
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
+    session->x = false;
+    session->m = NULL;
     WT_ERR(__tiered_update_dhandles(session, tiered));
 err:
     __wt_verbose(session, WT_VERB_TIERED, "TIER_SWITCH: DONE ret %d", ret);

@@ -120,12 +120,12 @@ err:
 }
 
 /*
- * __wt_tier_flush_meta --
+ * __tier_flush_meta --
  *     Perform one iteration of altering the metadata after a flush. This is in its own function so
  *     that we can hold the schema lock while doing the metadata tracking.
  */
-int
-__wt_tier_flush_meta(
+static int
+__tier_flush_meta(
   WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
 {
     WT_CURSOR *cursor;
@@ -144,6 +144,8 @@ __wt_tier_flush_meta(
     dhandle = &tiered->iface;
 
     newconfig = NULL;
+    session->x = true;
+    session->m = "WORKER: ";
     WT_ERR(__wt_meta_track_on(session));
     tracking = true;
 
@@ -166,6 +168,8 @@ __wt_tier_flush_meta(
 #endif
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     tracking = false;
+    session->x = false;
+    session->m = NULL;
 
 err:
     __wt_free(session, newconfig);
@@ -185,6 +189,7 @@ int
 __wt_tier_do_flush(
   WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
 {
+    WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
     const char *local_name, *obj_name;
@@ -201,13 +206,12 @@ __wt_tier_do_flush(
     WT_RET(storage_source->ss_flush(
       storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
 
-#if 0
-        WT_WITH_CHECKPOINT_LOCK(session,
-          WT_WITH_SCHEMA_LOCK(
-            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
-        WT_RET(ret);
+#if 1
+    WT_WITH_CHECKPOINT_LOCK(session,
+      WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
+    WT_RET(ret);
 #else
-    WT_RET(__wt_tier_flush_meta(session, tiered, local_uri, obj_uri));
+    WT_RET(__tier_flush_meta(session, tiered, local_uri, obj_uri));
 #endif
 
     /*
@@ -248,10 +252,6 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
     WT_TIERED_WORK_UNIT *entry;
-#if 0
-    WT_TIERED *tiered;
-    const char *local_uri, *obj_uri;
-#endif
 
     entry = NULL;
     for (;;) {
@@ -266,9 +266,6 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
         if (entry == NULL)
             break;
         WT_ERR(__wt_tier_flush(session, entry->tiered, entry->id));
-#if 0
-        WT_ERR(__wt_tier_do_flush(session, tiered, local_uri, obj_uri));
-#endif
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
@@ -279,10 +276,6 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 err:
     if (entry != NULL)
         __wt_free(session, entry);
-#if 0
-    __wt_free(session, local_uri);
-    __wt_free(session, obj_uri);
-#endif
     return (ret);
 }
 
@@ -500,8 +493,9 @@ __tiered_mgr_start(WT_CONNECTION_IMPL *conn)
 
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED_MGR);
     WT_RET(__wt_open_internal_session(
-      conn, "storage-mgr-server", true, 0, 0, &conn->tiered_mgr_session));
+      conn, "storage-mgr-server", false, 0, 0, &conn->tiered_mgr_session));
     session = conn->tiered_mgr_session;
+    WT_RET(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     WT_RET(__wt_cond_alloc(session, "storage server", &conn->tiered_mgr_cond));
 
@@ -536,6 +530,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
     session = conn->tiered_session;
+    WT_RET(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
 
