@@ -651,9 +651,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             LF_SET(WT_REC_SCRUB);
     }
 
-    if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT))
-        LF_SET(WT_REC_SCRUB);
-    
     /*
      * Acquire a snapshot if coming through the eviction thread route. Also, if we have entered
      * eviction through application threads and we have a transaction snapshot, we will use our
