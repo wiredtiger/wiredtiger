@@ -62,11 +62,11 @@ __wt_tiered_pop_work(
  *     Get the first flush work unit from the queue. The id information cannot change between our
  *     caller and here. The caller is responsible for freeing the work unit.
  */
-int
+void
 __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 {
     __wt_tiered_pop_work(session, WT_TIERED_WORK_FLUSH, 0, entryp);
-    return (0);
+    return;
 }
 
 /*
@@ -74,29 +74,22 @@ __wt_tiered_get_flush(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
  *     Get a drop local work unit if it is less than the time given. The caller is responsible for
  *     freeing the work unit.
  */
-int
+void
 __wt_tiered_get_drop_local(WT_SESSION_IMPL *session, uint64_t now, WT_TIERED_WORK_UNIT **entryp)
 {
     __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_LOCAL, now, entryp);
-    return (0);
+    return;
 }
 
 /*
- * __wt_tiered_put_flush --
- *     Add a flush work unit to the queue. We're single threaded so the tiered structure's id
- *     information cannot change between our caller and here.
+ * __wt_tiered_get_drop_shared --
+ *     Get a drop shared work unit. The caller is responsible for freeing the work unit.
  */
-int
-__wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+void
+__wt_tiered_get_drop_shared(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT **entryp)
 {
-    WT_TIERED_WORK_UNIT *entry;
-
-    WT_RET(__wt_calloc_one(session, &entry));
-    entry->type = WT_TIERED_WORK_FLUSH;
-    entry->id = tiered->current_id;
-    entry->tiered = tiered;
-    __wt_tiered_push_work(session, entry);
-    return (0);
+    __wt_tiered_pop_work(session, WT_TIERED_WORK_DROP_SHARED, 0, entryp);
+    return;
 }
 
 /*
@@ -116,6 +109,41 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t
     __wt_seconds(session, &now);
     /* Put a work unit in the queue with the time this object expires. */
     entry->op_num = now + tiered->bstorage->retain_secs;
+    entry->tiered = tiered;
+    __wt_tiered_push_work(session, entry);
+    return (0);
+}
+
+/*
+ * __wt_tiered_put_drop_shared --
+ *     Add a drop shared work unit for the given ID to the queue.
+ */
+int
+__wt_tiered_put_drop_shared(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id)
+{
+    WT_TIERED_WORK_UNIT *entry;
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    entry->type = WT_TIERED_WORK_DROP_SHARED;
+    entry->id = id;
+    entry->tiered = tiered;
+    __wt_tiered_push_work(session, entry);
+    return (0);
+}
+
+/*
+ * __wt_tiered_put_flush --
+ *     Add a flush work unit to the queue. We're single threaded so the tiered structure's id
+ *     information cannot change between our caller and here.
+ */
+int
+__wt_tiered_put_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_TIERED_WORK_UNIT *entry;
+
+    WT_RET(__wt_calloc_one(session, &entry));
+    entry->type = WT_TIERED_WORK_FLUSH;
+    entry->id = tiered->current_id;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
     return (0);

@@ -119,16 +119,10 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
-    bool v;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    v = __wt_txn_visible_all(session, txn_shared->pinned_id, WT_TS_NONE);
-    if (session->x && session == S2C(session)->meta_ckpt_session)
-        __wt_errx(session, "%s: pinned %d iso %d visible %d", session->m,
-          (int)txn_shared->pinned_id, (int)session->txn->isolation, (int)v);
 
     WT_ASSERT(session,
       txn_shared->pinned_id == WT_TXN_NONE || session->txn->isolation == WT_ISO_READ_UNCOMMITTED ||

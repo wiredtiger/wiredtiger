@@ -344,8 +344,6 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
      *    - Copy the current one to the cloud. It also remains in the local store.
      */
 
-    session->x = true;
-    session->m = "TIER_SWITCH: ";
     WT_RET(__wt_meta_track_on(session));
     tracking = true;
     if (need_tree)
@@ -368,8 +366,6 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     WT_ERR(__tiered_update_metadata(session, tiered, config));
     tracking = false;
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
-    session->x = false;
-    session->m = NULL;
     WT_ERR(__tiered_update_dhandles(session, tiered));
 err:
     __wt_verbose(session, WT_VERB_TIERED, "TIER_SWITCH: DONE ret %d", ret);
@@ -458,7 +454,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED *tiered;
+#if 1
+    WT_TIERED_WORK_UNIT *entry;
     uint32_t unused;
+#endif
     char *metaconf;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
     const char **tiered_cfg, *config;
@@ -522,10 +521,17 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_free(session, dhandle->cfg[1]);
         dhandle->cfg[1] = metaconf;
     }
+#if 1
     if (0) {
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
+        FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
+        WT_ERR(__wt_tiered_put_drop_local(session, tiered, tiered->current_id));
+        WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
+        __wt_tiered_get_drop_local(session, 0, &entry);
+        __wt_tiered_get_drop_shared(session, &entry);
     }
+#endif
 
     if (0) {
 err:

@@ -144,8 +144,6 @@ __tier_flush_meta(
     dhandle = &tiered->iface;
 
     newconfig = NULL;
-    session->x = true;
-    session->m = "WORKER: ";
     WT_ERR(__wt_meta_track_on(session));
     tracking = true;
 
@@ -168,8 +166,6 @@ __tier_flush_meta(
 #endif
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     tracking = false;
-    session->x = false;
-    session->m = NULL;
 
 err:
     __wt_free(session, newconfig);
@@ -262,7 +258,7 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
          * calling __wt_tiered_get_flush so that we don't pull it off the queue until we're sure we
          * want to process it.
          */
-        WT_ERR(__wt_tiered_get_flush(session, &entry));
+        __wt_tiered_get_flush(session, &entry);
         if (entry == NULL)
             break;
         WT_ERR(__wt_tier_flush(session, entry->tiered, entry->id));
@@ -530,7 +526,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
     session = conn->tiered_session;
-    WT_RET(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
+    WT_ERR(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
 

@@ -64,9 +64,6 @@ struct __wt_session_impl {
 
     u_int active; /* Non-zero if the session is in-use */
 
-    bool x;
-    const char *m;
-
     const char *name;   /* Name */
     const char *lastop; /* Last operation */
     uint32_t id;        /* UID, offset in session array */
