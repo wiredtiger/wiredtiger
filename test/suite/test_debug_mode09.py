@@ -57,6 +57,6 @@ class test_debug_mode09(wttest.WiredTigerTestCase):
 
         # Read the statistics of pages that have been update restored
         stat_cursor = self.session.open_cursor('statistics:')
-        val = stat_cursor[stat.conn.cache_write_restore][2]
+        pages_update_restored = stat_cursor[stat.conn.cache_write_restore][2]
         stat_cursor.close()
-        self.assertTrue(val == 1)
+        self.assertTrue(pages_update_restored == 1)
