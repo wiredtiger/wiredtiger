@@ -34,8 +34,8 @@ __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * TODO: tiered: this call currently advances the object id, that's probably not appropriate for
      * readonly opens. Perhaps it's also not appropriate for opening at an older checkpoint?
      */
-    if (block->has_objects) {
-        block->objectid = ci->root_objectid;
+    if (block->log_structured) {
+        block->logid = ci->root_logid;
 
         /* Advance to the next file for future changes. */
         WT_RET(__wt_block_tiered_newfile(session, block));
@@ -64,8 +64,8 @@ __wt_block_tiered_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_ERR(__wt_close(session, &block->fh));
 
     /* Bump to a new file ID. */
-    ++block->objectid;
-    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->objectid));
+    ++block->logid;
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
     filename = tmp->data;
 
     WT_WITH_BUCKET_STORAGE(session->bucket_storage, session, {
