@@ -225,6 +225,7 @@ __wt_tier_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t id)
     WT_DECL_RET;
     const char *local_uri, *obj_uri;
 
+    local_uri = obj_uri = NULL;
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_LOCAL, &local_uri));
     WT_ERR(__wt_tiered_name(session, &tiered->iface, id, WT_TIERED_NAME_OBJECT, &obj_uri));
     WT_ERR(__wt_tier_do_flush(session, tiered, local_uri, obj_uri));
