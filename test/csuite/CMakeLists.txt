@@ -63,7 +63,7 @@ macro(define_csuite_test)
             ${additional_executable_args}
         )
         add_test(NAME ${CSUITE_TARGET}
-            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh $<TARGET_FILE:${CSUITE_TARGET}> ${CSUITE_ARGUMENTS}
+            COMMAND ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}/smoke.sh ${CSUITE_ARGUMENTS} $<TARGET_FILE:${CSUITE_TARGET}>
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${CSUITE_DIR_NAME}
         )
     else()
@@ -133,6 +133,7 @@ define_csuite_test(
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
     SMOKE
+    ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
 )
 
 define_csuite_test(
