@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -115,8 +115,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     if (!WT_PREFIX_SKIP(filename, "file:"))
         WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
 
-    WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
-      F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    WT_WITH_BUCKET_STORAGE(btree->bstorage, session,
+      ret = __wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
+        F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+    WT_ERR(ret);
+
     bm = btree->bm;
 
     /*
@@ -217,7 +220,10 @@ __wt_btree_close(WT_SESSION_IMPL *session)
      */
     WT_ASSERT(session,
       !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
-        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree)));
+        (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
+
+    /* Clear the saved checkpoint information. */
+    __wt_meta_saved_ckptlist_free(session);
 
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
@@ -341,7 +347,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     WT_RET(__wt_struct_confchk(session, &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &btree->value_format));
 
-    /* Row-store key comparison and key gap for prefix compression. */
+    /* Row-store key comparison. */
     if (btree->type == BTREE_ROW) {
         WT_RET(__wt_config_gets_none(session, cfg, "collator", &cval));
         if (cval.len != 0) {
@@ -349,9 +355,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
             WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
               &btree->collator, &btree->collator_owned));
         }
-
-        WT_RET(__wt_config_gets(session, cfg, "key_gap", &cval));
-        btree->key_gap = (uint32_t)cval.val;
     }
 
     /* Column-store: check for fixed-size data. */
@@ -386,9 +389,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_CLR(btree, WT_BTREE_IGNORE_CACHE);
 
     /*
-     * The metadata isn't blocked by in-memory cache limits because metadata
-     * "unroll" is performed by updates that are potentially blocked by the
-     * cache-full checks.
+     * The metadata isn't blocked by in-memory cache limits because metadata "unroll" is performed
+     * by updates that are potentially blocked by the cache-full checks.
      */
     if (WT_IS_METADATA(btree->dhandle))
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
@@ -477,12 +479,17 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     /* Set special flags for the history store table. */
     if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
-        F_SET(btree, WT_BTREE_HS);
+        F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_SET(btree, WT_BTREE_NO_LOGGING);
     }
 
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
+
+    /* Configure read-only. */
+    WT_RET(__wt_config_gets(session, cfg, "readonly", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_READONLY);
 
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
@@ -519,9 +526,27 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     /* If this is the first time opening the tree this run. */
     if (F_ISSET(session, WT_SESSION_IMPORT) || ckpt->run_write_gen < conn->base_write_gen)
-        btree->base_write_gen = btree->run_write_gen = btree->write_gen;
+        btree->run_write_gen = btree->write_gen;
     else
-        btree->base_write_gen = btree->run_write_gen = ckpt->run_write_gen;
+        btree->run_write_gen = ckpt->run_write_gen;
+
+    /*
+     * In recovery use the last checkpointed run write generation number as base write generation
+     * number to reset the transaction ids of the pages that were modified before the restart. The
+     * transaction ids are retained only on the pages that are written after the restart.
+     *
+     * Rollback to stable does not operate on logged tables and metadata, so it is skipped.
+     *
+     * The only scenario where the checkpoint run write generation number is less than the
+     * connection last checkpoint base write generation number is when rollback to stable doesn't
+     * happen during the recovery due to the unavailability of history store file.
+     */
+    if (!F_ISSET(conn, WT_CONN_RECOVERING) || WT_IS_METADATA(btree->dhandle) ||
+      __wt_btree_immediately_durable(session) ||
+      ckpt->run_write_gen < conn->last_ckpt_base_write_gen)
+        btree->base_write_gen = btree->run_write_gen;
+    else
+        btree->base_write_gen = ckpt->run_write_gen;
 
     /*
      * We've just overwritten the runtime write generation based off the fact that know that we're

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -56,8 +56,8 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Can't do history store eviction for history store itself or for metadata. */
-    WT_ASSERT(
-      session, !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree) && !WT_IS_METADATA(btree->dhandle)));
+    WT_ASSERT(session,
+      !LF_ISSET(WT_REC_HS) || (!WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)));
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
@@ -133,8 +133,7 @@ __reconcile_save_evict_state(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
      */
     if (LF_ISSET(WT_REC_EVICT)) {
         mod->last_eviction_id = oldest_id;
-        if (S2C(session)->txn_global.has_pinned_timestamp)
-            __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
+        __wt_txn_pinned_timestamp(session, &mod->last_eviction_timestamp);
         mod->last_evict_pass_gen = S2C(session)->cache->evict_pass_gen;
     }
 
@@ -200,7 +199,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * Update the global history store score. Only use observations during eviction, not checkpoints
      * and don't count eviction of the history store table itself.
      */
-    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree))
+    if (F_ISSET(r, WT_REC_EVICT) && !WT_IS_HS(btree->dhandle))
         __wt_cache_update_hs_score(session, r->updates_seen, r->updates_unstable);
 
     /*
@@ -229,19 +228,13 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Update statistics. */
     WT_STAT_CONN_INCR(session, rec_pages);
     WT_STAT_DATA_INCR(session, rec_pages);
-    if (LF_ISSET(WT_REC_EVICT)) {
-        WT_STAT_CONN_INCR(session, rec_pages_eviction);
-        WT_STAT_DATA_INCR(session, rec_pages_eviction);
-    }
-    if (r->cache_write_hs) {
-        WT_STAT_CONN_INCR(session, cache_write_hs);
-        WT_STAT_DATA_INCR(session, cache_write_hs);
-    }
-    if (r->cache_write_restore) {
-        WT_STAT_CONN_INCR(session, cache_write_restore);
-        WT_STAT_DATA_INCR(session, cache_write_restore);
-    }
-    if (!WT_IS_HS(btree)) {
+    if (LF_ISSET(WT_REC_EVICT))
+        WT_STAT_CONN_DATA_INCR(session, rec_pages_eviction);
+    if (r->cache_write_hs)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_hs);
+    if (r->cache_write_restore)
+        WT_STAT_CONN_DATA_INCR(session, cache_write_restore);
+    if (!WT_IS_HS(btree->dhandle)) {
         if (r->rec_page_cell_with_txn_id)
             WT_STAT_CONN_INCR(session, rec_pages_with_txn);
         if (r->rec_page_cell_with_ts)
@@ -545,7 +538,7 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
             r->last_running = ckpt_txn;
     }
     /* When operating on the history store table, we should never try history store eviction. */
-    WT_ASSERT(session, !F_ISSET(btree, WT_BTREE_HS) || !LF_ISSET(WT_REC_HS));
+    WT_ASSERT(session, !F_ISSET(btree->dhandle, WT_DHANDLE_HS) || !LF_ISSET(WT_REC_HS));
 
     /*
      * History store table eviction is configured when eviction gets aggressive, adjust the flags
@@ -1224,15 +1217,13 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
 
 done:
     /*
-     * Overflow values can be larger than the maximum page size but still be
-     * "on-page". If the next key/value pair is larger than space available
-     * after a split has happened (in other words, larger than the maximum
-     * page size), create a page sized to hold that one key/value pair. This
-     * generally splits the page into key/value pairs before a large object,
-     * the object, and key/value pairs after the object. It's possible other
-     * key/value pairs will also be aggregated onto the bigger page before
-     * or after, if the page happens to hold them, but it won't necessarily
-     * happen that way.
+     * Overflow values can be larger than the maximum page size but still be "on-page". If the next
+     * key/value pair is larger than space available after a split has happened (in other words,
+     * larger than the maximum page size), create a page sized to hold that one key/value pair. This
+     * generally splits the page into key/value pairs before a large object, the object, and
+     * key/value pairs after the object. It's possible other key/value pairs will also be aggregated
+     * onto the bigger page before or after, if the page happens to hold them, but it won't
+     * necessarily happen that way.
      */
     if (r->space_avail < next_len)
         WT_RET(__rec_split_grow(session, r, next_len));
@@ -1521,6 +1512,32 @@ err:
 }
 
 /*
+ * __rec_set_page_write_gen --
+ *     Initialize the page write generation number.
+ */
+static void
+__rec_set_page_write_gen(WT_PAGE_HEADER *dsk, WT_BTREE *btree)
+{
+    /*
+     * We increment the block's write generation so it's easy to identify newer versions of blocks
+     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
+     * multiple blocks to be internally consistent with identical first and last keys, so we need a
+     * way to know the most recent state of the block. We could check which leaf is referenced by a
+     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
+     * it's not as good anyway, because the internal page may not have been written after the leaf
+     * page was updated. So, write generations it is.
+     *
+     * Nothing is locked at this point but two versions of a page with the same generation is pretty
+     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
+     * anyway.
+     *
+     * Other than salvage, the write generation number is used to reset the stale transaction id's
+     * present on the page upon server restart.
+     */
+    dsk->write_gen = ++btree->write_gen;
+}
+
+/*
  * __rec_split_write_header --
  *     Initialize a disk page's header.
  */
@@ -1535,7 +1552,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     page = r->page;
 
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
-    dsk->write_gen = 0;
+
+    __rec_set_page_write_gen(dsk, btree);
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
@@ -2139,8 +2157,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     switch (r->multi_next) {
     case 0: /* Page delete */
-        WT_STAT_CONN_INCR(session, rec_page_delete);
-        WT_STAT_DATA_INCR(session, rec_page_delete);
+        WT_STAT_CONN_DATA_INCR(session, rec_page_delete);
 
         /*
          * If this is the root page, we need to create a sync point. For a page to be empty, it has
@@ -2286,7 +2303,7 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
      * Sanity check: Can't insert updates into history store from the history store itself or from
      * the metadata file.
      */
-    WT_ASSERT(session, !WT_IS_HS(btree) && !WT_IS_METADATA(btree->dhandle));
+    WT_ASSERT(session, !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle));
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(btree);
 
@@ -2297,12 +2314,9 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     if (i == r->multi_next)
         return (0);
 
-    WT_RET(__wt_hs_cursor_open(session));
-
     for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
         if (multi->supd != NULL) {
-            WT_ERR(__wt_hs_insert_updates(session, r->page, multi));
-            r->cache_write_hs = true;
+            WT_ERR(__wt_hs_insert_updates(session, r->page, multi, &r->cache_write_hs));
             if (!multi->supd_restore) {
                 __wt_free(session, multi->supd);
                 multi->supd_entries = 0;
@@ -2310,7 +2324,6 @@ __rec_hs_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         }
 
 err:
-    WT_TRET(__wt_hs_cursor_close(session));
     return (ret);
 }
 
@@ -2353,6 +2366,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
         dsk->type = WT_PAGE_OVFL;
+        __rec_set_page_write_gen(dsk, btree);
         dsk->u.datalen = (uint32_t)kv->buf.size;
         memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
         dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -534,7 +534,7 @@ __wt_cell_total_len(void *unpack_arg)
 {
     WT_CELL_UNPACK_COMMON *unpack;
 
-    unpack = unpack_arg;
+    unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
 
     /*
      * The length field is specially named because it's dangerous to use it: it represents the
@@ -970,7 +970,8 @@ __cell_unpack_window_cleanup(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk
      * No delete              txnid=MAX, ts=MAX,            txnid=MAX, ts=MAX,
      *                        durable_ts=NONE               durable_ts=NONE
      */
-    if (dsk->write_gen == 0 || dsk->write_gen > S2BT(session)->base_write_gen)
+    WT_ASSERT(session, dsk->write_gen != 0);
+    if (dsk->write_gen > S2BT(session)->base_write_gen)
         return;
 
     /* Tell reconciliation we cleared the transaction ids and the cell needs to be rebuilt. */
@@ -1113,7 +1114,7 @@ __cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, int page_type,
 
     return (huffman == NULL || store->size == 0 ?
         0 :
-        __wt_huffman_decode(session, huffman, store->data, store->size, store));
+        __wt_huffman_decode(session, huffman, (const uint8_t *)store->data, store->size, store));
 }
 
 /*
@@ -1131,7 +1132,7 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 {
     WT_CELL_UNPACK_COMMON *unpack;
 
-    unpack = unpack_arg;
+    unpack = (WT_CELL_UNPACK_COMMON *)unpack_arg;
 
     WT_ASSERT(session, __wt_cell_type_raw(unpack->cell) != WT_CELL_VALUE_OVFL_RM);
     return (__cell_data_ref(session, NULL, page_type, unpack, store));
@@ -1144,7 +1145,7 @@ __wt_dsk_cell_data_ref(WT_SESSION_IMPL *session, int page_type, void *unpack_arg
 static inline int
 __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_arg, WT_ITEM *store)
 {
-    return (__cell_data_ref(session, page, page->type, unpack_arg, store));
+    return (__cell_data_ref(session, page, page->type, (WT_CELL_UNPACK_COMMON *)unpack_arg, store));
 }
 
 /*

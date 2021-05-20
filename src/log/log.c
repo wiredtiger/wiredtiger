@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -157,7 +157,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
          * If we're on a locked path and the write LSN is not advancing, unlock in case an earlier
          * thread is trying to switch its slot and complete its operation.
          */
-        if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT))
             __wt_spin_unlock(session, &log->log_slot_lock);
         /*
          * This may not be initialized if we are starting at an older log file version. So only
@@ -169,7 +169,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
             __wt_yield();
         else
             __wt_cond_wait(session, log->log_write_cond, 200, NULL);
-        if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT))
             __wt_spin_lock(session, &log->log_slot_lock);
     }
 }
@@ -1129,7 +1129,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * write to the log. If the log file size is small we could fill a log file before the previous
      * one is closed. Wait for that to close.
      */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     for (yield_cnt = 0; log->log_close_fh != NULL;) {
         WT_STAT_CONN_INCR(session, log_close_yields);
         /*
@@ -1334,7 +1334,7 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
      * the release LSN. That way when log files switch, we're waiting for the correct LSN from
      * outstanding writes.
      */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     /*
      * We need to set the release LSN earlier, before a log file change.
      */
@@ -2042,7 +2042,7 @@ __log_salvage_message(
  *     Scan the logs, calling a function on each record found.
  */
 int
-__wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
+__wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *start_lsnp, WT_LSN *end_lsnp, uint32_t flags,
   int (*func)(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, WT_LSN *next_lsnp,
     void *cookie, int firstrecord),
   void *cookie)
@@ -2080,7 +2080,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
     if (func == NULL)
         return (0);
 
-    if (lsnp != NULL && LF_ISSET(WT_LOGSCAN_FIRST | WT_LOGSCAN_FROM_CKP))
+    if (start_lsnp != NULL && LF_ISSET(WT_LOGSCAN_FIRST | WT_LOGSCAN_FROM_CKP))
         WT_RET_MSG(session, WT_ERROR, "choose either a start LSN or a start flag");
     /*
      * Set up the allocation size, starting and ending LSNs. The values for those depend on whether
@@ -2091,7 +2091,7 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
         allocsize = log->allocsize;
         WT_ASSIGN_LSN(&end_lsn, &log->alloc_lsn);
         WT_ASSIGN_LSN(&start_lsn, &log->first_lsn);
-        if (lsnp == NULL) {
+        if (start_lsnp == NULL) {
             if (LF_ISSET(WT_LOGSCAN_FROM_CKP))
                 WT_ASSIGN_LSN(&start_lsn, &log->ckpt_lsn);
             else if (!LF_ISSET(WT_LOGSCAN_FIRST))
@@ -2121,16 +2121,17 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
         WT_SET_LSN(&end_lsn, lastlog, 0);
         WT_ERR(__wt_fs_directory_list_free(session, &logfiles, logcount));
     }
-    if (lsnp != NULL) {
+
+    if (start_lsnp != NULL) {
         /*
          * Offsets must be on allocation boundaries. An invalid LSN from a user should just return
          * WT_NOTFOUND. It is not an error. But if it is from recovery, we expect valid LSNs so give
          * more information about that.
          */
-        if (lsnp->l.offset % allocsize != 0) {
+        if (start_lsnp->l.offset % allocsize != 0) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND, "__wt_log_scan unaligned LSN %" PRIu32 "/%" PRIu32,
-                  lsnp->l.file, lsnp->l.offset);
+                  start_lsnp->l.file, start_lsnp->l.offset);
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2139,11 +2140,11 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * return WT_NOTFOUND. It is not an error. But if it is from recovery, we expect valid LSNs
          * so give more information about that.
          */
-        if (lsnp->l.file > lastlog) {
+        if (start_lsnp->l.file > lastlog) {
             if (LF_ISSET(WT_LOGSCAN_RECOVER | WT_LOGSCAN_RECOVER_METADATA))
                 WT_ERR_MSG(session, WT_NOTFOUND,
                   "__wt_log_scan LSN %" PRIu32 "/%" PRIu32 " larger than biggest log file %" PRIu32,
-                  lsnp->l.file, lsnp->l.offset, lastlog);
+                  start_lsnp->l.file, start_lsnp->l.offset, lastlog);
             else
                 WT_ERR(WT_NOTFOUND);
         }
@@ -2151,8 +2152,8 @@ __wt_log_scan(WT_SESSION_IMPL *session, WT_LSN *lsnp, uint32_t flags,
          * Log cursors may not know the starting LSN. If an LSN is passed in that it is equal to the
          * smallest LSN, start from the beginning of the log.
          */
-        if (!WT_IS_INIT_LSN(lsnp))
-            WT_ASSIGN_LSN(&start_lsn, lsnp);
+        if (!WT_IS_INIT_LSN(start_lsnp))
+            WT_ASSIGN_LSN(&start_lsn, start_lsnp);
     }
     WT_ERR(__log_open_verify(session, start_lsn.l.file, &log_fh, &prev_lsn, NULL, &need_salvage));
     if (need_salvage)
@@ -2387,6 +2388,13 @@ advance:
             if (LF_ISSET(WT_LOGSCAN_ONE))
                 break;
         }
+
+        /*
+         * Exit the scanning loop if the next LSN seen is greater than our user set end range LSN.
+         */
+        if (end_lsnp != NULL && __wt_log_cmp(&next_lsn, end_lsnp) > 0)
+            break;
+
         WT_ASSIGN_LSN(&rd_lsn, &next_lsn);
     }
 
@@ -2687,7 +2695,7 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
             __wt_log_slot_free(session, myslot.slot);
     } else if (force) {
         /*
-         * If we are going to wait for this slot to get written, signal the wrlsn thread.
+         * If we are going to wait for this slot to get written, signal the log server thread.
          *
          * XXX I've seen times when conditions are NULL.
          */

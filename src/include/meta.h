@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -70,7 +70,7 @@
  */
 #define WT_WITH_TURTLE_LOCK(session, op)                                                      \
     do {                                                                                      \
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));                      \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));        \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
     } while (0)
 
@@ -118,6 +118,8 @@ struct __wt_block_mods {
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
+#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
+    for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */

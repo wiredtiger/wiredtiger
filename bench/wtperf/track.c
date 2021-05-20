@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -45,6 +45,24 @@ sum_pop_ops(WTPERF *wtperf)
     for (i = 0, thread = wtperf->popthreads; thread != NULL && i < opts->populate_threads;
          ++i, ++thread)
         total += thread->insert.ops;
+    return (total);
+}
+
+/*
+ * Return total backup operations.
+ */
+uint64_t
+sum_backup_ops(WTPERF *wtperf)
+{
+    CONFIG_OPTS *opts;
+    uint64_t total;
+
+    opts = wtperf->opts;
+
+    if (opts->backup_interval > 0)
+        total = wtperf->backupthreads->backup.ops;
+    else
+        total = 0;
     return (total);
 }
 

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -25,6 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#ifndef TEST_UTIL_H
+#define TEST_UTIL_H
+
 #include "wt_internal.h"
 
 #ifdef _WIN32
@@ -265,11 +268,14 @@ void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
 void testutil_copy_data(const char *);
 bool testutil_is_flag_set(const char *);
+void testutil_build_dir(char *, int);
 void testutil_make_work_dir(const char *);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
 void testutil_timestamp_parse(const char *, uint64_t *);
+void testutil_create_backup_directory(const char *);
+void testutil_copy_file(WT_SESSION *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
@@ -278,3 +284,5 @@ WT_THREAD_RET thread_append(void *);
 
 extern const char *progname;
 const char *testutil_set_progname(char *const *);
+
+#endif

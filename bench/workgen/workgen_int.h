@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -278,6 +278,8 @@ struct WorkloadRunner {
     ~WorkloadRunner();
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
+    int start_table_idle_cycle(WT_CONNECTION *conn);
+    int check_timing(const char *name, uint64_t last_interval);
 
 private:
     int close_all();

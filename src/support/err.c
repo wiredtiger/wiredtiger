@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -472,8 +472,8 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((
     handler = session->event_handler;
     ret = handler->handle_message(handler, wt_session, buf->data);
 
+err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 
@@ -501,8 +501,8 @@ __wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
     handler = session->event_handler;
     ret = handler->handle_message(handler, wt_session, buf->data);
 
+err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 
@@ -574,7 +574,7 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
       WT_PREFIX_MATCH(uri, "config:") || WT_PREFIX_MATCH(uri, "file:") ||
       WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "log:") ||
       WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "statistics:") ||
-      WT_PREFIX_MATCH(uri, "table:"))
+      WT_PREFIX_MATCH(uri, "table:") || WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_object_unsupported(session, uri));
 
     WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);

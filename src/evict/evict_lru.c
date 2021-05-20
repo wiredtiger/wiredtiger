@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -285,18 +285,18 @@ __wt_evict_thread_run(WT_SESSION_IMPL *session, WT_THREAD *thread)
      * busy and then opens a different file (in this case, the HS file), it can deadlock with a
      * thread waiting for the first file to drain from the eviction queue. See WT-5946 for details.
      */
-    WT_RET(__wt_hs_cursor_cache(session));
+    WT_RET(__wt_curhs_cache(session));
     if (conn->evict_server_running && __wt_spin_trylock(session, &cache->evict_pass_lock) == 0) {
         /*
          * Cannot use WT_WITH_PASS_LOCK because this is a try lock. Fix when that is supported. We
          * set the flag on both sessions because we may call clear_walk when we are walking with the
          * walk session, locked.
          */
-        F_SET(session, WT_SESSION_LOCKED_PASS);
-        F_SET(cache->walk_session, WT_SESSION_LOCKED_PASS);
+        FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_SET(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
         ret = __evict_server(session, &did_work);
-        F_CLR(cache->walk_session, WT_SESSION_LOCKED_PASS);
-        F_CLR(session, WT_SESSION_LOCKED_PASS);
+        FLD_CLR(cache->walk_session->lock_flags, WT_SESSION_LOCKED_PASS);
+        FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
         was_intr = cache->pass_intr != 0;
         __wt_spin_unlock(session, &cache->evict_pass_lock);
         WT_ERR(ret);
@@ -584,8 +584,15 @@ __evict_update_work(WT_SESSION_IMPL *session)
     if (!__evict_queue_empty(cache->evict_urgent_queue, false))
         LF_SET(WT_CACHE_EVICT_URGENT);
 
-    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0)
+    /*
+     * TODO: We are caching the cache usage values associated with the history store because the
+     * history store dhandle isn't always available to eviction. Keeping potentially out-of-date
+     * values could lead to surprising bugs in the future.
+     */
+    if (F_ISSET(conn, WT_CONN_HS_OPEN) && __wt_hs_get_btree(session, &hs_tree) == 0) {
         cache->bytes_hs = hs_tree->bytes_inmem;
+        cache->bytes_hs_dirty = hs_tree->bytes_dirty_intl + hs_tree->bytes_dirty_leaf;
+    }
 
     /*
      * If we need space in the cache, try to find clean pages to evict.
@@ -726,11 +733,11 @@ __evict_pass(WT_SESSION_IMPL *session)
              * race conditions that other threads can enter into the flow of evict server when there
              * is already another server is running.
              */
-            F_CLR(session, WT_SESSION_LOCKED_PASS);
+            FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_PASS);
             __wt_spin_unlock(session, &cache->evict_pass_lock);
             ret = __evict_lru_pages(session, true);
             __wt_spin_lock(session, &cache->evict_pass_lock);
-            F_SET(session, WT_SESSION_LOCKED_PASS);
+            FLD_SET(session->lock_flags, WT_SESSION_LOCKED_PASS);
             WT_RET(ret);
         }
 
@@ -802,7 +809,7 @@ __evict_clear_walk(WT_SESSION_IMPL *session)
     btree = S2BT(session);
     cache = S2C(session)->cache;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_PASS));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_PASS));
     if (session->dhandle == cache->walk_tree)
         cache->walk_tree = NULL;
 
@@ -837,7 +844,7 @@ __evict_clear_all_walks(WT_SESSION_IMPL *session)
     conn = S2C(session);
 
     TAILQ_FOREACH (dhandle, &conn->dhqh, q)
-        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+        if (WT_DHANDLE_BTREE(dhandle))
             WT_WITH_DHANDLE(session, dhandle, WT_TRET(__evict_clear_walk(session)));
     return (ret);
 }
@@ -1456,7 +1463,7 @@ retry:
             break;
 
         /* Ignore non-btree handles, or handles that aren't open. */
-        if (dhandle->type != WT_DHANDLE_TYPE_BTREE || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN))
             continue;
 
         /* Skip files that don't allow eviction. */
@@ -1726,6 +1733,20 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
     if (target_pages > remaining_slots)
         target_pages = remaining_slots;
 
+    /*
+     * Reduce the number of pages to be selected from btrees other than the history store (HS) if
+     * the cache pressure is high and HS content dominates the cache. Evicting unclean non-HS pages
+     * can generate even more HS content and will not help with the cache pressure, and will
+     * probably just amplify it further.
+     */
+    if (!WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
+        /* If target pages are less than 10, keep it like that. */
+        if (target_pages >= 10) {
+            target_pages = target_pages / 10;
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_target_page_reduced);
+        }
+    }
+
     /* If we don't want any pages from this tree, move on. */
     if (target_pages == 0)
         return (0);
@@ -1838,7 +1859,8 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
          * create "deserts" in trees where no good eviction candidates can be found. Abandon the
          * walk if we get into that situation.
          */
-        give_up = !__wt_cache_aggressive(session) && !WT_IS_HS(btree) && pages_seen > min_pages &&
+        give_up = !__wt_cache_aggressive(session) && !WT_IS_HS(btree->dhandle) &&
+          pages_seen > min_pages &&
           (pages_queued == 0 || (pages_seen / pages_queued) > (min_pages / target_pages));
         if (give_up) {
             /*
@@ -1924,6 +1946,19 @@ __evict_walk_tree(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue, u_int max_ent
         if (modified &&
           (page->read_gen == WT_READGEN_OLDEST || page->memory_footprint >= btree->splitmempage)) {
             WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_oldest);
+            if (__wt_page_evict_urgent(session, ref))
+                urgent_queued = true;
+            continue;
+        }
+
+        /*
+         * If history store dirty content is dominating the cache, we want to prioritize evicting
+         * history store pages over other btree pages. This helps in keeping cache contents below
+         * the configured cache size during checkpoints where reconciling non-HS pages can generate
+         * significant amount of HS dirty content very quickly.
+         */
+        if (WT_IS_HS(btree->dhandle) && __wt_cache_hs_dirty(session)) {
+            WT_STAT_CONN_INCR(session, cache_eviction_pages_queued_urgent_hs_dirty);
             if (__wt_page_evict_urgent(session, ref))
                 urgent_queued = true;
             continue;
@@ -2045,16 +2080,13 @@ fast:
     }
 
     WT_STAT_CONN_INCRV(session, cache_eviction_walk, refs_walked);
-    WT_STAT_CONN_INCRV(session, cache_eviction_pages_seen, pages_seen);
-    WT_STAT_DATA_INCRV(session, cache_eviction_pages_seen, pages_seen);
+    WT_STAT_CONN_DATA_INCRV(session, cache_eviction_pages_seen, pages_seen);
     WT_STAT_CONN_INCRV(session, cache_eviction_pages_already_queued, pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_seen, internal_pages_seen);
     WT_STAT_CONN_INCRV(
       session, cache_eviction_internal_pages_already_queued, internal_pages_already_queued);
     WT_STAT_CONN_INCRV(session, cache_eviction_internal_pages_queued, internal_pages_queued);
-    WT_STAT_CONN_INCRV(session, cache_eviction_walk_passes, 1);
-    WT_STAT_DATA_INCRV(session, cache_eviction_walk_passes, 1);
-
+    WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_passes);
     return (0);
 }
 
@@ -2299,7 +2331,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
 {
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
-    WT_CURSOR *hs_cursor_saved;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
     WT_TXN_GLOBAL *txn_global;
@@ -2318,21 +2349,12 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
     /*
-     * If we have a history store cursor, save it. This ensures that if eviction needs to access the
-     * history store, it will get its own cursor, avoiding potential problems if it were to
-     * reposition or reset a history store cursor that we're in the middle of using for something
-     * else.
-     */
-    hs_cursor_saved = session->hs_cursor;
-    session->hs_cursor = NULL;
-
-    /*
      * Before we enter the eviction generation, make sure this session has a cached history store
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
      * session will have a handle list write lock and will be waiting on eviction to drain, we'll be
      * inside eviction waiting on a handle list read lock to open a history store cursor.
      */
-    WT_ERR(__wt_hs_cursor_cache(session));
+    WT_ERR(__wt_curhs_cache(session));
 
     /*
      * It is not safe to proceed if the eviction server threads aren't setup yet.
@@ -2354,7 +2376,7 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
          * rolled back. Ignore if in recovery, those transactions can't be rolled back.
          */
         if (!F_ISSET(conn, WT_CONN_RECOVERING) && __wt_cache_stuck(session)) {
-            ret = __wt_txn_is_blocking(session, false);
+            ret = __wt_txn_is_blocking(session);
             if (ret == WT_ROLLBACK) {
                 --cache->evict_aggressive_score;
                 WT_STAT_CONN_INCR(session, txn_fail_cache);
@@ -2432,12 +2454,6 @@ err:
 
 done:
     WT_TRACK_OP_END(session);
-
-    /* If the caller was using a history store cursor they should have closed it by now. */
-    WT_ASSERT(session, session->hs_cursor == NULL);
-
-    /* Restore the caller's history store cursor. */
-    session->hs_cursor = hs_cursor_saved;
 
     return (ret);
 }
@@ -2645,7 +2661,7 @@ __verbose_dump_cache_apply(WT_SESSION_IMPL *session, uint64_t *total_bytesp,
             break;
 
         /* Skip if the tree is marked discarded by another thread. */
-        if (dhandle->type != WT_DHANDLE_TYPE_BTREE || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
+        if (!WT_DHANDLE_BTREE(dhandle) || !F_ISSET(dhandle, WT_DHANDLE_OPEN) ||
           F_ISSET(dhandle, WT_DHANDLE_DISCARD))
             continue;
 

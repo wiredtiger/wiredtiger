@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -71,7 +71,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
             return (0);
         }
 
-        WT_RET(__wt_hs_cursor_cache(session));
+        WT_RET(__wt_curhs_cache(session));
         (void)__wt_atomic_addv32(&S2BT(session)->evict_busy, 1);
         ret = __wt_evict(session, ref, previous_state, 0);
         (void)__wt_atomic_subv32(&S2BT(session)->evict_busy, 1);
@@ -109,12 +109,14 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      * discarded. The way we figure that out is to check the page's cell type, cells for leaf pages
      * without overflow items are special.
      *
-     * Additionally, if the aggregated start time point on the page is not visible to us then we
-     * cannot truncate the page.
+     * Additionally, if the page has prepared updates or the aggregated start time point on the page
+     * is not visible to us then we cannot truncate the page.
      */
     if (!__wt_ref_addr_copy(session, ref, &addr))
         goto err;
     if (addr.type != WT_ADDR_LEAF_NO)
+        goto err;
+    if (addr.ta.prepare)
         goto err;
     if (!__wt_txn_visible(session, addr.ta.newest_txn, addr.ta.newest_start_durable_ts))
         goto err;
@@ -132,8 +134,7 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     WT_ERR(__wt_txn_modify_page_delete(session, ref));
 
     *skipp = true;
-    WT_STAT_CONN_INCR(session, rec_page_delete_fast);
-    WT_STAT_DATA_INCR(session, rec_page_delete_fast);
+    WT_STAT_CONN_DATA_INCR(session, rec_page_delete_fast);
 
     /* Publish the page to its new state, ensuring visibility. */
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
@@ -302,8 +303,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     btree = S2BT(session);
     page = ref->page;
 
-    WT_STAT_CONN_INCR(session, cache_read_deleted);
-    WT_STAT_DATA_INCR(session, cache_read_deleted);
+    WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
     /*
      * Give the page a modify structure.
@@ -315,10 +315,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     if (!F_ISSET(btree, WT_BTREE_READONLY))
         __wt_page_modify_set(session, page);
 
-    if (ref->page_del != NULL && ref->page_del->prepare_state != WT_PREPARE_INIT) {
-        WT_STAT_CONN_INCR(session, cache_read_deleted_prepared);
-        WT_STAT_DATA_INCR(session, cache_read_deleted_prepared);
-    }
+    if (ref->page_del != NULL && ref->page_del->prepare_state != WT_PREPARE_INIT)
+        WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
 
     /*
      * An operation is accessing a "deleted" page, and we're building an in-memory version of the

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -51,6 +51,7 @@ struct __wt_extlist {
     uint64_t bytes;   /* Byte count */
     uint32_t entries; /* Entry count */
 
+    uint32_t logid;    /* Written log ID */
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
@@ -140,6 +141,7 @@ struct __wt_size {
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
+    uint32_t root_logid;
     wt_off_t root_offset; /* The root */
     uint32_t root_checksum, root_size;
 
@@ -183,6 +185,7 @@ struct __wt_bm {
     int (*compact_skip)(WT_BM *, WT_SESSION_IMPL *, bool *);
     int (*compact_start)(WT_BM *, WT_SESSION_IMPL *);
     int (*corrupt)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
+    int (*flush_tier)(WT_BM *, WT_SESSION_IMPL *, uint8_t **, size_t *);
     int (*free)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     bool (*is_mapped)(WT_BM *, WT_SESSION_IMPL *);
     int (*map_discard)(WT_BM *, WT_SESSION_IMPL *, void *, size_t);
@@ -236,11 +239,17 @@ struct __wt_block {
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
+    bool log_structured; /* Write checkpoint as separate files */
     size_t os_cache;     /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
+
+    /* Log-structured tracking. */
+    uint32_t file_flags, logid, max_logid;
+    WT_FH **lfh;
+    size_t lfh_alloc;
 
     /*
      * There is only a single checkpoint in a file that can be written. The information could

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -81,6 +81,8 @@
  * options are appended to existing content, whereas STRING options overwrite.
  */
 DEF_OPT_AS_UINT32(
+  backup_interval, 0, "backup the database every interval seconds during the workload phase, 0 to disable")
+DEF_OPT_AS_UINT32(
   checkpoint_interval, 120, "checkpoint every interval seconds during the workload phase.")
 DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
   "checkpoint every rate operations during the populate phase in the populate thread(s), 0 to "
@@ -105,9 +107,12 @@ DEF_OPT_AS_BOOL(in_memory, 0, "Whether to create the database in-memory.")
 DEF_OPT_AS_UINT32(icount, 5000,
   "number of records to initially populate. If multiple tables are configured the count is spread "
   "evenly across all tables.")
-DEF_OPT_AS_UINT32(idle_table_cycle, 0,
-  "Enable regular create and drop of idle tables, value is the maximum number of seconds a create "
-  "or drop is allowed before flagging an error. Default 0 which means disabled.")
+DEF_OPT_AS_UINT32(max_idle_table_cycle, 0,
+  "Enable regular create and drop of idle tables. Value is the maximum number of seconds a create "
+  "or drop is allowed before aborting or printing a warning based on max_idle_table_cycle_fatal "
+  "setting.")
+DEF_OPT_AS_BOOL(max_idle_table_cycle_fatal, 0,
+  "print warning (false) or abort (true) of max_idle_table_cycle failure.")
 DEF_OPT_AS_BOOL(index, 0, "Whether to create an index on the value field.")
 DEF_OPT_AS_BOOL(insert_rmw, 0, "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import fnmatch, os, shutil, time
-from helper import copy_wiredtiger_home
+from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
@@ -37,51 +37,37 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_rollback_to_stable11.py
-# Test the rollback to stable is retrieving the proper hs update.
+# Test the rollback to stable is retrieving the proper history store update.
 class test_rollback_to_stable11(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
+
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
 
     prepare_values = [
         ('no_prepare', dict(prepare=False)),
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(prepare_values)
+    scenarios = make_scenarios(key_format_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=1MB,statistics=(all),log=(archive=false,enabled=true)'
         return config
 
-    def simulate_crash_restart(self, olddir, newdir):
-        ''' Simulate a crash from olddir and restart in newdir. '''
-        # with the connection still open, copy files to new directory
-        shutil.rmtree(newdir, ignore_errors=True)
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked
-            if os.path.isfile(fullname) and \
-                "WiredTiger.lock" not in fullname and \
-                "Tmplog" not in fullname and \
-                "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
-        #
-        # close the original connection and open to new directory
-        # NOTE:  This really cannot test the difference between the
-        # write-no-sync (off) version of log_flush and the sync
-        # version since we're not crashing the system itself.
-        #
-        self.close_conn()
-        self.conn = self.setUpConnectionOpen(newdir)
-        self.session = self.setUpSessionOpen(self.conn)
-
     def test_rollback_to_stable(self):
         nrows = 1
+
+        # Prepare transactions for column store table is not yet supported.
+        if self.prepare and self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
 
         # Create a table without logging.
         uri = "table:rollback_to_stable11"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
@@ -94,10 +80,10 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         value_d = "ddddd" * 100
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_b, ds, nrows, 20)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 20)
 
         # Verify data is visible and correct.
         self.check(value_b, uri, nrows, 20)
@@ -112,16 +98,16 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Simulate a server crash and restart.
-        self.simulate_crash_restart(".", "RESTART")
+        simulate_crash_restart(self, ".", "RESTART")
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_b, uri, nrows, 20)
 
         # Perform several updates.
-        self.large_updates(uri, value_c, ds, nrows, 30)
-        self.large_updates(uri, value_c, ds, nrows, 30)
-        self.large_updates(uri, value_c, ds, nrows, 30)
-        self.large_updates(uri, value_d, ds, nrows, 30)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 30)
 
         # Verify data is visible and correct.
         self.check(value_d, uri, nrows, 30)
@@ -130,7 +116,7 @@ class test_rollback_to_stable11(test_rollback_to_stable_base):
         self.session.checkpoint()
 
         # Simulate a server crash and restart.
-        self.simulate_crash_restart("RESTART", "RESTART2")
+        simulate_crash_restart(self, "RESTART", "RESTART2")
 
         # Check that the correct data is seen at and after the stable timestamp.
         self.check(value_b, uri, nrows, 20)

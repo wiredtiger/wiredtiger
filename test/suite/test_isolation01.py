@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -55,7 +55,13 @@ class test_isolation01(wttest.WiredTigerTestCase):
         self.session.begin_transaction('isolation=' + self.isolation)
         cursor.set_key(self.key)
         cursor.set_value(self.value)
-        self.assertEqual(cursor.insert(), 0)
+        # read committed and read uncommitted transactions are readonly, any write operations with
+        # these isolation levels should throw an error.
+        if self.isolation != 'snapshot':
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: cursor.insert(), "/not supported in read-committed or read-uncommitted transactions/")
+        else:
+            self.assertEqual(cursor.insert(), 0)
 
         if self.isolation == 'snapshot':
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

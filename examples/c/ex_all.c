@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -1012,9 +1012,9 @@ connection_ops(WT_CONNECTION *conn)
      *
      * Functions are specified by name (for example, "wiredtiger_open").
      *
-     * Methods are specified using a concatenation of the handle name, a
-     * period and the method name (for example, session create would be
-     * "WT_SESSION.create" and cursor close would be WT_CURSOR.close").
+     * Methods are specified using a concatenation of the handle name, a period and the method name
+     * (for example, session create would be "WT_SESSION.create" and cursor close would be
+     * "WT_CURSOR.close").
      */
     error_check(
       wiredtiger_config_validate(NULL, NULL, "WT_SESSION.create", "allocation_size=32KB"));

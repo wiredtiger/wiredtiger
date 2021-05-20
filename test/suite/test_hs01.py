@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,6 +29,7 @@
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
+from wtscenario import make_scenarios
 
 def timestamp_str(t):
     return '%x' % t
@@ -39,6 +40,12 @@ class test_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer', dict(key_format='i')),
+        ('string', dict(key_format='S'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
         # Update a large number of records, we'll hang if the history store table
@@ -75,7 +82,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Checkpoint and backup so as to simulate recovery
         self.session.checkpoint()
         newdir = "BACKUP"
-        copy_wiredtiger_home('.', newdir, True)
+        copy_wiredtiger_home(self, '.', newdir, True)
 
         conn = self.setUpConnectionOpen(newdir)
         session = self.setUpSessionOpen(conn)
@@ -96,7 +103,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Create a small table.
         uri = "table:test_hs01"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 
@@ -135,6 +142,11 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.durable_check(bigvalue3, uri, ds, nrows)
         session2.rollback_transaction()
         session2.close()
+
+        # FIXME-WT-7120: Rollback to stable support for column store is not implemented, and it
+        # fails only when it is used with timestamps.
+        if self.key_format == 'r':
+            return
 
         # Scenario: 3
         # Check to see if the history store is working with the old timestamp.

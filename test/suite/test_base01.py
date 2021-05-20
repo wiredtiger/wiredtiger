@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -66,7 +66,7 @@ class test_base01(wttest.WiredTigerTestCase):
                 gotException = True
                 self.pr('got expected exception: ' + str(e))
                 self.assertTrue(str(e).find('nvalid argument') >= 0)
-        self.assertTrue(gotException, 'expected exception')
+        self.assertTrue(gotException, msg = 'expected exception')
 
     def test_empty(self):
         """
@@ -96,7 +96,7 @@ class test_base01(wttest.WiredTigerTestCase):
         getcursor = self.cursor_s(self.table_name2, 'key1')
         ret = getcursor.search()
         self.assertTrue(ret == 0)
-        self.assertTrue(getcursor.get_value(), 'value1')
+        self.assertEqual(getcursor.get_value(), 'value1')
         self.pr('closing cursor')
         getcursor.close()
 

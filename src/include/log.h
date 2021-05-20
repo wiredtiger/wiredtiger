@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -216,7 +216,7 @@ struct __wt_logslot {
 
 #define WT_WITH_SLOT_LOCK(session, log, op)                                            \
     do {                                                                               \
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));                 \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));   \
         WT_WITH_LOCK_WAIT(session, &(log)->log_slot_lock, WT_SESSION_LOCKED_SLOT, op); \
     } while (0)
 
@@ -400,9 +400,10 @@ struct __wt_txn_printlog_args {
     WT_FSTREAM *fs;
 
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_PRINTLOG_HEX 0x1u /* Add hex output */
-#define WT_TXN_PRINTLOG_MSG 0x2u /* Messages only */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_TXN_PRINTLOG_HEX 0x1u      /* Add hex output */
+#define WT_TXN_PRINTLOG_MSG 0x2u      /* Messages only */
+#define WT_TXN_PRINTLOG_UNREDACT 0x4u /* Don't redact user data from output */
+                                      /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
 

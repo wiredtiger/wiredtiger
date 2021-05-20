@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -15,8 +15,7 @@
 static int
 __hs_start_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_sessionp)
 {
-    WT_ASSERT(session, !F_ISSET(session, WT_CONN_HS_OPEN));
-    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, int_sessionp));
+    return (__wt_open_internal_session(S2C(session), "hs_access", true, 0, 0, int_sessionp));
 }
 
 /*
@@ -55,22 +54,20 @@ __hs_cleanup_las(WT_SESSION_IMPL *session)
 
 /*
  * __wt_hs_get_btree --
- *     Get the history store btree. Open a history store cursor if needed to get the btree.
+ *     Get the history store btree by opening a history store cursor.
  */
 int
 __wt_hs_get_btree(WT_SESSION_IMPL *session, WT_BTREE **hs_btreep)
 {
+    WT_CURSOR *hs_cursor;
     WT_DECL_RET;
 
     *hs_btreep = NULL;
 
-    WT_RET(__wt_hs_cursor_open(session));
-
-    *hs_btreep = CUR2BT(session->hs_cursor);
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    *hs_btreep = __wt_curhs_get_btree(hs_cursor);
     WT_ASSERT(session, *hs_btreep != NULL);
-
-    WT_TRET(__wt_hs_cursor_close(session));
-
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -117,8 +114,8 @@ __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
      * Test flags before setting them so updates can't race in subsequent opens (the first update is
      * safe because it's single-threaded from wiredtiger_open).
      */
-    if (!F_ISSET(btree, WT_BTREE_HS))
-        F_SET(btree, WT_BTREE_HS);
+    if (!F_ISSET(btree->dhandle, WT_DHANDLE_HS))
+        F_SET(btree->dhandle, WT_DHANDLE_HS);
     if (!F_ISSET(btree, WT_BTREE_NO_LOGGING))
         F_SET(btree, WT_BTREE_NO_LOGGING);
 

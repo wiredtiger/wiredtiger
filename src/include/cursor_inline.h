@@ -1,10 +1,36 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
+
+/*
+ * __wt_curhs_get_btree --
+ *     Convert a history store cursor to the underlying btree.
+ */
+static inline WT_BTREE *
+__wt_curhs_get_btree(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    return (CUR2BT(hs_cursor->file_cursor));
+}
+
+/*
+ * __wt_curhs_get_cbt --
+ *     Convert a history store cursor to the underlying btree cursor.
+ */
+static inline WT_CURSOR_BTREE *
+__wt_curhs_get_cbt(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+
+    return ((WT_CURSOR_BTREE *)hs_cursor->file_cursor);
+}
 
 /*
  * __cursor_set_recno --
@@ -378,11 +404,11 @@ __cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 }
 
 /*
- * __cursor_func_init --
+ * __wt_cursor_func_init --
  *     Cursor call setup.
  */
 static inline int
-__cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
+__wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 {
     WT_SESSION_IMPL *session;
 
@@ -416,20 +442,73 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 }
 
 /*
+ * __wt_cursor_page_pinned --
+ *     Return if we have a page pinned.
+ */
+static inline bool
+__wt_cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
+{
+    WT_CURSOR *cursor;
+    WT_SESSION_IMPL *session;
+
+    cursor = &cbt->iface;
+    session = CUR2S(cbt);
+
+    /*
+     * Check the page active flag, asserting the page reference with any external key.
+     */
+    if (!F_ISSET(cbt, WT_CBT_ACTIVE)) {
+        WT_ASSERT(session, cbt->ref == NULL && !F_ISSET(cursor, WT_CURSTD_KEY_INT));
+        return (false);
+    }
+
+    /*
+     * Check if the key references an item on a page. When returning from search, the page is pinned
+     * and the key is internal. After the application sets a key, the key becomes external. For the
+     * search and search-near operations, we assume locality and check any pinned page first on each
+     * new search operation. For operations other than search and search-near, check if we have an
+     * internal key. If the page is pinned and we're pointing into the page, we don't need to search
+     * at all, we can proceed with the operation. However, if the key has been set, that is, it's an
+     * external key, we're going to have to do a full search.
+     */
+    if (!search_operation && !F_ISSET(cursor, WT_CURSTD_KEY_INT))
+        return (false);
+
+    /*
+     * XXX No fast-path searches at read-committed isolation. Underlying transactional functions
+     * called by the fast and slow path search code handle transaction IDs differently, resulting in
+     * different search results at read-committed isolation. This makes no difference for the update
+     * functions, but in the case of a search, we will see different results based on the cursor's
+     * initial location. See WT-5134 for the details.
+     */
+    if (search_operation && session->txn->isolation == WT_ISO_READ_COMMITTED)
+        return (false);
+
+    /*
+     * Fail if the page is flagged for forced eviction (so we periodically release pages grown too
+     * large).
+     */
+    if (cbt->ref->page->read_gen == WT_READGEN_OLDEST)
+        return (false);
+
+    return (true);
+}
+
+/*
  * __cursor_row_slot_key_return --
  *     Return a row-store leaf page slot's key.
  */
 static inline int
-__cursor_row_slot_key_return(
-  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_KV *kpack, bool *kpack_used)
+__cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_KV *kpack)
 {
     WT_CELL *cell;
     WT_ITEM *kb;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
+    size_t key_size;
+    uint8_t key_prefix;
     void *copy;
-
-    *kpack_used = false;
+    const void *key_data;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -442,47 +521,53 @@ __cursor_row_slot_key_return(
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * Get a key: we could just call __wt_row_leaf_key, but as a cursor is running through the tree,
-     * we may have additional information here (we may have the fully-built key that's immediately
-     * before the prefix-compressed key we want, so it's a faster construction).
-     *
-     * First, check for an immediately available key.
+     * Check for an immediately available key from an encoded or instantiated key, and if that's not
+     * available, from the unpacked cell.
      */
-    if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &kb->data, &kb->size))
+    __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
+    if (key_data == NULL) {
+        if (__wt_cell_type(cell) != WT_CELL_KEY)
+            goto slow;
+        __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+        key_data = kpack->data;
+        key_size = kpack->size;
+        key_prefix = kpack->prefix;
+    }
+    if (key_prefix == 0) {
+        kb->data = key_data;
+        kb->size = key_size;
         return (0);
+    }
 
     /*
-     * Unpack the cell and deal with overflow and prefix-compressed keys. Inline building simple
-     * prefix-compressed keys from a previous key, otherwise build from scratch.
-     *
-     * Clear the key cell structure. It shouldn't be necessary (as far as I can tell, and we don't
-     * do it in lots of other places), but disabling shared builds (--disable-shared) results in the
-     * compiler complaining about uninitialized field use.
+     * A prefix compressed key. As a cursor is running through the tree, we may have the fully-built
+     * key immediately before the prefix-compressed key we want, so it's faster to build here.
      */
-    memset(kpack, 0, sizeof(*kpack));
-    __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-    *kpack_used = true;
-    if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
-        WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
+    if (cbt->rip_saved == NULL || cbt->rip_saved != rip - 1)
+        goto slow;
 
-        /*
-         * Grow the buffer as necessary as well as ensure data has been copied into local buffer
-         * space, then append the suffix to the prefix already in the buffer.
-         *
-         * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's data
-         * length to the prefix bytes.
-         */
-        cbt->row_key->size = kpack->prefix;
-        WT_RET(__wt_buf_grow(session, cbt->row_key, cbt->row_key->size + kpack->size));
-        memcpy((uint8_t *)cbt->row_key->data + cbt->row_key->size, kpack->data, kpack->size);
-        cbt->row_key->size += kpack->size;
-    } else {
-        /*
-         * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we already did
-         * __wt_row_leaf_key's fast-path checks inline.
-         */
+    /*
+     * Inline building simple prefix-compressed keys from a previous key.
+     *
+     * Grow the buffer as necessary as well as ensure data has been copied into local buffer space,
+     * then append the suffix to the prefix already in the buffer. Don't grow the buffer
+     * unnecessarily or copy data we don't need, truncate the item's CURRENT data length to the
+     * prefix bytes before growing the buffer.
+     */
+    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
+    cbt->row_key->size = key_prefix;
+    WT_RET(__wt_buf_grow(session, cbt->row_key, key_prefix + key_size));
+    memcpy((uint8_t *)cbt->row_key->data + key_prefix, key_data, key_size);
+    cbt->row_key->size = key_prefix + key_size;
+
+    if (0) {
+slow: /*
+       * Call __wt_row_leaf_key_work() instead of __wt_row_leaf_key(): we already did the
+       * __wt_row_leaf_key() fast-path checks inline.
+       */
         WT_RET(__wt_row_leaf_key_work(session, page, rip, cbt->row_key, false));
     }
+
     kb->data = cbt->row_key->data;
     kb->size = cbt->row_key->size;
     cbt->rip_saved = rip;

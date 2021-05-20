@@ -48,6 +48,12 @@ common_runtime_config = [
     Config('assert', '', r'''
         enable enhanced checking. ''',
         type='category', subconfig= [
+        Config('commit_timestamp', 'none', r'''
+            This option is no longer supported, retained for backward compatibility.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
+        Config('durable_timestamp', 'none', r'''
+            This option is no longer supported, retained for backward compatibility.''',
+            choices=['always', 'key_consistent', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
             \c write_timestamp_usage option for this table''',
@@ -197,6 +203,39 @@ lsm_config = [
     ]),
 ]
 
+tiered_config = [
+    Config('tiered_storage', '', r'''
+        configure a storage source for this table''',
+        type='category', subconfig=[
+        Config('name', 'none', r'''
+            permitted values are \c "none"
+            or custom storage source name created with
+            WT_CONNECTION::add_storage_source.
+            See @ref custom_storage_sources for more information'''),
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
+        Config('bucket', '', r'''
+            the bucket indicating the location for this table'''),
+        Config('bucket_prefix', '', r'''
+            the unique bucket prefix for this table'''),
+        Config('local_retention', '300', r'''
+            time in seconds to retain data on tiered storage on the local tier
+            for faster read access''',
+            min='0', max='10000'),
+        Config('object_target_size', '10M', r'''
+            the approximate size of objects before creating them on the
+            tiered storage tier''',
+            min='100K', max='10TB'),
+        ]),
+]
+
+tiered_tree_config = [
+    Config('bucket', '', r'''
+        the bucket indicating the location for this table'''),
+    Config('bucket_prefix', '', r'''
+        the unique bucket prefix for this table'''),
+]
+
 file_runtime_config = common_runtime_config + [
     Config('access_pattern_hint', 'none', r'''
         It is recommended that workloads that consist primarily of
@@ -229,16 +268,20 @@ file_runtime_config = common_runtime_config + [
         system buffer cache after that many bytes from this object are
         written into the buffer cache''',
         min=0),
+    Config('readonly', 'false', r'''
+        the file is read-only. All methods that may modify a file are
+        disabled. See @ref readonly for more information''',
+        type='boolean'),
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + [
+file_config = format_meta + file_runtime_config + tiered_config + [
     Config('block_allocation', 'best', r'''
-        configure block allocation. Permitted values are \c "first" or
-        \c "best"; the \c "first" configuration uses a first-available
-        algorithm during block allocation, the \c "best" configuration
-        uses a best-fit algorithm''',
-        choices=['first', 'best',]),
+        configure block allocation. Permitted values are \c "best" or \c "first";
+        the \c "best" configuration uses a best-fit algorithm,
+        the \c "first" configuration uses a first-available algorithm during block allocation,
+        the \c "log-structure" configuration allocates a new file for each checkpoint''',
+        choices=['best', 'first', 'log-structured',]),
     Config('allocation_size', '4KB', r'''
         the file unit allocation size, in bytes, must a power-of-two;
         smaller values decrease the file space required by overflow
@@ -284,6 +327,8 @@ file_config = format_meta + file_runtime_config + [
     Config('format', 'btree', r'''
         the file format''',
         choices=['btree']),
+    Config('huffman_key', 'none', r'''
+        This option is no longer supported, retained for backward compatibility.'''),
     Config('huffman_value', 'none', r'''
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
@@ -307,8 +352,8 @@ file_config = format_meta + file_runtime_config + [
         block compression is done''',
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
-        historic term for internal_key_max''',
-        min=0, undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min=0),
     Config('internal_key_max', '0', r'''
         the largest key stored in an internal node, in bytes.  If set, keys
         larger than the specified size are stored as overflow items (which
@@ -317,10 +362,8 @@ file_config = format_meta + file_runtime_config + [
         page''',
         min='0'),
     Config('key_gap', '10', r'''
-        the maximum gap between instantiated keys in a Btree leaf page,
-        constraining the number of keys processed to instantiate a
-        random Btree leaf page key''',
-        min='0', undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min='0'),
     Config('leaf_key_max', '0', r'''
         the largest key stored in a leaf node, in bytes.  If set, keys
         larger than the specified size are stored as overflow items (which
@@ -344,8 +387,8 @@ file_config = format_meta + file_runtime_config + [
         a newly split leaf page''',
         min='0'),
     Config('leaf_item_max', '0', r'''
-        historic term for leaf_key_max and leaf_value_max''',
-        min=0, undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min=0),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage
@@ -401,12 +444,27 @@ file_meta = file_config + [
 ]
 
 lsm_meta = file_config + lsm_config + [
-    Config('last', '', r'''
+    Config('last', '0', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
         active chunks in the LSM tree'''),
     Config('old_chunks', '', r'''
         obsolete chunks in the LSM tree'''),
+]
+
+tiered_meta = common_meta + tiered_config + [
+    Config('last', '0', r'''
+        the last allocated object ID'''),
+    Config('tiers', '', r'''
+        list of data sources to combine into a tiered storage structure''', type='list'),
+]
+
+tier_meta = file_meta + tiered_tree_config
+# Objects need to have the readonly setting set and bucket_prefix.
+# The file_meta already contains those pieces.
+object_meta = file_meta + [
+    Config('flush', '0', r'''
+        indicates the time this object was flushed to shared storage or 0 if unflushed'''),
 ]
 
 table_only_config = [
@@ -562,7 +620,7 @@ connection_runtime_config = [
         content in cache to this level. It is a percentage of the cache size if
         the value is within the range of 0 to 100 or an absolute size when
         greater than 100. The value is not allowed to exceed the \c cache_size.
-        Ignored if set to zero or \c in_memory is \c true''',
+        Ignored if set to zero.''',
         min=0, max='10TB'),
     Config('eviction_dirty_target', '5', r'''
         perform eviction in worker threads when the cache contains at least
@@ -705,6 +763,24 @@ connection_runtime_config = [
         @ref statistics for more information''',
         type='list',
         choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
+    Config('tiered_manager', '', r'''
+        tiered storage manager configuration options''',
+        type='category', undoc=True, subconfig=[
+            Config('threads_max', '8', r'''
+                maximum number of threads WiredTiger will start to help manage
+                tiered storage maintenance. Each worker thread uses a session
+                from the configured session_max''',
+                min=1, max=20),
+            Config('threads_min', '1', r'''
+                minimum number of threads WiredTiger will start to help manage
+                tiered storage maintenance.''',
+                min=1, max=20),
+            Config('wait', '0', r'''
+                seconds to wait between each periodic housekeeping of
+                tiered storage. Setting this value above 0 configures periodic
+                management inside WiredTiger''',
+                min='0', max='100000'),
+            ]),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal
         of uncovering race conditions and unexpected blocking. This option is
@@ -750,6 +826,7 @@ connection_runtime_config = [
             'split',
             'temporary',
             'thread_group',
+            'tiered',
             'timestamp',
             'transaction',
             'verify',
@@ -864,7 +941,7 @@ statistics_log_configuration_common = [
     Config('timestamp', '"%b %d %H:%M:%S"', r'''
         a timestamp prepended to each log record, may contain strftime
         conversion specifications, when \c json is configured, defaults
-        to \c "%FT%Y.000Z"'''),
+        to \c "%Y-%m-%dT%H:%M:%S.000Z"'''),
     Config('wait', '0', r'''
         seconds to wait between each write of the log records; setting
         this value above 0 configures statistics logging''',
@@ -879,6 +956,45 @@ connection_reconfigure_statistics_log_configuration = [
         type='category', subconfig=
         statistics_log_configuration_common)
 ]
+
+tiered_storage_configuration_common = [
+    Config('local_retention', '300', r'''
+        time in seconds to retain data on tiered storage on the local tier for
+        faster read access''',
+        min='0', max='10000'),
+    Config('object_target_size', '10M', r'''
+        the approximate size of objects before creating them on the
+        tiered storage tier''',
+        min='100K', max='10TB'),
+]
+connection_reconfigure_tiered_storage_configuration = [
+    Config('tiered_storage', '', r'''
+        enable tiered storage. Enabling tiered storage may use one session from the
+        configured session_max''',
+        type='category', subconfig=
+        tiered_storage_configuration_common)
+]
+wiredtiger_open_tiered_storage_configuration = [
+    Config('tiered_storage', '', r'''
+        enable tiered storage. Enabling tiered storage may use one session from the
+        configured session_max''',
+        type='category', undoc=True, subconfig=
+        tiered_storage_configuration_common + [
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
+        Config('bucket', '', r'''
+            bucket string identifier where the objects should reside'''),
+        Config('bucket_prefix', '', r'''
+            unique string prefix to identify our objects in the bucket.
+            Multiple instances can share the storage bucket and this
+            identifier is used in naming objects'''),
+        Config('name', 'none', r'''
+            Permitted values are \c "none"
+            or custom storage name created with
+            WT_CONNECTION::add_storage_source'''),
+    ]),
+]
+
 wiredtiger_open_statistics_log_configuration = [
     Config('statistics_log', '', r'''
         log any statistics the database is configured to maintain,
@@ -910,7 +1026,7 @@ session_config = [
         option for operations that create cache pressure can starve ordinary
         sessions that obey the cache size.''',
         type='boolean'),
-    Config('isolation', 'read-committed', r'''
+    Config('isolation', 'snapshot', r'''
         the default isolation level for operations in this session''',
         choices=['read-uncommitted', 'read-committed', 'snapshot']),
 ]
@@ -919,6 +1035,7 @@ wiredtiger_open_common =\
     connection_runtime_config +\
     wiredtiger_open_compatibility_configuration +\
     wiredtiger_open_log_configuration +\
+    wiredtiger_open_tiered_storage_configuration +\
     wiredtiger_open_statistics_log_configuration + [
     Config('buffer_alignment', '-1', r'''
         in-memory alignment (in bytes) for buffers used for I/O.  The
@@ -1123,9 +1240,17 @@ cursor_runtime_config = [
         configures whether the cursor's insert, update and remove
         methods check the existing state of the record.  If \c overwrite
         is \c false, WT_CURSOR::insert fails with ::WT_DUPLICATE_KEY
-        if the record exists, WT_CURSOR::update and WT_CURSOR::remove
-        fail with ::WT_NOTFOUND if the record does not exist''',
+        if the record exists, WT_CURSOR::update fails with ::WT_NOTFOUND
+        if the record does not exist''',
         type='boolean'),
+    Config('prefix_search', 'false', r'''
+        when performing a search near for a prefix, if set to true this
+        configuration will allow the search near to exit early if it has left
+        the key range defined by the prefix. This is relevant when the table
+        contains a large number of records which potentially aren't visible to
+        the caller of search near, as such a large number of records could be skipped.
+        The prefix_search configuration provides a fast exit in this scenario.''', type='boolean',
+        undoc=True),
 ]
 
 methods = {
@@ -1139,13 +1264,21 @@ methods = {
 
 'lsm.meta' : Method(lsm_meta),
 
+'object.meta' : Method(object_meta),
+
 'table.meta' : Method(table_meta),
+
+'tier.meta' : Method(tier_meta),
+
+'tiered.meta' : Method(tiered_meta),
 
 'WT_CURSOR.close' : Method([]),
 
 'WT_CURSOR.reconfigure' : Method(cursor_runtime_config),
 
 'WT_SESSION.alter' : Method(file_runtime_config + [
+    Config('checkpoint', '', r'''
+        the file checkpoint entries''', undoc=True),
     Config('exclusive_refreshed', 'true', r'''
         refresh the in memory state and flush the metadata change to disk,
         disabling this flag is dangerous - it will only re-write the
@@ -1165,8 +1298,8 @@ methods = {
         type='int'),
 ]),
 
-'WT_SESSION.create' : Method(file_config + lsm_config + source_meta +
-        index_only_config + table_only_config + [
+'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +
+        source_meta + index_only_config + table_only_config + [
     Config('exclusive', 'false', r'''
         fail if the object exists.  When false (the default), if the
         object exists, check that its settings match the specified
@@ -1363,7 +1496,7 @@ methods = {
     Config('readonly', 'false', r'''
         only query operations are supported by this cursor. An error is
         returned if a modification is attempted using the cursor.  The
-        default is false for all cursor types except for log and metadata
+        default is false for all cursor types except for metadata
         cursors''',
         type='boolean'),
     Config('skip_sort_check', 'false', r'''
@@ -1413,6 +1546,17 @@ methods = {
         files''',
         type='boolean'),
 ]),
+
+'WT_SESSION.flush_tier' : Method([
+    Config('flush_timestamp', '', r'''
+        flush objects to all storage sources using the specified timestamp.
+        The supplied value must not be older than the current oldest timestamp and it must
+        not be newer than the stable timestamp'''),
+    Config('force', 'false', r'''
+        force sharing of all data''',
+        type='boolean'),
+]),
+
 'WT_SESSION.strerror' : Method([]),
 'WT_SESSION.transaction_sync' : Method([
     Config('timeout_ms', '1200000', # !!! Must match WT_SESSION_BG_SYNC_MSEC
@@ -1621,6 +1765,7 @@ methods = {
 'WT_CONNECTION.add_data_source' : Method([]),
 'WT_CONNECTION.add_encryptor' : Method([]),
 'WT_CONNECTION.add_extractor' : Method([]),
+'WT_CONNECTION.add_storage_source' : Method([]),
 'WT_CONNECTION.close' : Method([
     Config('leak_memory', 'false', r'''
         don't free memory during close''',
@@ -1650,6 +1795,7 @@ methods = {
     connection_reconfigure_compatibility_configuration +\
     connection_reconfigure_log_configuration +\
     connection_reconfigure_statistics_log_configuration +\
+    connection_reconfigure_tiered_storage_configuration +\
     connection_runtime_config
 ),
 'WT_CONNECTION.set_file_system' : Method([]),

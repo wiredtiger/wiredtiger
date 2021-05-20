@@ -47,6 +47,7 @@ build_branch()
 
         config=""
         config+="--enable-snappy "
+        config+="--disable-standalone-build "
         (sh build_posix/reconf &&
             ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
 }
@@ -67,10 +68,12 @@ run_format()
         flags="-1q $(bflag $1)"
 
         args=""
+        args+="runs.type=row "                  # Temporarily disable column store tests
         args+="cache=80 "                       # Medium cache so there's eviction
         args+="checkpoints=1 "                  # Force periodic writes
         args+="compression=snappy "             # We only built with snappy, force the choice
         args+="data_source=table "
+        args+="huffman_key=0 "                  # Not supoprted by newer releases
         args+="in_memory=0 "                    # Interested in the on-disk format
         args+="leak_memory=1 "                  # Faster runs
         args+="logging=1 "                      # Test log compatibility
@@ -104,6 +107,7 @@ EXT+="]"
 #       arg1: branch name #1
 #       arg2: branch name #2
 #       arg3: access methods list
+#       arg4: backward compatibility
 #############################################################
 verify_branches()
 {
@@ -116,6 +120,12 @@ verify_branches()
             echo "$1/wt verifying $2 access method $am..."
             dir="$2/test/format/RUNDIR.$am"
             WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" verify table:wt
+
+            if [ "$4" = true ]; then
+                echo "$1/wt dump and load $2 access method $am..."
+                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" dump table:wt > dump_wt.txt
+                WIREDTIGER_CONFIG="$EXT" ./wt $(bflag $1) -h "../$dir" load -f dump_wt.txt
+            fi
         done
 }
 
@@ -266,20 +276,20 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row")
+        (verify_branches ${newer_release_branches[$i]} ${newer_release_branches[$((i+1))]} "row" true)
     done
 fi
 
 if [ "$older" = true ]; then
     for i in ${!older_release_branches[@]}; do
         [[ $((i+1)) < ${#older_release_branches[@]} ]] && \
-        (verify_branches ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var")
+        (verify_branches ${older_release_branches[$i]} ${older_release_branches[$((i+1))]} "fix row var" true)
     done
 fi
 
 if [ "${wt_standalone}" = true ]; then
-    (verify_branches develop "$wt1" "row")
-    (verify_branches "$wt1" "$wt2" "row")
+    (verify_branches develop "$wt1" "row" true)
+    (verify_branches "$wt1" "$wt2" "row" true)
 fi
 
 # Verify forward compatibility for supported access methods.
@@ -291,7 +301,7 @@ fi
 if [ "$newer" = true ]; then
     for i in ${!newer_release_branches[@]}; do
         [[ $((i+1)) < ${#newer_release_branches[@]} ]] && \
-        (verify_branches ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row")
+        (verify_branches ${newer_release_branches[$((i+1))]} ${newer_release_branches[$i]} "row" false)
     done
 fi
 

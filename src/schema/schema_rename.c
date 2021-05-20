@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -7,30 +7,6 @@
  */
 
 #include "wt_internal.h"
-
-/*
- * __rename_blkmod --
- *     Reset the incremental backup information for a rename.
- */
-static int
-__rename_blkmod(WT_SESSION_IMPL *session, const char *oldvalue, WT_ITEM *buf)
-{
-    WT_CKPT ckpt;
-    WT_DECL_RET;
-
-    WT_CLEAR(ckpt);
-    /*
-     * Replace the old file entries with new file entries. We need to recreate the incremental
-     * backup information to indicate copying the entire file in its bitmap.
-     */
-    /* First load any existing backup information into a temp checkpoint structure. */
-    WT_RET(__wt_meta_blk_mods_load(session, oldvalue, &ckpt, true));
-
-    /* Take the checkpoint structure and generate the metadata string. */
-    ret = __wt_ckpt_blkmod_to_meta(session, buf, &ckpt);
-    __wt_meta_checkpoint_free(session, &ckpt);
-    return (ret);
-}
 
 /*
  * __rename_file --
@@ -89,7 +65,7 @@ __rename_file(WT_SESSION_IMPL *session, const char *uri, const char *newuri)
     WT_ERR(__wt_metadata_remove(session, uri));
     filecfg[0] = oldvalue;
     if (F_ISSET(S2C(session), WT_CONN_INCR_BACKUP)) {
-        WT_ERR(__rename_blkmod(session, oldvalue, buf));
+        WT_ERR(__wt_reset_blkmod(session, oldvalue, buf));
         filecfg[1] = buf->mem;
     } else
         filecfg[1] = NULL;
@@ -135,8 +111,7 @@ __rename_tree(WT_SESSION_IMPL *session, WT_TABLE *table, const char *newuri, con
     /*
      * Create the new data source URI and update the schema value.
      *
-     * 'name' has the format (colgroup|index):<tablename>[:<suffix>];
-     * we need the suffix.
+     * 'name' has the format (colgroup|index):<tablename>[:<suffix>]; we need the suffix.
      */
     is_colgroup = WT_PREFIX_MATCH(name, "colgroup:");
     if (!is_colgroup && !WT_PREFIX_MATCH(name, "index:"))
@@ -278,6 +253,32 @@ err:
 }
 
 /*
+ * __rename_tiered --
+ *     Rename a tiered data source.
+ */
+static int
+__rename_tiered(WT_SESSION_IMPL *session, const char *olduri, const char *newuri, const char *cfg[])
+{
+    WT_DECL_RET;
+    WT_TIERED *tiered;
+
+    /* Get the tiered data handle. */
+    WT_RET(__wt_session_get_dhandle(session, olduri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    tiered = (WT_TIERED *)session->dhandle;
+
+    /* TODO */
+    WT_UNUSED(olduri);
+    WT_UNUSED(newuri);
+    WT_UNUSED(cfg);
+    WT_UNUSED(tiered);
+
+    F_SET(session->dhandle, WT_DHANDLE_DISCARD);
+    WT_TRET(__wt_session_release_dhandle(session));
+
+    return (ret);
+}
+
+/*
  * __schema_rename --
  *     WT_SESSION::rename.
  */
@@ -305,6 +306,8 @@ __schema_rename(WT_SESSION_IMPL *session, const char *uri, const char *newuri, c
         ret = __wt_lsm_tree_rename(session, uri, newuri, cfg);
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __rename_table(session, uri, newuri, cfg);
+    else if (WT_PREFIX_MATCH(uri, "tiered:"))
+        ret = __rename_tiered(session, uri, newuri, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->rename == NULL ?
           __wt_object_unsupported(session, uri) :

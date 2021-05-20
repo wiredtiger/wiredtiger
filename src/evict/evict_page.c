@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -40,8 +40,7 @@ __evict_exclusive(WT_SESSION_IMPL *session, WT_REF *ref)
     if (__wt_hazard_check(session, ref, NULL) == NULL)
         return (0);
 
-    WT_STAT_DATA_INCR(session, cache_eviction_hazard);
-    WT_STAT_CONN_INCR(session, cache_eviction_hazard);
+    WT_STAT_CONN_DATA_INCR(session, cache_eviction_hazard);
     return (__wt_set_return(session, EBUSY));
 }
 
@@ -77,7 +76,7 @@ __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     evict_flags = LF_ISSET(WT_READ_NO_SPLIT) ? WT_EVICT_CALL_NO_SPLIT : 0;
     FLD_SET(evict_flags, WT_EVICT_CALL_URGENT);
 
-    WT_RET(__wt_hs_cursor_cache(session));
+    WT_RET(__wt_curhs_cache(session));
     (void)__wt_atomic_addv32(&btree->evict_busy, 1);
     ret = __wt_evict(session, ref, previous_state, evict_flags);
     (void)__wt_atomic_subv32(&btree->evict_busy, 1);
@@ -132,7 +131,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         /*
          * Track history store pages being force evicted while holding a history store cursor open.
          */
-        if (session->hs_cursor != NULL && WT_IS_HS(S2BT(session))) {
+        if (session->hs_cursor_counter > 0 && WT_IS_HS(session->dhandle)) {
             force_evict_hs = true;
             WT_STAT_CONN_INCR(session, cache_eviction_force_hs);
         }
@@ -171,10 +170,8 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
-    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-        WT_STAT_CONN_INCR(session, cache_eviction_internal);
-        WT_STAT_DATA_INCR(session, cache_eviction_internal);
-    }
+    if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_internal);
 
     /*
      * Track the largest page size seen at eviction, it tells us something about our ability to
@@ -221,13 +218,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
               session, cache_eviction_force_dirty_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
     }
-    if (clean_page) {
-        WT_STAT_CONN_INCR(session, cache_eviction_clean);
-        WT_STAT_DATA_INCR(session, cache_eviction_clean);
-    } else {
-        WT_STAT_CONN_INCR(session, cache_eviction_dirty);
-        WT_STAT_DATA_INCR(session, cache_eviction_dirty);
-    }
+    if (clean_page)
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_clean);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_dirty);
 
     /* Count page evictions in parallel with checkpoint. */
     if (conn->txn_global.checkpoint_running)
@@ -247,8 +241,7 @@ err:
               session, cache_eviction_force_fail_time, WT_CLOCKDIFF_US(time_stop, time_start));
         }
 
-        WT_STAT_CONN_INCR(session, cache_eviction_fail);
-        WT_STAT_DATA_INCR(session, cache_eviction_fail);
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_fail);
     }
 
 done:
@@ -451,8 +444,7 @@ __evict_child_check(WT_SESSION_IMPL *session, WT_REF *parent)
         }
     }
     WT_INTL_FOREACH_END;
-    WT_INTL_FOREACH_REVERSE_BEGIN(session, parent->page, child)
-    {
+    WT_INTL_FOREACH_REVERSE_BEGIN (session, parent->page, child) {
         switch (child->state) {
         case WT_REF_DISK:    /* On-disk */
         case WT_REF_DELETED: /* On-disk, deleted */
@@ -584,6 +576,20 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /*
+     * If we are trying to evict a dirty page that does not belong to history store(HS) and
+     * checkpoint is processing the HS file, then avoid evicting the dirty non-HS page for now if
+     * the cache is already dominated by dirty HS content.
+     *
+     * Evicting a non-HS dirty page can generate even more HS content. As we can not evict HS pages
+     * while checkpoint is operating on the HS file, we can end up in a situation where we exceed
+     * the cache size limits.
+     */
+    if (conn->txn_global.checkpoint_running_hs && !WT_IS_HS(btree->dhandle) &&
+      __wt_cache_hs_dirty(session) && __wt_cache_full(session)) {
+        WT_STAT_CONN_INCR(session, cache_eviction_blocked_checkpoint_hs);
+        return (__wt_set_return(session, EBUSY));
+    }
+    /*
      * If reconciliation is disabled for this thread (e.g., during an eviction that writes to the
      * history store), give up.
      */
@@ -628,7 +634,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     if (closing)
         LF_SET(WT_REC_VISIBILITY_ERR);
-    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree))
+    else if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) || WT_IS_HS(btree->dhandle))
         ;
     else if (WT_SESSION_BTREE_SYNC(session) && !WT_IS_METADATA(btree->dhandle))
         LF_SET(WT_REC_HS);
@@ -668,7 +674,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree) &&
+    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree->dhandle) &&
       (use_snapshot_for_app_thread || is_eviction_thread)) {
         if (is_eviction_thread) {
             /*

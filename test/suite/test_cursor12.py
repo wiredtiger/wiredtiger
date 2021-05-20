@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -263,8 +263,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
                 row = row + 1
         c.close()
 
-    # Smoke-test the modify API, anything other than an explicit transaction
-    # in snapshot isolation fails.
+    # Smoke-test the modify API, anything other than an snapshot isolation fails.
     def test_modify_txn_api(self):
         ds = SimpleDataSet(self, self.uri, 100, key_format=self.keyfmt, value_format=self.valuefmt)
         ds.populate()
@@ -272,12 +271,6 @@ class test_cursor12(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(self.uri, None)
         c.set_key(ds.key(10))
         msg = '/not supported/'
-
-        self.session.begin_transaction()
-        mods = []
-        mods.append(wiredtiger.Modify('-', 1, 1))
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda: c.modify(mods), msg)
-        self.session.rollback_transaction()
 
         self.session.begin_transaction("isolation=read-uncommitted")
         mods = []
@@ -337,7 +330,7 @@ class test_cursor12(wttest.WiredTigerTestCase):
 
         # Crash and recover in a new directory.
         newdir = 'RESTART'
-        copy_wiredtiger_home('.', newdir)
+        copy_wiredtiger_home(self, '.', newdir)
         self.conn.close()
         self.conn = self.setUpConnectionOpen(newdir)
         self.session = self.setUpSessionOpen(self.conn)

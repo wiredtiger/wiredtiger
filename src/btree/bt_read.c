@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -230,10 +230,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE)) {
-        WT_STAT_CONN_INCR(session, cache_pages_requested);
-        WT_STAT_DATA_INCR(session, cache_pages_requested);
-    }
+    if (!LF_ISSET(WT_READ_CACHE))
+        WT_STAT_CONN_DATA_INCR(session, cache_pages_requested);
 
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
@@ -346,14 +344,6 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
-                    /*
-                     * Forced eviction failed: check if this transaction is keeping content pinned
-                     * in cache.
-                     */
-                    if (force_attempts > 1 &&
-                      (ret = __wt_txn_is_blocking(session, true)) == WT_ROLLBACK)
-                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
-                    WT_RET(ret);
                     stalled = true;
                     break;
                 }

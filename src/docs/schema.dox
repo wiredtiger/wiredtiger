@@ -262,6 +262,21 @@ group.  Because column groups always have the same key as the table, key
 columns for column groups are retrieved using WT_CURSOR::get_key, not
 WT_CURSOR::get_value.
 
+Another example of using column groups is in @ex_ref{ex_col_store.c}:
+
+@snippet ex_col_store.c col-store decl
+@snippet ex_col_store.c col-store create columns
+
+In this example the hour and day columns are grouped together in one
+columns group and the temperature column stored in another. This allows
+a cursor to be opened on a either of these column groups instead of the
+entire table.
+
+@snippet ex_col_store.c col-store temperature
+
+An operation can then be completed on the values of this column without
+having to bring the other columns into memory.
+
 @section schema_indices Indices
 
 Columns are also used to create and configure indices on tables.
@@ -357,9 +372,29 @@ on a column-store where the index key is the record number).
 The code included above was taken from the complete example program
 @ex_ref{ex_schema.c}.
 
-Here is another example program, @ex_ref{ex_call_center.c}.
+Here are other example programs, @ex_ref{ex_call_center.c},
 
 @snippet ex_call_center.c call-center decl
 @snippet ex_call_center.c call-center work
+
+and @ex_ref{ex_col_store.c}.
+
+@snippet ex_col_store.c col-store decl
+@snippet ex_col_store.c col-store main
+
+@section logged_non_logged_tables Logged and Non-logged tables
+
+- WiredTiger writes records to the log for each transaction when logging is enabled
+  on the tables using the \c log=(enabled) configuration to \c wiredtiger_open.
+- WiredTiger supports checkpoint durability on non-logged tables and logging
+  is disabled by default. See @ref checkpoint for information on checkpoint durability.
+- WiredTiger supports commit-level durability on logged tables. See @ref durability for
+  information on commit-level durability.
+
+@section diff_logged_non_logged_tables Other differences between Logged and Non-logged tables
+
+- Rollback to stable does not operate on logged tables as the updates on these
+  tables are stable when the transaction gets committed.
+- Prepared updates can only be done on the non-logged tables.
 
  */

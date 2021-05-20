@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -220,6 +220,8 @@ __schema_alter(WT_SESSION_IMPL *session, const char *uri, const char *newcfg[])
         return (__wt_lsm_tree_worker(session, uri, __alter_file, NULL, newcfg, flags));
     if (WT_PREFIX_MATCH(uri, "table:"))
         return (__alter_table(session, uri, newcfg, exclusive_refreshed));
+    if (WT_PREFIX_MATCH(uri, "tiered:"))
+        return (__wt_schema_tiered_worker(session, uri, __alter_file, NULL, newcfg, flags));
 
     return (__wt_bad_object_type(session, uri));
 }
