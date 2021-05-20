@@ -583,8 +583,7 @@ connection_runtime_config = [
             done.)''',
             min='0', max='1024'),
         Config('update_restore_evict', 'false', r'''
-            if true, slow down checkpoint creation by slowing down internal
-            page processing.''',
+            if true, control the page eviction through forcing update restore eviction.''',
             type='boolean'),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact
