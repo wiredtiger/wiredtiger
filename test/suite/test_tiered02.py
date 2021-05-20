@@ -30,27 +30,23 @@ import os, wiredtiger, wtscenario, wttest
 from wtdataset import SimpleDataSet
 
 # test_tiered02.py
-#    Test tiered tree
+#    Test block-log-structured tree configuration options.
 class test_tiered02(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    uri = "table:test_tiered02"
+    uri = "file:test_tiered02"
 
     auth_token = "test_token"
     bucket = "mybucket"
     bucket_prefix = "pfx_"
     extension_name = "local_store"
-    prefix = "pfx-"
 
     def conn_config(self):
         os.makedirs(self.bucket, exist_ok=True)
         return \
-          'statistics=(all),' + \
-          'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
-          'name=%s)' % self.extension_name
+            'tiered_storage=(auth_token={},bucket={},bucket_prefix={},name={})'.format( \
+            self.auth_token, self.bucket, self.bucket_prefix, self.extension_name)
 
     # Load the local store extension, but skip the test if it is missing.
     def conn_extensions(self, extlist):
@@ -76,7 +72,8 @@ class test_tiered02(wttest.WiredTigerTestCase):
     # replaced with flush_tier.
     def test_tiered(self):
         self.flushed_objects = 0
-        args = 'key_format=S'
+        args = 'key_format=S,block_allocation=log-structured'
+        self.verbose(3, 'Test log-structured allocation with config: ' + args)
 
         ds = SimpleDataSet(self, self.uri, 10, config=args)
         ds.populate()
