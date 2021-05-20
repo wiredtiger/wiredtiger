@@ -146,9 +146,7 @@ testutil_build_dir(TEST_OPTS *opts, char *buf, int size)
     FILE *fp;
     char *p;
 
-    /* If a build directory was manually given as an option we can directly
-     * return this instead.
-     */
+    /* If a build directory was manually given as an option we can directly return this instead. */
     if (opts->build_dir != NULL) {
         strncpy(buf, opts->build_dir, (size_t)size);
         return;
