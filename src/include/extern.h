@@ -603,9 +603,6 @@ extern int __wt_curtable_get_value(WT_CURSOR *cursor, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
   const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curtiered_close(WT_CURSOR *cursor) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_curtiered_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
-  const char *cfg[], WT_CURSOR **cursorp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size,
   const char *ofile) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_debug_addr_print(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
@@ -1862,6 +1859,8 @@ static inline bool __wt_cache_stuck(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_checksum_match(const void *chunk, size_t len, uint32_t v)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline bool __wt_cursor_page_pinned(WT_CURSOR_BTREE *cbt, bool search_operation)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_clean_needed(WT_SESSION_IMPL *session, double *pct_fullp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_eviction_dirty_needed(WT_SESSION_IMPL *session, double *pct_fullp)
@@ -1966,6 +1965,8 @@ static inline int __wt_compare_skip(WT_SESSION_IMPL *session, WT_COLLATOR *colla
   const WT_ITEM *user_item, const WT_ITEM *tree_item, int *cmpp, size_t *matchp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_curindex_get_valuev(WT_CURSOR *cursor, va_list ap)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_curtable_get_valuev(WT_CURSOR *cursor, va_list ap)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
