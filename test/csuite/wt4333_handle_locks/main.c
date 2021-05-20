@@ -327,6 +327,7 @@ run(int argc, char *argv[])
     (void)testutil_set_progname(argv);
     __wt_random_init_seed(NULL, &rnd);
 
+    default_home = true;
     while ((ch = __wt_getopt(argv[0], argc, argv, "vh:")) != EOF) {
         switch (ch) {
         case 'v':
