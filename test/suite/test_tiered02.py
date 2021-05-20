@@ -35,7 +35,9 @@ class test_tiered02(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    uri = "table:test_tiered02"
+    # TODO: tiered: change this to a table: URI, otherwise we are
+    # not using tiered files.
+    uri = "file:test_tiered02"
 
     auth_token = "test_token"
     bucket = "mybucket"
