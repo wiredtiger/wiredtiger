@@ -1618,9 +1618,10 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
         if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
             break;
         /* If we're retrying, pause for a millisecond and let eviction make some progress. */
-        if (retries != 0)
-            __wt_sleep(0, WT_THOUSAND);
+        __wt_sleep(0, WT_THOUSAND);
     }
+    if (retries == WT_RTS_EVICT_MAX_RETRIES)
+        WT_ERR(__wt_msg(session, "timed out waiting for eviction to quiesce, running rts"));
 
     /*
      * Rollback to stable should ignore tombstones in the history store since it needs to scan the
