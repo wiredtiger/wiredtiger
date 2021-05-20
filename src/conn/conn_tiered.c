@@ -383,7 +383,6 @@ __tiered_server(void *arg)
 
     /* Condition timeout is in microseconds. */
     cond_time = WT_MINUTE * WT_MILLION;
-    timediff = WT_MINUTE;
     time_start = __wt_clock(session);
     signalled = false;
     for (;;) {
