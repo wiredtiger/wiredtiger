@@ -47,8 +47,9 @@ __wt_tiered_pop_work(
     __wt_spin_lock(session, &conn->tiered_lock);
 
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
-        if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_num < maxval)) {
+        if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_val < maxval)) {
             TAILQ_REMOVE(&conn->tieredqh, entry, q);
+            WT_STAT_CONN_INCR(session, tiered_work_units_done);
             break;
         }
     }
@@ -108,7 +109,7 @@ __wt_tiered_put_drop_local(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint64_t
     WT_ASSERT(session, tiered->bstorage != NULL);
     __wt_seconds(session, &now);
     /* Put a work unit in the queue with the time this object expires. */
-    entry->op_num = now + tiered->bstorage->retain_secs;
+    entry->op_val = now + tiered->bstorage->retain_secs;
     entry->tiered = tiered;
     __wt_tiered_push_work(session, entry);
     return (0);

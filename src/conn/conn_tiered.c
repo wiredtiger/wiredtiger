@@ -128,7 +128,6 @@ static int
 __tier_flush_meta(
   WT_SESSION_IMPL *session, WT_TIERED *tiered, const char *local_uri, const char *obj_uri)
 {
-    WT_CURSOR *cursor;
     WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
@@ -137,10 +136,8 @@ __tier_flush_meta(
     const char *cfg[3] = {NULL, NULL, NULL};
     bool tracking;
 
-    cursor = NULL;
     tracking = false;
     WT_RET(__wt_scr_alloc(session, 512, &buf));
-    WT_ERR(__wt_metadata_cursor(session, &cursor));
     dhandle = &tiered->iface;
 
     newconfig = NULL;
@@ -152,25 +149,20 @@ __tier_flush_meta(
      * Once the flush call succeeds we want to first remove the file: entry from the metadata and
      * then update the object: metadata to indicate the flush is complete.
      */
-#if 1
     WT_ERR(__wt_metadata_remove(session, local_uri));
-#endif
     WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
     __wt_seconds(session, &now);
     WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
     cfg[0] = obj_value;
     cfg[1] = buf->mem;
     WT_ERR(__wt_config_collapse(session, cfg, &newconfig));
-#if 1
     WT_ERR(__wt_metadata_update(session, obj_uri, newconfig));
-#endif
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     tracking = false;
 
 err:
     __wt_free(session, newconfig);
     WT_TRET(__wt_session_release_dhandle(session));
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
     __wt_scr_free(session, &buf);
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -207,6 +199,10 @@ __wt_tier_do_flush(
       WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
     WT_RET(ret);
 #else
+    /*
+     * TODO: This code is used if called from flush_tier code directly instead of internal thread.
+     * When removing this half of the ifdef, also make this function static and remove __wt prefix.
+     */
     WT_RET(__tier_flush_meta(session, tiered, local_uri, obj_uri));
 #endif
 
@@ -410,6 +406,7 @@ __tiered_server(void *arg)
             WT_ERR(__tier_storage_copy(session));
             WT_ERR(__tier_storage_remove(session, false));
         }
+        time_start = time_stop;
     }
 
     if (0) {
@@ -491,7 +488,6 @@ __tiered_mgr_start(WT_CONNECTION_IMPL *conn)
     WT_RET(__wt_open_internal_session(
       conn, "storage-mgr-server", false, 0, 0, &conn->tiered_mgr_session));
     session = conn->tiered_mgr_session;
-    WT_RET(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     WT_RET(__wt_cond_alloc(session, "storage server", &conn->tiered_mgr_cond));
 

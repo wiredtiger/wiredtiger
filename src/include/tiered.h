@@ -62,9 +62,9 @@ struct __wt_tiered_manager {
 struct __wt_tiered_work_unit {
     TAILQ_ENTRY(__wt_tiered_work_unit) q; /* Worker unit queue */
     uint32_t type;                        /* Type of operation */
-    uint64_t id;                          /* Id of the object */
+    uint64_t op_val;                      /* A value for the operation */
     WT_TIERED *tiered;                    /* Tiered tree */
-    uint64_t op_num;                      /* A value for the operation */
+    uint64_t id;                          /* Id of the object */
 /* AUTOMATIC FLAG VALUE GENERATION START */
 #define WT_TIERED_WORK_FORCE 0x1u /* Force operation */
 #define WT_TIERED_WORK_FREE 0x2u  /* Free data after operation */
