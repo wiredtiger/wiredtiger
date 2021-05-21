@@ -31,7 +31,7 @@ import wttest
 
 # test_debug_mode09.py
 # Test the debug mode setting for update_restore_evict.
-#   Force update restore eviction, whenever we evict a page.
+# Force update restore eviction, whenever we evict a page.
 class test_debug_mode09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all),debug_mode=(update_restore_evict=true)'
 
@@ -51,7 +51,7 @@ class test_debug_mode09(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
         for i in range(0, 100):
             cursor.set_key(i)
-            cursor.search()
+            self.assertEqual(cursor.search(), 0)
             cursor.reset()
         cursor.close()
 
