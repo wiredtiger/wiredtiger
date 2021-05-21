@@ -649,6 +649,10 @@ __wt_hs_insert_updates(
             }
         }
 
+        /* If we squash the onpage value, we increase the counter here. */
+        if (squashed)
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
+
         /*
          * In the case that the onpage value is an out of order timestamp update and the update
          * older than it is a tombstone, it remains in the stack. Clean it up.
