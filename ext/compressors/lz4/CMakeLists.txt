@@ -28,6 +28,8 @@
 
 project(lz4 C)
 
+include(GNUInstallDirs)
+
 config_bool(
     HAVE_BUILTIN_EXTENSION_LZ4
     "Builtin lz4 compression library."
@@ -66,5 +68,10 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
     target_compile_options(
         wiredtiger_lz4
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
+
+    install(TARGETS wiredtiger_lz4
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif()
