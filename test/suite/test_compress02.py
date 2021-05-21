@@ -78,6 +78,7 @@ class test_compress02(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('compressors', 'zstd')
 
+    @wttest.zstdtest('Skip zstd on pcc and zseries machines')
     def test_compress02(self):
 
         ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='block_compressor=zstd,log=(enabled=false)')

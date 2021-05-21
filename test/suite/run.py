@@ -133,6 +133,7 @@ Options:\n\
   -R      | --randomseed         run with random seeds for generates random numbers\n\
   -S      | --seed               run with two seeds that generates random numbers, \n\
                                  format "seed1.seed2", seed1 or seed2 can\'t be zero\n\
+  -z      | --zstd               run the zstd tests\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -379,6 +380,9 @@ if __name__ == '__main__':
                 continue
             if option == '-long' or option == 'l':
                 longtest = True
+                continue
+            if option == '-zstd' or option == 'z':
+                zstd = True
                 continue
             if option == '-noremove':
                 removeAtStart = False

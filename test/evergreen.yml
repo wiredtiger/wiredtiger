@@ -1502,6 +1502,16 @@ tasks:
       - func: "compile wiredtiger"
       - func: "unit test"
 
+  - name: unit-test-zstd
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd
+
   - name: unit-test-long
     tags: ["python"]
     depends_on:
@@ -2545,6 +2555,7 @@ buildvariants:
     - name: syscall-linux
     - name: configure-combinations
     - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
     - name: unit-test-long
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
@@ -2668,6 +2679,7 @@ buildvariants:
       distros: rhel80-build
     - name: syscall-linux
     - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
     - name: unit-test-long
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
