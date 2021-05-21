@@ -1615,7 +1615,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
 #define WT_RTS_EVICT_MAX_RETRIES (2 * WT_MINUTE * WT_THOUSAND)
     for (retries = 0; retries < WT_RTS_EVICT_MAX_RETRIES; ++retries) {
         WT_ORDERED_READ(cache_flags, cache->flags);
-        if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
+        if (F_ISSET(conn, WT_CONN_CLOSING) || !FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
             break;
         /* If we're retrying, pause for a millisecond and let eviction make some progress. */
         __wt_sleep(0, WT_THOUSAND);
