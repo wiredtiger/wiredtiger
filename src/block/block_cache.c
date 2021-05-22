@@ -305,7 +305,7 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     return blkcache->estimated_file_size;
 }
 
-
+#if 0
 /*
  *  __wt_blkcache_evicting_clean --
  *
@@ -350,7 +350,7 @@ __wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, uint8_t *addr, bool never
     }
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
 }
-
+#endif
 /*
  * __wt_blkcache_get_or_check --
  *     Get a block from the cache or check if one exists.
