@@ -719,7 +719,7 @@ __wt_rec_row_leaf(
     WT_PAGE *page;
     WT_REC_KV *key, *val;
     WT_ROW *rip;
-    WT_TIME_WINDOW tw;
+    WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
     size_t key_size;
@@ -734,7 +734,6 @@ __wt_rec_row_leaf(
     hs_cursor = NULL;
     page = pageref->page;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
-    WT_TIME_WINDOW_INIT(&tw);
 
     cbt = &r->update_modify_cbt;
     cbt->iface.session = (WT_SESSION *)session;
@@ -792,23 +791,14 @@ __wt_rec_row_leaf(
         WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
 
-        /*
-         * Figure out the timestamps. If there's no update and salvaging the file, clear the time
-         * pair information, else take the time window from the cell.
-         */
-        if (upd == NULL) {
-            if (!salvage)
-                WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
-            else
-                WT_TIME_WINDOW_INIT(&tw);
-        } else
-            WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
+        /* Take the timestamp from the update or the cell. */
+        twp = upd == NULL ? &vpack->tw : &upd_select.tw;
 
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key.
          */
-        if (upd == NULL && __wt_txn_tw_stop_visible_all(session, &tw))
+        if (upd == NULL && __wt_txn_tw_stop_visible_all(session, twp))
             upd = &upd_tombstone;
 
         /* Build value cell. */
@@ -823,7 +813,7 @@ __wt_rec_row_leaf(
              * Repack the cell if we clear the transaction ids in the cell.
              */
             if (vpack->raw == WT_CELL_VALUE_COPY) {
-                WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
+                WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;
             } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
@@ -839,10 +829,10 @@ __wt_rec_row_leaf(
 
                     /* Rebuild the cell. */
                     val->cell_len =
-                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, &tw, 0, val->buf.size);
+                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
-                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
+                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;
             } else {
@@ -866,7 +856,7 @@ __wt_rec_row_leaf(
              */
             WT_ASSERT(session,
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
-                __wt_txn_tw_start_visible_all(session, &upd_select.tw));
+                __wt_txn_tw_start_visible_all(session, twp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
@@ -878,12 +868,12 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
                 WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                 WT_ERR(__wt_rec_cell_build_val(
-                  session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
+                  session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0));
+                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
@@ -914,7 +904,7 @@ __wt_rec_row_leaf(
                  * must be obsolete in order for us to consider removing the key. Ignore if this is
                  * metadata, as metadata doesn't have any history.
                  */
-                if (tw.durable_stop_ts == WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+                if (twp->durable_stop_ts == WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
                   !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
                     /*
@@ -1047,15 +1037,15 @@ build:
 
         /* Copy the key/value pair onto the page. */
         __wt_rec_image_copy(session, r, key);
-        if (val->len == 0 && __rec_row_zero_len(session, &tw))
+        if (val->len == 0 && __rec_row_zero_len(session, twp))
             r->any_empty_value = true;
         else {
             r->all_empty_value = false;
             if (dictionary && btree->dictionary)
-                WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
+                WT_ERR(__wt_rec_dict_replace(session, r, twp, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
-        WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+        WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
