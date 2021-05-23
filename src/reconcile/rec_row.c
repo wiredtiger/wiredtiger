@@ -733,6 +733,8 @@ __wt_rec_row_leaf(
     btree = S2BT(session);
     hs_cursor = NULL;
     page = pageref->page;
+    twp = NULL;
+    upd = NULL;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
 
     cbt = &r->update_modify_cbt;
@@ -741,8 +743,6 @@ __wt_rec_row_leaf(
     key = &r->k;
     val = &r->v;
     vpack = &_vpack;
-
-    upd = NULL;
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));
 

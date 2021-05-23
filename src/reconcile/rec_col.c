@@ -590,6 +590,7 @@ __wt_rec_col_var(
     vpack = &_vpack;
     page = pageref->page;
     WT_TIME_WINDOW_INIT(&clear_tw);
+    twp = NULL;
     upd = NULL;
     size = 0;
     data = NULL;
