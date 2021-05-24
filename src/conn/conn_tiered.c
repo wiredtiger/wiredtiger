@@ -199,7 +199,7 @@ __wt_tier_do_flush(
     WT_RET(ret);
 
     /*
-     * We may need a way to restart flushes for those not completed (after a crash), or failed (due
+     * We may need a way to cleanup flushes for those not completed (after a crash), or failed (due
      * to previous network outage).
      */
     WT_RET(storage_source->ss_flush_finish(
@@ -511,14 +511,15 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     WT_RET(__tiered_manager_config(session, cfg, &start));
 
     /* Start the internal thread. */
+    WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
-    WT_ERR(__wt_txn_reconfigure(conn->tiered_session, "isolation=read-uncommitted"));
-    WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
+    session = conn->tiered_session;
+    WT_ERR(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     /* Start the thread. */
-    WT_ERR(__wt_thread_create(conn->tiered_session, &conn->tiered_tid, __tiered_server, session));
+    WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
     conn->tiered_tid_set = true;
 
     /* After starting non-configurable threads, start the tiered manager if needed. */
@@ -528,7 +529,7 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     if (0) {
 err:
         FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
-        WT_TRET(__wt_tiered_storage_destroy(conn->tiered_session));
+        WT_TRET(__wt_tiered_storage_destroy(session));
     }
     return (ret);
 }
