@@ -580,13 +580,13 @@ __wt_txn_set_commit_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t commit_ts
 
         /*
          * Compare against the commit timestamp of the current transaction. Return an error if the
-         * given timestamp is older than the first commit timestamp.
+         * given timestamp is older than the current commit timestamp.
          */
-        if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && commit_ts < txn->first_commit_timestamp)
+        if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) && commit_ts < txn->commit_timestamp)
             WT_RET_MSG(session, EINVAL,
-              "commit timestamp %s older than the first commit timestamp %s for this transaction",
+              "commit timestamp %s older than the current commit timestamp %s for this transaction",
               __wt_timestamp_to_string(commit_ts, ts_string[0]),
-              __wt_timestamp_to_string(txn->first_commit_timestamp, ts_string[1]));
+              __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
 
         WT_RET(__txn_assert_after_reads(session, "commit", commit_ts));
     } else {
