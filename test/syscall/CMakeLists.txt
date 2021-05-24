@@ -38,4 +38,3 @@ create_test_executable(test_wt2336_base
 )
 
 add_test(NAME test_syscall COMMAND python3 ${CMAKE_CURRENT_BINARY_DIR}/syscall.py)
-set_tests_properties(test_syscall PROPERTIES LABELS "check")
