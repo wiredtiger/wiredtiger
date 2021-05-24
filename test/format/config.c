@@ -615,7 +615,7 @@ config_directio(void)
      */
     if (g.c_import) {
         if (config_is_perm("import"))
-            testutil_die(EINVAL, "direct I/O is incompatible with import cconfigurations");
+            testutil_die(EINVAL, "direct I/O is incompatible with import configurations");
         config_single("import=0", false);
     }
 
