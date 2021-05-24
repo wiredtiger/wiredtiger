@@ -1,4 +1,4 @@
-/*! @page build-posix Building and installing WiredTiger on POSIX
+/*! @page build-posix Building and installing WiredTiger on POSIX (Linux, *BSD, OS X):
 
 @section posix_github Building using Git and GitHub
 
