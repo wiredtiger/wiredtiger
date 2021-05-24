@@ -35,7 +35,7 @@ import wttest
 class test_debug_mode09(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=100MB,statistics=(all),debug_mode=(update_restore_evict=true)'
 
-    def test_prepare_update_restore(self):
+    def test_update_restore_evict(self):
         uri = "table:test_debug_mode09"
         self.session.create(uri, 'key_format=i,value_format=S')
 
@@ -59,4 +59,4 @@ class test_debug_mode09(wttest.WiredTigerTestCase):
         stat_cursor = self.session.open_cursor('statistics:')
         pages_update_restored = stat_cursor[stat.conn.cache_write_restore][2]
         stat_cursor.close()
-        self.assertTrue(pages_update_restored == 1)
+        self.assertEqual(pages_update_restored, 1)
