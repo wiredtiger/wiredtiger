@@ -582,9 +582,6 @@ connection_runtime_config = [
             and one that will never checkpoint, it might discard log files before any checkpoint is
             done.)''',
             min='0', max='1024'),
-        Config('update_restore_evict', 'false', r'''
-            if true, control the page eviction through forcing update restore eviction.''',
-            type='boolean'),
         Config('realloc_exact', 'false', r'''
             if true, reallocation of memory will only provide the exact
             amount requested. This will help with spotting memory allocation
@@ -604,6 +601,9 @@ connection_runtime_config = [
             This setting introduces a log format change that may break older
             versions of WiredTiger. These operations are informational and
             skipped in recovery.''',
+            type='boolean'),
+        Config('update_restore_evict', 'false', r'''
+            if true, control the page eviction through forcing update restore eviction.''',
             type='boolean'),
         ]),
     Config('error_prefix', '', r'''
