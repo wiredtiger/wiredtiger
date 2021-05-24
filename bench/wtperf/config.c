@@ -778,20 +778,20 @@ config_sanity(WTPERF *wtperf)
             opts->value_sz_min = opts->value_sz;
     }
 
-    /* When backup is configured, direct I/O cannot be used. */
-    if (opts->backup_interval != 0 && strstr(opts->conn_config, "direct_io")) {
-        fprintf(stderr, "Direct I/O cannot be used when backup is configured.\n");
-        return (EINVAL);
-    }
+    /* When backup is configured, direct I/O and readonly cannot be used. */
+    if (opts->backup_interval != 0)
+        if (strstr(opts->conn_config, "direct_io") || opts->readonly) {
+            fprintf(stderr, "direct_io and readonly cannot be used when backup is configured.\n");
+            return (EINVAL);
+        }
 
     if (wtperf->workload != NULL)
         for (i = 0, workp = wtperf->workload; i < wtperf->workload_cnt; ++i, ++workp) {
             if (opts->readonly &&
               (workp->insert != 0 || workp->modify != 0 || workp->truncate != 0 ||
-                workp->update != 0 || opts->backup_interval != 0)) {
+                workp->update != 0)) {
                 fprintf(stderr,
-                  "Invalid workload: insert, modify, truncate, update or backup specified with "
-                  "readonly\n");
+                  "Invalid workload: insert, modify, truncate or update specified with readonly\n");
                 return (EINVAL);
             }
             if (workp->insert != 0 && workp->table_index != INT32_MAX) {
