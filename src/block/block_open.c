@@ -99,10 +99,10 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wt_free(session, block->name);
 
-    if (block->has_objects && block->lfh != NULL) {
-        for (i = 0; i < block->max_logid; i++)
-            WT_TRET(__wt_close(session, &block->lfh[i]));
-        __wt_free(session, block->lfh);
+    if (block->has_objects && block->ofh != NULL) {
+        for (i = 0; i < block->max_objectid; i++)
+            WT_TRET(__wt_close(session, &block->ofh[i]));
+        __wt_free(session, block->ofh);
     }
 
     if (block->fh != NULL)
@@ -186,7 +186,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
     block->has_objects = (opener != NULL);
     if (block->has_objects)
         /* TODO: tiered: fix 32 bit vs 64 bit mismatch. */
-        block->logid = (uint32_t)opener->current_object_id(opener);
+        block->objectid = (uint32_t)opener->current_object_id(opener);
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));

@@ -95,7 +95,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
             endp = root_addr;
             WT_ERR(__wt_block_addr_to_buffer(
-              block, &endp, ci->root_logid, ci->root_offset, ci->root_size, ci->root_checksum));
+              block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
 
             WT_ERR(__wt_block_tiered_load(session, block, ci));
@@ -239,9 +239,9 @@ __wt_block_checkpoint(
      */
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
-        ci->root_logid = ci->root_size = ci->root_checksum = 0;
+        ci->root_objectid = ci->root_size = ci->root_checksum = 0;
     } else
-        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_logid, &ci->root_offset,
+        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_objectid, &ci->root_offset,
           &ci->root_size, &ci->root_checksum, data_checksum, true, false));
 
     /*

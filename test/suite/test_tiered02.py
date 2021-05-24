@@ -30,11 +30,13 @@ import os, wiredtiger, wtscenario, wttest
 from wtdataset import SimpleDataSet
 
 # test_tiered02.py
-#    Test block-log-structured tree configuration options.
+#    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
+    # TODO: tiered: change this to a table: URI, otherwise we are
+    # not using tiered files.
     uri = "file:test_tiered02"
 
     auth_token = "test_token"

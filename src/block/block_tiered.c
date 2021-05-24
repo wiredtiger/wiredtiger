@@ -29,8 +29,8 @@ __block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint64_t obj
      */
 
     /* Bump to a new file ID. */
-    ++block->logid;
-    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
+    ++block->objectid;
+    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->objectid));
     filename = tmp->data;
 
     WT_WITH_BUCKET_STORAGE(session->bucket_storage, session, {
@@ -61,22 +61,22 @@ __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_
 
     /* TODO: tiered: fh readlock; we may want a reference count on each file handle given out. */
 
-    if (object_id * sizeof(WT_FILE_HANDLE *) < block->lfh_alloc &&
-      (*fhp = block->lfh[object_id]) != NULL)
+    if (object_id * sizeof(WT_FILE_HANDLE *) < block->ofh_alloc &&
+      (*fhp = block->ofh[object_id]) != NULL)
         return (0);
 
     /* TODO: tiered: fh writelock */
     /* Ensure the array goes far enough. */
-    WT_RET(__wt_realloc_def(session, &block->lfh_alloc, object_id + 1, &block->lfh));
-    if (object_id >= block->max_logid)
-        block->max_logid = object_id + 1;
-    if ((*fhp = block->lfh[object_id]) != NULL)
+    WT_RET(__wt_realloc_def(session, &block->ofh_alloc, object_id + 1, &block->ofh));
+    if (object_id >= block->max_objectid)
+        block->max_objectid = object_id + 1;
+    if ((*fhp = block->ofh[object_id]) != NULL)
         return (0);
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_READONLY | block->file_flags, &block->lfh[object_id]));
-    *fhp = block->lfh[object_id];
+      WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]));
+    *fhp = block->ofh[object_id];
     WT_ASSERT(session, *fhp != NULL);
 
 err:
@@ -117,10 +117,10 @@ __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
      * readonly opens. Perhaps it's also not appropriate for opening at an older checkpoint?
      */
     if (block->has_objects) {
-        block->logid = ci->root_logid;
+        block->objectid = ci->root_objectid;
 
         /* Advance to the next file for future changes. */
-        WT_RET(__block_switch_writeable(session, block, ci->root_logid + 1));
+        WT_RET(__block_switch_writeable(session, block, ci->root_objectid + 1));
     }
     return (0);
 }

@@ -102,7 +102,8 @@ typedef enum { /* Start position for eviction walk */
 struct __wt_btree {
     WT_DATA_HANDLE *dhandle;
 
-    WT_CKPT *ckpt; /* Checkpoint information */
+    WT_CKPT *ckpt;               /* Checkpoint information */
+    size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
     WT_BTREE_TYPE type; /* Type */
 
@@ -114,8 +115,6 @@ struct __wt_btree {
     int collator_owned;    /* The collator needs to be freed */
 
     uint32_t id; /* File ID, for logging */
-
-    uint32_t key_gap; /* Row-store prefix key gap */
 
     uint32_t allocsize;        /* Allocation size */
     uint32_t maxintlpage;      /* Internal page max size */

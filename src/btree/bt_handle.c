@@ -219,6 +219,9 @@ __wt_btree_close(WT_SESSION_IMPL *session)
       !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
         (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
 
+    /* Clear the saved checkpoint information. */
+    __wt_meta_saved_ckptlist_free(session);
+
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
      * will be off.
@@ -341,7 +344,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     WT_RET(__wt_struct_confchk(session, &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &btree->value_format));
 
-    /* Row-store key comparison and key gap for prefix compression. */
+    /* Row-store key comparison. */
     if (btree->type == BTREE_ROW) {
         WT_RET(__wt_config_gets_none(session, cfg, "collator", &cval));
         if (cval.len != 0) {
@@ -349,9 +352,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
             WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
               &btree->collator, &btree->collator_owned));
         }
-
-        WT_RET(__wt_config_gets(session, cfg, "key_gap", &cval));
-        btree->key_gap = (uint32_t)cval.val;
     }
 
     /* Column-store: check for fixed-size data. */
