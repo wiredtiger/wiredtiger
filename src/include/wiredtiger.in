@@ -6064,8 +6064,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TS		1462
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_CONN_REC_TIME_WINDOW_STOP_TXN		1463
-/*! session: tiered operations executed */
-#define	WT_STAT_CONN_TIERED_WORK_UNITS_DONE		1464
+/*! session: tiered operations dequeued and processed */
+#define	WT_STAT_CONN_TIERED_WORK_UNITS_DEQUEUED		1464
 /*! session: tiered operations scheduled */
 #define	WT_STAT_CONN_TIERED_WORK_UNITS_CREATED		1465
 /*! session: tiered storage local retention time (secs) */
@@ -6692,8 +6692,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TS		2197
 /*! reconciliation: records written including a stop transaction ID */
 #define	WT_STAT_DSRC_REC_TIME_WINDOW_STOP_TXN		2198
-/*! session: tiered operations executed */
-#define	WT_STAT_DSRC_TIERED_WORK_UNITS_DONE		2199
+/*! session: tiered operations dequeued and processed */
+#define	WT_STAT_DSRC_TIERED_WORK_UNITS_DEQUEUED		2199
 /*! session: tiered operations scheduled */
 #define	WT_STAT_DSRC_TIERED_WORK_UNITS_CREATED		2200
 /*! session: tiered storage local retention time (secs) */

@@ -194,17 +194,9 @@ __wt_tier_do_flush(
     WT_RET(storage_source->ss_flush(
       storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
 
-#if 1
     WT_WITH_CHECKPOINT_LOCK(session,
       WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
     WT_RET(ret);
-#else
-    /*
-     * TODO: This code is used if called from flush_tier code directly instead of internal thread.
-     * When removing this half of the ifdef, also make this function static and remove __wt prefix.
-     */
-    WT_RET(__tier_flush_meta(session, tiered, local_uri, obj_uri));
-#endif
 
     /*
      * We may need a way to restart flushes for those not completed (after a crash), or failed (due
@@ -521,13 +513,10 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     FLD_SET(conn->server_flags, WT_CONN_SERVER_TIERED);
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
-    session = conn->tiered_session;
-    WT_ERR(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
-
-    WT_ERR(__wt_cond_alloc(session, "storage server", &conn->tiered_cond));
+    WT_ERR(__wt_txn_reconfigure(conn->tiered_session, "isolation=read-uncommitted"));
 
     /* Start the thread. */
-    WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
+    WT_ERR(__wt_thread_create(conn->tiered_session, &conn->tiered_tid, __tiered_server, session));
     conn->tiered_tid_set = true;
 
     /* After starting non-configurable threads, start the tiered manager if needed. */
@@ -536,7 +525,8 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
 
     if (0) {
 err:
-        WT_TRET(__wt_tiered_storage_destroy(session));
+        FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
+        WT_TRET(__wt_tiered_storage_destroy(conn->tiered_session));
     }
     return (ret);
 }

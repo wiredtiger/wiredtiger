@@ -49,7 +49,7 @@ __wt_tiered_pop_work(
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
         if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_val < maxval)) {
             TAILQ_REMOVE(&conn->tieredqh, entry, q);
-            WT_STAT_CONN_INCR(session, tiered_work_units_done);
+            WT_STAT_CONN_INCR(session, tiered_work_units_dequeued);
             break;
         }
     }

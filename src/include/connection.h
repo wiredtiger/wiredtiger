@@ -279,7 +279,7 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_dhhash, __wt_data_handle) * dhhash;
     /* Locked: data handle list */
     TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
-    /* Locked: library list */
+    /* Locked: dynamic library handle list */
     TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
