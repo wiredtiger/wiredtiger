@@ -54,7 +54,7 @@ wt_3rdpartydir = os.path.join(wt_disttop, 'test', '3rdparty')
 # directory.
 env_builddir = os.getenv('WT_BUILDDIR')
 curdir = os.getcwd()
-if(env_builddir and os.path.isfile(os.path.join(env_builddir, 'wt'))):
+if env_builddir and os.path.isfile(os.path.join(env_builddir, 'wt')):
     wt_builddir = env_builddir
 elif os.path.basename(curdir) == '.libs' and \
    os.path.isfile(os.path.join(curdir, os.pardir, 'wt')):
