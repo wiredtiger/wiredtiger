@@ -43,7 +43,7 @@ For release change logs and upgrading information, see:
 - @subpage md_changelog
 - @subpage upgrading
 
-WiredTiger is Open Source distributed under GPL V2 and V3; for more information, see:
+WiredTiger is distributed under Open Source licenses; for more information, see:
 
 - @subpage license
 
