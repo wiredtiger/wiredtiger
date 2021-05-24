@@ -39,7 +39,7 @@ class test_tiered05(wttest.WiredTigerTestCase):
     bucket = "my_bucket"
     bucket_prefix = "my_prefix"
     extension_name = "local_store"
-    wait = 5
+    wait = 2
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True

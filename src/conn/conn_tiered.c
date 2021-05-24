@@ -317,6 +317,7 @@ __tiered_mgr_server(void *arg)
          * Here is where we do work. Work we expect to do:
          */
         WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, false));
+        WT_ERR(ret);
         WT_ERR(__tier_storage_remove(session, false));
     }
 
