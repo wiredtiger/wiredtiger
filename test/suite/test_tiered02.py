@@ -29,11 +29,6 @@
 import os, wiredtiger, wtscenario, wttest
 from wtdataset import SimpleDataSet
 
-def progress(s):
-    if False:   # Make this true to get reports on output.
-        self.tty(s)
-    self.pr(s)
-
 # test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
@@ -63,6 +58,11 @@ class test_tiered02(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
+    def progress(self, s):
+        if False:   # Make this true to get reports on output.
+            self.tty(s)
+        self.pr(s)
+
     def confirm_flush(self, increase=True):
         # TODO: tiered: flush tests disabled, as the interface
         # for flushing will be changed.
@@ -89,68 +89,68 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.pr("create sys")
         #self.session.create(self.uri + 'xxx', base_create)
 
-        progress('Create simple data set (10)')
+        self.progress('Create simple data set (10)')
         ds = SimpleDataSet(self, self.uri, 10, config=args)
-        progress('populate')
+        self.progress('populate')
         ds.populate()
         ds.check()
-        progress('checkpoint')
+        self.progress('checkpoint')
         self.session.checkpoint()
-        progress('flush_tier')
+        self.progress('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        progress('Create simple data set (50)')
+        self.progress('Create simple data set (50)')
         ds = SimpleDataSet(self, self.uri, 50, config=args)
-        progress('populate')
+        self.progress('populate')
         ds.populate()
         ds.check()
-        progress('checkpoint')
+        self.progress('checkpoint')
         self.session.checkpoint()
-        progress('flush_tier')
+        self.progress('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        progress('Create simple data set (100)')
+        self.progress('Create simple data set (100)')
         ds = SimpleDataSet(self, self.uri, 100, config=args)
-        progress('populate')
+        self.progress('populate')
         ds.populate()
         ds.check()
-        progress('checkpoint')
+        self.progress('checkpoint')
         self.session.checkpoint()
-        progress('flush_tier')
+        self.progress('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        progress('Create simple data set (200)')
+        self.progress('Create simple data set (200)')
         ds = SimpleDataSet(self, self.uri, 200, config=args)
-        progress('populate')
+        self.progress('populate')
         ds.populate()
         ds.check()
-        progress('close_conn')
+        self.progress('close_conn')
         self.close_conn()
         self.confirm_flush()  # closing the connection does a checkpoint
 
-        progress('reopen_conn')
+        self.progress('reopen_conn')
         self.reopen_conn()
         # Check what was there before
         ds = SimpleDataSet(self, self.uri, 200, config=args)
         ds.check()
 
         # Now add some more.
-        progress('Create simple data set (300)')
+        self.progress('Create simple data set (300)')
         ds = SimpleDataSet(self, self.uri, 300, config=args)
-        progress('populate')
+        self.progress('populate')
         ds.populate()
         ds.check()
 
         # We haven't done a flush so there should be
         # nothing extra on the shared tier.
         self.confirm_flush(increase=False)
-        progress('checkpoint')
+        self.progress('checkpoint')
         self.session.checkpoint()
         self.confirm_flush(increase=False)
-        progress('END TEST')
+        self.progress('END TEST')
 
 if __name__ == '__main__':
     wttest.run()
