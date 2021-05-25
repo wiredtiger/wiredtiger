@@ -97,6 +97,7 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: LOCAL: %s", name);
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
+    cfg[2] = "tiered_object=true,readonly=true";
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: obj_config: %s : %s", name, cfg[1]);
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
@@ -315,11 +316,7 @@ static int
 __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 {
     WT_DECL_RET;
-    WT_FILE_SYSTEM *bucket_fs;
-    WT_STORAGE_SOURCE *storage_source;
     WT_TIERED *tiered;
-    uint64_t prev_id;
-    const char *prev_filename, *prev_uri, *new_object_name, *new_object_uri;
     bool need_object, need_tree, tracking;
 
     tiered = (WT_TIERED *)session->dhandle;
@@ -328,9 +325,6 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
     need_object = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier != NULL;
     need_tree = need_object && tiered->tiers[WT_TIERED_INDEX_SHARED].tier == NULL;
-    prev_id = tiered->current_id;
-    prev_uri = new_object_uri = NULL;
-
     /*
      * There are four possibilities to our tiers configuration. In all of them we need to create
      * a new local tier file object dhandle and add it as element index zero of the tiers array.
@@ -383,47 +377,10 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
     tracking = false;
     WT_ERR(__wt_meta_track_off(session, true, ret != 0));
     WT_ERR(__tiered_update_dhandles(session, tiered));
-
-    if (tiered->current_id > 1 && tiered->current_id != prev_id) {
-        /*
-         * We expect this part to be done asynchronously in its own thread. First flush the contents
-         * of the data file to the new cloud object.
-         */
-        WT_ERR(__wt_tiered_name(session, &tiered->iface, prev_id, WT_TIERED_NAME_LOCAL, &prev_uri));
-        WT_ERR(__wt_tiered_name(
-          session, &tiered->iface, prev_id, WT_TIERED_NAME_OBJECT, &new_object_uri));
-
-        storage_source = tiered->bstorage->storage_source;
-        bucket_fs = tiered->bstorage->file_system;
-
-        prev_filename = prev_uri;
-        WT_PREFIX_SKIP_REQUIRED(session, prev_filename, "file:");
-        new_object_name = new_object_uri;
-        WT_PREFIX_SKIP_REQUIRED(session, new_object_name, "object:");
-
-        /* This call make take a while, and may fail due to network timeout. */
-        WT_ERR(storage_source->ss_flush(
-          storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
-
-        /*
-         * The metadata for the old local object will be initialized with "flush=0". When the flush
-         * call completes, it can be marked as "flush=1". When that's done, we can finish the flush.
-         * The flush finish call moves the file from the home directory to the extension's cache.
-         * Then the extension will own it.
-         *
-         * We may need a way to restart flushes for those not completed (after a crash), or failed
-         * (due to previous network outage).
-         */
-        WT_ERR(storage_source->ss_flush_finish(
-          storage_source, &session->iface, bucket_fs, prev_filename, new_object_name, NULL));
-    }
-
 err:
     __wt_verbose(session, WT_VERB_TIERED, "TIER_SWITCH: DONE ret %d", ret);
     if (tracking)
         WT_RET(__wt_meta_track_off(session, true, ret != 0));
-    __wt_free(session, prev_uri);
-    __wt_free(session, new_object_uri);
     return (ret);
 }
 
@@ -441,7 +398,6 @@ __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
      * it in a lock or with a dhandle or walk the dhandle list here rather than higher up.
      */
     WT_SAVE_DHANDLE(session, ret = __tiered_switch(session, config));
-
     return (ret);
 }
 
@@ -512,15 +468,17 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TIERED_WORK_UNIT *entry;
     uint32_t unused;
 #endif
-    char *metaconf, *newconfig;
+    char *metaconf;
+    const char *newconfig;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
+    const char *new_tiered_cfg[] = {NULL, NULL, NULL, NULL};
     const char **tiered_cfg, *config;
 
     dhandle = session->dhandle;
     tiered = (WT_TIERED *)dhandle;
     tiered_cfg = dhandle->cfg;
-    config = NULL;
-    metaconf = newconfig = NULL;
+    config = newconfig = NULL;
+    metaconf = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
     WT_UNUSED(cfg);
@@ -574,9 +532,12 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_metadata_search(session, file_dhandle->name, &metaconf));
         __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: after switch meta conf %s %s",
           dhandle->name, metaconf);
+        new_tiered_cfg[0] = metaconf;
+        new_tiered_cfg[1] = "tiered_object=false,readonly=false";
+        WT_ERR(__wt_config_merge(session, new_tiered_cfg, NULL, &newconfig));
         __wt_free(session, dhandle->cfg[1]);
-        dhandle->cfg[1] = metaconf;
-        WT_ERR(__wt_config_merge(session, dhandle->cfg, NULL, (const char **)&newconfig));
+        dhandle->cfg[1] = newconfig;
+        WT_ERR(__wt_config_merge(session, dhandle->cfg, NULL, &newconfig));
         WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
     }
 #if 1
