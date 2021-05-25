@@ -35,9 +35,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
     K = 1024
     M = 1024 * K
     G = 1024 * M
-    # TODO: tiered: change this to a table: URI, otherwise we are
-    # not using tiered files.
-    uri = "file:test_tiered02"
+    uri = "table:test_tiered02"
 
     auth_token = "test_token"
     bucket = "mybucket"
@@ -53,7 +51,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
-          'name=%s)' % self.extension_name
+          'name=%s),tiered_manager=(wait=0)' % self.extension_name
 
     # Load the local store extension, but skip the test if it is missing.
     def conn_extensions(self, extlist):
@@ -81,43 +79,73 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.flushed_objects = 0
         args = 'key_format=S'
 
+        intl_page = 'internal_page_max=16K'
+        base_create = 'key_format=S,value_format=S,' + intl_page
+        self.pr("create sys")
+        #self.session.create(self.uri + 'xxx', base_create)
+
+        self.tty('Create simple data set (10)')
         ds = SimpleDataSet(self, self.uri, 10, config=args)
+        self.tty('populate')
         ds.populate()
         ds.check()
+        self.tty('checkpoint')
+        self.session.checkpoint()
+        self.tty('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
+        self.tty('Create simple data set (50)')
         ds = SimpleDataSet(self, self.uri, 50, config=args)
+        self.tty('populate')
         ds.populate()
         ds.check()
+        self.tty('checkpoint')
+        self.session.checkpoint()
+        self.tty('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
+        self.tty('Create simple data set (100)')
         ds = SimpleDataSet(self, self.uri, 100, config=args)
+        self.tty('populate')
         ds.populate()
         ds.check()
+        self.tty('checkpoint')
+        self.session.checkpoint()
+        self.tty('flush_tier')
         self.session.flush_tier(None)
         self.confirm_flush()
 
+        self.tty('Create simple data set (200)')
         ds = SimpleDataSet(self, self.uri, 200, config=args)
+        self.tty('populate')
         ds.populate()
         ds.check()
+        self.tty('close_conn')
         self.close_conn()
         self.confirm_flush()  # closing the connection does a checkpoint
 
+        self.tty('reopen_conn')
         self.reopen_conn()
         # Check what was there before
         ds = SimpleDataSet(self, self.uri, 200, config=args)
         ds.check()
 
         # Now add some more.
+        self.tty('Create simple data set (300)')
         ds = SimpleDataSet(self, self.uri, 300, config=args)
+        self.tty('populate')
         ds.populate()
         ds.check()
 
-        # We haven't done a checkpoint/flush so there should be
+        # We haven't done a flush so there should be
         # nothing extra on the shared tier.
         self.confirm_flush(increase=False)
+        self.tty('checkpoint')
+        self.session.checkpoint()
+        self.confirm_flush(increase=False)
+        self.tty('END TEST')
 
 if __name__ == '__main__':
     wttest.run()
