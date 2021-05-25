@@ -64,11 +64,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.pr(s)
 
     def confirm_flush(self, increase=True):
-        # TODO: tiered: flush tests disabled, as the interface
-        # for flushing will be changed.
-        return
-
-        self.flushed_objects
         got = sorted(list(os.listdir(self.bucket)))
         self.pr('Flushed objects: ' + str(got))
         if increase:
