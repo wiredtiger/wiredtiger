@@ -147,7 +147,7 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     orig_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
     /*
      * If we have an existing local file in the tier, alter the table to indicate this one is now
-     * readonly.
+     * readonly. We are already holding the schema lock so we can call alter.
      */
     if (orig_name != NULL) {
         cfg[0] = "readonly=true";
@@ -169,13 +169,6 @@ __tiered_create_object(WT_SESSION_IMPL *session, WT_TIERED *tiered)
       session, WT_VERB_TIERED, "TIER_CREATE_OBJECT: schema create %s : %s", name, config);
     /* Create the new shared object. */
     WT_ERR(__wt_schema_create(session, name, config));
-
-#if 0
-    /*
-     * If we get here we have successfully created the object. It is ready to be fully flushed to
-     * the cloud. Push a work element to let the internal thread do that here.
-     */
-#endif
 
 err:
     __wt_free(session, config);
@@ -369,12 +362,18 @@ __tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
     WT_RET(__wt_meta_track_on(session));
     tracking = true;
-    /* Create the object: entry in the metadata. */
-    if (need_object)
-        WT_ERR(__tiered_create_object(session, tiered));
-
     if (need_tree)
         WT_ERR(__tiered_create_tier_tree(session, tiered));
+
+    /* Create the object: entry in the metadata. */
+    if (need_object) {
+        WT_ERR(__tiered_create_object(session, tiered));
+#if 1
+        WT_ERR(__wt_tiered_put_flush(session, tiered));
+#else
+        WT_ERR(__wt_tier_flush(session, tiered, tiered->current_id));
+#endif
+    }
 
     /* We always need to create a local object. */
     WT_ERR(__tiered_create_local(session, tiered));
@@ -509,7 +508,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED *tiered;
+#if 1
+    WT_TIERED_WORK_UNIT *entry;
     uint32_t unused;
+#endif
     char *metaconf, *newconfig;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
     const char **tiered_cfg, *config;
@@ -579,11 +581,16 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     }
 #if 1
     WT_ERR(__wt_btree_open(session, tiered_cfg));
-#endif
     if (0) {
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
+        FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
+        WT_ERR(__wt_tiered_put_drop_local(session, tiered, tiered->current_id));
+        WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
+        __wt_tiered_get_drop_local(session, 0, &entry);
+        __wt_tiered_get_drop_shared(session, &entry);
     }
+#endif
 
     if (0) {
 err:
