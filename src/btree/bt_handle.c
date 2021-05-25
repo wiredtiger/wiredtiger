@@ -398,6 +398,12 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     else
         F_SET(btree, WT_BTREE_NO_LOGGING);
 
+    WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_NO_CHECKPOINT);
+    else
+        F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
+
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
     if (WT_STRING_MATCH("on", cval.str, cval.len))

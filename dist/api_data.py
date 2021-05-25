@@ -272,6 +272,10 @@ file_runtime_config = common_runtime_config + [
         the file is read-only. All methods that may modify a file are
         disabled. See @ref readonly for more information''',
         type='boolean'),
+    Config('tiered_object', 'false', r'''
+        this file is a tiered object. When opened on its own, it is marked as
+        readonly and may be restricted in other ways''',
+        type='boolean', undoc=True),
 ]
 
 # Per-file configuration
