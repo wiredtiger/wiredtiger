@@ -495,7 +495,7 @@ __tiered_mgr_start(WT_CONNECTION_IMPL *conn)
  *     Start the tiered storage subsystem.
  */
 int
-__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool reconfig)
+__wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -504,10 +504,6 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[], bool rec
     conn = S2C(session);
     start = false;
 
-    /* Destroy any existing thread since we could be a reconfigure. */
-    WT_RET(__wt_tiered_storage_destroy(session));
-    if (reconfig)
-        WT_RET(__wt_tiered_conn_config(session, cfg, reconfig));
     WT_RET(__tiered_manager_config(session, cfg, &start));
 
     /* Start the internal thread. */
