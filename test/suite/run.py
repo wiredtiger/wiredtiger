@@ -567,8 +567,21 @@ if __name__ == '__main__':
         random.shuffle(random_sample_tests)
         tests = unittest.TestSuite(random_sample_tests[::random_sample])
     if debug:
+        print('')
+        print('Entering the Python debugger, pdb.')
+        print('  to set breakpoints, try "b test_foo01.py:129"')
+        print('  other useful commands: list, c, s, n, up, down, bt, help')
+        print('')
         import pdb
+        pdb = pdb.Pdb()
+        pdb.use_rawinput=0
+        initial_stop_point = 0
         pdb.set_trace()
+
+        # After the set_trace(), the program will stop at the next statement
+        # The following statement has no effect, but it's a reasonable thing to show.
+        initial_stop_point   # This is a great place to set breakpoints before continuing.
+
     if batchtotal != 0:
         # For test batching, we want to split up all the tests evenly, and
         # spread out the tests, so each batch contains tests of all kinds. We'd
