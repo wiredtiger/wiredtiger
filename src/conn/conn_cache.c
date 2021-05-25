@@ -231,7 +231,7 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     cache = conn->cache;
 
     /* Use a common routine for run-time configuration options. */
-    WT_RET(__wt_cache_config(session, false, cfg));
+    WT_RET(__wt_cache_config(session, cfg, false));
 
     /*
      * The lowest possible page read-generation has a special meaning, it marks a page for forcible
