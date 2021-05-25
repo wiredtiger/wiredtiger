@@ -512,7 +512,6 @@ __wt_tiered_storage_create(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(__wt_open_internal_session(conn, "storage-server", true, 0, 0, &conn->tiered_session));
     session = conn->tiered_session;
-    WT_ERR(__wt_txn_reconfigure(session, "isolation=read-uncommitted"));
 
     /* Start the thread. */
     WT_ERR(__wt_thread_create(session, &conn->tiered_tid, __tiered_server, session));
