@@ -159,9 +159,15 @@ add_custom_command(TARGET ${swig_wt_target}
 # `swig_add_library` will end up prepending an extra '_' to our target name, resulting in
 # an output the  file '__wiredtiger.[so|pyd]'. We are unable to manually specify the output file
 # name.
+set(swig_lib_suffix)
+if(WT_WIN)
+    set(swig_lib_suffix ".pyd")
+else()
+    set(swig_lib_suffix ".so")
+endif()
 add_custom_command(TARGET ${swig_wt_target}
     POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E rename
         $<TARGET_FILE:${swig_wt_target}>
-        $<TARGET_FILE_DIR:${swig_wt_target}>/_wiredtiger$<TARGET_FILE_SUFFIX:${swig_wt_target}>
+        $<TARGET_FILE_DIR:${swig_wt_target}>/_wiredtiger${swig_lib_suffix}
 )
