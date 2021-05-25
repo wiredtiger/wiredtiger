@@ -308,7 +308,7 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = ignoreStdout = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = False
     removeAtStart = True
     asan = False
     parallel = 0
@@ -382,7 +382,7 @@ if __name__ == '__main__':
                 longtest = True
                 continue
             if option == '-zstd' or option == 'z':
-                zstd = True
+                zstdtest = True
                 continue
             if option == '-noremove':
                 removeAtStart = False
@@ -541,7 +541,7 @@ if __name__ == '__main__':
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest,
+                                          verbose, wt_builddir, dirarg, longtest, zstdtest,
                                           ignoreStdout, seedw, seedz, hookmgr)
 
     # Without any tests listed as arguments, do discovery
