@@ -38,3 +38,7 @@ target_include_directories(
         ${CMAKE_BINARY_DIR}/include
         ${CMAKE_BINARY_DIR}/config
 )
+target_compile_options(
+    wiredtiger_revint_collator
+    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+)

@@ -62,4 +62,8 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
         )
+    target_compile_options(
+        wiredtiger_zlib
+        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
 endif()
