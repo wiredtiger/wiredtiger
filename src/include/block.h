@@ -240,7 +240,6 @@ struct __wt_block {
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
-    bool has_objects;    /* Address cookies contain object id */
     size_t os_cache;     /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
@@ -248,8 +247,11 @@ struct __wt_block {
     u_int block_header; /* Header length */
 
     /* Object file tracking. */
-    uint32_t file_flags, objectid, max_objectid;
-    WT_FH **ofh;
+    bool has_objects;      /* Address cookies contain object id */
+    uint32_t file_flags;   /* Flags for opening objects */
+    uint64_t objectid;     /* Current writeable object id */
+    uint64_t max_objectid; /* Size of object handle array */
+    WT_FH **ofh;           /* Object file handles */
     size_t ofh_alloc;
 
     /*
