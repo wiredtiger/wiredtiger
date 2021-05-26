@@ -27,7 +27,7 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     WT_ASSERT(session,
       (object_id > 0 && object_id <= tiered->current_id) || object_id == WT_TIERED_TOP_OBJECT_ID);
     /*
-     * TODO: tiered: we will need some kind of locking while we're looking at the tiered structure.
+     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
      * This can be called at any time, because we are opening the objects lazily.
      */
     if (object_id == tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID) {
@@ -61,7 +61,7 @@ __tiered_opener_current_id(WT_BLOCK_FILE_OPENER *opener)
     tiered = opener->cookie;
 
     /*
-     * TODO: tiered: we will need some kind of locking while we're looking at the tiered structure.
+     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
      * This can be called at any time, because we are opening the objects lazily.
      */
     return (tiered->current_id);
