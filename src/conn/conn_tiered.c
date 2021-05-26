@@ -24,13 +24,13 @@
  *     Perform one iteration of tiered storage maintenance.
  */
 static int
-__flush_tier_once(WT_SESSION_IMPL *session, bool force)
+__flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
     const char *key, *value;
 
-    WT_UNUSED(force);
+    WT_UNUSED(flags);
     __wt_verbose(session, WT_VERB_TIERED, "%s", "FLUSH_TIER_ONCE: Called");
     /*
      * - See if there is any "merging" work to do to prepare and create an object that is
@@ -291,21 +291,30 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
 {
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
+    uint32_t flags;
     const char *cfg[3];
-    bool force;
 
     WT_STAT_CONN_INCR(session, flush_tier);
     if (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED_MGR))
         WT_RET_MSG(
           session, EINVAL, "Cannot call flush_tier when storage manager thread is configured");
 
+    flags = 0;
     cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_flush_tier);
     cfg[1] = (char *)config;
     cfg[2] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
-    force = cval.val != 0;
+    if (cval.val)
+        flags |= WT_FLUSH_TIER_FORCE;
+    WT_RET(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+    if (WT_STRING_MATCH("background", cval.str, cval.len))
+        flags |= WT_FLUSH_TIER_BACKGROUND;
+    else if (WT_STRING_MATCH("off", cval.str, cval.len))
+        flags |= WT_FLUSH_TIER_OFF;
+    else if (WT_STRING_MATCH("on", cval.str, cval.len))
+        flags |= WT_FLUSH_TIER_ON;
 
-    WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, force));
+    WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, flags));
     return (ret);
 }
 
@@ -455,7 +464,7 @@ __tiered_mgr_server(void *arg)
         /*
          * Here is where we do work. Work we expect to do:
          */
-        WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, false));
+        WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, 0));
         WT_ERR(ret);
         WT_ERR(__tier_storage_remove(session, false));
     }

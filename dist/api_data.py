@@ -1554,6 +1554,16 @@ methods = {
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),
+    Config('sync', 'on', r'''
+        wait for all objects to be flushed to the shared storage to the level
+        specified.  The \c background setting initiates a background
+        synchronization intended to be used with a later call to
+        WT_SESSION::tiered_sync.  The \c off setting does not wait for any
+        objects to be written to the tiered storage system but returns immediately after
+        generating the objects and queueing work for an internal thread.  The
+        \c on setting causes the caller to wait until all work queued for this call to
+        be completely processed before returning''',
+        choices=['background', 'off', 'on']),
 ]),
 
 'WT_SESSION.strerror' : Method([]),
