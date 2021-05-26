@@ -28,6 +28,8 @@
 
 project(zstd C)
 
+include(GNUInstallDirs)
+
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZSTD
     "Builtin zstd compression library."
@@ -61,4 +63,13 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
         )
+    target_compile_options(
+        wiredtiger_zstd
+        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
+
+    install(TARGETS wiredtiger_zstd
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
 endif()

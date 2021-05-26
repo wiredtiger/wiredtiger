@@ -28,6 +28,8 @@
 
 project(zlib C)
 
+include(GNUInstallDirs)
+
 config_bool(
     HAVE_BUILTIN_EXTENSION_ZLIB
     "Builtin zlib compression library."
@@ -62,4 +64,13 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
         )
+    target_compile_options(
+        wiredtiger_zlib
+        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
+
+    install(TARGETS wiredtiger_zlib
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+    )
 endif()
