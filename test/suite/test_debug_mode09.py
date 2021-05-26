@@ -40,23 +40,23 @@ class test_debug_mode09(wttest.WiredTigerTestCase):
         self.session.create(uri, 'key_format=i,value_format=S')
 
         # Insert a bunch of content
+        self.session.begin_transaction()
         cursor = self.session.open_cursor(uri)
-        for i in range(0, 100):
-            self.session.begin_transaction()
+        for i in range(0, 1000):
             cursor[i] = 'a' * 500
-            self.session.commit_transaction()
         cursor.close()
 
         # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
         cursor = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
-        for i in range(0, 100):
+        for i in range(0, 1000):
             cursor.set_key(i)
             self.assertEqual(cursor.search(), 0)
             cursor.reset()
         cursor.close()
+        self.session.commit_transaction()
 
         # Read the statistics of pages that have been update restored
         stat_cursor = self.session.open_cursor('statistics:')
         pages_update_restored = stat_cursor[stat.conn.cache_write_restore][2]
         stat_cursor.close()
-        self.assertEqual(pages_update_restored, 1)
+        self.assertGreater(pages_update_restored, 0)
