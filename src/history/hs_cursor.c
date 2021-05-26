@@ -9,42 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_hs_row_search --
- *     Search the history store for a given key and position the cursor on it.
- */
-int
-__wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
-{
-    WT_BTREE *hs_btree;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    hs_btree = CUR2BT(hs_cbt);
-    session = CUR2S(hs_cbt);
-
-    /*
-     * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
-     * perform a full search.
-     */
-    if (__wt_cursor_page_pinned(hs_cbt, false))
-        return (0);
-
-    WT_ERR(__wt_cursor_func_init(hs_cbt, true));
-    WT_WITH_BTREE(
-      session, hs_btree, ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
-#endif
-
-    if (0) {
-err:
-        WT_TRET(__cursor_reset(hs_cbt));
-    }
-    return (ret);
-}
-
-/*
  * __wt_hs_modify --
  *     Make an update to the history store.
  *
