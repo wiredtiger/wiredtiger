@@ -95,7 +95,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        # TODO: tiered: reopening a connection does not yet work.
+        # FIXME-WT-7589 reopening a connection does not yet work.
         if False:
             self.close_conn()
             self.progress('reopen_conn')
@@ -115,7 +115,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        # TODO: tiered: This test works up to this point, then runs into trouble.
+        # FIXME-WT-7589 This test works up to this point, then runs into trouble.
         if True:
             return
 

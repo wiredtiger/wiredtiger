@@ -99,7 +99,8 @@ __wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT 
         block->objectid = ci->root_objectid;
 
     /*
-     * TODO: tiered: there will be more here.
+     * FIXME-WT-7589: There is probably more work here, perhaps in switching the current file, and
+     * setting the live checkpoint to the argument checkpoint.
      */
     return (0);
 }
