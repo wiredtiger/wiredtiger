@@ -2747,7 +2747,7 @@ buildvariants:
       # macos-1012 is a more stable distro that we want to use for our PR testing task
       distros: macos-1012
     - name: make-check-test
-    - name: ".unit_test"
+    - name: ".pull_request .python .unit_test"
     - name: fops
 
 - name: little-endian
