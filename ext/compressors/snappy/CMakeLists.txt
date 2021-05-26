@@ -28,6 +28,8 @@
 
 project(snappy C)
 
+include(GNUInstallDirs)
+
 config_bool(
     HAVE_BUILTIN_EXTENSION_SNAPPY
     "Builtin snappy compression library."
@@ -65,5 +67,10 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
     target_compile_options(
         wiredtiger_snappy
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    )
+
+    install(TARGETS wiredtiger_snappy
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 endif()

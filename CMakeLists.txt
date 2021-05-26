@@ -15,11 +15,11 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif(CCACHE_FOUND)
 
+project(WiredTiger C ASM)
+
 # Import our available build types prior to initialing the
 # project.
 include(build_cmake/configs/modes.cmake)
-
-project(WiredTiger C ASM)
 
 include(build_cmake/helpers.cmake)
 
