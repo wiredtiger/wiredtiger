@@ -59,7 +59,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.extension_name)
 
     def progress(self, s):
-        if True:   # Make this true to get reports on output.
+        if False:   # Make this true to get reports on output.
             self.tty(s)
         self.pr(s)
 
