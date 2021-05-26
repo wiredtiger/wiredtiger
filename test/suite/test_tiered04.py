@@ -133,7 +133,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.check(c, 3)
 
         self.pr("flush tier again, holding open cursor")
-        #TODO: having a cursor open during a flush_tier does not yet work, so close it,
+        #TODO: tiered: having a cursor open during a flush_tier does not yet work, so close it,
         # and reopen after the flush_tier.
         c.close()
         self.session.flush_tier(None)

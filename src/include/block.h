@@ -249,8 +249,8 @@ struct __wt_block {
     /* Object file tracking. */
     bool has_objects;      /* Address cookies contain object id */
     uint32_t file_flags;   /* Flags for opening objects */
-    uint64_t objectid;     /* Current writeable object id */
-    uint64_t max_objectid; /* Size of object handle array */
+    uint32_t objectid;     /* Current writeable object id */
+    uint32_t max_objectid; /* Size of object handle array */
     WT_FH **ofh;           /* Object file handles */
     size_t ofh_alloc;
 
