@@ -290,12 +290,13 @@ struct __wt_cursor_hs {
     uint32_t btree_id;
     WT_ITEM *datastore_key;
 
+    bool insert_success;
+
     /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_HS_CUR_BTREE_ID_SET 0x01u
-#define WT_HS_CUR_COUNTER_SET 0x02u
-#define WT_HS_CUR_INSERT_SUCCESS 0x04u
-#define WT_HS_CUR_KEY_SET 0x08u
-#define WT_HS_CUR_TS_SET 0x10u
+#define WT_HS_CUR_BTREE_ID_SET 0x1u
+#define WT_HS_CUR_COUNTER_SET 0x2u
+#define WT_HS_CUR_KEY_SET 0x4u
+#define WT_HS_CUR_TS_SET 0x8u
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint8_t flags;
 };

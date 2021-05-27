@@ -887,7 +887,7 @@ retry:
      * Mark the insert as successful. Even if one of the calls below fails, some callers will still
      * need to know whether the actual insert went through or not.
      */
-    F_SET(hs_cursor, WT_HS_CUR_INSERT_SUCCESS);
+    hs_cursor->insert_success = true;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
@@ -1116,7 +1116,7 @@ __wt_curhs_clear_insert_success(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
-    F_CLR(hs_cursor, WT_HS_CUR_INSERT_SUCCESS);
+    hs_cursor->insert_success = false;
 }
 
 /*
@@ -1133,5 +1133,5 @@ __wt_curhs_check_insert_success(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
-    return (F_ISSET(hs_cursor, WT_HS_CUR_INSERT_SUCCESS));
+    return hs_cursor->insert_success;
 }
