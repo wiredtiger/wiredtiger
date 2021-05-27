@@ -161,8 +161,8 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     session = CUR2S(hs_cbt);
 
     /*
-     * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
-     * perform a full search.
+     * Check if the cursor has already been positioned for the operation, otherwise perform a full
+     * search.
      */
     if (__wt_cursor_page_pinned(hs_cbt, false))
         return (0);
@@ -1014,13 +1014,11 @@ __curhs_update(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
-    bool retry;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     hs_tombstone = hs_upd = NULL;
-    retry = false;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
 
@@ -1059,13 +1057,6 @@ __curhs_update(WT_CURSOR *cursor)
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
         WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, false));
         WT_ERR(ret);
-        retry = true;
-    }
-
-    /* If we retry, search again to point to the updated value. */
-    if (retry) {
-        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, false));
-        WT_TRET(ret);
     }
 
     __curhs_set_key_ptr(cursor, file_cursor);
