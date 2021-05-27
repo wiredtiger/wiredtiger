@@ -151,7 +151,7 @@ __curhs_set_value_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
  *     Search the history store for a given key and position the cursor on it.
  */
 static int
-__curhs_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
+__curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
 {
     WT_BTREE *hs_btree;
     WT_DECL_RET;
@@ -168,10 +168,16 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     __wt_cursor_key_order_reset(hs_cbt);
 #endif
 
+    WT_ERR(__wt_cursor_localkey(&hs_cbt->iface));
+
     WT_ERR(__wt_cursor_func_init(hs_cbt, true));
 
-    WT_WITH_BTREE(
-      session, hs_btree, ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
+    WT_WITH_BTREE(session, hs_btree,
+      ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+#endif
 
 err:
     if (ret != 0)
@@ -910,7 +916,7 @@ __curhs_insert(WT_CURSOR *cursor)
 
 retry:
     /* Search the page and insert the updates. */
-    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, true));
+    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, true));
     WT_ERR(ret);
     ret = __wt_hs_modify(cbt, hs_upd);
     if (ret == WT_RESTART)
@@ -919,7 +925,7 @@ retry:
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, true));
+    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, true));
     WT_ASSERT(session, ret == 0);
     WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
@@ -975,7 +981,7 @@ __curhs_remove(WT_CURSOR *cursor)
     hs_tombstone->txnid = WT_TXN_NONE;
     hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, false));
+        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
     }
 
@@ -1047,7 +1053,7 @@ __curhs_update(WT_CURSOR *cursor)
     cbt->compare = 0;
     /* Make the updates and if we fail, search and try again. */
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, &file_cursor->key, false));
+        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
     }
 
