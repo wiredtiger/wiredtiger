@@ -527,8 +527,14 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         file_dhandle = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
         WT_ASSERT(session, file_dhandle != dhandle && file_dhandle->type == WT_DHANDLE_TYPE_BTREE);
 
-        /* XXX brute force, need to figure out functions to use to do this properly. */
-        /* We need to update the dhandle config entry to reflect the new tiers metadata. */
+        /*
+         * XXX brute force, need to figure out functions to use to do this properly.
+         *
+         * We are updating the tiered dhandle config entry to reflect the new tiers metadata. The
+         * tiered dhandle must look almost exactly like the local file dhandle. The difference is
+         * that the local file dhandle is marked as readonly and also tagged as a tiered object.
+         * We'll turn those off before putting it into tiered dhandle.
+         */
         WT_ERR(__wt_metadata_search(session, file_dhandle->name, &metaconf));
         __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: after switch meta conf %s %s",
           dhandle->name, metaconf);
