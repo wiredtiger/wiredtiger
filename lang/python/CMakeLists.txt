@@ -91,22 +91,6 @@ elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         /wd4047
         # Ignore warnings about differing formal and actual qualifiers.
         /wd4024
-        # Compile as C code.
-        /TC
-        # Inline expansion.
-        /Ob1
-        # Enable string pooling.
-        /GF
-        # Extern "C" does not throw.
-        /EHsc
-        # Enable security check.
-        /GS
-        # Separate functions for linker.
-        /Gy
-        # Conformance: wchar_t is a native type, not a typedef.
-        /Zc:wchar_t
-        # Use the __cdecl calling convention for all functions.
-        /Gd
     )
 else()
     set(swig_c_flags
