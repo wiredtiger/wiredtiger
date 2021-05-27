@@ -14,6 +14,21 @@ set(SPINLOCK_TYPE "msvc" CACHE STRING "" FORCE)
 # additionally generate a dll file using a *DEF file.
 set(ENABLE_STATIC ON CACHE BOOL "" FORCE)
 
+# Compile as C code .
+add_compile_options(/TC)
+# Inline expansion.
+add_compile_options(/Ob1)
+# Enable string pooling.
+add_compile_options(/GF)
+# Extern "C" does not throw.
+add_compile_options(/EHsc)
+# Separate functions for linker.
+add_compile_options(/Gy)
+# Conformance: wchar_t is a native type, not a typedef.
+add_compile_options(/Zc:wchar_t)
+# Use the __cdecl calling convention for all functions.
+add_compile_options(/Gd)
+
 # Disable incremental linking.
 string(APPEND win_link_flags " /INCREMENTAL:NO")
 # Remove dead code.
