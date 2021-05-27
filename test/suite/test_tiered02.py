@@ -59,8 +59,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         extlist.extension('storage_sources', self.extension_name)
 
     def progress(self, s):
-        if False:   # Make this true to get reports on output.
-            self.tty(s)
+        self.verbose(3, s)
         self.pr(s)
 
     def confirm_flush(self, increase=True):
