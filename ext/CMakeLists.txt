@@ -35,17 +35,21 @@ add_subdirectory(compressors/zlib)
 add_subdirectory(compressors/zstd)
 add_subdirectory(compressors/nop)
 
+# Build the collator extensions.
+add_subdirectory(collators/reverse)
+add_subdirectory(collators/revint)
+
+# Build the encryptor extensions.
+add_subdirectory(encryptors/nop)
+
+# Build the extractor extensions.
+add_subdirectory(extractors/csv)
+
+# We currently don't support these tests extensions on non-POSIX systems since they are designed around the
+# existence of POSIX utilities or certain system headers e.g Linux signals.
 if(WT_POSIX)
-    # Build the collator extensions.
-    add_subdirectory(collators/reverse)
-    add_subdirectory(collators/revint)
-
     # Build the encryptor extensions.
-    add_subdirectory(encryptors/nop)
     add_subdirectory(encryptors/rotn)
-
-    # Build the extractor extensions.
-    add_subdirectory(extractors/csv)
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/local_store)
