@@ -193,7 +193,9 @@ if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
     # Avoid setting diagnostic flags if we are building with Debug mode.
     # CMakes Debug config sets compilation with debug symbols by default.
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        # Produce full symbolic debugging information.
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /Z7")
+        # Ensure a PDB file can be generated for debugging symbols.
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /DEBUG")
     else()
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
@@ -201,9 +203,12 @@ if(HAVE_DIAGNOSTIC AND (NOT "${CMAKE_BUILD_TYPE}" STREQUAL "Debug"))
 endif()
 
 if(WT_WIN)
+    # Check if we a using the dynamic or static run-time library.
     if(DYNAMIC_CRT)
+        # Use the multithread-specific and DLL-specific version of the run-time library (MSVCRT.lib).
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MD")
     else()
+        # Use the multithread, static version of the run-time library.
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MT")
     endif()
 endif()
