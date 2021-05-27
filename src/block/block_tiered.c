@@ -76,7 +76,7 @@ __wt_block_switch_object(
     WT_UNUSED(flags);
 
     /*
-     * Note: the flags will be used in the future to perform various tasks,
+     * FIXME-WT-7596 the flags argument will be used in the future to perform various tasks,
      * to efficiently mark objects in transition (that is during a switch):
      *  - mark this file as the writeable file (what currently happens)
      *  - disallow writes to this object (reads still allowed, we're about to switch)
