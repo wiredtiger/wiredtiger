@@ -160,15 +160,6 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     hs_btree = CUR2BT(hs_cbt);
     session = CUR2S(hs_cbt);
 
-    /*
-     * Check if the cursor has already been positioned for the operation, otherwise perform a full
-     * search.
-     */
-    if (__wt_cursor_page_pinned(hs_cbt, false))
-        return (0);
-
-    WT_ERR(__wt_cursor_func_init(hs_cbt, true));
-
 #ifdef HAVE_DIAGNOSTIC
     /*
      * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
@@ -177,13 +168,15 @@ __curhs_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
     __wt_cursor_key_order_reset(hs_cbt);
 #endif
 
+    WT_ERR(__wt_cursor_func_init(hs_cbt, true));
+
     WT_WITH_BTREE(
       session, hs_btree, ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
 
-    if (0) {
 err:
+    if (ret != 0)
         WT_TRET(__cursor_reset(hs_cbt));
-    }
+
     return (ret);
 }
 
@@ -1022,9 +1015,8 @@ __curhs_update(WT_CURSOR *cursor)
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
 
-    /* We are assuming that the caller has already searched and found the key. */
-    WT_ASSERT(
-      session, F_ISSET(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_INT));
+    /* Update must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
 
     /*
