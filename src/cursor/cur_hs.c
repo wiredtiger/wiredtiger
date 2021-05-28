@@ -1133,5 +1133,5 @@ __wt_curhs_check_insert_success(WT_CURSOR *cursor)
     WT_CURSOR_HS *hs_cursor;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
-    return hs_cursor->insert_success;
+    return (hs_cursor->insert_success);
 }
