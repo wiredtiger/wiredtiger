@@ -638,7 +638,7 @@ __evict_update_work(WT_SESSION_IMPL *session)
 
     if (FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT)) {
         LF_SET(WT_CACHE_EVICT_SCRUB);
-        LF_CLR(WT_CACHE_EVICT_NOKEEP)
+        LF_CLR(WT_CACHE_EVICT_NOKEEP);
     }
 
     /*
