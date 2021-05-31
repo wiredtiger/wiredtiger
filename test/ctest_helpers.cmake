@@ -216,8 +216,8 @@ macro(define_c_test)
         message(FATAL_ERROR "No directory given to define_c_test")
     endif()
 
-     # Check that the csuite dependencies are enabled before compiling and creating the test.
-     eval_dependency("${C_TEST_DEPENDS}" enabled)
+    # Check that the csuite dependencies are enabled before compiling and creating the test.
+    eval_dependency("${C_TEST_DEPENDS}" enabled)
     if(enabled)
         set(additional_executable_args)
         if(NOT "${C_TEST_FLAGS}" STREQUAL "")
