@@ -714,7 +714,7 @@ tasks:
     depends_on:
       - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check all"
 
