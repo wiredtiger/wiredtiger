@@ -53,6 +53,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     WT_UPDATE *last_upd, *old_upd, *upd, **upd_entry;
     wt_timestamp_t prev_upd_ts;
     size_t ins_size, upd_size;
+    uint64_t prev_txnid;
     uint32_t ins_slot;
     u_int i, skipdepth;
     bool inserted_to_update_chain, logged;
@@ -63,6 +64,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
     last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
+    prev_txnid = WT_TXN_NONE;
     inserted_to_update_chain = logged = false;
 
     /*
@@ -105,12 +107,14 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
 
         if (upd_arg == NULL) {
             /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, cbt, old_upd = *upd_entry, &prev_upd_ts));
+            WT_ERR(
+              __wt_txn_update_check(session, cbt, old_upd = *upd_entry, &prev_upd_ts, &prev_txnid));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
 #ifdef HAVE_DIAGNOSTIC
             upd->prev_durable_ts = prev_upd_ts;
+            WT_ASSERT(session, prev_txnid != upd->txnid || upd->start_ts >= prev_upd_ts);
 #endif
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;

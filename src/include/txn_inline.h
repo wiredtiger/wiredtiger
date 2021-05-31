@@ -1307,8 +1307,8 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
  *     Check if the current transaction can update an item.
  */
 static inline int
-__wt_txn_update_check(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
+__wt_txn_update_check(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd,
+  wt_timestamp_t *prev_tsp, uint64_t *prev_txnid)
 {
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
@@ -1373,6 +1373,7 @@ __wt_txn_update_check(
         WT_ASSERT(
           session, upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
         *prev_tsp = upd->durable_ts;
+        *prev_txnid = upd->txnid;
     }
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);

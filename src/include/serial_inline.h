@@ -223,12 +223,13 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     WT_DECL_RET;
     WT_UPDATE *obsolete, *upd;
     wt_timestamp_t obsolete_timestamp, prev_upd_ts;
-    uint64_t txn;
+    uint64_t prev_txnid, txn;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
     *updp = NULL;
     prev_upd_ts = WT_TS_NONE;
+    prev_txnid = WT_TXN_NONE;
 
     /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
@@ -238,7 +239,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
      * Check if our update is still permitted.
      */
     while (!__wt_atomic_cas_ptr(srch_upd, upd->next, upd)) {
-        if ((ret = __wt_txn_update_check(session, cbt, upd->next = *srch_upd, &prev_upd_ts)) != 0) {
+        if ((ret = __wt_txn_update_check(
+               session, cbt, upd->next = *srch_upd, &prev_upd_ts, &prev_txnid)) != 0) {
             /* Free unused memory on error. */
             __wt_free(session, upd);
             return (ret);
@@ -246,6 +248,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     }
 #ifdef HAVE_DIAGNOSTIC
     upd->prev_durable_ts = prev_upd_ts;
+    WT_ASSERT(session, prev_txnid != upd->txnid || upd->start_ts >= prev_upd_ts);
 #endif
 
     /*
