@@ -1016,6 +1016,9 @@ done:
         WT_ERR(__wt_rollback_to_stable(session, NULL, true));
     }
 
+    if (eviction_started)
+        WT_TRET(__wt_evict_destroy(session));
+
     if (do_checkpoint || rts_executed)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
