@@ -207,12 +207,12 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
         meta_base = dhandle->meta_base;
         meta_base_length = strlen(meta_base);
         if (dhandle->meta_base_length != meta_base_length)
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_PANIC_RET(session, WT_PANIC,
               "Corrupted metadata. The original metadata length was %lu while the new one is %lu.",
               dhandle->meta_base_length, meta_base_length);
 #ifdef HAVE_DIAGNOSTIC
         if (!WT_STREQ(dhandle->orig_meta_base, meta_base))
-            WT_ERR_PANIC(session, WT_PANIC,
+            WT_PANIC_RET(session, WT_PANIC,
               "Corrupted metadata. The original metadata length was %lu while the new one is %lu. "
               "The original metadata inserted was %s and the current "
               "metadata is now %s.",
