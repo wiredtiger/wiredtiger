@@ -48,12 +48,30 @@ functions:
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
-        if [ "$OS" != "Windows_NT" ]; then
+        # Check if the build variant has specified a build type, always default to
+        # autoconf if $is_cmake_build is not declared.
+        if [ ${is_cmake_build|false} = true ]; then
+          if [ "$OS" = "Windows_NT" ]; then
+            # Use the Windows powershell script to configure the CMake build.
+            # We execute it in a powershell environment as its easier to detect and source the Visual Studio
+            # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
+            powershell.exe '.\test\evergreen\build_windows.ps1 -configure 1'
+          else
+            # Compiling with CMake.
+            . test/evergreen/find_cmake.sh
+            mkdir -p cmake_build
+            cd cmake_build
+            $CMAKE ${configure_env_vars|-DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb"} \
+            ${posix_configure_flags|-DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
+          fi
+        elif [ "$OS" != "Windows_NT" ]; then
+          # Compiling with Autoconf/Libtool.
+          cd build_posix
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} PYTHON="python3" \
             ../configure ${configure_python_setting|} \
@@ -67,13 +85,23 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ "Windows_NT" == "$OS" ]; then
+        if [ ${is_cmake_build|false} = true ]; then
+          if [ "$OS" = "Windows_NT" ]; then
+            # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
+            powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
+          else
+            # Compiling with CMake generated Ninja file.
+            cd cmake_build
+            ${make_command|ninja} ${smp_command|} 2>&1
+          fi
+        elif [ "Windows_NT" == "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
 
           python --version
           python -m pip install scons==3.1.1
           scons-3.1.1.bat "LIBPATH=c:\\python\\Python39\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${scons_smp_command|}
         else
+          # Compiling with Autoconf/Libtool Makefiles.
           cd build_posix
           ${make_command|make} ${smp_command|} 2>&1
 
