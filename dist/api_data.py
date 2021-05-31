@@ -603,7 +603,7 @@ connection_runtime_config = [
             skipped in recovery.''',
             type='boolean'),
         Config('update_restore_evict', 'false', r'''
-            if true, control the page eviction through forcing update restore eviction.''',
+            if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
         ]),
     Config('error_prefix', '', r'''
