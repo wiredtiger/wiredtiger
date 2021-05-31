@@ -6,7 +6,7 @@
 # See the file LICENSE for redistribution information.
 #
 
-cmake_minimum_required(VERSION 3.11.0)
+cmake_minimum_required(VERSION 3.10.0)
 
 # Try to use CCACHE if available - speeds up build times.
 find_program(CCACHE_FOUND ccache)
@@ -16,6 +16,10 @@ if(CCACHE_FOUND)
 endif(CCACHE_FOUND)
 
 project(WiredTiger C ASM)
+
+# Import our available build types prior to initialing the
+# project.
+include(build_cmake/configs/modes.cmake)
 
 include(build_cmake/helpers.cmake)
 
@@ -46,6 +50,7 @@ include(build_cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(build_cmake/configs/base.cmake)
 
+set(COMPILER_DIAGNOSTIC_FLAGS "" CACHE INTERNAL "" FORCE)
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(build_cmake/strict/gcc_strict.cmake)
@@ -80,6 +85,19 @@ target_include_directories(
     PUBLIC ${CMAKE_CURRENT_BINARY_DIR}/include
     PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/config ${CMAKE_CURRENT_LIST_DIR}/src/include
 )
+target_compile_options(
+    wiredtiger
+    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+)
+
+if(ENABLE_STATIC)
+    # Avoid compiling with fPIC for static builds, this can often lead to
+    # GCC disabling many optimizations e.g. inlining, possibly introducing
+    # an overhead.
+    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
+else()
+    set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
 
 # Ensure we link any available library dependencies to our wiredtiger target.
 if(HAVE_LIBPTHREAD)
@@ -110,5 +128,16 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger wiredtiger_zstd)
 endif()
 
+# Build the wt utility.
+add_subdirectory(src/utilities)
+
 # Establish our install target configuration.
 include(build_cmake/install/install.cmake)
+
+if(ENABLE_PYTHON)
+   add_subdirectory(lang/python)
+endif()
+
+# Build the wiredtiger test suites.
+enable_testing()
+add_subdirectory(test)
