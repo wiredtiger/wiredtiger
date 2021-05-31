@@ -259,16 +259,22 @@ functions:
   "make check all":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       script: |
         set -o errexit
         set -o verbose
-
-        ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+        if [ ${is_cmake_build|false} = true ]; then
+          . test/evergreen/find_cmake.sh
+          cd cmake_build
+          ${test_env_vars|} $CTEST -L check ${smp_command|} -VV 2>&1
+        else
+          cd build_posix
+          ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+        fi
   "unit test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       script: |
         set -o errexit
         set -o verbose
@@ -277,7 +283,13 @@ functions:
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
           export "PYTHONPATH=$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
         fi
-        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        if [ ${is_cmake_build|false} = true ]; then
+          cd cmake_build
+          ${test_env_vars|} WT_BUILDDIR=$(pwd) ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        else
+          cd build_posix
+          ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
+        fi
   "format test":
     command: shell.exec
     params:
