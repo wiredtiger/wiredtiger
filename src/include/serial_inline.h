@@ -248,7 +248,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     }
 #ifdef HAVE_DIAGNOSTIC
     upd->prev_durable_ts = prev_upd_ts;
-    WT_ASSERT(session, prev_txnid != upd->txnid || upd->start_ts >= prev_upd_ts);
+    WT_ASSERT(session, prev_txnid == WT_TXN_NONE || prev_txnid != upd->txnid || upd->start_ts >= prev_upd_ts);
 #endif
 
     /*
