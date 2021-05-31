@@ -184,8 +184,8 @@ function(define_test_variants target)
         add_test(
             NAME ${curr_variant_name}
             COMMAND $<TARGET_FILE:${target}> ${variant_args}
-            # Run each variant in its own subdirectory (allowing us to execute variants in
-            # parallel).
+            # Run each variant in its own subdirectory, allowing us to execute variants in
+            # parallel.
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name}
         )
         list(APPEND defined_tests ${curr_variant_name})
@@ -249,11 +249,9 @@ macro(define_c_test)
             list(APPEND command_args ${C_TEST_ARGUMENTS})
             set(exec_wrapper)
             if(WT_WIN)
-                # This is currently a workaround to successfully run our csuite tests under Windows using CTest.
-                # When executing a test, CTest by-passes the shell and directly execs the test as a child process (as this probably more efficient).
-                # Problematic to this is CTest executes the binary with forward-slash paths, which is valid under Windows, though breaks assumptions
-                # in our testing utilities where we expect all Windows paths to use back-slash based paths. To get around this, we wrap the execution of the
-                # the test in a powershell command, where powershell auto-converts forward-slash paths into native back-slash paths.
+                # This is a workaround to run our csuite tests under Windows using CTest. When executing a test,
+                # CTests by-passes the shell and directly executes the test as a child process. In doing so CTest executes the binary with forward-slash paths.
+                # Which while technically valid breaks assumptions in our testing utilities. Wrap the execution in powershell to avoid this.
                 set(exec_wrapper "powershell.exe")
             endif()
             add_test(NAME ${C_TEST_TARGET}
