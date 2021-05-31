@@ -76,6 +76,14 @@ if("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUA
         -Wno-incompatible-pointer-types
         -Wno-int-conversion
         -Wno-sign-conversion
+        -Wno-unused-parameter
+        -Wno-missing-prototypes
+        -Wno-conditional-uninitialized
+        -Wno-shorten-64-to-32
+        -Wno-used-but-marked-unused
+        -Wno-unused-macros
+        -Wno-unused-variable
+        -Wno-strict-prototypes
     )
 else()
     set(swig_c_flags
