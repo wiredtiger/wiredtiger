@@ -114,20 +114,15 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     this_tier->name = name;
     F_SET(this_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
 
-    /*
-     * We should have a better way to handle the initial case of setting the object number.
-     */
-    if (((WT_BTREE *)tiered->iface.handle)->bm != NULL) {
-        WT_WITH_DHANDLE(
-          session, &tiered->iface, ret = __wt_btree_switch_object(session, tiered->current_id, 0));
-        WT_ERR(ret);
-    }
+    WT_WITH_DHANDLE(
+      session, &tiered->iface, ret = __wt_btree_switch_object(session, tiered->current_id, 0));
+    WT_ERR(ret);
 
-    if (0) {
 err:
+    if (ret != 0)
         /* Only free name on error. */
         __wt_free(session, name);
-    }
+
     __wt_free(session, config);
     return (ret);
 }
@@ -546,8 +541,10 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(__wt_config_merge(session, dhandle->cfg, NULL, &newconfig));
         WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
     }
-#if 1
     WT_ERR(__wt_btree_open(session, tiered_cfg));
+    WT_ERR(__wt_btree_switch_object(session, tiered->current_id, 0));
+
+#if 1
     if (0) {
         /* Temp code to keep s_all happy. */
         FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);

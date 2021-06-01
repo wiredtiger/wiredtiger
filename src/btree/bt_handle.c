@@ -1015,7 +1015,17 @@ int
 __wt_btree_switch_object(WT_SESSION_IMPL *session, uint64_t object_id, uint32_t flags)
 {
     WT_BM *bm;
+    WT_DECL_RET;
 
     bm = S2BT(session)->bm;
-    return (bm->switch_object(bm, session, object_id, flags));
+
+    /*
+     * When initially opening a tiered Btree, a tier switch is done internally without the btree
+     * being fully opened. That's okay, the btree will be told later about the current object
+     * number.
+     */
+    if (bm != NULL)
+        ret = bm->switch_object(bm, session, object_id, flags);
+
+    return (ret);
 }
