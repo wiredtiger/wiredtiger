@@ -25,12 +25,12 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     object_uri = NULL;
 
     WT_ASSERT(session,
-      (object_id > 0 && object_id <= tiered->current_id) || object_id == WT_TIERED_TOP_OBJECT_ID);
+      (object_id > 0 && object_id <= tiered->current_id) || object_id == WT_TIERED_CURRENT_ID);
     /*
      * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
      * This can be called at any time, because we are opening the objects lazily.
      */
-    if (object_id == tiered->current_id || object_id == WT_TIERED_TOP_OBJECT_ID) {
+    if (object_id == tiered->current_id || object_id == WT_TIERED_CURRENT_ID) {
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         if (!WT_PREFIX_SKIP(object_name, "file:"))

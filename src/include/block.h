@@ -318,13 +318,14 @@ struct __wt_block_desc {
  */
 #define WT_BLOCK_DESC_SIZE 16
 
-#define WT_TIERED_TOP_OBJECT_ID 0xFFFFFFFFFFFFFFFFULL
 /*
  * WT_BLOCK_FILE_OPENER --
  *	An open callback for the block manager.  This hides details about how to access the
  * different objects that make up a tiered file.
  */
 struct __wt_block_file_opener {
+    /* An id to be used with the open call to reference the current object. */
+#define WT_TIERED_CURRENT_ID 0xFFFFFFFFFFFFFFFFULL
     int (*open)(
       WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint64_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
     uint64_t (*current_object_id)(WT_BLOCK_FILE_OPENER *);

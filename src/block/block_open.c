@@ -217,7 +217,7 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OP
         LF_SET(WT_FS_OPEN_DIRECTIO);
     block->file_flags = flags;
     if (block->has_objects)
-        WT_ERR(opener->open(opener, session, WT_TIERED_TOP_OBJECT_ID, WT_FS_OPEN_FILE_TYPE_DATA,
+        WT_ERR(opener->open(opener, session, WT_TIERED_CURRENT_ID, WT_FS_OPEN_FILE_TYPE_DATA,
           block->file_flags, &block->fh));
     else
         WT_ERR(
