@@ -35,9 +35,6 @@
 #include "workload_tracking.h"
 
 namespace test_harness {
-/* Define the different thread operations. */
-enum class thread_type { INSERT, UPDATE, READ };
-
 class transaction_context {
     public:
     transaction_context(configuration *config)
