@@ -26,22 +26,29 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-project(test_checkpoint C)
+project(wtperf C)
 
-create_test_executable(test_checkpoint
+create_test_executable(wtperf
     SOURCES
-        checkpointer.c
-        workers.c
-        test_checkpoint.c
+        config.c
+        idle_table_cycle.c
+        misc.c
+        track.c
+        wtperf.c
+        wtperf_throttle.c
+        wtperf_truncate.c
 )
 
-define_test_variants(test_checkpoint
+if(WT_POSIX)
+    # Need to link math on POSIX systems.
+    target_link_libraries(wtperf m)
+endif()
+
+# Smoke-test wtperf as part of running "ctest check".
+define_test_variants(wtperf
     VARIANTS
-        "test_checkpoint_6_row;-T 6 -t r"
-        "test_checkpoint_6_row_named;-c TeSt -T 6 -t r"
-        "test_checkpoint_6_row_prepare;-T 6 -t r -p"
-        "test_checkpoint_6_row_named_prepare;-c TeSt -T 6 -t r -p"
+        "test_wtperf_small_lsm;-O \"${CMAKE_CURRENT_SOURCE_DIR}/runners/small-lsm.wtperf\" -o \"run_time=20\""
     LABELS
         check
-        test_checkpoint
+        wtperf
 )

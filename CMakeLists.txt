@@ -27,7 +27,7 @@ include(build_cmake/helpers.cmake)
 # we will infer the target from the host.
 if(NOT WT_ARCH)
     # Defer to our hosts architecture as our target architecture.
-    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386)$")
+    if ("${CMAKE_HOST_SYSTEM_PROCESSOR}" MATCHES "^(x86_64|i686|i386|AMD64)$")
         set(WT_ARCH "x86")
     else()
         set(WT_ARCH "${CMAKE_HOST_SYSTEM_PROCESSOR}")
@@ -56,6 +56,8 @@ if(ENABLE_STRICT)
         include(build_cmake/strict/gcc_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
         include(build_cmake/strict/clang_strict.cmake)
+    elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
+        include(build_cmake/strict/cl_strict.cmake)
     endif()
 endif()
 
@@ -72,6 +74,10 @@ add_subdirectory(ext)
 
 # Collect all the library sources we need to compile from the source filelist.
 parse_filelist_source(${CMAKE_CURRENT_LIST_DIR}/dist/filelist wt_sources)
+if(WT_WIN)
+    list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
+    set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
+endif()
 # Establish wiredtiger library target
 add_library(wiredtiger ${link_type} ${wt_sources})
 
@@ -141,3 +147,5 @@ endif()
 # Build the wiredtiger test suites.
 enable_testing()
 add_subdirectory(test)
+add_subdirectory(examples)
+add_subdirectory(bench/wtperf)

@@ -41,15 +41,19 @@ add_subdirectory(collators/revint)
 
 # Build the encryptor extensions.
 add_subdirectory(encryptors/nop)
-add_subdirectory(encryptors/rotn)
 
 # Build the extractor extensions.
 add_subdirectory(extractors/csv)
 
-# Build the storage_sources extensions.
+# We currently don't support these tests extensions on non-POSIX systems since they are designed around the
+# existence of POSIX utilities or certain system headers e.g Linux signals.
 if(WT_POSIX)
-    add_subdirectory(storage_sources/local_store)
-endif()
+    # Build the encryptor extensions.
+    add_subdirectory(encryptors/rotn)
 
-# Build the test extensions.
-add_subdirectory(test/fail_fs)
+    # Build the storage_sources extensions.
+    add_subdirectory(storage_sources/local_store)
+
+    # Build the test extensions.
+    add_subdirectory(test/fail_fs)
+endif()
