@@ -60,7 +60,7 @@ class checkpoint_manager : public component {
     void
     do_work() override
     {
-        debug_print("running checkpoint", DEBUG_INFO);
+        debug_print("Running checkpoint", DEBUG_INFO);
         testutil_check(_session->checkpoint(_session, nullptr));
     }
 
