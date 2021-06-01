@@ -43,12 +43,12 @@ class example_test : public test_harness::test {
         std::cout << "populate: nothing done." << std::endl;
     }
     virtual void
-    read_operation(test_harness::thread_context &context, WT_SESSION *session)
+    read_operation(test_harness::thread_context &context)
     {
         std::cout << "read_operation: nothing done." << std::endl;
     }
     virtual void
-    update_operation(test_harness::thread_context &context, WT_SESSION *session)
+    update_operation(test_harness::thread_context &context)
     {
         std::cout << "update_operation: nothing done." << std::endl;
     }
