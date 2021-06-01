@@ -60,7 +60,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
             self.assertEqual(cursor.insert(), 0)
         cursor.close()
 
-        # Open another session and with it a new cursor.
+        # Open another session, and with it, open a new cursor.
         session2 = self.conn.open_session('isolation=snapshot')
         cursor2 = session2.open_cursor(self.uri, None, "overwrite=false")
         session2.begin_transaction()
@@ -82,7 +82,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
             cursor2.set_value(value)
             cursor2.insert()
 
-        # Cleanup
+        # Cleanup.
         self.session.rollback_transaction()
         session2.rollback_transaction()
 
