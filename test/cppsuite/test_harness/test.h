@@ -58,7 +58,7 @@ class test : public database_operation {
     test(const std::string &config, const std::string &name)
     {
         _config = new configuration(name, config);
-        _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
+        _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
         _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR));
         _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
         _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
