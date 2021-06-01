@@ -30,9 +30,11 @@ project(test_huge C)
 
 create_test_executable(test_huge
     SOURCES huge.c
-    EXECUTABLE_NAME "t"
-    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
-add_test(NAME test_huge COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
-set_tests_properties(test_huge PROPERTIES LABELS "check")
+define_test_variants(test_huge
+    VARIANTS
+        "test_huge_small;-s"
+    LABELS
+        check
+)
