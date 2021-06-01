@@ -134,9 +134,9 @@ __tier_flush_meta(
     uint64_t now;
     char *newconfig, *obj_value;
     const char *cfg[3] = {NULL, NULL, NULL};
-    bool tracking;
+    bool tracking, release;
 
-    tracking = false;
+    tracking = release = false;
     WT_RET(__wt_scr_alloc(session, 512, &buf));
     dhandle = &tiered->iface;
 
@@ -145,6 +145,7 @@ __tier_flush_meta(
     tracking = true;
 
     WT_ERR(__wt_session_get_dhandle(session, dhandle->name, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    release = true;
     /*
      * Once the flush call succeeds we want to first remove the file: entry from the metadata and
      * then update the object: metadata to indicate the flush is complete.
@@ -162,7 +163,8 @@ __tier_flush_meta(
 
 err:
     __wt_free(session, newconfig);
-    WT_TRET(__wt_session_release_dhandle(session));
+    if (release)
+        WT_TRET(__wt_session_release_dhandle(session));
     __wt_scr_free(session, &buf);
     if (tracking)
         WT_TRET(__wt_meta_track_off(session, true, ret != 0));
@@ -180,6 +182,7 @@ __wt_tier_do_flush(
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
+    uint32_t tries;
     const char *local_name, *obj_name;
 
     storage_source = tiered->bstorage->storage_source;
@@ -194,8 +197,20 @@ __wt_tier_do_flush(
     WT_RET(storage_source->ss_flush(
       storage_source, &session->iface, bucket_fs, local_name, obj_name, NULL));
 
-    WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
+    /*
+     * Flushing the metadata grabs the data handle with exclusive access, and the data handle may be
+     * held by the thread that queues the flush tier work item. As a result, the handle may be busy,
+     * so retry as needed.
+     */
+    for (tries = 1; tries <= 5; tries++) {
+        WT_WITH_CHECKPOINT_LOCK(session,
+          WT_WITH_SCHEMA_LOCK(
+            session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
+        if (ret != EBUSY)
+            break;
+        sleep(tries);
+        /* TODO: tiered: statistic for retries */
+    }
     WT_RET(ret);
 
     /*
