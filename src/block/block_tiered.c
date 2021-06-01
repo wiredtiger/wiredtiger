@@ -42,6 +42,8 @@ __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_
     /*
      * FIXME-WT-7470: take a read lock to get a handle, and a write lock to open a handle or extend
      * the array.
+     *
+     * If the object id isn't larger than the array of file handles, see if it's already opened.
      */
     if (object_id * sizeof(WT_FILE_HANDLE *) < block->ofh_alloc &&
       (*fhp = block->ofh[object_id]) != NULL)

@@ -111,9 +111,15 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt));
 
-    /* Connect to the underlying block manager. */
+    /*
+     * Get an opener abstraction that the block manager can use to open any of the files that
+     * represent a btree. In the case of a tiered Btree, that would allow opening different files
+     * according to an object id in a reference. For non tiered Btrees, the opener will know to
+     * always open a single file (given by the filename).
+     */
     WT_ERR(__wt_tiered_opener(session, dhandle, &opener, &filename));
 
+    /* Connect to the underlying block manager. */
     WT_ERR(__wt_block_manager_open(session, filename, opener, dhandle->cfg, forced_salvage,
       F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
 
