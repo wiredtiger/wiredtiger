@@ -122,7 +122,7 @@ class database_operation {
 
     /* Basic read operation that walks a cursors across all collections. */
     virtual void
-    read_operation(thread_context* tc)
+    read_operation(thread_context *tc)
     {
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
@@ -195,7 +195,8 @@ class database_operation {
 
                 ts = tc->timestamp_manager->get_next_ts();
                 if (using_timestamps)
-                    tc->transaction.set_commit_timestamp(tc->session, timestamp_manager::decimal_to_hex(ts));
+                    tc->transaction.set_commit_timestamp(
+                      tc->session, timestamp_manager::decimal_to_hex(ts));
 
                 update(tc->tracking, cursors[i], collection_names[i], key.c_str(),
                   generated_value.c_str(), ts);

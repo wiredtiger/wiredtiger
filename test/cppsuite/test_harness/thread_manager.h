@@ -51,9 +51,9 @@ class thread_manager {
     /*
      * Generic function to create threads that call member function of classes.
      */
-    template <typename Callable, typename ... Args>
+    template <typename Callable, typename... Args>
     void
-    add_thread(Callable &&fct, Args &&...args)
+    add_thread(Callable &&fct, Args &&... args)
     {
         std::thread *t = new std::thread(fct, args...);
         _workers.push_back(t);
@@ -67,7 +67,6 @@ class thread_manager {
     {
         for (const auto &it : _workers) {
             while (!it->joinable()) {
-
             }
             it->join();
         }

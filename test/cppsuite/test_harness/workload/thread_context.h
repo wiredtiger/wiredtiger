@@ -36,16 +36,13 @@
 
 namespace test_harness {
 /* Define the different thread operations. */
-enum class thread_type {
-    INSERT,
-    UPDATE,
-    READ
-};
+enum class thread_type { INSERT, UPDATE, READ };
 
 class transaction_context {
     public:
-    transaction_context(configuration *config) {
-        configuration* transaction_config = config->get_subconfig(OPS_PER_TRANSACTION);
+    transaction_context(configuration *config)
+    {
+        configuration *transaction_config = config->get_subconfig(OPS_PER_TRANSACTION);
         _min_op_count = transaction_config->get_int(MIN);
         _max_op_count = transaction_config->get_int(MAX);
         delete transaction_config;
@@ -58,9 +55,8 @@ class transaction_context {
     }
 
     /*
-     * The current transaction can be committed if:
-     * A transaction has started and the number of operations executed in the current transaction
-     * has exceeded the threshold.
+     * The current transaction can be committed if: A transaction has started and the number of
+     * operations executed in the current transaction has exceeded the threshold.
      */
     bool
     can_commit() const
@@ -85,7 +81,8 @@ class transaction_context {
             testutil_check(
               session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
             /* This randomizes the number of operations to be executed in one transaction. */
-            _target_op_count = random_generator::instance().generate_integer(_min_op_count, _max_op_count);
+            _target_op_count =
+              random_generator::instance().generate_integer(_min_op_count, _max_op_count);
             op_count = 0;
             _in_txn = true;
         }
@@ -95,7 +92,7 @@ class transaction_context {
      * Set a commit timestamp.
      */
     void
-    set_commit_timestamp(WT_SESSION *session, const std::string& ts)
+    set_commit_timestamp(WT_SESSION *session, const std::string &ts)
     {
         std::string config = std::string(COMMIT_TS) + "=" + ts;
         testutil_check(session->timestamp_transaction(session, config.c_str()));
@@ -109,8 +106,8 @@ class transaction_context {
 
     private:
     /*
-     * _min_op_count and _max_op_count are the minimum and maximum number of operations within one transaction.
-     *  is the current maximum number of operations that can be executed in the current
+     * _min_op_count and _max_op_count are the minimum and maximum number of operations within one
+     * transaction. is the current maximum number of operations that can be executed in the current
      * transaction.
      */
     int64_t _min_op_count = 0;
@@ -122,9 +119,11 @@ class transaction_context {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(configuration* config,
-     timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db): database(db), timestamp_manager(timestamp_manager),
-          tracking(tracking), transaction(transaction_context(config)) {
+    thread_context(configuration *config, timestamp_manager *timestamp_manager,
+      workload_tracking *tracking, database &db)
+        : database(db), timestamp_manager(timestamp_manager), tracking(tracking),
+          transaction(transaction_context(config))
+    {
         session = connection_manager::instance().create_session();
         _throttle = throttle(config);
 

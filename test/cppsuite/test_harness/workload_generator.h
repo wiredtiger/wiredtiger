@@ -79,16 +79,20 @@ class workload_generator : public component {
 
         /* Generate threads to execute read operations on the collections. */
         for (size_t i = 0; i < read_config->get_int(THREAD_COUNT) && _running; ++i) {
-            thread_context *tc = new thread_context(read_config, _timestamp_manager, _tracking, _database);
+            thread_context *tc =
+              new thread_context(read_config, _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
-            _thread_manager.add_thread(&database_operation::read_operation, _database_operation, tc);
+            _thread_manager.add_thread(
+              &database_operation::read_operation, _database_operation, tc);
         }
 
         /* Generate threads to execute update operations on the collections. */
         for (size_t i = 0; i < update_config->get_int(THREAD_COUNT) && _running; ++i) {
-            thread_context *tc = new thread_context(update_config, _timestamp_manager, _tracking, _database);
+            thread_context *tc =
+              new thread_context(update_config, _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
-            _thread_manager.add_thread(&database_operation::update_operation, _database_operation, tc);
+            _thread_manager.add_thread(
+              &database_operation::update_operation, _database_operation, tc);
         }
 
         delete read_config;
