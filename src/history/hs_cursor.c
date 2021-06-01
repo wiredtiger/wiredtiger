@@ -89,9 +89,14 @@ err:
  *     directly modified using the low level api instead of the ordinary cursor api.
  */
 int
-__wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
+__wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd, bool restart)
 {
     WT_DECL_RET;
+
+    if (restart && __wt_random(&CUR2S(hs_cbt)->rnd) % 10 == 0) {
+        __wt_yield();
+        return (WT_RESTART);
+    }
 
     /*
      * We don't have exclusive access to the history store page so we need to pass "false" here to
