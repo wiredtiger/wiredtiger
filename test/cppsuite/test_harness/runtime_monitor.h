@@ -81,7 +81,7 @@ class cache_limit_statistic : public statistic {
     }
 
     void
-    check(WT_CURSOR *cursor)
+    check(WT_CURSOR *cursor) override final
     {
         testutil_assert(cursor != nullptr);
         int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
@@ -120,7 +120,7 @@ class db_size_statistic : public statistic {
 
     /* Don't need the stat cursor for this. */
     void
-    check(WT_CURSOR *) override
+    check(WT_CURSOR *) override final
     {
 #ifndef _WIN32
         size_t db_size = 0;
