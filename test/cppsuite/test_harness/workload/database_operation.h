@@ -40,8 +40,10 @@ class database_operation {
     create_collection_identifiers(configuration *config)
     {
         /*
-         * Generate collection identifiers. A collection identifier is the URI without the type
-         * prefix.
+         * Generate the collection identifiers that we'll be using. A collection identifier is just
+         * the name of the collection without any file extension or type prefix as a URI would have.
+         * So for example, if a collection's uri is `table:foo` and its file name is `foo.wt` then
+         * its identifier would simply be `foo`.
          */
         for (size_t i = 0; i < config->get_int(COLLECTION_COUNT); ++i)
             _collection_identifiers.push_back("collection" + std::to_string(i));
