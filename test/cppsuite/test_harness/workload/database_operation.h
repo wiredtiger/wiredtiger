@@ -59,7 +59,7 @@ class database_operation {
      * defined by the configuration.
      *      - Store in memory the created collections.
      */
-    virtual void
+    void
     populate(database &database, timestamp_manager *timestamp_manager, configuration *config,
       workload_tracking *tracking)
     {
@@ -133,7 +133,7 @@ class database_operation {
     }
 
     /* Basic read operation that walks a cursors across all collections. */
-    virtual void
+    void
     read_operation(thread_context &context, WT_SESSION *session)
     {
         WT_CURSOR *cursor;
@@ -158,7 +158,7 @@ class database_operation {
     /*
      * Basic update operation that updates all the keys to a random value in each collection.
      */
-    virtual void
+    void
     update_operation(thread_context &context, WT_SESSION *session)
     {
         WT_DECL_RET;
