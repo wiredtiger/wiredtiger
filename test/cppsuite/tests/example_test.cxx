@@ -38,17 +38,17 @@ class example_test : public test_harness::test {
 
     virtual void
     populate(test_harness::database &database, test_harness::timestamp_manager *_timestamp_manager,
-      test_harness::configuration *_config, test_harness::workload_tracking *tracking)
+      test_harness::configuration *_config, test_harness::workload_tracking *tracking) override
     {
         std::cout << "populate: nothing done." << std::endl;
     }
     virtual void
-    read_operation(test_harness::thread_context &context)
+    read_operation(test_harness::thread_context *context) override
     {
         std::cout << "read_operation: nothing done." << std::endl;
     }
     virtual void
-    update_operation(test_harness::thread_context &context)
+    update_operation(test_harness::thread_context *context) override
     {
         std::cout << "update_operation: nothing done." << std::endl;
     }
