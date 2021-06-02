@@ -32,15 +32,14 @@ project(test_packing C)
 create_test_executable(test_packing
     SOURCES packing-test.c
     EXECUTABLE_NAME "packing-test"
-    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
 # Create intpack test executable.
 create_test_executable(test_intpack
     SOURCES intpack-test3.c
     EXECUTABLE_NAME "intpack-test3"
-    ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
-add_test(NAME test_packing COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
+add_test(NAME test_packing COMMAND test_packing)
+add_test(NAME test_intpack COMMAND test_intpack)
 set_tests_properties(test_packing PROPERTIES LABELS "check")

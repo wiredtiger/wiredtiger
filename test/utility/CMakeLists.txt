@@ -49,6 +49,14 @@ target_include_directories(
 )
 target_link_libraries(test_util wiredtiger)
 
+if(WT_WIN)
+    target_include_directories(
+        test_util
+        PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
+    )
+    target_link_libraries(test_util windows_shim)
+endif()
+
 target_compile_options(
     test_util
     PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}

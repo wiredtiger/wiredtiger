@@ -26,22 +26,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-project(test_checkpoint C)
+project(examples)
 
-create_test_executable(test_checkpoint
-    SOURCES
-        checkpointer.c
-        workers.c
-        test_checkpoint.c
+add_subdirectory(c)
+
+# Some of the examples expect to find the `wt` binary at a specific location relative to
+# their own binary directory (../../wt). This being the directory structure produced by the autoconf
+# build. Symlink the wt binary in an expected path for backwards compatibility.
+add_custom_command(OUTPUT wt
+    COMMAND ${CMAKE_COMMAND} -E create_symlink
+    $<TARGET_FILE:wt>
+    ${CMAKE_CURRENT_BINARY_DIR}/wt
+    DEPENDS wt
 )
 
-define_test_variants(test_checkpoint
-    VARIANTS
-        "test_checkpoint_6_row;-T 6 -t r"
-        "test_checkpoint_6_row_named;-c TeSt -T 6 -t r"
-        "test_checkpoint_6_row_prepare;-T 6 -t r -p"
-        "test_checkpoint_6_row_named_prepare;-c TeSt -T 6 -t r -p"
-    LABELS
-        check
-        test_checkpoint
+add_custom_target(sym_wt_examples
+    ALL
+    DEPENDS wt ${CMAKE_CURRENT_BINARY_DIR}/wt
 )
