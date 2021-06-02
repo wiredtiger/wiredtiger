@@ -64,7 +64,7 @@ class workload_generator : public component {
 
     /* Do the work of the main part of the workload. */
     void
-    run()
+    run() override final
     {
         configuration *read_config, *update_config, *insert_config;
 
@@ -101,7 +101,7 @@ class workload_generator : public component {
     }
 
     void
-    finish()
+    finish() override final
     {
         component::finish();
         for (const auto &it : _workers)

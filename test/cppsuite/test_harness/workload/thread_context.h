@@ -146,7 +146,7 @@ class thread_context {
     bool
     running() const
     {
-        return _running;
+        return (_running);
     }
 
     WT_SESSION *session;

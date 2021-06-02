@@ -105,7 +105,7 @@ range_config = [
         The maximum a value can be in a range''')
 ]
 
-component_config = enabled_config_true + throttle_config
+component_config =  throttle_config
 
 transaction_config = [
     Config('ops_per_transaction', '', r'''
@@ -125,13 +125,13 @@ update_insert_thread_config = thread_count + transaction_config + throttle_confi
 #
 # Configuration for the checkpoint_manager component.
 #
-checkpoint_manager = component_config
+checkpoint_manager = enabled_config_false + component_config
 
 #
 # Configuration that applies to the runtime monitor component, this should be a list of statistics
 # that need to be checked by the component.
 #
-runtime_monitor = component_config + [
+runtime_monitor = enabled_config_true + component_config + [
     Config('stat_cache_size', '', '''
         The maximum cache percentage that can be hit while running.''',
         type='category', subconfig=limit_stat)
@@ -140,7 +140,7 @@ runtime_monitor = component_config + [
 #
 # Configuration that applies to the timestamp_manager component.
 #
-timestamp_manager = component_config +  [
+timestamp_manager = enabled_config_true + component_config +  [
     Config('oldest_lag', 1, r'''
         The duration between the stable and oldest timestamps''', min=0, max=1000000),
     Config('stable_lag', 1, r'''
@@ -150,12 +150,12 @@ timestamp_manager = component_config +  [
 #
 # Configuration that applies to the workload tracking component.
 #
-workload_tracking = component_config
+workload_tracking = enabled_config_true + component_config
 
 #
 # Configuration that applies to the workload_generator component.
 #
-workload_generator = component_config + populate_config + [
+workload_generator = enabled_config_true + component_config + populate_config + [
     Config('read_config', '', r'''
         Config that specifies the number of read threads and their behaviour.''',
         type='category', subconfig=read_thread_config),

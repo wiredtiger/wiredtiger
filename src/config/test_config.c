@@ -92,7 +92,7 @@ static const WT_CONFIG_CHECK confchk_poc_test[] = {
 
 static const WT_CONFIG_ENTRY config_entries[] = {
   {"example_test",
-    "cache_size_mb=0,checkpoint_manager=(enabled=true,interval=s,"
+    "cache_size_mb=0,checkpoint_manager=(enabled=false,interval=s,"
     "op_count=1),duration_seconds=0,enable_logging=false,"
     "runtime_monitor=(enabled=true,interval=s,op_count=1,"
     "stat_cache_size=(enabled=false,limit=0)),"
@@ -108,7 +108,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "interval=s,op_count=1)",
     confchk_example_test, 8},
   {"poc_test",
-    "cache_size_mb=0,checkpoint_manager=(enabled=true,interval=s,"
+    "cache_size_mb=0,checkpoint_manager=(enabled=false,interval=s,"
     "op_count=1),duration_seconds=0,enable_logging=false,"
     "runtime_monitor=(enabled=true,interval=s,op_count=1,"
     "stat_cache_size=(enabled=false,limit=0)),"
