@@ -637,7 +637,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     if (conn->tiered_mgr_tid_set) {
         WT_ASSERT(session, conn->tiered_mgr_cond != NULL);
         __wt_cond_signal(session, conn->tiered_mgr_cond);
-        WT_ASSERT(session, conn->tiered_mgr_tid.id != NULL);
         WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
         conn->tiered_mgr_tid_set = false;
     }
