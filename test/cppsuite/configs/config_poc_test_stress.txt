@@ -9,7 +9,7 @@ checkpoint_manager=
     enabled=true,
     interval=m,
     op_count=20
-)
+),
 runtime_monitor=
 (
     stat_cache_size=
