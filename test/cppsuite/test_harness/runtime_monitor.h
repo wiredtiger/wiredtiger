@@ -52,7 +52,7 @@ get_stat(WT_CURSOR *cursor, int stat_field, int64_t *valuep)
 
 class statistic {
     public:
-    statistic(configuration *config)
+    explicit statistic(configuration *config)
     {
         _enabled = config->get_bool(ENABLED);
     }
@@ -75,7 +75,7 @@ class statistic {
 
 class cache_limit_statistic : public statistic {
     public:
-    cache_limit_statistic(configuration *config) : statistic(config)
+    explicit cache_limit_statistic(configuration *config) : statistic(config)
     {
         limit = config->get_int(LIMIT);
     }
@@ -153,7 +153,7 @@ class db_size_statistic : public statistic {
  */
 class runtime_monitor : public component {
     public:
-    runtime_monitor(configuration *config) : component("runtime_monitor", config) {}
+    explicit runtime_monitor(configuration *config) : component("runtime_monitor", config) {}
 
     ~runtime_monitor()
     {
