@@ -18,7 +18,7 @@ runtime_monitor=
     stat_db_size=
     (
         enabled=true,
-        limit=0
+        limit=10000000
     )
 ),
 workload_generator=
