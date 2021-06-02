@@ -127,9 +127,14 @@ class db_size_statistic : public statistic {
         size_t db_size = 0;
         for (const auto &name : _file_names) {
             struct stat sb;
-            testutil_check(stat(name.c_str(), &sb));
-            db_size += sb.st_size;
+            if (stat(name.c_str(), &sb) == 0) {
+                db_size += sb.st_size;
+                debug_print(name + " was " + std::to_string(sb.st_size) + " bytes", DEBUG_TRACE);
+            } else
+                /* The only good reason for this to fail is if the file hasn't been created yet. */
+                testutil_assert(errno == ENOENT);
         }
+        debug_print("Current database size is " + std::to_string(db_size) + " bytes", DEBUG_TRACE);
         if (db_size > _limit) {
             std::string error_string =
               "runtime_monitor: Database size limit exceeded during test! Limit: " +
@@ -147,6 +152,20 @@ class db_size_statistic : public statistic {
     std::vector<std::string> _file_names;
     int64_t _limit;
 };
+
+static std::vector<std::string>
+collection_identifiers_to_file_names(const std::vector<std::string> &identifiers)
+{
+    /*
+     * At the moment, the home directory isn't configurable so this is fine. We'll need to pipe this
+     * through when it is configurable.
+     */
+    std::vector<std::string> file_names;
+    for (const auto &identifier : identifiers)
+        file_names.push_back(std::string(DEFAULT_DIR) + "/" + identifier + ".wt");
+    file_names.push_back(std::string(DEFAULT_DIR) + "/WiredTigerHS.wt");
+    return file_names;
+}
 
 /*
  * The runtime monitor class is designed to track various statistics or other runtime signals
@@ -191,7 +210,9 @@ class runtime_monitor : public component {
             delete sub_config;
 
             sub_config = _config->get_subconfig(STAT_DB_SIZE);
-            _stats.push_back(new db_size_statistic(sub_config, {}));
+            auto file_names =
+              collection_identifiers_to_file_names(_db_operation->get_collection_identifiers());
+            _stats.push_back(new db_size_statistic(sub_config, std::move(file_names)));
             delete sub_config;
         }
     }

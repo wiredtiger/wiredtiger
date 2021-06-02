@@ -77,7 +77,7 @@ class database_operation {
         /* Get a session. */
         session = connection_manager::instance().create_session();
         /* Create a collection for each identifier and store each collection name. */
-        testutil_check(!_collection_identifiers.empty());
+        testutil_assert(!_collection_identifiers.empty());
         for (const auto &collection_identifier : _collection_identifiers) {
             collection_name = "table:" + collection_identifier;
             database.collections[collection_name] = {};
@@ -233,6 +233,12 @@ class database_operation {
             context.commit_transaction(session, "");
     }
 
+    const std::vector<std::string> &
+    get_collection_identifiers() const
+    {
+        return _collection_identifiers;
+    }
+
     private:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
@@ -281,13 +287,6 @@ class database_operation {
         return (str);
     }
 
-    const std::vector<std::string> &
-    get_collection_identifiers() const
-    {
-        return _collection_identifiers;
-    }
-
-    private:
     std::vector<std::string> _collection_identifiers;
 };
 } // namespace test_harness
