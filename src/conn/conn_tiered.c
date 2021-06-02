@@ -134,9 +134,9 @@ __tier_flush_meta(
     uint64_t now;
     char *newconfig, *obj_value;
     const char *cfg[3] = {NULL, NULL, NULL};
-    bool tracking, release;
+    bool release, tracking;
 
-    tracking = release = false;
+    release = tracking = false;
     WT_RET(__wt_scr_alloc(session, 512, &buf));
     dhandle = &tiered->iface;
 
@@ -182,7 +182,7 @@ __wt_tier_do_flush(
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
-    uint32_t millis, tries;
+    uint32_t msec, retry;
     const char *local_name, *obj_name;
 
     storage_source = tiered->bstorage->storage_source;
@@ -202,15 +202,15 @@ __wt_tier_do_flush(
      * held by the thread that queues the flush tier work item. As a result, the handle may be busy,
      * so retry as needed, up to a few seconds.
      */
-    for (tries = 1, millis = 100; tries <= 6; tries++) {
+    for (msec = 10, retry = 0; msec < 3000; msec *= 2, retry++) {
+        if (retry != 0)
+            __wt_sleep(0, msec * WT_THOUSAND);
         WT_WITH_CHECKPOINT_LOCK(session,
           WT_WITH_SCHEMA_LOCK(
             session, ret = __tier_flush_meta(session, tiered, local_uri, obj_uri)));
         if (ret != EBUSY)
             break;
-        __wt_sleep(0, millis * WT_THOUSAND);
-        millis *= 2;
-        /* TODO: tiered: statistic for retries */
+        WT_STAT_CONN_INCR(session, flush_tier_busy);
     }
     WT_RET(ret);
 
