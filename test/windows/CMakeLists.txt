@@ -26,22 +26,27 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-project(test_checkpoint C)
+project(libwinshim C)
 
-create_test_executable(test_checkpoint
-    SOURCES
-        checkpointer.c
-        workers.c
-        test_checkpoint.c
+set(sources
+    windows_shim.c
 )
 
-define_test_variants(test_checkpoint
-    VARIANTS
-        "test_checkpoint_6_row;-T 6 -t r"
-        "test_checkpoint_6_row_named;-c TeSt -T 6 -t r"
-        "test_checkpoint_6_row_prepare;-T 6 -t r -p"
-        "test_checkpoint_6_row_named_prepare;-c TeSt -T 6 -t r -p"
-    LABELS
-        check
-        test_checkpoint
+set(link_type)
+if(ENABLE_STATIC)
+    set(link_type "STATIC")
+else()
+    set(link_type "SHARED")
+endif()
+add_library(windows_shim ${link_type} ${sources})
+
+target_include_directories(
+    windows_shim
+    PUBLIC ${CMAKE_SOURCE_DIR}/test/windows
+    PRIVATE ${CMAKE_BINARY_DIR}/include ${CMAKE_BINARY_DIR}/config ${CMAKE_SOURCE_DIR}/src/include
+)
+
+target_compile_options(
+    windows_shim
+    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
 )
