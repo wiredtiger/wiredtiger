@@ -182,6 +182,10 @@ class runtime_monitor : public component {
             sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
             _stats.push_back(new cache_limit_statistic(sub_config));
             delete sub_config;
+
+            sub_config = _config->get_subconfig(STAT_DB_SIZE);
+            _stats.push_back(new db_size_statistic(sub_config));
+            delete sub_config;
         }
     }
 
