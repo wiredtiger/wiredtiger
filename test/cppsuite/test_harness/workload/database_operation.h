@@ -36,6 +36,17 @@
 namespace test_harness {
 class database_operation {
     public:
+    void
+    create_collection_identifiers(configuration *config)
+    {
+        /*
+         * Generate collection identifiers. A collection identifier is the URI without the type
+         * prefix.
+         */
+        for (size_t i = 0; i < config->get_int(COLLECTION_COUNT); ++i)
+            _collection_identifiers.push_back("collection" + std::to_string(i));
+    }
+
     /*
      * Function that performs the following steps using the configuration that is defined by the
      * test:
@@ -65,10 +76,10 @@ class database_operation {
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
-        /* Create n collections as per the configuration and store each collection name. */
-        collection_count = config->get_int(COLLECTION_COUNT);
-        for (size_t i = 0; i < collection_count; ++i) {
-            collection_name = "table:collection" + std::to_string(i);
+        /* Create a collection for each identifier and store each collection name. */
+        testutil_check(!_collection_identifiers.empty());
+        for (const auto &collection_identifier : _collection_identifiers) {
+            collection_name = "table:" + collection_identifier;
             database.collections[collection_name] = {};
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
@@ -76,7 +87,8 @@ class database_operation {
             tracking->save_schema_operation(
               tracking_operation::CREATE_COLLECTION, collection_name, ts);
         }
-        debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
+        debug_print(
+          std::to_string(_collection_identifiers.size()) + " collections created", DEBUG_TRACE);
 
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         key_count = config->get_int(KEY_COUNT);
@@ -268,6 +280,15 @@ class database_operation {
         str = s.append(value_str);
         return (str);
     }
+
+    const std::vector<std::string> &
+    get_collection_identifiers() const
+    {
+        return _collection_identifiers;
+    }
+
+    private:
+    std::vector<std::string> _collection_identifiers;
 };
 } // namespace test_harness
 #endif

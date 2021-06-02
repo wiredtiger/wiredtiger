@@ -30,6 +30,7 @@
 #define THREAD_CONTEXT_H
 
 #include "../core/throttle.h"
+#include "../timestamp_manager.h"
 #include "database_model.h"
 #include "random_generator.h"
 #include "workload_tracking.h"

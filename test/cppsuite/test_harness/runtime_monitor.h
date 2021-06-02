@@ -38,6 +38,7 @@ extern "C" {
 #include "core/component.h"
 #include "core/throttle.h"
 #include "connection_manager.h"
+#include "workload/database_operation.h"
 
 namespace test_harness {
 /* Static statistic get function. */
@@ -153,7 +154,10 @@ class db_size_statistic : public statistic {
  */
 class runtime_monitor : public component {
     public:
-    explicit runtime_monitor(configuration *config) : component("runtime_monitor", config) {}
+    runtime_monitor(configuration *config, database_operation *db_operation)
+        : component("runtime_monitor", config), _db_operation(db_operation)
+    {
+    }
 
     ~runtime_monitor()
     {
@@ -205,6 +209,7 @@ class runtime_monitor : public component {
     WT_CURSOR *_cursor = nullptr;
     WT_SESSION *_session = nullptr;
     std::vector<statistic *> _stats;
+    database_operation *_db_operation;
 };
 } // namespace test_harness
 

@@ -50,6 +50,7 @@ class workload_generator : public component {
         : component("workload_generator", configuration), _database_operation(db_operation),
           _timestamp_manager(timestamp_manager), _tracking(tracking)
     {
+        _database_operation->create_collection_identifiers(_config);
     }
 
     ~workload_generator()
