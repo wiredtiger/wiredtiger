@@ -59,10 +59,15 @@ class test_tiered05(wttest.WiredTigerTestCase):
     # Test calling the flush_tier API with a tiered manager. Should get an error.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
+        # Allow time for the thread to start up.
         time.sleep(self.wait)
         msg = "/storage manager thread is configured/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.flush_tier(None), 0), msg)
+        # Allow time for the thread to run again.
+        self.pr('After error check, sleep')
+        time.sleep(self.wait)
+        self.pr('After sleep close connection')
 
 if __name__ == '__main__':
     wttest.run()

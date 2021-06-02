@@ -48,11 +48,20 @@ struct __wt_tiered_manager {
 
 /* Flush tier flags */
 /* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_FLUSH_TIER_BACKGROUND 0x1u
-#define WT_FLUSH_TIER_FORCE 0x2u
-#define WT_FLUSH_TIER_OFF 0x4u
-#define WT_FLUSH_TIER_ON 0x8u
+#define WT_FLUSH_TIER_FORCE 0x1u
+#define WT_FLUSH_TIER_OFF 0x2u
+#define WT_FLUSH_TIER_ON 0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+
+#define WT_FLUSH_STATE_ADD(state) ((uint64_t)(uint32_t)(state))
+#define WT_FLUSH_STATE_DEC(state) ((state) >> 32)
+#define WT_FLUSH_STATE_DONE(state) (WT_FLUSH_STATE_ADD(state) == WT_FLUSH_STATE_DEC(state))
+#define WT_FLUSH_STATE_SET(dec, add) ((uint64_t)((dec) << 32) + (add))
+
+struct __wt_flush_state {
+    uint64_t state; /* Atomic state counter */
+    uint64_t gen;   /* Generation of this flush */
+};
 
 /*
  * Different types of work units for tiered trees.
@@ -71,6 +80,7 @@ struct __wt_tiered_work_unit {
     TAILQ_ENTRY(__wt_tiered_work_unit) q; /* Worker unit queue */
     uint32_t type;                        /* Type of operation */
     uint64_t op_val;                      /* A value for the operation */
+    uint64_t *state;                      /* State counter pointer */
     WT_TIERED *tiered;                    /* Tiered tree */
     uint64_t id;                          /* Id of the object */
 /* AUTOMATIC FLAG VALUE GENERATION START */

@@ -323,8 +323,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_drop[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_flush_tier[] = {
   {"flush_timestamp", "string", NULL, NULL, NULL, 0}, {"force", "boolean", NULL, NULL, NULL, 0},
-  {"sync", "string", NULL, "choices=[\"background\",\"off\",\"on\"]", NULL, 0},
-  {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"sync", "string", NULL, "choices=[\"off\",\"on\"]", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_WT_SESSION_join[] = {
   {"bloom_bit_count", "int", NULL, "min=2,max=1000", NULL, 0},

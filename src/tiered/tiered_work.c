@@ -9,6 +9,31 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_tiered_work_free --
+ *     Free a work unit and account for it in the flush state.
+ */
+void
+__wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
+{
+    WT_FLUSH_STATE *flush;
+    uint64_t new_state, old_add, old_dec, old_state;
+
+    flush = &S2C(session)->flush_state;
+    for (;;) {
+        WT_BARRIER();
+        old_state = flush->state;
+        old_add = WT_FLUSH_STATE_ADD(old_state);
+        old_dec = WT_FLUSH_STATE_DEC(old_state);
+        new_state = WT_FLUSH_STATE_SET(old_dec + 1, old_add);
+        if (__wt_atomic_casv64(&flush->state, old_state, new_state))
+            break;
+        WT_STAT_CONN_INCR(session, flush_state_races);
+        __wt_yield();
+    }
+    __wt_free(session, entry);
+}
+
+/*
  * __wt_tiered_push_work --
  *     Push a work unit to the queue. Assumes it is passed an already filled out structure.
  */
@@ -16,12 +41,27 @@ void
 __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     WT_CONNECTION_IMPL *conn;
+    WT_FLUSH_STATE *flush;
+    uint64_t new_state, old_add, old_dec, old_state;
 
     conn = S2C(session);
+    flush = &conn->flush_state;
+
     __wt_spin_lock(session, &conn->tiered_lock);
     TAILQ_INSERT_TAIL(&conn->tieredqh, entry, q);
     WT_STAT_CONN_INCR(session, tiered_work_units_created);
     __wt_spin_unlock(session, &conn->tiered_lock);
+    for (;;) {
+        WT_BARRIER();
+        old_state = flush->state;
+        old_add = WT_FLUSH_STATE_ADD(old_state);
+        old_dec = WT_FLUSH_STATE_DEC(old_state);
+        new_state = WT_FLUSH_STATE_SET(old_dec, old_add + 1);
+        if (__wt_atomic_casv64(&flush->state, old_state, new_state))
+            break;
+        WT_STAT_CONN_INCR(session, flush_state_races);
+        __wt_yield();
+    }
     __wt_cond_signal(session, conn->tiered_cond);
     return;
 }
