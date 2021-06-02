@@ -109,6 +109,41 @@ class cache_limit_statistic : public statistic {
     int64_t limit;
 };
 
+class db_size_statistic : public statistic {
+    public:
+    explicit db_size_statistic(configuration *config) : statistic(config)
+    {
+        _file_names.push_back("WiredTigerHS.wt");
+        _limit = config->get_int(LIMIT);
+    }
+    virtual ~db_size_statistic() = default;
+
+    /* Don't need the stat cursor for this. */
+    void
+    check(WT_CURSOR *) override
+    {
+#ifdef USE_POSIX
+        size_t db_size = 0;
+        for (const auto &name : _file_names) {
+            ::stat sb;
+            testutil_check(::stat(name.c_str(), &sb));
+            db_size += sb.st_size;
+        }
+        if (db_size > _limit) {
+            std::string error_string =
+              "runtime_monitor: Database size limit exceeded during test! Limit: " +
+              std::to_string(_limit) + " db size: " + std::to_string(db_size);
+            debug_print(error_string, DEBUG_ERROR);
+            testutil_assert(db_size <= limit);
+        }
+#endif
+    }
+
+    private:
+    std::vector<std::string> _file_names;
+    size_t _limit;
+};
+
 /*
  * The runtime monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
