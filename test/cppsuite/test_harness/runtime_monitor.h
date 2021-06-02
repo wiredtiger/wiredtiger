@@ -164,6 +164,7 @@ collection_identifiers_to_file_names(const std::vector<std::string> &identifiers
     for (const auto &identifier : identifiers)
         file_names.push_back(std::string(DEFAULT_DIR) + "/" + identifier + ".wt");
     file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
+    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
     return file_names;
 }
 
