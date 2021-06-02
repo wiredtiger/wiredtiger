@@ -163,7 +163,7 @@ collection_identifiers_to_file_names(const std::vector<std::string> &identifiers
     std::vector<std::string> file_names;
     for (const auto &identifier : identifiers)
         file_names.push_back(std::string(DEFAULT_DIR) + "/" + identifier + ".wt");
-    file_names.push_back(std::string(DEFAULT_DIR) + "/WiredTigerHS.wt");
+    file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
     return file_names;
 }
 
