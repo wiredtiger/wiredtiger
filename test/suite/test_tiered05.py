@@ -65,9 +65,7 @@ class test_tiered05(wttest.WiredTigerTestCase):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.flush_tier(None), 0), msg)
         # Allow time for the thread to run again.
-        self.pr('After error check, sleep')
         time.sleep(self.wait)
-        self.pr('After sleep close connection')
 
 if __name__ == '__main__':
     wttest.run()

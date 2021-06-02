@@ -556,9 +556,6 @@ __tiered_mgr_start(WT_CONNECTION_IMPL *conn)
     /* Start the thread. */
     WT_RET(__wt_thread_create(session, &conn->tiered_mgr_tid, __tiered_mgr_server, session));
     conn->tiered_mgr_tid_set = true;
-#if 0
-    __wt_errx(session, "MGR_START: mgr_tid_set %d mgr_cond %p mgr_thread_tid %p", conn->tiered_mgr_tid_set, (void *)conn->tiered_mgr_cond, (void *)conn->tiered_mgr_tid.id);
-#endif
     return (0);
 }
 
@@ -639,9 +636,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     /* Stop the storage manager thread. */
     if (conn->tiered_mgr_tid_set) {
         WT_ASSERT(session, conn->tiered_mgr_cond != NULL);
-#if 0
-        __wt_errx(session, "DESTROY: mgr_tid_set %d mgr_cond %p mgr_thread_tid %p", conn->tiered_mgr_tid_set, (void *)conn->tiered_mgr_cond, (void *)conn->tiered_mgr_tid.id);
-#endif
         __wt_cond_signal(session, conn->tiered_mgr_cond);
         WT_ASSERT(session, conn->tiered_mgr_tid.id != NULL);
         WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
