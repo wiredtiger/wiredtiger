@@ -111,9 +111,9 @@ class cache_limit_statistic : public statistic {
 
 class db_size_statistic : public statistic {
     public:
-    explicit db_size_statistic(configuration *config) : statistic(config)
+    db_size_statistic(configuration *config, std::vector<std::string> &&file_names)
+        : statistic(config), _file_names(std::move(file_names))
     {
-        _file_names.push_back("WiredTigerHS.wt");
         _limit = config->get_int(LIMIT);
     }
     virtual ~db_size_statistic() = default;
@@ -122,11 +122,11 @@ class db_size_statistic : public statistic {
     void
     check(WT_CURSOR *) override
     {
-#ifdef USE_POSIX
+#ifndef _WIN32
         size_t db_size = 0;
         for (const auto &name : _file_names) {
-            ::stat sb;
-            testutil_check(::stat(name.c_str(), &sb));
+            struct stat sb;
+            testutil_check(stat(name.c_str(), &sb));
             db_size += sb.st_size;
         }
         if (db_size > _limit) {
@@ -134,14 +134,17 @@ class db_size_statistic : public statistic {
               "runtime_monitor: Database size limit exceeded during test! Limit: " +
               std::to_string(_limit) + " db size: " + std::to_string(db_size);
             debug_print(error_string, DEBUG_ERROR);
-            testutil_assert(db_size <= limit);
+            testutil_assert(db_size <= _limit);
         }
+#else
+        static_cast<void>(_file_names);
+        static_cast<void>(_limit);
 #endif
     }
 
     private:
     std::vector<std::string> _file_names;
-    size_t _limit;
+    int64_t _limit;
 };
 
 /*
@@ -184,7 +187,7 @@ class runtime_monitor : public component {
             delete sub_config;
 
             sub_config = _config->get_subconfig(STAT_DB_SIZE);
-            _stats.push_back(new db_size_statistic(sub_config));
+            _stats.push_back(new db_size_statistic(sub_config, {}));
             delete sub_config;
         }
     }
