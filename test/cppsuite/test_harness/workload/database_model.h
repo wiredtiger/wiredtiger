@@ -67,7 +67,7 @@ class database {
      * but its a way to make sure that callers don't forget to lock and accidentally shoot
      * themselves in the foot.
      */
-    const std::vector<std::string>
+    std::vector<std::string>
     get_collection_names(const std::lock_guard<std::mutex> &) const
     {
         std::vector<std::string> collection_names;
