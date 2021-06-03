@@ -27,11 +27,9 @@ static void
 __flush_tier_wait(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_FLUSH_STATE *flush;
     int yield_count;
 
     conn = S2C(session);
-    flush = &conn->flush_state;
     yield_count = 0;
     /*
      * The internal thread needs the schema lock to perform its operations and flush tier also
@@ -49,7 +47,7 @@ __flush_tier_wait(WT_SESSION_IMPL *session)
      * this function returns an int and this loop would check how much time we've waited and break
      * out with EBUSY.
      */
-    while (!WT_FLUSH_STATE_DONE(flush->state)) {
+    while (!WT_FLUSH_STATE_DONE(conn->flush_state)) {
         if (++yield_count < WT_THOUSAND)
             __wt_yield();
         else
@@ -66,14 +64,12 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    WT_FLUSH_STATE *flush;
     const char *key, *value;
 
     WT_UNUSED(flags);
     __wt_verbose(session, WT_VERB_TIERED, "%s", "FLUSH_TIER_ONCE: Called");
 
     cursor = NULL;
-    flush = &S2C(session)->flush_state;
     /*
      * For supporting splits and merge:
      * - See if there is any merging work to do to prepare and create an object that is
@@ -81,8 +77,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    __wt_gen_next(session, WT_GEN_FLUSH_TIER, &S2C(session)->flush_state.gen);
-    flush->state = 0;
+    S2C(session)->flush_state = 0;
 
     /*
      * XXX: Is it sufficient to walk the metadata cursor? If it is, why doesn't checkpoint do that?

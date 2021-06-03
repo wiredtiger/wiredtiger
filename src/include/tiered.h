@@ -53,15 +53,16 @@ struct __wt_tiered_manager {
 #define WT_FLUSH_TIER_ON 0x4u
 /* AUTOMATIC FLAG VALUE GENERATION STOP */
 
+/*
+ * The flush state is part of the connection. It is a 64-bit unsigned integer with two 32-bit
+ * components. There is an addition counter and a decrement counter. A flush tier call will add work
+ * units to the increment counter and the internal thread processing them will add to the decrement
+ * counter. When the two parts are the same then the processing is done.
+ */
 #define WT_FLUSH_STATE_ADD(state) ((uint64_t)(uint32_t)(state))
 #define WT_FLUSH_STATE_DEC(state) ((state) >> 32)
 #define WT_FLUSH_STATE_DONE(state) (WT_FLUSH_STATE_ADD(state) == WT_FLUSH_STATE_DEC(state))
 #define WT_FLUSH_STATE_SET(dec, add) ((uint64_t)((dec) << 32) + (add))
-
-struct __wt_flush_state {
-    uint64_t state; /* Atomic state counter */
-    uint64_t gen;   /* Generation of this flush */
-};
 
 /*
  * Different types of work units for tiered trees.
@@ -80,7 +81,6 @@ struct __wt_tiered_work_unit {
     TAILQ_ENTRY(__wt_tiered_work_unit) q; /* Worker unit queue */
     uint32_t type;                        /* Type of operation */
     uint64_t op_val;                      /* A value for the operation */
-    uint64_t *state;                      /* State counter pointer */
     WT_TIERED *tiered;                    /* Tiered tree */
     uint64_t id;                          /* Id of the object */
 /* AUTOMATIC FLAG VALUE GENERATION START */
