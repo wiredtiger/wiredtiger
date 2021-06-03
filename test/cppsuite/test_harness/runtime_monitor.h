@@ -212,7 +212,7 @@ class runtime_monitor : public component {
     runtime_monitor &operator=(const runtime_monitor &) = delete;
 
     void
-    load()
+    load() override final
     {
         configuration *sub_config;
         std::string statistic_list;
@@ -238,7 +238,7 @@ class runtime_monitor : public component {
     }
 
     void
-    do_work()
+    do_work() override final
     {
         for (const auto &it : _stats) {
             if (it->enabled())
