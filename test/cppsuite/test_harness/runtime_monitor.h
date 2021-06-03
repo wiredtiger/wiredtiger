@@ -97,7 +97,7 @@ class cache_limit_statistic : public statistic {
          */
         use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
         if (use_percent > limit) {
-            std::string error_string =
+            const std::string error_string =
               "runtime_monitor: Cache usage exceeded during test! Limit: " + std::to_string(limit) +
               " usage: " + std::to_string(use_percent);
             debug_print(error_string, DEBUG_ERROR);
@@ -151,7 +151,7 @@ class db_size_statistic : public statistic {
         }
         debug_print("Current database size is " + std::to_string(db_size) + " bytes", DEBUG_TRACE);
         if (db_size > _limit) {
-            std::string error_string =
+            const std::string error_string =
               "runtime_monitor: Database size limit exceeded during test! Limit: " +
               std::to_string(_limit) + " db size: " + std::to_string(db_size);
             debug_print(error_string, DEBUG_ERROR);
