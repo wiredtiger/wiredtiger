@@ -873,9 +873,6 @@ __curhs_insert(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
-#ifdef HAVE_DIAGNOSTIC
-    int temp_ret;
-#endif
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
@@ -924,15 +921,19 @@ retry:
     ret = __wt_hs_modify(cbt, hs_upd);
     if (ret == WT_RESTART)
         goto retry;
-
     WT_ERR(ret);
+
+    /*
+     * Mark the insert as successful. Even if one of the calls below fails, some callers will still
+     * need to know whether the actual insert went through or not.
+     */
+    hs_cursor->insert_success = true;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_PAGE_INDEX(session, temp_ret = __curhs_search(cbt, false));
-    WT_ASSERT(session, temp_ret == 0);
-    temp_ret = __curhs_file_cursor_next(session, file_cursor);
-    WT_ASSERT(session, temp_ret == 0 || temp_ret == WT_NOTFOUND);
+    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
+    WT_ASSERT(session, ret == 0);
+    WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
@@ -1132,4 +1133,35 @@ err:
         *cursorp = NULL;
     }
     return (ret);
+}
+
+/*
+ * __wt_curhs_clear_insert_success --
+ *     Clear the insertion flag for the history store cursor. We should call this prior to using the
+ *     WT_CURSOR->insert method.
+ */
+void
+__wt_curhs_clear_insert_success(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    hs_cursor->insert_success = false;
+}
+
+/*
+ * __wt_curhs_check_insert_success --
+ *     Check whether the insertion flag for the history store cursor is set or not. This signals
+ *     whether or not the last WT_CURSOR->insert call successfully inserted the history store
+ *     record. This is distinctly different from the return value of WT_CURSOR->insert since the
+ *     return value could be non-zero due to cursor operations AFTER the actual history store
+ *     insertion.
+ */
+bool
+__wt_curhs_check_insert_success(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    return (hs_cursor->insert_success);
 }
