@@ -365,12 +365,12 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     cfg[2] = NULL;
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     if (cval.val)
-        flags |= WT_FLUSH_TIER_FORCE;
+        LF_SET(WT_FLUSH_TIER_FORCE);
     WT_RET(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
     if (WT_STRING_MATCH("off", cval.str, cval.len))
-        flags |= WT_FLUSH_TIER_OFF;
+        LF_SET(WT_FLUSH_TIER_OFF);
     else if (WT_STRING_MATCH("on", cval.str, cval.len))
-        flags |= WT_FLUSH_TIER_ON;
+        LF_SET(WT_FLUSH_TIER_ON);
 
     /*
      * We cannot perform another flush tier until any earlier ones are done. Often threads will wait

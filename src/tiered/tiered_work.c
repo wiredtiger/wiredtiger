@@ -16,16 +16,14 @@ void
 __wt_tiered_work_free(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     WT_CONNECTION_IMPL *conn;
-    uint64_t new_state, old_add, old_dec, old_state;
+    uint32_t new_state, old_state;
 
     conn = S2C(session);
     for (;;) {
         WT_BARRIER();
         old_state = conn->flush_state;
-        old_add = WT_FLUSH_STATE_ADD(old_state);
-        old_dec = WT_FLUSH_STATE_DEC(old_state);
-        new_state = WT_FLUSH_STATE_SET(old_dec + 1, old_add);
-        if (__wt_atomic_casv64(&conn->flush_state, old_state, new_state))
+        new_state = old_state - 1;
+        if (__wt_atomic_casv32(&conn->flush_state, old_state, new_state))
             break;
         WT_STAT_CONN_INCR(session, flush_state_races);
         __wt_yield();
@@ -44,7 +42,7 @@ void
 __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
 {
     WT_CONNECTION_IMPL *conn;
-    uint64_t new_state, old_add, old_dec, old_state;
+    uint32_t new_state, old_state;
 
     conn = S2C(session);
 
@@ -55,10 +53,8 @@ __wt_tiered_push_work(WT_SESSION_IMPL *session, WT_TIERED_WORK_UNIT *entry)
     for (;;) {
         WT_BARRIER();
         old_state = conn->flush_state;
-        old_add = WT_FLUSH_STATE_ADD(old_state);
-        old_dec = WT_FLUSH_STATE_DEC(old_state);
-        new_state = WT_FLUSH_STATE_SET(old_dec, old_add + 1);
-        if (__wt_atomic_casv64(&conn->flush_state, old_state, new_state))
+        new_state = old_state + 1;
+        if (__wt_atomic_casv32(&conn->flush_state, old_state, new_state))
             break;
         WT_STAT_CONN_INCR(session, flush_state_races);
         __wt_yield();
