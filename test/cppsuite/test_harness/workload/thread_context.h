@@ -67,7 +67,8 @@ class thread_context {
     const std::vector<std::string>
     get_collection_names() const
     {
-        return (_database.get_collection_names());
+        std::lock_guard<std::mutex> lg(_database.get_mtx());
+        return (_database.get_collection_names(lg));
     }
 
     thread_operation
@@ -178,7 +179,7 @@ class thread_context {
 
     private:
     /* Representation of the collections and their key/value pairs in memory. */
-    database _database;
+    database &_database;
     /*
      * _current_op_count is the current number of operations that have been executed in the current
      * transaction.

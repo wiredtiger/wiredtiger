@@ -56,18 +56,32 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
+    std::mutex &
+    get_mtx()
+    {
+        return (_mtx);
+    }
+
     const std::vector<std::string>
-    get_collection_names() const
+    get_collection_names(const std::lock_guard<std::mutex> &) const
     {
         std::vector<std::string> collection_names;
 
-        for (auto const &it : collections)
+        for (auto const &it : _collections)
             collection_names.push_back(it.first);
 
         return (collection_names);
     }
 
-    std::map<std::string, collection_t> collections;
+    std::map<std::string, collection_t> &
+    get_collections(const std::lock_guard<std::mutex> &)
+    {
+        return (_collections);
+    }
+
+    private:
+    std::map<std::string, collection_t> _collections;
+    std::mutex _mtx;
 };
 } // namespace test_harness
 

@@ -63,13 +63,17 @@ class database_operation {
         cursor = nullptr;
         collection_count = key_count = key_size = value_size = 0;
 
+        /* Acquire database model lock. */
+        std::lock_guard<std::mutex> lg(database.get_mtx());
+        auto &collections = database.get_collections(lg);
+
         /* Get a session. */
         session = connection_manager::instance().create_session();
         /* Create n collections as per the configuration and store each collection name. */
         collection_count = config->get_int(COLLECTION_COUNT);
         for (size_t i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            database.collections[collection_name] = {};
+            collections[collection_name] = {};
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = timestamp_manager->get_next_ts();
@@ -87,7 +91,7 @@ class database_operation {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
-        for (const auto &it_collections : database.collections) {
+        for (const auto &it_collections : collections) {
             collection_name = it_collections.first;
             key_cpt = 0;
             /*

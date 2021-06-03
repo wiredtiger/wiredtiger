@@ -65,6 +65,10 @@ class workload_validation {
         int value_operation_type;
         std::string collection_name;
 
+        /* Acquire database model lock. */
+        std::lock_guard<std::mutex> lg(database.get_mtx());
+        auto &collections = database.get_collections(lg);
+
         session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
@@ -102,7 +106,7 @@ class workload_validation {
             if (std::find(created_collections.begin(), created_collections.end(),
                   key_collection_name) != created_collections.end())
                 update_data_model(static_cast<tracking_operation>(value_operation_type),
-                  key_collection_name, key, value, database);
+                  key_collection_name, key, value, database.get_collections(lg));
             /*
              * The collection should be part of the deleted collections if it has not be found in
              * the created ones.
@@ -120,10 +124,10 @@ class workload_validation {
                  * The data model is now fully updated for the last read collection. It can be
                  * checked.
                  */
-                check_reference(session, collection_name, database.collections.at(collection_name));
+                check_reference(session, collection_name, collections.at(collection_name));
                 /* Clear memory. */
-                delete database.collections[collection_name].values;
-                database.collections[collection_name].values = nullptr;
+                delete collections[collection_name].values;
+                collections[collection_name].values = nullptr;
 
                 collection_name = key_collection_name;
             }
@@ -140,10 +144,10 @@ class workload_validation {
          * created or all deleted).
          */
         if (!collection_name.empty()) {
-            check_reference(session, collection_name, database.collections.at(collection_name));
+            check_reference(session, collection_name, collections.at(collection_name));
             /* Clear memory. */
-            delete database.collections[collection_name].values;
-            database.collections[collection_name].values = nullptr;
+            delete collections[collection_name].values;
+            collections[collection_name].values = nullptr;
         }
     }
 
@@ -191,7 +195,7 @@ class workload_validation {
     /* Update the data model. */
     void
     update_data_model(const tracking_operation &operation, const std::string &collection_name,
-      const char *key, const char *value, database &database)
+      const char *key, const char *value, std::map<std::string, collection_t> &collections)
     {
         switch (operation) {
         case tracking_operation::DELETE_KEY:
@@ -200,25 +204,25 @@ class workload_validation {
              * the key has been inserted previously in an existing collection and can be safely
              * deleted.
              */
-            database.collections.at(collection_name).keys.at(key).exists = false;
-            delete database.collections.at(collection_name).values;
-            database.collections.at(collection_name).values = nullptr;
+            collections.at(collection_name).keys.at(key).exists = false;
+            delete collections.at(collection_name).values;
+            collections.at(collection_name).values = nullptr;
             break;
         case tracking_operation::INSERT: {
             /*
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
-            database.collections[collection_name].keys[key].exists = true;
-            if (database.collections[collection_name].values == nullptr)
-                database.collections[collection_name].values = new std::map<key_value_t, value_t>();
+            collections[collection_name].keys[key].exists = true;
+            if (collections[collection_name].values == nullptr)
+                collections[collection_name].values = new std::map<key_value_t, value_t>();
             value_t v;
             v.value = key_value_t(value);
             std::pair<key_value_t, value_t> pair(key_value_t(key), v);
-            database.collections[collection_name].values->insert(pair);
+            collections[collection_name].values->insert(pair);
             break;
         }
         case tracking_operation::UPDATE:
-            database.collections[collection_name].values->at(key).value = key_value_t(value);
+            collections[collection_name].values->at(key).value = key_value_t(value);
             break;
         default:
             testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
