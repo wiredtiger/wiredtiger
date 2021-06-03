@@ -626,7 +626,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
             __wt_tiered_work_free(session, entry);
         }
     }
-    __wt_cond_destroy(session, &conn->flush_cond);
     __wt_cond_destroy(session, &conn->tiered_cond);
     if (conn->tiered_session != NULL) {
         WT_TRET(__wt_session_close_internal(conn->tiered_session));
@@ -641,6 +640,8 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_mgr_tid_set = false;
     }
     __wt_cond_destroy(session, &conn->tiered_mgr_cond);
+    /* This condition variable is last because any internal thread could be using it.  */
+    __wt_cond_destroy(session, &conn->flush_cond);
 
     if (conn->tiered_mgr_session != NULL) {
         WT_TRET(__wt_session_close_internal(conn->tiered_mgr_session));

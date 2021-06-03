@@ -64,8 +64,6 @@ class test_tiered05(wttest.WiredTigerTestCase):
         msg = "/storage manager thread is configured/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.flush_tier(None), 0), msg)
-        # Allow time for the thread to run again.
-        time.sleep(self.wait)
 
 if __name__ == '__main__':
     wttest.run()
