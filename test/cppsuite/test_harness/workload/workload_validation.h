@@ -106,7 +106,7 @@ class workload_validation {
             if (std::find(created_collections.begin(), created_collections.end(),
                   key_collection_name) != created_collections.end())
                 update_data_model(static_cast<tracking_operation>(value_operation_type),
-                  key_collection_name, key, value, database.get_collections(lg));
+                  key_collection_name, key, value, collections);
             /*
              * The collection should be part of the deleted collections if it has not be found in
              * the created ones.
