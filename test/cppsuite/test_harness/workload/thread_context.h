@@ -37,7 +37,7 @@
 namespace test_harness {
 class transaction_context {
     public:
-    transaction_context(configuration *config)
+    explicit transaction_context(configuration *config)
     {
         configuration *transaction_config = config->get_subconfig(OPS_PER_TRANSACTION);
         _min_op_count = transaction_config->get_int(MIN);

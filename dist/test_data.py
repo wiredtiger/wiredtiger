@@ -116,7 +116,7 @@ transaction_config = [
 
 thread_count = [
     Config('thread_count', 1, r'''
-        Specifiest the number of threads that will be used to perform a certain function.''')
+        Specifies the number of threads that will be used to perform a certain function.''')
 ]
 
 read_thread_config = thread_count + throttle_config + transaction_config
