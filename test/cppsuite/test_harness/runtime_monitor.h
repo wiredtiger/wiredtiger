@@ -115,7 +115,8 @@ collection_name_to_file_name(const std::string &collection_name)
 {
     /* Strip out the URI prefix. */
     const size_t colon_pos = collection_name.find(':');
-    const auto stripped_name = collection_name.substr(colon_pos + 1);
+    const auto stripped_name =
+      (colon_pos == std::string::npos) ? collection_name : collection_name.substr(colon_pos + 1);
 
     /* Now add the directory and file extension. */
     return std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt";
