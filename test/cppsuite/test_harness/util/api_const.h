@@ -33,6 +33,7 @@
 namespace test_harness {
 
 /* Component names. */
+static const char *CHECKPOINT_MANAGER = "checkpoint_manager";
 static const char *RUNTIME_MONITOR = "runtime_monitor";
 static const char *TIMESTAMP_MANAGER = "timestamp_manager";
 static const char *WORKLOAD_GENERATOR = "workload_generator";
@@ -54,10 +55,10 @@ static const char *MIN = "min";
 static const char *OLDEST_LAG = "oldest_lag";
 static const char *OP_COUNT = "op_count";
 static const char *OPS_PER_TRANSACTION = "ops_per_transaction";
-static const char *READ_THREADS = "read_threads";
+static const char *READ_CONFIG = "read_config";
 static const char *STABLE_LAG = "stable_lag";
 static const char *STAT_CACHE_SIZE = "stat_cache_size";
-static const char *UPDATE_THREADS = "update_threads";
+static const char *THREAD_COUNT = "thread_count";
 static const char *UPDATE_CONFIG = "update_config";
 static const char *VALUE_SIZE = "value_size";
 
