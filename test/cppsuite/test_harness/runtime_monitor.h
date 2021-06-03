@@ -127,6 +127,9 @@ class db_size_statistic : public statistic {
         : statistic(config), _database(database)
     {
         _limit = config->get_int(LIMIT);
+#ifdef _WIN32
+        debug_print("Database size checking is not implemented on Windows", DEBUG_ERROR);
+#endif
     }
     virtual ~db_size_statistic() = default;
 
@@ -141,12 +144,12 @@ class db_size_statistic : public statistic {
             struct stat sb;
             if (stat(name.c_str(), &sb) == 0) {
                 db_size += sb.st_size;
-                debug_print(name + " was " + std::to_string(sb.st_size) + " bytes", DEBUG_INFO);
+                debug_print(name + " was " + std::to_string(sb.st_size) + " bytes", DEBUG_TRACE);
             } else
                 /* The only good reason for this to fail is if the file hasn't been created yet. */
                 testutil_assert(errno == ENOENT);
         }
-        debug_print("Current database size is " + std::to_string(db_size) + " bytes", DEBUG_INFO);
+        debug_print("Current database size is " + std::to_string(db_size) + " bytes", DEBUG_TRACE);
         if (db_size > _limit) {
             std::string error_string =
               "runtime_monitor: Database size limit exceeded during test! Limit: " +
