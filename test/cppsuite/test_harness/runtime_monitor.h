@@ -211,9 +211,7 @@ class runtime_monitor : public component {
             delete sub_config;
 
             sub_config = _config->get_subconfig(STAT_DB_SIZE);
-            auto file_names =
-              collection_identifiers_to_file_names(_db_operation->get_collection_identifiers());
-            _stats.push_back(new db_size_statistic(sub_config, std::move(file_names)));
+            _stats.push_back(new db_size_statistic(sub_config, {}));
             delete sub_config;
         }
     }

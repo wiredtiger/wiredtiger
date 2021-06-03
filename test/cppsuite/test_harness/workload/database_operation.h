@@ -36,19 +36,6 @@
 namespace test_harness {
 class database_operation {
     public:
-    void
-    create_collection_identifiers(configuration *config)
-    {
-        /*
-         * Generate the collection identifiers that we'll be using. A collection identifier is just
-         * the name of the collection without any file extension or type prefix as a URI would have.
-         * So for example, if a collection's uri is `table:foo` and its file name is `foo.wt` then
-         * its identifier would simply be `foo`.
-         */
-        for (size_t i = 0; i < config->get_int(COLLECTION_COUNT); ++i)
-            _collection_identifiers.push_back("collection" + std::to_string(i));
-    }
-
     /*
      * Function that performs the following steps using the configuration that is defined by the
      * test:
@@ -78,10 +65,10 @@ class database_operation {
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
-        /* Create a collection for each identifier and store each collection name. */
-        testutil_assert(!_collection_identifiers.empty());
-        for (const auto &collection_identifier : _collection_identifiers) {
-            collection_name = "table:" + collection_identifier;
+        /* Create n collections as per the configuration and store each collection name. */
+        collection_count = config->get_int(COLLECTION_COUNT);
+        for (size_t i = 0; i < collection_count; ++i) {
+            collection_name = "table:collection" + std::to_string(i);
             database.collections[collection_name] = {};
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
@@ -89,8 +76,7 @@ class database_operation {
             tracking->save_schema_operation(
               tracking_operation::CREATE_COLLECTION, collection_name, ts);
         }
-        debug_print(
-          std::to_string(_collection_identifiers.size()) + " collections created", DEBUG_TRACE);
+        debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
 
         /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
         key_count = config->get_int(KEY_COUNT);
@@ -235,12 +221,6 @@ class database_operation {
             context.commit_transaction(session, "");
     }
 
-    const std::vector<std::string> &
-    get_collection_identifiers() const
-    {
-        return _collection_identifiers;
-    }
-
     private:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
@@ -288,8 +268,6 @@ class database_operation {
         str = s.append(value_str);
         return (str);
     }
-
-    std::vector<std::string> _collection_identifiers;
 };
 } // namespace test_harness
 #endif
