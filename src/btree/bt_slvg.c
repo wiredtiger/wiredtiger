@@ -185,6 +185,8 @@ __slvg_checkpoint(WT_SESSION_IMPL *session, WT_REF *root)
     WT_RET(__wt_calloc_def(session, 2, &ckptbase));
     WT_ERR(__wt_strdup(session, WT_CHECKPOINT, &ckptbase->name));
     ckptbase->order = 1;
+    ckptbase->end_of_list = false;
+    ckptbase[1].end_of_list = true;
     __wt_seconds(session, &ckptbase->sec);
     WT_ERR(__wt_metadata_search(session, dhandle->name, &config));
     WT_ERR(__wt_meta_block_metadata(session, config, ckptbase));

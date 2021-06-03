@@ -592,6 +592,7 @@ __assert_ckpt_matches(WT_SESSION_IMPL *session, WT_CKPT *ckpt_a, WT_CKPT *ckpt_b
     WT_ASSERT(session,
       (ckpt_a->name == NULL && ckpt_b->name == NULL) ||
         (ckpt_a->name != NULL && ckpt_b->name != NULL && strcmp(ckpt_a->name, ckpt_b->name) == 0));
+    WT_ASSERT(session, ckpt_a->end_of_list == ckpt_b->end_of_list);
     WT_ASSERT(session, ckpt_a->order == ckpt_b->order);
     WT_ASSERT(session, ckpt_a->size == ckpt_b->size);
     WT_ASSERT(session, ckpt_a->write_gen == ckpt_b->write_gen);
@@ -692,6 +693,9 @@ __meta_ckptlist_allocate_new_ckpt(
     ckpt = &ckptbase[slot];
     ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
     __wt_seconds(session, &ckpt->sec);
+    ckpt->end_of_list = false;
+    ckptbase[slot + 1].end_of_list = true;
+
     /*
      * Update time value for most recent checkpoint, not letting it move backwards. It is possible
      * to race here, so use atomic CAS. This code relies on the fact that anyone we race with will
@@ -790,6 +794,8 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
              */
             WT_ERR(__wt_realloc_def(session, &allocated, slot + 2, &ckptbase));
             ckpt = &ckptbase[slot];
+            ckpt->end_of_list = false;
+            ckptbase[slot + 1].end_of_list = true;
 
             WT_ERR(__ckpt_load(session, &k, &v, ckpt));
         }
@@ -1179,11 +1185,7 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
     if ((ckptbase = *ckptbasep) == NULL)
         return;
 
-    /*
-     * Sometimes the checkpoint list has a checkpoint which has not been named yet, but carries an
-     * order number.
-     */
-    WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt)
+    WT_CKPT_FOREACH_IN_USE (ckptbase, ckpt)
         __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
