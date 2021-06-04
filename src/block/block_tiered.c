@@ -87,22 +87,3 @@ __wt_block_switch_object(
      */
     return (__block_switch_writeable(session, block, object_id));
 }
-
-/*
- * __wt_block_tiered_load --
- *     Set up object file processing when loading a new root page.
- */
-int
-__wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
-{
-    WT_UNUSED(session);
-
-    if (block->has_objects)
-        block->objectid = ci->root_objectid;
-
-    /*
-     * FIXME-WT-7589: There is probably more work here, perhaps in switching the current file, and
-     * setting the live checkpoint to the argument checkpoint.
-     */
-    return (0);
-}

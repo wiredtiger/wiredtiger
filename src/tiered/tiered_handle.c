@@ -26,6 +26,9 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
             id = WT_TIERED_INDEX_LOCAL;
         else if (type == WT_DHANDLE_TYPE_TIERED)
             id = WT_TIERED_INDEX_LOCAL;
+        else if (type == WT_DHANDLE_TYPE_TIERED_TREE)
+            /* Nothing to do for this type. */
+            goto err;
         else
             WT_ERR_MSG(
               session, EINVAL, "Unknown or unsupported tiered dhandle type %" PRIu32, type);
@@ -57,6 +60,7 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
     WT_CONFIG_ITEM ckey, cval;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    WT_TIERED_TIERS *local_tier;
 
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     __wt_config_subinit(session, &cparser, tierconf);
@@ -65,13 +69,62 @@ __tiered_init_tiers(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_CONFIG_ITEM 
         WT_ERR(__wt_buf_fmt(session, tmp, "%.*s", (int)ckey.len, ckey.str));
         __wt_verbose(
           session, WT_VERB_TIERED, "INIT_TIERS: tiered URI dhandle %s", (char *)tmp->data);
-        WT_ERR(__tiered_dhandle_setup(
-          session, tiered, WT_TIERED_INDEX_INVALID, (const char *)tmp->data));
+        WT_SAVE_DHANDLE(session,
+          ret = __tiered_dhandle_setup(
+            session, tiered, WT_TIERED_INDEX_INVALID, (const char *)tmp->data));
+        WT_ERR(ret);
+    }
+    local_tier = &tiered->tiers[WT_TIERED_INDEX_LOCAL];
+    if (local_tier->name == NULL) {
+        WT_ERR(__wt_tiered_name(
+          session, &tiered->iface, tiered->current_id, WT_TIERED_NAME_LOCAL, &local_tier->name));
+        F_SET(local_tier, WT_TIERS_OP_READ | WT_TIERS_OP_WRITE);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 err:
     __wt_scr_free(session, &tmp);
     return (ret);
+}
+
+/*
+ * __tiered_strip_config --
+ *     Strip a configuration string of a single item.
+ */
+static void
+__tiered_strip_config(WT_SESSION_IMPL *session, const char *match, char **configp)
+{
+    uint32_t pcount;
+    char *end, *start;
+
+    /*
+     * We'll operate on the configuration string in place. It's in allocated memory, and we're only
+     * going to make it smaller.
+     */
+    WT_ASSERT(session, strlen(match) > 0 && match[strlen(match) - 1] == '=');
+    start = strstr(*configp, match);
+    if (start == NULL)
+        return;
+    start += strlen(match);
+    WT_ASSERT(session, *start == '\0' || *start == ',' || *start == '(');
+    if (*start != '(')
+        return;
+
+    /* Find the matching end parenthesis. */
+    for (pcount = 1, end = start + 1; *end != '\0'; end++)
+        if (*end == ')') {
+            if (--pcount == 0)
+                break;
+        } else if (*end == '(')
+            pcount++;
+    WT_ASSERT(session, pcount == 0 && *end == ')');
+
+    /*
+     * Start and end point to the matching outside parentheses. Remove everything in between.
+     */
+    start++;
+    if (start == end)
+        return;
+    memmove(start, end, strlen(end) + 1);
 }
 
 /*
@@ -83,10 +136,12 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
     WT_TIERED_TIERS *this_tier;
+    char *config;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *config, *name;
+    const char *name;
 
-    config = name = NULL;
+    config = NULL;
+    name = NULL;
 
     /* If this ever can be multi-threaded, this would need to be atomic. */
     tiered->current_id = tiered->next_id++;
@@ -97,10 +152,12 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: LOCAL: %s", name);
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = "tiered_object=true,readonly=true";
+    cfg[2] = "tiered_object=true,readonly=true,checkpoint=";
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: obj_config: %s : %s", name, cfg[1]);
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
+    __tiered_strip_config(session, "checkpoint=", &config);
+
     /*
      * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
      * definitely has the same problem with chunks.
@@ -455,7 +512,7 @@ static int
 __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CONFIG_ITEM cval, tierconf;
-    WT_DATA_HANDLE *dhandle, *file_dhandle;
+    WT_DATA_HANDLE *dhandle;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_TIERED *tiered;
@@ -464,15 +521,13 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     uint32_t unused;
 #endif
     char *metaconf;
-    const char *newconfig;
     const char *obj_cfg[] = {WT_CONFIG_BASE(session, object_meta), NULL, NULL};
-    const char *new_tiered_cfg[] = {NULL, NULL, NULL, NULL};
     const char **tiered_cfg, *config;
 
     dhandle = session->dhandle;
     tiered = (WT_TIERED *)dhandle;
     tiered_cfg = dhandle->cfg;
-    config = newconfig = NULL;
+    config = NULL;
     metaconf = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
@@ -519,27 +574,6 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
         __wt_verbose(
           session, WT_VERB_TIERED, "TIERED_OPEN: create %s config %s", dhandle->name, config);
         WT_ERR(__wt_tiered_switch(session, config));
-        file_dhandle = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
-        WT_ASSERT(session, file_dhandle != dhandle && file_dhandle->type == WT_DHANDLE_TYPE_BTREE);
-
-        /*
-         * XXX brute force, need to figure out functions to use to do this properly.
-         *
-         * We are updating the tiered dhandle config entry to reflect the new tiers metadata. The
-         * tiered dhandle must look almost exactly like the local file dhandle. The difference is
-         * that the local file dhandle is marked as readonly and also tagged as a tiered object.
-         * We'll turn those off before putting it into tiered dhandle.
-         */
-        WT_ERR(__wt_metadata_search(session, file_dhandle->name, &metaconf));
-        __wt_verbose(session, WT_VERB_TIERED, "TIERED_OPEN: after switch meta conf %s %s",
-          dhandle->name, metaconf);
-        new_tiered_cfg[0] = metaconf;
-        new_tiered_cfg[1] = "tiered_object=false,readonly=false";
-        WT_ERR(__wt_config_merge(session, new_tiered_cfg, NULL, &newconfig));
-        __wt_free(session, dhandle->cfg[1]);
-        dhandle->cfg[1] = newconfig;
-        WT_ERR(__wt_config_merge(session, dhandle->cfg, NULL, &newconfig));
-        WT_ERR(__wt_metadata_update(session, dhandle->name, newconfig));
     }
     WT_ERR(__wt_btree_open(session, tiered_cfg));
     WT_ERR(__wt_btree_switch_object(session, tiered->current_id, 0));
@@ -584,11 +618,20 @@ __wt_tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 
 /*
  * __wt_tiered_close --
- *     Close a tiered data handle. TODO: When this returns an actual meaningful return value, remove
- *     its entry from s_void.
+ *     Close a tiered data handle.
  */
 int
-__wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+__wt_tiered_close(WT_SESSION_IMPL *session)
+{
+    return (__wt_btree_close(session));
+}
+
+/*
+ * __wt_tiered_discard --
+ *     Discard a tiered data handle.
+ */
+int
+__wt_tiered_discard(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
 #if 0
     WT_DATA_HANDLE *dhandle;
@@ -617,7 +660,7 @@ __wt_tiered_close(WT_SESSION_IMPL *session, WT_TIERED *tiered)
             __wt_free(session, tiered->tiers[i].name);
     }
 
-    return (0);
+    return (__wt_btree_discard(session));
 }
 
 /*
