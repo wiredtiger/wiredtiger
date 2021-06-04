@@ -125,9 +125,8 @@ class workload_validation {
                  * checked.
                  */
                 check_reference(session, collection_name, collections.at(collection_name));
-                /* Clear memory. */
-                delete collections[collection_name].values;
-                collections[collection_name].values = nullptr;
+                /* Clear collection. */
+                collections[collection_name].values.clear();
 
                 collection_name = key_collection_name;
             }
@@ -145,9 +144,8 @@ class workload_validation {
          */
         if (!collection_name.empty()) {
             check_reference(session, collection_name, collections.at(collection_name));
-            /* Clear memory. */
-            delete collections[collection_name].values;
-            collections[collection_name].values = nullptr;
+            /* Clear collection. */
+            collections[collection_name].values.clear();
         }
     }
 
@@ -205,24 +203,21 @@ class workload_validation {
              * deleted.
              */
             collections.at(collection_name).keys.at(key).exists = false;
-            delete collections.at(collection_name).values;
-            collections.at(collection_name).values = nullptr;
+            collections.at(collection_name).values.clear();
             break;
         case tracking_operation::INSERT: {
             /*
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
             collections[collection_name].keys[key].exists = true;
-            if (collections[collection_name].values == nullptr)
-                collections[collection_name].values = new std::map<key_value_t, value_t>();
             value_t v;
             v.value = key_value_t(value);
             std::pair<key_value_t, value_t> pair(key_value_t(key), v);
-            collections[collection_name].values->insert(pair);
+            collections[collection_name].values.insert(pair);
             break;
         }
         case tracking_operation::UPDATE:
-            collections[collection_name].values->at(key).value = key_value_t(value);
+            collections[collection_name].values.at(key).value = key_value_t(value);
             break;
         default:
             testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
@@ -267,12 +262,12 @@ class workload_validation {
 
             /* Check the associated value is valid. */
             if (key.exists) {
-                testutil_assert(collection.values != nullptr);
+                testutil_assert(!collection.values.empty());
                 if (!verify_value(session, collection_name, key_str.c_str(),
-                      collection.values->at(key_str).value))
+                      collection.values.at(key_str).value))
                     testutil_die(DEBUG_ERROR,
                       "check_reference: failed for key %s / value %s in collection %s.",
-                      key_str.c_str(), collection.values->at(key_str).value.c_str(),
+                      key_str.c_str(), collection.values.at(key_str).value.c_str(),
                       collection_name.c_str());
             }
         }
