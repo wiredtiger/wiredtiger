@@ -93,16 +93,7 @@ __wt_evict_file(WT_SESSION_IMPL *session, WT_CACHE_OP syncop)
             WT_ERR(__wt_evict(session, ref, ref->state, WT_EVICT_CALL_CLOSING));
             break;
         case WT_SYNC_DISCARD:
-            /*
-             * Discard the page regardless of whether it is dirty.
-             *
-             * If the page has a page deleted structure, we are discarding the page that is cleaned
-             * by a checkpoint.
-             */
-            WT_ASSERT(session,
-              F_ISSET(dhandle, WT_DHANDLE_DEAD) || F_ISSET(S2C(session), WT_CONN_CLOSING) ||
-                __wt_page_can_evict(session, ref, NULL) ||
-                (ref->page_del != NULL && page->modify->page_state == WT_PAGE_CLEAN));
+            /* Discard the page regardless of whether it is dirty. */
             __wt_ref_out(session, ref);
             break;
         case WT_SYNC_CHECKPOINT:

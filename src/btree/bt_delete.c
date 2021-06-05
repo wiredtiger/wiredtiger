@@ -93,16 +93,11 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         return (0);
 
     /*
-     * If this WT_REF was previously part of a truncate operation, there may be existing page-delete
-     * information. The structure is only read while the state is locked, free the previous version.
-     *
-     * Note: changes have been made, we must publish any state change from this point on.
+     * If this page was previously part of an aborted truncate operation, there may be existing
+     * page-delete information. The structure is only read while the state is locked, free the
+     * previous version.
      */
-    if (ref->page_del != NULL) {
-        WT_ASSERT(session, ref->page_del->txnid == WT_TXN_ABORTED);
-        __wt_free(session, ref->page_del->update_list);
-        __wt_free(session, ref->page_del);
-    }
+    __wt_page_del_free(session, ref);
 
     /*
      * We cannot truncate pages that have overflow key/value items as the overflow blocks have to be
@@ -203,8 +198,9 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
         for (; *updp != NULL; ++updp)
             (*updp)->txnid = WT_TXN_ABORTED;
 
-    /* Finally mark the truncate aborted */
+    /* Mark the truncate aborted and resolved.*/
     ref->page_del->txnid = WT_TXN_ABORTED;
+    ref->page_del->resolved = 1;
 
     WT_REF_SET_STATE(ref, current_state);
     return (0);
@@ -246,10 +242,8 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
      */
     if (skip && ref->page_del != NULL &&
       (visible_all ||
-        __wt_txn_visible_all(session, ref->page_del->txnid, ref->page_del->timestamp))) {
-        __wt_free(session, ref->page_del->update_list);
-        __wt_free(session, ref->page_del);
-    }
+        __wt_txn_visible_all(session, ref->page_del->txnid, ref->page_del->timestamp)))
+        __wt_page_del_free(session, ref);
 
     WT_REF_SET_STATE(ref, WT_REF_DELETED);
     return (skip);
@@ -299,9 +293,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_UPDATE **upd_array, *upd;
     size_t size, total_size;
     uint32_t count, i;
+    bool txn_active;
 
     btree = S2BT(session);
     page = ref->page;
+    total_size = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
@@ -314,6 +310,14 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_RET(__wt_page_modify_init(session, page));
     if (!F_ISSET(btree, WT_BTREE_READONLY))
         __wt_page_modify_set(session, page);
+
+    /*
+     * Allocate the per-page update array if one doesn't already exist. (It might already exist
+     * because deletes are instantiated after the history store table updates.)
+     */
+    if (page->entries != 0 && page->modify->mod_row_update == NULL)
+        WT_PAGE_ALLOC_AND_SWAP(
+          session, page, page->modify->mod_row_update, upd_array, page->entries);
 
     if (ref->page_del != NULL && ref->page_del->prepare_state != WT_PREPARE_INIT)
         WT_STAT_CONN_DATA_INCR(session, cache_read_deleted_prepared);
@@ -332,26 +336,16 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * in the system forced us to keep the old version of the page around, then we crashed and
      * recovered or we're running inside a checkpoint, and now we're being forced to read that page.
      *
-     * Expect a page-deleted structure if there's a running transaction that needs to be resolved,
-     * otherwise, there may not be one (and, if the transaction has resolved, we can ignore the
-     * page-deleted structure).
+     * If there's a page-deleted structure that's not yet globally visible, get a reference and
+     * migrate transaction ID and timestamp information to the updates (globally visible means the
+     * updates don't require that information).
+     *
+     * If the truncate operation is not yet resolved, reference the updates in the page-deleted
+     * structure so they can be found should the transaction be aborted.
      */
     page_del = __wt_page_del_active(session, ref, true) ? ref->page_del : NULL;
-
-    /*
-     * Allocate the per-page update array if one doesn't already exist. (It might already exist
-     * because deletes are instantiated after the history store table updates.)
-     */
-    if (page->entries != 0 && page->modify->mod_row_update == NULL)
-        WT_PAGE_ALLOC_AND_SWAP(
-          session, page, page->modify->mod_row_update, upd_array, page->entries);
-
-    /*
-     * Allocate the per-reference update array; in the case of instantiating a page deleted in a
-     * running transaction, we need a list of the update structures for the eventual commit or
-     * abort.
-     */
-    if (page_del != NULL) {
+    txn_active = page_del != NULL && page_del->resolved == 0;
+    if (txn_active) {
         count = 0;
         if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
             WT_SKIP_FOREACH (ins, insert)
@@ -363,11 +357,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     ++count;
         }
         WT_RET(__wt_calloc_def(session, count + 1, &page_del->update_list));
-        __wt_cache_page_inmem_incr(session, page, (count + 1) * sizeof(page_del->update_list));
+        total_size += (count + 1) * sizeof(page_del->update_list);
     }
 
     /* Walk the page entries, giving each one a tombstone. */
-    size = total_size = 0;
+    size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
@@ -377,7 +371,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->next = ins->upd;
             ins->upd = upd;
 
-            if (page_del != NULL)
+            if (txn_active)
                 page_del->update_list[count++] = upd;
         }
     WT_ROW_FOREACH (page, rip, i) {
@@ -392,7 +386,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->next = upd_array[WT_ROW_SLOT(page, rip)];
             upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
-            if (page_del != NULL)
+            if (txn_active)
                 page_del->update_list[count++] = upd;
 
             if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
@@ -402,7 +396,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     upd->next = ins->upd;
                     ins->upd = upd;
 
-                    if (page_del != NULL)
+                    if (txn_active)
                         page_del->update_list[count++] = upd;
                 }
         }

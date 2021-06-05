@@ -63,14 +63,11 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
     if (ref->addr != NULL && !__wt_page_del_active(session, ref, true)) {
         /*
          * Minor memory cleanup: if a truncate call deleted this page and we were ever forced to
-         * instantiate the page in memory, we would have built a list of updates in the page
-         * reference in order to be able to commit/rollback the truncate. We just passed a
-         * visibility test, discard the update list.
+         * instantiate the page in memory, we built a list of updates in the page reference in order
+         * to be able to commit/rollback the truncate. We just passed a global visibility test,
+         * discard the update list.
          */
-        if (page_del != NULL) {
-            __wt_free(session, ref->page_del->update_list);
-            __wt_free(session, ref->page_del);
-        }
+        __wt_page_del_free(session, ref);
 
         WT_RET(__wt_ref_block_free(session, ref));
     }

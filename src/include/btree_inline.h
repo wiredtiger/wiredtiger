@@ -1455,6 +1455,19 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __wt_page_del_free --
+ *     Discard the truncate operation structure.
+ */
+static inline void
+__wt_page_del_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    if (ref->page_del != NULL) {
+        __wt_free(session, ref->page_del->update_list);
+        __wt_free(session, ref->page_del);
+    }
+}
+
+/*
  * __wt_page_del_active --
  *     Return if a truncate operation is active.
  */
@@ -1651,8 +1664,8 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     page = ref->page;
     mod = page->modify;
 
-    /* A truncated page can't be evicted until the truncate completes. */
-    if (__wt_page_del_active(session, ref, true))
+    /* Don't attempt to evict fast-truncate pages until the truncate completes. */
+    if (ref->page_del != NULL && ref->page_del->resolved == 0)
         return (false);
 
     /* Otherwise, never modified pages can always be evicted. */

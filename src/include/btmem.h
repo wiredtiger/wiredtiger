@@ -835,6 +835,8 @@ struct __wt_page_deleted {
 
     uint8_t previous_state; /* Previous state */
 
+    uint8_t resolved; /* Committed or aborted */
+
     WT_UPDATE **update_list; /* List of updates for abort */
 };
 
