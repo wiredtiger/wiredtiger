@@ -341,8 +341,9 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * migrate transaction ID and timestamp information to the updates (globally visible means the
      * updates don't require that information).
      *
-     * If the truncate operation is not yet resolved, reference the updates in the page-deleted
-     * structure so they can be found should the transaction be aborted.
+     * If the truncate operation is not yet resolved, link updates in the page-deleted structure so
+     * they can be found when the transaction is aborted or committed, even if they have moved to
+     * other pages.
      */
     page_del = __wt_page_del_active(session, ref, true) ? ref->page_del : NULL;
     txn_active = page_del != NULL && page_del->resolved == 0;
