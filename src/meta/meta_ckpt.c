@@ -691,6 +691,7 @@ __meta_ckptlist_allocate_new_ckpt(
 
     ckpt = &ckptbase[slot];
     ckpt->order = (slot == 0) ? 1 : ckptbase[slot - 1].order + 1;
+    // TODO - Can we have a NULL name here ?
     __wt_seconds(session, &ckpt->sec);
     /*
      * Update time value for most recent checkpoint, not letting it move backwards. It is possible
@@ -834,6 +835,8 @@ __ckpt_load(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v, WT_C
      * it's a fake.
      */
     WT_RET(__wt_strndup(session, k->str, k->len, &ckpt->name));
+    // TODO If the name is NULL, should we still set to valid ?
+    ckpt->is_valid = true;
 
     WT_RET(__wt_config_subgets(session, v, "addr", &a));
     WT_RET(__wt_buf_set(session, &ckpt->addr, a.str, a.len));
@@ -1016,6 +1019,8 @@ __wt_meta_ckptlist_to_meta(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_ITEM 
         WT_RET(__wt_check_addr_validity(session, &ckpt->ta, false));
 
         WT_RET(__wt_buf_catfmt(session, buf, "%s%s", sep, ckpt->name));
+        ckpt->is_valid = true;
+        // TODO, sep is useless here ?
         sep = ",";
 
         if (strcmp(ckpt->name, WT_CHECKPOINT) == 0)
@@ -1184,6 +1189,7 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
      * order number.
      */
     WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt)
+    // WT_CKPT_FOREACH (ckptbase, ckpt)
         __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
@@ -1217,6 +1223,7 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         return;
 
     __wt_free(session, ckpt->name);
+    ckpt->is_valid = false;
     __wt_free(session, ckpt->block_metadata);
     __wt_free(session, ckpt->block_checkpoint);
     __wt_buf_free(session, &ckpt->addr);
