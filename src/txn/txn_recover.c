@@ -668,22 +668,26 @@ __recovery_free(WT_RECOVERY *r)
  *     them for recovery.
  */
 static int
-__recovery_file_scan_prefix(
-  WT_RECOVERY *r, WT_CURSOR *c, const char *prefix, const char *ignore_suffix)
+__recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix)
 {
+    WT_CURSOR *c;
     WT_DECL_RET;
     int cmp;
     const char *uri, *config;
 
     /* Scan through all entries in the metadata matching the prefix. */
+    c = r->files[0].c;
     c->set_key(c, prefix);
     if ((ret = c->search_near(c, &cmp)) != 0) {
         /* Is the metadata empty? */
         WT_RET_NOTFOUND_OK(ret);
         return (0);
     }
-    if (cmp < 0)
-        WT_RET_NOTFOUND_OK(c->next(c));
+    if (cmp < 0 && (ret = c->next(c)) != 0) {
+        /* No matching entries? */
+        WT_RET_NOTFOUND_OK(ret);
+        return (0);
+    }
     for (; ret == 0; ret = c->next(c)) {
         WT_RET(c->get_key(c, &uri));
         if (!WT_PREFIX_MATCH(uri, prefix))
@@ -704,12 +708,9 @@ __recovery_file_scan_prefix(
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    WT_CURSOR *c;
-
     /* Scan through all files and tiered entries in the metadata. */
-    c = r->files[0].c;
-    WT_RET(__recovery_file_scan_prefix(r, c, "file:", ".wtobj"));
-    WT_RET(__recovery_file_scan_prefix(r, c, "tiered:", NULL));
+    WT_RET(__recovery_file_scan_prefix(r, "file:", ".wtobj"));
+    WT_RET(__recovery_file_scan_prefix(r, "tiered:", NULL));
 
     /*
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
