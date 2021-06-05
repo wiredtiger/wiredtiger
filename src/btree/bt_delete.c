@@ -297,6 +297,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
 
     btree = S2BT(session);
     page = ref->page;
+    page_del = NULL;
     total_size = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
