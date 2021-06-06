@@ -126,10 +126,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         self.confirm_flush()
 
-        # FIXME-WT-7589 This test works up to this point, then runs into trouble.
-        if True:
-            return
-
         self.progress('Create simple data set (200)')
         ds = SimpleDataSet(self, self.uri, 200, config=args)
         self.progress('populate')
@@ -137,10 +133,14 @@ class test_tiered02(wttest.WiredTigerTestCase):
         ds.check()
         self.progress('close_conn')
         self.close_conn()
-        self.confirm_flush()  # closing the connection does a checkpoint
 
         self.progress('reopen_conn')
         self.reopen_conn()
+
+        # FIXME-WT-7589 This test works up to this point, then runs into trouble.
+        if True:
+            return
+
         # Check what was there before
         ds = SimpleDataSet(self, self.uri, 200, config=args)
         ds.check()
