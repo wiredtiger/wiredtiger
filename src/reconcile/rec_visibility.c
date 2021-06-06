@@ -225,11 +225,12 @@ __rec_need_save_upd(
 /*
  * Loop until a valid update from a different transaction is found in the update
  * list.
+ * Saves the latest update from the same transaction into same_txn_valid_upd.
  * Returns a valid update
  */
 static inline WT_UPDATE*
 __wait_valid_upd(
-  WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE *same_txn_valid_upd)
+  WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid_upd)
 {
     while (upd->next != NULL) {
         if (upd->next->txnid == WT_TXN_ABORTED)
@@ -238,8 +239,8 @@ __wait_valid_upd(
             tombstone->txnid == upd->next->txnid) {
             upd = upd->next;
             /* Save the latest update from the same transaction. */
-            if (same_txn_valid_upd == NULL)
-                same_txn_valid_upd = upd;
+            if (*same_txn_valid_upd == NULL)
+                *same_txn_valid_upd = upd;
         } else
             break;
     }
@@ -489,7 +490,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
-                upd  = __wait_valid_upd(upd, tombstone, same_txn_valid_upd);
+                upd  = __wait_valid_upd(upd, tombstone, &same_txn_valid_upd);
 
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 upd_select->upd = upd = upd->next;
