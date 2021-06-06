@@ -533,6 +533,27 @@ struct __wt_extension_api {
       WT_EXTENSION_API *wt_api, WT_SESSION *session, uint64_t transaction_id);
 
     /*!
+     * Initialize a spinlock
+     */
+    int (*spin_init)(
+      WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock, const char *name);
+
+    /*!
+     * Destroy a spinlock
+     */
+    void (*spin_destroy)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void **spinlock);
+
+    /*!
+     * Spin until the lock is acquired.
+     */
+    void (*spin_lock)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock);
+
+    /*!
+     * Release the spinlock.
+     */
+    void (*spin_unlock)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock);
+
+    /*!
      * @copydoc wiredtiger_version
      */
     const char *(*version)(int *majorp, int *minorp, int *patchp);
