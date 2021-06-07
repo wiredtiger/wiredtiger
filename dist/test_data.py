@@ -45,14 +45,9 @@ class Config:
 # A generic configuration used by some components to define their tick rate.
 #
 throttle_config = [
-    Config('op_count', 1, r'''
-        The number of operations to be performed within the defined interval, e.g.
-        20 op_count with an interval of a second is equal to 20 ops per second.''',
-        min=1, max=10000),
-    Config('interval', 's', r'''
-        The interval to considered, either second, minute or hour.
-        The default interval is seconds.''',
-        choices=['s', 'm', 'h'])
+    Config('op_rate', '1s', r'''
+        The rate at which a given operation will happen. Can be either s, ms, or m, combined with an
+        integer. E.g. 20ms means do this operation every 20ms.''')
 ]
 
 #
@@ -134,6 +129,9 @@ checkpoint_manager = enabled_config_false + component_config
 runtime_monitor = enabled_config_true + component_config + [
     Config('stat_cache_size', '', '''
         The maximum cache percentage that can be hit while running.''',
+        type='category', subconfig=limit_stat),
+    Config('stat_db_size', '', '''
+        The maximum on-disk database size in bytes that can be hit while running.''',
         type='category', subconfig=limit_stat)
 ]
 
