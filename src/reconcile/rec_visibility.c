@@ -252,8 +252,7 @@ __get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid
  *     happen if the application performs operations with timestamps out-of-order, make it invisible
  *     by making the start time point match the stop time point of the tombstone. We don't guarantee
  *     that older readers will be able to continue reading content that has been made invisible by
- *     out-of-order updates. 
- *     Note that we carefully don't take this path when the stop time point is
+ *     out-of-order updates. Note that we carefully don't take this path when the stop time point is
  *     equal to the start time point. While unusual, it is permitted for a single transaction to
  *     insert and then remove a record. We don't want to generate a warning in that case.
  */
