@@ -397,7 +397,10 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
      * holding the schema lock.
      */
     __flush_tier_wait(session);
-    WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, flags));
+    if (wait)
+        WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, flags));
+    else
+        WT_WITH_SCHEMA_LOCK_NOWAIT(session, ret, ret = __flush_tier_once(session, flags));
     __wt_spin_unlock(session, &conn->flush_tier_lock);
 
     if (ret == 0 && LF_ISSET(WT_FLUSH_TIER_ON))
