@@ -117,12 +117,13 @@ struct __wt_block_mods {
  * btree engine, and the block manager.
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
-#define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->is_valid; ++(ckpt))
+#define WT_CKPT_FOREACH(ckptbase, ckpt) \
+    for ((ckpt) = (ckptbase); (ckpt)->is_part_of_ckpt_array; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */
 
-    bool is_valid;
+    bool is_part_of_ckpt_array; /* Is this checkpoint part of a checkpoint array. */
 
     /*
      * Each internal checkpoint name is appended with a generation to make it a unique name. We're

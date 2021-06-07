@@ -1499,7 +1499,6 @@ __checkpoint_lock_dirty_tree(
     WT_CKPT_FOREACH (ckptbase, ckpt)
         ;
     WT_ERR(__wt_strdup(session, name, &ckpt->name));
-    ckpt->is_valid = true;
 
     /*
      * There is some interaction between backups and checkpoints. Perform all backup related
@@ -1707,7 +1706,6 @@ __checkpoint_save_ckptlist(WT_SESSION_IMPL *session, WT_CKPT *ckptbase)
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%" PRId64, WT_CHECKPOINT, ckpt->order));
             __wt_free(session, ckpt->name);
             WT_ERR(__wt_strdup(session, tmp->mem, &ckpt->name));
-            ckpt->is_valid = true;
         }
 
         /* Reset the flags, and mark a checkpoint fake if there is no address. */

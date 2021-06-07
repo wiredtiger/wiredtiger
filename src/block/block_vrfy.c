@@ -119,7 +119,6 @@ __verify_last_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     ci = &_ci;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    // TODO Should we set is_valid to true here ?
     WT_ERR(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
 
     el = &ci->avail;
@@ -149,7 +148,6 @@ __verify_set_file_size(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     ci = &_ci;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    // TODO should we set the is_valid field to true ?
     WT_ERR(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
 
     if (block->verify_layout) {
