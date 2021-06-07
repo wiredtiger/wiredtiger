@@ -63,17 +63,13 @@ class database_operation {
         cursor = nullptr;
         collection_count = key_count = key_size = value_size = 0;
 
-        /* Acquire database model lock. */
-        std::lock_guard<std::mutex> lg(database.get_mtx());
-        auto &collections = database.get_collections(lg);
-
         /* Get a session. */
         session = connection_manager::instance().create_session();
         /* Create n collections as per the configuration and store each collection name. */
         collection_count = config->get_int(COLLECTION_COUNT);
         for (size_t i = 0; i < collection_count; ++i) {
             collection_name = "table:collection" + std::to_string(i);
-            collections[collection_name] = {};
+            database.add_collection(collection_name);
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = timestamp_manager->get_next_ts();
@@ -91,8 +87,7 @@ class database_operation {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
-        for (const auto &it_collections : collections) {
-            collection_name = it_collections.first;
+        for (const auto &collection_name : database.get_collection_names()) {
             key_cpt = 0;
             /*
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
@@ -133,9 +128,7 @@ class database_operation {
 
         /* Get a cursor for each collection in collection_names. */
         {
-            auto &database = tc->database;
-            std::lock_guard<std::mutex> lg(database.get_mtx());
-            for (const auto &it : database.get_collection_names(lg)) {
+            for (const auto &it : tc->database.get_collection_names()) {
                 testutil_check(
                   tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
                 cursors.push_back(cursor);
@@ -161,17 +154,11 @@ class database_operation {
         WT_DECL_RET;
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
-        std::vector<std::string> collection_names;
+        std::vector<std::string> collection_names = std::move(tc->database.get_collection_names());
         key_value_t key, generated_value;
         const char *key_tmp;
         uint64_t i = 0;
         bool using_timestamps = tc->timestamp_manager->enabled();
-
-        {
-            auto &database = tc->database;
-            std::lock_guard<std::mutex> lg(database.get_mtx());
-            collection_names = std::move(database.get_collection_names(lg));
-        }
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : collection_names) {

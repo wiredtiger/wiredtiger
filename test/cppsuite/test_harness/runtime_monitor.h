@@ -169,14 +169,8 @@ class db_size_statistic : public statistic {
     std::vector<std::string>
     get_file_names()
     {
-        std::vector<std::string> collection_names;
-        {
-            std::lock_guard<std::mutex> lg(_database.get_mtx());
-            collection_names = std::move(_database.get_collection_names(lg));
-        }
-
         std::vector<std::string> file_names;
-        for (const auto &name : collection_names)
+        for (const auto &name : _database.get_collection_names())
             file_names.push_back(collection_name_to_file_name(name));
 
         /* Add WiredTiger internal tables. */

@@ -56,20 +56,15 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
-    std::mutex &
-    get_mtx()
-    {
-        return (_mtx);
-    }
-
     /*
      * The database's methods take a `std::lock_guard`. We don't do anything with the guard itself,
      * but its a way to make sure that callers don't forget to lock and accidentally shoot
      * themselves in the foot.
      */
     std::vector<std::string>
-    get_collection_names(const std::lock_guard<std::mutex> &) const
+    get_collection_names()
     {
+        std::lock_guard<std::mutex> lg(_mtx);
         std::vector<std::string> collection_names;
 
         for (auto const &it : _collections)
@@ -78,10 +73,53 @@ class database {
         return (collection_names);
     }
 
-    std::map<std::string, collection_t> &
-    get_collections(const std::lock_guard<std::mutex> &)
+    std::map<key_value_t, key_t>
+    get_keys(const std::string &collection_name)
     {
-        return (_collections);
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (_collections.at(collection_name).keys);
+    }
+
+    void
+    add_collection(const std::string &collection_name)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        _collections[collection_name] = {};
+    }
+
+    value_t
+    get_record(const std::string &collection_name, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (_collections.at(collection_name).values.at(key));
+    }
+
+    void
+    insert_record(const std::string &collection_name, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.keys[key].exists = true;
+        value_t v;
+        v.value = key_value_t(value);
+        c.values.emplace(key_value_t(key), v);
+    }
+
+    void
+    update_record(const std::string &collection_name, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.values.at(key).value = key_value_t(value);
+    }
+
+    void
+    delete_record(const std::string &collection_name, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.keys.at(key).exists = false;
+        c.values.clear();
     }
 
     private:

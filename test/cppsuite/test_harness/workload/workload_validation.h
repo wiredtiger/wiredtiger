@@ -65,10 +65,6 @@ class workload_validation {
         int value_operation_type;
         std::string collection_name;
 
-        /* Acquire database model lock. */
-        std::lock_guard<std::mutex> lg(database.get_mtx());
-        auto &collections = database.get_collections(lg);
-
         session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
@@ -106,7 +102,7 @@ class workload_validation {
             if (std::find(created_collections.begin(), created_collections.end(),
                   key_collection_name) != created_collections.end())
                 update_data_model(static_cast<tracking_operation>(value_operation_type),
-                  key_collection_name, key, value, collections);
+                  key_collection_name, key, value, database);
             /*
              * The collection should be part of the deleted collections if it has not be found in
              * the created ones.
@@ -124,10 +120,7 @@ class workload_validation {
                  * The data model is now fully updated for the last read collection. It can be
                  * checked.
                  */
-                check_reference(session, collection_name, collections.at(collection_name));
-                /* Clear collection. */
-                collections[collection_name].values.clear();
-
+                check_reference(session, collection_name, database);
                 collection_name = key_collection_name;
             }
         };
@@ -142,11 +135,8 @@ class workload_validation {
          * empty if there is no collections to check after the end of the test (no collections
          * created or all deleted).
          */
-        if (!collection_name.empty()) {
-            check_reference(session, collection_name, collections.at(collection_name));
-            /* Clear collection. */
-            collections[collection_name].values.clear();
-        }
+        if (!collection_name.empty())
+            check_reference(session, collection_name, database);
     }
 
     private:
@@ -193,7 +183,7 @@ class workload_validation {
     /* Update the data model. */
     void
     update_data_model(const tracking_operation &operation, const std::string &collection_name,
-      const char *key, const char *value, std::map<std::string, collection_t> &collections)
+      const char *key, const char *value, database &database)
     {
         switch (operation) {
         case tracking_operation::DELETE_KEY:
@@ -202,22 +192,17 @@ class workload_validation {
              * the key has been inserted previously in an existing collection and can be safely
              * deleted.
              */
-            collections.at(collection_name).keys.at(key).exists = false;
-            collections.at(collection_name).values.clear();
+            database.delete_record(collection_name, key);
             break;
         case tracking_operation::INSERT: {
             /*
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
-            collections[collection_name].keys[key].exists = true;
-            value_t v;
-            v.value = key_value_t(value);
-            std::pair<key_value_t, value_t> pair(key_value_t(key), v);
-            collections[collection_name].values.insert(pair);
+            database.insert_record(collection_name, key, value);
             break;
         }
         case tracking_operation::UPDATE:
-            collections[collection_name].values.at(key).value = key_value_t(value);
+            database.update_record(collection_name, key, value);
             break;
         default:
             testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
@@ -231,8 +216,7 @@ class workload_validation {
      * representation in memory of the collection values and keys according to the tracking table.
      */
     void
-    check_reference(
-      WT_SESSION *session, const std::string &collection_name, const collection_t &collection)
+    check_reference(WT_SESSION *session, const std::string &collection_name, database &database)
     {
         bool is_valid;
         key_t key;
@@ -246,7 +230,7 @@ class workload_validation {
               collection_name.c_str());
 
         /* Walk through each key/value pair of the current collection. */
-        for (const auto &keys : collection.keys) {
+        for (const auto &keys : database.get_keys(collection_name)) {
             key_str = keys.first;
             key = keys.second;
             /* The key/value pair exists. */
@@ -262,12 +246,12 @@ class workload_validation {
 
             /* Check the associated value is valid. */
             if (key.exists) {
-                testutil_assert(!collection.values.empty());
                 if (!verify_value(session, collection_name, key_str.c_str(),
-                      collection.values.at(key_str).value))
+                      database.get_record(collection_name, key_str.c_str()).value))
                     testutil_die(DEBUG_ERROR,
                       "check_reference: failed for key %s / value %s in collection %s.",
-                      key_str.c_str(), collection.values.at(key_str).value.c_str(),
+                      key_str.c_str(),
+                      database.get_record(collection_name, key_str.c_str()).value.c_str(),
                       collection_name.c_str());
             }
         }
