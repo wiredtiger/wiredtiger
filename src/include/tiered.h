@@ -125,7 +125,6 @@ struct __wt_tiered {
     uint32_t flags;
 };
 
-#if 0
 /* FIXME: Currently the WT_TIERED_OBJECT data structure is not used. */
 /*
  * WT_TIERED_OBJECT --
@@ -150,7 +149,6 @@ struct __wt_tiered_object {
     /* AUTOMATIC FLAG VALUE GENERATION STOP */
     uint32_t flags;
 };
-#endif
 
 /* FIXME: Currently the WT_TIERED_TREE data structure is not used. */
 /*

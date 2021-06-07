@@ -547,7 +547,7 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
 #if 1
     if (0) {
         /* Temp code to keep s_all happy. */
-        FLD_SET(unused, WT_TIERED_TREE_UNUSED);
+        FLD_SET(unused, WT_TIERED_OBJ_LOCAL | WT_TIERED_TREE_UNUSED);
         FLD_SET(unused, WT_TIERED_WORK_FORCE | WT_TIERED_WORK_FREE);
         WT_ERR(__wt_tiered_put_drop_local(session, tiered, tiered->current_id));
         WT_ERR(__wt_tiered_put_drop_shared(session, tiered, tiered->current_id));
