@@ -44,23 +44,24 @@
 #define inline __inline
 #endif
 
+/*
+ * 50 is an arbitrary number choosen, with the idea that running 50 compressions in parallel
+ * is more than enough to clog the cpu's.
+ */
 #define CONTEXT_POOL_SIZE 50
 
-/*
- * Context could hold either a compression context or decompression context.
- */
 struct ZSTD_Context;
 typedef struct ZSTD_Context ZSTD_CONTEXT;
 struct ZSTD_Context {
-    void *ctx;
+    void *ctx;	/* Either a compression context or a decompression context. */
     ZSTD_CONTEXT *next;
 };
 
 struct ZSTD_Context_Pool;
 typedef struct ZSTD_Context_Pool ZSTD_CONTEXT_POOL;
 struct ZSTD_Context_Pool {
-    int count;
-    void *list_lock;
+    int count; /* Pool size */
+    void *list_lock; /* Spinlock */
     ZSTD_CONTEXT *free_ctx_list;
 };
 
@@ -74,8 +75,8 @@ typedef struct {
 
     int compression_level; /* compression level */
 
-    ZSTD_CONTEXT_POOL *cctx_pool;
-    ZSTD_CONTEXT_POOL *dctx_pool;
+    ZSTD_CONTEXT_POOL *cctx_pool; /* Compression context pool. */
+    ZSTD_CONTEXT_POOL *dctx_pool; /* Decompression context pool. */
 } ZSTD_COMPRESSOR;
 
 /*
@@ -127,6 +128,7 @@ zstd_alloc_context(
 
     wt_api = zcompressor->wt_api;
 
+    /* Based on the type, decide the context pool from which the context to be allocated. */
     if (ctx_type == CONTEXT_TYPE_COMPRESS)
         ctx_pool = zcompressor->cctx_pool;
     else
@@ -161,6 +163,7 @@ zstd_free_context(
 
     wt_api = zcompressor->wt_api;
 
+    /* Based on the type, decide the context pool to which the context to be released back. */
     if (ctx_type == CONTEXT_TYPE_COMPRESS)
         ctx_pool = zcompressor->cctx_pool;
     else
@@ -305,8 +308,8 @@ zstd_init_context_pool(
   ZSTD_COMPRESSOR *zcompressor, CONTEXT_TYPE ctx_type, int count, ZSTD_CONTEXT_POOL **ctx_pool)
 {
     WT_EXTENSION_API *wt_api;
-    ZSTD_CONTEXT_POOL *context_pool;
     ZSTD_CONTEXT *context;
+    ZSTD_CONTEXT_POOL *context_pool;
     int i, ret;
 
     wt_api = zcompressor->wt_api;
@@ -359,13 +362,11 @@ zstd_terminate_context_pool(
   WT_COMPRESSOR *compressor, WT_SESSION *session, ZSTD_CONTEXT_POOL **ctx_pool)
 {
     WT_EXTENSION_API *wt_api;
-    ZSTD_COMPRESSOR *zcompressor;
-    ZSTD_CONTEXT_POOL *context_pool;
     ZSTD_CONTEXT *context;
+    ZSTD_CONTEXT_POOL *context_pool;
     int i;
 
-    zcompressor = (ZSTD_COMPRESSOR *)compressor;
-    wt_api = zcompressor->wt_api;
+    wt_api = ((ZSTD_COMPRESSOR *)compressor)->wt_api;
     context_pool = *ctx_pool;
 
     for (i = 0; i < context_pool->count; i++) {
@@ -392,7 +393,6 @@ zstd_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 {
     ZSTD_COMPRESSOR *zcompressor;
 
-    (void)session; /* Unused parameters */
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
 
     zstd_terminate_context_pool(compressor, session, &(zcompressor->cctx_pool));
