@@ -44,23 +44,20 @@
 #define inline __inline
 #endif
 
-/*
- * 50 is an arbitrary number choosen, with the idea that running 50 compressions in parallel
- * is more than enough to clog the cpu's.
- */
+/* Default context pool size. */
 #define CONTEXT_POOL_SIZE 50
 
 struct ZSTD_Context;
 typedef struct ZSTD_Context ZSTD_CONTEXT;
 struct ZSTD_Context {
-    void *ctx;	/* Either a compression context or a decompression context. */
+    void *ctx; /* Either a compression context or a decompression context. */
     ZSTD_CONTEXT *next;
 };
 
 struct ZSTD_Context_Pool;
 typedef struct ZSTD_Context_Pool ZSTD_CONTEXT_POOL;
 struct ZSTD_Context_Pool {
-    int count; /* Pool size */
+    int count;       /* Pool size */
     void *list_lock; /* Spinlock */
     ZSTD_CONTEXT *free_ctx_list;
 };
