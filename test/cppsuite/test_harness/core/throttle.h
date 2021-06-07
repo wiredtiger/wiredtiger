@@ -37,7 +37,7 @@
 namespace test_harness {
 class throttle {
     public:
-    explicit throttle(std::string throttle_rate)
+    explicit throttle(const std::string &throttle_rate)
     {
         std::string magnitude;
         uint64_t multiplier = 0;
@@ -46,19 +46,18 @@ class throttle {
          * searches would match as well.
          */
         size_t pos = throttle_rate.find("ms");
-        if (pos != std::string::npos) {
+        if (pos != std::string::npos)
             multiplier = 1;
-        } else {
+        else {
             pos = throttle_rate.find("s");
-            if (pos != std::string::npos) {
+            if (pos != std::string::npos)
                 multiplier = 1000;
-            } else {
+            else {
                 pos = throttle_rate.find("m");
-                if (pos != std::string::npos) {
+                if (pos != std::string::npos)
                     multiplier = 60 * 1000;
-                } else {
+                else
                     testutil_die(-1, "no rate specifier given");
-                }
             }
         }
         magnitude = throttle_rate.substr(0, pos);
