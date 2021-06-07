@@ -10,9 +10,14 @@ static const WT_CONFIG_CHECK confchk_stat_cache_size_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"limit", "int", NULL, "min=0", NULL, 0},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_stat_db_size_subconfigs[] = {
+  {"enabled", "boolean", NULL, NULL, NULL, 0}, {"limit", "int", NULL, "min=0", NULL, 0},
+  {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_runtime_monitor_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"stat_cache_size", "category", NULL, NULL, confchk_stat_cache_size_subconfigs, 2},
+  {"stat_db_size", "category", NULL, NULL, confchk_stat_db_size_subconfigs, 2},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_timestamp_manager_subconfigs[] = {
@@ -61,7 +66,7 @@ static const WT_CONFIG_CHECK confchk_example_test[] = {
   {"checkpoint_manager", "category", NULL, NULL, confchk_checkpoint_manager_subconfigs, 2},
   {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
-  {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 3},
+  {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 4},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
   {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 9},
   {"workload_tracking", "category", NULL, NULL, confchk_workload_tracking_subconfigs, 2},
@@ -72,7 +77,7 @@ static const WT_CONFIG_CHECK confchk_poc_test[] = {
   {"checkpoint_manager", "category", NULL, NULL, confchk_checkpoint_manager_subconfigs, 2},
   {"duration_seconds", "int", NULL, "min=0,max=1000000", NULL, 0},
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
-  {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 3},
+  {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 4},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
   {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 9},
   {"workload_tracking", "category", NULL, NULL, confchk_workload_tracking_subconfigs, 2},
@@ -83,7 +88,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "duration_seconds=0,enable_logging=false,"
     "runtime_monitor=(enabled=true,op_rate=1s,"
-    "stat_cache_size=(enabled=false,limit=0)),"
+    "stat_cache_size=(enabled=false,limit=0),"
+    "stat_db_size=(enabled=false,limit=0)),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
     "stable_lag=1),workload_generator=(collection_count=1,"
     "enabled=true,insert_config=(key_size=5,op_rate=1s,"
@@ -98,7 +104,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "duration_seconds=0,enable_logging=false,"
     "runtime_monitor=(enabled=true,op_rate=1s,"
-    "stat_cache_size=(enabled=false,limit=0)),"
+    "stat_cache_size=(enabled=false,limit=0),"
+    "stat_db_size=(enabled=false,limit=0)),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
     "stable_lag=1),workload_generator=(collection_count=1,"
     "enabled=true,insert_config=(key_size=5,op_rate=1s,"
