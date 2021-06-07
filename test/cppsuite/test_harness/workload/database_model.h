@@ -56,11 +56,6 @@ struct collection_t {
 /* Representation of the collections in memory. */
 class database {
     public:
-    /*
-     * The database's methods take a `std::lock_guard`. We don't do anything with the guard itself,
-     * but its a way to make sure that callers don't forget to lock and accidentally shoot
-     * themselves in the foot.
-     */
     std::vector<std::string>
     get_collection_names()
     {
