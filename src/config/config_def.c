@@ -880,7 +880,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
   {"WT_CONNECTION.query_timestamp", "get=all_durable", confchk_WT_CONNECTION_query_timestamp, 1},
   {"WT_CONNECTION.reconfigure",
     "async=(enabled=false,ops_max=1024,threads=2),"
-    "block_cache=(checkpoint_write_bypass=true,enabled=false,"
+    "block_cache=(checkpoint_write_bypass=false,enabled=false,"
     "eviction_aggression=1800,eviction_on=true,full_target=95,"
     "hashsize=0,max_percent_overhead=10,path=,percent_file_in_dram=50"
     ",size=0,system_ram=0,type=,write_allocate=true),"
@@ -1062,7 +1062,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_table_meta, 6},
   {"wiredtiger_open",
     "async=(enabled=false,ops_max=1024,threads=2),"
-    "block_cache=(checkpoint_write_bypass=true,enabled=false,"
+    "block_cache=(checkpoint_write_bypass=false,enabled=false,"
     "eviction_aggression=1800,eviction_on=true,full_target=95,"
     "hashsize=0,max_percent_overhead=10,path=,percent_file_in_dram=50"
     ",size=0,system_ram=0,type=,write_allocate=true),"
@@ -1099,7 +1099,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_wiredtiger_open, 58},
   {"wiredtiger_open_all",
     "async=(enabled=false,ops_max=1024,threads=2),"
-    "block_cache=(checkpoint_write_bypass=true,enabled=false,"
+    "block_cache=(checkpoint_write_bypass=false,enabled=false,"
     "eviction_aggression=1800,eviction_on=true,full_target=95,"
     "hashsize=0,max_percent_overhead=10,path=,percent_file_in_dram=50"
     ",size=0,system_ram=0,type=,write_allocate=true),"
@@ -1137,7 +1137,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_wiredtiger_open_all, 59},
   {"wiredtiger_open_basecfg",
     "async=(enabled=false,ops_max=1024,threads=2),"
-    "block_cache=(checkpoint_write_bypass=true,enabled=false,"
+    "block_cache=(checkpoint_write_bypass=false,enabled=false,"
     "eviction_aggression=1800,eviction_on=true,full_target=95,"
     "hashsize=0,max_percent_overhead=10,path=,percent_file_in_dram=50"
     ",size=0,system_ram=0,type=,write_allocate=true),"
@@ -1173,7 +1173,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     confchk_wiredtiger_open_basecfg, 53},
   {"wiredtiger_open_usercfg",
     "async=(enabled=false,ops_max=1024,threads=2),"
-    "block_cache=(checkpoint_write_bypass=true,enabled=false,"
+    "block_cache=(checkpoint_write_bypass=false,enabled=false,"
     "eviction_aggression=1800,eviction_on=true,full_target=95,"
     "hashsize=0,max_percent_overhead=10,path=,percent_file_in_dram=50"
     ",size=0,system_ram=0,type=,write_allocate=true),"
