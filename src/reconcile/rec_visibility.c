@@ -224,21 +224,17 @@ __rec_need_save_upd(
 
 /*
  * __get_valid_upd --
- * Loop until a valid update from a different transaction is found in the update list.
- * As a side effect method saves the latest update from the same transaction into 
- * same_txn_valid_upd.
- * 
- * Returns a valid update from a different transaction
+ *     Loop until a valid update from a different transaction is found in the update list. As a side
+ *     effect method saves the latest update from the same transaction into same_txn_valid_upd.
+ *     Returns a valid update from a different transaction
  */
-static inline WT_UPDATE*
-__get_valid_upd(
-  WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid_upd)
+static inline WT_UPDATE *
+__get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid_upd)
 {
     while (upd->next != NULL) {
         if (upd->next->txnid == WT_TXN_ABORTED)
             upd = upd->next;
-        else if (upd->next->txnid != WT_TXN_NONE &&
-            tombstone->txnid == upd->next->txnid) {
+        else if (upd->next->txnid != WT_TXN_NONE && tombstone->txnid == upd->next->txnid) {
             upd = upd->next;
             /* Save the latest update from the same transaction. */
             if (*same_txn_valid_upd == NULL)
@@ -252,19 +248,17 @@ __get_valid_upd(
 
 /*
  * __timestamp_sanity_check --
- * If we found a tombstone with a time point earlier than the update it applies to, which can
- * happen if the application performs operations with timestamps out-of-order, make it invisible
- * by making the start time point match the stop time point of the tombstone. We don't guarantee
- * that older readers will be able to continue reading content that has been made invisible by
- * out-of-order updates.
- *
- * Note that we carefully don't take this path when the stop time point is equal to the start
- * time point. While unusual, it is permitted for a single transaction to insert and then remove
- * a record. We don't want to generate a warning in that case.
+ *     If we found a tombstone with a time point earlier than the update it applies to, which can
+ *     happen if the application performs operations with timestamps out-of-order, make it invisible
+ *     by making the start time point match the stop time point of the tombstone. We don't guarantee
+ *     that older readers will be able to continue reading content that has been made invisible by
+ *     out-of-order updates. 
+ *     Note that we carefully don't take this path when the stop time point is
+ *     equal to the start time point. While unusual, it is permitted for a single transaction to
+ *     insert and then remove a record. We don't want to generate a warning in that case.
  */
 static inline void
-__timestamp_sanity_check(
-  WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw, char *time_string)
+__timestamp_sanity_check(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw, char *time_string)
 {
     if (select_tw->stop_ts < select_tw->start_ts ||
       (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
@@ -494,7 +488,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
-                upd  = __get_valid_upd(upd, tombstone, &same_txn_valid_upd);
+                upd = __get_valid_upd(upd, tombstone, &same_txn_valid_upd);
 
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 upd_select->upd = upd = upd->next;
