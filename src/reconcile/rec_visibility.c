@@ -223,6 +223,7 @@ __rec_need_save_upd(
 }
 
 /*
+ * __get_valid_upd --
  * Loop until a valid update from a different transaction is found in the update list.
  * As a side effect method saves the latest update from the same transaction into 
  * same_txn_valid_upd.
@@ -250,6 +251,7 @@ __get_valid_upd(
 }
 
 /*
+ * __timestamp_sanity_check --
  * If we found a tombstone with a time point earlier than the update it applies to, which can
  * happen if the application performs operations with timestamps out-of-order, make it invisible
  * by making the start time point match the stop time point of the tombstone. We don't guarantee
