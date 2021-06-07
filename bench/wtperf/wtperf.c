@@ -2967,7 +2967,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     WT_CURSOR *rnd_cursor;
     WTPERF *wtperf;
     double S1, S2, U;
-    uint64_t end_range, range, rval, start_range;
+    uint64_t end_range, range, rval, rval2, rval64, start_range;
     int ret;
     char *key_buf;
 
@@ -3020,6 +3020,52 @@ wtperf_rand(WTPERF_THREAD *thread)
         if (rval > end_range)
             rval = 0;
     }
+
+    /*
+     * A distribution that selects the record with a higher key with
+     * higher probability. This was added to support the YCSB-D workload,
+     * which calls for "read latest" selection for records that are read.
+     *
+     * We generate a random number that is in the range between 0 and
+     * largest * largest, where largest is the last inserted key. Then we
+     * take a square root of that random number -- this is our target
+     * selection. With this formula, larger keys are more likely to get
+     * selected than smaller keys, and the probability of selection is
+     * proportional to the value of the key, which is what we want.
+     */
+    if (opts->select_latest) {
+
+	/*
+	 * First we need a 64-bit random number, and the WiredTiger
+	 * random number function gives us only a 32-bit random value.
+	 * With only a 32-bit value, the range of the random number
+	 * will always be smaller than the square of the largest insert key
+	 * for workloads with a large number of keys. So we need a longer
+	 * random number for that.
+	 *
+	 * We get a 64-bit random number by concatenating two 32-bit
+	 * numbers. We get less entropy this way than via a true 64-bit
+	 * generator, but we are not defending against cryptographic attacks
+	 * here, so this is good enough.
+	 */
+	rval2 = __wt_random(&thread->rnd);
+	rval64 = rval | (rval2 << 32);
+
+	/*
+	 * Now we limit the random value to be within the range of square
+	 * of the latest insert key and take a square root of that value.
+	 */
+	rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
+	rval64 = (uint64_t)sqrt((long double)rval64);
+
+	/*
+	 * Assign the generated value back to rval, so it works with the
+	 * subsequent code. The rval is declared as a 64-bit variable, so
+	 * we don't need to perform a cast.
+	 */
+	rval = rval64;
+    }
+
     /*
      * Wrap the key to within the expected range and avoid zero: we never insert that key.
      */

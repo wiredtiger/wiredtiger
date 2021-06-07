@@ -157,6 +157,8 @@ DEF_OPT_AS_UINT32(
 DEF_OPT_AS_UINT32(scan_table_count, 0,
   "number of separate tables to be used for scanning. Zero indicates that tables are shared with "
   "other operations")
+DEF_OPT_AS_BOOL(select_latest, 0, "in workloads that involve inserts and another type of operation,"
+		"select the recently inserted records with higher probability")
 DEF_OPT_AS_CONFIG_STRING(sess_config, "", "session configuration string")
 DEF_OPT_AS_UINT32(session_count_idle, 0, "number of idle sessions to create. Default 0.")
 /* The following table configuration is based on the configuration MongoDB uses for collections. */
