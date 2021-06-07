@@ -1184,12 +1184,13 @@ __wt_meta_ckptlist_free(WT_SESSION_IMPL *session, WT_CKPT **ckptbasep)
     if ((ckptbase = *ckptbasep) == NULL)
         return;
 
+    WT_CKPT_FOREACH (ckptbase, ckpt)
+        __wt_meta_checkpoint_free(session, ckpt);
     /*
      * Sometimes the checkpoint list has a checkpoint which has not been named yet, but carries an
      * order number.
      */
-    WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt)
-    // WT_CKPT_FOREACH (ckptbase, ckpt)
+    if (ckpt->order > 0)
         __wt_meta_checkpoint_free(session, ckpt);
     __wt_free(session, *ckptbasep);
 }
@@ -1229,12 +1230,13 @@ __wt_meta_checkpoint_free(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     __wt_buf_free(session, &ckpt->addr);
     __wt_buf_free(session, &ckpt->raw);
     __wt_free(session, ckpt->bpriv);
-    for (i = 0; i < WT_BLKINCR_MAX; ++i) {
-        blk_mod = &ckpt->backup_blocks[i];
-        __wt_buf_free(session, &blk_mod->bitstring);
-        __wt_free(session, blk_mod->id_str);
-        F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
-    }
+    for (i = 0; i < WT_BLKINCR_MAX; ++i)
+        if ((blk_mod = &ckpt->backup_blocks[i]) != NULL) {
+            // blk_mod = &ckpt->backup_blocks[i];
+            __wt_buf_free(session, &blk_mod->bitstring);
+            __wt_free(session, blk_mod->id_str);
+            F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
+        }
 
     WT_CLEAR(*ckpt); /* Clear to prepare for re-use. */
 }

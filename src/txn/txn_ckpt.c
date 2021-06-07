@@ -1515,8 +1515,7 @@ __checkpoint_lock_dirty_tree(
      */
     seen_ckpt_add = false;
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
-        WT_CKPT_FOREACH_NAME_OR_ORDER (ckptbase, ckpt) {
-        // WT_CKPT_FOREACH (ckptbase, ckpt) {
+        WT_CKPT_FOREACH (ckptbase, ckpt) {
             /* Checkpoint(s) to be added are always at the end of the list. */
             WT_ASSERT(session, !seen_ckpt_add || F_ISSET(ckpt, WT_CKPT_ADD));
             if (F_ISSET(ckpt, WT_CKPT_ADD)) {
