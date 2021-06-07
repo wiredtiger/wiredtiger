@@ -2157,7 +2157,7 @@ struct __wt_connection {
 	 * configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * checkpoint_write_bypass, Do not allocate blocks that are written by a checkpoint., a
-	 * boolean flag; default \c true.}
+	 * boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable block
 	 * cache., a boolean flag; default \c false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
@@ -2806,7 +2806,7 @@ struct __wt_connection {
  * @config{block_cache = (, block cache configuration options., a set of related configuration
  * options defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;checkpoint_write_bypass, Do not allocate
- * blocks that are written by a checkpoint., a boolean flag; default \c true.}
+ * blocks that are written by a checkpoint., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable block cache., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;eviction_aggression, a value indicating how many seconds an
  * unused block would stay in the cache before it is evicted., an integer between 1 and 7200;

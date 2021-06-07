@@ -815,7 +815,8 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     blkcache = &conn->blkcache;
     cache_type = BLKCACHE_UNCONFIGURED;
     cache_size = hash_size = 0;
-    chkpt_write_bypass = eviction_on = write_allocate = true;
+    chkpt_write_bypass = false;
+    eviction_on = write_allocate = true;
     nvram_device_path = NULL;
 
     if (reconfig)
@@ -861,8 +862,8 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     percent_file_in_dram = cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.checkpoint_write_bypass", &cval));
-    if (cval.val == 0)
-	chkpt_write_bypass = false;
+    if (cval.val == 1)
+	chkpt_write_bypass = true;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.eviction_on", &cval));
     if (cval.val == 0)
