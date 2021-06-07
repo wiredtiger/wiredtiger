@@ -127,12 +127,9 @@ class database_operation {
         std::vector<WT_CURSOR *> cursors;
 
         /* Get a cursor for each collection in collection_names. */
-        {
-            for (const auto &it : tc->database.get_collection_names()) {
-                testutil_check(
-                  tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
-                cursors.push_back(cursor);
-            }
+        for (const auto &it : tc->database.get_collection_names()) {
+            testutil_check(tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
+            cursors.push_back(cursor);
         }
 
         while (!cursors.empty() && tc->running()) {
@@ -154,7 +151,7 @@ class database_operation {
         WT_DECL_RET;
         wt_timestamp_t ts;
         std::vector<WT_CURSOR *> cursors;
-        std::vector<std::string> collection_names = std::move(tc->database.get_collection_names());
+        std::vector<std::string> collection_names = tc->database.get_collection_names();
         key_value_t key, generated_value;
         const char *key_tmp;
         uint64_t i = 0;
