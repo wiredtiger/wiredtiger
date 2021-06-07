@@ -79,6 +79,7 @@ class database {
     add_collection(const std::string &collection_name)
     {
         std::lock_guard<std::mutex> lg(_mtx);
+        testutil_assert(_collections.find(collection_name) == _collections.end());
         _collections[collection_name] = {};
     }
 
@@ -114,7 +115,7 @@ class database {
         std::lock_guard<std::mutex> lg(_mtx);
         auto &c = _collections.at(collection_name);
         c.keys.at(key).exists = false;
-        c.values.clear();
+        c.values.erase(key);
     }
 
     private:
