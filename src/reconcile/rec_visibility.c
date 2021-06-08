@@ -225,8 +225,8 @@ __rec_need_save_upd(
 /*
  * __get_valid_upd --
  *     Loop until a valid update from a different transaction is found in the update list. As a side
- *     effect method saves the latest update from the same transaction into same_txn_valid_upd.
- *     Returns a valid update from a different transaction
+ *     effect method saves the latest update from the same transaction into the WT_UPDATE output
+ *     argument. Method returns a valid update from a different transaction.
  */
 static inline WT_UPDATE *
 __get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid_upd)
@@ -257,8 +257,10 @@ __get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid
  *     insert and then remove a record. We don't want to generate a warning in that case.
  */
 static inline void
-__timestamp_sanity_check(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw, char *time_string)
+__timestamp_sanity_check(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 {
+    char time_string[WT_TIME_STRING_SIZE];
+
     if (select_tw->stop_ts < select_tw->start_ts ||
       (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
         __wt_verbose(session, WT_VERB_TIMESTAMP,
@@ -286,7 +288,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, session_txnid, txnid;
-    char time_string[WT_TIME_STRING_SIZE];
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
@@ -595,7 +596,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
     }
 
-    __timestamp_sanity_check(session, select_tw, time_string);
+    __timestamp_sanity_check(session, select_tw);
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
