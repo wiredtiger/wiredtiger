@@ -57,6 +57,9 @@ class test : public database_operation {
     public:
     test(const std::string &config, const std::string &name)
     {
+        /* Set the program name for error messages. */
+        progname = name.c_str();
+
         _config = new configuration(name, config);
         _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
         _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
