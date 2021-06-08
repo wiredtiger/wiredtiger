@@ -60,7 +60,9 @@ static const char *READ_CONFIG = "read_config";
 static const char *STABLE_LAG = "stable_lag";
 static const char *STAT_CACHE_SIZE = "stat_cache_size";
 static const char *STAT_DB_SIZE = "stat_db_size";
+static const char *STATISTICS_CONFIG = "statistics_config";
 static const char *THREAD_COUNT = "thread_count";
+static const char *TYPE = "type";
 static const char *UPDATE_CONFIG = "update_config";
 static const char *VALUE_SIZE = "value_size";
 
@@ -69,6 +71,7 @@ static const char *COMMIT_TS = "commit_timestamp";
 static const char *CONNECTION_CREATE = "create";
 static const char *OLDEST_TS = "oldest_timestamp";
 static const char *STABLE_TS = "stable_timestamp";
+static const char *STATISTICS_LOG = "statistics_log=(json,wait=1),";
 
 /* Test harness consts. */
 static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S";

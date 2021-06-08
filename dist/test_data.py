@@ -195,6 +195,15 @@ test_config = [
         The duration that the test run will last''', min=0, max=1000000),
     Config('enable_logging', 'false', r'''
         Enables write ahead logs''', type='boolean'),
+    Config('statistics_config', '', r'''
+        Statistic configuration that is passed into wiredtiger on open.''',
+        type='category', subconfig=[
+            Config('type', 'fast', r'''
+            The configuration that will get passed to wiredtiger for the style of statistics gathering'''),
+            Config('enable_logging', 'false', r'''
+            Configuration enabling or disabling statistics logging in the form of json logging.''',
+            type='boolean')
+        ]),
 ]
 
 methods = {
