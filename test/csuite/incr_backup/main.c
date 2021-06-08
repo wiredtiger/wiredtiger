@@ -74,8 +74,8 @@ static bool do_rename = true;
     } while (0)
 
 /*
- * We keep an array of tables, each one may or may not be in use.
- * "In use" means it has been created, and will be updated from time to time.
+ * We keep an array of tables, each one may or may not be in use. "In use" means it has been
+ * created, and will be updated from time to time.
  */
 typedef struct {
     char *name;            /* non-null entries represent tables in use */
@@ -189,8 +189,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
      * is inserted, it is all the letter 'a'. When the value is updated, is it mostly 'b', with some
      * 'c' mixed in. When the value is to modified, we'll end up with a value with mostly 'b' and
      * 'M' mixed in, in different spots. Thus the modify operation will have both additions ('M')
-     * and
-     * subtractions ('c') from the previous version.
+     * and subtractions ('c') from the previous version.
      */
     if (op_type == INSERT)
         ch = 'a';
@@ -371,7 +370,7 @@ table_changes(WT_SESSION *session, TABLE *table)
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
-            testutil_assert(op_type < _OPERATION_TYPE_COUNT);
+
             switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
@@ -394,6 +393,8 @@ table_changes(WT_SESSION *session, TABLE *table)
                 testutil_check(cur->update(cur));
                 break;
             case _OPERATION_TYPE_COUNT:
+            default:
+                testutil_die(0, "Unexpected OPERATION_TYPE: %d", op_type);
                 break;
             }
         }
@@ -687,7 +688,6 @@ check_table(WT_SESSION *session, TABLE *table)
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
-    testutil_assert(op_type < _OPERATION_TYPE_COUNT);
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % KEYS_PER_TABLE;
@@ -700,6 +700,8 @@ check_table(WT_SESSION *session, TABLE *table)
         expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
         break;
     case _OPERATION_TYPE_COUNT:
+    default:
+        testutil_die(0, "Unexpected OPERATION_TYPE: %d", op_type);
         break;
     }
 
