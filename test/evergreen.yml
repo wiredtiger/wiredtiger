@@ -60,7 +60,7 @@ functions:
             # Use the Windows powershell script to configure the CMake build.
             # We execute it in a powershell environment as its easier to detect and source the Visual Studio
             # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
-            powershell.exe '.\test\evergreen\build_windows.ps1 -configure 1'
+            powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 ${windows_configure_flags|}
           else
             # Compiling with CMake.
             . test/evergreen/find_cmake.sh
@@ -2804,6 +2804,7 @@ buildvariants:
   expansions:
     python_binary: 'python'
     is_cmake_build: true
+    windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
   tasks:
     - name: compile
     - name: make-check-test

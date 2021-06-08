@@ -1,17 +1,16 @@
 param (
     [bool]$configure = $false,
-    [bool]$build = $false
+    [bool]$build = $false,
+    [string]$vcvars_bat = "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat"
 )
 
 # Source the vcvars to ensure we have access to the Visual Studio toolchain
-pushd "C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build"
-cmd /c "vcvars64.bat&set" |
+cmd /c "`"$vcvars_bat`"&set" |
 foreach {
   if ($_ -match "=") {
     $v = $_.split("="); set-item -force -path "ENV:\$($v[0])"  -value "$($v[1])"
   }
 }
-popd
 
 # Ensure the PROCESSOR_ARCHITECTURE environment variable is set. This is sometimes not set
 # when entering from a cygwin environment.
