@@ -3075,7 +3075,7 @@ wtperf_rand(WTPERF_THREAD *thread)
 	 * of the latest insert key and take a square root of that value.
 	 */
 	rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
-	rval64 = (uint64_t)sqrt((long double)rval64);
+	rval64 = sqrt((long double)rval64);
 
 	/*
 	 * Assign the generated value back to rval, so it works with the
