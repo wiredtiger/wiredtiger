@@ -300,6 +300,8 @@ op_name(uint8_t *op)
         return ("modify");
     case WORKER_READ:
         return ("read");
+    case WORKER_SCAN:
+        return ("scan");
     case WORKER_TRUNCATE:
         return ("truncate");
     case WORKER_UPDATE:
@@ -1006,28 +1008,37 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
         return (0);
     }
 
-    /* Confirm inserts, modifies, reads and updates cannot all be zero. */
-    if (workp->insert == 0 && workp->modify == 0 && workp->read == 0 && workp->update == 0) {
+    /* Confirm inserts, modifies, reads, updates and scans cannot all be zero. */
+    if (workp->insert == 0 && workp->modify == 0 && workp->read == 0
+	&& workp->update == 0 && workp->scan) {
         lprintf(wtperf, EINVAL, 0, "no operations scheduled");
         return (EINVAL);
     }
 
     /*
-     * Check for a simple case where the thread is only doing insert or modify or update operations
-     * (because the default operation for a job-mix is read, the subsequent code works fine if only
-     * reads are specified).
+     * Check for a simple case where the thread is only doing insert or modify or update or scan
+     * operations (because the default operation for a job-mix is read, the subsequent code works
+     * fine if only reads are specified).
      */
-    if (workp->insert != 0 && workp->modify == 0 && workp->read == 0 && workp->update == 0) {
+    if (workp->insert != 0 && workp->modify == 0 && workp->read == 0 &&
+	workp->update == 0 && workp->scan == 0) {
         memset(
           workp->ops, opts->insert_rmw ? WORKER_INSERT_RMW : WORKER_INSERT, sizeof(workp->ops));
         return (0);
     }
-    if (workp->insert == 0 && workp->modify != 0 && workp->read == 0 && workp->update == 0) {
+    if (workp->insert == 0 && workp->modify != 0 && workp->read == 0 &&
+	workp->update == 0 && workp->scan == 0) {
         memset(workp->ops, WORKER_MODIFY, sizeof(workp->ops));
         return (0);
     }
-    if (workp->insert == 0 && workp->modify == 0 && workp->read == 0 && workp->update != 0) {
+    if (workp->insert == 0 && workp->modify == 0 && workp->read == 0 &&
+	workp->update != 0 && workp->scan == 0) {
         memset(workp->ops, WORKER_UPDATE, sizeof(workp->ops));
+        return (0);
+    }
+    if (workp->insert == 0 && workp->modify == 0 && workp->read == 0 &&
+	workp->update == 0 && workp->scan == !0) {
+        memset(workp->ops, WORKER_SCAN, sizeof(workp->ops));
         return (0);
     }
 
@@ -1050,15 +1061,23 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
      */
     memset(workp->ops, WORKER_READ, sizeof(workp->ops));
 
-    pct = (workp->insert * 100) / (workp->insert + workp->modify + workp->read + workp->update);
+    pct = (workp->insert * 100) / (workp->insert + workp->modify + workp->read
+				   + workp->update + workp->scan);
     if (pct != 0)
         run_mix_schedule_op(workp, opts->insert_rmw ? WORKER_INSERT_RMW : WORKER_INSERT, pct);
-    pct = (workp->modify * 100) / (workp->insert + workp->modify + workp->read + workp->update);
+    pct = (workp->modify * 100) / (workp->insert + workp->modify + workp->read
+				   + workp->update + workp->scan);
     if (pct != 0)
         run_mix_schedule_op(workp, WORKER_MODIFY, pct);
-    pct = (workp->update * 100) / (workp->insert + workp->modify + workp->read + workp->update);
+    pct = (workp->update * 100) / (workp->insert + workp->modify + workp->read
+				   + workp->update + workp->scan);
     if (pct != 0)
         run_mix_schedule_op(workp, WORKER_UPDATE, pct);
+
+    pct = (workp->scan * 100) / (workp->insert + workp->modify + workp->read
+				   + workp->update + workp->scan);
+    if (pct != 0)
+        run_mix_schedule_op(workp, WORKER_SCAN, pct);
     return (0);
 }
 
