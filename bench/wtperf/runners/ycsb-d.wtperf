@@ -3,7 +3,7 @@ compression="snappy"
 table_config="type=file"
 key_sz=100
 value_sz=1024
-icount=240000000
+icount=120000000
 run_time=3600
 select_latest=true
 threads=((count=20,reads=95,inserts=5))

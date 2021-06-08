@@ -4,7 +4,7 @@ pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
-icount=240000000
+icount=120000000
 run_time=3600
 threads=((count=10,reads=1),(count=10,updates=1))
 warmup=120
