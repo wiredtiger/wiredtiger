@@ -247,7 +247,7 @@ __get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid
 }
 
 /*
- * __timestamp_sanity_check --
+ * __timestamp_out_of_order_fix --
  *     If we found a tombstone with a time point earlier than the update it applies to, which can
  *     happen if the application performs operations with timestamps out-of-order, make it invisible
  *     by making the start time point match the stop time point of the tombstone. We don't guarantee
@@ -257,7 +257,7 @@ __get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid
  *     insert and then remove a record. We don't want to generate a warning in that case.
  */
 static inline void
-__timestamp_sanity_check(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
+__timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
 {
     char time_string[WT_TIME_STRING_SIZE];
 
@@ -596,7 +596,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
     }
 
-    __timestamp_sanity_check(session, select_tw);
+    __timestamp_out_of_order_fix(session, select_tw);
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
