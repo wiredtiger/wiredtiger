@@ -24,7 +24,7 @@ __block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t obj
      */
     WT_ERR(block->opener->open(
       block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
-    block->objectid = (uint32_t)object_id;
+    block->objectid = object_id;
 
 err:
     return (ret);
