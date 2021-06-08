@@ -67,19 +67,27 @@ class workload_generator : public component {
     void
     run() override final
     {
-        configuration *read_config, *update_config, *insert_config;
+        configuration *insert_config, *populate_config, *read_config, *update_config;
         uint64_t thread_id = 0;
-
-        /* Populate the database. */
-        _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
-        _db_populated = true;
+        int64_t insert_thread_count, read_thread_count, update_thread_count;
 
         /* Retrieve useful parameters from the test configuration. */
         update_config = _config->get_subconfig(UPDATE_CONFIG);
+        update_thread_count = update_config->get_int(THREAD_COUNT);
         insert_config = _config->get_subconfig(INSERT_CONFIG);
+        insert_thread_count = insert_config->get_int(THREAD_COUNT);
         read_config = _config->get_subconfig(READ_CONFIG);
+        read_thread_count = read_config->get_int(THREAD_COUNT);
+        populate_config = _config->get_subconfig(POPULATE_CONFIG);
+
+        /* Populate the database. */
+        _database_operation->populate(_database, _timestamp_manager, populate_config, _tracking);
+        _db_populated = true;
 
         /* Generate threads to execute read operations on the collections. */
+        debug_print(
+          "Workload_generator: Creating " + std::to_string(read_thread_count) + " read threads.",
+          DEBUG_INFO);
         for (size_t i = 0; i < read_config->get_int(THREAD_COUNT) && _running; ++i) {
             thread_context *tc = new thread_context(
               thread_id++, read_config, _timestamp_manager, _tracking, _database);
@@ -89,6 +97,9 @@ class workload_generator : public component {
         }
 
         /* Generate threads to execute update operations on the collections. */
+        debug_print("Workload_generator: Creating " + std::to_string(update_thread_count) +
+            " update threads.",
+          DEBUG_INFO);
         for (size_t i = 0; i < update_config->get_int(THREAD_COUNT) && _running; ++i) {
             thread_context *tc = new thread_context(
               thread_id++, update_config, _timestamp_manager, _tracking, _database);
@@ -100,6 +111,7 @@ class workload_generator : public component {
         delete read_config;
         delete update_config;
         delete insert_config;
+        delete populate_config;
     }
 
     void

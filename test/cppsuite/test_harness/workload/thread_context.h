@@ -52,6 +52,22 @@ class transaction_context {
         return (_in_txn);
     }
 
+    /* Begin a transaction. */
+    void
+    begin(WT_SESSION *session, const std::string &config)
+    {
+        if (!_in_txn) {
+            testutil_check(
+              session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
+            /* This randomizes the number of operations to be executed in one transaction. */
+            _target_op_count =
+              random_generator::instance().generate_signed_integer(_min_op_count, _max_op_count);
+            op_count = 0;
+            _in_txn = true;
+        } else
+            debug_print("Begin called on a currently running transaction, ignoring.", DEBUG_WARN);
+    }
+
     /*
      * The current transaction can be committed if: A transaction has started and the number of
      * operations executed in the current transaction has exceeded the threshold.
@@ -69,21 +85,18 @@ class transaction_context {
         testutil_assert(_in_txn);
         testutil_check(
           session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
+        op_count = 0;
         _in_txn = false;
     }
 
     void
-    begin(WT_SESSION *session, const std::string &config)
+    rollback(WT_SESSION *session, const std::string &config)
     {
-        if (!_in_txn) {
-            testutil_check(
-              session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
-            /* This randomizes the number of operations to be executed in one transaction. */
-            _target_op_count =
-              random_generator::instance().generate_integer(_min_op_count, _max_op_count);
-            op_count = 0;
-            _in_txn = true;
-        }
+        testutil_assert(_in_txn);
+        testutil_check(
+          session->rollback_transaction(session, config.empty() ? nullptr : config.c_str()));
+        op_count = 0;
+        _in_txn = false;
     }
 
     /*

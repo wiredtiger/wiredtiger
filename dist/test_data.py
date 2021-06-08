@@ -66,8 +66,10 @@ record_config = [
 populate_config = record_config + [
     Config('collection_count', 1, r'''
         The number of collections the workload generator operates over''', min=0, max=200000),
-    Config('key_count', 0, r'''
+    Config('key_count_per_collection', 0, r'''
         The number of keys to be operated on per collection''', min=0, max=1000000),
+    Config('thread_count', 1, r'''
+        The number of worker threads to use while populating the database.''')
 ]
 
 #
@@ -153,7 +155,10 @@ workload_tracking = enabled_config_true + component_config
 #
 # Configuration that applies to the workload_generator component.
 #
-workload_generator = enabled_config_true + component_config + populate_config + [
+workload_generator = enabled_config_true + component_config + [
+    Config('populate_config', '', r'''
+        Config that specifies how the database will be populated initially.''',
+        type='category', subconfig=populate_config),
     Config('read_config', '', r'''
         Config that specifies the number of read threads and their behaviour.''',
         type='category', subconfig=read_thread_config),

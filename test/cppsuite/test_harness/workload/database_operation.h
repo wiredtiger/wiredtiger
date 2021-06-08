@@ -29,9 +29,13 @@
 #ifndef DATABASE_OPERATION_H
 #define DATABASE_OPERATION_H
 
+#include <map>
+#include <thread>
+
 #include "database_model.h"
 #include "workload_tracking.h"
 #include "thread_context.h"
+#include "random_generator.h"
 
 namespace test_harness {
 class database_operation {
@@ -52,71 +56,136 @@ class database_operation {
     populate(database &database, timestamp_manager *timestamp_manager, configuration *config,
       workload_tracking *tracking)
     {
-        WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t ts;
-        int64_t collection_count, key_count, key_cpt, key_size, value_size;
-        std::string collection_name, cfg, home;
-        key_value_t generated_key, generated_value;
+        std::vector<std::string> collection_names;
+        std::vector<std::thread> threads;
+        int64_t collection_count, key_count, key_size, thread_count, value_size;
+        std::string collection_name;
         bool ts_enabled = timestamp_manager->enabled();
-
-        cursor = nullptr;
-        collection_count = key_count = key_size = value_size = 0;
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
-        /* Create n collections as per the configuration and store each collection name. */
+
+        /* Get our configuration values, validating that they make sense. */
         collection_count = config->get_int(COLLECTION_COUNT);
-        for (size_t i = 0; i < collection_count; ++i) {
-            collection_name = "table:collection" + std::to_string(i);
-            database.add_collection(collection_name);
+        key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
+        value_size = config->get_int(VALUE_SIZE);
+        thread_count = config->get_int(THREAD_COUNT);
+        testutil_assert(collection_count % thread_count == 0);
+        testutil_assert(value_size > 0);
+        key_size = config->get_int(KEY_SIZE);
+        testutil_assert(key_size > 0);
+
+        /* Keys must be unique. */
+        testutil_assert(key_count <= pow(10, key_size));
+
+        /* Create n collections as per the configuration and store each collection name. */
+        for (int64_t i = 0; i < collection_count; ++i) {
+            /* TODO: Should we just give collection creation power to the database? */
+            collection_name = database.add_collection();
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
             ts = timestamp_manager->get_next_ts();
             tracking->save_schema_operation(
               tracking_operation::CREATE_COLLECTION, collection_name, ts);
+            collection_names.push_back(collection_name);
         }
-        debug_print(std::to_string(collection_count) + " collections created", DEBUG_TRACE);
+        debug_print(
+          "Populate: " + std::to_string(collection_count) + " collections created.", DEBUG_INFO);
 
-        /* Open a cursor on each collection and use the configuration to insert key/value pairs. */
-        key_count = config->get_int(KEY_COUNT);
-        value_size = config->get_int(VALUE_SIZE);
-        testutil_assert(value_size > 0);
-        key_size = config->get_int(KEY_SIZE);
-        testutil_assert(key_size > 0);
-        /* Keys must be unique. */
-        testutil_assert(key_count <= pow(10, key_size));
+        /*
+         * This is a lambda that takes a set of collections to populate with keys. It will fail if
+         * the set of collections is not unique.
+         *
+         * This should be safe as any captured value is only read, not written to.
+         */
+        auto populate = [&](int thread_id, std::vector<std::string> pop_collections,
+                          WT_SESSION *pop_session) {
+            WT_DECL_RET;
+            WT_CURSOR *pop_cursor;
+            std::string cfg;
+            wt_timestamp_t pop_ts;
+            key_value_t generated_key, generated_value;
 
-        for (const auto &collection_name : database.get_collection_names()) {
-            key_cpt = 0;
-            /*
-             * WiredTiger lets you open a cursor on a collection using the same pointer. When a
-             * session is closed, WiredTiger APIs close the cursors too.
-             */
-            testutil_check(
-              session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
-            for (size_t i = 0; i < key_count; ++i) {
-                /* Generation of a unique key. */
-                generated_key = number_to_string(key_size, key_cpt);
-                ++key_cpt;
+            for (const auto &next_collection : pop_collections) {
                 /*
-                 * Generation of a random string value using the size defined in the test
-                 * configuration.
+                 * WiredTiger lets you open a cursor on a collection using the same pointer. When a
+                 * session is closed, WiredTiger APIs close the cursors too.
                  */
-                generated_value =
-                  random_generator::random_generator::instance().generate_string(value_size);
-                ts = timestamp_manager->get_next_ts();
-                if (ts_enabled)
-                    testutil_check(session->begin_transaction(session, ""));
-                insert(cursor, tracking, collection_name, generated_key.c_str(),
-                  generated_value.c_str(), ts);
-                if (ts_enabled) {
-                    cfg = std::string(COMMIT_TS) + "=" + timestamp_manager->decimal_to_hex(ts);
-                    testutil_check(session->commit_transaction(session, cfg.c_str()));
+                testutil_check(pop_session->open_cursor(
+                  pop_session, next_collection.c_str(), NULL, NULL, &pop_cursor));
+                for (uint64_t i = 0; i < key_count; ++i) {
+                    /* Generation of a unique key. */
+                    generated_key = number_to_string(key_size, i);
+                    /*
+                     * Generation of a random string value using the size defined in the test
+                     * configuration.
+                     */
+                    generated_value =
+                      random_generator::random_generator::instance().generate_string(value_size);
+                    pop_ts = timestamp_manager->get_next_ts();
+
+                    /* Start a txn. */
+                    testutil_check(pop_session->begin_transaction(pop_session, nullptr));
+
+                    ret = insert(pop_cursor, tracking, next_collection, generated_key.c_str(),
+                      generated_value.c_str(), pop_ts);
+
+                    /* This may require some sort of "stuck" mechanism but for now is fine. */
+                    if (ret == WT_ROLLBACK)
+                        testutil_die(
+                          -1, "Got a rollback in populate, this is currently not handled.");
+
+                    if (ts_enabled)
+                        cfg =
+                          std::string(COMMIT_TS) + "=" + timestamp_manager->decimal_to_hex(pop_ts);
+                    else
+                        cfg = "";
+
+                    testutil_check(pop_session->commit_transaction(pop_session, cfg.c_str()));
                 }
             }
+            debug_print(
+              "Populate: thread {" + std::to_string(thread_id) + "} finished", DEBUG_INFO);
+        };
+
+        /*
+         * Spawn thread_count threads to populate the database, theoretically we should be IO bound
+         * here.
+         */
+        for (int64_t i = 0; i < thread_count; ++i) {
+            int64_t collections_per_thread = collection_count / thread_count;
+            std::vector<std::string> thread_collections;
+            for (size_t j = i * collections_per_thread;
+                 j < i * collections_per_thread + collections_per_thread; j++) {
+                debug_print("Populate: adding collection: " + collection_names[j] + " to thread " +
+                    std::to_string(i),
+                  DEBUG_TRACE);
+                thread_collections.push_back(collection_names[j]);
+            }
+            threads.push_back(std::thread(
+              populate, i, thread_collections, connection_manager::instance().create_session()));
         }
-        debug_print("Populate stage done", DEBUG_TRACE);
+
+        /* TODO: Use thread manager here? */
+        while (true) {
+            bool joinable = false;
+            for (const auto &it : threads) {
+                if (!it.joinable()) {
+                    joinable = false;
+                    break;
+                }
+                joinable = true;
+            }
+            if (joinable)
+                break;
+        }
+
+        for (auto &it : threads)
+            it.join();
+
+        debug_print("Populate: finished.", DEBUG_INFO);
     }
 
     /* Basic read operation that walks a cursors across all collections. */
@@ -130,19 +199,22 @@ class database_operation {
         for (const auto &it : tc->database.get_collection_names()) {
             testutil_check(tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
             cursors.push_back(cursor);
+            debug_print("Adding collection to read thread: " + it, DEBUG_TRACE);
         }
 
-        while (!cursors.empty() && tc->running()) {
+        while (tc->running()) {
             /* Walk each cursor. */
             for (const auto &it : cursors) {
                 if (it->next(it) != 0)
                     it->reset(it);
             }
+            tc->sleep();
         }
     }
 
     /*
-     * Basic update operation that uses a random cursor to update values.
+     * Basic update operation that uses a random cursor to update values in a randomly chosen
+     * collection.
      */
     virtual void
     update_operation(thread_context *tc)
@@ -150,63 +222,105 @@ class database_operation {
         WT_CURSOR *cursor;
         WT_DECL_RET;
         wt_timestamp_t ts;
-        std::vector<WT_CURSOR *> cursors;
-        std::vector<std::string> collection_names = tc->database.get_collection_names();
+        /*
+         * We need three maps here, one to maintain our list of random cursors, one to maintain the
+         * list of update cursors. We can't update using a random cursor, as defined by the
+         * WiredTiger API.
+         *
+         * The final map provides a quick lookup for collection names.
+         */
+        std::map<uint64_t, WT_CURSOR *> random_cursors;
+        std::map<uint64_t, WT_CURSOR *> update_cursors;
+        std::map<uint64_t, std::string> collections;
         key_value_t key, generated_value;
+        std::string collection_name;
         const char *key_tmp;
-        uint64_t i = 0;
+        uint64_t collection_id;
         bool using_timestamps = tc->timestamp_manager->enabled();
 
-        /* Get a cursor for each collection in collection_names. */
-        for (const auto &it : collection_names) {
-            testutil_check(tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
-            cursors.push_back(cursor);
-        }
-
         /*
-         * Update each collection while the test is running.
+         * Loop while the test is running.
          */
-        while (tc->running() && !collection_names.empty()) {
-            if (i >= collection_names.size())
-                i = 0;
-            ret = cursors[i]->next(cursors[i]);
-            /* If we have reached the end of the collection, reset. */
-            if (ret == WT_NOTFOUND) {
-                testutil_check(cursors[i]->reset(cursors[i]));
-                ++i;
-            } else if (ret != 0)
-                /* Stop updating in case of an error. */
-                testutil_die(DEBUG_ERROR, "update_operation: cursor->next() failed: %d", ret);
-            else {
-                testutil_check(cursors[i]->get_key(cursors[i], &key_tmp));
-                /*
-                 * The retrieved key needs to be passed inside the update function. However, the
-                 * update API doesn't guarantee our buffer will still be valid once it is called, as
-                 * such we copy the buffer and then pass it into the API.
-                 */
-                key = key_value_t(key_tmp);
-                generated_value =
-                  random_generator::random_generator::instance().generate_string(tc->value_size);
-
-                /* Start a transaction. */
-                if (!tc->transaction.active())
-                    tc->transaction.begin(tc->session, "");
-
-                ts = tc->timestamp_manager->get_next_ts();
-                if (using_timestamps)
-                    tc->transaction.set_commit_timestamp(
-                      tc->session, timestamp_manager::decimal_to_hex(ts));
-
-                update(tc->tracking, cursors[i], collection_names[i], key.c_str(),
-                  generated_value.c_str(), ts);
-
-                /* Commit the current transaction. */
-                tc->transaction.op_count++;
-                if (tc->transaction.can_commit())
-                    tc->transaction.commit(tc->session, "");
+        while (tc->running()) {
+            /* Pick a random collection to update. */
+            /* TODO: Add a comment explaining the -1. */
+            collection_id = random_generator::instance().generate_unsigned_integer(
+                              1, tc->database.get_collection_count()) -
+              1;
+            if (random_cursors.find(collection_id) == random_cursors.end()) {
+                /* Retrieve the newly created collection, open a cursor and add it to the map. */
+                collection_name = std::move(tc->database.get_collection_name(collection_id));
+                debug_print("Thread {" + std::to_string(tc->id) +
+                    "} Creating cursor for collection: " + collection_name,
+                  DEBUG_TRACE);
+                tc->session->open_cursor(
+                  tc->session, collection_name.c_str(), nullptr, "next_random=true", &cursor);
+                random_cursors.emplace(collection_id, cursor);
+                tc->session->open_cursor(
+                  tc->session, collection_name.c_str(), nullptr, nullptr, &cursor);
+                update_cursors.emplace(collection_id, cursor);
+                collections.emplace(collection_id, collection_name);
             }
+
+            /* Get the random cursor associated with the collection. */
+            cursor = random_cursors[collection_id];
+
+            /* Start a transaction. */
+            if (!tc->transaction.active())
+                tc->transaction.begin(tc->session, "");
+
+            /* Call next to pick a new random record. */
+            testutil_check(cursor->next(cursor));
+
+            /* Get the record's key. */
+            testutil_check(cursor->get_key(cursor, &key_tmp));
+
+            /*
+             * The retrieved key needs to be passed inside the update function. However, the update
+             * API doesn't guarantee our buffer will still be valid once it is called, as such we
+             * copy the buffer and then pass it into the API.
+             */
+            key = key_value_t(key_tmp);
+
+            /* Generate a new value for the record. */
+            generated_value =
+              random_generator::random_generator::instance().generate_string(tc->value_size);
+
+            /*
+             * Get a timestamp to apply to the update. We still do this even if timestamps aren't
+             * enabled as it will return WT_TS_NONE, which is then inserted into the tracking table.
+             */
+            ts = tc->timestamp_manager->get_next_ts();
+            if (using_timestamps)
+                tc->transaction.set_commit_timestamp(
+                  tc->session, timestamp_manager::decimal_to_hex(ts));
+
+            /*
+             * Update the record but take care to handle WT_ROLLBACK as we may conflict with another
+             * running transaction. Here we call the pre-defined wrappers as they also update the
+             * tracking table, which is later used for validation.
+             *
+             * Additionally first get the update_cursor.
+             */
+            cursor = update_cursors[collection_id];
+            ret = update(tc->tracking, cursor, collections[collection_id], key.c_str(),
+              generated_value.c_str(), ts);
+
+            /* If the wiredtiger API has returned rollback, comply. */
+            if (ret == WT_ROLLBACK)
+                tc->transaction.rollback(tc->session, "");
+
+            /* Increment the current op count for the current transaction. */
+            tc->transaction.op_count++;
+
+            /* Commit the current transaction if we're able to. */
+            if (tc->transaction.can_commit())
+                tc->transaction.commit(tc->session, "");
+
+            /* Sleep the period defined by the op_rate in the configuration. */
             tc->sleep();
         }
+
         /* Make sure the last operation is committed now the work is finished. */
         if (tc->transaction.active())
             tc->transaction.commit(tc->session, "");
@@ -215,34 +329,50 @@ class database_operation {
     private:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
-    void
+    int
     insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
+        WT_DECL_RET;
         testutil_assert(cursor != nullptr);
 
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
-        testutil_check(cursor->insert(cursor));
-        debug_print("key/value inserted", DEBUG_TRACE);
 
+        ret = cursor->insert(cursor);
+        if (ret != 0)
+            if (ret == WT_ROLLBACK)
+                return (ret);
+            else
+                testutil_die(ret, "unhandled error while trying to insert a key.");
+
+        debug_print("key/value inserted", DEBUG_TRACE);
         tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
+        return (0);
     }
 
     template <typename K, typename V>
-    static void
+    static int
     update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
       K key, V value, wt_timestamp_t ts)
     {
+        WT_DECL_RET;
         testutil_assert(tracking != nullptr);
         testutil_assert(cursor != nullptr);
 
         cursor->set_key(cursor, key);
         cursor->set_value(cursor, value);
-        testutil_check(cursor->update(cursor));
-        debug_print("key/value updated", DEBUG_TRACE);
 
+        ret = cursor->update(cursor);
+        if (ret != 0)
+            if (ret == WT_ROLLBACK)
+                return (ret);
+            else
+                testutil_die(ret, "unhandled error while trying to update a key");
+
+        debug_print("key/value updated", DEBUG_TRACE);
         tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
+        return (0);
     }
 
     /*

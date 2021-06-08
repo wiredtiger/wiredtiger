@@ -36,6 +36,13 @@ static const WT_CONFIG_CHECK confchk_insert_config_subconfigs[] = {
   {"thread_count", "string", NULL, NULL, NULL, 0},
   {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
+static const WT_CONFIG_CHECK confchk_populate_config_subconfigs[] = {
+  {"collection_count", "int", NULL, "min=0,max=200000", NULL, 0},
+  {"key_count_per_collection", "int", NULL, "min=0,max=1000000", NULL, 0},
+  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0},
+  {"thread_count", "string", NULL, NULL, NULL, 0},
+  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+
 static const WT_CONFIG_CHECK confchk_read_config_subconfigs[] = {
   {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
@@ -48,14 +55,13 @@ static const WT_CONFIG_CHECK confchk_update_config_subconfigs[] = {
   {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_workload_generator_subconfigs[] = {
-  {"collection_count", "int", NULL, "min=0,max=200000", NULL, 0},
   {"enabled", "boolean", NULL, NULL, NULL, 0},
   {"insert_config", "category", NULL, NULL, confchk_insert_config_subconfigs, 5},
-  {"key_count", "int", NULL, "min=0,max=1000000", NULL, 0},
-  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"populate_config", "category", NULL, NULL, confchk_populate_config_subconfigs, 5},
   {"read_config", "category", NULL, NULL, confchk_read_config_subconfigs, 3},
   {"update_config", "category", NULL, NULL, confchk_update_config_subconfigs, 5},
-  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_workload_tracking_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
@@ -68,7 +74,7 @@ static const WT_CONFIG_CHECK confchk_example_test[] = {
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
   {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 4},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
-  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 9},
+  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 6},
   {"workload_tracking", "category", NULL, NULL, confchk_workload_tracking_subconfigs, 2},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -79,7 +85,7 @@ static const WT_CONFIG_CHECK confchk_hs_cleanup[] = {
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
   {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 4},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
-  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 9},
+  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 6},
   {"workload_tracking", "category", NULL, NULL, confchk_workload_tracking_subconfigs, 2},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -90,7 +96,7 @@ static const WT_CONFIG_CHECK confchk_poc_test[] = {
   {"enable_logging", "boolean", NULL, NULL, NULL, 0},
   {"runtime_monitor", "category", NULL, NULL, confchk_runtime_monitor_subconfigs, 4},
   {"timestamp_manager", "category", NULL, NULL, confchk_timestamp_manager_subconfigs, 4},
-  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 9},
+  {"workload_generator", "category", NULL, NULL, confchk_workload_generator_subconfigs, 6},
   {"workload_tracking", "category", NULL, NULL, confchk_workload_tracking_subconfigs, 2},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -102,13 +108,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
-    "stable_lag=1),workload_generator=(collection_count=1,"
-    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=1,value_size=5),"
-    "key_count=0,key_size=5,op_rate=1s,read_config=(op_rate=1s,"
+    "stable_lag=1),workload_generator=(enabled=true,"
+    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
+    "min=0),thread_count=1,value_size=5),op_rate=1s,"
+    "populate_config=(collection_count=1,key_count_per_collection=0,"
+    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=1),"
     "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=1,value_size=5),value_size=5),"
+    "min=0),thread_count=1,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_example_test, 8},
   {"hs_cleanup",
@@ -118,13 +125,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
-    "stable_lag=1),workload_generator=(collection_count=1,"
-    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=1,value_size=5),"
-    "key_count=0,key_size=5,op_rate=1s,read_config=(op_rate=1s,"
+    "stable_lag=1),workload_generator=(enabled=true,"
+    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
+    "min=0),thread_count=1,value_size=5),op_rate=1s,"
+    "populate_config=(collection_count=1,key_count_per_collection=0,"
+    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=1),"
     "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=1,value_size=5),value_size=5),"
+    "min=0),thread_count=1,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_hs_cleanup, 8},
   {"poc_test",
@@ -134,13 +142,14 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "timestamp_manager=(enabled=true,oldest_lag=1,op_rate=1s,"
-    "stable_lag=1),workload_generator=(collection_count=1,"
-    "enabled=true,insert_config=(key_size=5,op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=1,value_size=5),"
-    "key_count=0,key_size=5,op_rate=1s,read_config=(op_rate=1s,"
+    "stable_lag=1),workload_generator=(enabled=true,"
+    "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
+    "min=0),thread_count=1,value_size=5),op_rate=1s,"
+    "populate_config=(collection_count=1,key_count_per_collection=0,"
+    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
     "ops_per_transaction=(max=1,min=0),thread_count=1),"
     "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=1,value_size=5),value_size=5),"
+    "min=0),thread_count=1,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_poc_test, 8},
   {NULL, NULL, NULL, 0}};
