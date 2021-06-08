@@ -395,7 +395,6 @@ table_changes(WT_SESSION *session, TABLE *table)
             case _OPERATION_TYPE_COUNT:
             default:
                 testutil_die(0, "Unexpected OPERATION_TYPE: %d", op_type);
-                break;
             }
         }
         free(value);
@@ -702,7 +701,6 @@ check_table(WT_SESSION *session, TABLE *table)
     case _OPERATION_TYPE_COUNT:
     default:
         testutil_die(0, "Unexpected OPERATION_TYPE: %d", op_type);
-        break;
     }
 
     testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cursor));
