@@ -62,7 +62,7 @@ struct ZSTD_Context_Pool {
     ZSTD_CONTEXT *free_ctx_list;
 };
 
-typedef enum { CONTEXT_TYPE_COMPRESS, CONTEXT_TYPE_DCOMPRESS } CONTEXT_TYPE;
+typedef enum { CONTEXT_TYPE_COMPRESS, CONTEXT_TYPE_DECOMPRESS } CONTEXT_TYPE;
 
 /* Local compressor structure. */
 typedef struct {
@@ -113,12 +113,12 @@ zstd_error(WT_COMPRESSOR *compressor, WT_SESSION *session, const char *call, siz
 }
 
 /*
- * zstd_alloc_context --
- *     WiredTiger Zstd allocate context from context pool.
+ * zstd_get_context --
+ *     WiredTiger Zstd get a context from context pool.
  */
 static void
-zstd_alloc_context(
-  ZSTD_COMPRESSOR *zcompressor, WT_SESSION *session, CONTEXT_TYPE ctx_type, ZSTD_CONTEXT **context)
+zstd_get_context(
+  ZSTD_COMPRESSOR *zcompressor, WT_SESSION *session, CONTEXT_TYPE ctx_type, ZSTD_CONTEXT **contextp)
 {
     WT_EXTENSION_API *wt_api;
     ZSTD_CONTEXT_POOL *ctx_pool;
@@ -131,25 +131,25 @@ zstd_alloc_context(
     else
         ctx_pool = zcompressor->dctx_pool;
 
-    *context = NULL;
+    *contextp = NULL;
     if (ctx_pool->free_ctx_list == NULL)
         return;
 
     wt_api->spin_lock(wt_api, session, ctx_pool->list_lock);
-    *context = ctx_pool->free_ctx_list;
-    ctx_pool->free_ctx_list = (*context)->next;
+    *contextp = ctx_pool->free_ctx_list;
+    ctx_pool->free_ctx_list = (*contextp)->next;
     wt_api->spin_unlock(wt_api, session, ctx_pool->list_lock);
-    (*context)->next = NULL;
+    (*contextp)->next = NULL;
 
     return;
 }
 
 /*
- * zstd_free_context --
- *     WiredTiger Zstd free context to context pool.
+ * zstd_release_context --
+ *     WiredTiger Zstd release context back to context pool.
  */
 static void
-zstd_free_context(
+zstd_release_context(
   ZSTD_COMPRESSOR *zcompressor, WT_SESSION *session, CONTEXT_TYPE ctx_type, ZSTD_CONTEXT *context)
 {
     WT_EXTENSION_API *wt_api;
@@ -189,7 +189,7 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size
 
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
 
-    zstd_alloc_context(zcompressor, session, CONTEXT_TYPE_COMPRESS, &context);
+    zstd_get_context(zcompressor, session, CONTEXT_TYPE_COMPRESS, &context);
 
     /* Compress, starting past the prefix bytes. */
     if (context != NULL) {
@@ -200,7 +200,7 @@ zstd_compress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, size
           dst + ZSTD_PREFIX, dst_len - ZSTD_PREFIX, src, src_len, zcompressor->compression_level);
     }
 
-    zstd_free_context(zcompressor, session, CONTEXT_TYPE_COMPRESS, context);
+    zstd_release_context(zcompressor, session, CONTEXT_TYPE_COMPRESS, context);
     /*
      * If compression succeeded and the compressed length is smaller than the original size, return
      * success.
@@ -259,7 +259,7 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
         return (WT_ERROR);
     }
 
-    zstd_alloc_context(zcompressor, session, CONTEXT_TYPE_DCOMPRESS, &context);
+    zstd_get_context(zcompressor, session, CONTEXT_TYPE_DECOMPRESS, &context);
     if (context != NULL) {
         zstd_ret = ZSTD_decompressDCtx(
           (ZSTD_DCtx *)context->ctx, dst, dst_len, src + ZSTD_PREFIX, (size_t)zstd_len);
@@ -267,7 +267,7 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
         zstd_ret = ZSTD_decompress(dst, dst_len, src + ZSTD_PREFIX, (size_t)zstd_len);
     }
 
-    zstd_free_context(zcompressor, session, CONTEXT_TYPE_DCOMPRESS, context);
+    zstd_release_context(zcompressor, session, CONTEXT_TYPE_DECOMPRESS, context);
     if (!ZSTD_isError(zstd_ret)) {
         *result_lenp = zstd_ret;
         return (0);
@@ -302,7 +302,7 @@ zstd_pre_size(
  */
 static int
 zstd_init_context_pool(
-  ZSTD_COMPRESSOR *zcompressor, CONTEXT_TYPE ctx_type, int count, ZSTD_CONTEXT_POOL **ctx_pool)
+  ZSTD_COMPRESSOR *zcompressor, CONTEXT_TYPE ctx_type, int count, ZSTD_CONTEXT_POOL **context_poolp)
 {
     WT_EXTENSION_API *wt_api;
     ZSTD_CONTEXT *context;
@@ -346,7 +346,7 @@ zstd_init_context_pool(
         context_pool->count++;
     }
 
-    *ctx_pool = context_pool;
+    *context_poolp = context_pool;
     return (0);
 }
 
@@ -355,8 +355,8 @@ zstd_init_context_pool(
  *	Terminate the given context pool.
  */
 static void
-zstd_terminate_context_pool(
-  WT_COMPRESSOR *compressor, WT_SESSION *session, ZSTD_CONTEXT_POOL **ctx_pool)
+zstd_terminate_context_pool(WT_COMPRESSOR *compressor, WT_SESSION *session,
+  CONTEXT_TYPE context_type, ZSTD_CONTEXT_POOL **context_poolp)
 {
     WT_EXTENSION_API *wt_api;
     ZSTD_CONTEXT *context;
@@ -364,20 +364,23 @@ zstd_terminate_context_pool(
     int i;
 
     wt_api = ((ZSTD_COMPRESSOR *)compressor)->wt_api;
-    context_pool = *ctx_pool;
+    context_pool = *context_poolp;
 
     for (i = 0; i < context_pool->count; i++) {
         context = context_pool->free_ctx_list;
         context_pool->free_ctx_list = context->next;
-        ZSTD_freeCCtx((ZSTD_CCtx *)context->ctx);
+        if (context_type == CONTEXT_TYPE_COMPRESS)
+            ZSTD_freeCCtx((ZSTD_CCtx *)context->ctx);
+        else
+            ZSTD_freeDCtx((ZSTD_DCtx *)context->ctx);
         free(context);
         context = NULL;
     }
 
-    wt_api->spin_destroy(wt_api, session, &(context_pool->list_lock));
+    wt_api->spin_destroy(wt_api, session, context_pool->list_lock);
     context_pool->count = 0;
     free(context_pool);
-    *ctx_pool = NULL;
+    *context_poolp = NULL;
     return;
 }
 
@@ -392,8 +395,10 @@ zstd_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
 
-    zstd_terminate_context_pool(compressor, session, &(zcompressor->cctx_pool));
-    zstd_terminate_context_pool(compressor, session, &(zcompressor->dctx_pool));
+    zstd_terminate_context_pool(
+      compressor, session, CONTEXT_TYPE_COMPRESS, &(zcompressor->cctx_pool));
+    zstd_terminate_context_pool(
+      compressor, session, CONTEXT_TYPE_DECOMPRESS, &(zcompressor->dctx_pool));
     free(compressor);
     return (0);
 }
@@ -484,7 +489,7 @@ zstd_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     zstd_init_context_pool(
       zstd_compressor, CONTEXT_TYPE_COMPRESS, CONTEXT_POOL_SIZE, &(zstd_compressor->cctx_pool));
     zstd_init_context_pool(
-      zstd_compressor, CONTEXT_TYPE_DCOMPRESS, CONTEXT_POOL_SIZE, &(zstd_compressor->dctx_pool));
+      zstd_compressor, CONTEXT_TYPE_DECOMPRESS, CONTEXT_POOL_SIZE, &(zstd_compressor->dctx_pool));
 
     /* Load the compressor */
     if ((ret = connection->add_compressor(

@@ -534,22 +534,43 @@ struct __wt_extension_api {
 
     /*!
      * Initialize a spinlock
+     *
+     * @param wt_api the extension handle
+     * @param session the session handle
+     * @param spinlock the spin lock
+     * @param name the name for the spin lock
+     *
      */
     int (*spin_init)(
-      WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock, const char *name);
+      WT_EXTENSION_API *wt_api, WT_SESSION *session, void **spinlock, const char *name);
 
     /*!
      * Destroy a spinlock
+     *
+     * @param wt_api the extension handle
+     * @param session the session handle
+     * @param spinlock the spin lock
+     *
      */
-    void (*spin_destroy)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void **spinlock);
+    void (*spin_destroy)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock);
 
     /*!
      * Spin until the lock is acquired.
+     *
+     * @param wt_api the extension handle
+     * @param session the session handle
+     * @param spinlock the spin lock
+     *
      */
     void (*spin_lock)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock);
 
     /*!
      * Release the spinlock.
+     *
+     * @param wt_api the extension handle
+     * @param session the session handle
+     * @param spinlock the spin lock
+     *
      */
     void (*spin_unlock)(WT_EXTENSION_API *wt_api, WT_SESSION *session, void *spinlock);
 
