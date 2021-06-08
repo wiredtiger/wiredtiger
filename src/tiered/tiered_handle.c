@@ -87,58 +87,19 @@ err:
 }
 
 /*
- * __tiered_strip_config --
- *     Strip a configuration string of a single item.
- */
-static void
-__tiered_strip_config(WT_SESSION_IMPL *session, const char *match, char **configp)
-{
-    uint32_t pcount;
-    char *end, *start;
-
-    /*
-     * We'll operate on the configuration string in place. It's in allocated memory, and we're only
-     * going to make it smaller.
-     */
-    WT_ASSERT(session, strlen(match) > 0 && match[strlen(match) - 1] == '=');
-    start = strstr(*configp, match);
-    if (start == NULL)
-        return;
-    start += strlen(match);
-    WT_ASSERT(session, *start == '\0' || *start == ',' || *start == '(');
-    if (*start != '(')
-        return;
-
-    /* Find the matching end parenthesis. */
-    for (pcount = 1, end = start + 1; *end != '\0'; end++)
-        if (*end == ')') {
-            if (--pcount == 0)
-                break;
-        } else if (*end == '(')
-            pcount++;
-    WT_ASSERT(session, pcount == 0 && *end == ')');
-
-    /*
-     * Start and end point to the matching outside parentheses. Remove everything in between.
-     */
-    start++;
-    if (start == end)
-        return;
-    memmove(start, end, strlen(end) + 1);
-}
-
-/*
  * __tiered_create_local --
  *     Create a new local name for a tiered table. Must be called single threaded.
  */
 static int
 __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
+    WT_CONFIG cparser;
+    WT_CONFIG_ITEM ck, cv;
+    WT_DECL_ITEM(build);
     WT_DECL_RET;
     WT_TIERED_TIERS *this_tier;
-    char *config;
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
-    const char *name;
+    const char *config, *name;
 
     config = NULL;
     name = NULL;
@@ -152,11 +113,25 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: LOCAL: %s", name);
     cfg[0] = WT_CONFIG_BASE(session, object_meta);
     cfg[1] = tiered->obj_config;
-    cfg[2] = "tiered_object=true,readonly=true,checkpoint=";
+    cfg[2] = "tiered_object=true,readonly=true";
     __wt_verbose(session, WT_VERB_TIERED, "TIER_CREATE_LOCAL: obj_config: %s : %s", name, cfg[1]);
     WT_ASSERT(session, tiered->obj_config != NULL);
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
-    __tiered_strip_config(session, "checkpoint=", &config);
+
+    /*
+     * Remove any checkpoint entry from the configuration. The local file we are newly creating does
+     * have any checkpoints.
+     */
+    WT_ERR(__wt_scr_alloc(session, 1024, &build));
+    __wt_config_init(session, &cparser, config);
+    while ((ret = __wt_config_next(&cparser, &ck, &cv)) == 0) {
+        if (!WT_STRING_MATCH("checkpoint", ck.str, ck.len))
+            /* Append the entry to the new buffer. */
+            WT_ERR(__wt_buf_catfmt(
+              session, build, "%.*s=%.*s,", (int)ck.len, ck.str, (int)cv.len, cv.str));
+    }
+    __wt_free(session, config);
+    WT_ERR(__wt_strndup(session, build->data, build->size, &config));
 
     /*
      * XXX Need to verify user doesn't create a table of the same name. What does LSM do? It
@@ -176,6 +151,7 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_ERR(ret);
 
 err:
+    __wt_scr_free(session, &build);
     if (ret != 0)
         /* Only free name on error. */
         __wt_free(session, name);
