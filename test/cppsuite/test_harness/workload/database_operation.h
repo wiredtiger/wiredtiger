@@ -142,7 +142,7 @@ class database_operation {
     }
 
     /*
-     * Basic update operation that updates all the keys to a random value in each collection.
+     * Basic update operation that uses a random cursor to update values.
      */
     virtual void
     update_operation(thread_context *tc)

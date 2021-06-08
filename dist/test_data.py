@@ -194,5 +194,6 @@ test_config = [
 
 methods = {
     'example_test' : Method(test_config),
+    'hs_cleanup' : Method(test_config),
     'poc_test' : Method(test_config),
 }

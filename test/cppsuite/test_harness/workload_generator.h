@@ -68,6 +68,7 @@ class workload_generator : public component {
     run() override final
     {
         configuration *read_config, *update_config, *insert_config;
+        uint64_t thread_id = 0;
 
         /* Populate the database. */
         _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
@@ -80,8 +81,8 @@ class workload_generator : public component {
 
         /* Generate threads to execute read operations on the collections. */
         for (size_t i = 0; i < read_config->get_int(THREAD_COUNT) && _running; ++i) {
-            thread_context *tc =
-              new thread_context(read_config, _timestamp_manager, _tracking, _database);
+            thread_context *tc = new thread_context(
+              thread_id++, read_config, _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(
               &database_operation::read_operation, _database_operation, tc);
@@ -89,8 +90,8 @@ class workload_generator : public component {
 
         /* Generate threads to execute update operations on the collections. */
         for (size_t i = 0; i < update_config->get_int(THREAD_COUNT) && _running; ++i) {
-            thread_context *tc =
-              new thread_context(update_config, _timestamp_manager, _tracking, _database);
+            thread_context *tc = new thread_context(
+              thread_id++, update_config, _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(
               &database_operation::update_operation, _database_operation, tc);

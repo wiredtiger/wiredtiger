@@ -34,6 +34,7 @@
 #include "test_harness/test.h"
 
 #include "example_test.cxx"
+#include "hs_cleanup.cxx"
 #include "poc_test.cxx"
 
 std::string
@@ -114,6 +115,8 @@ run_test(const std::string &test_name, const std::string &config)
         poc_test(config, test_name).run();
     else if (test_name == "example_test")
         example_test(config, test_name).run();
+    else if (test_name == "hs_cleanup")
+        hs_cleanup(config, test_name).run();
     else {
         test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
         error_code = -1;
@@ -130,7 +133,7 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, test_name, current_test_name;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"example_test", "poc_test"};
+    const std::vector<std::string> all_tests = {"example_test", "hs_cleanup", "poc_test"};
 
     /* Parse args
      * -C   : Configuration. Cannot be used with -f. If no specific test is specified to be run, the

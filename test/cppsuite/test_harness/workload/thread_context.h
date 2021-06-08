@@ -117,9 +117,9 @@ class transaction_context {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(configuration *config, timestamp_manager *timestamp_manager,
+    thread_context(uint64_t id, configuration *config, timestamp_manager *timestamp_manager,
       workload_tracking *tracking, database &db)
-        : database(db), timestamp_manager(timestamp_manager), tracking(tracking),
+        : id(id), database(db), timestamp_manager(timestamp_manager), tracking(tracking),
           transaction(transaction_context(config))
     {
         session = connection_manager::instance().create_session();
@@ -157,6 +157,7 @@ class thread_context {
     test_harness::database &database;
     int64_t key_size = 0;
     int64_t value_size = 0;
+    const uint64_t id;
 
     private:
     throttle _throttle;
