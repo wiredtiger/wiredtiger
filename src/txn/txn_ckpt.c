@@ -764,8 +764,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs, max_hs_size;
     uint64_t time_start_fsync, time_stop_fsync, time_start_hs, time_stop_hs;
     u_int i;
-    bool can_skip, failed, full, hs_exists, idle, logging, tracking, use_timestamp;
     char *config;
+    bool can_skip, failed, full, hs_exists, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
 
     conn = S2C(session);
@@ -911,12 +911,11 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
 
         /*
-         * Once the history store checkpoint is complete, we update the statistic with the most
-         * recent history store file size on disk, and increment the checkpoint generation of the
-         * associated b-tree. The checkpoint generation controls whether we include the checkpoint
-         * transaction in our calculations of the pinned and oldest_ids for a given btree. We
-         * increment it here to ensure that the visibility checks performed on updates in the
-         * history store do not include the checkpoint transaction.
+         * Once the history store checkpoint is complete, we increment the checkpoint generation of
+         * the associated b-tree. The checkpoint generation controls whether we include the
+         * checkpoint transaction in our calculations of the pinned and oldest_ids for a given
+         * btree. We increment it here to ensure that the visibility checks performed on updates in
+         * the history store do not include the checkpoint transaction.
          */
         __checkpoint_update_generation(session);
 
@@ -988,7 +987,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_ERR(hs_cursor->close(hs_cursor));
     WT_ERR(metac->close(metac));
-     
+
     /*
      * Commit the transaction now that we are sure that all files in the checkpoint have been
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
