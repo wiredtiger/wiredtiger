@@ -968,10 +968,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);
 
-    if (ret == WT_NOTFOUND) {
-        hs_exists = false;
-        ret = 0;
-    } else {
+    if (ret != WT_NOTFOUND) {
         WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
 
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
@@ -986,6 +983,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
           "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
           max_hs_size);
 
+    __wt_free(session, config);
     WT_ERR(hs_cursor->close(hs_cursor));
     WT_ERR(metac->close(metac));
 
