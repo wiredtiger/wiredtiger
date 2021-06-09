@@ -757,6 +757,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_ISOLATION saved_isolation;
+    wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
     uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_fsync, time_stop_fsync, time_start_hs, time_stop_hs;
@@ -906,12 +907,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         WT_ERR(ret);
 
         /*
-         * Once the history store checkpoint is complete, we increment the checkpoint generation of
-         * the associated b-tree. The checkpoint generation controls whether we include the
-         * checkpoint transaction in our calculations of the pinned and oldest_ids for a given
-         * btree. We increment it here to ensure that the visibility checks performed on updates in
-         * the history store do not include the checkpoint transaction.
+         * Once the history store checkpoint is complete, we update the statistic with the most
+         * recent history store file size on disk, and increment the checkpoint generation of the
+         * associated b-tree. The checkpoint generation controls whether we include the checkpoint
+         * transaction in our calculations of the pinned and oldest_ids for a given btree. We
+         * increment it here to ensure that the visibility checks performed on updates in the
+         * history store do not include the checkpoint transaction.
          */
+        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
         __checkpoint_update_generation(session);
 
         time_stop_hs = __wt_clock(session);
