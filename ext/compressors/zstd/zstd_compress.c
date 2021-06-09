@@ -57,8 +57,8 @@ struct ZSTD_Context {
 struct ZSTD_Context_Pool;
 typedef struct ZSTD_Context_Pool ZSTD_CONTEXT_POOL;
 struct ZSTD_Context_Pool {
-    int count;       /* Pool size */
-    void *list_lock; /* Spinlock */
+    int count;                       /* Pool size */
+    WT_EXTENSION_SPINLOCK list_lock; /* Spinlock */
     ZSTD_CONTEXT *free_ctx_list;
 };
 
@@ -135,10 +135,10 @@ zstd_get_context(
     if (ctx_pool->free_ctx_list == NULL)
         return;
 
-    wt_api->spin_lock(wt_api, session, ctx_pool->list_lock);
+    wt_api->spin_lock(wt_api, session, &(ctx_pool->list_lock));
     *contextp = ctx_pool->free_ctx_list;
     ctx_pool->free_ctx_list = (*contextp)->next;
-    wt_api->spin_unlock(wt_api, session, ctx_pool->list_lock);
+    wt_api->spin_unlock(wt_api, session, &(ctx_pool->list_lock));
     (*contextp)->next = NULL;
 
     return;
@@ -166,10 +166,10 @@ zstd_release_context(
     else
         ctx_pool = zcompressor->dctx_pool;
 
-    wt_api->spin_lock(wt_api, session, ctx_pool->list_lock);
+    wt_api->spin_lock(wt_api, session, &(ctx_pool->list_lock));
     context->next = ctx_pool->free_ctx_list;
     ctx_pool->free_ctx_list = context;
-    wt_api->spin_unlock(wt_api, session, ctx_pool->list_lock);
+    wt_api->spin_unlock(wt_api, session, &(ctx_pool->list_lock));
 
     return;
 }
@@ -377,7 +377,7 @@ zstd_terminate_context_pool(WT_COMPRESSOR *compressor, WT_SESSION *session,
         context = NULL;
     }
 
-    wt_api->spin_destroy(wt_api, session, context_pool->list_lock);
+    wt_api->spin_destroy(wt_api, session, &(context_pool->list_lock));
     context_pool->count = 0;
     free(context_pool);
     *context_poolp = NULL;
