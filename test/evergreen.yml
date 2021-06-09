@@ -54,7 +54,7 @@ functions:
         set -o errexit
         set -o verbose
         # Check if the build variant has specified a build type, always default to
-        # autoconf if $is_cmake_build is not declared.
+        # Autoconf/Libtool if $is_cmake_build is not declared.
         if [ ${is_cmake_build|false} = true ]; then
           if [ "$OS" = "Windows_NT" ]; then
             # Use the Windows powershell script to configure the CMake build.
