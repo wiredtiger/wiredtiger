@@ -285,11 +285,10 @@ functions:
         fi
         if [ ${is_cmake_build|false} = true ]; then
           cd cmake_build
-          ${test_env_vars|} WT_BUILDDIR=$(pwd) ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         else
           cd build_posix
-          ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
         fi
+        ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
     params:
@@ -2613,7 +2612,7 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd)
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -2804,6 +2803,7 @@ buildvariants:
   expansions:
     python_binary: 'python'
     is_cmake_build: true
+    test_env_vars: WT_BUILDDIR=$(pwd)
     windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
   tasks:
     - name: compile
@@ -2839,7 +2839,7 @@ buildvariants:
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
-    test_env_vars: DYLD_LIBRARY_PATH=$(pwd)
+    test_env_vars: DYLD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     is_cmake_build: true
   tasks:
     - name: compile
@@ -2907,7 +2907,7 @@ buildvariants:
   run_on:
   - ubuntu1804-power8-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd)
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -2945,7 +2945,7 @@ buildvariants:
   run_on:
   - ubuntu1804-zseries-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd)
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
