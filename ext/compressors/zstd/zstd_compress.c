@@ -259,6 +259,11 @@ zstd_decompress(WT_COMPRESSOR *compressor, WT_SESSION *session, uint8_t *src, si
         return (WT_ERROR);
     }
 
+    /*
+     * This type of context management is useful to avoid repeated context allocation overhead. This
+     * is typically for block compression, for streaming compression, context could be reused over
+     * and over again for performance gains.
+     */
     zstd_get_context(zcompressor, session, CONTEXT_TYPE_DECOMPRESS, &context);
     if (context != NULL) {
         zstd_ret = ZSTD_decompressDCtx(

@@ -20,7 +20,11 @@ __wt_ext_spin_init(WT_EXTENSION_API *wt_api, WT_SESSION *session,
     WT_SESSION_IMPL *default_session;
     WT_SPINLOCK *lock;
 
-    WT_UNUSED(session); /*Unused parameters */
+    /*
+     * Spinlock initialization generally happens during wiredtiger open, which will have only
+     * default session, hence default session is used to cater to all cases.
+     */
+    WT_UNUSED(session); /* Unused parameters */
     ext_spinlock->spinlock = NULL;
     default_session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
     if ((ret = __wt_calloc_one(default_session, &lock)) != 0)
@@ -43,7 +47,7 @@ __wt_ext_spin_lock(
 {
     WT_SPINLOCK *lock;
 
-    WT_UNUSED(wt_api); /*Unused parameters */
+    WT_UNUSED(wt_api); /* Unused parameters */
     lock = ((WT_SPINLOCK *)ext_spinlock->spinlock);
     __wt_spin_lock((WT_SESSION_IMPL *)session, lock);
     return;
@@ -59,7 +63,7 @@ __wt_ext_spin_unlock(
 {
     WT_SPINLOCK *lock;
 
-    WT_UNUSED(wt_api); /*Unused parameters */
+    WT_UNUSED(wt_api); /* Unused parameters */
     lock = ((WT_SPINLOCK *)ext_spinlock->spinlock);
     __wt_spin_unlock((WT_SESSION_IMPL *)session, lock);
     return;
@@ -78,6 +82,7 @@ __wt_ext_spin_destroy(
 
     lock = ((WT_SPINLOCK *)ext_spinlock->spinlock);
 
+    /* Default session is used to comply with the lock initialization. */
     __wt_spin_destroy((WT_SESSION_IMPL *)session, lock);
     default_session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
     __wt_free(default_session, lock);

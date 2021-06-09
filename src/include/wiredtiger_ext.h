@@ -542,6 +542,11 @@ struct __wt_extension_api {
       WT_EXTENSION_API *wt_api, WT_SESSION *session, uint64_t transaction_id);
 
     /*!
+     * @copydoc wiredtiger_version
+     */
+    const char *(*version)(int *majorp, int *minorp, int *patchp);
+
+    /*!
      * Initialize a spinlock
      *
      * @param wt_api the extension handle
@@ -585,11 +590,6 @@ struct __wt_extension_api {
      */
     void (*spin_unlock)(
       WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_EXTENSION_SPINLOCK *spinlock);
-
-    /*!
-     * @copydoc wiredtiger_version
-     */
-    const char *(*version)(int *majorp, int *minorp, int *patchp);
 };
 
 /*!
