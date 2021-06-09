@@ -62,7 +62,6 @@ typedef struct {
     int64_t insert;    /* Insert ratio */
     int64_t modify;    /* Modify ratio */
     int64_t read;      /* Read ratio */
-    int64_t scan;      /* Scan ratio */
     int64_t update;    /* Update ratio */
     uint64_t throttle; /* Maximum operations/second */
                        /* Number of operations per transaction. Zero for autocommit */
@@ -83,9 +82,8 @@ typedef struct {
 #define WORKER_INSERT_RMW 2 /* Insert with read-modify-write */
 #define WORKER_MODIFY 3     /* Modify */
 #define WORKER_READ 4       /* Read */
-#define WORKER_SCAN 5   /* Scan */
-#define WORKER_TRUNCATE 6   /* Truncate */
-#define WORKER_UPDATE 7     /* Update */
+#define WORKER_TRUNCATE 5   /* Truncate */
+#define WORKER_UPDATE 6     /* Update */
     uint8_t ops[100];       /* Operation schedule */
 } WORKLOAD;
 
@@ -149,10 +147,10 @@ struct __wtperf {         /* Per-database structure */
 
     /* State tracking variables. */
     uint64_t ckpt_ops;     /* checkpoint operations */
+    uint64_t scan_ops;     /* scan operations */
     uint64_t insert_ops;   /* insert operations */
     uint64_t modify_ops;   /* modify operations */
     uint64_t read_ops;     /* read operations */
-    uint64_t scan_ops;     /* scan operations */
     uint64_t truncate_ops; /* truncate operations */
     uint64_t update_ops;   /* update operations */
 
