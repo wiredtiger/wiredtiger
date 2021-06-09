@@ -33,7 +33,7 @@ create_test_executable(test_manydbs
 )
 
 
-# If on windows, explicitly run the test under a seperate process, manydbs
+# If on windows, explicitly run the test under a separate process, manydbs
 # has issues running under a ctest process (possibly resource-bound).
 if(WT_WIN)
     add_test(NAME test_manydbs COMMAND powershell.exe $<TARGET_FILE:test_manydbs>)

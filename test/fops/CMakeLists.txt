@@ -35,7 +35,7 @@ create_test_executable(test_fops
         t.c
 )
 
-# If on windows, explicitly run the test under a seperate process, fops
+# If on windows, explicitly run the test under a separate process, fops
 # has issues running under a ctest process (possibly resource-bound).
 if(WT_WIN)
     add_test(NAME test_fops COMMAND powershell.exe $<TARGET_FILE:test_fops>)
