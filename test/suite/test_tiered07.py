@@ -55,7 +55,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
 
     # Test calling schema APIs with a tiered table.
     def test_tiered(self):
-        # Create a new tiered table. 
+        # Create a new tiered table.
         self.session.create(self.uri, 'key_format=S')
 
         # Rename is not supported for tiered tables.
