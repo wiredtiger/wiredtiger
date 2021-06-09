@@ -2843,8 +2843,6 @@ buildvariants:
     is_cmake_build: true
   tasks:
     - name: compile
-      # macos-1012 is a more stable distro that we want to use for our PR testing task
-      distros: macos-1012
     - name: make-check-test
     - name: unit-test-with-compile
 
