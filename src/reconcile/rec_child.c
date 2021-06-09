@@ -61,15 +61,10 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
      * function instantiates an entirely new page.)
      */
     if (ref->addr != NULL && !__wt_page_del_active(session, ref, true)) {
-        /*
-         * Minor memory cleanup: if a truncate call deleted this page and we were ever forced to
-         * instantiate the page in memory, we built a list of updates in the page reference in order
-         * to be able to commit/rollback the truncate. We just passed a global visibility test,
-         * discard the update list.
-         */
-        __wt_page_del_free(session, ref);
-
         WT_RET(__wt_ref_block_free(session, ref));
+
+        /* Any fast-truncate structure can be freed as soon as the delete is stable. */
+        __wt_page_del_free(session, ref);
     }
 
     /*

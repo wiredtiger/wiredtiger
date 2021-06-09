@@ -608,7 +608,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
         }
     }
 
-    /* The page-delete memory wasn't added to the parent's footprint, just free it. */
+    /* Free any backing fast-truncate memory. */
     __wt_page_del_free(session, ref);
 
     /* Free the backing block and address. */

@@ -1479,6 +1479,8 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 
     if ((page_del = ref->page_del) == NULL)
         return (false);
+
+    WT_ASSERT(session, ref->state == WT_REF_LOCKED);
     if (page_del->txnid == WT_TXN_ABORTED)
         return (false);
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
@@ -1664,13 +1666,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     page = ref->page;
     mod = page->modify;
 
+    /* Never modified pages can always be evicted. */
+    if (mod == NULL)
+        return (true);
+
     /* Don't attempt to evict fast-truncate pages until the truncate completes. */
     if (ref->page_del != NULL && ref->page_del->resolved == 0)
         return (false);
-
-    /* Otherwise, never modified pages can always be evicted. */
-    if (mod == NULL)
-        return (true);
 
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an
