@@ -1628,8 +1628,10 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     /*
-     * Resolve any fast-truncate transactions, allowing eviction to proceed. Not done as part of the
-     * initial processing because until now, the commit could switch to an abort.
+     * Resolve any fast-truncate transactions, allowing eviction to proceed. This isn't done as part
+     * of the initial processing because until now, the commit could switch to an abort. It would be
+     * good to discard any WT_UPDATE list as well, but that would require locking the WT_REF and it
+     * isn't worth it, when the page is reconciled that memory will be discarded.
      */
     if (ft_resolution)
         for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)

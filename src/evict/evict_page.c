@@ -185,8 +185,10 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     clean_page = __wt_page_evict_clean(page);
 
     /*
-     * Discard all page-deleted information. If a truncate call deleted this page, there's memory
-     * associated with it we no longer need, eviction will have built a new version of the page.
+     * Discard all page-deleted information. Eviction won't select a fast-truncate page unless it
+     * was instantiated in memory (which means we no longer need the WT_PAGE_DELETED structure), and
+     * unless the fast-truncate transaction is resolved (which means we no longer need the list of
+     * WT_UPDATE structures). Throw it all away.
      */
     __wt_page_del_free(session, ref);
 

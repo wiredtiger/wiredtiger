@@ -63,7 +63,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
     if (ref->addr != NULL && !__wt_page_del_active(session, ref, true)) {
         WT_RET(__wt_ref_block_free(session, ref));
 
-        /* Any fast-truncate structure can be freed as soon as the delete is stable. */
+        /* Any fast-truncate information can be freed as soon as the delete is stable. */
         __wt_page_del_free(session, ref);
     }
 

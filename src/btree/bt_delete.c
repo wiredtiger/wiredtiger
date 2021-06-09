@@ -93,9 +93,8 @@ __wt_delete_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
         return (0);
 
     /*
-     * If this page was previously part of an aborted truncate operation, there may be existing
-     * page-delete information. The structure is only read while the state is locked, free the
-     * previous version.
+     * There may be existing page-delete information if this page was previously part of a truncate
+     * operation, discard it.
      */
     __wt_page_del_free(session, ref);
 
@@ -197,8 +196,8 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
             (*updp)->txnid = WT_TXN_ABORTED;
 
     /*
-     * Note we did not set the page-deleted transaction ID to aborted or set the resolved flag;
-     * instead, we simply discard the structures entirely, it has the same effect.
+     * We did not set the page-deleted transaction ID to aborted or set the resolved flag; instead,
+     * we just discard the structures entirely, it has the same effect.
      */
     __wt_page_del_free(session, ref);
 
