@@ -370,6 +370,11 @@ table_changes(WT_SESSION *session, TABLE *table)
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
+
+            /*
+             * _OPERATION_TYPE_COUNT has to be handled in switch to satisfy code analysis checks.
+             * For that reason "less or equal" operator is used in condition of the assert below.
+             */
             testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
             switch (op_type) {
             case INSERT:
@@ -686,6 +691,11 @@ check_table(WT_SESSION *session, TABLE *table)
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
+
+    /*
+     * _OPERATION_TYPE_COUNT has to be handled in switch to satisfy code analysis checks.
+     * For that reason "less or equal" operator is used in condition of the assert below.
+     */
     testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
     switch (op_type) {
     case INSERT:
