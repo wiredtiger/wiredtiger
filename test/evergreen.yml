@@ -66,8 +66,8 @@ functions:
             . test/evergreen/find_cmake.sh
             mkdir -p cmake_build
             cd cmake_build
-            $CMAKE ${configure_env_vars|-DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb"} \
-            ${posix_configure_flags|-DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
+            $CMAKE \
+            ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
           fi
         elif [ "$OS" != "Windows_NT" ]; then
           # Compiling with Autoconf/Libtool.
@@ -2614,7 +2614,7 @@ buildvariants:
   - ubuntu1804-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd)
-    posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
@@ -2834,8 +2834,7 @@ buildvariants:
   run_on:
   - macos-1014
   expansions:
-    configure_env_vars: -DCMAKE_C_FLAGS="-ggdb"
-    posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags: -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: 'python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
@@ -2909,7 +2908,7 @@ buildvariants:
   - ubuntu1804-power8-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd)
-    posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
@@ -2947,7 +2946,7 @@ buildvariants:
   - ubuntu1804-zseries-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd)
-    posix_configure_flags: -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
