@@ -607,7 +607,7 @@ err:
         __wt_evict_file_exclusive_off(session);
 
         /*
-         * We want to close the Btree for an object that lives in the local directory. It will be
+         * We want to close the Btree for an object that lives in the local directory. It will
          * actually be part of the corresponding tiered Btree.
          *
          * TODO: tiered: need a flag in the dhandle to indicate it's a file and an object.

@@ -27,7 +27,10 @@ __tiered_dhandle_setup(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t i, 
         else if (type == WT_DHANDLE_TYPE_TIERED)
             id = WT_TIERED_INDEX_LOCAL;
         else if (type == WT_DHANDLE_TYPE_TIERED_TREE)
-            /* Nothing to do for this type. */
+            /*
+             * FIXME-WT-7538: this type can be removed. For now, there is nothing to do for this
+             * type.
+             */
             goto err;
         else
             WT_ERR_MSG(
@@ -101,8 +104,7 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     const char *cfg[4] = {NULL, NULL, NULL, NULL};
     const char *config, *name;
 
-    config = NULL;
-    name = NULL;
+    config = name = NULL;
 
     /* If this ever can be multi-threaded, this would need to be atomic. */
     tiered->current_id = tiered->next_id++;
@@ -119,8 +121,8 @@ __tiered_create_local(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     WT_ERR(__wt_config_merge(session, cfg, NULL, (const char **)&config));
 
     /*
-     * Remove any checkpoint entry from the configuration. The local file we are newly creating does
-     * have any checkpoints.
+     * Remove any checkpoint entry from the configuration. The local file we are now creating is
+     * empty and does not have any checkpoints.
      */
     WT_ERR(__wt_scr_alloc(session, 1024, &build));
     __wt_config_init(session, &cparser, config);
