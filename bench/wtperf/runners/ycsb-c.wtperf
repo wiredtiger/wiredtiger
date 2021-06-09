@@ -1,5 +1,4 @@
 conn_config="cache_size=40G,log=(enabled=true)"
-#compression="snappy"
 pareto=20
 table_config="type=file"
 key_sz=100

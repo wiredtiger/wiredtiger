@@ -1,10 +1,9 @@
 conn_config="cache_size=40G,log=(enabled=true)"
-compression="snappy"
 pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
-icount=240000000
+icount=120000000
 run_time=3600
 threads=((count=20,reads=95,updates=5))
 warmup=120
