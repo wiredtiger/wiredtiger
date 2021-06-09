@@ -1251,21 +1251,27 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
+    WT_CONNECTION_IMPL *conn;
 #ifdef HAVE_DIAGNOSTIC
     wt_timestamp_t op_ts;
 #endif
     wt_timestamp_t prev_op_durable_ts, prev_op_ts;
     u_int i;
     bool op_zero_ts, upd_zero_ts, used_ts;
+    bool recovery_conn;
 
     txn = session->txn;
     cursor = NULL;
+    conn = S2C(session);
 
     used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
+    recovery_conn = F_ISSET(conn, WT_CONN_RECOVERING);
     /*
      * Debugging checks on timestamps, if user requested them.
+     * We additionally don't expect recovery to be using timestamps when applying commits. If
+     * recovery is running, skip this assert to avoid failing the recovery process.
      */
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0)
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0 && !recovery_conn)
         WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
     if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
         WT_RET_MSG(
