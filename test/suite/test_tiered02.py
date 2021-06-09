@@ -90,8 +90,11 @@ class test_tiered02(wttest.WiredTigerTestCase):
         ds.check()
         self.progress('checkpoint')
         self.session.checkpoint()
+
+        # We need to use sync=on because we check immediately
+        # to see that the files have arrived.
         self.progress('flush_tier')
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=on')
         self.confirm_flush()
         ds.check()
 
@@ -111,7 +114,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         self.progress('flush_tier')
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=on')
         self.progress('flush_tier complete')
         self.confirm_flush()
 
@@ -123,7 +126,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('checkpoint')
         self.session.checkpoint()
         self.progress('flush_tier')
-        self.session.flush_tier(None)
+        self.session.flush_tier('sync=on')
         self.confirm_flush()
 
         self.progress('Create simple data set (200)')
