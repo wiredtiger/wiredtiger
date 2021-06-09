@@ -1435,7 +1435,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool locked, prepare, readonly, update_durable_ts;
+    bool ft_resolution, locked, prepare, readonly, update_durable_ts;
 
     txn = session->txn;
     conn = S2C(session);
@@ -1444,7 +1444,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
 #endif
-    locked = false;
+    ft_resolution = locked = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
 
@@ -1607,8 +1607,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
+            ft_resolution = true;
             __wt_txn_op_set_timestamp(session, op);
-            op->u.ref->page_del->resolved = 1;
             break;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
@@ -1621,16 +1621,26 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         if (cursor != NULL)
             WT_CLEAR(cursor->key);
     }
-    txn->mod_count = 0;
-#ifdef HAVE_DIAGNOSTIC
-    WT_ASSERT(session, txn->prepare_count == prepare_count);
-    txn->prepare_count = 0;
-#endif
 
     if (cursor != NULL) {
         WT_ERR(cursor->close(cursor));
         cursor = NULL;
     }
+
+    /*
+     * Resolve any fast-truncate transactions, allowing eviction to proceed. Not done as part of the
+     * initial processing because until now, the commit could switch to an abort.
+     */
+    if (ft_resolution)
+        for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
+            if (op->type == WT_TXN_OP_REF_DELETE)
+                op->u.ref->page_del->resolved = 1;
+
+    txn->mod_count = 0;
+#ifdef HAVE_DIAGNOSTIC
+    WT_ASSERT(session, txn->prepare_count == prepare_count);
+    txn->prepare_count = 0;
+#endif
 
     /*
      * If durable is set, we'll try to update the global durable timestamp with that value. If
