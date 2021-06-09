@@ -771,6 +771,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cache = conn->cache;
     config = NULL;
+    hs_size = 0;
     hs_dhandle = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
