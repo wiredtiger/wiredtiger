@@ -236,9 +236,9 @@ __wt_delete_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     skip = !__wt_page_del_active(session, ref, visible_all);
 
     /*
-     * The page_del structure can be freed as soon as the delete is stable: it is only read when the
-     * ref state is locked. It is worth checking every time we come through because once this is
-     * freed, we no longer need synchronization to check the ref.
+     * The fast-truncate structure can be freed as soon as the delete is stable: it is only read
+     * when the ref state is locked. It is worth checking every time we come through because once
+     * this is freed, we no longer need synchronization to check the ref.
      */
     if (skip && ref->page_del != NULL &&
       (visible_all ||
@@ -290,15 +290,14 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_PAGE_DELETED *page_del;
     WT_ROW *rip;
     WT_TIME_WINDOW tw;
-    WT_UPDATE **upd_array, *upd;
+    WT_UPDATE **upd_array, **update_list, *upd;
     size_t size, total_size;
     uint32_t count, i;
-    bool txn_active;
 
     btree = S2BT(session);
     page = ref->page;
     page_del = NULL;
-    total_size = 0;
+    update_list = NULL;
 
     WT_STAT_CONN_DATA_INCR(session, cache_read_deleted);
 
@@ -346,8 +345,7 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
      * other pages.
      */
     page_del = __wt_page_del_active(session, ref, true) ? ref->page_del : NULL;
-    txn_active = page_del != NULL && page_del->resolved == 0;
-    if (txn_active) {
+    if (page_del != NULL && page_del->resolved == 0) {
         count = 0;
         if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
             WT_SKIP_FOREACH (ins, insert)
@@ -358,12 +356,11 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                 WT_SKIP_FOREACH (ins, insert)
                     ++count;
         }
-        WT_RET(__wt_calloc_def(session, count + 1, &page_del->update_list));
-        total_size += (count + 1) * sizeof(page_del->update_list);
+        WT_RET(__wt_calloc_def(session, count + 1, &update_list));
     }
 
     /* Walk the page entries, giving each one a tombstone. */
-    size = 0;
+    total_size = size = 0;
     count = 0;
     upd_array = page->modify->mod_row_update;
     if ((insert = WT_ROW_INSERT_SMALLEST(page)) != NULL)
@@ -373,8 +370,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->next = ins->upd;
             ins->upd = upd;
 
-            if (txn_active)
-                page_del->update_list[count++] = upd;
+            if (update_list != NULL)
+                update_list[count++] = upd;
         }
     WT_ROW_FOREACH (page, rip, i) {
         /*
@@ -388,8 +385,8 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
             upd->next = upd_array[WT_ROW_SLOT(page, rip)];
             upd_array[WT_ROW_SLOT(page, rip)] = upd;
 
-            if (txn_active)
-                page_del->update_list[count++] = upd;
+            if (update_list != NULL)
+                update_list[count++] = upd;
 
             if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
                 WT_SKIP_FOREACH (ins, insert) {
@@ -398,23 +395,19 @@ __wt_delete_page_instantiate(WT_SESSION_IMPL *session, WT_REF *ref)
                     upd->next = ins->upd;
                     ins->upd = upd;
 
-                    if (txn_active)
-                        page_del->update_list[count++] = upd;
+                    if (update_list != NULL)
+                        update_list[count++] = upd;
                 }
         }
     }
-
     __wt_cache_page_inmem_incr(session, page, total_size);
+
+    if (page_del != NULL)
+        ref->page_del->update_list = update_list;
 
     return (0);
 
 err:
-    /*
-     * The page-delete update structure may have existed before we were called, and presumably might
-     * be in use by a running transaction. The list of update structures cannot have been created
-     * before we were called, and should not exist if we exit with an error.
-     */
-    if (page_del != NULL)
-        __wt_free(session, page_del->update_list);
+    __wt_free(session, update_list);
     return (ret);
 }
