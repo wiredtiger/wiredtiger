@@ -2608,7 +2608,7 @@ buildvariants:
     - name: format-failure-configs-test
 
 - name: ubuntu1804-cmake
-  display_name: "# Ubuntu 18.04 CMake"
+  display_name: "* Ubuntu 18.04 CMake"
   run_on:
   - ubuntu1804-test
   expansions:
@@ -2797,7 +2797,7 @@ buildvariants:
     - name: fops
 
 - name: windows-64-cmake
-  display_name: "# Windows 64-bit CMake"
+  display_name: "* Windows 64-bit CMake"
   run_on:
   - windows-64-vs2017-test
   expansions:
@@ -2830,7 +2830,7 @@ buildvariants:
     - name: fops
 
 - name: macos-1014-cmake
-  display_name: "# OS X 10.14 CMake"
+  display_name: "* OS X 10.14 CMake"
   run_on:
   - macos-1014
   expansions:
@@ -2901,7 +2901,7 @@ buildvariants:
   - name: ".stress-test-ppc-2"
 
 - name: ubuntu1804-ppc-cmake
-  display_name: "# Ubuntu 18.04 PPC CMake"
+  display_name: "* Ubuntu 18.04 PPC CMake"
   run_on:
   - ubuntu1804-power8-test
   expansions:
@@ -2939,7 +2939,7 @@ buildvariants:
   - name: ".stress-test-zseries-3"
 
 - name: ubuntu1804-zseries-cmake
-  display_name: "# Ubuntu 18.04 zSeries CMake"
+  display_name: "* Ubuntu 18.04 zSeries CMake"
   run_on:
   - ubuntu1804-zseries-test
   expansions:
