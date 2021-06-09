@@ -146,7 +146,7 @@ zstd_get_context(
 
 /*
  * zstd_release_context --
- *     WiredTiger Zstd release context back to context pool.
+ *     WiredTiger Zstd release a context back to context pool.
  */
 static void
 zstd_release_context(
