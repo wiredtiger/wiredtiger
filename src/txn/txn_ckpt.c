@@ -750,8 +750,10 @@ static int
 __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 {
     struct timespec tsp;
+    WT_BTREE *hs_btree;
     WT_CACHE *cache;
     WT_CONNECTION_IMPL *conn;
+    WT_CURSOR *hs_cursor, *metac;
     WT_DATA_HANDLE *hs_dhandle;
     WT_DECL_RET;
     WT_TXN *txn;
@@ -759,14 +761,16 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
+    uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs, max_hs_size;
     uint64_t time_start_fsync, time_stop_fsync, time_start_hs, time_stop_hs;
     u_int i;
-    bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
+    bool can_skip, failed, full, hs_exists, idle, logging, tracking, use_timestamp;
+    char *config;
     void *saved_meta_next;
 
     conn = S2C(session);
     cache = conn->cache;
+    config = NULL;
     hs_dhandle = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
@@ -914,8 +918,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
          * increment it here to ensure that the visibility checks performed on updates in the
          * history store do not include the checkpoint transaction.
          */
-        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
-        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
         __checkpoint_update_generation(session);
 
         time_stop_hs = __wt_clock(session);
@@ -960,6 +962,33 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
 
     __checkpoint_verbose_track(session, "sync completed");
 
+    /* If the history store file exists on disk, update its statistic. */
+    WT_ERR(__wt_metadata_search(session, WT_METAFILE_URI, &config));
+    WT_ERR(__wt_metadata_cursor_open(session, NULL, &metac));
+    metac->set_key(metac, WT_HS_URI);
+    WT_ERR_NOTFOUND_OK(metac->search(metac), true);
+
+    if (ret == WT_NOTFOUND) {
+        hs_exists = false;
+        ret = 0;
+    } else {
+        WT_ERR(__wt_fs_exist(session, WT_HS_FILE, &hs_exists));
+
+        WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+        WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
+    }
+
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
+    max_hs_size = hs_btree->file_max;
+    if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
+        WT_ERR_PANIC(session, WT_PANIC,
+          "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
+          max_hs_size);
+
+    WT_ERR(hs_cursor->close(hs_cursor));
+    WT_ERR(metac->close(metac));
+     
     /*
      * Commit the transaction now that we are sure that all files in the checkpoint have been
      * flushed to disk. It's OK to commit before checkpointing the metadata since we know that all
