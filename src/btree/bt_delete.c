@@ -145,7 +145,7 @@ err:
 
 /*
  * __wt_delete_page_rollback --
- *     Abort pages that were deleted without being instantiated.
+ *     Abort fast-truncate operations.
  */
 int
 __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
@@ -183,14 +183,12 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
     }
 
     /*
-     * If the page is still "deleted", it's as we left it, all we have to do is reset the state.
-     *
-     * We can't use the normal read path to get a copy of the page because the session may have
-     * closed the cursor, we no longer have the reference to the tree required for a hazard pointer.
-     * We're safe because with unresolved transactions, the page isn't going anywhere.
-     *
-     * The page is in an in-memory state, which means it was instantiated at some point. Walk any
-     * list of update structures and abort them.
+     * If the page is still "deleted", it's as we left it, simply reset the state. Otherwise, the
+     * page is in an in-memory state, which means it was instantiated at some point. Walk any list
+     * of update structures and abort them. We can't use the normal read path to get the pages with
+     * updates (the original page may have split, so there many be more than one page), because the
+     * session may have closed the cursor, we no longer have the reference to the tree required for
+     * a hazard pointer. We're safe since pages with unresolved transactions aren't going anywhere.
      */
     if (current_state == WT_REF_DELETED)
         current_state = ref->page_del->previous_state;
@@ -198,9 +196,11 @@ __wt_delete_page_rollback(WT_SESSION_IMPL *session, WT_REF *ref)
         for (; *updp != NULL; ++updp)
             (*updp)->txnid = WT_TXN_ABORTED;
 
-    /* Mark the truncate aborted and resolved.*/
-    ref->page_del->txnid = WT_TXN_ABORTED;
-    ref->page_del->resolved = 1;
+    /*
+     * Note we did not set the page-deleted transaction ID to aborted or set the resolved flag;
+     * instead, we simply discard the structures entirely, it has the same effect.
+     */
+    __wt_page_del_free(session, ref);
 
     WT_REF_SET_STATE(ref, current_state);
     return (0);
