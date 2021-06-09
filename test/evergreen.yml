@@ -2622,7 +2622,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: ".unit_test"
+    - name: unit-test
 
 - name: ubuntu1804-asan
   display_name: "! Ubuntu 18.04 ASAN"
@@ -2808,7 +2808,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: ".unit_test"
+    - name: unit-test
 
 - name: macos-1014
   display_name: OS X 10.14
@@ -2844,7 +2844,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: unit-test-with-compile
+    - name: unit-test
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
@@ -2915,7 +2915,7 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: ".unit_test"
+    - name: unit-test
 
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
@@ -2953,4 +2953,4 @@ buildvariants:
   tasks:
     - name: compile
     - name: make-check-test
-    - name: ".unit_test"
+    - name: unit-test
