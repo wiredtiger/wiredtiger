@@ -251,10 +251,7 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
 
     txn = session->txn;
 
-    /*
-     * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
-     * with a page instantiate.
-     */
+    /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
 
     if (commit) {
@@ -264,20 +261,27 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
         ts = txn->prepare_timestamp;
         prepare_state = WT_PREPARE_INPROGRESS;
     }
-    for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
-        (*updp)->start_ts = ts;
-        /*
-         * Holding the ref locked means we have exclusive access, so if we are committing we don't
-         * need to use the prepare locked transition state.
-         */
-        (*updp)->prepare_state = prepare_state;
+
+    /*
+     * Timestamps and prepare state are in the page deleted structure for truncates, or in the
+     * updates in the case of instantiated pages.
+     */
+    if (previous_state == WT_REF_DELETED) {
+        ref->page_del->timestamp = ts;
         if (commit)
-            (*updp)->durable_ts = txn->durable_timestamp;
-    }
-    ref->page_del->timestamp = ts;
-    if (commit)
-        ref->page_del->durable_timestamp = txn->durable_timestamp;
-    WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
+            ref->page_del->durable_timestamp = txn->durable_timestamp;
+        WT_PUBLISH(ref->page_del->prepare_state, prepare_state);
+    } else if ((updp = ref->page_del->update_list) != NULL)
+        for (; *updp != NULL; ++updp) {
+            (*updp)->start_ts = ts;
+            /*
+             * Holding the ref locked means we have exclusive access, so if we are committing we
+             * don't need to use the prepare locked transition state.
+             */
+            (*updp)->prepare_state = prepare_state;
+            if (commit)
+                (*updp)->durable_ts = txn->durable_timestamp;
+        }
 
     WT_REF_UNLOCK(ref, previous_state);
 }
@@ -291,20 +295,32 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
+    wt_timestamp_t *timestamp;
     uint8_t previous_state;
 
     txn = session->txn;
 
-    /*
-     * Lock the ref to ensure we don't race with eviction freeing the page deleted update list or
-     * with a page instantiate.
-     */
+    /* Lock the ref to ensure we don't race with page instantiation. */
     WT_REF_LOCK(session, ref, &previous_state);
 
-    for (updp = ref->page_del->update_list; updp != NULL && *updp != NULL; ++updp) {
-        (*updp)->start_ts = txn->commit_timestamp;
-        (*updp)->durable_ts = txn->durable_timestamp;
-    }
+    /*
+     * Timestamps are in the page deleted structure for truncates, or in the updates in the case of
+     * instantiated pages. Both commit and durable timestamps need to be updated.
+     */
+    if (previous_state == WT_REF_DELETED) {
+        timestamp = &ref->page_del->timestamp;
+        if (*timestamp == WT_TS_NONE) {
+            *timestamp = txn->commit_timestamp;
+
+            timestamp = &ref->page_del->durable_timestamp;
+            *timestamp = txn->durable_timestamp;
+        }
+        ref->page_del->resolved = 1;
+    } else if ((updp = ref->page_del->update_list) != NULL)
+        for (; *updp != NULL; ++updp) {
+            (*updp)->start_ts = txn->commit_timestamp;
+            (*updp)->durable_ts = txn->durable_timestamp;
+        }
 
     WT_REF_UNLOCK(ref, previous_state);
 }
@@ -345,22 +361,22 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
             __txn_resolve_prepared_update(session, upd);
         }
     } else {
-        /*
-         * The timestamp is in the page deleted structure for truncates, or in the update for other
-         * operations. Both commit and durable timestamps need to be updated.
-         */
-        timestamp = op->type == WT_TXN_OP_REF_DELETE ? &op->u.ref->page_del->timestamp :
-                                                       &op->u.op_upd->start_ts;
-        if (*timestamp == WT_TS_NONE) {
-            *timestamp = txn->commit_timestamp;
-
-            timestamp = op->type == WT_TXN_OP_REF_DELETE ? &op->u.ref->page_del->durable_timestamp :
-                                                           &op->u.op_upd->durable_ts;
-            *timestamp = txn->durable_timestamp;
-        }
-
         if (op->type == WT_TXN_OP_REF_DELETE)
             __wt_txn_op_delete_commit_apply_timestamps(session, op->u.ref);
+        else {
+            /*
+             * The timestamp is in the update for operations other than truncate. Both commit and
+             * durable timestamps need to be updated.
+             */
+            upd = op->u.op_upd;
+            timestamp = &upd->start_ts;
+            if (*timestamp == WT_TS_NONE) {
+                *timestamp = txn->commit_timestamp;
+
+                timestamp = &upd->durable_ts;
+                *timestamp = txn->durable_timestamp;
+            }
+        }
     }
 }
 
@@ -421,8 +437,9 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
 
     WT_RET(__txn_next_op(session, &op));
     op->type = WT_TXN_OP_REF_DELETE;
-
     op->u.ref = ref;
+
+    /* This access to the WT_PAGE_DELETED structure is safe, caller has the WT_REF locked. */
     ref->page_del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
