@@ -1611,8 +1611,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_REF_DELETE:
             /*
              * Fast-truncate operations are resolved in a second pass after failure is no longer
-	     * possible.
-	     */
+             * possible.
+             */
             ++ft_resolution;
             continue;
         case WT_TXN_OP_TRUNCATE_COL:

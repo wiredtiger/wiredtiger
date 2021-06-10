@@ -315,7 +315,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
             timestamp = &ref->page_del->durable_timestamp;
             *timestamp = txn->durable_timestamp;
         }
-        ref->page_del->resolved = 1;
     } else if ((updp = ref->page_del->update_list) != NULL)
         for (; *updp != NULL; ++updp) {
             (*updp)->start_ts = txn->commit_timestamp;
