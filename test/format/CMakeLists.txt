@@ -55,5 +55,17 @@ create_test_executable(test_format
     ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
+if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
+    target_compile_options(test_format PRIVATE -DLZ4_PATH=\"$<TARGET_FILE:wiredtiger_lz4>\")
+endif()
+if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
+    target_compile_options(test_format PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
+endif()
+if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
+    target_compile_options(test_format PRIVATE -DZLIB_PATH=\"$<TARGET_FILE:wiredtiger_zlib>\")
+endif()
+target_compile_options(test_format PRIVATE -DREVERSE_PATH=\"$<TARGET_FILE:wiredtiger_reverse_collator>\")
+target_compile_options(test_format PRIVATE -DROTN_PATH=\"$<TARGET_FILE:wiredtiger_rotn_encrypt>\")
+
 add_test(NAME test_format COMMAND ${CMAKE_CURRENT_BINARY_DIR}/smoke.sh)
 set_tests_properties(test_format PROPERTIES LABELS "check")
