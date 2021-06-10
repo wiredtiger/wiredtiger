@@ -151,7 +151,7 @@ class database {
     std::string
     build_collection_name(const uint64_t id)
     {
-        return std::string("table:collection_" + std::to_string(id));
+        return (std::string("table:collection_" + std::to_string(id)));
     }
 
     volatile uint64_t _collection_count = 0;
