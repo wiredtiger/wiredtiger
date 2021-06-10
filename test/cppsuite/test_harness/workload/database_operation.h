@@ -253,14 +253,15 @@ class database_operation {
             collection_id = random_generator::instance().generate_integer<uint64_t>(
               0, tc->database.get_collection_count() - 1);
             if (collections.find(collection_id) == collections.end()) {
-                /* Retrieve the newly created collection, open a cursor and add it to the map. */
+                /* Retrieve the collection name associated with our id. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
                 debug_print("Thread {" + std::to_string(tc->id) +
                     "} Creating cursor for collection: " + collection_name,
                   DEBUG_TRACE);
-
                 collections.emplace(
                   collection_id, collection_cursors{collection_name, nullptr, nullptr});
+
+                /* Open a random cursor for that collection. */
                 tc->session->open_cursor(
                   tc->session, collection_name.c_str(), nullptr, "next_random=true", &cursor);
                 collections[collection_id].random_cursor = cursor;

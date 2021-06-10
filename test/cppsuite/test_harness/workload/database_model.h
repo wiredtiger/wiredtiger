@@ -29,6 +29,7 @@
 #ifndef DATABASE_MODEL_H
 #define DATABASE_MODEL_H
 
+#include <atomic>
 #include <map>
 #include <string>
 
@@ -58,27 +59,26 @@ class database {
     public:
     /*
      * Add a new collection following the standard naming pattern. Currently this is the only way to
-     * add collections which is supported by all components, go outside of this model at your own
-     * peril.
+     * add collections which is supported by all components.
      */
     std::string
     add_collection()
     {
         std::lock_guard<std::mutex> lg(_mtx);
-        std::string collection_name = build_collection_name(_collection_count);
-        testutil_assert(_collections.find(collection_name) == _collections.end());
+        std::string collection_name = build_collection_name(_next_collection_id);
         _collections[collection_name] = {};
-        ++_collection_count;
+        ++_next_collection_id;
         return (collection_name);
     }
 
     /*
-     * A not locked way to retrieve the current collection count, may return stale data.
+     * Retrieve the current collection count, collection names are indexed from 0 so when using this
+     * take care to avoid an off by one error.
      */
     uint64_t
     get_collection_count() const
     {
-        return (_collection_count);
+        return (_next_collection_id);
     }
 
     /*
@@ -87,7 +87,7 @@ class database {
     std::string
     get_collection_name(uint64_t id)
     {
-        if (_collection_count <= id)
+        if (_next_collection_id <= id)
             testutil_die(id, "requested the id, %lu, of a collection that doesn't exist", id);
         return (build_collection_name(id));
     }
@@ -147,14 +147,14 @@ class database {
     }
 
     private:
-    /* Take a const id, not a reference as we're copying in a volatile. */
+    /* Take a const id, not a reference as we're copying in an atomic. */
     std::string
     build_collection_name(const uint64_t id)
     {
         return (std::string("table:collection_" + std::to_string(id)));
     }
-
-    volatile uint64_t _collection_count = 0;
+    /* This will initialize to 0 automatically. */
+    std::atomic<uint64_t> _next_collection_id;
     std::map<std::string, collection_t> _collections;
     std::mutex _mtx;
 };
