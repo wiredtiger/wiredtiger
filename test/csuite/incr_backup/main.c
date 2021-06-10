@@ -110,7 +110,9 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * The choices of operations we do to each table.
+ * The choices of operations we do to each table. Please do not initialize enum elements with custom
+ * values as there's an assumption that the first element has the default value of 0 and the last
+ * element is always reserved to check count on elements.
  */
 typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION_TYPE;
 
@@ -372,10 +374,12 @@ table_changes(WT_SESSION *session, TABLE *table)
             cur->set_key(cur, key);
 
             /*
-             * _OPERATION_TYPE_COUNT has to be handled in switch to satisfy code analysis checks.
+             * All elements of the enum has to be handled in switch to satisfy code analysis checks.
              * For that reason "less or equal" operator is used in condition of the assert below.
+             * Checking lower boundary against 0 since this is the default value of the first
+             * element in any enum.
              */
-            testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
+            testutil_assert(op_type >= 0 && op_type <= _OPERATION_TYPE_COUNT);
             switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
@@ -693,10 +697,11 @@ check_table(WT_SESSION *session, TABLE *table)
     VERBOSE(3, "Checking: %s\n", table->name);
 
     /*
-     * _OPERATION_TYPE_COUNT has to be handled in switch to satisfy code analysis checks.
-     * For that reason "less or equal" operator is used in condition of the assert below.
+     * All elements of the enum has to be handled in switch to satisfy code analysis checks. For
+     * that reason "less or equal" operator is used in condition of the assert below. Checking lower
+     * boundary against 0 since this is the default value of the first element in any enum.
      */
-    testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
+    testutil_assert(op_type >= 0 && op_type <= _OPERATION_TYPE_COUNT);
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % KEYS_PER_TABLE;
