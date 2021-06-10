@@ -1431,20 +1431,21 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
     uint32_t fileid;
-    u_int i;
+    uint8_t previous_state;
+    u_int i, ft_resolution;
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
-    bool ft_resolution, locked, prepare, readonly, update_durable_ts;
+    bool locked, prepare, readonly, update_durable_ts;
 
-    txn = session->txn;
     conn = S2C(session);
     cursor = NULL;
+    txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
 #endif
-    ft_resolution = locked = false;
+    locked = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
 
@@ -1564,6 +1565,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Note: we're going to commit: nothing can fail after this point. */
 
     /* Process and free updates. */
+    ft_resolution = 0;
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
         fileid = op->btree->id;
         switch (op->type) {
@@ -1607,9 +1609,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
             }
             break;
         case WT_TXN_OP_REF_DELETE:
-            ft_resolution = true;
-            __wt_txn_op_set_timestamp(session, op);
-            break;
+            /*
+             * Fast-truncate operations are resolved in a second pass after failure is no longer
+	     * possible.
+	     */
+            ++ft_resolution;
+            continue;
         case WT_TXN_OP_TRUNCATE_COL:
         case WT_TXN_OP_TRUNCATE_ROW:
             /* Other operations don't need timestamps. */
@@ -1629,14 +1634,24 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Resolve any fast-truncate transactions, allowing eviction to proceed. This isn't done as part
-     * of the initial processing because until now, the commit could switch to an abort. It would be
-     * good to discard any WT_UPDATE list as well, but that would require locking the WT_REF and it
-     * isn't worth it, when the page is reconciled that memory will be discarded.
+     * of the initial processing because until now the commit could still switch to an abort.
      */
-    if (ft_resolution)
-        for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++)
-            if (op->type == WT_TXN_OP_REF_DELETE)
+    for (i = 0, op = txn->mod; ft_resolution > 0 && i < txn->mod_count; i++, op++)
+        if (op->type == WT_TXN_OP_REF_DELETE) {
+            __wt_txn_op_set_timestamp(session, op);
+
+            WT_REF_LOCK(session, op->u.ref, &previous_state);
+            if (op->u.ref->page_del != NULL) {
                 op->u.ref->page_del->resolved = 1;
+                __wt_free(session, op->u.ref->page_del->update_list);
+            }
+            WT_REF_UNLOCK(op->u.ref, previous_state);
+
+            __wt_txn_op_free(session, op);
+
+            --ft_resolution;
+        }
+    WT_ASSERT(session, ft_resolution == 0);
 
     txn->mod_count = 0;
 #ifdef HAVE_DIAGNOSTIC
