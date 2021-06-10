@@ -429,14 +429,16 @@ err:
  *     the keys we see are always in order.
  */
 static int
-do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
+do_range_reads(WTPERF_THREAD *thread, WT_CURSOR *cursor, int64_t read_range)
 {
-    uint64_t next_val, prev_val;
+    WTPERF *wtperf;
+    uint64_t rand_range, next_val, prev_val;
     int64_t range;
     char *range_key_buf;
     char buf[512];
     int ret;
 
+    wtperf = thread->wtperf;
     ret = 0;
 
     if (read_range == 0)
@@ -448,6 +450,19 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
     /* Save where the first key is for comparisons. */
     testutil_check(cursor->get_key(cursor, &range_key_buf));
     extract_key(range_key_buf, &next_val);
+
+    /*
+     * If an option tells us to randomly select the number of
+     * values to read in a range, we use the value of read_range
+     * as the upper bound on the number of values to read.
+     * YCSB-E stipulates that we use a uniform random distribution
+     * for the number of values, so we do not use the wtperf random
+     * routine, which may take us to Pareto.
+     */
+    if (wtperf->opts->read_range_random) {
+	rand_range = __wt_random(&thread->rnd) % read_range;
+	read_range = rand_range;
+    }
 
     for (range = 0; range < read_range; ++range) {
         prev_val = next_val;
@@ -674,7 +689,7 @@ worker(void *arg)
                  * If we want to read a range, then call next for several operations, confirming
                  * that the next key is in the correct order.
                  */
-                ret = do_range_reads(wtperf, cursor, workload->read_range);
+                ret = do_range_reads(thread, cursor, workload->read_range);
             }
 
             if (ret == 0 || ret == WT_NOTFOUND)
@@ -996,6 +1011,8 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
     int64_t pct;
 
     opts = wtperf->opts;
+
+    workp->read_range = opts->read_range;
 
     if (workp->truncate != 0) {
         if (workp->insert != 0 || workp->modify != 0 || workp->read != 0 || workp->update != 0) {
