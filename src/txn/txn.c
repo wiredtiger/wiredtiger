@@ -1634,17 +1634,16 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     /*
      * Resolve any fast-truncate transactions, allowing eviction to proceed. This isn't done as part
-     * of the initial processing because until now the commit could still switch to an abort.
+     * of the initial processing because until now the commit could still switch to an abort. Free
+     * any WT_UPDATE list as well, we're the only consumer of it and we no longer need it.
      */
     for (i = 0, op = txn->mod; ft_resolution > 0 && i < txn->mod_count; i++, op++)
         if (op->type == WT_TXN_OP_REF_DELETE) {
             __wt_txn_op_set_timestamp(session, op);
 
             WT_REF_LOCK(session, op->u.ref, &previous_state);
-            if (op->u.ref->page_del != NULL) {
-                op->u.ref->page_del->resolved = 1;
-                __wt_free(session, op->u.ref->page_del->update_list);
-            }
+            op->u.ref->page_del->resolved = 1;
+            __wt_free(session, op->u.ref->page_del->update_list);
             WT_REF_UNLOCK(op->u.ref, previous_state);
 
             __wt_txn_op_free(session, op);
