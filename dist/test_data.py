@@ -199,7 +199,8 @@ test_config = [
         Statistic configuration that is passed into wiredtiger on open.''',
         type='category', subconfig=[
             Config('type', 'fast', r'''
-            The configuration that will get passed to wiredtiger for the style of statistics gathering'''),
+            The configuration that will get passed to wiredtiger to determine the style of
+            statistics gathering'''),
             Config('enable_logging', 'false', r'''
             Configuration enabling or disabling statistics logging in the form of json logging.''',
             type='boolean')

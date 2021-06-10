@@ -181,14 +181,18 @@ class database_operation {
     virtual void
     insert_operation(thread_context *tc)
     {
-        debug_print("Thread {" + std::to_string(tc->id) + "} commencing insert loop.", DEBUG_INFO);
+        debug_print(
+          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
+          DEBUG_INFO);
     }
 
     /* Basic read operation that walks a cursors across all collections. */
     virtual void
     read_operation(thread_context *tc)
     {
-        debug_print("Thread {" + std::to_string(tc->id) + "} commencing read loop.", DEBUG_INFO);
+        debug_print(
+          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
+          DEBUG_INFO);
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
 
@@ -216,7 +220,9 @@ class database_operation {
     virtual void
     update_operation(thread_context *tc)
     {
-        debug_print("Thread {" + std::to_string(tc->id) + "} commencing update loop.", DEBUG_INFO);
+        debug_print(
+          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
+          DEBUG_INFO);
         WT_CURSOR *cursor;
         WT_DECL_RET;
         wt_timestamp_t ts;

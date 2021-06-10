@@ -127,13 +127,30 @@ class transaction_context {
     bool _in_txn = false;
 };
 
+enum thread_type { READ, INSERT, UPDATE };
+
+static std::string
+type_string(thread_type type)
+{
+    switch (type) {
+    case thread_type::INSERT:
+        return ("insert");
+    case thread_type::READ:
+        return ("read");
+    case thread_type::UPDATE:
+        return ("update");
+    default:
+        testutil_die(-1, "unexpected thread_type");
+    }
+}
+
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(uint64_t id, configuration *config, timestamp_manager *timestamp_manager,
-      workload_tracking *tracking, database &db)
-        : id(id), database(db), timestamp_manager(timestamp_manager), tracking(tracking),
-          transaction(transaction_context(config))
+    thread_context(uint64_t id, thread_type type, configuration *config,
+      timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db)
+        : id(id), type(type), database(db), timestamp_manager(timestamp_manager),
+          tracking(tracking), transaction(transaction_context(config))
     {
         session = connection_manager::instance().create_session();
         _throttle = throttle(config);
@@ -171,6 +188,7 @@ class thread_context {
     int64_t key_size = 0;
     int64_t value_size = 0;
     const uint64_t id;
+    const thread_type type;
 
     private:
     throttle _throttle;

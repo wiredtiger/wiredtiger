@@ -42,14 +42,11 @@
 
 namespace test_harness {
 /*
- * Helper class to enable scalable operation types in the database_operation. In order to add a new
- * standard operation function one need only add a new type, the equivalent function to the database
- * operation class, and update the get_func function.
+ * Helper class to enable scalable operation types in the database_operation.
  */
 class operation_config {
     public:
-    /* FIXME-T-F: Should we just use an emum for type? */
-    operation_config(configuration *config, std::string type)
+    operation_config(configuration *config, thread_type type)
         : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
     {
     }
@@ -58,17 +55,19 @@ class operation_config {
     std::function<void(test_harness::thread_context *)>
     get_func(database_operation *dbo)
     {
-        if (type == "insert")
+        switch (type) {
+        case thread_type::INSERT:
             return std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1);
-        else if (type == "read")
+        case thread_type::READ:
             return std::bind(&database_operation::read_operation, dbo, std::placeholders::_1);
-        else if (type == "update")
+        case thread_type::UPDATE:
             return std::bind(&database_operation::update_operation, dbo, std::placeholders::_1);
-        else
-            testutil_die(-1, "invalid thread type");
+        default:
+            testutil_die(-1, "unexpected thread_type");
+        }
     }
     configuration *config;
-    const std::string type;
+    const thread_type type;
     const int64_t thread_count;
 };
 
@@ -105,10 +104,11 @@ class workload_generator : public component {
 
         /* Retrieve useful parameters from the test configuration. */
         operation_configs.push_back(
-          operation_config(_config->get_subconfig(INSERT_CONFIG), "insert"));
-        operation_configs.push_back(operation_config(_config->get_subconfig(READ_CONFIG), "read"));
+          operation_config(_config->get_subconfig(INSERT_CONFIG), thread_type::INSERT));
         operation_configs.push_back(
-          operation_config(_config->get_subconfig(UPDATE_CONFIG), "update"));
+          operation_config(_config->get_subconfig(READ_CONFIG), thread_type::READ));
+        operation_configs.push_back(
+          operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
         populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
         /* Populate the database. */
@@ -119,11 +119,11 @@ class workload_generator : public component {
         /* Generate threads to execute read operations on the collections. */
         for (auto &it : operation_configs) {
             debug_print("Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
-                it.type + " threads.",
+                type_string(it.type) + " threads.",
               DEBUG_INFO);
             for (size_t i = 0; i < it.thread_count && _running; ++i) {
                 thread_context *tc = new thread_context(
-                  thread_id++, it.config, _timestamp_manager, _tracking, _database);
+                  thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);
                 _workers.push_back(tc);
                 _thread_manager.add_thread(it.get_func(_database_operation), tc);
             }
