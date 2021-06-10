@@ -157,10 +157,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
              * 3. it came from the same transaction but with a different timestamp
              */
             if (cmp == 0) {
-                if (__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) ||
-                  tw->start_txn == WT_TXN_NONE ||
-                  tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
-                  tw->start_ts != hs_cbt->upd_value->tw.start_ts) {
+                if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
+                  tw->start_txn != WT_TXN_NONE &&
+                  tw->start_txn == hs_cbt->upd_value->tw.start_txn &&
+                  tw->start_ts == hs_cbt->upd_value->tw.start_ts) {
                     /*
                      * If we have issues with duplicate history store records, we want to be able to
                      * distinguish between modifies and full updates. Since modifies are not
