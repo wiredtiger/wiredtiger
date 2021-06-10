@@ -349,12 +349,12 @@ class database_operation {
         cursor->set_value(cursor, value);
 
         ret = cursor->insert(cursor);
-        if (ret != 0)
-            if (ret == WT_ROLLBACK) {
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK)
                 return (ret);
-            } else {
+            else
                 testutil_die(ret, "unhandled error while trying to insert a key.");
-            }
+        }
 
         debug_print("key/value inserted", DEBUG_TRACE);
         tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
@@ -374,12 +374,12 @@ class database_operation {
         cursor->set_value(cursor, value);
 
         ret = cursor->update(cursor);
-        if (ret != 0)
-            if (ret == WT_ROLLBACK) {
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK)
                 return (ret);
-            } else {
+            else
                 testutil_die(ret, "unhandled error while trying to update a key");
-            }
+        }
 
         debug_print("key/value updated", DEBUG_TRACE);
         tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
