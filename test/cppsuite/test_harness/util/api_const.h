@@ -70,7 +70,7 @@ static const char *COMMIT_TS = "commit_timestamp";
 static const char *CONNECTION_CREATE = "create";
 static const char *OLDEST_TS = "oldest_timestamp";
 static const char *STABLE_TS = "stable_timestamp";
-static const char *STATISTICS_LOG = "statistics_log=(json,wait=1),";
+static const char *STATISTICS_LOG = "statistics_log=(json,wait=1)";
 
 /* Test harness consts. */
 static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S";

@@ -123,8 +123,8 @@ class test : public database_operation {
         /* Don't forget to delete. */
         delete statistics_config;
 
-        db_create_config += ",statistics=(" + statistics_type + "),";
-        db_create_config += statistics_logging ? std::string(STATISTICS_LOG) : "";
+        db_create_config += ",statistics=(" + statistics_type + ")";
+        db_create_config += statistics_logging ? "," + std::string(STATISTICS_LOG) : "";
         db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
         /* Enable or disable write ahead logging. */
