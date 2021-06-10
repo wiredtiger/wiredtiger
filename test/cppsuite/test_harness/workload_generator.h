@@ -57,13 +57,14 @@ class operation_config {
     {
         switch (type) {
         case thread_type::INSERT:
-            return std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1);
+            return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
         case thread_type::READ:
-            return std::bind(&database_operation::read_operation, dbo, std::placeholders::_1);
+            return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
         case thread_type::UPDATE:
-            return std::bind(&database_operation::update_operation, dbo, std::placeholders::_1);
+            return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
         default:
-            testutil_die(-1, "unexpected thread_type");
+            /* This may cause a separate testutil_due in type_string but that should be okay. */
+            testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
         }
     }
     configuration *config;

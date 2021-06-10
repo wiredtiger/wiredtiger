@@ -88,8 +88,8 @@ class database {
     get_collection_name(uint64_t id)
     {
         if (_collection_count <= id)
-            testutil_die(-1, "requested the name of a collection that doesn't exist");
-        return build_collection_name(id);
+            testutil_die(id, "requested the id, %lu, of a collection that doesn't exist", id);
+        return (build_collection_name(id));
     }
 
     std::vector<std::string>
