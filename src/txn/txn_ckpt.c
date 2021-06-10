@@ -966,8 +966,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         max_hs_size = ((WT_BTREE *)hs_dhandle->handle)->file_max;
         if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
             WT_ERR_PANIC(session, WT_PANIC,
-            "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
-            max_hs_size);
+              "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64,
+              (uint64_t)hs_size, max_hs_size);
     }
 
     /*
