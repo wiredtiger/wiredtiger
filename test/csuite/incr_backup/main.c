@@ -374,10 +374,10 @@ table_changes(WT_SESSION *session, TABLE *table)
             cur->set_key(cur, key);
 
             /*
-             * All elements of the enum has to be handled in switch to satisfy code analysis checks.
-             * For that reason "less or equal" operator is used in condition of the assert below.
-             * Checking lower boundary against 0 since this is the default value of the first
-             * element in any enum.
+             * To satisfy code analysis checks, we must handle all elements of the enum in the 
+             * switch statement. For that reason we use the "less or equal" operator in the assert
+             * condition below to test the upper boundary. We check the lower boundary against 0
+             * since this is the default value of the first element in any enum.
              */
             testutil_assert(op_type >= 0 && op_type <= _OPERATION_TYPE_COUNT);
             switch (op_type) {
@@ -697,9 +697,10 @@ check_table(WT_SESSION *session, TABLE *table)
     VERBOSE(3, "Checking: %s\n", table->name);
 
     /*
-     * All elements of the enum has to be handled in switch to satisfy code analysis checks. For
-     * that reason "less or equal" operator is used in condition of the assert below. Checking lower
-     * boundary against 0 since this is the default value of the first element in any enum.
+     * To satisfy code analysis checks, we must handle all elements of the enum in the 
+     * switch statement. For that reason we use the "less or equal" operator in the assert
+     * condition below to test the upper boundary. We check the lower boundary against 0
+     * since this is the default value of the first element in any enum.
      */
     testutil_assert(op_type >= 0 && op_type <= _OPERATION_TYPE_COUNT);
     switch (op_type) {
