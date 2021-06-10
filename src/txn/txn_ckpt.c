@@ -1186,12 +1186,13 @@ __drop(WT_CKPT *ckptbase, const char *name, size_t len)
      */
     if (strncmp(WT_CHECKPOINT, name, len) == 0) {
         WT_CKPT_FOREACH (ckptbase, ckpt)
-            if (WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
+            if (ckpt->name != NULL && WT_PREFIX_MATCH(ckpt->name, WT_CHECKPOINT))
                 F_SET(ckpt, WT_CKPT_DELETE);
     } else
-        WT_CKPT_FOREACH (ckptbase, ckpt)
-            if (WT_STRING_MATCH(ckpt->name, name, len))
+        WT_CKPT_FOREACH (ckptbase, ckpt) {
+            if (ckpt->name != NULL && WT_STRING_MATCH(ckpt->name, name, len))
                 F_SET(ckpt, WT_CKPT_DELETE);
+        }
 }
 
 /*
