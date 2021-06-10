@@ -61,7 +61,7 @@ class transaction_context {
               session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
             /* This randomizes the number of operations to be executed in one transaction. */
             _target_op_count =
-              random_generator::instance().generate_signed_integer(_min_op_count, _max_op_count);
+              random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
             op_count = 0;
             _in_txn = true;
         } else

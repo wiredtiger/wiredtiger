@@ -253,7 +253,7 @@ class database_operation {
             tc->sleep();
 
             /* Pick a random collection to update, taking care to subtract -1. */
-            collection_id = random_generator::instance().generate_unsigned_integer(
+            collection_id = random_generator::instance().generate_integer<uint64_t>(
               0, tc->database.get_collection_count() - 1);
             if (random_cursors.find(collection_id) == random_cursors.end()) {
                 /* Retrieve the newly created collection, open a cursor and add it to the map. */
