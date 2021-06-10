@@ -246,6 +246,12 @@ class database_operation {
          * Loop while the test is running.
          */
         while (tc->running()) {
+            /*
+             * Sleep the period defined by the op_rate in the configuration. Do this at the start of
+             * the loop as it could be skipped by a subsequent continue call.
+             */
+            tc->sleep();
+
             /* Pick a random collection to update, taking care to subtract -1. */
             collection_id = random_generator::instance().generate_unsigned_integer(
               0, tc->database.get_collection_count() - 1);
@@ -272,7 +278,11 @@ class database_operation {
                 tc->transaction.begin(tc->session, "");
 
             /* Call next to pick a new random record. */
-            testutil_check(cursor->next(cursor));
+            ret = cursor->next(cursor);
+            if (ret == WT_NOTFOUND)
+                continue;
+            else if (ret != 0)
+                testutil_die(ret, "unhandled error returned by cursor->next()");
 
             /* Get the record's key. */
             testutil_check(cursor->get_key(cursor, &key_tmp));
@@ -308,19 +318,16 @@ class database_operation {
             ret = update(tc->tracking, cursor, collections[collection_id], key.c_str(),
               generated_value.c_str(), ts);
 
+            /* Increment the current op count for the current transaction. */
+            tc->transaction.op_count++;
+
             /* If the wiredtiger API has returned rollback, comply. */
             if (ret == WT_ROLLBACK)
                 tc->transaction.rollback(tc->session, "");
 
-            /* Increment the current op count for the current transaction. */
-            tc->transaction.op_count++;
-
             /* Commit the current transaction if we're able to. */
             if (tc->transaction.can_commit())
                 tc->transaction.commit(tc->session, "");
-
-            /* Sleep the period defined by the op_rate in the configuration. */
-            tc->sleep();
         }
 
         /* Make sure the last operation is committed now the work is finished. */
