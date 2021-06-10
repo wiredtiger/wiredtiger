@@ -220,22 +220,19 @@ class database_operation {
     virtual void
     update_operation(thread_context *tc)
     {
+        /* A structure that's used to track which cursors we've opened for which collection. */
+        struct collection_cursors {
+            const std::string collection_name;
+            WT_CURSOR *random_cursor;
+            WT_CURSOR *update_cursor;
+        };
         debug_print(
           type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
           DEBUG_INFO);
         WT_CURSOR *cursor;
         WT_DECL_RET;
         wt_timestamp_t ts;
-        /*
-         * We need three maps here, one to maintain our list of random cursors, one to maintain the
-         * list of update cursors. We can't update using a random cursor, as defined by the
-         * WiredTiger API.
-         *
-         * The final map provides a quick lookup for collection names.
-         */
-        std::map<uint64_t, WT_CURSOR *> random_cursors;
-        std::map<uint64_t, WT_CURSOR *> update_cursors;
-        std::map<uint64_t, std::string> collections;
+        std::map<uint64_t, collection_cursors> collections;
         key_value_t key, generated_value;
         std::string collection_name;
         const char *key_tmp;
@@ -255,23 +252,29 @@ class database_operation {
             /* Pick a random collection to update, taking care to subtract -1. */
             collection_id = random_generator::instance().generate_integer<uint64_t>(
               0, tc->database.get_collection_count() - 1);
-            if (random_cursors.find(collection_id) == random_cursors.end()) {
+            if (collections.find(collection_id) == collections.end()) {
                 /* Retrieve the newly created collection, open a cursor and add it to the map. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
                 debug_print("Thread {" + std::to_string(tc->id) +
                     "} Creating cursor for collection: " + collection_name,
                   DEBUG_TRACE);
+
+                collections.emplace(
+                  collection_id, collection_cursors{collection_name, nullptr, nullptr});
                 tc->session->open_cursor(
                   tc->session, collection_name.c_str(), nullptr, "next_random=true", &cursor);
-                random_cursors.emplace(collection_id, cursor);
+                collections[collection_id].random_cursor = cursor;
+                /*
+                 * We can't call update on a random cursor so we open two cursors here, one to do
+                 * the randomized next and one to subsequently update the key.
+                 */
                 tc->session->open_cursor(
                   tc->session, collection_name.c_str(), nullptr, nullptr, &cursor);
-                update_cursors.emplace(collection_id, cursor);
-                collections.emplace(collection_id, collection_name);
+                collections[collection_id].update_cursor = cursor;
             }
 
             /* Get the random cursor associated with the collection. */
-            cursor = random_cursors[collection_id];
+            cursor = collections[collection_id].random_cursor;
 
             /* Start a transaction. */
             if (!tc->transaction.active())
@@ -314,9 +317,9 @@ class database_operation {
              *
              * Additionally first get the update_cursor.
              */
-            cursor = update_cursors[collection_id];
-            ret = update(tc->tracking, cursor, collections[collection_id], key.c_str(),
-              generated_value.c_str(), ts);
+            cursor = collections[collection_id].update_cursor;
+            ret = update(tc->tracking, cursor, collections[collection_id].collection_name,
+              key.c_str(), generated_value.c_str(), ts);
 
             /* Increment the current op count for the current transaction. */
             tc->transaction.op_count++;
