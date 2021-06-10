@@ -1210,7 +1210,8 @@ __drop_from(WT_CKPT *ckptbase, const char *name, size_t len)
      */
     if (WT_STRING_MATCH("all", name, len)) {
         WT_CKPT_FOREACH (ckptbase, ckpt)
-            F_SET(ckpt, WT_CKPT_DELETE);
+            if (ckpt->name != NULL)
+                F_SET(ckpt, WT_CKPT_DELETE);
         return;
     }
 
