@@ -133,7 +133,7 @@ class timestamp_manager : public component {
     }
 
     private:
-    std::atomic<wt_timestamp_t> _increment_ts;
+    std::atomic<wt_timestamp_t> _increment_ts{0};
     wt_timestamp_t _latest_ts = 0U, _oldest_ts = 0U, _stable_ts = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.

@@ -154,7 +154,7 @@ class database {
         return (std::string("table:collection_" + std::to_string(id)));
     }
     /* This will initialize to 0 automatically. */
-    std::atomic<uint64_t> _next_collection_id;
+    std::atomic<uint64_t> _next_collection_id{0};
     std::map<std::string, collection_t> _collections;
     std::mutex _mtx;
 };
