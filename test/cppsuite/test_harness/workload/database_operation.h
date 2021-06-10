@@ -64,7 +64,7 @@ class database_operation {
         int64_t collection_count, key_count, key_size, thread_count, value_size;
         std::string collection_name;
         bool ts_enabled = timestamp_manager->enabled();
-        thread_manager tm = thread_manager();
+        thread_manager tm;
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
