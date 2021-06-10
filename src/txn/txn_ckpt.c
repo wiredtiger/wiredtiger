@@ -1499,6 +1499,7 @@ __checkpoint_lock_dirty_tree(
     /* Set the name of the new entry at the end of the list. */
     WT_CKPT_FOREACH (ckptbase, ckpt)
         ;
+    ckpt--;
     WT_ERR(__wt_strdup(session, name, &ckpt->name));
 
     /*
