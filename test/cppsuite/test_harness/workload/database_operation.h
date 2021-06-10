@@ -36,6 +36,7 @@
 #include "workload_tracking.h"
 #include "thread_context.h"
 #include "random_generator.h"
+#include "../thread_manager.h"
 
 namespace test_harness {
 class database_operation {
@@ -63,6 +64,7 @@ class database_operation {
         int64_t collection_count, key_count, key_size, thread_count, value_size;
         std::string collection_name;
         bool ts_enabled = timestamp_manager->enabled();
+        thread_manager tm = thread_manager();
 
         /* Get a session. */
         session = connection_manager::instance().create_session();
@@ -82,7 +84,7 @@ class database_operation {
 
         /* Create n collections as per the configuration and store each collection name. */
         for (int64_t i = 0; i < collection_count; ++i) {
-            /* TODO: Should we just give collection creation power to the database? */
+            /* FIXME-T-F: Should we just give collection creation power to the database? */
             collection_name = database.add_collection();
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
@@ -147,7 +149,7 @@ class database_operation {
                 }
             }
             debug_print(
-              "Populate: thread {" + std::to_string(thread_id) + "} finished", DEBUG_INFO);
+              "Populate: thread {" + std::to_string(thread_id) + "} finished", DEBUG_TRACE);
         };
 
         /*
@@ -164,34 +166,29 @@ class database_operation {
                   DEBUG_TRACE);
                 thread_collections.push_back(collection_names[j]);
             }
-            threads.push_back(std::thread(
-              populate, i, thread_collections, connection_manager::instance().create_session()));
+            tm.add_thread(
+              populate, i, thread_collections, connection_manager::instance().create_session());
         }
 
-        /* TODO: Use thread manager here? */
-        while (true) {
-            bool joinable = false;
-            for (const auto &it : threads) {
-                if (!it.joinable()) {
-                    joinable = false;
-                    break;
-                }
-                joinable = true;
-            }
-            if (joinable)
-                break;
-        }
-
-        for (auto &it : threads)
-            it.join();
+        /* Wait for our populate threads to finish and then join them. */
+        debug_print("Populate: waiting for threads to complete.", DEBUG_INFO);
+        tm.join();
 
         debug_print("Populate: finished.", DEBUG_INFO);
+    }
+
+    /* Basic insert operation that adds a new key every rate tick. */
+    virtual void
+    insert_operation(thread_context *tc)
+    {
+        debug_print("Thread {" + std::to_string(tc->id) + "} commencing insert loop.", DEBUG_INFO);
     }
 
     /* Basic read operation that walks a cursors across all collections. */
     virtual void
     read_operation(thread_context *tc)
     {
+        debug_print("Thread {" + std::to_string(tc->id) + "} commencing read loop.", DEBUG_INFO);
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
 
@@ -219,6 +216,7 @@ class database_operation {
     virtual void
     update_operation(thread_context *tc)
     {
+        debug_print("Thread {" + std::to_string(tc->id) + "} commencing update loop.", DEBUG_INFO);
         WT_CURSOR *cursor;
         WT_DECL_RET;
         wt_timestamp_t ts;
@@ -242,11 +240,9 @@ class database_operation {
          * Loop while the test is running.
          */
         while (tc->running()) {
-            /* Pick a random collection to update. */
-            /* TODO: Add a comment explaining the -1. */
+            /* Pick a random collection to update, taking care to subtract -1. */
             collection_id = random_generator::instance().generate_unsigned_integer(
-                              1, tc->database.get_collection_count()) -
-              1;
+              0, tc->database.get_collection_count() - 1);
             if (random_cursors.find(collection_id) == random_cursors.end()) {
                 /* Retrieve the newly created collection, open a cursor and add it to the map. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
