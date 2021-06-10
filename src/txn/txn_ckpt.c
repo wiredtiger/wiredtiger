@@ -1221,6 +1221,8 @@ __drop_from(WT_CKPT *ckptbase, const char *name, size_t len)
      */
     matched = false;
     WT_CKPT_FOREACH (ckptbase, ckpt) {
+        if (ckpt->name == NULL)
+            break;
         if (!matched && !WT_STRING_MATCH(ckpt->name, name, len))
             continue;
 
@@ -1244,7 +1246,7 @@ __drop_to(WT_CKPT *ckptbase, const char *name, size_t len)
      */
     mark = NULL;
     WT_CKPT_FOREACH (ckptbase, ckpt)
-        if (WT_STRING_MATCH(ckpt->name, name, len))
+        if (ckpt->name != NULL && WT_STRING_MATCH(ckpt->name, name, len))
             mark = ckpt;
 
     if (mark == NULL)
