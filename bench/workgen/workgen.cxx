@@ -415,7 +415,8 @@ int Monitor::run() {
     char time_buf[64], version[100];
     Stats prev_totals;
     WorkloadOptions *options = &_wrunner._workload->options;
-    uint64_t latency_max = (uint64_t)options->max_latency;
+    // ms to us
+    uint64_t latency_max = (uint64_t)options->max_latency * THOUSAND;
     size_t buf_size;
     bool first;
 
@@ -548,17 +549,23 @@ int Monitor::run() {
         }
 
         uint64_t read_max = interval.read.max_latency;
-        uint64_t insert_max = interval.read.max_latency;
-        uint64_t update_max = interval.read.max_latency;
+        uint64_t insert_max = interval.insert.max_latency;
+        uint64_t update_max = interval.update.max_latency;
 
-        if (latency_max != 0 &&
-          (read_max > latency_max || insert_max > latency_max ||
-          update_max > latency_max)) {
+        if(read_max > latency_max) {
             std::cerr << "WARNING: max latency exceeded:"
-                      << " threshold " << latency_max
-                      << " read max " << read_max
-                      << " insert max " << insert_max
-                      << " update max " << update_max << std::endl;
+                      << " threshold " << latency_max << "ms read max " << read_max << "ms."
+                      << std::endl;
+        }
+        if(insert_max > latency_max) {
+            std::cerr << "WARNING: max latency exceeded:"
+                      << " threshold " << latency_max << "ms insert max " << read_max << "ms."
+                      << std::endl;
+        }
+        if(update_max > latency_max) {
+            std::cerr << "WARNING: max latency exceeded:"
+                      << " threshold " << latency_max << "ms update max " << read_max << "ms."
+                      << std::endl;
         }
 
         prev_interval.assign(interval);
