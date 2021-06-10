@@ -1670,10 +1670,6 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     if (mod == NULL)
         return (true);
 
-    /* Don't attempt to evict fast-truncate pages until the truncate completes. */
-    if (ref->page_del != NULL && ref->page_del->resolved == 0)
-        return (false);
-
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an
      * overflow item, because the split into the parent frees the backing blocks for any
