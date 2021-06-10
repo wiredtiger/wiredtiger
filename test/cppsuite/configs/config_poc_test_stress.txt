@@ -1,5 +1,3 @@
-# Sets up a basic database with 2 collections and 50000 keys and run thread for 10 seconds.
-# All components are enabled.
 # Used as a stress test for the framework.
 duration_seconds=600,
 cache_size_mb=2000,
@@ -62,6 +60,7 @@ workload_generator=
         value_size=2000
     )
 ),
+# Tracking is currently disabled as verification can't handle rollbacks.
 workload_tracking=
 (
     enabled=false
