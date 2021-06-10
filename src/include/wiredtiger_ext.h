@@ -555,8 +555,7 @@ struct __wt_extension_api {
      * @param name the name for the spinlock
      *
      */
-    int (*spin_init)(WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_EXTENSION_SPINLOCK *spinlock,
-      const char *name);
+    int (*spin_init)(WT_EXTENSION_API *wt_api, WT_EXTENSION_SPINLOCK *spinlock, const char *name);
 
     /*!
      * Destroy a spinlock
@@ -566,8 +565,7 @@ struct __wt_extension_api {
      * @param spinlock the extension spinlock
      *
      */
-    void (*spin_destroy)(
-      WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_EXTENSION_SPINLOCK *spinlock);
+    void (*spin_destroy)(WT_EXTENSION_API *wt_api, WT_EXTENSION_SPINLOCK *spinlock);
 
     /*!
      * Spin until the lock is acquired.

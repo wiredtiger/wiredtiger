@@ -320,7 +320,7 @@ zstd_init_context_pool(
     if ((context_pool = calloc(1, sizeof(ZSTD_CONTEXT_POOL))) == NULL)
         return (errno);
 
-    if ((ret = wt_api->spin_init(wt_api, NULL, &(context_pool->list_lock), "zstd context")) != 0) {
+    if ((ret = wt_api->spin_init(wt_api, &(context_pool->list_lock), "zstd context")) != 0) {
         (void)wt_api->err_printf(
           wt_api, NULL, "zstd_init_context_pool: %s", wt_api->strerror(wt_api, NULL, ret));
         return (ret);
@@ -360,8 +360,8 @@ zstd_init_context_pool(
  *	Terminate the given context pool.
  */
 static void
-zstd_terminate_context_pool(WT_COMPRESSOR *compressor, WT_SESSION *session,
-  CONTEXT_TYPE context_type, ZSTD_CONTEXT_POOL **context_poolp)
+zstd_terminate_context_pool(
+  WT_COMPRESSOR *compressor, CONTEXT_TYPE context_type, ZSTD_CONTEXT_POOL **context_poolp)
 {
     WT_EXTENSION_API *wt_api;
     ZSTD_CONTEXT *context;
@@ -382,7 +382,7 @@ zstd_terminate_context_pool(WT_COMPRESSOR *compressor, WT_SESSION *session,
         context = NULL;
     }
 
-    wt_api->spin_destroy(wt_api, session, &(context_pool->list_lock));
+    wt_api->spin_destroy(wt_api, &(context_pool->list_lock));
     context_pool->count = 0;
     free(context_pool);
     *context_poolp = NULL;
@@ -400,10 +400,10 @@ zstd_terminate(WT_COMPRESSOR *compressor, WT_SESSION *session)
 
     zcompressor = (ZSTD_COMPRESSOR *)compressor;
 
-    zstd_terminate_context_pool(
-      compressor, session, CONTEXT_TYPE_COMPRESS, &(zcompressor->cctx_pool));
-    zstd_terminate_context_pool(
-      compressor, session, CONTEXT_TYPE_DECOMPRESS, &(zcompressor->dctx_pool));
+    (void)session; /* Unused parameters. */
+
+    zstd_terminate_context_pool(compressor, CONTEXT_TYPE_COMPRESS, &(zcompressor->cctx_pool));
+    zstd_terminate_context_pool(compressor, CONTEXT_TYPE_DECOMPRESS, &(zcompressor->dctx_pool));
     free(compressor);
     return (0);
 }
