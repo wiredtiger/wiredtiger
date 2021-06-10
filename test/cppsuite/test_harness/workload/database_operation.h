@@ -236,7 +236,7 @@ class database_operation {
         key_value_t key, generated_value;
         std::string collection_name;
         const char *key_tmp;
-        uint64_t collection_id;
+        uint64_t collection_count = 0, collection_id = 0;
         bool using_timestamps = tc->timestamp_manager->enabled();
 
         /*
@@ -249,9 +249,13 @@ class database_operation {
              */
             tc->sleep();
 
-            /* Pick a random collection to update, taking care to subtract -1. */
-            collection_id = random_generator::instance().generate_integer<uint64_t>(
-              0, tc->database.get_collection_count() - 1);
+            /* Pick a random collection to update if there are any, taking care to subtract -1. */
+            collection_count = tc->database.get_collection_count();
+            if (collection_count == 0)
+                continue;
+
+            collection_id =
+              random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1);
             if (collections.find(collection_id) == collections.end()) {
                 /* Retrieve the collection name associated with our id. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
