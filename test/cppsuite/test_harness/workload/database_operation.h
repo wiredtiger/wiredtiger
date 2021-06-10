@@ -54,16 +54,13 @@ class database_operation {
      *      - Store in memory the created collections.
      */
     virtual void
-    populate(database &database, timestamp_manager *timestamp_manager, configuration *config,
+    populate(database &database, timestamp_manager *tsm, configuration *config,
       workload_tracking *tracking)
     {
         WT_SESSION *session;
-        wt_timestamp_t ts;
         std::vector<std::string> collection_names;
-        std::vector<std::thread> threads;
         int64_t collection_count, key_count, key_size, thread_count, value_size;
         std::string collection_name;
-        bool ts_enabled = timestamp_manager->enabled();
         thread_manager tm;
 
         /* Get a session. */
@@ -88,69 +85,12 @@ class database_operation {
             collection_name = database.add_collection();
             testutil_check(
               session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
-            ts = timestamp_manager->get_next_ts();
             tracking->save_schema_operation(
-              tracking_operation::CREATE_COLLECTION, collection_name, ts);
+              tracking_operation::CREATE_COLLECTION, collection_name, tsm->get_next_ts());
             collection_names.push_back(collection_name);
         }
         debug_print(
           "Populate: " + std::to_string(collection_count) + " collections created.", DEBUG_INFO);
-
-        /*
-         * This is a lambda that takes a set of collections to populate with keys. It will fail if
-         * the set of collections is not unique.
-         *
-         * This should be safe as any captured value is only read, not written to.
-         */
-        auto populate = [&](int thread_id, std::vector<std::string> pop_collections,
-                          WT_SESSION *pop_session) {
-            WT_DECL_RET;
-            WT_CURSOR *pop_cursor;
-            std::string cfg;
-            wt_timestamp_t pop_ts;
-            key_value_t generated_key, generated_value;
-
-            for (const auto &next_collection : pop_collections) {
-                /*
-                 * WiredTiger lets you open a cursor on a collection using the same pointer. When a
-                 * session is closed, WiredTiger APIs close the cursors too.
-                 */
-                testutil_check(pop_session->open_cursor(
-                  pop_session, next_collection.c_str(), NULL, NULL, &pop_cursor));
-                for (uint64_t i = 0; i < key_count; ++i) {
-                    /* Generation of a unique key. */
-                    generated_key = number_to_string(key_size, i);
-                    /*
-                     * Generation of a random string value using the size defined in the test
-                     * configuration.
-                     */
-                    generated_value =
-                      random_generator::random_generator::instance().generate_string(value_size);
-                    pop_ts = timestamp_manager->get_next_ts();
-
-                    /* Start a txn. */
-                    testutil_check(pop_session->begin_transaction(pop_session, nullptr));
-
-                    ret = insert(pop_cursor, tracking, next_collection, generated_key.c_str(),
-                      generated_value.c_str(), pop_ts);
-
-                    /* This may require some sort of "stuck" mechanism but for now is fine. */
-                    if (ret == WT_ROLLBACK)
-                        testutil_die(
-                          -1, "Got a rollback in populate, this is currently not handled.");
-
-                    if (ts_enabled)
-                        cfg =
-                          std::string(COMMIT_TS) + "=" + timestamp_manager->decimal_to_hex(pop_ts);
-                    else
-                        cfg = "";
-
-                    testutil_check(pop_session->commit_transaction(pop_session, cfg.c_str()));
-                }
-            }
-            debug_print(
-              "Populate: thread {" + std::to_string(thread_id) + "} finished", DEBUG_TRACE);
-        };
 
         /*
          * Spawn thread_count threads to populate the database, theoretically we should be IO bound
@@ -166,8 +106,9 @@ class database_operation {
                   DEBUG_TRACE);
                 thread_collections.push_back(collection_names[j]);
             }
-            tm.add_thread(
-              populate, i, thread_collections, connection_manager::instance().create_session());
+            tm.add_thread(populate_worker, i, thread_collections,
+              connection_manager::instance().create_session(), tsm, tracking, key_count, key_size,
+              value_size);
         }
 
         /* Wait for our populate threads to finish and then join them. */
@@ -346,7 +287,7 @@ class database_operation {
     private:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
-    int
+    static int
     insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
@@ -407,6 +348,57 @@ class database_operation {
         std::string s(diff, '0');
         str = s.append(value_str);
         return (str);
+    }
+
+    private:
+    static void
+    populate_worker(uint64_t worker_id, std::vector<std::string> collections, WT_SESSION *session,
+      timestamp_manager *tsm, workload_tracking *tracking, int64_t key_count, int64_t key_size,
+      int64_t value_size)
+    {
+        WT_DECL_RET;
+        WT_CURSOR *cursor;
+        std::string cfg;
+        wt_timestamp_t ts;
+        key_value_t generated_key, generated_value;
+
+        for (const auto &next_collection : collections) {
+            /*
+             * WiredTiger lets you open a cursor on a collection using the same pointer. When a
+             * session is closed, WiredTiger APIs close the cursors too.
+             */
+            testutil_check(
+              session->open_cursor(session, next_collection.c_str(), NULL, NULL, &cursor));
+            for (uint64_t i = 0; i < key_count; ++i) {
+                /* Generation of a unique key. */
+                generated_key = number_to_string(key_size, i);
+                /*
+                 * Generation of a random string value using the size defined in the test
+                 * configuration.
+                 */
+                generated_value =
+                  random_generator::random_generator::instance().generate_string(value_size);
+                ts = tsm->get_next_ts();
+
+                /* Start a txn. */
+                testutil_check(session->begin_transaction(session, nullptr));
+
+                ret = insert(cursor, tracking, next_collection, generated_key.c_str(),
+                  generated_value.c_str(), ts);
+
+                /* This may require some sort of "stuck" mechanism but for now is fine. */
+                if (ret == WT_ROLLBACK)
+                    testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
+
+                if (tsm->enabled())
+                    cfg = std::string(COMMIT_TS) + "=" + timestamp_manager::decimal_to_hex(ts);
+                else
+                    cfg = "";
+
+                testutil_check(session->commit_transaction(session, cfg.c_str()));
+            }
+        }
+        debug_print("Populate: thread {" + std::to_string(worker_id) + "} finished", DEBUG_TRACE);
     }
 };
 } // namespace test_harness

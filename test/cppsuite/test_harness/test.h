@@ -149,6 +149,8 @@ class test : public database_operation {
         /* The test will run for the duration as defined in the config. */
         duration_seconds = _config->get_int(DURATION_SECONDS);
         testutil_assert(duration_seconds >= 0);
+        debug_print("Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.",
+          DEBUG_INFO);
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test by calling finish on all known components. */
