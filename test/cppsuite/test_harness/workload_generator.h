@@ -128,6 +128,10 @@ class workload_generator : public component {
                 _workers.push_back(tc);
                 _thread_manager.add_thread(it.get_func(_database_operation), tc);
             }
+            /*
+             * Don't forget to delete the config we created earlier. While we do pass the config
+             * into the thread context it is not saved, so we are safe to do this.
+             */
             delete it.config;
         }
     }
