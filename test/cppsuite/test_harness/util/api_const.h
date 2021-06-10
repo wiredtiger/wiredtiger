@@ -45,7 +45,6 @@ static const char *COLLECTION_COUNT = "collection_count";
 static const char *DURATION_SECONDS = "duration_seconds";
 static const char *ENABLED = "enabled";
 static const char *ENABLE_LOGGING = "enable_logging";
-static const char *INTERVAL = "interval";
 static const char *INSERT_CONFIG = "insert_config";
 static const char *KEY_COUNT_PER_COLLECTION = "key_count_per_collection";
 static const char *KEY_SIZE = "key_size";
