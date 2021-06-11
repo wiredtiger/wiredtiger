@@ -263,6 +263,7 @@ TAB_SIZE               = 8
 
 ALIASES                = "arch_page_table{2}=<div class= arch_head><table><tr><th rowspan=2 style=\"width:10%;\">@htmlonly <div><a href=\"arch-index.html\"><img class=\"arch_thumbnail\" src=\"wt_diagram.png\" style=\"background-image: url(wt_diagram.png)\"></a></div>@endhtmlonly</th><th style=\"width:44%\">Data Structures</th><th style=\"width:45%\">Source Location</th></tr><tr><td><code>\1</code></td><td><code>\2</code></td></tr></table></div>" \
                          "arch_page_top{2}=@page \1 \2 (Architecture Guide)" \
+                         "arch_page_caution=<b>Caution: the Architecture Guide is not updated in lockstep with the code base and is not necessarily correct or complete for any specific release.</b>" \
                          "config{3}=  @row{<tt>\1</tt>,\2,\3}" \
                          "configempty{2}=@param config configuration string, see @ref config_strings.  No values currently permitted." \
                          "configend=  </table>" \
@@ -836,7 +837,7 @@ WARN_NO_PARAMDOC       = YES
 # a warning is encountered.
 # The default value is: NO.
 
-WARN_AS_ERROR          = NO
+WARN_AS_ERROR          = YES
 
 # The WARN_FORMAT tag determines the format of the warning messages that doxygen
 # can produce. The string should contain the $file, $line, and $text tags, which
@@ -2028,7 +2029,7 @@ RTF_SOURCE_CODE        = NO
 # classes and files.
 # The default value is: NO.
 
-GENERATE_MAN           = YES
+GENERATE_MAN           = NO
 
 # The MAN_OUTPUT tag is used to specify where the man pages will be put. If a
 # relative path is entered the value of OUTPUT_DIRECTORY will be put in front of
@@ -2353,7 +2354,7 @@ HIDE_UNDOC_RELATIONS   = YES
 # http://www.graphviz.org/), a graph visualization toolkit from AT&T and Lucent
 # Bell Labs. The other options in this section have no effect if this option is
 # set to NO
-# The default value is: YES.
+# The default value is: NO.
 
 HAVE_DOT               = NO
 
@@ -2509,9 +2510,7 @@ DIRECTORY_GRAPH        = YES
 # Note: If you choose svg you need to set HTML_FILE_EXTENSION to xhtml in order
 # to make the SVG files visible in IE 9+ (other browsers do not have this
 # requirement).
-# Possible values are: png, png:cairo, png:cairo:cairo, png:cairo:gd, png:gd,
-# png:gd:gd, jpg, jpg:cairo, jpg:cairo:gd, jpg:gd, jpg:gd:gd, gif, gif:cairo,
-# gif:cairo:gd, gif:gd, gif:gd:gd, svg, png:gd, png:gd:gd, png:cairo,
+# Possible values are: png, jpg, gif, svg, png:gd, png:gd:gd, png:cairo,
 # png:cairo:gd, png:cairo:cairo, png:cairo:gdiplus, png:gdiplus and
 # png:gdiplus:gdiplus.
 # The default value is: png.
