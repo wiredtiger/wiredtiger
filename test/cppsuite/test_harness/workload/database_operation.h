@@ -270,7 +270,10 @@ class database_operation {
             /* Increment the current op count for the current transaction. */
             tc->transaction.op_count++;
 
-            /* If the wiredtiger API has returned rollback, comply. */
+            /*
+             * If the wiredtiger API has returned rollback, comply. This will need to rollback
+             * tracking table operations in the future but currently won't.
+             */
             if (ret == WT_ROLLBACK)
                 tc->transaction.rollback(tc->session, "");
 

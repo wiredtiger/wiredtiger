@@ -140,7 +140,7 @@ type_string(thread_type type)
     case thread_type::UPDATE:
         return ("update");
     default:
-        testutil_die(-1, "unexpected thread_type");
+        testutil_die(-1, "unexpected thread_type: %d", static_cast<int>(type));
     }
 }
 
