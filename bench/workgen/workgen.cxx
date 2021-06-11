@@ -552,21 +552,18 @@ int Monitor::run() {
         uint64_t insert_max = interval.insert.max_latency;
         uint64_t update_max = interval.update.max_latency;
 
-        if(read_max > latency_max) {
+        if(read_max > latency_max)
             std::cerr << "WARNING: max latency exceeded for read operation:"
                       << " threshold " << latency_max << " us, recorded " << read_max << " us."
                       << std::endl;
-        }
-        if(insert_max > latency_max) {
+        if(insert_max > latency_max)
             std::cerr << "WARNING: max latency exceeded:"
                       << " threshold " << latency_max << " us, recorded " << read_max << " us."
                       << std::endl;
-        }
-        if(update_max > latency_max) {
+        if(update_max > latency_max)
             std::cerr << "WARNING: max latency exceeded:"
                       << " threshold " << latency_max << " us, recorded " << read_max << " us."
                       << std::endl;
-        }
 
         prev_interval.assign(interval);
         prev_totals.assign(new_totals);

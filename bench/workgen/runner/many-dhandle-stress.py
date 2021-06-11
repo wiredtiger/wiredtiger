@@ -90,29 +90,35 @@ for i in range(0, table_count):
 populate_threads = 1
 icount = 15000000
 random_range = 1500000000
+
+# Populate
 pop_ops = Operation(Operation.OP_INSERT, tables[0])
 pop_ops = op_populate_with_range(pop_ops, tables, icount, random_range, populate_threads)
 pop_thread = Thread(pop_ops)
 pop_workload = Workload(context, populate_threads * pop_thread)
 pop_workload.run(conn)
 
+# Insert thread
 ops = Operation(Operation.OP_INSERT, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(10)))
 # Updated the range_partition to False, because workgen has some issues with range_partition true.
 # Revert it back after WT-7332.
 ops = op_multi_table(ops, tables, False)
-thread0 = Thread(ops)
-thread0.options.throttle=1000
-thread0.options.throttle_burst=1.0
+insert_thread = Thread(ops)
+insert_thread.options.throttle=1000
+insert_thread.options.throttle_burst=1.0
 
+# Search thread
 ops = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(10)))
 ops = op_multi_table(ops, tables, False)
-thread1 = Thread(ops)
+search_thread = Thread(ops)
 
+# Checkpoint thread
 ops = Operation(Operation.OP_SLEEP, "30") + \
       Operation(Operation.OP_CHECKPOINT, "")
 checkpoint_thread = Thread(ops)
 
-workload = Workload(context, 10 * thread0 + 10 * thread1 + checkpoint_thread)
+# Workload
+workload = Workload(context, 10 * insert_thread + 10 * search_thread + checkpoint_thread)
 workload.options.report_interval=5
 workload.options.run_time=900
 workload.options.max_latency=1000
