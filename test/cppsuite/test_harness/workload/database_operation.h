@@ -122,8 +122,7 @@ class database_operation {
     virtual void
     insert_operation(thread_context *tc)
     {
-        debug_print(
-          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
+        debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
     }
 
@@ -131,8 +130,7 @@ class database_operation {
     virtual void
     read_operation(thread_context *tc)
     {
-        debug_print(
-          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
+        debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
         WT_CURSOR *cursor;
         std::vector<WT_CURSOR *> cursors;
@@ -161,16 +159,16 @@ class database_operation {
     virtual void
     update_operation(thread_context *tc)
     {
+        debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
+          DEBUG_INFO);
+
         /* A structure that's used to track which cursors we've opened for which collection. */
         struct collection_cursors {
             const std::string collection_name;
             WT_CURSOR *random_cursor;
             WT_CURSOR *update_cursor;
         };
-        debug_print(
-          type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing loop.",
-          DEBUG_INFO);
-        WT_CURSOR *cursor;
+
         WT_DECL_RET;
         wt_timestamp_t ts;
         std::map<uint64_t, collection_cursors> collections;
@@ -197,44 +195,44 @@ class database_operation {
 
             collection_id =
               random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1);
+
             if (collections.find(collection_id) == collections.end()) {
+                WT_CURSOR *random_cursor = nullptr, *update_cursor = nullptr;
                 /* Retrieve the collection name associated with our id. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
                 debug_print("Thread {" + std::to_string(tc->id) +
                     "} Creating cursor for collection: " + collection_name,
                   DEBUG_TRACE);
-                collections.emplace(
-                  collection_id, collection_cursors{collection_name, nullptr, nullptr});
 
                 /* Open a random cursor for that collection. */
-                tc->session->open_cursor(
-                  tc->session, collection_name.c_str(), nullptr, "next_random=true", &cursor);
-                collections[collection_id].random_cursor = cursor;
+                tc->session->open_cursor(tc->session, collection_name.c_str(), nullptr,
+                  "next_random=true", &random_cursor);
                 /*
                  * We can't call update on a random cursor so we open two cursors here, one to do
                  * the randomized next and one to subsequently update the key.
                  */
                 tc->session->open_cursor(
-                  tc->session, collection_name.c_str(), nullptr, nullptr, &cursor);
-                collections[collection_id].update_cursor = cursor;
-            }
+                  tc->session, collection_name.c_str(), nullptr, nullptr, &update_cursor);
 
-            /* Get the random cursor associated with the collection. */
-            cursor = collections[collection_id].random_cursor;
+                collections.emplace(
+                  collection_id, collection_cursors{collection_name, random_cursor, update_cursor});
+            }
 
             /* Start a transaction. */
             if (!tc->transaction.active())
                 tc->transaction.begin(tc->session, "");
 
+            /* Get the random cursor associated with the collection. */
+            auto collection = collections[collection_id];
             /* Call next to pick a new random record. */
-            ret = cursor->next(cursor);
+            ret = collection.random_cursor->next(collection.random_cursor);
             if (ret == WT_NOTFOUND)
                 continue;
             else if (ret != 0)
                 testutil_die(ret, "unhandled error returned by cursor->next()");
 
             /* Get the record's key. */
-            testutil_check(cursor->get_key(cursor, &key_tmp));
+            testutil_check(collection.random_cursor->get_key(collection.random_cursor, &key_tmp));
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -263,8 +261,7 @@ class database_operation {
              *
              * Additionally first get the update_cursor.
              */
-            cursor = collections[collection_id].update_cursor;
-            ret = update(tc->tracking, cursor, collections[collection_id].collection_name,
+            ret = update(tc->tracking, collection.update_cursor, collection.collection_name,
               key.c_str(), generated_value.c_str(), ts);
 
             /* Increment the current op count for the current transaction. */

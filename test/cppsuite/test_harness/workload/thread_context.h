@@ -65,7 +65,7 @@ class transaction_context {
             op_count = 0;
             _in_txn = true;
         } else
-            debug_print("Begin called on a currently running transaction, ignoring.", DEBUG_WARN);
+            testutil_die(EINVAL, "Begin called on a currently running transaction.");
     }
 
     /*
@@ -140,7 +140,7 @@ type_string(thread_type type)
     case thread_type::UPDATE:
         return ("update");
     default:
-        testutil_die(-1, "unexpected thread_type: %d", static_cast<int>(type));
+        testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
     }
 }
 
