@@ -1658,16 +1658,13 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
         return (true);
 
     /*
-     * Don't attempt to evict fast-truncate pages until the fast-truncate transaction completes. We
-     * are only here if eviction takes an interest in the fast-truncate page, which implies the page
-     * was instantiated. If the fast-truncate transaction wasn't yet resolved at instantiation, an
-     * update list was created for the transaction to use on commit or abort, and then removed when
-     * the transaction was resolved, so it's our flag.
+     * If a fast-truncate page is subsequently instantiated, it can become an eviction candidate. If
+     * the fast-truncate itself has not resolved when the page is instantiated, a list of updates is
+     * created, which will be discarded as part of transaction resolution. Don't attempt to evict a
+     * fast-truncate page until any update list has been removed.
      */
-    if (ref->ft_info.update != NULL) {
-        WT_ASSERT(session, ref->state != WT_REF_DELETED);
+    if (ref->ft_info.update != NULL)
         return (false);
-    }
 
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an
