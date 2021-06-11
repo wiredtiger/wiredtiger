@@ -1064,13 +1064,6 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 {
     WT_PAGE *page;
 
-    /* Review deleted page saved to the ref. */
-    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp) {
-        __wt_verbose(
-          session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page rolled back", (void *)ref);
-        WT_RET(__wt_delete_page_rollback(session, ref));
-    }
-
     /*
      * If we have a ref with clean page, find out whether the page has any modifications that are
      * newer than the given timestamp. As eviction writes the newest version to page, even a clean
@@ -1123,7 +1116,8 @@ __rollback_abort_fast_truncate(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     /* Review deleted page saved to the ref. */
-    if (ref->page_del != NULL && rollback_timestamp < ref->page_del->durable_timestamp) {
+    if (ref->state == WT_REF_DELETED && ref->ref_ft_del != NULL &&
+      rollback_timestamp < ref->ref_ft_del->durable_timestamp) {
         __wt_verbose(
           session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page rolled back", (void *)ref);
         WT_RET(__wt_delete_page_rollback(session, ref));

@@ -184,14 +184,6 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     /* Figure out whether reconciliation was done on the page */
     clean_page = __wt_page_evict_clean(page);
 
-    /*
-     * Discard all page-deleted information. Eviction won't select a fast-truncate page unless it
-     * was instantiated in memory (which means we no longer need the WT_PAGE_DELETED structure), and
-     * unless the fast-truncate transaction is resolved (which means we no longer need the list of
-     * WT_UPDATE structures). Throw it all away.
-     */
-    __wt_page_del_free(session, ref);
-
     /* Update the reference and discard the page. */
     if (__wt_ref_is_root(ref))
         __wt_ref_out(session, ref);
@@ -529,14 +521,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         WT_RET(ret);
     }
 
-    /*
-     * It is always OK to evict pages from dead trees if they don't have children.
-     */
+    /* It is always OK to evict pages from dead trees if they don't have children. */
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         return (0);
 
     /* Don't attempt to evict fast-truncate pages until the truncate completes. */
-    if (ref->page_del != NULL && ref->page_del->resolved == 0)
+    if (ref->ref_ft_update != NULL)
         return (__wt_set_return(session, EBUSY));
 
     /*

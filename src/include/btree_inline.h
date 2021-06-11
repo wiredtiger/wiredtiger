@@ -1455,19 +1455,6 @@ __wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __wt_page_del_free --
- *     Discard the truncate operation structure.
- */
-static inline void
-__wt_page_del_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    if (ref->page_del != NULL) {
-        __wt_free(session, ref->page_del->update_list);
-        __wt_free(session, ref->page_del);
-    }
-}
-
-/*
  * __wt_page_del_active --
  *     Return if a truncate operation is active.
  */
@@ -1477,10 +1464,10 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
     WT_PAGE_DELETED *page_del;
     uint8_t prepare_state;
 
-    if ((page_del = ref->page_del) == NULL)
-        return (false);
-
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
+
+    if ((page_del = ref->ref_ft_del) == NULL)
+        return (false);
     if (page_del->txnid == WT_TXN_ABORTED)
         return (false);
     WT_ORDERED_READ(prepare_state, page_del->prepare_state);
@@ -1669,6 +1656,18 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
     /* Never modified pages can always be evicted. */
     if (mod == NULL)
         return (true);
+
+    /*
+     * Don't attempt to evict fast-truncate pages until the fast-truncate transaction completes. We
+     * are only here if eviction takes an interest in the fast-truncate page, which implies the page
+     * was instantiated. If the fast-truncate transaction wasn't yet resolved at instantiation, an
+     * update list was created for the transaction to use on commit or abort, and then removed when
+     * the transaction was resolved, so it's our flag.
+     */
+    if (ref->ref_ft_update != NULL) {
+        WT_ASSERT(session, ref->state != WT_REF_DELETED);
+        return (false);
+    }
 
     /*
      * We can't split or evict multiblock row-store pages where the parent's key for the page is an

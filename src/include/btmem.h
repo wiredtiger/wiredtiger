@@ -835,9 +835,7 @@ struct __wt_page_deleted {
 
     uint8_t previous_state; /* Previous state */
 
-    uint8_t resolved; /* Committed or aborted */
-
-    WT_UPDATE **update_list; /* List of updates for abort */
+    uint8_t committed; /* Committed */
 };
 
 /*
@@ -908,7 +906,15 @@ struct __wt_ref {
 #undef ref_ikey
 #define ref_ikey key.ikey
 
-    WT_PAGE_DELETED *page_del; /* Deleted page information */
+    /* Fast-truncate information */
+    union {
+        WT_PAGE_DELETED *page_del; /* Fast-truncate page information */
+        WT_UPDATE **update;        /* Instantiated page updates for subsequent commit/abort */
+    } ref_ft;
+#undef ref_ft_del
+#define ref_ft_del ref_ft.page_del
+#undef ref_ft_update
+#define ref_ft_update ref_ft.update
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in
