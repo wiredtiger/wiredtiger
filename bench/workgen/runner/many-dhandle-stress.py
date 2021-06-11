@@ -76,8 +76,7 @@ wtperf_table_config = "key_format=S,value_format=S," +\
 compress_table_config = ""
 table_config = "type=file"
 tables = []
-# table_count = 15000
-table_count = 1000
+table_count = 15000
 for i in range(0, table_count):
     tname = "table:test" + str(i)
     table = Table(tname)
@@ -89,9 +88,8 @@ for i in range(0, table_count):
     tables.append(table)
 
 populate_threads = 1
-# icount = 15000000
-icount = 1000
-random_range = 1000
+icount = 15000000
+random_range = 1500000000
 pop_ops = Operation(Operation.OP_INSERT, tables[0])
 pop_ops = op_populate_with_range(pop_ops, tables, icount, random_range, populate_threads)
 pop_thread = Thread(pop_ops)
