@@ -1466,7 +1466,7 @@ __wt_page_del_active(WT_SESSION_IMPL *session, WT_REF *ref, bool visible_all)
 
     WT_ASSERT(session, ref->state == WT_REF_LOCKED);
 
-    if ((page_del = ref->ref_ft_del) == NULL)
+    if ((page_del = ref->ft_info.del) == NULL)
         return (false);
     if (page_del->txnid == WT_TXN_ABORTED)
         return (false);
@@ -1664,7 +1664,7 @@ __wt_page_can_evict(WT_SESSION_IMPL *session, WT_REF *ref, bool *inmem_splitp)
      * update list was created for the transaction to use on commit or abort, and then removed when
      * the transaction was resolved, so it's our flag.
      */
-    if (ref->ref_ft_update != NULL) {
+    if (ref->ft_info.update != NULL) {
         WT_ASSERT(session, ref->state != WT_REF_DELETED);
         return (false);
     }

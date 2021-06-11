@@ -1116,8 +1116,8 @@ __rollback_abort_fast_truncate(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
     /* Review deleted page saved to the ref. */
-    if (ref->state == WT_REF_DELETED && ref->ref_ft_del != NULL &&
-      rollback_timestamp < ref->ref_ft_del->durable_timestamp) {
+    if (ref->state == WT_REF_DELETED && ref->ft_info.del != NULL &&
+      rollback_timestamp < ref->ft_info.del->durable_timestamp) {
         __wt_verbose(
           session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page rolled back", (void *)ref);
         WT_RET(__wt_delete_page_rollback(session, ref));

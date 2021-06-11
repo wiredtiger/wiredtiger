@@ -17,7 +17,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
 {
     WT_PAGE_DELETED *page_del;
 
-    page_del = ref->ref_ft_del;
+    page_del = ref->ft_info.del;
 
     /*
      * Internal pages with child leaf pages in the WT_REF_DELETED state are a special case during
@@ -64,7 +64,7 @@ __rec_child_deleted(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref, WT_C
         WT_RET(__wt_ref_block_free(session, ref));
 
         /* Any fast-truncate information can be freed as soon as the delete is stable. */
-        __wt_overwrite_and_free(session, ref->ref_ft_del);
+        __wt_overwrite_and_free(session, ref->ft_info.del);
     }
 
     /*

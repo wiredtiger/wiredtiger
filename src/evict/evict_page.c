@@ -526,7 +526,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         return (0);
 
     /* Don't attempt to evict fast-truncate pages until the truncate completes. */
-    if (ref->ref_ft_update != NULL)
+    if (ref->ft_info.update != NULL)
         return (__wt_set_return(session, EBUSY));
 
     /*

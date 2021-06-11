@@ -267,11 +267,11 @@ __wt_txn_op_apply_prepare_state(WT_SESSION_IMPL *session, WT_REF *ref, bool comm
      * updates in the case of instantiated pages.
      */
     if (previous_state == WT_REF_DELETED) {
-        ref->ref_ft_del->timestamp = ts;
+        ref->ft_info.del->timestamp = ts;
         if (commit)
-            ref->ref_ft_del->durable_timestamp = txn->durable_timestamp;
-        WT_PUBLISH(ref->ref_ft_del->prepare_state, prepare_state);
-    } else if ((updp = ref->ref_ft_update) != NULL)
+            ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
+        WT_PUBLISH(ref->ft_info.del->prepare_state, prepare_state);
+    } else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp) {
             (*updp)->start_ts = ts;
             /*
@@ -308,14 +308,14 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * instantiated pages. Both commit and durable timestamps need to be updated.
      */
     if (previous_state == WT_REF_DELETED) {
-        timestamp = &ref->ref_ft_del->timestamp;
+        timestamp = &ref->ft_info.del->timestamp;
         if (*timestamp == WT_TS_NONE) {
             *timestamp = txn->commit_timestamp;
 
-            timestamp = &ref->ref_ft_del->durable_timestamp;
+            timestamp = &ref->ft_info.del->durable_timestamp;
             *timestamp = txn->durable_timestamp;
         }
-    } else if ((updp = ref->ref_ft_update) != NULL)
+    } else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp) {
             (*updp)->start_ts = txn->commit_timestamp;
             (*updp)->durable_ts = txn->durable_timestamp;
@@ -439,7 +439,7 @@ __wt_txn_modify_page_delete(WT_SESSION_IMPL *session, WT_REF *ref)
     op->u.ref = ref;
 
     /* This access to the WT_PAGE_DELETED structure is safe, caller has the WT_REF locked. */
-    ref->ref_ft_del->txnid = txn->id;
+    ref->ft_info.del->txnid = txn->id;
     __wt_txn_op_set_timestamp(session, op);
 
     WT_ERR(__wt_txn_log_op(session, NULL));

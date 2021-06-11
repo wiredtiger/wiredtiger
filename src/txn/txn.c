@@ -1645,9 +1645,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
             WT_REF_LOCK(session, op->u.ref, &previous_state);
             if (previous_state == WT_REF_DELETED)
-                op->u.ref->ref_ft_del->committed = 1;
+                op->u.ref->ft_info.del->committed = 1;
             else
-                __wt_free(session, op->u.ref->ref_ft_update);
+                __wt_free(session, op->u.ref->ft_info.update);
             WT_REF_UNLOCK(op->u.ref, previous_state);
 
             __wt_txn_op_free(session, op);

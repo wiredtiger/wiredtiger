@@ -906,15 +906,10 @@ struct __wt_ref {
 #undef ref_ikey
 #define ref_ikey key.ikey
 
-    /* Fast-truncate information */
-    union {
-        WT_PAGE_DELETED *page_del; /* Fast-truncate page information */
-        WT_UPDATE **update;        /* Instantiated page updates for subsequent commit/abort */
-    } ref_ft;
-#undef ref_ft_del
-#define ref_ft_del ref_ft.page_del
-#undef ref_ft_update
-#define ref_ft_update ref_ft.update
+    union {                   /* Fast-truncate information */
+        WT_PAGE_DELETED *del; /* Not instantiated, page-deleted structure */
+        WT_UPDATE **update;   /* Instantiated, page updates for subsequent commit/abort */
+    } ft_info;
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in
