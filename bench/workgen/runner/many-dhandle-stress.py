@@ -66,7 +66,7 @@ sample_rate=1
 
 context = Context()
 conn_config = ""
-conn_config += ",cache_size=10G,eviction=(threads_min=4,threads_max=4),file_manager=(close_idle_time=30),session_max=1000,statistics=[all,clear],statistics_log=(wait=1,json=false,on_close=true)"   # explicitly added
+conn_config += ",cache_size=10G,eviction=(threads_min=4,threads_max=4),file_manager=(close_idle_time=30),session_max=1000,statistics=[all,clear],statistics_log=(wait=1,json=true,on_close=true)"   # explicitly added
 conn = context.wiredtiger_open("create," + conn_config)
 s = conn.open_session("")
 
@@ -76,7 +76,8 @@ wtperf_table_config = "key_format=S,value_format=S," +\
 compress_table_config = ""
 table_config = "type=file"
 tables = []
-table_count = 15000
+# table_count = 15000
+table_count = 1000
 for i in range(0, table_count):
     tname = "table:test" + str(i)
     table = Table(tname)
@@ -88,8 +89,9 @@ for i in range(0, table_count):
     tables.append(table)
 
 populate_threads = 1
-icount = 15000000
-random_range = 1500000000
+# icount = 15000000
+icount = 1000
+random_range = 1000
 pop_ops = Operation(Operation.OP_INSERT, tables[0])
 pop_ops = op_populate_with_range(pop_ops, tables, icount, random_range, populate_threads)
 pop_thread = Thread(pop_ops)
