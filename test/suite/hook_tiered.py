@@ -77,7 +77,7 @@ def wiredtiger_open_tiered(ignored_self, args):
       'bucket=%s,' % bucket + \
       'bucket_prefix=%s,' % prefix + \
       'name=%s),tiered_manager=(wait=0),' % extension_name + \
-      'extensions=[\"%s\"],,,' % extension_library
+      'extensions=[\"%s\"],' % extension_library
 
     args = list(args)         # convert from a readonly tuple to a writeable list
     args[-1] += tier_string   # Modify the list
