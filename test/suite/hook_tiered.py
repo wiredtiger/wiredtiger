@@ -87,6 +87,16 @@ def wiredtiger_open_tiered(ignored_self, args):
 
     return args
 
+# Called to replace Session.alter
+def session_alter_replace(orig_session_alter, session_self, uri, config):
+    # Alter isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
+    ret = 0
+    if not uri.startswith("table:"):
+        ret = orig_session_alter(session_self, uri, config)
+    return ret
+
 # Called to replace Session.checkpoint.
 # We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
 # functionality.
@@ -108,6 +118,16 @@ def session_close_replace(orig_session_close, session_self, config):
         return ret
     return orig_session_close(session_self, config)
 
+# Called to replace Session.compact
+def session_compact_replace(orig_session_compact, session_self, uri, config):
+    # Compact isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
+    ret = 0
+    if not uri.startswith("table:"):
+        ret = orig_session_compact(session_self, uri, config)
+    return ret
+
 # Called to replace Session.create
 def session_create_replace(orig_session_create, session_self, uri, config):
     if config == None:
@@ -127,19 +147,39 @@ def session_create_replace(orig_session_create, session_self, uri, config):
 
 # Called to replace Session.drop
 def session_drop_replace(orig_session_drop, session_self, uri, config):
-    # Drop isn't implemented for tiered tables.  Only do the delete if this could be a
-    # uri we created a tiered table for.  Note this isn't a precise match for when we
-    # did/didn't create a tiered table, but we don't have the create config around to check.
+    # Drop isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
     ret = 0
     if not uri.startswith("table:"):
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
+# Called to replace Session.rename
+def session_rename_replace(orig_session_rename, session_self, uri, newuri, config):
+    # Rename isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
+    ret = 0
+    if not uri.startswith("table:"):
+        ret = orig_session_rename(session_self, uri, newuri, config)
+    return ret
+
+# Called to replace Session.salvage
+def session_salvage_replace(orig_session_salvage, session_self, uri, config):
+    # Salvage isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
+    ret = 0
+    if not uri.startswith("table:"):
+        ret = orig_session_salvage(session_self, uri, config)
+    return ret
+
 # Called to replace Session.verify
 def session_verify_replace(orig_session_verify, session_self, uri, config):
-    # Drop isn't implemented for tiered tables.  Only do the delete if this could be a
-    # uri we created a tiered table for.  Note this isn't a precise match for when we
-    # did/didn't create a tiered table, but we don't have the create config around to check.
+    # Verify isn't implemented for tiered tables.  Only call it if this can't be the uri
+    # of a tiered table.  Note this isn't a precise match for when we did/didn't create
+    # a tiered table, but we don't have the create config around to check.
     ret = 0
     if not uri.startswith("table:"):
         ret = orig_session_verify(session_self, uri, config)
@@ -177,6 +217,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         return new_tests
 
     def setup_hooks(self):
+        orig_session_alter = self.Session['alter']
+        self.Session['alter'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
+          session_alter_replace(orig_session_alter, s, uri, config))
+
         orig_session_checkpoint = self.Session['checkpoint']
         self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           session_checkpoint_replace(orig_session_checkpoint, s, config))
@@ -185,6 +229,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Session['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           session_close_replace(orig_session_close, s, config))
 
+        orig_session_compact = self.Session['compact']
+        self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
+          session_compact_replace(orig_session_compact, s, uri, config))
+
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_create_replace(orig_session_create, s, uri, config))
@@ -192,6 +240,14 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_drop = self.Session['drop']
         self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_drop_replace(orig_session_drop, s, uri, config))
+
+        orig_session_rename = self.Session['rename']
+        self.Session['rename'] = (wthooks.HOOK_REPLACE, lambda s, uri, newuri, config=None:
+          session_rename_replace(orig_session_rename, s, uri, newuri, config))
+
+        orig_session_salvage = self.Session['salvage']
+        self.Session['salvage'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
+          session_salvage_replace(orig_session_salvage, s, uri, config))
 
         orig_session_verify = self.Session['verify']
         self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
