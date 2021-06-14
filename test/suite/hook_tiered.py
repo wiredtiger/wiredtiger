@@ -100,7 +100,7 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
 
 # Called to replace Session.checkpoint.
 # Add a call to flush_tier before closing
-def session_close(orig_session_close, session_self, config):
+def session_close_replace(orig_session_close, session_self, config):
     WiredTigerTestCase.verbose(None, 3,
         '    Calling flush_tier() before close')
     ret = session_self.flush_tier(None)
@@ -135,6 +135,16 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
+# Called to replace Session.verify
+def session_verify_replace(orig_session_verify, session_self, uri, config):
+    # Drop isn't implemented for tiered tables.  Only do the delete if this could be a
+    # uri we created a tiered table for.  Note this isn't a precise match for when we
+    # did/didn't create a tiered table, but we don't have the create config around to check.
+    ret = 0
+    if not uri.startswith("table:"):
+        ret = orig_session_verify(session_self, uri, config)
+    return ret
+
 # Every hook file must have one or more classes descended from WiredTigerHook
 # This is where the hook functions are 'hooked' to API methods.
 class TieredHookCreator(wthooks.WiredTigerHookCreator):
@@ -147,8 +157,13 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def skip_test(self, test):
         # Skip any test that contains one of these strings as a substring
         skip = ["backup",              # Can't backup a tiered table
+                "cursor13_ckpt",       # Checkpoint tests with cached cursors
+                "cursor13_drops",      # Tests that require working drop implementation
+                "cursor13_dup",        # More cursor cache tests
+                "cursor13_reopens",    # More cursor cache tests
                 "lsm",                 # If the test name tells us it uses lsm ignore it
                 "test_config_json",    # create replacement can't handle a json config string
+                "test_cursor_big",     # Cursor caching verified with stats
                 "tiered"]
         for item in skip:
             if item in str(test):
@@ -175,8 +190,12 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
           session_create_replace(orig_session_create, s, uri, config))
 
         orig_session_drop = self.Session['drop']
-        self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
+        self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config=None:
           session_drop_replace(orig_session_drop, s, uri, config))
+
+        orig_session_verify = self.Session['verify']
+        self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
+          session_verify_replace(orig_session_verify, s, uri, config))
 
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
 
