@@ -43,7 +43,8 @@
 #    so that it will be stored local-only.  Tiered storage isn't intended (yet?) for
 #    use with lsm or column store.
 #
-# 3. We add a call to flush_tier() after each call to checkpoint().
+# 3. We add a calls to flush_tier().  Currently we flush after a checkpoint() call and
+#    before a close() call.
 #
 # 4. We stub out some functions (currently just drop) that aren't supported by tiered
 #    tables.  This will break tests of those functions.  But often when they are used
@@ -88,7 +89,7 @@ def wiredtiger_open_tiered(ignored_self, args):
 
 # Called to replace Session.checkpoint.
 # We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
-# functionality.  This means that tests that don't call checkpoint won't have any tiered objects.
+# functionality.
 def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     ret = orig_session_checkpoint(session_self, config)
     if ret != 0:
@@ -96,6 +97,14 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     WiredTigerTestCase.verbose(None, 3,
         '    Calling flush_tier()')
     return session_self.flush_tier(None)
+
+# Called to replace Session.checkpoint.
+# Add a call to flush_tier before closing
+def session_close(orig_session_close, session_self, config):
+    ret = session_self.flush_tier(None)
+    if ret != 0:
+        return ret
+    return orig_session_close(session_self, config)
 
 # Called to replace Session.create
 def session_create_replace(orig_session_create, session_self, uri, config):
@@ -154,6 +163,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_checkpoint = self.Session['checkpoint']
         self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
           session_checkpoint_replace(orig_session_checkpoint, s, config))
+
+        orig_session_close = self.Session['close']
+        self.Session['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
+          session_close_replace(orig_session_close, s, config))
 
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
