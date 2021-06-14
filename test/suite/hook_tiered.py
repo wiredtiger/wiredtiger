@@ -137,7 +137,8 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         # Skip any test that contains one of these strings as a substring
         skip = ["backup",              # Can't backup a tiered table
                 "lsm",                 # If the test name tells us it uses lsm ignore it
-                "test_config_json"]    # create replacement can't handle a json config string
+                "test_config_json",    # create replacement can't handle a json config string
+                "tiered"]
         for item in skip:
             if item in str(test):
                 return True
