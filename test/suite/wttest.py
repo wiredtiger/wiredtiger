@@ -284,7 +284,7 @@ class WiredTigerTestCase(unittest.TestCase):
         self.skipped = True
         super(WiredTigerTestCase, self).skipTest(reason)
 
-    # Construct the expected filename for an extension library and return 
+    # Construct the expected filename for an extension library and return
     # the name if the file exists.
     @staticmethod
     def findExtension(dirname, libname):
