@@ -34,16 +34,24 @@
 #
 # Substitute tiered tables for regular (row-store) tables in Python tests.
 #
-# These hooks can be used to run the existing cursor tests on tiered tables.
-# They identify tests that create row-store tables and create tiered tables
-# instead.  The hook takes an optional argument to specify how many tiers
-# to create. The default is 2.
+# These hooks are intended for basic testing of tiered tables.  There are several
+# pieces of functionality here.
 #
-# To run with 3 tiers per table:
-#     ../test/suite/run.py --hooks tiered=3 cursor
+# 1. We add tiered storage parameters to the config when calling wiredtiger_open()
 #
-# The hooks work with may other tests in the python suite but also encounter
-# a variety of failures that I haven't tried to sort out.
+# 2. If we create an object that is *not* a table:, we add options to its config
+#    so that it will be stored local-only.  Tiered storage isn't intended (yet?) for
+#    use with LSM or colstore.
+#
+# 3. We add a call to flush_tier() after each call to checkpoint().
+#
+# 4. We stub out some functions (currently just drop) that aren't supported by tiered
+#    tables.  This will break tests of those functions.  But often when they are used
+#    in other tests, we can get away with returning success without performing the operation.
+#
+# To run, for example, the cursor tests with these hooks enabled:
+#     ../test/suite/run.py --hooks tiered cursor
+#
 from __future__ import print_function
 
 import os, sys, wthooks
@@ -52,35 +60,51 @@ from wttest import WiredTigerTestCase
 
 # These are the hook functions that are run when particular APIs are called.
 
-# Called to replace Session.create
-def session_create_replace(ntiers, orig_session_create, session_self, uri, config):
-    if config == None:
-        base_config = ""
-    else:
-        base_config = config
+# Add the local storage extension whenever we call wiredtiger_open
+def wiredtiger_open_tiered(ignored_self, args):
+    auth_token = "test_token"
+    bucket = "mybucket"
+    extension_name = "local_store"
+    prefix = "pfx-"
+    # XXX This assumes we are running from WT_TEST/test* in the build directory!
+    extension_library = os.getcwd() + \
+            '/../../ext/storage_sources/local_store/.libs/libwiredtiger_local_store.so'
 
-    # If the test is creating a table (not colstore or lsm), create a tiered table instead,
-    # using arg to determine number of tiers. Otherwise just do the create as normal.
-    #
-    # NOTE: The following code uses the old API for creating tiered tables.  As of WT-7173
-    # this no longer works.  It will be updated and fixed in WT-7440.
-    if (uri.startswith("table:") and "key_format=r" not in base_config and
-      "type=lsm" not in base_config):
-        tier_string = ""
-        for i in range(ntiers):
-            new_uri = uri.replace('table:', 'file:tier' + str(i) + '_')
-            orig_session_create(session_self, new_uri, config)
-            tier_string = tier_string + '"' + new_uri + '", '
-        tier_config = 'type=tiered,tiered=(tiers=(' + tier_string[0:-2] + ')),' + base_config
-        WiredTigerTestCase.verbose(None, 3,
-            'Creating tiered table {} with config = \'{}\''.format(uri, tier_config))
-        ret = orig_session_create(session_self, uri, tier_config)
+    if not os.path.exists(bucket):
+        os.mkdir(bucket)
+    tier_string = ',,,tiered_storage=(auth_token=%s,' % auth_token + \
+      'bucket=%s,' % bucket + \
+      'bucket_prefix=%s,' % prefix + \
+      'name=%s),tiered_manager=(wait=0),' % extension_name + \
+      'extensions=[\"%s\"],,,' % extension_library
+
+    args = list(args)         # convert from a readonly tuple to a writeable list
+    args[-1] += tier_string   # Modify the list
+
+    WiredTigerTestCase.verbose(None, 3,
+        '    Calling wiredtiger_open with config = \'{}\''.format(args))
+
+    return args
+
+# Called to replace Session.create
+def session_create_replace(orig_session_create, session_self, uri, config):
+    if config == None:
+        new_config = ""
     else:
-        ret = orig_session_create(session_self, uri, config)
+        new_config = config
+
+    # If the test isn't creating a table (i.e., it's a colstore or lsm) create it as a
+    # "local only" object.  Otherwise we get tiered storage from the connection defaults.
+    if not uri.startswith("table:") or "key_format=r" in new_config or "type=lsm" in new_config:
+        new_config = new_config + ',tiered_storage=(name=none)'
+
+    WiredTigerTestCase.verbose(None, 3,
+        '    Creating \'{}\' with config = \'{}\''.format(uri, new_config))
+    ret = orig_session_create(session_self, uri, new_config)
     return ret
 
 # Called to replace Session.drop
-def session_drop_replace(ntiers, orig_session_drop, session_self, uri, config):
+def session_drop_replace(orig_session_drop, session_self, uri, config):
     # Drop isn't implemented for tiered tables.  Only do the delete if this could be a
     # uri we created a tiered table for.  Note this isn't a precise match for when we
     # did/didn't create a tiered table, but we don't have the create config around to check.
@@ -89,29 +113,31 @@ def session_drop_replace(ntiers, orig_session_drop, session_self, uri, config):
         ret = orig_session_drop(session_self, uri, config)
     return ret
 
-# Called to replace Session.verify
-def session_verify_replace(ntiers, orig_session_verify, session_self, uri):
-    return 0
+# Called to replace Session.checkpoint.
+# We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
+# functionality.  This means that tests that don't call checkpoint won't have any tiered objects.
+def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
+    ret = orig_session_checkpoint(session_self, config)
+    if ret != 0:
+        return ret
+    WiredTigerTestCase.verbose(None, 3,
+        '    Calling flush_tier()')
+    return session_self.flush_tier(None)
 
 # Every hook file must have one or more classes descended from WiredTigerHook
 # This is where the hook functions are 'hooked' to API methods.
 class TieredHookCreator(wthooks.WiredTigerHookCreator):
-    def __init__(self, ntiers=0):
-        # Argument specifies the number of tiers to test. The default is 2.
-        if ntiers == None:
-            self.ntiers = 2
-        else:
-            self.ntiers = int(ntiers)
+    def __init__(self, arg=0):
+        # Caller can specify an optional command-line argument.  We're not using it
+        # now, but this is where it would show up.
+        return
 
-    # Is this test one we should skip? We skip tests of features supported on standard
-    # tables but not tiered tables, specififically cursor caching and checkpoint cursors.
+    # Is this test one we should skip?
     def skip_test(self, test):
-        skip = ["bulk_backup",
-                "checkpoint",
-                "test_cursor13_big",
-                "test_cursor13_drops",
-                "test_cursor13_dup",
-                "test_cursor13_reopens"]
+        # Skip any test that contains one of these strings as a substring
+        skip = ["backup",              # Can't backup a tiered table
+                "lsm",                 # If the test name tells us it uses lsm ignore it
+                "test_config_json"]    # create replacement can't handle a json config string
         for item in skip:
             if item in str(test):
                 return True
@@ -126,15 +152,17 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
     def setup_hooks(self):
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
-          session_create_replace(self.ntiers, orig_session_create, s, uri, config))
+          session_create_replace(orig_session_create, s, uri, config))
 
         orig_session_drop = self.Session['drop']
         self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
-          session_drop_replace(self.ntiers, orig_session_drop, s, uri, config))
+          session_drop_replace(orig_session_drop, s, uri, config))
 
-        orig_session_verify = self.Session['verify']
-        self.Session['verify'] = (wthooks.HOOK_REPLACE, lambda s, uri:
-          session_verify_replace(self.ntiers, orig_session_verify, s, uri))
+        orig_session_checkpoint = self.Session['checkpoint']
+        self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
+          session_checkpoint_replace(orig_session_checkpoint, s, config))
+
+        self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
 
 # Every hook file must have a top level initialize function,
 # returning a list of WiredTigerHook objects.
