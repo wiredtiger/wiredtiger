@@ -147,6 +147,7 @@ FOREACH
 FS
 FTRUNCATE
 FULLFSYNC
+FUNCSIG
 Facebook
 FindClose
 FindFirstFile
@@ -1258,6 +1259,7 @@ sT
 sanitizer
 sanitizers
 scalability
+scalable
 sched
 scr
 sd
@@ -1400,6 +1402,7 @@ unencrypted
 unesc
 unescape
 unescaped
+unhandled
 unicode
 uninstantiated
 unistd
