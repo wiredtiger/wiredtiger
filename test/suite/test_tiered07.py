@@ -47,7 +47,6 @@ class test_tiered07(wttest.WiredTigerTestCase):
     def conn_config(self):
         os.mkdir(self.bucket)
         return \
-          'verbose=(tiered),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -63,6 +62,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
     # Test calling schema APIs with a tiered table.
     def test_tiered(self):
         # Create a new tiered table.
+        self.pr('create table')
         self.session.create(self.uri, 'key_format=S,value_format=S')
 
         # Rename is not supported for tiered tables.
@@ -71,13 +71,16 @@ class test_tiered07(wttest.WiredTigerTestCase):
         #    lambda:self.assertEquals(self.session.rename(self.uri, self.newuri, None), 0), msg)
 
         # Add some data and flush tier.
+        self.pr('add one item')
         c = self.session.open_cursor(self.uri)
         c["0"] = "0"
         self.check(c, 1)
         c.close()
+        self.pr('After data, call flush_tier')
         self.session.flush_tier(None)
 
         # Drop table.
+        self.pr('call drop')
         self.session.drop(self.uri)
 
         return

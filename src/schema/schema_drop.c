@@ -187,7 +187,6 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     tiered = (WT_TIERED *)session->dhandle;
-    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: dhandle %p", (void *)session->dhandle);
 
     /*
      * We cannot remove the objects on shared storage as other systems may be accessing them too.
@@ -196,23 +195,15 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
     if (tier != NULL) {
         __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
-#if 1
         WT_ERR(__wt_metadata_remove(session, tier->name));
-#else
-        WT_SAVE_DHANDLE(session, ret = __wt_schema_drop(session, tier->name, cfg));
-        WT_ERR(ret);
-#endif
     }
 
-#if 1
-    WT_UNUSED(i);
-    WT_UNUSED(force);
-#else
     /* Object ids start at 1. */
     for (i = 1; i < tiered->current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
         __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
         WT_ERR(__wt_metadata_remove(session, name));
+        WT_TRET(__wt_meta_track_drop(session, name));
         __wt_free(session, name);
     }
 
@@ -220,16 +211,13 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
      * Close all btree handles associated with this table. This must be done after we're done using
      * the tiered structure because that is from the dhandle.
      */
-    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: before close-all dhandle %p",
-      (void *)session->dhandle);
     WT_TRET(__wt_session_release_dhandle(session));
     WT_WITH_HANDLE_LIST_WRITE_LOCK(
       session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
     WT_ERR(ret);
 
-    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove table %s from metadata", uri);
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
-#endif
 err:
     __wt_free(session, name);
     return (ret);
