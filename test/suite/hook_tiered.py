@@ -86,6 +86,17 @@ def wiredtiger_open_tiered(ignored_self, args):
 
     return args
 
+# Called to replace Session.checkpoint.
+# We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
+# functionality.  This means that tests that don't call checkpoint won't have any tiered objects.
+def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
+    ret = orig_session_checkpoint(session_self, config)
+    if ret != 0:
+        return ret
+    WiredTigerTestCase.verbose(None, 3,
+        '    Calling flush_tier()')
+    return session_self.flush_tier(None)
+
 # Called to replace Session.create
 def session_create_replace(orig_session_create, session_self, uri, config):
     if config == None:
@@ -112,17 +123,6 @@ def session_drop_replace(orig_session_drop, session_self, uri, config):
     if not uri.startswith("table:"):
         ret = orig_session_drop(session_self, uri, config)
     return ret
-
-# Called to replace Session.checkpoint.
-# We add a call to flush_tier after the checkpoint to make sure we are exercising tiered
-# functionality.  This means that tests that don't call checkpoint won't have any tiered objects.
-def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
-    ret = orig_session_checkpoint(session_self, config)
-    if ret != 0:
-        return ret
-    WiredTigerTestCase.verbose(None, 3,
-        '    Calling flush_tier()')
-    return session_self.flush_tier(None)
 
 # Every hook file must have one or more classes descended from WiredTigerHook
 # This is where the hook functions are 'hooked' to API methods.
@@ -151,6 +151,10 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         return new_tests
 
     def setup_hooks(self):
+        orig_session_checkpoint = self.Session['checkpoint']
+        self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
+          session_checkpoint_replace(orig_session_checkpoint, s, config))
+
         orig_session_create = self.Session['create']
         self.Session['create'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_create_replace(orig_session_create, s, uri, config))
@@ -158,10 +162,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_drop = self.Session['drop']
         self.Session['drop'] = (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_drop_replace(orig_session_drop, s, uri, config))
-
-        orig_session_checkpoint = self.Session['checkpoint']
-        self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
-          session_checkpoint_replace(orig_session_checkpoint, s, config))
 
         self.wiredtiger['wiredtiger_open'] = (wthooks.HOOK_ARGS, wiredtiger_open_tiered)
 
