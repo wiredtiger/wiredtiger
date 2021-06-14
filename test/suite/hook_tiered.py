@@ -67,9 +67,9 @@ def wiredtiger_open_tiered(ignored_self, args):
     bucket = "mybucket"
     extension_name = "local_store"
     prefix = "pfx-"
-    extension_names = WiredTigerTestCase.findExtension('storage_sources', 'local_store')
-    if len(extension_names) == 0:
-        raise Exception('local_store storage source extension not found')
+    extension_libs = WiredTigerTestCase.findExtension('storage_sources', extension_name)
+    if len(extension_libs) == 0:
+        raise Exception(extension_name + ' storage source extension not found')
 
     if not os.path.exists(bucket):
         os.mkdir(bucket)
@@ -77,7 +77,7 @@ def wiredtiger_open_tiered(ignored_self, args):
       'bucket=%s,' % bucket + \
       'bucket_prefix=%s,' % prefix + \
       'name=%s),tiered_manager=(wait=0),' % extension_name + \
-      'extensions=[\"%s\"],' % extension_names[0]
+      'extensions=[\"%s\"],' % extension_libs[0]
 
     args = list(args)         # convert from a readonly tuple to a writeable list
     args[-1] += tier_string   # Modify the list
