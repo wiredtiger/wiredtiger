@@ -67,17 +67,17 @@ def wiredtiger_open_tiered(ignored_self, args):
     bucket = "mybucket"
     extension_name = "local_store"
     prefix = "pfx-"
-    # XXX This assumes we are running from WT_TEST/test* in the build directory!
-    extension_library = os.getcwd() + \
-            '/../../ext/storage_sources/local_store/.libs/libwiredtiger_local_store.so'
+    extension_names = WiredTigerTestCase.findExtension('storage_sources', 'local_store')
+    if len(extension_names) == 0:
+        raise Exception('local_store storage source extension not found')
 
     if not os.path.exists(bucket):
         os.mkdir(bucket)
-    tier_string = ',,,tiered_storage=(auth_token=%s,' % auth_token + \
+    tier_string = ',tiered_storage=(auth_token=%s,' % auth_token + \
       'bucket=%s,' % bucket + \
       'bucket_prefix=%s,' % prefix + \
       'name=%s),tiered_manager=(wait=0),' % extension_name + \
-      'extensions=[\"%s\"],' % extension_library
+      'extensions=[\"%s\"],' % extension_names[0]
 
     args = list(args)         # convert from a readonly tuple to a writeable list
     args[-1] += tier_string   # Modify the list
@@ -112,7 +112,7 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
 # Add a call to flush_tier before closing
 def session_close_replace(orig_session_close, session_self, config):
     WiredTigerTestCase.verbose(None, 3,
-        '    Calling flush_tier() before close')
+        '    Calling flush_tier() before session close')
     ret = session_self.flush_tier(None)
     if ret != 0:
         return ret
