@@ -95,12 +95,14 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     if ret != 0:
         return ret
     WiredTigerTestCase.verbose(None, 3,
-        '    Calling flush_tier()')
+        '    Calling flush_tier() after checkpoint')
     return session_self.flush_tier(None)
 
 # Called to replace Session.checkpoint.
 # Add a call to flush_tier before closing
 def session_close(orig_session_close, session_self, config):
+    WiredTigerTestCase.verbose(None, 3,
+        '    Calling flush_tier() before close')
     ret = session_self.flush_tier(None)
     if ret != 0:
         return ret
