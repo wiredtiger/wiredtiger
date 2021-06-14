@@ -174,31 +174,67 @@ err:
  *     Drop a tiered store.
  */
 static int
-__drop_tiered(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+__drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
     WT_TIERED *tiered;
     u_int i;
+    const char *name;
 
+    name = NULL;
+    WT_UNUSED(cfg);
     /* Get the tiered data handle. */
     WT_RET(__wt_session_get_dhandle(session, uri, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
     tiered = (WT_TIERED *)session->dhandle;
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: dhandle %p", (void *)session->dhandle);
 
-    /* Drop the tiers. */
-    for (i = 0; i < WT_TIERED_MAX_TIERS; i++) {
-        tier = tiered->tiers[i].tier;
-        if (tier != NULL)
-            WT_ERR(__wt_schema_drop(session, tier->name, cfg));
+    /*
+     * We cannot remove the objects on shared storage as other systems may be accessing them too.
+     * Remove the current local object and then remove all bucket objects from the metadata only.
+     */
+    tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
+    if (tier != NULL) {
+        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
+#if 1
+        WT_ERR(__wt_metadata_remove(session, tier->name));
+#else
+        WT_SAVE_DHANDLE(session, ret = __wt_schema_drop(session, tier->name, cfg));
+        WT_ERR(ret);
+#endif
     }
 
-    ret = __wt_metadata_remove(session, uri);
+#if 1
+    WT_UNUSED(i);
+    WT_UNUSED(force);
+#else
+    /* Object ids start at 1. */
+    for (i = 1; i < tiered->current_id; ++i) {
+        WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
+        __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
+        WT_ERR(__wt_metadata_remove(session, name));
+        __wt_free(session, name);
+    }
 
-err:
-    F_SET(session->dhandle, WT_DHANDLE_DISCARD);
+    /*
+     * Close all btree handles associated with this table. This must be done after we're done using
+     * the tiered structure because that is from the dhandle.
+     */
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: before close-all dhandle %p",
+      (void *)session->dhandle);
     WT_TRET(__wt_session_release_dhandle(session));
+    WT_WITH_HANDLE_LIST_WRITE_LOCK(
+      session, ret = __wt_conn_dhandle_close_all(session, uri, true, force));
+    WT_ERR(ret);
+
+    __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove table %s from metadata", uri);
+    ret = __wt_metadata_remove(session, uri);
+#endif
+err:
+    __wt_free(session, name);
     return (ret);
 }
+
 /*
  * __schema_drop --
  *     Process a WT_SESSION::drop operation for all supported types.
@@ -230,7 +266,7 @@ __schema_drop(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
     else if (WT_PREFIX_MATCH(uri, "table:"))
         ret = __drop_table(session, uri, cfg);
     else if (WT_PREFIX_MATCH(uri, "tiered:"))
-        ret = __drop_tiered(session, uri, cfg);
+        ret = __drop_tiered(session, uri, force, cfg);
     else if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
         ret = dsrc->drop == NULL ? __wt_object_unsupported(session, uri) :
                                    dsrc->drop(dsrc, &session->iface, uri, (WT_CONFIG_ARG *)cfg);
