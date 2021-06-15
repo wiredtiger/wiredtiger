@@ -1194,6 +1194,11 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
       WT_WITH_SCHEMA_LOCK(session,
         ret = __wt_schema_worker(
           session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
+    WT_ERR(ret);
+    WT_WITH_CHECKPOINT_LOCK(session,
+      WT_WITH_SCHEMA_LOCK(session,
+        ret = __wt_schema_worker(
+          session, uri, __wt_rollback_to_stable_btree_apply, NULL, cfg, WT_DHANDLE_EXCLUSIVE)));
 
 err:
     if (ret != 0)
