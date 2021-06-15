@@ -166,7 +166,7 @@ __create_file(
      * history store file on every restart to ensure that history store file is present. Make sure
      * to remove the already exist history store file in the directory.
      */
-    if (strcmp(uri, WT_HS_URI) == 0) {
+    if (WT_IS_HS_URI(uri)) {
         WT_IGNORE_RET(__wt_fs_exist(session, filename, &exists));
         if (exists)
             WT_IGNORE_RET(__wt_fs_remove(session, filename, true));

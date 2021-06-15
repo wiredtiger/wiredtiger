@@ -84,7 +84,7 @@ class test_metadata_cursor02(wttest.WiredTigerTestCase):
                 self.captureerr.checkAdditionalPattern(self, 'metadata information.*not found')
 
             # Should include the metadata and the two valid tables
-            self.assertEqual(count, self.metauri.endswith('create') and 2 or 3)
+            self.assertEqual(count, self.metauri.endswith('create') and 3 or 4)
 
 if __name__ == '__main__':
     wttest.run()

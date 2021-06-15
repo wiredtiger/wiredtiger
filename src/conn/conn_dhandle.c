@@ -932,7 +932,7 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
+        if (WT_IS_METADATA(dhandle) || WT_IS_HS_URI(dhandle->name) ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
 
@@ -990,14 +990,17 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
             break;
         btree = (WT_BTREE *)dhandle->handle;
 
-        WT_ASSERT(session, btree != NULL);
-
         /*
-         * Initialize the btree write generation numbers after rollback to stable so that the
-         * transaction ids of the pages will be reset when loaded from disk to memory.
+         * Not sure why we assumed that we won't have a table: dhandle without a btree here.
+         * WT_ASSERT(session, btree != NULL);
          */
-        btree->write_gen = btree->base_write_gen = btree->run_write_gen =
-          WT_MAX(btree->write_gen, conn->base_write_gen);
+        if (btree != NULL)
+            /*
+             * Initialize the btree write generation numbers after rollback to stable so that the
+             * transaction ids of the pages will be reset when loaded from disk to memory.
+             */
+            btree->write_gen = btree->base_write_gen = btree->run_write_gen =
+              WT_MAX(btree->write_gen, conn->base_write_gen);
     }
 }
 

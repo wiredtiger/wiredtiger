@@ -30,8 +30,12 @@
 #define WT_METAFILE_SLVG "WiredTiger.wt.orig" /* Metadata copy */
 #define WT_METAFILE_URI "file:WiredTiger.wt"  /* Metadata table URI */
 
-#define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
-#define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
+#define WT_HS_FILE "WiredTigerHS.wt"              /* History store table */
+#define WT_HS_URI "table:WiredTigerHS"            /* History store table URI */
+#define WT_HS_FILE_URI "file:WiredTigerHS.wt"     /* History store file URI */
+#define WT_HS_TIERED_URI "tiered:WiredTigerHS.wt" /* History store tiered URI */
+#define WT_HS_COL_URI "colgroup:WiredTigerHS"     /* History store column group URI */
+#define WT_HS_INTERNAL_URI WT_HS_FILE_URI
 
 #define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
 #define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
@@ -55,6 +59,14 @@
 #define WT_METADATA_COMPAT "Compatibility version"
 #define WT_METADATA_VERSION "WiredTiger version" /* Version keys */
 #define WT_METADATA_VERSION_STR "WiredTiger version string"
+
+/*
+ * Does a URI have one of the possible HS values XXX: This will probably need to be updated if/when
+ * we allow the HS to be tiered.
+ */
+#define WT_IS_HS_URI(uri)                                               \
+    (strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_HS_FILE_URI) == 0 || \
+      strcmp(uri, WT_HS_COL_URI) == 0)
 
 /*
  * As a result of a data format change WiredTiger is not able to start on versions below 3.2.0, as

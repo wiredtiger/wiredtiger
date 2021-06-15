@@ -75,7 +75,7 @@ class test_import08(test_import_base):
         cursor2 = session2.open_cursor('metadata:')
         generated_uri = None
         for k, _ in cursor2:
-            if k.startswith('table:'):
+            if k.startswith('table:') and k != "table:WiredTigerHS":
                 generated_uri = k
                 break
         cursor2.close()

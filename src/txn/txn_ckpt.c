@@ -887,7 +887,8 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
      * part of the metadata file (performing recovery on backup folder where no checkpoint
      * occurred), this will return ENOENT which we ignore and continue.
      */
-    WT_ERR_ERROR_OK(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0), ENOENT, false);
+    WT_ERR_ERROR_OK(
+      __wt_session_get_dhandle(session, WT_HS_INTERNAL_URI, NULL, NULL, 0), ENOENT, false);
     hs_dhandle = session->dhandle;
 
     /*

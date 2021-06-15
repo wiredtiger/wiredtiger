@@ -78,7 +78,7 @@ class test_rollback_to_stable20(test_rollback_to_stable_base):
         open_dhandle_count = stat_cursor[stat.conn.dh_conn_handle_count][2]
         stat_cursor.close()
 
-        self.assertLess(open_dhandle_count, 5)
+        self.assertLess(open_dhandle_count, 6)
 
 if __name__ == '__main__':
     wttest.run()

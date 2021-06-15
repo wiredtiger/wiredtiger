@@ -1326,7 +1326,9 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
 
     config = NULL;
 
-    WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
+    ret = __wt_metadata_search(session, WT_HS_FILE_URI, &config);
+    if (ret != 0)
+        WT_RET(__wt_metadata_search(session, WT_HS_TIERED_URI, &config));
 
     /*
      * Find out the max durable timestamp of the history store from checkpoint. Most of the history
@@ -1349,7 +1351,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
         WT_ERR_NOTFOUND_OK(ret, false);
     }
     max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
-    WT_ERR(__wt_session_get_dhandle(session, WT_HS_URI, NULL, NULL, 0));
+    WT_ERR(__wt_session_get_dhandle(session, WT_HS_FILE_URI, NULL, NULL, 0));
 
     /*
      * The rollback operation should be performed on the history store file when the checkpoint
@@ -1459,7 +1461,7 @@ __rollback_to_stable_btree_apply(WT_SESSION_IMPL *session)
         dhandle_allocated = perform_rts = false;
 
         /* Ignore metadata and history store files. */
-        if (strcmp(uri, WT_METAFILE_URI) == 0 || strcmp(uri, WT_HS_URI) == 0)
+        if (strcmp(uri, WT_METAFILE_URI) == 0 || WT_IS_HS_URI(uri))
             continue;
 
         if (!WT_PREFIX_MATCH(uri, "file:"))

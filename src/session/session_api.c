@@ -228,7 +228,7 @@ __session_close_cursors(WT_SESSION_IMPL *session, WT_CURSOR_LIST *cursors)
              */
             WT_TRET_NOTFOUND_OK(cursor->reopen(cursor, false));
         else if (session->event_handler->handle_close != NULL &&
-          strcmp(cursor->internal_uri, WT_HS_URI) != 0)
+          !WT_IS_HS_URI(cursor->internal_uri))
             /*
              * Notify the user that we are closing the cursor handle via the registered close
              * callback.
@@ -548,7 +548,7 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
     hash_value = 0;
 
     /* We should not open other cursors when there are open history store cursors in the session. */
-    WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0);
+    WT_ASSERT(session, WT_IS_HS_URI(uri) || session->hs_cursor_counter == 0);
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {

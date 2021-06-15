@@ -745,6 +745,12 @@ __hs_exists(WT_SESSION_IMPL *session, WT_CURSOR *metac, const char *cfg[], bool 
      * This needs to happen after we apply the logs as they may contain the metadata changes which
      * include the history store creation. As such the on disk metadata file won't contain the
      * history store but will after log application.
+     *
+     * XXX: Switching the HS to be table:WiredTigerHS causes problems here. If we fail while
+     * creating the HS table, we could wind up with a subset of the file:, colgroup: and table:
+     * entries we need in the metadata. We should check for incomplete HS metadata here. If that
+     * happens, we can remove the incomplete entries and create the HS from scratch.
+     * test_schema08.py fails due to this issue and can be used to test a fix.
      */
     metac->set_key(metac, WT_HS_URI);
     WT_ERR_NOTFOUND_OK(metac->search(metac), true);

@@ -487,7 +487,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     }
 
     /* Set special flags for the history store table. */
-    if (strcmp(session->dhandle->name, WT_HS_URI) == 0) {
+    if (WT_IS_HS_URI(session->dhandle->name)) {
         F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_SET(btree, WT_BTREE_NO_LOGGING);
     }
