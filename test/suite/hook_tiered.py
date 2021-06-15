@@ -43,12 +43,12 @@
 #    so that it will be stored local-only.  Tiered storage isn't intended (yet?) for
 #    use with lsm or column store.
 #
-# 3. We add a calls to flush_tier().  Currently we flush after a checkpoint() call and
-#    before a close() call.
+# 3. We add calls to flush_tier().  Currently we only flush after a checkpoint() call,
+#    but we should add others.
 #
-# 4. We stub out some functions (currently just drop) that aren't supported by tiered
-#    tables.  This will break tests of those functions.  But often when they are used
-#    in other tests, we can get away with returning success without performing the operation.
+# 4. We stub out some functions that aren't supported by tiered tables.  This will
+#    break tests of those functions.  But often when they are used in other tests, we 
+#    can get away with returning success without performing the operation.
 #
 # To run, for example, the cursor tests with these hooks enabled:
 #     ../test/suite/run.py --hooks tiered cursor
@@ -107,16 +107,6 @@ def session_checkpoint_replace(orig_session_checkpoint, session_self, config):
     WiredTigerTestCase.verbose(None, 3,
         '    Calling flush_tier() after checkpoint')
     return session_self.flush_tier(None)
-
-# Called to replace Session.checkpoint.
-# Add a call to flush_tier before closing
-def session_close_replace(orig_session_close, session_self, config):
-    WiredTigerTestCase.verbose(None, 3,
-        '    Calling flush_tier() before session close')
-    ret = session_self.flush_tier(None)
-    if ret != 0:
-        return ret
-    return orig_session_close(session_self, config)
 
 # Called to replace Session.compact
 def session_compact_replace(orig_session_compact, session_self, uri, config):
@@ -220,10 +210,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         orig_session_alter = self.Session['alter']
         self.Session['alter'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_alter_replace(orig_session_alter, s, uri, config))
-
-        orig_session_checkpoint = self.Session['checkpoint']
-        self.Session['checkpoint'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
-          session_checkpoint_replace(orig_session_checkpoint, s, config))
 
         orig_session_close = self.Session['close']
         self.Session['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
