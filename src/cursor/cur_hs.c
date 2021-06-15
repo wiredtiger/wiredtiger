@@ -147,6 +147,46 @@ __curhs_set_value_ptr(WT_CURSOR *hs_cursor, WT_CURSOR *file_cursor)
 }
 
 /*
+ * __curhs_search --
+ *     Search the history store for a given key and position the cursor on it.
+ */
+static int
+__curhs_search(WT_CURSOR_BTREE *hs_cbt, bool insert)
+{
+    WT_BTREE *hs_btree;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    hs_btree = CUR2BT(hs_cbt);
+    session = CUR2S(hs_cbt);
+
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * Turn off cursor-order checks in all cases on search. The search/search-near functions turn
+     * them back on after a successful search.
+     */
+    __wt_cursor_key_order_reset(hs_cbt);
+#endif
+
+    WT_ERR(__wt_cursor_localkey(&hs_cbt->iface));
+
+    WT_ERR(__wt_cursor_func_init(hs_cbt, true));
+
+    WT_WITH_BTREE(session, hs_btree,
+      ret = __wt_row_search(hs_cbt, &hs_cbt->iface.key, insert, NULL, false, NULL));
+
+#ifdef HAVE_DIAGNOSTIC
+    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
+#endif
+
+err:
+    if (ret != 0)
+        WT_TRET(__cursor_reset(hs_cbt));
+
+    return (ret);
+}
+
+/*
  * __curhs_next --
  *     WT_CURSOR->next method for the history store cursor type.
  */
@@ -847,7 +887,19 @@ __curhs_insert(WT_CURSOR *cursor)
      */
     __wt_cursor_disable_bulk(session);
 
-    /* Allocate a tombstone only when there is a valid stop time point. */
+    /*
+     * The actual record to be inserted into the history store. Set the current update start time
+     * point as the commit time point to the history store record.
+     */
+    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
+    hs_upd->start_ts = hs_cursor->time_window.start_ts;
+    hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
+    hs_upd->txnid = hs_cursor->time_window.start_txn;
+
+    /*
+     * Allocate a tombstone only when there is a valid stop time point, and insert the standard
+     * update as the update after the tombstone.
+     */
     if (WT_TIME_WINDOW_HAS_STOP(&hs_cursor->time_window)) {
         /*
          * Insert a delete record to represent stop time point for the actual record to be inserted.
@@ -857,45 +909,38 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
         hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
-    }
 
-    /*
-     * Append to the delete record, the actual record to be inserted into the history store. Set the
-     * current update start time point as the commit time point to the history store record.
-     */
-    WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
-    hs_upd->start_ts = hs_cursor->time_window.start_ts;
-    hs_upd->durable_ts = hs_cursor->time_window.durable_start_ts;
-    hs_upd->txnid = hs_cursor->time_window.start_txn;
-
-    /* Insert the standard update as next update if there is a tombstone. */
-    if (hs_tombstone != NULL) {
         hs_tombstone->next = hs_upd;
         hs_upd = hs_tombstone;
     }
 
-retry:
-    /* Search the page and insert the updates. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
+    do {
+        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, true));
+        WT_ERR(ret);
+    } while ((ret = __wt_hs_modify(cbt, hs_upd)) == WT_RESTART);
     WT_ERR(ret);
-    ret = __wt_hs_modify(cbt, hs_upd);
-    if (ret == WT_RESTART)
-        goto retry;
-    WT_ERR(ret);
+
+    /* We no longer own the update memory, the page does; don't free it under any circumstances. */
+    hs_tombstone = hs_upd = NULL;
+
+    /*
+     * Mark the insert as successful. Even if one of the calls below fails, some callers will still
+     * need to know whether the actual insert went through or not.
+     */
+    hs_cursor->insert_success = true;
 
 #ifdef HAVE_DIAGNOSTIC
     /* Do a search again and call next to check the key order. */
-    WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, true));
+    WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
     WT_ASSERT(session, ret == 0);
-    WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
+    if (cbt->compare == 0)
+        WT_ERR_NOTFOUND_OK(__curhs_file_cursor_next(session, file_cursor), false);
 #endif
 
     /* Insert doesn't maintain a position across calls, clear resources. */
-    if (0) {
 err:
-        __wt_free(session, hs_tombstone);
-        __wt_free(session, hs_upd);
-    }
+    __wt_free(session, hs_tombstone);
+    __wt_free(session, hs_upd);
     WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
@@ -941,7 +986,7 @@ __curhs_remove(WT_CURSOR *cursor)
     hs_tombstone->txnid = WT_TXN_NONE;
     hs_tombstone->start_ts = hs_tombstone->durable_ts = WT_TS_NONE;
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
     }
 
@@ -973,19 +1018,16 @@ __curhs_update(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_UPDATE *hs_tombstone, *hs_upd;
-    bool retry;
 
     hs_cursor = (WT_CURSOR_HS *)cursor;
     file_cursor = hs_cursor->file_cursor;
     cbt = (WT_CURSOR_BTREE *)file_cursor;
     hs_tombstone = hs_upd = NULL;
-    retry = false;
 
     CURSOR_API_CALL_PREPARE_ALLOWED(cursor, session, update, CUR2BT(file_cursor));
 
-    /* We are assuming that the caller has already searched and found the key. */
-    WT_ASSERT(
-      session, F_ISSET(file_cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET | WT_CURSTD_VALUE_INT));
+    /* Update must be called with cursor positioned. */
+    WT_ASSERT(session, F_ISSET(file_cursor, WT_CURSTD_KEY_INT));
     WT_ASSERT(session, F_ISSET(hs_cursor, WT_HS_CUR_COUNTER_SET | WT_HS_CUR_TS_SET));
 
     /*
@@ -1016,15 +1058,8 @@ __curhs_update(WT_CURSOR *cursor)
     cbt->compare = 0;
     /* Make the updates and if we fail, search and try again. */
     while ((ret = __wt_hs_modify(cbt, hs_tombstone)) == WT_RESTART) {
-        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
+        WT_WITH_PAGE_INDEX(session, ret = __curhs_search(cbt, false));
         WT_ERR(ret);
-        retry = true;
-    }
-
-    /* If we retry, search again to point to the updated value. */
-    if (retry) {
-        WT_WITH_PAGE_INDEX(session, ret = __wt_hs_row_search(cbt, &file_cursor->key, false));
-        WT_TRET(ret);
     }
 
     __curhs_set_key_ptr(cursor, file_cursor);
@@ -1097,4 +1132,35 @@ err:
         *cursorp = NULL;
     }
     return (ret);
+}
+
+/*
+ * __wt_curhs_clear_insert_success --
+ *     Clear the insertion flag for the history store cursor. We should call this prior to using the
+ *     WT_CURSOR->insert method.
+ */
+void
+__wt_curhs_clear_insert_success(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    hs_cursor->insert_success = false;
+}
+
+/*
+ * __wt_curhs_check_insert_success --
+ *     Check whether the insertion flag for the history store cursor is set or not. This signals
+ *     whether or not the last WT_CURSOR->insert call successfully inserted the history store
+ *     record. This is distinctly different from the return value of WT_CURSOR->insert since the
+ *     return value could be non-zero due to cursor operations AFTER the actual history store
+ *     insertion.
+ */
+bool
+__wt_curhs_check_insert_success(WT_CURSOR *cursor)
+{
+    WT_CURSOR_HS *hs_cursor;
+
+    hs_cursor = (WT_CURSOR_HS *)cursor;
+    return (hs_cursor->insert_success);
 }

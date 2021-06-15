@@ -1159,9 +1159,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             continue;
         }
 
-        /* Ignore the already resolved updates. */
-        if (upd->prepare_state == WT_PREPARE_RESOLVED)
+        /*
+         * Performing an update on the same key where the truncate operation is performed can lead
+         * to updates that are already resolved in the updated list. Ignore the already resolved
+         * updates.
+         */
+        if (upd->prepare_state == WT_PREPARE_RESOLVED) {
+            WT_ASSERT(session, upd->type == WT_UPDATE_TOMBSTONE);
             continue;
+        }
 
         /*
          * Newer updates are inserted at head of update chain, and transaction operations are added
@@ -1257,9 +1263,12 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 
     used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
     /*
-     * Debugging checks on timestamps, if user requested them.
+     * Debugging checks on timestamps, if user requested them. We additionally don't expect recovery
+     * to be using timestamps when applying commits. If recovery is running, skip this assert to
+     * avoid failing the recovery process.
      */
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0)
+    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0 &&
+      !F_ISSET(S2C(session), WT_CONN_RECOVERING))
         WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
     if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
         WT_RET_MSG(

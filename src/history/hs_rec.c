@@ -150,16 +150,28 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
               &upd_type_full_diag, existing_val));
             WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
             /*
-             *  Same value should not be inserted again unless 1. previous entry is already
-             * deleted(i.e. the stop timestamp is globally visible), 2. from a different
-             * transaction 3. with a different timestamp if from the same transaction.
+             * The same value should not be inserted again unless:
+             * 1. the previous entry is already deleted (i.e. the stop timestamp is globally
+             * visible)
+             * 2. it came from a different transaction
+             * 3. it came from the same transaction but with a different timestamp
              */
-            if (cmp == 0)
-                WT_ASSERT(session,
-                  __wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) ||
-                    tw->start_txn == WT_TXN_NONE ||
-                    tw->start_txn != hs_cbt->upd_value->tw.start_txn ||
-                    tw->start_ts != hs_cbt->upd_value->tw.start_ts);
+            if (cmp == 0) {
+                if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
+                  tw->start_txn != WT_TXN_NONE &&
+                  tw->start_txn == hs_cbt->upd_value->tw.start_txn &&
+                  tw->start_ts == hs_cbt->upd_value->tw.start_ts) {
+                    /*
+                     * If we have issues with duplicate history store records, we want to be able to
+                     * distinguish between modifies and full updates. Since modifies are not
+                     * idempotent, having them inserted multiple times can cause invalid values to
+                     * be read.
+                     */
+                    WT_ASSERT(session,
+                      type != WT_UPDATE_MODIFY && (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
+                    WT_ASSERT(session, false && "Duplicate values inserted into history store");
+                }
+            }
             counter = hs_counter + 1;
         }
 #else
@@ -494,11 +506,10 @@ __wt_hs_insert_updates(
          * away.
          */
         modify_cnt = 0;
-        for (; updates.size > 0 &&
-             !(upd->txnid == list->onpage_upd->txnid &&
-               upd->start_ts == list->onpage_upd->start_ts);
-             tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
-             upd = prev_upd) {
+        for (; updates.size > 0; tmp = full_value, full_value = prev_full_value,
+                                 prev_full_value = tmp, upd = prev_upd) {
+            /* We should never insert the onpage value to the history store. */
+            WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
 
             tombstone = NULL;
@@ -609,6 +620,9 @@ __wt_hs_insert_updates(
                 WT_ASSERT(session, __txn_visible_id(session, upd->txnid));
 #endif
 
+            /* Clear out the insert success flag prior to our insert attempt. */
+            __wt_curhs_clear_insert_success(hs_cursor);
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
@@ -628,20 +642,31 @@ __wt_hs_insert_updates(
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
-                WT_ERR(__hs_insert_record(
-                  session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw));
+                ret = __hs_insert_record(
+                  session, hs_cursor, btree, key, WT_UPDATE_MODIFY, modify_value, &tw);
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
-                WT_ERR(__hs_insert_record(
-                  session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw));
+                ret = __hs_insert_record(
+                  session, hs_cursor, btree, key, WT_UPDATE_STANDARD, full_value, &tw);
             }
 
-            /* Flag the update as now in the history store. */
-            F_SET(upd, WT_UPDATE_HS);
-            if (tombstone != NULL)
-                F_SET(tombstone, WT_UPDATE_HS);
+            /*
+             * Flag the update as now in the history store.
+             *
+             * Ensure that we don't use `WT_ERR` for the insertions above. Insertion can return
+             * non-zero even when the update made it into the history store. In those cases we need
+             * to write the flag to mark the update as having been written to the history store
+             * before jumping to the error handling.
+             */
+            if (__wt_curhs_check_insert_success(hs_cursor)) {
+                F_SET(upd, WT_UPDATE_HS);
+                if (tombstone != NULL)
+                    F_SET(tombstone, WT_UPDATE_HS);
+            }
+            WT_ERR(ret);
+
             hs_inserted = true;
             ++insert_cnt;
             if (squashed) {
@@ -650,11 +675,10 @@ __wt_hs_insert_updates(
             }
         }
 
-        /* If we squash the onpage value, there may be one or more updates left in the stack. */
-        if (updates.size > 0)
+        /* If we squash the onpage value, we increase the counter here. */
+        if (squashed)
             WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
 
-        __wt_update_vector_clear(&updates);
         /*
          * In the case that the onpage value is an out of order timestamp update and the update
          * older than it is a tombstone, it remains in the stack. Clean it up.

@@ -824,6 +824,10 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.struct_pack = __wt_ext_struct_pack;
     conn->extension_api.struct_size = __wt_ext_struct_size;
     conn->extension_api.struct_unpack = __wt_ext_struct_unpack;
+    conn->extension_api.spin_init = __wt_ext_spin_init;
+    conn->extension_api.spin_lock = __wt_ext_spin_lock;
+    conn->extension_api.spin_unlock = __wt_ext_spin_unlock;
+    conn->extension_api.spin_destroy = __wt_ext_spin_destroy;
     conn->extension_api.transaction_id = __wt_ext_transaction_id;
     conn->extension_api.transaction_isolation_level = __wt_ext_transaction_isolation_level;
     conn->extension_api.transaction_notify = __wt_ext_transaction_notify;
@@ -1150,6 +1154,7 @@ err:
      * the sweep server.
      */
     WT_TRET(__wt_sweep_destroy(session));
+    WT_TRET(__wt_tiered_storage_destroy(session));
 
     /*
      * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
@@ -1961,6 +1966,11 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
     return (0);
 }
 

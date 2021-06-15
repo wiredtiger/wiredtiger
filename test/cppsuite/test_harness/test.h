@@ -41,6 +41,7 @@ extern "C" {
 #include "util/api_const.h"
 #include "core/component.h"
 #include "core/configuration.h"
+#include "checkpoint_manager.h"
 #include "connection_manager.h"
 #include "runtime_monitor.h"
 #include "timestamp_manager.h"
@@ -57,31 +58,34 @@ class test : public database_operation {
     test(const std::string &config, const std::string &name)
     {
         _config = new configuration(name, config);
-        _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR));
+        _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
+        _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
         _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
         _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
           OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
           TABLE_SCHEMA_TRACKING);
-        _workload_generator = new workload_generator(
-          _config->get_subconfig(WORKLOAD_GENERATOR), this, _timestamp_manager, _workload_tracking);
+        _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR),
+          this, _timestamp_manager, _workload_tracking, _database);
         _thread_manager = new thread_manager();
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {
-          _workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {_workload_tracking, _workload_generator, _timestamp_manager,
+          _runtime_monitor, _checkpoint_manager};
     }
 
     ~test()
     {
         delete _config;
+        delete _checkpoint_manager;
         delete _runtime_monitor;
         delete _timestamp_manager;
         delete _thread_manager;
         delete _workload_generator;
         delete _workload_tracking;
         _config = nullptr;
+        _checkpoint_manager = nullptr;
         _runtime_monitor = nullptr;
         _timestamp_manager = nullptr;
         _thread_manager = nullptr;
@@ -102,14 +106,28 @@ class test : public database_operation {
     run()
     {
         int64_t cache_size_mb, duration_seconds;
-        bool enable_logging;
-
+        bool enable_logging, statistics_logging;
+        configuration *statistics_config;
+        std::string statistics_type;
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
-        /* Get the cache size, and turn logging on or off. */
+        /* Get the cache size. */
         cache_size_mb = _config->get_int(CACHE_SIZE_MB);
-        db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
+
+        /* Get the statistics configuration for this run. */
+        statistics_config = _config->get_subconfig(STATISTICS_CONFIG);
+        statistics_type = statistics_config->get_string(TYPE);
+        statistics_logging = statistics_config->get_bool(ENABLE_LOGGING);
+
+        /* Don't forget to delete. */
+        delete statistics_config;
+
+        db_create_config += ",statistics=(" + statistics_type + ")";
+        db_create_config += statistics_logging ? "," + std::string(STATISTICS_LOG) : "";
+        db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
+
+        /* Enable or disable write ahead logging. */
         enable_logging = _config->get_bool(ENABLE_LOGGING);
         db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
@@ -131,6 +149,8 @@ class test : public database_operation {
         /* The test will run for the duration as defined in the config. */
         duration_seconds = _config->get_int(DURATION_SECONDS);
         testutil_assert(duration_seconds >= 0);
+        debug_print("Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.",
+          DEBUG_INFO);
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test by calling finish on all known components. */
@@ -181,11 +201,13 @@ class test : public database_operation {
     std::string _name;
     std::vector<component *> _components;
     configuration *_config;
+    checkpoint_manager *_checkpoint_manager = nullptr;
     runtime_monitor *_runtime_monitor = nullptr;
     thread_manager *_thread_manager = nullptr;
     timestamp_manager *_timestamp_manager = nullptr;
     workload_generator *_workload_generator = nullptr;
     workload_tracking *_workload_tracking = nullptr;
+    database _database;
 };
 } // namespace test_harness
 

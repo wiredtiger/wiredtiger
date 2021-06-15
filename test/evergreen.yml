@@ -48,12 +48,30 @@ functions:
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
-        if [ "$OS" != "Windows_NT" ]; then
+        # Check if the build variant has specified a build type, always default to
+        # Autoconf/Libtool if $is_cmake_build is not declared.
+        if [ ${is_cmake_build|false} = true ]; then
+          if [ "$OS" = "Windows_NT" ]; then
+            # Use the Windows powershell script to configure the CMake build.
+            # We execute it in a powershell environment as its easier to detect and source the Visual Studio
+            # toolchain in a native Windows environment. We can't easily execute the build in a cygwin environment.
+            powershell.exe  -NonInteractive '.\test\evergreen\build_windows.ps1' -configure 1 ${windows_configure_flags|}
+          else
+            # Compiling with CMake.
+            . test/evergreen/find_cmake.sh
+            mkdir -p cmake_build
+            cd cmake_build
+            $CMAKE \
+            ${posix_configure_flags|-DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STATIC=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL} -G "${cmake_generator|Ninja}" ./..
+          fi
+        elif [ "$OS" != "Windows_NT" ]; then
+          # Compiling with Autoconf/Libtool.
+          cd build_posix
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} PYTHON="python3" \
             ../configure ${configure_python_setting|} \
@@ -67,13 +85,23 @@ functions:
       script: |
         set -o errexit
         set -o verbose
-        if [ "Windows_NT" == "$OS" ]; then
+        if [ ${is_cmake_build|false} = true ]; then
+          if [ "$OS" = "Windows_NT" ]; then
+            # Use the Windows powershell script to execute Ninja build (can't execute directly in a cygwin environment).
+            powershell.exe '.\test\evergreen\build_windows.ps1 -build 1'
+          else
+            # Compiling with CMake generated Ninja file.
+            cd cmake_build
+            ${make_command|ninja} ${smp_command|} 2>&1
+          fi
+        elif [ "Windows_NT" == "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
 
           python --version
           python -m pip install scons==3.1.1
           scons-3.1.1.bat "LIBPATH=c:\\python\\Python39\\libs" --enable-python=c:\\swigwin-3.0.2\\swig.exe --enable-diagnostic ${scons_smp_command|}
         else
+          # Compiling with Autoconf/Libtool Makefiles.
           cd build_posix
           ${make_command|make} ${smp_command|} 2>&1
 
@@ -112,7 +140,7 @@ functions:
           if [ "$OS" != "Windows_NT" ]; then
             CC=/opt/mongodbtoolchain/v3/bin/clang CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer -fsanitize=address" CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb -fPIC" \
               ../configure ${configure_python_setting|} \
-              --enable-diagnostic --with-builtins=lz4,snappy,zlib
+              --enable-diagnostic --with-builtins=lz4,snappy,zlib,zstd
           fi
     - *make_wiredtiger
   "compile wiredtiger with builtins":
@@ -148,13 +176,13 @@ functions:
           #   Please note the "branch" variable used here is a normal shell variable to store the name of
           #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
           #   to store the name of the branch being tested by the Evergreen project.
-          for branch in develop mongodb-4.4 mongodb-4.2 mongodb-4.0 mongodb-3.6 ; do
+          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
             echo "[Debug] Checking out branch $branch ..."
             git checkout $branch && git pull --ff-only && git reset --hard origin/$branch && git clean -fdqx
             sh reconf
 
             # Java API is removed in newer branches via WT-6675.
-            if [ "$branch" = "mongodb-4.2" -o "$branch" = "mongodb-4.0" -o "$branch" = "mongodb-3.6" ]; then
+            if [ "$branch" = "mongodb-4.2" -o "$branch" = "mongodb-4.0" ]; then
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
               (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
@@ -162,11 +190,6 @@ functions:
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
             fi
-
-            # Make sure the code fragment is in the documentation build.
-            make all-am
-            make -C test/utility
-            make -C examples/c
 
             (cd ../dist && sh s_docs)
             (cd .. && rm -rf docs-$branch && mv docs docs-$branch)
@@ -192,7 +215,7 @@ functions:
           #   Please note the "branch" variable used here is a normal shell variable to store the name of
           #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
           #   to store the name of the branch being tested by the Evergreen project.
-          for branch in mongodb-3.6 mongodb-4.0 mongodb-4.2 mongodb-4.4 develop ; do
+          for branch in mongodb-4.0 mongodb-4.2 mongodb-4.4 mongodb-5.0 develop ; do
             echo "[Debug] Copying over doc directory for branch $branch ..."
             rsync -avq ../docs-$branch/ $branch/
 
@@ -231,16 +254,22 @@ functions:
   "make check all":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       script: |
         set -o errexit
         set -o verbose
-
-        ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+        if [ ${is_cmake_build|false} = true ]; then
+          . test/evergreen/find_cmake.sh
+          cd cmake_build
+          ${test_env_vars|} $CTEST -L check ${smp_command|} -VV 2>&1
+        else
+          cd build_posix
+          ${test_env_vars|} ${make_command|make} VERBOSE=1 check ${smp_command|} 2>&1
+        fi
   "unit test":
     command: shell.exec
     params:
-      working_dir: "wiredtiger/build_posix"
+      working_dir: "wiredtiger"
       script: |
         set -o errexit
         set -o verbose
@@ -248,6 +277,11 @@ functions:
         if [ "Windows_NT" = "$OS" ]; then
           export "PATH=/cygdrive/c/Python39:/cygdrive/c/Python39/Scripts:$PATH"
           export "PYTHONPATH=$(pwd)/../lang/python/wiredtiger):$(cygpath -w $(pwd)/../lang/python)"
+        fi
+        if [ ${is_cmake_build|false} = true ]; then
+          cd cmake_build
+        else
+          cd build_posix
         fi
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
@@ -415,7 +449,7 @@ functions:
 
         if [ -d "WT_TEST" ]; then
           # Dump stderr/stdout contents generated by the C libraries onto console for Python tests
-          find "WT_TEST" -name "std*.txt" ! -empty -exec sh -c "echo 'Contents from {}:'; cat {}" \;
+          find "WT_TEST" -name "std*.txt" ! -empty -exec sh -c "echo 'Contents from {}:'; cat '{}'" \;
         fi
 
   "checkpoint test":
@@ -519,7 +553,7 @@ variables:
           configure_env_vars:
             CC="/opt/mongodbtoolchain/v3/bin/clang -fsanitize=address"
             PATH=/opt/mongodbtoolchain/v3/bin:$PATH CFLAGS="-ggdb -fPIC -fno-omit-frame-pointer" CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb -fPIC"
-          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-strict --enable-diagnostic --with-builtins=lz4,snappy,zlib,zstd
       - func: "format test script"
         vars:
           format_test_script_args: -R -t 360
@@ -674,7 +708,7 @@ tasks:
     depends_on:
       - name: compile
     commands:
-      - func: "fetch artifacts"
+      - func: "get project"
       - func: "compile wiredtiger"
       - func: "make check all"
 
@@ -1502,6 +1536,16 @@ tasks:
       - func: "compile wiredtiger"
       - func: "unit test"
 
+  - name: unit-test-zstd
+    tags: ["python"]
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "unit test"
+        vars:
+          unit_test_args: -v 2 --zstd
+
   - name: unit-test-long
     tags: ["python"]
     depends_on:
@@ -2041,7 +2085,7 @@ tasks:
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="--coverage -fPIC -ggdb" LDFLAGS=--coverage
-          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib
+          posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-python --with-builtins=lz4,snappy,zlib,zstd
       - func: "make check all"
       - func: "unit test"
         vars:
@@ -2301,7 +2345,7 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          posix_configure_flags: --enable-strict --disable-shared --with-builtins=snappy,zlib
+          posix_configure_flags: --enable-strict --disable-shared --with-builtins=snappy,zlib,zstd
       - command: shell.exec
         params:
           working_dir: "wiredtiger/build_posix"
@@ -2545,7 +2589,9 @@ buildvariants:
     - name: syscall-linux
     - name: configure-combinations
     - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
     - name: unit-test-long
+      distros: ubuntu1804-large
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -2555,6 +2601,23 @@ buildvariants:
     - name: long-test
     - name: static-wt-build-test
     - name: format-failure-configs-test
+
+- name: ubuntu1804-cmake
+  display_name: "* Ubuntu 18.04 CMake"
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+    is_cmake_build: true
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
 
 - name: ubuntu1804-asan
   display_name: "! Ubuntu 18.04 ASAN"
@@ -2623,7 +2686,7 @@ buildvariants:
   display_name: "~ Documentation update"
   batchtime: 1440 # 1 day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   tasks:
     - name: doc-update
   expansions:
@@ -2668,7 +2731,9 @@ buildvariants:
       distros: rhel80-build
     - name: syscall-linux
     - name: checkpoint-filetypes-test
+    - name: unit-test-zstd
     - name: unit-test-long
+      distros: rhel80-large
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
     - name: compile-wtperf
@@ -2726,6 +2791,19 @@ buildvariants:
     - name: ".unit_test"
     - name: fops
 
+- name: windows-64-cmake
+  display_name: "* Windows 64-bit CMake"
+  run_on:
+  - windows-64-vs2017-test
+  expansions:
+    python_binary: 'python'
+    is_cmake_build: true
+    test_env_vars: WT_BUILDDIR=$(pwd)
+    windows_configure_flags: -vcvars_bat "'C:\Program Files (x86)\Microsoft Visual Studio\2017\Professional\VC\Auxiliary\Build\vcvars64.bat'"
+  tasks:
+    - name: compile
+    - name: unit-test
+
 - name: macos-1014
   display_name: OS X 10.14
   run_on:
@@ -2744,6 +2822,23 @@ buildvariants:
     - name: make-check-test
     - name: unit-test-with-compile
     - name: fops
+
+- name: macos-1014-cmake
+  display_name: "* OS X 10.14 CMake"
+  run_on:
+  - macos-1014
+  expansions:
+    posix_configure_flags: -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: 'python3'
+    smp_command: -j $(sysctl -n hw.logicalcpu)
+    cmake_generator: "Unix Makefiles"
+    make_command: make
+    test_env_vars: DYLD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    is_cmake_build: true
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
 
 - name: little-endian
   display_name: "~ Little-endian (x86)"
@@ -2799,6 +2894,24 @@ buildvariants:
   - name: ".stress-test-ppc-1"
   - name: ".stress-test-ppc-2"
 
+- name: ubuntu1804-ppc-cmake
+  display_name: "* Ubuntu 18.04 PPC CMake"
+  run_on:
+  - ubuntu1804-power8-test
+  batchtime: 10080 # 7 days
+  expansions:
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    cmake_generator: Ninja
+    make_command: ninja
+    is_cmake_build: true
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test
+
 - name: ubuntu1804-zseries
   display_name: "~ Ubuntu 18.04 zSeries"
   run_on:
@@ -2819,3 +2932,21 @@ buildvariants:
   - name: ".stress-test-zseries-1"
   - name: ".stress-test-zseries-2"
   - name: ".stress-test-zseries-3"
+
+- name: ubuntu1804-zseries-cmake
+  display_name: "* Ubuntu 18.04 zSeries CMake"
+  run_on:
+  - ubuntu1804-zseries-test
+  batchtime: 10080 # 7 days
+  expansions:
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    cmake_generator: Ninja
+    make_command: ninja
+    is_cmake_build: true
+  tasks:
+    - name: compile
+    - name: make-check-test
+    - name: unit-test

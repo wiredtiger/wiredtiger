@@ -236,6 +236,10 @@
 #define WT_PREFIX_MATCH(str, pfx) \
     (((const char *)(str))[0] == ((const char *)(pfx))[0] && strncmp(str, pfx, strlen(pfx)) == 0)
 
+/* Check if a string matches a suffix. */
+#define WT_SUFFIX_MATCH(str, sfx) \
+    (strlen(str) >= strlen(sfx) && strcmp(&str[strlen(str) - strlen(sfx)], sfx) == 0)
+
 /* Check if a string matches a prefix, and move past it. */
 #define WT_PREFIX_SKIP(str, pfx) (WT_PREFIX_MATCH(str, pfx) ? ((str) += strlen(pfx), 1) : 0)
 
@@ -287,12 +291,13 @@
  */
 #ifdef HAVE_DIAGNOSTIC
 #define __wt_hazard_set(session, walk, busyp) \
-    __wt_hazard_set_func(session, walk, busyp, __func__, __LINE__)
+    __wt_hazard_set_func(session, walk, busyp, __PRETTY_FUNCTION__, __LINE__)
 #define __wt_scr_alloc(session, size, scratchp) \
-    __wt_scr_alloc_func(session, size, scratchp, __func__, __LINE__)
-#define __wt_page_in(session, ref, flags) __wt_page_in_func(session, ref, flags, __func__, __LINE__)
+    __wt_scr_alloc_func(session, size, scratchp, __PRETTY_FUNCTION__, __LINE__)
+#define __wt_page_in(session, ref, flags) \
+    __wt_page_in_func(session, ref, flags, __PRETTY_FUNCTION__, __LINE__)
 #define __wt_page_swap(session, held, want, flags) \
-    __wt_page_swap_func(session, held, want, flags, __func__, __LINE__)
+    __wt_page_swap_func(session, held, want, flags, __PRETTY_FUNCTION__, __LINE__)
 #else
 #define __wt_hazard_set(session, walk, busyp) __wt_hazard_set_func(session, walk, busyp)
 #define __wt_scr_alloc(session, size, scratchp) __wt_scr_alloc_func(session, size, scratchp)

@@ -1,13 +1,14 @@
 # Building WiredTiger with CMake
-> *CMake support for building wiredtiger is an active work-in-progress. As of this time CMake can **only** build the WiredTiger library for POSIX platforms (Linux & Darwin) on x86 hosts. We suggest you continue using the autoconf build until further support is added.*
 
 ### Build Dependencies
 
 To build with CMake we **require** the following dependencies:
 
 * `cmake` : Official CMake install instructions found here: https://cmake.org/install/
-  * *WiredTiger supports CMake 3.11+*
+  * *WiredTiger supports CMake 3.10+*
 * `ninja` : Official ninja install instructions found here: https://ninja-build.org/
+* `python3-dev` : Consult your package management application for installation instructions. This is needed for building with Python support.
+* `swig`: Consult your package management application for installation instructions. This is needed for building with Python support.
 
 We also strongly suggest the following dependencies are also installed (for improved build times):
 
@@ -23,6 +24,7 @@ Alternatively you can use your system's package manager to install the dependenc
 sudo apt-get install cmake cmake-curses-gui
 sudo apt-get install ccache
 sudo apt-get install ninja-build
+sudo apt-get install python3-dev swig
 ```
 
 ###### Install commands for Mac (using HomeBrew)
@@ -31,9 +33,19 @@ sudo apt-get install ninja-build
 brew install ninja
 brew install ccache
 brew install cmake
+brew install python
+brew install swig
 ```
 
+###### Install commands for Windows (using Chocolatey)
 
+```bash
+choco install cmake
+choco install ninja
+choco install ccache --version=3.7.9
+choco install swig
+choco install python --pre
+```
 
 ### Building the WiredTiger Library
 
@@ -80,6 +92,7 @@ There are a number of additional configuration options you can pass to the CMake
 * `-DHAVE_DIAGNOSTIC=1` : Enable WiredTiger diagnostics
 * `-DHAVE_ATTACH=1` : Enable to pause for debugger attach on failure
 * `-DENABLE_STRICT=1` : Compile with strict compiler warnings enabled
+* `-DENABLE_PYTHON=1` : Compile the python API
 * `-DCMAKE_INSTALL_PREFIX=<path-to-install-directory>` : Path to install directory
 
 ---
@@ -101,7 +114,7 @@ $ ccmake .
 
 *The configuration options can also be viewed in `build_cmake/configs/base.cmake`*.
 
-###### Switching between GCC and Clang
+###### Switching between GCC and Clang (POSIX only)
 
 By default CMake will use your default system compiler (`cc`). If you want to use a specific toolchain you can pass a toolchain file! We have provided a toolchain file for both GCC (`build_cmake/toolchains/gcc.cmake`) and Clang (`build_cmake/toolchains/clang.cmake`). To use either toolchain you can pass the `-DCMAKE_TOOLCHAIN_FILE=` to the CMake configuration step. For example:
 
@@ -118,3 +131,26 @@ $ cmake -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/gcc.cmake -G Ninja ../.
 $ cd build
 $ cmake -DCMAKE_TOOLCHAIN_FILE=../build_cmake/toolchains/clang.cmake -G Ninja ../.
 ```
+
+### Running WiredTiger C Tests
+
+The WiredTiger CMake build makes available a suite of C/C++ based tests (separate from the Python testsuite). The run all the tests available, ensure you're in the build directory and execute:
+
+```bash
+ctest -j$(nproc)
+```
+
+To run with verbose output:
+
+```bash
+ctest -j$(nproc) -VV
+```
+
+To run a specfic test:
+
+```bash
+# Note: -R specifies a regex, where any matching test will be run
+ctest -R <test_name> -j$(nproc)
+```
+
+See `ctest --help` for a range of additional supported options.

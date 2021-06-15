@@ -35,10 +35,11 @@
 namespace test_harness {
 
 #define DEBUG_ERROR 0
-#define DEBUG_INFO 1
-#define DEBUG_TRACE 2
+#define DEBUG_WARN 1
+#define DEBUG_INFO 2
+#define DEBUG_TRACE 3
 
-static int64_t _trace_level = 0;
+static int64_t _trace_level = DEBUG_WARN;
 
 /* Used to print out traces for debugging purpose. */
 static void

@@ -501,7 +501,9 @@ connection_stats = [
     ##########################################
     # Tiered storage statistics
     ##########################################
+    StorageStat('flush_state_races', 'flush state races'),
     StorageStat('flush_tier', 'flush_tier operation calls'),
+    StorageStat('flush_tier_busy', 'flush_tier busy retries'),
 
     ##########################################
     # Thread Count statistics
@@ -865,6 +867,8 @@ conn_dsrc_stats = [
     ##########################################
     StorageStat('tiered_object_size', 'tiered storage object size', 'no_clear,no_scale,size'),
     StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
+    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
+    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
 
     ##########################################
     # Transaction statistics

@@ -35,7 +35,7 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered04(wttest.WiredTigerTestCase):
 
     # If the 'uri' changes all the other names must change with it.
-    fileuri = 'file:test_tiered04-0000000001.wtobj'
+    fileuri_base = 'file:test_tiered04-000000000'
     objuri = 'object:test_tiered04-0000000001.wtobj'
     tiereduri = "tiered:test_tiered04"
     uri = "table:test_tiered04"
@@ -88,13 +88,19 @@ class test_tiered04(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
+    def check(self, tc, n):
+        for i in range(0, n):
+            self.assertEqual(tc[str(i)], str(i))
+        tc.set_key(str(n))
+        self.assertEquals(tc.search(), wiredtiger.WT_NOTFOUND)
+
     # Test calling the flush_tier API.
     def test_tiered(self):
         # Create three tables. One using the system tiered storage, one
         # specifying its own bucket and object size and one using no
         # tiered storage. Use stats to verify correct setup.
         intl_page = 'internal_page_max=16K'
-        base_create = 'key_format=S,' + intl_page
+        base_create = 'key_format=S,value_format=S,' + intl_page
         self.pr("create sys")
         self.session.create(self.uri, base_create)
         conf = \
@@ -110,20 +116,44 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.pr("create non tiered/local")
         self.session.create(self.uri_none, base_create + conf)
 
-        #self.pr("open cursor")
-        #c = self.session.open_cursor(self.uri)
         self.pr("flush tier")
+        c = self.session.open_cursor(self.uri)
+        c["0"] = "0"
+        self.check(c, 1)
+        c.close()
         self.session.flush_tier(None)
 
-        self.pr("flush tier again")
+        c = self.session.open_cursor(self.uri)
+        c["1"] = "1"
+        self.check(c, 2)
+        c.close()
+
+        c = self.session.open_cursor(self.uri)
+        c["2"] = "2"
+        self.check(c, 3)
+
+        self.pr("flush tier again, holding open cursor")
+        # FIXME-WT-7591 Remove the extra cursor close and open surrounding the flush_tier call.
+        # Having a cursor open during a flush_tier does not yet work, so the test closes it,
+        # and reopens after the flush_tier.
+        c.close()
         self.session.flush_tier(None)
+        c = self.session.open_cursor(self.uri)
+
+        c["3"] = "3"
+        self.check(c, 4)
+        c.close()
+
         calls = self.get_stat(stat.conn.flush_tier, None)
-        self.assertEqual(calls, 2)
+        flush = 2
+        self.assertEqual(calls, flush)
         obj = self.get_stat(stat.conn.tiered_object_size, None)
         self.assertEqual(obj, self.object_sys_val)
 
+        # As we flush each object, we are currently removing the file: object. So N + 1 exists.
+        fileuri = self.fileuri_base + str(flush + 1) + '.wtobj'
         self.check_metadata(self.tiereduri, intl_page)
-        self.check_metadata(self.fileuri, intl_page)
+        self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
 
         #self.pr("verify stats")
@@ -155,10 +185,12 @@ class test_tiered04(wttest.WiredTigerTestCase):
         config = 'tiered_storage=(local_retention=%d)' % new
         self.pr("reconfigure")
         self.conn.reconfigure(config)
-        self.session.flush_tier(None)
         retain = self.get_stat(stat.conn.tiered_retention, None)
-        calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(retain, new)
+        self.pr("reconfigure flush_tier")
+        self.session.flush_tier(None)
+        self.pr("reconfigure get stat")
+        calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, 5)
 
 if __name__ == '__main__':

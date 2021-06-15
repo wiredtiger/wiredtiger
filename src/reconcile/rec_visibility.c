@@ -223,6 +223,56 @@ __rec_need_save_upd(
 }
 
 /*
+ * __get_valid_upd --
+ *     Loop until a valid update from a different transaction is found in the update list. As a side
+ *     effect method saves the latest update from the same transaction into the WT_UPDATE output
+ *     argument. Method returns a valid update from a different transaction.
+ */
+static inline WT_UPDATE *
+__get_valid_upd(WT_UPDATE *upd, WT_UPDATE *tombstone, WT_UPDATE **same_txn_valid_upd)
+{
+    while (upd->next != NULL) {
+        if (upd->next->txnid == WT_TXN_ABORTED)
+            upd = upd->next;
+        else if (upd->next->txnid != WT_TXN_NONE && tombstone->txnid == upd->next->txnid) {
+            upd = upd->next;
+            /* Save the latest update from the same transaction. */
+            if (*same_txn_valid_upd == NULL)
+                *same_txn_valid_upd = upd;
+        } else
+            break;
+    }
+
+    return upd;
+}
+
+/*
+ * __timestamp_out_of_order_fix --
+ *     If we found a tombstone with a time point earlier than the update it applies to, which can
+ *     happen if the application performs operations with timestamps out-of-order, make it invisible
+ *     by making the start time point match the stop time point of the tombstone. We don't guarantee
+ *     that older readers will be able to continue reading content that has been made invisible by
+ *     out-of-order updates. Note that we carefully don't take this path when the stop time point is
+ *     equal to the start time point. While unusual, it is permitted for a single transaction to
+ *     insert and then remove a record. We don't want to generate a warning in that case.
+ */
+static inline void
+__timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw)
+{
+    char time_string[WT_TIME_STRING_SIZE];
+
+    if (select_tw->stop_ts < select_tw->start_ts ||
+      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
+        __wt_verbose(session, WT_VERB_TIMESTAMP,
+          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
+          __wt_time_window_to_string(select_tw, time_string));
+
+        select_tw->durable_start_ts = select_tw->durable_stop_ts;
+        select_tw->start_ts = select_tw->stop_ts;
+    }
+}
+
+/*
  * __wt_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
@@ -238,7 +288,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, session_txnid, txnid;
-    char time_string[WT_TIME_STRING_SIZE];
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
 
     /*
@@ -255,7 +304,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
-    has_newer_updates = upd_saved = false;
+    has_newer_updates = supd_restore = upd_saved = false;
     is_hs_page = F_ISSET(session->dhandle, WT_DHANDLE_HS);
     session_txnid = WT_SESSION_TXN_SHARED(session)->id;
 
@@ -439,22 +488,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Find the update this tombstone applies to. */
             if (!__wt_txn_upd_visible_all(session, upd)) {
-                /*
-                 * Loop until a valid update from a different transaction is found in the update
-                 * list.
-                 */
-                while (upd->next != NULL) {
-                    if (upd->next->txnid == WT_TXN_ABORTED)
-                        upd = upd->next;
-                    else if (upd->next->txnid != WT_TXN_NONE &&
-                      tombstone->txnid == upd->next->txnid) {
-                        upd = upd->next;
-                        /* Save the latest update from the same transaction. */
-                        if (same_txn_valid_upd == NULL)
-                            same_txn_valid_upd = upd;
-                    } else
-                        break;
-                }
+                upd = __get_valid_upd(upd, tombstone, &same_txn_valid_upd);
 
                 WT_ASSERT(session, upd->next == NULL || upd->next->txnid != WT_TXN_ABORTED);
                 upd_select->upd = upd = upd->next;
@@ -562,26 +596,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
     }
 
-    /*
-     * If we found a tombstone with a time point earlier than the update it applies to, which can
-     * happen if the application performs operations with timestamps out-of-order, make it invisible
-     * by making the start time point match the stop time point of the tombstone. We don't guarantee
-     * that older readers will be able to continue reading content that has been made invisible by
-     * out-of-order updates.
-     *
-     * Note that we carefully don't take this path when the stop time point is equal to the start
-     * time point. While unusual, it is permitted for a single transaction to insert and then remove
-     * a record. We don't want to generate a warning in that case.
-     */
-    if (select_tw->stop_ts < select_tw->start_ts ||
-      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
-        __wt_verbose(session, WT_VERB_TIMESTAMP,
-          "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
-          __wt_time_window_to_string(select_tw, time_string));
-
-        select_tw->durable_start_ts = select_tw->durable_stop_ts;
-        select_tw->start_ts = select_tw->stop_ts;
-    }
+    __timestamp_out_of_order_fix(session, select_tw);
 
     /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
@@ -615,8 +630,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
             page->type == WT_PAGE_COL_FIX);
-        if (supd_restore)
-            r->cache_write_restore = true;
         WT_ERR(__rec_update_save(session, r, ins, ripcip,
           upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
                                                                                     upd_select->upd,
@@ -632,6 +645,13 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             F_SET(tombstone, WT_UPDATE_DS);
         upd_saved = upd_select->upd_saved = true;
     }
+
+    /*
+     * Set statistics for update restore evictions. Update restore eviction debug mode forces update
+     * restores to both committed or uncommitted changes.
+     */
+    if (supd_restore || F_ISSET(r, WT_REC_SCRUB))
+        r->cache_write_restore = true;
 
     /*
      * Paranoia: check that we didn't choose an update that has since been rolled back.

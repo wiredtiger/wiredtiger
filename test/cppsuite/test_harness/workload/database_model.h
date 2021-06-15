@@ -29,6 +29,7 @@
 #ifndef DATABASE_MODEL_H
 #define DATABASE_MODEL_H
 
+#include <atomic>
 #include <map>
 #include <string>
 
@@ -50,24 +51,111 @@ struct value_t {
 /* A collection is made of mapped Key objects. */
 struct collection_t {
     std::map<key_value_t, key_t> keys;
-    std::map<key_value_t, value_t> *values = {nullptr};
+    std::map<key_value_t, value_t> values;
 };
 
 /* Representation of the collections in memory. */
 class database {
     public:
-    const std::vector<std::string>
-    get_collection_names() const
+    /*
+     * Add a new collection following the standard naming pattern. Currently this is the only way to
+     * add collections which is supported by all components.
+     */
+    std::string
+    add_collection()
     {
+        std::lock_guard<std::mutex> lg(_mtx);
+        std::string collection_name = build_collection_name(_next_collection_id);
+        _collections[collection_name] = {};
+        ++_next_collection_id;
+        return (collection_name);
+    }
+
+    /*
+     * Retrieve the current collection count, collection names are indexed from 0 so when using this
+     * take care to avoid an off by one error.
+     */
+    uint64_t
+    get_collection_count() const
+    {
+        return (_next_collection_id);
+    }
+
+    /*
+     * Get a single collection name by id.
+     */
+    std::string
+    get_collection_name(uint64_t id)
+    {
+        if (_next_collection_id <= id)
+            testutil_die(id, "requested the id, %lu, of a collection that doesn't exist", id);
+        return (build_collection_name(id));
+    }
+
+    std::vector<std::string>
+    get_collection_names()
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
         std::vector<std::string> collection_names;
 
-        for (auto const &it : collections)
+        for (auto const &it : _collections)
             collection_names.push_back(it.first);
 
         return (collection_names);
     }
 
-    std::map<std::string, collection_t> collections;
+    std::map<key_value_t, key_t>
+    get_keys(const std::string &collection_name)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (_collections.at(collection_name).keys);
+    }
+
+    value_t
+    get_record(const std::string &collection_name, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (_collections.at(collection_name).values.at(key));
+    }
+
+    void
+    insert_record(const std::string &collection_name, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.keys[key].exists = true;
+        value_t v;
+        v.value = key_value_t(value);
+        c.values.emplace(key_value_t(key), v);
+    }
+
+    void
+    update_record(const std::string &collection_name, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.values.at(key).value = key_value_t(value);
+    }
+
+    void
+    delete_record(const std::string &collection_name, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        auto &c = _collections.at(collection_name);
+        c.keys.at(key).exists = false;
+        c.values.erase(key);
+    }
+
+    private:
+    /* Take a const id, not a reference as we're copying in an atomic. */
+    std::string
+    build_collection_name(const uint64_t id)
+    {
+        return (std::string("table:collection_" + std::to_string(id)));
+    }
+    std::atomic<uint64_t> _next_collection_id{0};
+    std::map<std::string, collection_t> _collections;
+    std::mutex _mtx;
 };
 } // namespace test_harness
 
