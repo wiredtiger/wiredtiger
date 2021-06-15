@@ -906,9 +906,20 @@ struct __wt_ref {
 #undef ref_ikey
 #define ref_ikey key.ikey
 
-    union {                   /* Fast-truncate information */
-        WT_PAGE_DELETED *del; /* Not instantiated, page-deleted structure */
-        WT_UPDATE **update;   /* Instantiated, page updates for subsequent commit/abort */
+    /*
+     * Fast-truncate information. When a WT_REF is included in a fast-truncate operation, WT_REF.del
+     * is allocated and initialized. If the page must be instantiated before the truncate becomes
+     * globally visible, WT_UPDATE structures are created for the page entries, the transaction
+     * information from WT_REF.del is migrated to those WT_UPDATE structures, and the WT_REF.del
+     * field is freed and replaced by the WT_REF.update array (needed for subsequent transaction
+     * commit/abort). Doing anything other than testing if WT_REF.del/update is non-NULL (which
+     * eviction does), requires the WT_REF be locked. If the locked WT_REF's previous state was
+     * WT_REF_DELETED, WT_REF.del is valid, if the WT_REF's previous state was an in-memory state,
+     * then WT_REF.update is valid.
+     */
+    union {
+        WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */
+        WT_UPDATE **update;   /* Page instantiated, update list for subsequent commit/abort */
     } ft_info;
 
 /*
