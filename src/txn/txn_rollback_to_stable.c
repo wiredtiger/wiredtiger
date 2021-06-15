@@ -1541,22 +1541,17 @@ err:
 int
 __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
 {
-    WT_CURSOR *cursor;
     WT_DECL_RET;
     wt_timestamp_t rollback_timestamp;
-    const char *config, *uri;
+    char *config;
+    const char *uri;
 
     WT_UNUSED(cfg);
 
-    WT_RET(__wt_metadata_cursor(session, &cursor));
-    cursor->set_key(cursor, session->dhandle->name);
-    ret = cursor->search(cursor);
-    if (ret == 0)
-        ret = cursor->get_key(cursor, &uri);
-    if (ret == 0)
-        ret = cursor->get_value(cursor, &config);
-    WT_TRET(__wt_metadata_cursor_release(session, &cursor));
-    WT_RET(ret);
+    uri = session->dhandle->name;
+    config = NULL;
+
+    WT_RET(__wt_metadata_search(session, uri, &config));
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
@@ -1565,11 +1560,13 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-    if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
+    if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION)))
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "%s: skipped performing rollback to stable because the file %s", uri,
           ret == ENOENT ? "does not exist" : "is corrupted.");
-    }
+
+    __wt_free(session, config);
+
     return (ret);
 }
 
