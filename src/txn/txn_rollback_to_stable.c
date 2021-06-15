@@ -1498,10 +1498,10 @@ __rollback_to_stable_btree_apply(
         dhandle_allocated = true;
 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "%s: tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
+          "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
           "prepared updates: %s or when durable time is not found: %s or txnid: %" PRIu64
           " is greater than recovery checkpoint snap min: %s",
-          uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
           !durable_ts_found ? "true" : "false", rollback_txnid,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
