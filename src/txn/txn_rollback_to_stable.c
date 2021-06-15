@@ -1482,7 +1482,7 @@ __rollback_to_stable_btree_apply(
      * The rollback operation should be performed on this file based on the following:
      * 1. The dhandle is present in the cache and tree is modified.
      * 2. The checkpoint durable start/stop timestamp is greater than the rollback timestamp.
-     * 3. XXX NEEDS COMMENT ON CHECK OF prepared_updates.
+     * 3. The checkpoint has prepared updates written to disk.
      * 4. There is no durable timestamp in any checkpoint.
      * 5. The checkpoint newest txn is greater than snapshot min txn id.
      */
@@ -1498,18 +1498,18 @@ __rollback_to_stable_btree_apply(
         dhandle_allocated = true;
 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
+          "%s: tree rolled back with durable timestamp: %s, or when tree is modified: %s or "
           "prepared updates: %s or when durable time is not found: %s or txnid: %" PRIu64
           " is greater than recovery checkpoint snap min: %s",
-          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           S2BT(session)->modified ? "true" : "false", prepared_updates ? "true" : "false",
           !durable_ts_found ? "true" : "false", rollback_txnid,
           has_txn_updates_gt_than_ckpt_snap ? "true" : "false");
         WT_ERR(__rollback_to_stable_btree(session, rollback_timestamp));
     } else
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
-          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          "%s: tree skipped with durable timestamp: %s and stable timestamp: %s or txnid: %" PRIu64,
+          uri, __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
           __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), rollback_txnid);
 
     /*
@@ -1577,7 +1577,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
          */
         if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "skipped performing rollback to stable on %s because the file %s", uri,
+              "%s: skipped performing rollback to stable because the file %s", uri,
               ret == ENOENT ? "does not exist" : "is corrupted.");
             continue;
         }
