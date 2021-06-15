@@ -47,7 +47,7 @@
 #    but we should add others.
 #
 # 4. We stub out some functions that aren't supported by tiered tables.  This will
-#    break tests of those functions.  But often when they are used in other tests, we 
+#    break tests of those functions.  But often when they are used in other tests, we
 #    can get away with returning success without performing the operation.
 #
 # To run, for example, the cursor tests with these hooks enabled:
