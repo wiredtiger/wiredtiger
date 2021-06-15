@@ -295,7 +295,6 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
 {
     WT_TXN *txn;
     WT_UPDATE **updp;
-    wt_timestamp_t *timestamp;
     uint8_t previous_state;
 
     txn = session->txn;
@@ -308,12 +307,9 @@ __wt_txn_op_delete_commit_apply_timestamps(WT_SESSION_IMPL *session, WT_REF *ref
      * instantiated pages. Both commit and durable timestamps need to be updated.
      */
     if (previous_state == WT_REF_DELETED) {
-        timestamp = &ref->ft_info.del->timestamp;
-        if (*timestamp == WT_TS_NONE) {
-            *timestamp = txn->commit_timestamp;
-
-            timestamp = &ref->ft_info.del->durable_timestamp;
-            *timestamp = txn->durable_timestamp;
+        if (ref->ft_info.del->timestamp == WT_TS_NONE) {
+            ref->ft_info.del->timestamp = txn->commit_timestamp;
+            ref->ft_info.del->durable_timestamp = txn->durable_timestamp;
         }
     } else if ((updp = ref->ft_info.update) != NULL)
         for (; *updp != NULL; ++updp) {
@@ -335,7 +331,6 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
     WT_TXN *txn;
     WT_UPDATE *upd;
-    wt_timestamp_t *timestamp;
 
     txn = session->txn;
 
@@ -368,12 +363,9 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
              * durable timestamps need to be updated.
              */
             upd = op->u.op_upd;
-            timestamp = &upd->start_ts;
-            if (*timestamp == WT_TS_NONE) {
-                *timestamp = txn->commit_timestamp;
-
-                timestamp = &upd->durable_ts;
-                *timestamp = txn->durable_timestamp;
+            if (upd->start_ts == WT_TS_NONE) {
+                upd->start_ts = txn->commit_timestamp;
+                upd->durable_ts = txn->durable_timestamp;
             }
         }
     }
