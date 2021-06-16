@@ -195,6 +195,9 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
     tier = tiered->tiers[WT_TIERED_INDEX_LOCAL].tier;
     if (tier != NULL) {
         __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: drop local object %s", tier->name);
+	WT_WITHOUT_DHANDLE(session,
+        WT_WITH_HANDLE_LIST_WRITE_LOCK(
+          session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(__wt_metadata_remove(session, tier->name));
     }
 
