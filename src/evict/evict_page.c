@@ -525,10 +525,6 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     if (F_ISSET(session->dhandle, WT_DHANDLE_DEAD))
         return (0);
 
-    /* Don't attempt to evict fast-truncate pages until the truncate completes. */
-    if (ref->ft_info.update != NULL)
-        return (__wt_set_return(session, EBUSY));
-
     /*
      * Retrieve the modified state of the page. This must happen after the check for evictable
      * internal pages otherwise there is a race where a page could be marked modified due to a child
