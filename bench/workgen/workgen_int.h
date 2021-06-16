@@ -188,6 +188,7 @@ private:
     void _format_json_entry(tm *tm, timespec *ptimespec, bool first_iteration, Stats *pinterval,
         bool checkpointing, double interval_secs);
     void _format_json_suffix();
+    void _check_latency_threshold(Stats *pinterval, uint64_t latency_max);
 };
 
 struct TableRuntime {

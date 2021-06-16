@@ -479,19 +479,9 @@ int Monitor::run() {
         if (_json != NULL)
             _format_json_entry(tm, &t, first_iteration, &interval, checkpointing, interval_secs);
 
-        uint64_t read_max = interval.read.max_latency;
-        uint64_t insert_max = interval.read.max_latency;
-        uint64_t update_max = interval.read.max_latency;
-
-        if (latency_max != 0 &&
-          (read_max > latency_max || insert_max > latency_max ||
-          update_max > latency_max)) {
-            std::cerr << "WARNING: max latency exceeded:"
-                      << " threshold " << latency_max
-                      << " read max " << read_max
-                      << " insert max " << insert_max
-                      << " update max " << update_max << std::endl;
-        }
+        // Check latency threshold. Write warning into std::cerr in case read, inser or update
+        // exceeds latency_max.
+        _check_latency_threshold(&interval, latency_max);
 
         prev_interval.assign(interval);
         prev_totals.assign(new_totals);
@@ -606,6 +596,20 @@ void Monitor::_format_json_suffix() {
     (*_json) << "]}";
 }
 
+void Monitor::_check_latency_threshold(Stats *pinterval, uint64_t latency_max) {
+    uint64_t read_max = pinterval->read.max_latency;
+    uint64_t insert_max = pinterval->insert.max_latency;
+    uint64_t update_max = pinterval->update.max_latency;
+
+    if (latency_max != 0 &&
+        (read_max > latency_max || insert_max > latency_max || update_max > latency_max)) {
+        std::cerr << "WARNING: max latency exceeded:"
+                    << " threshold " << latency_max
+                    << " read max " << read_max
+                    << " insert max " << insert_max
+                    << " update max " << update_max << std::endl;
+    }
+}
 
 ParetoOptions ParetoOptions::DEFAULT;
 ParetoOptions::ParetoOptions(int param_arg) : param(param_arg), range_low(0.0),
