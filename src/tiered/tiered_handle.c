@@ -9,6 +9,43 @@
 #include "wt_internal.h"
 
 /*
+ * __tiered_name_check --
+ *     Check if the given tiered table name exists in the shared storage. This is called from create
+ *     to check if this name had previously existed, was dropped and we're now trying to create the
+ *     same name. We cannot do that if shared objects exist for the old table.
+ */
+static int
+__tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
+{
+    WT_DECL_RET;
+    WT_FILE_SYSTEM *bucket_fs;
+    WT_STORAGE_SOURCE *storage_source;
+    u_int obj_count, i;
+    char **obj_files;
+    const char *name;
+
+    storage_source = tiered->bstorage->storage_source;
+    bucket_fs = tiered->bstorage->file_system;
+    name = tiered->iface.name;
+    WT_ASSERT(session, WT_PREFIX_MATCH(name, "tiered:"));
+    WT_PREFIX_SKIP(name, "tiered:");
+    /* See if this name exists in the shared storage. */
+    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: check for %s", name);
+    WT_ERR(bucket_fs->fs_directory_list(
+      bucket_fs, (WT_SESSION *)session, NULL, name, &obj_files, &obj_count));
+    __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: Got %d files", (int)obj_count);
+    for (i = 0; i < obj_count; ++i)
+        __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: %d %s", (int)i, obj_files[i]);
+    if (obj_count > 0)
+        WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", tiered->iface.name);
+
+err:
+    WT_TRET(
+      bucket_fs->fs_directory_list_free(bucket_fs, (WT_SESSION *)session, obj_files, obj_count));
+    return (ret);
+}
+
+/*
  * __tiered_dhandle_setup --
  *     Given a tiered index and name, set up the dhandle information.
  */
@@ -520,6 +557,15 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ASSERT(session, tiered->bstorage != NULL);
     /* Collapse into one string for later use in switch. */
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
+
+    /*
+     * The tiered table name does not exist. But now check if any shared storage objects exist for
+     * this name. A user could have created a tiered table. Later dropped it, which removes the
+     * metadata entries and local files, but leaves the objects in the shared storage layer because
+     * others may be using those files. We do not allow a create of a duplicate name if we find
+     * objects. We do this after the tiered bucket storage is set up.
+     */
+    WT_ERR(__tiered_name_check(session, tiered));
 
     /*
      * Pull in any configuration of the original table for the object and file components that may

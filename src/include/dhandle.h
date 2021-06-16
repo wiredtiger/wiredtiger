@@ -42,6 +42,7 @@
 
 #define WT_DHANDLE_RELEASE(dhandle) (void)__wt_atomic_sub32(&(dhandle)->session_ref, 1)
 
+extern bool suedbg;
 #define WT_DHANDLE_NEXT(session, dhandle, head, field)                                     \
     do {                                                                                   \
         WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST)); \
@@ -51,8 +52,13 @@
             WT_DHANDLE_RELEASE(dhandle);                                                   \
             (dhandle) = TAILQ_NEXT(dhandle, field);                                        \
         }                                                                                  \
-        if ((dhandle) != NULL)                                                             \
+        if ((dhandle) != NULL) {                                                           \
+            if (suedbg) {                                                                  \
+                __wt_verbose(session, WT_VERB_TIERED, "dh %p", (void *)(dhandle));         \
+                __wt_verbose(session, WT_VERB_TIERED, "name %s", (void *)(dhandle)->name); \
+            }                                                                              \
             WT_DHANDLE_ACQUIRE(dhandle);                                                   \
+        }                                                                                  \
     } while (0)
 
 /*
