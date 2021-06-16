@@ -110,7 +110,7 @@ run_test(const std::string &test_name, const std::string &config)
 {
     int error_code = 0;
 
-    test_harness::debug_print("Configuration\t:" + config, DEBUG_INFO);
+    test_harness::debug_print("Configuration\t:" + config, DEBUG_TRACE);
 
     if (test_name == "poc_test")
         poc_test(config, test_name).run();
