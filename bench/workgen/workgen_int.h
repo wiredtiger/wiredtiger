@@ -179,6 +179,15 @@ struct Monitor {
     Monitor(WorkloadRunner &wrunner);
     ~Monitor();
     int run();
+
+private:
+    void _format_out_header();
+    void _format_out_entry(Stats *pinterval, double interval_secs, timespec *ptimespec,
+        bool checkpointing, tm *tm);
+    void _format_json_prefix(char *version);
+    void _format_json_entry(tm *tm, timespec *ptimespec, bool first_iteration, Stats *pinterval,
+        bool checkpointing, double interval_secs);
+    void _format_json_suffix();
 };
 
 struct TableRuntime {
