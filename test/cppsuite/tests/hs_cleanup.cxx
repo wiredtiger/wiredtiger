@@ -58,10 +58,7 @@ class hs_cleanup : public test {
         testutil_assert(tc->database.get_collection_count() == tc->thread_count);
         testutil_check(session->open_cursor(session,  collection_name.c_str(), nullptr, nullptr, &cursor));
 
-        /*
-         * We don't know the keyrange we're operating over here so we can't be much smarter. Than
-         * this.
-         */
+        /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
             tc->sleep();
             ret = cursor->next(cursor);
