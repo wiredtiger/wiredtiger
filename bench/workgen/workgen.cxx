@@ -481,7 +481,7 @@ int Monitor::run() {
         if (_json != NULL)
             _format_json_entry(*tm, t, first_iteration, interval, checkpointing, interval_secs);
 
-        // Check latency threshold. Write warning into std::cerr in case read, inser or update
+        // Check latency threshold. Write warning into std::cerr in case read, insert or update
         // exceeds latency_max.
         _check_latency_threshold(interval, latency_max);
 
