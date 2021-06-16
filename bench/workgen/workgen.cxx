@@ -475,7 +475,7 @@ int Monitor::run() {
         // Format entry into _out stream.
         _format_out_entry(&interval, interval_secs, &t, checkpointing, tm);
 
-        // Format entry into _json stream
+        // Format entry into _json stream.
         if (_json != NULL)
             _format_json_entry(tm, &t, first_iteration, &interval, checkpointing, interval_secs);
 
@@ -489,7 +489,7 @@ int Monitor::run() {
         first_iteration = false;
     }
 
-    // Format JSON suffix
+    // Format JSON suffix.
     if (_json != NULL)
         _format_json_suffix();
 
