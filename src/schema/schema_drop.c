@@ -176,11 +176,16 @@ err:
 static int
 __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
+    WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *tier;
     WT_DECL_RET;
     WT_TIERED *tiered;
     u_int i;
     const char *name;
+    bool remove_files;
+
+    WT_RET(__wt_config_gets(session, cfg, "remove_files", &cval));
+    remove_files = cval.val != 0;
 
     name = NULL;
     WT_UNUSED(cfg);
@@ -199,14 +204,15 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
           WT_WITH_HANDLE_LIST_WRITE_LOCK(
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(__wt_metadata_remove(session, tier->name));
+	if (remove_files)
+            WT_TRET(__wt_meta_track_drop(session, name));
     }
 
     /* Object ids start at 1. */
     for (i = 1; i < tiered->current_id; ++i) {
         WT_ERR(__wt_tiered_name(session, &tiered->iface, i, WT_TIERED_NAME_OBJECT, &name));
         __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove object %s from metadata", name);
-        WT_ERR(__wt_metadata_remove(session, name));
-        WT_TRET(__wt_meta_track_drop(session, name));
+        WT_ERR_NOTFOUND_OK(__wt_metadata_remove(session, name));
         __wt_free(session, name);
     }
 

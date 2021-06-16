@@ -76,6 +76,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         c["0"] = "0"
         self.check(c, 1)
         c.close()
+        self.session.checkpoint()
         self.pr('After data, call flush_tier')
         self.session.flush_tier(None)
 
