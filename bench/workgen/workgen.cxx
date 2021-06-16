@@ -422,7 +422,8 @@ int Monitor::run() {
     bool first_iteration;
 
     // Format header of the table in _out stream.
-    _format_out_header();
+    if (_out != NULL)
+        _format_out_header();
 
     first_iteration = true;
     workgen_version(version, sizeof(version));
@@ -473,7 +474,8 @@ int Monitor::run() {
         double interval_secs = options->sample_interval_ms / 1000.0;
         
         // Format entry into _out stream.
-        _format_out_entry(&interval, interval_secs, &t, checkpointing, tm);
+        if (_out != NULL)
+            _format_out_entry(&interval, interval_secs, &t, checkpointing, tm);
 
         // Format entry into _json stream.
         if (_json != NULL)
