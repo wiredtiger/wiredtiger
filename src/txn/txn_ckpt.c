@@ -759,7 +759,7 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     WT_TXN_ISOLATION saved_isolation;
     wt_off_t hs_size;
     wt_timestamp_t ckpt_tmp_ts;
-    uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs, max_hs_size;
+    uint64_t fsync_duration_usecs, generation, hs_ckpt_duration_usecs;
     uint64_t time_start_fsync, time_stop_fsync, time_start_hs, time_stop_hs;
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
@@ -962,12 +962,6 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(hs_dhandle, WT_DHANDLE_OPEN)) {
         WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
         WT_STAT_CONN_SET(session, cache_hs_ondisk, hs_size);
-
-        max_hs_size = ((WT_BTREE *)hs_dhandle->handle)->file_max;
-        if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
-            WT_ERR_PANIC(session, WT_PANIC,
-              "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64,
-              (uint64_t)hs_size, max_hs_size);
     }
 
     /*

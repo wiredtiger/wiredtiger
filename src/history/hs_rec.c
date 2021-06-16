@@ -266,7 +266,7 @@ int
 __wt_hs_insert_updates(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, bool *cache_write_hs)
 {
-    WT_BTREE *btree;
+    WT_BTREE *btree, *hs_btree;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(key);
@@ -285,7 +285,8 @@ __wt_hs_insert_updates(
     WT_UPDATE *first_globally_visible_upd, *fix_ts_upd, *min_ts_upd, *out_of_order_ts_upd;
     WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
-    uint64_t insert_cnt, modify_cnt;
+    wt_off_t hs_size;
+    uint64_t insert_cnt, max_hs_size, modify_cnt;
     uint32_t i;
     uint8_t *p;
     int nentries;
@@ -681,6 +682,14 @@ __wt_hs_insert_updates(
 #endif
         __wt_update_vector_clear(&out_of_order_ts_updates);
     }
+
+    WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
+    hs_btree = __wt_curhs_get_btree(hs_cursor);
+    max_hs_size = hs_btree->file_max;
+    if (max_hs_size != 0 && (uint64_t)hs_size > max_hs_size)
+        WT_ERR_PANIC(session, WT_PANIC,
+          "WiredTigerHS: file size of %" PRIu64 " exceeds maximum size %" PRIu64, (uint64_t)hs_size,
+          max_hs_size);
 
 err:
     if (ret == 0 && insert_cnt > 0)
