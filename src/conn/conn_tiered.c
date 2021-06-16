@@ -90,7 +90,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
         if (WT_PREFIX_MATCH(key, "tiered:")) {
             __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s", key, value);
             /* Is this instantiating every handle even if it is not opened or in use? */
-            WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+            WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, 0));
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
              * the arg is the config string that is currently in the metadata.
@@ -188,7 +188,7 @@ __tier_flush_meta(
     WT_ERR(__wt_meta_track_on(session));
     tracking = true;
 
-    WT_ERR(__wt_session_get_dhandle(session, dhandle->name, NULL, NULL, WT_DHANDLE_EXCLUSIVE));
+    WT_ERR(__wt_session_get_dhandle(session, dhandle->name, NULL, NULL, 0));
     release = true;
     /*
      * Once the flush call succeeds we want to first remove the file: entry from the metadata and
