@@ -138,8 +138,6 @@ __conn_dhandle_destroy(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle)
 {
     WT_DECL_RET;
 
-    __wt_verbose(session, WT_VERB_TIERED, "DH DESTROY: dh %p", (void *)dhandle);
-    __wt_verbose(session, WT_VERB_TIERED, "DH DESTROY: name %s", dhandle->name);
     switch (dhandle->type) {
     case WT_DHANDLE_TYPE_BTREE:
         WT_WITH_DHANDLE(session, dhandle, ret = __wt_btree_discard(session));
@@ -678,7 +676,6 @@ __conn_btree_apply_internal(WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle,
     return (ret);
 }
 
-bool suedbg;
 /*
  * __wt_conn_btree_apply --
  *     Apply a function to all open btree handles with the given URI.
@@ -721,7 +718,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
             time_start = __wt_clock(session);
             F_SET(conn, WT_CONN_CKPT_GATHER);
         }
-        suedbg = true;
         for (dhandle = NULL;;) {
             WT_WITH_HANDLE_LIST_READ_LOCK(
               session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
@@ -733,7 +729,6 @@ __wt_conn_btree_apply(WT_SESSION_IMPL *session, const char *uri,
                 continue;
             WT_ERR(__conn_btree_apply_internal(session, dhandle, file_func, name_func, cfg));
         }
-        suedbg = false;
 done:
         if (WT_SESSION_IS_CHECKPOINT(session)) {
             F_CLR(conn, WT_CONN_CKPT_GATHER);
@@ -937,8 +932,6 @@ __wt_conn_dhandle_discard(WT_SESSION_IMPL *session)
  */
 restart:
     TAILQ_FOREACH (dhandle, &conn->dhqh, q) {
-        __wt_verbose(session, WT_VERB_TIERED, "DH DISCARD: dh %p", (void *)dhandle);
-        __wt_verbose(session, WT_VERB_TIERED, "DH DISCARD: name %s", dhandle->name);
         if (WT_IS_METADATA(dhandle) || strcmp(dhandle->name, WT_HS_URI) == 0 ||
           WT_PREFIX_MATCH(dhandle->name, WT_SYSTEM_PREFIX))
             continue;
