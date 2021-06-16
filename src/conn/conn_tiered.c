@@ -369,7 +369,7 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
     WT_RET(__wt_config_gets(session, cfg, "force", &cval));
     if (cval.val)
         LF_SET(WT_FLUSH_TIER_FORCE);
-    WT_RET(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
+    WT_RET(__wt_config_gets(session, cfg, "sync", &cval));
     if (WT_STRING_MATCH("off", cval.str, cval.len))
         LF_SET(WT_FLUSH_TIER_OFF);
     else if (WT_STRING_MATCH("on", cval.str, cval.len))
@@ -644,10 +644,23 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED_MGR);
+    /*
+     * Stop the storage manager thread. This must be stopped before the internal thread because it
+     * could be adding work for the internal thread. So stop it first and the internal thread will
+     * have the opportunity to drain all work.
+     */
+    if (conn->tiered_mgr_tid_set) {
+        WT_ASSERT(session, conn->tiered_mgr_cond != NULL);
+        __wt_cond_signal(session, conn->tiered_mgr_cond);
+        WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
+        conn->tiered_mgr_tid_set = false;
+    }
+
     /* Stop the internal server thread. */
     if (conn->flush_cond != NULL)
         __wt_cond_signal(session, conn->flush_cond);
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED | WT_CONN_SERVER_TIERED_MGR);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
     if (conn->tiered_tid_set) {
         WT_ASSERT(session, conn->tiered_cond != NULL);
         __wt_cond_signal(session, conn->tiered_cond);
@@ -663,13 +676,6 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
         conn->tiered_session = NULL;
     }
 
-    /* Stop the storage manager thread. */
-    if (conn->tiered_mgr_tid_set) {
-        WT_ASSERT(session, conn->tiered_mgr_cond != NULL);
-        __wt_cond_signal(session, conn->tiered_mgr_cond);
-        WT_TRET(__wt_thread_join(session, &conn->tiered_mgr_tid));
-        conn->tiered_mgr_tid_set = false;
-    }
     /* Destroy all condition variables after threads have stopped. */
     __wt_cond_destroy(session, &conn->tiered_cond);
     __wt_cond_destroy(session, &conn->tiered_mgr_cond);
