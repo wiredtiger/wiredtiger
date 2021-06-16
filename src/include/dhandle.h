@@ -55,7 +55,7 @@ extern bool suedbg;
         if ((dhandle) != NULL) {                                                           \
             if (suedbg) {                                                                  \
                 __wt_verbose(session, WT_VERB_TIERED, "dh %p", (void *)(dhandle));         \
-                __wt_verbose(session, WT_VERB_TIERED, "name %s", (void *)(dhandle)->name); \
+                __wt_verbose(session, WT_VERB_TIERED, "name %s", (dhandle)->name); \
             }                                                                              \
             WT_DHANDLE_ACQUIRE(dhandle);                                                   \
         }                                                                                  \
