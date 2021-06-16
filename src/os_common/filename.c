@@ -178,7 +178,7 @@ __wt_backup_read(WT_SESSION *wt_session, const char *from)
     ffh = NULL;
     buf = NULL;
 
-    /* Open the from and temporary file handles. */
+    /* Open the from file handle. */
     WT_ERR(__wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
 
     /*
@@ -187,15 +187,12 @@ __wt_backup_read(WT_SESSION *wt_session, const char *from)
      */
     WT_ERR(__wt_malloc(session, WT_BACKUP_COPY_SIZE, &buf));
 
-    /* Get the file's size, then copy the bytes. */
+    /* Get the file's size, then read the bytes. */
     WT_ERR(__wt_filesize(session, ffh, &size));
     for (offset = 0; size > 0; size -= n, offset += n) {
         n = WT_MIN(size, WT_BACKUP_COPY_SIZE);
         WT_ERR(__wt_read(session, ffh, offset, (size_t)n, buf));
     }
-
-    /* Close the from handle, then swap the temporary file into place. */
-    WT_ERR(__wt_close(session, &ffh));
 
 err:
     WT_TRET(__wt_close(session, &ffh));
