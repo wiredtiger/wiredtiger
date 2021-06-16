@@ -27,7 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # test_bulk03.py
-#       colgroup bulk-cursor test.
+#       This test module is designed to check that colgroup bulk-cursor meets expectations in terms
+#       of error codes and error messages.
 #
 
 import os
@@ -44,20 +45,20 @@ class test_colgroup_bulk_load(wttest.WiredTigerTestCase):
 
     # Test that bulk-load objects cannot be opened by other cursors.
     def test_bulk_load_busy_cols(self):
-        # Create a table with columns
+        # Create a table with columns.
         self.session.create(self.tablename, 'key_format=5s,value_format=HQ,' +
                             'columns=(country,year,population),' +
                             'colgroups=(year,population)')
 
-        # Cerarte a column group
+        # Create a column group.
         self.session.create(self.cgname + ':year', 'columns=(year)')
         self.session.create(self.cgname + ':population', 'columns=(population)')
 
-        # Cerate a column cursor
+        # Create a column cursor.
         self.session.open_cursor(self.tablename, None)
 
         # Create a second column cursor in bulk mode. Don't close the insert cursor, we want EBUSY
-        # and the error message
+        # and the error message.
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.open_cursor(self.tablename, None, "bulk"), self.err_msg)
 
