@@ -141,7 +141,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.progress('flush_tier')
         self.session.flush_tier(None)
-        self.progress('flush_tier complete')
         self.confirm_flush()
 
         self.progress('Create simple data set (200)')
