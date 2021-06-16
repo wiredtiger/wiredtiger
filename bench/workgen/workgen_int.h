@@ -183,9 +183,9 @@ struct Monitor {
 private:
     void _format_out_header();
     void _format_out_entry(const Stats &interval, double interval_secs, const timespec &timespec,
-        bool checkpointing, const tm *tm);
-    void _format_json_prefix(const char *version);
-    void _format_json_entry(const tm *tm, const timespec &timespec, bool first_iteration, 
+        bool checkpointing, const tm &tm);
+    void _format_json_prefix(const std::string &version);
+    void _format_json_entry(const tm &tm, const timespec &timespec, bool first_iteration,
     const Stats &interval, bool checkpointing, double interval_secs);
     void _format_json_suffix();
     void _check_latency_threshold(const Stats &interval, uint64_t latency_max);

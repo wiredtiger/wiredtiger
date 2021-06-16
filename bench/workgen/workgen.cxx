@@ -475,11 +475,11 @@ int Monitor::run() {
         
         // Format entry into _out stream.
         if (_out != NULL)
-            _format_out_entry(interval, interval_secs, t, checkpointing, tm);
+            _format_out_entry(interval, interval_secs, t, checkpointing, *tm);
 
         // Format entry into _json stream.
         if (_json != NULL)
-            _format_json_entry(tm, t, first_iteration, interval, checkpointing, interval_secs);
+            _format_json_entry(*tm, t, first_iteration, interval, checkpointing, interval_secs);
 
         // Check latency threshold. Write warning into std::cerr in case read, inser or update
         // exceeds latency_max.
@@ -518,14 +518,14 @@ void Monitor::_format_out_header() {
 }
 
 void Monitor::_format_out_entry(const Stats &interval, double interval_secs, 
-    const timespec &timespec, bool checkpointing, const tm *tm) {
+    const timespec &timespec, bool checkpointing, const tm &tm) {
     char time_buf[64];
     uint64_t cur_reads = (uint64_t)(interval.read.ops / interval_secs);
     uint64_t cur_inserts = (uint64_t)(interval.insert.ops / interval_secs);
     uint64_t cur_updates = (uint64_t)(interval.update.ops / interval_secs);
     uint64_t totalsec = ts_sec(timespec - _wrunner._start);
 
-    (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M:%S", tm);
+    (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M:%S", &tm);
     (*_out) << time_buf
             << "," << totalsec
             << "," << cur_reads
@@ -544,13 +544,13 @@ void Monitor::_format_out_entry(const Stats &interval, double interval_secs,
             << std::endl;
 }
 
-void Monitor::_format_json_prefix(const char *version) {
+void Monitor::_format_json_prefix(const std::string &version) {
     (*_json) << "{";
     (*_json) << "\"version\":\"" << version << "\",";
     (*_json) << "\"workgen\":[";
 }
 
-void Monitor::_format_json_entry(const tm *tm, const timespec &timespec, bool first_iteration, 
+void Monitor::_format_json_entry(const tm &tm, const timespec &timespec, bool first_iteration, 
     const Stats &interval, bool checkpointing, double interval_secs) {
 #define WORKGEN_TIMESTAMP_JSON "%Y-%m-%dT%H:%M:%S"
 #define TRACK_JSON(f, name, t, percentiles, extra)                         \
@@ -574,7 +574,7 @@ void Monitor::_format_json_entry(const tm *tm, const timespec &timespec, bool fi
     size_t buf_size;
     char time_buf[64];
 
-    buf_size = strftime(time_buf, sizeof(time_buf), WORKGEN_TIMESTAMP_JSON, tm);
+    buf_size = strftime(time_buf, sizeof(time_buf), WORKGEN_TIMESTAMP_JSON, &tm);
     ASSERT(buf_size <= sizeof(time_buf));
     snprintf(&time_buf[buf_size], sizeof(time_buf) - buf_size,
         ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(timespec.tv_nsec));
