@@ -34,7 +34,6 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered07(wttest.WiredTigerTestCase):
     uri = "table:test_tiered07"
     newuri = "table:tier_new"
-    local = "table:mylocal"
 
     auth_token = "test_token"
     bucket = "my_bucket"
@@ -65,7 +64,6 @@ class test_tiered07(wttest.WiredTigerTestCase):
         # Create a new tiered table.
         self.pr('create table')
         self.session.create(self.uri, 'key_format=S,value_format=S')
-        self.session.create(self.local, 'key_format=S,value_format=S,tiered_storage=(name=none)')
 
         # Rename is not supported for tiered tables.
         msg = "/is not supported/"
@@ -78,17 +76,12 @@ class test_tiered07(wttest.WiredTigerTestCase):
         c["0"] = "0"
         self.check(c, 1)
         c.close()
-        c = self.session.open_cursor(self.local)
-        c["0"] = "0"
-        self.check(c, 1)
-        c.close()
         self.pr('After data, call flush_tier')
         self.session.flush_tier(None)
 
         # Drop table.
         self.pr('call drop')
         self.session.drop(self.uri)
-        self.session.drop(self.local)
 
         # Create new table with same name. This should error.
         msg = "/already exists/"
