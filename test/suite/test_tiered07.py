@@ -92,7 +92,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
         self.session.drop(self.local)
 
         # Create new table with same name. This should error.
-        msg = "/is not supported/"
+        msg = "/already exists/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.create(self.uri, 'key_format=S'), 0), msg)
 
