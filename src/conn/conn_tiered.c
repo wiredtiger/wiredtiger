@@ -660,7 +660,7 @@ __wt_tiered_storage_destroy(WT_SESSION_IMPL *session)
     /* Stop the internal server thread. */
     if (conn->flush_cond != NULL)
         __wt_cond_signal(session, conn->flush_cond);
-    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED_MGR);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_TIERED);
     if (conn->tiered_tid_set) {
         WT_ASSERT(session, conn->tiered_cond != NULL);
         __wt_cond_signal(session, conn->tiered_cond);
