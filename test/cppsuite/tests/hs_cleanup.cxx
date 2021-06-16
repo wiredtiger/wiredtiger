@@ -71,9 +71,8 @@ class hs_cleanup : public test {
             }
             testutil_check(cursor->get_key(cursor, &key_tmp));
 
-            /* Start a transaction. */
-            if (!tc->transaction.active())
-                tc->transaction.begin(tc->session, "");
+            /* Start a transaction if possible. */
+            tc->transaction.try_begin(tc->session, "");
 
             ts = tc->timestamp_manager->get_next_ts();
             if (tc->timestamp_manager->enabled())
@@ -89,8 +88,12 @@ class hs_cleanup : public test {
                 tc->transaction.rollback(tc->session, "");
             else if (ret != 0)
                 testutil_die(ret, "failed to update a key.");
-            if (tc->transaction.can_commit())
-                tc->transaction.commit(tc->session, "");
+
+            /* Commit our transaction. */
+            tc->transaction.try_commit(tc->session, "");
         }
+        /* Ensure our last transaction is resolved. */
+        if (tc->transaction.active())
+            tc->transaction.commit(tc->session, "");
     }
 };

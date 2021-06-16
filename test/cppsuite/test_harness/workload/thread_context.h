@@ -46,47 +46,57 @@ class transaction_context {
         delete transaction_config;
     }
 
-    bool
-    active() const
+    /* Begin a transaction if we are not currently in one. */
+    void
+    try_begin(WT_SESSION *session, const std::string &config)
     {
-        return (_in_txn);
+        if (!_in_txn)
+            begin(session, config);
     }
 
-    /* Begin a transaction. */
     void
     begin(WT_SESSION *session, const std::string &config)
     {
-        if (!_in_txn) {
-            testutil_check(
-              session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
-            /* This randomizes the number of operations to be executed in one transaction. */
-            _target_op_count =
-              random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
-            op_count = 0;
-            _in_txn = true;
-        } else
-            testutil_die(EINVAL, "Begin called on a currently running transaction.");
+        testutil_assert(!_in_txn);
+        testutil_check(
+          session->begin_transaction(session, config.empty() ? nullptr : config.c_str()));
+        /* This randomizes the number of operations to be executed in one transaction. */
+        _target_op_count =
+          random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
+        op_count = 0;
+        _in_txn = true;
     }
 
-    /*
-     * The current transaction can be committed if: A transaction has started and the number of
-     * operations executed in the current transaction has exceeded the threshold.
-     */
     bool
-    can_commit() const
+    active() const
     {
-        return (_in_txn && op_count >= _target_op_count);
+        return _in_txn;
+    }
+
+    /* Attempt to commit the transaction given the requirements are met. */
+    void
+    try_commit(WT_SESSION *session, const std::string &config)
+    {
+        if (can_commit_rollback())
+            commit(session, config);
     }
 
     void
     commit(WT_SESSION *session, const std::string &config)
     {
-        /* A transaction cannot be committed if not started. */
         testutil_assert(_in_txn);
         testutil_check(
           session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
         op_count = 0;
         _in_txn = false;
+    }
+
+    /* Attempt to rollback the transaction given the requirements are met. */
+    void
+    try_rollback(WT_SESSION *session, const std::string &config)
+    {
+        if (can_commit_rollback())
+            rollback(session, config);
     }
 
     void
@@ -116,6 +126,12 @@ class transaction_context {
     int64_t op_count = 0;
 
     private:
+    bool
+    can_commit_rollback()
+    {
+        return _in_txn && op_count >= _target_op_count;
+    }
+
     /*
      * _min_op_count and _max_op_count are the minimum and maximum number of operations within one
      * transaction. is the current maximum number of operations that can be executed in the current
