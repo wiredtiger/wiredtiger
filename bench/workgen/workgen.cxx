@@ -475,15 +475,15 @@ int Monitor::run() {
         
         // Format entry into _out stream.
         if (_out != NULL)
-            _format_out_entry(&interval, interval_secs, &t, checkpointing, tm);
+            _format_out_entry(interval, interval_secs, t, checkpointing, tm);
 
         // Format entry into _json stream.
         if (_json != NULL)
-            _format_json_entry(tm, &t, first_iteration, &interval, checkpointing, interval_secs);
+            _format_json_entry(tm, t, first_iteration, interval, checkpointing, interval_secs);
 
         // Check latency threshold. Write warning into std::cerr in case read, inser or update
         // exceeds latency_max.
-        _check_latency_threshold(&interval, latency_max);
+        _check_latency_threshold(interval, latency_max);
 
         prev_interval.assign(interval);
         prev_totals.assign(new_totals);
@@ -517,12 +517,13 @@ void Monitor::_format_out_header() {
             << std::endl;
 }
 
-void Monitor::_format_out_entry(Stats *pinterval, double interval_secs, timespec *ptimespec, bool checkpointing, tm *tm) {
+void Monitor::_format_out_entry(const Stats &interval, double interval_secs, 
+    const timespec &timespec, bool checkpointing, const tm *tm) {
     char time_buf[64];
-    uint64_t cur_reads = (uint64_t)(pinterval->read.ops / interval_secs);
-    uint64_t cur_inserts = (uint64_t)(pinterval->insert.ops / interval_secs);
-    uint64_t cur_updates = (uint64_t)(pinterval->update.ops / interval_secs);
-    uint64_t totalsec = ts_sec((*ptimespec) - _wrunner._start);
+    uint64_t cur_reads = (uint64_t)(interval.read.ops / interval_secs);
+    uint64_t cur_inserts = (uint64_t)(interval.insert.ops / interval_secs);
+    uint64_t cur_updates = (uint64_t)(interval.update.ops / interval_secs);
+    uint64_t totalsec = ts_sec(timespec - _wrunner._start);
 
     (void)strftime(time_buf, sizeof(time_buf), "%b %d %H:%M:%S", tm);
     (*_out) << time_buf
@@ -531,26 +532,26 @@ void Monitor::_format_out_entry(Stats *pinterval, double interval_secs, timespec
             << "," << cur_inserts
             << "," << cur_updates
             << "," << (checkpointing ? 'Y' : 'N')
-            << "," << pinterval->read.average_latency()
-            << "," << pinterval->read.min_latency
-            << "," << pinterval->read.max_latency
-            << "," << pinterval->insert.average_latency()
-            << "," << pinterval->insert.min_latency
-            << "," << pinterval->insert.max_latency
-            << "," << pinterval->update.average_latency()
-            << "," << pinterval->update.min_latency
-            << "," << pinterval->update.max_latency
+            << "," << interval.read.average_latency()
+            << "," << interval.read.min_latency
+            << "," << interval.read.max_latency
+            << "," << interval.insert.average_latency()
+            << "," << interval.insert.min_latency
+            << "," << interval.insert.max_latency
+            << "," << interval.update.average_latency()
+            << "," << interval.update.min_latency
+            << "," << interval.update.max_latency
             << std::endl;
 }
 
-void Monitor::_format_json_prefix(char *version) {
+void Monitor::_format_json_prefix(const char *version) {
     (*_json) << "{";
     (*_json) << "\"version\":\"" << version << "\",";
     (*_json) << "\"workgen\":[";
 }
 
-void Monitor::_format_json_entry(tm *tm, timespec *ptimespec, bool first_iteration, 
-    Stats *pinterval, bool checkpointing, double interval_secs) {
+void Monitor::_format_json_entry(const tm *tm, const timespec &timespec, bool first_iteration, 
+    const Stats &interval, bool checkpointing, double interval_secs) {
 #define WORKGEN_TIMESTAMP_JSON "%Y-%m-%dT%H:%M:%S"
 #define TRACK_JSON(f, name, t, percentiles, extra)                         \
             do {                                                           \
@@ -576,20 +577,20 @@ void Monitor::_format_json_entry(tm *tm, timespec *ptimespec, bool first_iterati
     buf_size = strftime(time_buf, sizeof(time_buf), WORKGEN_TIMESTAMP_JSON, tm);
     ASSERT(buf_size <= sizeof(time_buf));
     snprintf(&time_buf[buf_size], sizeof(time_buf) - buf_size,
-        ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(ptimespec->tv_nsec));
+        ".%3.3" PRIu64 "Z", (uint64_t)ns_to_ms(timespec.tv_nsec));
 
     if (!first_iteration)
         (*_json) << ",";
 
     (*_json) << "{";
     (*_json) << "\"localTime\":\"" << time_buf << "\",";
-    TRACK_JSON(*_json, "read", pinterval->read, percentiles, "");
+    TRACK_JSON(*_json, "read", interval.read, percentiles, "");
     (*_json) << ",";
-    TRACK_JSON(*_json, "insert", pinterval->insert, percentiles, "");
+    TRACK_JSON(*_json, "insert", interval.insert, percentiles, "");
     (*_json) << ",";
-    TRACK_JSON(*_json, "update", pinterval->update, percentiles, "");
+    TRACK_JSON(*_json, "update", interval.update, percentiles, "");
     (*_json) << ",";
-    TRACK_JSON(*_json, "checkpoint", pinterval->checkpoint, percentiles,
+    TRACK_JSON(*_json, "checkpoint", interval.checkpoint, percentiles,
         "\"active\":" << (checkpointing ? "1," : "0,"));
     (*_json) << "}" << std::endl;
 }
@@ -598,10 +599,10 @@ void Monitor::_format_json_suffix() {
     (*_json) << "]}";
 }
 
-void Monitor::_check_latency_threshold(Stats *pinterval, uint64_t latency_max) {
-    uint64_t read_max = pinterval->read.max_latency;
-    uint64_t insert_max = pinterval->insert.max_latency;
-    uint64_t update_max = pinterval->update.max_latency;
+void Monitor::_check_latency_threshold(const Stats &interval, uint64_t latency_max) {
+    uint64_t read_max = interval.read.max_latency;
+    uint64_t insert_max = interval.insert.max_latency;
+    uint64_t update_max = interval.update.max_latency;
 
     if (read_max > latency_max)
         std::cerr << "WARNING: max latency exceeded for read operation. Threshold "
