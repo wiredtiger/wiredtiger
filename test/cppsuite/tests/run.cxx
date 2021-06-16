@@ -190,7 +190,7 @@ main(int argc, char *argv[])
 
     if (error_code == 0) {
         test_harness::debug_print(
-          "Trace level\t:" + std::to_string(test_harness::_trace_level), DEBUG_INFO);
+          "Trace level: " + std::to_string(test_harness::_trace_level), DEBUG_INFO);
         if (test_name.empty()) {
             /* Run all tests. */
             test_harness::debug_print("Running all tests.", DEBUG_INFO);
