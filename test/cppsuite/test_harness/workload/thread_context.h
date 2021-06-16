@@ -150,14 +150,14 @@ class thread_context {
     thread_context(uint64_t id, thread_type type, configuration *config,
       timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db)
         : id(id), type(type), database(db), timestamp_manager(timestamp_manager),
-          tracking(tracking), transaction(transaction_context(config))
+          tracking(tracking), transaction(transaction_context(config)),
+          /* These won't exist for read threads which is why we use optional here. */
+          key_size(config->get_optional_int(KEY_SIZE, 1)),
+          value_size(config->get_optional_int(VALUE_SIZE, 1)),
+          thread_count(config->get_int(THREAD_COUNT))
     {
         session = connection_manager::instance().create_session();
         _throttle = throttle(config);
-
-        /* These won't exist for read threads which is why we use optional here. */
-        key_size = config->get_optional_int(KEY_SIZE, 1);
-        value_size = config->get_optional_int(VALUE_SIZE, 1);
 
         testutil_assert(key_size > 0 && value_size > 0);
     }
@@ -185,8 +185,9 @@ class thread_context {
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;
     test_harness::database &database;
-    int64_t key_size = 0;
-    int64_t value_size = 0;
+    const int64_t key_size;
+    const int64_t value_size;
+    const int64_t thread_count;
     const uint64_t id;
     const thread_type type;
 

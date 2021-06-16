@@ -144,10 +144,16 @@ class database_operation {
 
         while (tc->running()) {
             /* Walk each cursor. */
+            if (!tc->transaction.active())
+                tc->transaction.begin(tc->session, "");
+
             for (const auto &it : cursors) {
                 if (it->next(it) != 0)
                     it->reset(it);
+                tc->transaction.op_count++;
             }
+            if (tc->transaction.can_commit())
+                tc->transaction.rollback(tc->session, "");
             tc->sleep();
         }
     }
@@ -284,7 +290,7 @@ class database_operation {
             tc->transaction.commit(tc->session, "");
     }
 
-    private:
+    protected:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     static int
