@@ -67,8 +67,8 @@ class test_tiered07(wttest.WiredTigerTestCase):
 
         # Rename is not supported for tiered tables.
         msg = "/is not supported/"
-        #self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-        #    lambda:self.assertEquals(self.session.rename(self.uri, self.newuri, None), 0), msg)
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda:self.assertEquals(self.session.rename(self.uri, self.newuri, None), 0), msg)
 
         # Add some data and flush tier.
         self.pr('add one item')
