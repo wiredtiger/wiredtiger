@@ -603,14 +603,18 @@ void Monitor::_check_latency_threshold(Stats *pinterval, uint64_t latency_max) {
     uint64_t insert_max = pinterval->insert.max_latency;
     uint64_t update_max = pinterval->update.max_latency;
 
-    if (latency_max != 0 &&
-        (read_max > latency_max || insert_max > latency_max || update_max > latency_max)) {
-        std::cerr << "WARNING: max latency exceeded:"
-                    << " threshold " << latency_max
-                    << " read max " << read_max
-                    << " insert max " << insert_max
-                    << " update max " << update_max << std::endl;
-    }
+    if (read_max > latency_max)
+        std::cerr << "WARNING: max latency exceeded for read operation. Threshold "
+                    << latency_max << " us, recorded " << read_max << " us, diff "
+                    << (read_max - latency_max) << " us." << std::endl;
+    if (insert_max > latency_max)
+        std::cerr << "WARNING: max latency exceeded for insert operation. Threshold "
+                    << latency_max << " us, recorded " << insert_max << " us, diff "
+                    << (insert_max - latency_max) << " us." << std::endl;
+    if (update_max > latency_max)
+        std::cerr << "WARNING: max latency exceeded for update operation. Threshold "
+                    << latency_max << " us, recorded " << insert_max << " us, diff "
+                    << (update_max - latency_max) << " us." << std::endl;
 }
 
 ParetoOptions ParetoOptions::DEFAULT;
