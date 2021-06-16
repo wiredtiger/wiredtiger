@@ -19,12 +19,10 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
-    WT_STORAGE_SOURCE *storage_source;
     u_int obj_count, i;
     char **obj_files;
     const char *name;
 
-    storage_source = tiered->bstorage->storage_source;
     bucket_fs = tiered->bstorage->file_system;
     name = tiered->iface.name;
     WT_ASSERT(session, WT_PREFIX_MATCH(name, "tiered:"));
