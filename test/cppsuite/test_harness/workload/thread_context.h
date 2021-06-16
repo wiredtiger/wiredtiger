@@ -70,7 +70,7 @@ class transaction_context {
     bool
     active() const
     {
-        return _in_txn;
+        return (_in_txn);
     }
 
     /* Attempt to commit the transaction given the requirements are met. */
@@ -129,7 +129,7 @@ class transaction_context {
     bool
     can_commit_rollback()
     {
-        return _in_txn && op_count >= _target_op_count;
+        return (_in_txn && op_count >= _target_op_count);
     }
 
     /*
