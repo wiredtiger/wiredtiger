@@ -42,7 +42,7 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
      */
     WT_ERR(__wt_tiered_name(session, &tiered->iface, 1, WT_TIERED_NAME_OBJECT, &obj_uri));
     obj_name = obj_uri;
-    WT_PREFIX_SKIP_REQUIRED(session, obj_uri, "object:");
+    WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
     /* This is the length of the name-<object number>.wtobj string. */
     obj_len = strlen(obj_name);
     for (i = 0; i < obj_count; ++i) {

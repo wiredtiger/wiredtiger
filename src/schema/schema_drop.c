@@ -205,7 +205,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
             session, ret = __wt_conn_dhandle_close_all(session, tier->name, true, force)));
         WT_ERR(__wt_metadata_remove(session, tier->name));
         if (remove_files)
-            WT_TRET(__wt_meta_track_drop(session, name));
+            WT_TRET(__wt_meta_track_drop(session, tier->name));
     }
 
     /* Object ids start at 1. */
