@@ -1248,7 +1248,7 @@ __slvg_col_build_leaf(WT_SESSION_IMPL *session, WT_TRACK *trk, WT_REF *ref)
       __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, trk->ss->tmp1), skip, take);
 
     /* Set the referenced flag on overflow pages we're using. */
-    if (page->type == WT_PAGE_COL_VAR && trk->trk_ovfl_cnt != 0)
+    if (trk->trk_ovfl_cnt != 0)
         WT_ERR(__slvg_col_ovfl(session, trk, page, recno, skip, take));
 
     /*
