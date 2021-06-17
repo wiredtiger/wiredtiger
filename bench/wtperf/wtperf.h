@@ -261,6 +261,7 @@ struct __wtperf_thread {    /* Per-thread structure */
     TRACK update;         /* Update operations */
 };
 
+int backup_read(WT_SESSION *, const char *);
 void cleanup_truncate_config(WTPERF *);
 int config_opt_file(WTPERF *, const char *);
 void config_opt_cleanup(CONFIG_OPTS *);

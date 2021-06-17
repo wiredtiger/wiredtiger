@@ -28,6 +28,8 @@
 
 #include "wtperf.h"
 
+#define WT_BACKUP_COPY_SIZE (128 * 1024)
+
 /* Setup the logging output mechanism. */
 int
 setup_log_file(WTPERF *wtperf)
@@ -101,4 +103,41 @@ lprintf(const WTPERF *wtperf, int err, uint32_t level, const char *fmt, ...)
     /* Never attempt to continue if we got a panic from WiredTiger. */
     if (err == WT_PANIC)
         abort();
+}
+
+/*
+ * backup_read --
+ *     Read in a file, used mainly to measure the impact of backup on a single machine. Backup is
+ *     usually copied across different machines, therefore the write portion doesn't affect the
+ *     machine backup is performing on.
+ */
+int
+backup_read(WT_SESSION *wt_session, const char *from)
+{
+    WT_DECL_RET;
+    WT_FH *fh;
+    WT_SESSION_IMPL *session;
+    wt_off_t n, offset, size;
+    char *buf;
+
+    buf = NULL;
+    fh = NULL;
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    /* Open the file handle. */
+    WT_ERR(__wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh));
+    buf = dmalloc(WT_BACKUP_COPY_SIZE);
+
+    /* Get the file's size, then read the bytes. */
+    WT_ERR(__wt_filesize(session, fh, &size));
+    for (offset = 0; size > 0; size -= n, offset += n) {
+        n = WT_MIN(size, WT_BACKUP_COPY_SIZE);
+        WT_ERR(__wt_read(session, fh, offset, (size_t)n, buf));
+    }
+
+err:
+    WT_TRET(__wt_close(session, &fh));
+
+    free(buf);
+    return (ret);
 }

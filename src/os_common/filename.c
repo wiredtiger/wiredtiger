@@ -8,8 +8,6 @@
 
 #include "wt_internal.h"
 
-#define WT_BACKUP_COPY_SIZE (128 * 1024)
-
 /*
  * __wt_filename --
  *     Build a file name in a scratch buffer, automatically calculate the length of the file name.
@@ -129,10 +127,11 @@ __wt_copy_and_sync(WT_SESSION *wt_session, const char *from, const char *to)
     WT_ERR(__wt_open(session, tmp->data, WT_FS_OPEN_FILE_TYPE_REGULAR,
       WT_FS_OPEN_CREATE | WT_FS_OPEN_EXCLUSIVE, &tfh));
 
-    /*
-     * Allocate a copy buffer. Don't use a scratch buffer, this thing is big, and we don't want it
-     * hanging around.
-     */
+/*
+ * Allocate a copy buffer. Don't use a scratch buffer, this thing is big, and we don't want it
+ * hanging around.
+ */
+#define WT_BACKUP_COPY_SIZE (128 * 1024)
     WT_ERR(__wt_malloc(session, WT_BACKUP_COPY_SIZE, &buf));
 
     /* Get the file's size, then copy the bytes. */
@@ -156,47 +155,5 @@ err:
 
     __wt_free(session, buf);
     __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
- * __wt_backup_read --
- *     Read in a file, used mainly to measure the impact of backup on a single machine. Backup is
- *     usually copied across different machines, therefore the write portion doesn't affect the
- *     machine backup is performing on.
- */
-int
-__wt_backup_read(WT_SESSION *wt_session, const char *from)
-{
-    WT_DECL_RET;
-    WT_FH *ffh;
-    WT_SESSION_IMPL *session;
-    wt_off_t n, offset, size;
-    char *buf;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    ffh = NULL;
-    buf = NULL;
-
-    /* Open the from file handle. */
-    WT_ERR(__wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &ffh));
-
-    /*
-     * Allocate a copy buffer. Don't use a scratch buffer, this thing is big, and we don't want it
-     * hanging around.
-     */
-    WT_ERR(__wt_malloc(session, WT_BACKUP_COPY_SIZE, &buf));
-
-    /* Get the file's size, then read the bytes. */
-    WT_ERR(__wt_filesize(session, ffh, &size));
-    for (offset = 0; size > 0; size -= n, offset += n) {
-        n = WT_MIN(size, WT_BACKUP_COPY_SIZE);
-        WT_ERR(__wt_read(session, ffh, offset, (size_t)n, buf));
-    }
-
-err:
-    WT_TRET(__wt_close(session, &ffh));
-
-    __wt_free(session, buf);
     return (ret);
 }
