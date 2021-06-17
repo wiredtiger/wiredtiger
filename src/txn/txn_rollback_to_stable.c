@@ -1535,22 +1535,30 @@ err:
 }
 
 /*
- * __rollback_col_fix --
- *     Return if a fixed-length column store.
+ * __rollback_skip --
+ *     Return if rollback-to-stable should skip this object.
  */
 static int
-__rollback_col_fix(WT_SESSION_IMPL *session, const char *config, bool *col_fixp)
+__rollback_skip(WT_SESSION_IMPL *session, const char *uri, const char *config, bool *skipp)
 {
     WT_CONFIG_ITEM cval;
     uint32_t notused;
 
-    *col_fixp = false;
+    *skipp = false;
 
+    /* Ignore non-file objects as well as the metadata and history store files. */
+    if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_HS_URI) == 0 ||
+      strcmp(uri, WT_METAFILE_URI) == 0) {
+        *skipp = true;
+        return (0);
+    }
+
+    /* Skip fixed-length column-store files. */
     WT_RET(__wt_config_getones(session, config, "key_format", &cval));
     if (!WT_STRING_MATCH("r", cval.str, cval.len))
         return (0);
     WT_RET(__wt_config_getones(session, config, "value_format", &cval));
-    WT_RET(__wt_struct_check(session, cval.str, cval.len, col_fixp, &notused));
+    WT_RET(__wt_struct_check(session, cval.str, cval.len, skipp, &notused));
     return (0);
 }
 
@@ -1565,7 +1573,7 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t rollback_timestamp;
     char *config;
     const char *uri;
-    bool col_fix;
+    bool skip;
 
     WT_UNUSED(cfg);
 
@@ -1574,9 +1582,9 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_RET(__wt_metadata_search(session, uri, &config));
 
-    /* Skip fixed-length column-store objects. */
-    WT_ERR(__rollback_col_fix(session, config, &col_fix));
-    if (col_fix)
+    /* Check if we should skip this object. */
+    WT_ERR(__rollback_skip(session, uri, config, &skip));
+    if (skip)
         goto err;
 
     /* Read the stable timestamp once, when we first start up. */
@@ -1585,11 +1593,6 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
     ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
-
-    if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION)))
-        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "%s: skipped performing rollback to stable because the file %s", uri,
-          ret == ENOENT ? "does not exist" : "is corrupted.");
 
 err:
     __wt_free(session, config);
@@ -1610,7 +1613,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
     WT_DECL_RET;
     uint64_t rollback_count, rollback_msg_count, rollback_txnid;
     const char *config, *uri;
-    bool col_fix;
+    bool skip;
 
     /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
@@ -1623,17 +1626,11 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
         ++rollback_count;
 
         WT_ERR(cursor->get_key(cursor, &uri));
-
-        /* Ignore non-file objects as well as the metadata and history store files. */
-        if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_HS_URI) == 0 ||
-          strcmp(uri, WT_METAFILE_URI) == 0)
-            continue;
-
         WT_ERR(cursor->get_value(cursor, &config));
 
-        /* Skip fixed-length column-store objects. */
-        WT_ERR(__rollback_col_fix(session, config, &col_fix));
-        if (col_fix)
+        /* Check if we should skip this object. */
+        WT_ERR(__rollback_skip(session, uri, config, &skip));
+        if (skip)
             continue;
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
@@ -1641,8 +1638,8 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
-         * Ignore rollback to stable failures on files that don't exist or files where corruption is
-         * detected.
+         * Don't return an error in the case of failures on files that don't exist or files where
+         * corruption is detected.
          */
         if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
