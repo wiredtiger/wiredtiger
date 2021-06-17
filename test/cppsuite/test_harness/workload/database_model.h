@@ -70,21 +70,21 @@ class collection {
     }
 
     std::map<key_value_t, key_t>
-    get_keys(const uint64_t &id)
+    get_keys()
     {
         std::lock_guard<std::mutex> lg(_mtx);
         return (keys);
     }
 
     value_t
-    get_record(const uint64_t &id, const char *key)
+    get_record(const char *key)
     {
         std::lock_guard<std::mutex> lg(_mtx);
         return (values.at(key));
     }
 
     void
-    insert_record(const uint64_t &id, const char *key, const char *value)
+    insert_record(const char *key, const char *value)
     {
         std::lock_guard<std::mutex> lg(_mtx);
         keys[key].exists = true;
@@ -94,14 +94,14 @@ class collection {
     }
 
     void
-    update_record(const uint64_t &id, const char *key, const char *value)
+    update_record(const char *key, const char *value)
     {
         std::lock_guard<std::mutex> lg(_mtx);
         values.at(key).value = key_value_t(value);
     }
 
     void
-    delete_record(const uint64_t &id, const char *key)
+    delete_record(const char *key)
     {
         std::lock_guard<std::mutex> lg(_mtx);
         keys.at(key).exists = false;
@@ -128,13 +128,13 @@ class database {
     {
         WT_SESSION *session = connection_manager::instance().create_session();
         std::lock_guard<std::mutex> lg(_mtx);
-        std::string collection_name = build_collection_name(_next_collection_id);
-        _collections.emplace(
-          _next_collection_id, new collection(_next_collection_id, key_count, collection_name));
+        uint64_t next_id = _next_collection_id;
+        std::string collection_name = build_collection_name(next_id);
+        _collections.emplace(next_id, new collection(next_id, key_count, collection_name));
         ++_next_collection_id;
         testutil_check(session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
-          tracking_operation::CREATE_COLLECTION, collection_name, _tsm->get_next_ts());
+          tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
         session->close(session, nullptr);
         ++_next_collection_id;
     }
@@ -158,12 +158,13 @@ class database {
                 return (false);
             }
         }
-        _mtx.lock();
-        if (it->second.use_count() > 1)
-            return (false);
-        it->second = nullptr;
-        _collections.erase(id);
-        _mtx.unlock();
+        {
+            std::lock_guard<std::mutex> lg(_mtx);
+            if (it->second.use_count() > 1)
+                return (false);
+            it->second = nullptr;
+            _collections.erase(id);
+        }
         return (true);
     }
 

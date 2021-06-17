@@ -51,12 +51,14 @@ class hs_cleanup : public test {
         WT_DECL_RET;
         const char *key_tmp;
         WT_SESSION *session = connection_manager::instance().create_session();
-        std::string collection_name = tc->database.get_collection_name(tc->id);
+        /* We don't expect anyone to drop collections in this test. */
+        std::shared_ptr<collection> coll = tc->database.get_collection(tc->id);
+        testutil_assert(coll != nullptr);
         wt_timestamp_t ts;
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->database.get_collection_count() == tc->thread_count);
-        testutil_check(session->open_cursor(session,  collection_name.c_str(), nullptr, nullptr, &cursor));
+        testutil_check(session->open_cursor(session,  coll->name.c_str(), nullptr, nullptr, &cursor));
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
@@ -80,7 +82,7 @@ class hs_cleanup : public test {
                   tc->session, timestamp_manager::decimal_to_hex(ts));
 
             /* Update the record but take care to handle WT_ROLLBACK. */
-            ret = update(tc->tracking, cursor, collection_name, key_value_t(key_tmp).c_str(),
+            ret = update(tc->tracking, cursor, coll->id, key_value_t(key_tmp).c_str(),
              random_generator::instance().generate_string(tc->value_size).c_str(), ts);
             /* Increment the current op count for the current transaction. */
             tc->transaction.op_count++;

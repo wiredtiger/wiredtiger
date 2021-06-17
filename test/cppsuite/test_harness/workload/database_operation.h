@@ -92,8 +92,8 @@ class database_operation {
          */
         int64_t collections_per_thread = collection_count / thread_count;
         for (int64_t i = 0; i < thread_count; ++i) {
-            tm.add_thread(populate_worker, tsm, tracking, database, i, collections_per_thread, tsm,
-              tracking, key_count, key_size, value_size);
+            tm.add_thread(populate_worker, tsm, tracking, std::ref(database), i,
+              collections_per_thread, key_count, key_size, value_size);
         }
 
         /* Wait for our populate threads to finish and then join them. */
@@ -162,7 +162,6 @@ class database_operation {
 
         /* A structure that's used to track which cursors we've opened for which collection. */
         struct collection_cursors {
-            const std::string collection_name;
             WT_CURSOR *random_cursor;
             WT_CURSOR *update_cursor;
         };
@@ -208,7 +207,7 @@ class database_operation {
                       tc->session, coll->name.c_str(), nullptr, nullptr, &update_cursor);
 
                     collections.emplace(
-                      collection_id, collection_cursors{coll->name, random_cursor, update_cursor});
+                      collection_id, collection_cursors{random_cursor, update_cursor});
                 }
             }
 
@@ -254,8 +253,8 @@ class database_operation {
              *
              * Additionally first get the update_cursor.
              */
-            ret = update(tc->tracking, collection.update_cursor, collection.collection_name,
-              key.c_str(), generated_value.c_str(), ts);
+            ret = update(tc->tracking, collection.update_cursor, collection_id, key.c_str(),
+              generated_value.c_str(), ts);
 
             /* Increment the current op count for the current transaction. */
             tc->transaction.op_count++;
@@ -280,7 +279,7 @@ class database_operation {
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     static int
-    insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
+    insert(WT_CURSOR *cursor, workload_tracking *tracking, const uint64_t &collection_id,
       const K &key, const V &value, wt_timestamp_t ts)
     {
         WT_DECL_RET;
@@ -298,14 +297,14 @@ class database_operation {
         }
 
         debug_print("key/value inserted", DEBUG_TRACE);
-        tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
+        tracking->save_operation(tracking_operation::INSERT, collection_id, key, value, ts);
         return (0);
     }
 
     template <typename K, typename V>
     static int
-    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
-      K key, V value, wt_timestamp_t ts)
+    update(workload_tracking *tracking, WT_CURSOR *cursor, const uint64_t &collection_id, K key,
+      V value, wt_timestamp_t ts)
     {
         WT_DECL_RET;
         testutil_assert(tracking != nullptr);
@@ -323,7 +322,7 @@ class database_operation {
         }
 
         debug_print("key/value updated", DEBUG_TRACE);
-        tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
+        tracking->save_operation(tracking_operation::UPDATE, collection_id, key, value, ts);
         return (0);
     }
 
@@ -379,8 +378,8 @@ class database_operation {
                 /* Start a txn. */
                 testutil_check(session->begin_transaction(session, nullptr));
 
-                ret = insert(cursor, tracking, coll->name.c_str(), generated_key.c_str(),
-                  generated_value.c_str(), ts);
+                ret = insert(
+                  cursor, tracking, coll->id, generated_key.c_str(), generated_value.c_str(), ts);
 
                 /* This may require some sort of "stuck" mechanism but for now is fine. */
                 if (ret == WT_ROLLBACK)

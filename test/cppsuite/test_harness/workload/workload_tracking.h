@@ -30,19 +30,19 @@
 #define WORKLOAD_TRACKING_H
 
 /*
- * Default schema for tracking operations on collections (key_format: Collection name / Key /
+ * Default schema for tracking operations on collections (key_format: Collection id / Key /
  * Timestamp, value_format: Operation type / Value)
  */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SSQ)
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
 #define OPERATION_TRACKING_TABLE_CONFIG \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
 
 /*
- * Default schema for tracking schema operations on collections (key_format: Collection name /
+ * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
-#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SQ)
+#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QQ)
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
@@ -109,7 +109,7 @@ class workload_tracking : public component {
 
     void
     save_schema_operation(
-      const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
+      const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
     {
         std::string error_message;
 
@@ -118,7 +118,7 @@ class workload_tracking : public component {
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
-            _cursor_schema->set_key(_cursor_schema, collection_name.c_str(), ts);
+            _cursor_schema->set_key(_cursor_schema, collection_id, ts);
             _cursor_schema->set_value(_cursor_schema, static_cast<int>(operation));
             testutil_check(_cursor_schema->insert(_cursor_schema));
         } else {
@@ -131,8 +131,8 @@ class workload_tracking : public component {
 
     template <typename K, typename V>
     void
-    save_operation(const tracking_operation &operation, const std::string &collection_name,
-      const K &key, const V &value, wt_timestamp_t ts)
+    save_operation(const tracking_operation &operation, const uint64_t &collection_id, const K &key,
+      const V &value, wt_timestamp_t ts)
     {
         std::string error_message;
 
@@ -145,7 +145,7 @@ class workload_tracking : public component {
               "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         } else {
-            _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);
+            _cursor_operations->set_key(_cursor_operations, collection_id, key, ts);
             _cursor_operations->set_value(_cursor_operations, static_cast<int>(operation), value);
             testutil_check(_cursor_operations->insert(_cursor_operations));
         }
