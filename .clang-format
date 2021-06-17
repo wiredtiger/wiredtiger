@@ -51,7 +51,7 @@ BreakConstructorInitializers: BeforeColon
 BreakAfterJavaFieldAnnotations: false
 BreakStringLiterals: true
 ColumnLimit:     100
-CommentPragmas:  '^ IWYU pragma:'
+CommentPragmas:  '^ AUTOMATIC FLAG VALUE GENERATION'
 CompactNamespaces: false
 ConstructorInitializerAllOnOneLineOrOnePerLine: false
 ConstructorInitializerIndentWidth: 4
