@@ -256,6 +256,12 @@ __wt_tier_do_flush(
             break;
         WT_STAT_CONN_INCR(session, flush_tier_busy);
     }
+    /*
+     * If a user did a flush_tier with sync off, it is possible that a drop happened before the
+     * flush work unit was processed. Ignore non-existent errors.
+     */
+    if (ret == ENOENT)
+        ret = 0;
     WT_RET(ret);
 
     /*
