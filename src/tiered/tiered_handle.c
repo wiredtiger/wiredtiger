@@ -37,8 +37,9 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
     if (obj_count == 0)
         goto done;
     /*
-     * We need to handle overlapping naming. Generate an object name so that we know the maximum
-     * length that our name should be and we can check for the right form.
+     * We need to distinguish this name from a superset name so check the length also matches.
+     * Generate an object name so that we know the maximum length that our name should be and we can
+     * check for the right form.
      */
     WT_ERR(__wt_tiered_name(session, &tiered->iface, 1, WT_TIERED_NAME_OBJECT, &obj_uri));
     obj_name = obj_uri;
@@ -53,11 +54,8 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
          * number the match may contain so we cannot do a full string comparison.
          */
         len = strlen(obj_files[i]);
-        if (len == obj_len) {
-            /* Everything we get back should be an object. */
-            WT_ASSERT(session, WT_SUFFIX_MATCH(obj_files[i], ".wtobj"));
+        if (len == obj_len)
             WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", obj_files[i]);
-        }
     }
 
 err:
