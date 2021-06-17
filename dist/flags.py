@@ -5,7 +5,8 @@ import re, sys
 from dist import all_c_files, all_h_files, compare_srcfile
 
 # Automatically build flags values: read through all of the header files, and
-# for each group of flags, sort them and give them a unique value.
+# for each group of flags, sort them, check the start and stop boundaries on
+# the flags and give them a unique value.
 #
 # To add a new flag declare it at the top of the flags list as:
 # #define WT_NEW_FLAG_NAME      0x0u
@@ -18,7 +19,7 @@ def flag_declare(name):
 
         lcnt = 0
         parsing = False
-        start_flag = 0
+        start = 0
         for line in f:
             lcnt = lcnt + 1
             if line.find('AUTOMATIC FLAG VALUE GENERATION START') != -1:
@@ -27,7 +28,7 @@ def flag_declare(name):
                     print(name + ": automatic flag generation start line " + str(lcnt) +\
                         "contains no start value", file=sys.stderr)
                     sys.exit(1)
-                start_flag = int(m.group(0))
+                start = int(m.group(0))
                 header = line
                 defines = []
                 parsing = True
@@ -37,25 +38,27 @@ def flag_declare(name):
                     print(name + ": automatic flag generation stop line " + str(lcnt) +\
                         "contains no stop value", file=sys.stderr)
                     sys.exit(1)
-                limit = int(m.group(0))
-                if len(defines) > limit:
+                end = int(m.group(0))
+                # Compare the number of flags defined and against the number
+                # of flags allowed
+                if len(defines) > end - start:
                     print(name + ": line " + str(lcnt) +\
-                          ": exceeds maximum {0} limit bit flags".format(limit), file=sys.stderr)
+                          ": exceeds maximum {0} limit bit flags".format(end), file=sys.stderr)
                     sys.exit(1)
 
                 # Calculate number of hex bytes, create format string
-                fmt = "0x%%0%dxu" % ((start_flag + len(defines) + 3) / 4)
+                fmt = "0x%%0%dxu" % ((start + len(defines) + 3) / 4)
 
                 # Generate the flags starting from an offset set from the start value.
                 tfile.write(header)
-                v = 1 << start_flag
+                v = 1 << start
                 for d in sorted(defines):
                     tfile.write(re.sub("0x[01248u]*", fmt % v, d))
                     v = v * 2
                 tfile.write(line)
 
                 parsing = False
-                start_flag = 0
+                start = 0
             elif parsing and line.find('#define') == -1:
                 print(name + ": line " + str(lcnt) +\
                       ": unexpected flag line, no #define", file=sys.stderr)
