@@ -726,11 +726,12 @@ __wt_rec_row_leaf(
     uint64_t slvg_skip;
     uint32_t i;
     uint8_t key_prefix;
-    bool dictionary, key_onpage_ovfl, ovfl_key;
+    bool checkpoint_running, dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
     const void *key_data;
 
     btree = S2BT(session);
+    checkpoint_running = S2C(session)->txn_global.checkpoint_running;
     hs_cursor = NULL;
     page = pageref->page;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
@@ -932,8 +933,8 @@ __wt_rec_row_leaf(
                          * function.
                          */
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-                        WT_ERR(__wt_hs_delete_key_from_ts(
-                          session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
+                        WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, tmpkey,
+                          WT_TS_NONE, false, F_ISSET(r, WT_REC_EVICT), checkpoint_running));
                         WT_ERR(hs_cursor->close(hs_cursor));
                         hs_cursor = NULL;
                         WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
