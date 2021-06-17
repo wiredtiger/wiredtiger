@@ -580,15 +580,6 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(__wt_config_merge(session, tiered_cfg, NULL, &config));
 
     /*
-     * The tiered table name does not exist. But now check if any shared storage objects exist for
-     * this name. A user could have created a tiered table. Later dropped it, which removes the
-     * metadata entries and local files, but leaves the objects in the shared storage layer because
-     * others may be using those files. We do not allow a create of a duplicate name if we find
-     * objects. We do this after the tiered bucket storage is set up.
-     */
-    WT_ERR(__tiered_name_check(session, tiered));
-
-    /*
      * Pull in any configuration of the original table for the object and file components that may
      * have been sent in on the create.
      */
@@ -616,6 +607,15 @@ __tiered_open(WT_SESSION_IMPL *session, const char *cfg[])
     if (tiered->current_id != 0)
         WT_ERR(__tiered_init_tiers(session, tiered, &tierconf));
     else {
+        /*
+         * The tiered table name does not exist. But now check if any shared storage objects exist
+         * for this name. A user could have created a tiered table. Later dropped it, which removes
+         * the metadata entries and local files, but leaves the objects in the shared storage layer
+         * because others may be using those files. We do not allow a create of a duplicate name if
+         * we find objects. We do this after the tiered bucket storage is set up.
+         */
+        WT_ERR(__tiered_name_check(session, tiered));
+
         __wt_verbose(
           session, WT_VERB_TIERED, "TIERED_OPEN: create %s config %s", dhandle->name, config);
         WT_ERR(__wt_tiered_switch(session, config));

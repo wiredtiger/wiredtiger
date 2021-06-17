@@ -35,6 +35,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
     uri = "table:abc"
     uri2 = "table:ab"
     uri3 = "table:abcd"
+    localuri = "table:local"
     newuri = "table:tier_new"
 
     auth_token = "test_token"
@@ -49,6 +50,7 @@ class test_tiered07(wttest.WiredTigerTestCase):
     def conn_config(self):
         os.mkdir(self.bucket)
         return \
+          'verbose=(tiered),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
@@ -66,8 +68,12 @@ class test_tiered07(wttest.WiredTigerTestCase):
         # Create a new tiered table.
         self.pr('create table')
         self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.pr('create table 2')
         self.session.create(self.uri2, 'key_format=S,value_format=S')
+        self.pr('create table 3')
         self.session.create(self.uri3, 'key_format=S,value_format=S')
+        self.pr('create table local')
+        self.session.create(self.localuri, 'key_format=S,value_format=S,tiered_storage=(name=none)')
 
         # Rename is not supported for tiered tables.
         msg = "/is not supported/"
@@ -88,12 +94,16 @@ class test_tiered07(wttest.WiredTigerTestCase):
         c["0"] = "0"
         self.check(c, 1)
         c.close()
+        c = self.session.open_cursor(self.localuri)
+        c["0"] = "0"
+        c.close()
         self.session.checkpoint()
         self.pr('After data, call flush_tier')
         self.session.flush_tier(None)
 
         # Drop table.
         self.pr('call drop')
+        self.session.drop(self.localuri)
         self.session.drop(self.uri)
 
         # Create new table with same name. This should error.

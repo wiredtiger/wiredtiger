@@ -16,6 +16,7 @@ static int
 __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *cfg[])
 {
     WT_CONFIG_ITEM cval;
+    WT_DATA_HANDLE *dh;
     WT_DECL_RET;
     const char *filename;
     bool remove_files;
@@ -34,6 +35,10 @@ __drop_file(WT_SESSION_IMPL *session, const char *uri, bool force, const char *c
 
     /* Remove the metadata entry (ignore missing items). */
     WT_TRET(__wt_metadata_remove(session, uri));
+    __wt_verbose(session, WT_VERB_TIERED, "AFTER FILEDROP %s", uri);
+    TAILQ_FOREACH (dh, &S2C(session)->dhqh, q) {
+        __wt_verbose(session, WT_VERB_TIERED, "REMAINING dh: %s flags 0x%x", dh->name, (int)dh->flags);
+    }
     if (!remove_files)
         return (ret);
 
@@ -178,6 +183,7 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 {
     WT_CONFIG_ITEM cval;
     WT_DATA_HANDLE *tier;
+    WT_DATA_HANDLE *dh;
     WT_DECL_RET;
     WT_TIERED *tiered;
     u_int i;
@@ -227,6 +233,10 @@ __drop_tiered(WT_SESSION_IMPL *session, const char *uri, bool force, const char 
 
     __wt_verbose(session, WT_VERB_TIERED, "DROP_TIERED: remove tiered table %s from metadata", uri);
     ret = __wt_metadata_remove(session, uri);
+    __wt_verbose(session, WT_VERB_TIERED, "AFTER DROP %s", uri);
+    TAILQ_FOREACH (dh, &S2C(session)->dhqh, q) {
+        __wt_verbose(session, WT_VERB_TIERED, "REMAINING dh: %s flags 0x%x", dh->name, (int)dh->flags);
+    }
 err:
     __wt_free(session, name);
     return (ret);
