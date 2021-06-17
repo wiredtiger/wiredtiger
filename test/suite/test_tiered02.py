@@ -148,6 +148,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('populate')
         ds.populate()
         ds.check()
+        cursor.close()
         self.progress('close_conn')
         self.close_conn()
 
