@@ -1535,6 +1535,26 @@ err:
 }
 
 /*
+ * __rollback_col_fix --
+ *     Return if a fixed-length column store.
+ */
+static int
+__rollback_col_fix(WT_SESSION_IMPL *session, const char *config, bool *col_fixp)
+{
+    WT_CONFIG_ITEM cval;
+    uint32_t notused;
+
+    *col_fixp = false;
+
+    WT_RET(__wt_config_getones(session, config, "key_format", &cval));
+    if (!WT_STRING_MATCH("r", cval.str, cval.len))
+        return (0);
+    WT_RET(__wt_config_getones(session, config, "value_format", &cval));
+    WT_RET(__wt_struct_check(session, cval.str, cval.len, col_fixp, &notused));
+    return (0);
+}
+
+/*
  * __wt_rollback_to_stable_btree_apply --
  *     Perform rollback to stable on a single file.
  */
@@ -1545,6 +1565,7 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     wt_timestamp_t rollback_timestamp;
     char *config;
     const char *uri;
+    bool col_fix;
 
     WT_UNUSED(cfg);
 
@@ -1552,6 +1573,11 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     config = NULL;
 
     WT_RET(__wt_metadata_search(session, uri, &config));
+
+    /* Skip fixed-length column-store objects. */
+    WT_RET(__rollback_col_fix(session, config, &col_fix));
+    if (col_fix)
+        return (0);
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
@@ -1583,6 +1609,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
     WT_DECL_RET;
     uint64_t rollback_count, rollback_msg_count, rollback_txnid;
     const char *config, *uri;
+    bool col_fix;
 
     /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
@@ -1602,6 +1629,11 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
             continue;
 
         WT_ERR(cursor->get_value(cursor, &config));
+
+        /* Skip fixed-length column-store objects. */
+        WT_ERR(__rollback_col_fix(session, config, &col_fix));
+        if (col_fix)
+            continue;
 
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
