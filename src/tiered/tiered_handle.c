@@ -19,27 +19,52 @@ __tiered_name_check(WT_SESSION_IMPL *session, WT_TIERED *tiered)
 {
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
+    size_t len, obj_len;
     u_int obj_count, i;
     char **obj_files;
-    const char *name;
+    const char *name, *obj_name, *obj_uri;
 
     bucket_fs = tiered->bstorage->file_system;
     name = tiered->iface.name;
+    obj_name = obj_uri = NULL;
     WT_ASSERT(session, WT_PREFIX_MATCH(name, "tiered:"));
     WT_PREFIX_SKIP(name, "tiered:");
     /* See if this name exists in the shared storage. */
     __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: check for %s", name);
-    WT_ERR(bucket_fs->fs_directory_list(
+    WT_RET(bucket_fs->fs_directory_list(
       bucket_fs, (WT_SESSION *)session, NULL, name, &obj_files, &obj_count));
     __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: Got %d files", (int)obj_count);
-    for (i = 0; i < obj_count; ++i)
+    if (obj_count == 0)
+        goto done;
+    /*
+     * We need to handle overlapping naming. Generate an object name so that we know the maximum
+     * length that our name should be and we can check for the right form.
+     */
+    WT_ERR(__wt_tiered_name(session, &tiered->iface, 1, WT_TIERED_NAME_OBJECT, &obj_uri));
+    obj_name = obj_uri;
+    WT_PREFIX_SKIP_REQUIRED(session, obj_uri, "object:");
+    /* This is the length of the name-<object number>.wtobj string. */
+    obj_len = strlen(obj_name);
+    for (i = 0; i < obj_count; ++i) {
         __wt_verbose(session, WT_VERB_TIERED, "NAME_CHECK: %d %s", (int)i, obj_files[i]);
-    if (obj_count > 0)
-        WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", tiered->iface.name);
+        /*
+         * We know the name prefix matches from the directory list. If the length matches the full
+         * object name with id number and suffix, then we have a match. We don't know what object
+         * number the match may contain so we cannot do a full string comparison.
+         */
+        len = strlen(obj_files[i]);
+        if (len == obj_len) {
+            /* Everything we get back should be an object. */
+            WT_ASSERT(session, WT_SUFFIX_MATCH(obj_files[i], ".wtobj"));
+            WT_ERR_MSG(session, EEXIST, "%s already exists on shared storage", obj_files[i]);
+        }
+    }
 
 err:
     WT_TRET(
       bucket_fs->fs_directory_list_free(bucket_fs, (WT_SESSION *)session, obj_files, obj_count));
+    __wt_free(session, obj_uri);
+done:
     return (ret);
 }
 
