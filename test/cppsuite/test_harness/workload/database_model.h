@@ -31,7 +31,13 @@
 
 #include <atomic>
 #include <map>
+#include <chrono>
 #include <string>
+#include <memory>
+
+#include "../timestamp_manager.h"
+#include "random_generator.h"
+#include "workload_tracking.h"
 
 namespace test_harness {
 
@@ -49,26 +55,140 @@ struct value_t {
 };
 
 /* A collection is made of mapped Key objects. */
-struct collection_t {
-    std::map<key_value_t, key_t> keys;
-    std::map<key_value_t, value_t> values;
+class collection {
+    public:
+    collection(const uint64_t id, const uint64_t key_count, const std::string name)
+        : id(id), _key_count(key_count), name(name)
+    {
+    }
+
+    int
+    get_new_key()
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return _key_count++;
+    }
+
+    std::map<key_value_t, key_t>
+    get_keys(const uint64_t &id)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (keys);
+    }
+
+    value_t
+    get_record(const uint64_t &id, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (values.at(key));
+    }
+
+    void
+    insert_record(const uint64_t &id, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        keys[key].exists = true;
+        value_t v;
+        v.value = key_value_t(value);
+        values.emplace(key_value_t(key), v);
+    }
+
+    void
+    update_record(const uint64_t &id, const char *key, const char *value)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        values.at(key).value = key_value_t(value);
+    }
+
+    void
+    delete_record(const uint64_t &id, const char *key)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        keys.at(key).exists = false;
+    }
+
+    std::map<key_value_t, key_t> keys = {};
+    std::map<key_value_t, value_t> values = {};
+    const std::string name;
+    const uint64_t id;
+
+    private:
+    std::mutex _mtx;
+    uint64_t _key_count;
 };
 
 /* Representation of the collections in memory. */
 class database {
     public:
     /*
-     * Add a new collection following the standard naming pattern. Currently this is the only way to
-     * add collections which is supported by all components.
+     * Add a new collection, this will create the underlying collection in the database.
      */
-    std::string
-    add_collection()
+    void
+    add_collection(uint64_t key_count = 0)
     {
+        WT_SESSION *session = connection_manager::instance().create_session();
         std::lock_guard<std::mutex> lg(_mtx);
         std::string collection_name = build_collection_name(_next_collection_id);
-        _collections[collection_name] = {};
+        _collections.emplace(
+          _next_collection_id, new collection(_next_collection_id, key_count, collection_name));
         ++_next_collection_id;
-        return (collection_name);
+        testutil_check(session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+        _tracking->save_schema_operation(
+          tracking_operation::CREATE_COLLECTION, collection_name, _tsm->get_next_ts());
+        session->close(session, nullptr);
+        ++_next_collection_id;
+    }
+
+    /*
+     * Drop a collection, timeout if there are still active users.
+     */
+    bool
+    drop_collection(uint64_t id, uint64_t timeout)
+    {
+        auto start = std::chrono::system_clock::now();
+        _mtx.lock();
+        auto it = _collections.find(id);
+        _mtx.unlock();
+        if (it == _collections.end())
+            return (false);
+
+        while (it->second.use_count() > 1) {
+            if (std::chrono::system_clock::now() - start > std::chrono::seconds(timeout)) {
+                debug_print("Drop collection timed out", DEBUG_WARN);
+                return (false);
+            }
+        }
+        _mtx.lock();
+        if (it->second.use_count() > 1)
+            return (false);
+        it->second = nullptr;
+        _collections.erase(id);
+        _mtx.unlock();
+        return (true);
+    }
+
+    std::shared_ptr<collection>
+    get_collection(uint64_t id)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        const auto &it = _collections.find(id);
+        if (it == _collections.end())
+            return nullptr;
+        /* Make a copy. */
+        return std::shared_ptr<collection>(it->second);
+    }
+
+    /* Not super optimal but will suffice for now. */
+    std::shared_ptr<collection>
+    get_random_collection()
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        if (_collections.size() == 0)
+            return (nullptr);
+        auto it = _collections.begin();
+        std::advance(
+          it, random_generator::instance().generate_integer<uint64_t>(0, _collections.size()));
+        return std::shared_ptr<collection>(it->second);
     }
 
     /*
@@ -76,22 +196,16 @@ class database {
      * take care to avoid an off by one error.
      */
     uint64_t
-    get_collection_count() const
+    get_collection_count()
     {
-        return (_next_collection_id);
+        std::lock_guard<std::mutex> lg(_mtx);
+        return (_collections.size());
     }
 
     /*
-     * Get a single collection name by id.
+     * If someone was dropping a collection concurrently this may cause them to fail, for now that
+     * is okay.
      */
-    std::string
-    get_collection_name(uint64_t id)
-    {
-        if (_next_collection_id <= id)
-            testutil_die(id, "requested the id, %lu, of a collection that doesn't exist", id);
-        return (build_collection_name(id));
-    }
-
     std::vector<std::string>
     get_collection_names()
     {
@@ -99,62 +213,30 @@ class database {
         std::vector<std::string> collection_names;
 
         for (auto const &it : _collections)
-            collection_names.push_back(it.first);
+            collection_names.push_back(it.second->name);
 
         return (collection_names);
     }
 
-    std::map<key_value_t, key_t>
-    get_keys(const std::string &collection_name)
-    {
-        std::lock_guard<std::mutex> lg(_mtx);
-        return (_collections.at(collection_name).keys);
-    }
-
-    value_t
-    get_record(const std::string &collection_name, const char *key)
-    {
-        std::lock_guard<std::mutex> lg(_mtx);
-        return (_collections.at(collection_name).values.at(key));
-    }
-
-    void
-    insert_record(const std::string &collection_name, const char *key, const char *value)
-    {
-        std::lock_guard<std::mutex> lg(_mtx);
-        auto &c = _collections.at(collection_name);
-        c.keys[key].exists = true;
-        value_t v;
-        v.value = key_value_t(value);
-        c.values.emplace(key_value_t(key), v);
-    }
-
-    void
-    update_record(const std::string &collection_name, const char *key, const char *value)
-    {
-        std::lock_guard<std::mutex> lg(_mtx);
-        auto &c = _collections.at(collection_name);
-        c.values.at(key).value = key_value_t(value);
-    }
-
-    void
-    delete_record(const std::string &collection_name, const char *key)
-    {
-        std::lock_guard<std::mutex> lg(_mtx);
-        auto &c = _collections.at(collection_name);
-        c.keys.at(key).exists = false;
-        c.values.erase(key);
-    }
-
-    private:
-    /* Take a const id, not a reference as we're copying in an atomic. */
-    std::string
+    static std::string
     build_collection_name(const uint64_t id)
     {
         return (std::string("table:collection_" + std::to_string(id)));
     }
-    std::atomic<uint64_t> _next_collection_id{0};
-    std::map<std::string, collection_t> _collections;
+
+    void
+    add_components(timestamp_manager *tsm, workload_tracking *tracking)
+    {
+        testutil_assert(_tsm == nullptr && _tracking == nullptr);
+        _tsm = tsm;
+        _tracking = tracking;
+    }
+
+    private:
+    timestamp_manager *_tsm = nullptr;
+    workload_tracking *_tracking = nullptr;
+    uint64_t _next_collection_id = 0;
+    std::map<uint64_t, std::shared_ptr<collection>> _collections;
     std::mutex _mtx;
 };
 } // namespace test_harness
