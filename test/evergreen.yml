@@ -2386,6 +2386,24 @@ tasks:
           times: 1       # No of times to run the loop
           no_of_procs: 10 # No of processes to run in the background
 
+  - name: performance-test
+    tags: ["performance-test-1"]
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          configure_env_vars:
+            CXX=/opt/mongodbtoolchain/v3/bin/g++
+            PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/workgen/runner"
+          script: |
+            set -o errexit
+            set -o verbose
+            export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
+            ./workgen_perf_check.sh many-dhandle-stress.py output.log 50 500 500
+
   - name: split-stress-test
     tags: ["stress-test-1", "stress-test-zseries-1"]
     commands:
@@ -2658,6 +2676,23 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+
+- name: performance-tests
+  display_name: Ubuntu 18.04 Performance tests
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    smp_command: -j $(grep -c ^processor /proc/cpuinfo)
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    test_env_vars:
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    posix_configure_flags:
+      --enable-silent-rules --enable-python --enable-zlib --enable-snappy
+      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+  tasks:
+    - name: ".performance-test-1"
 
 - name: package
   display_name: "~ Package"
