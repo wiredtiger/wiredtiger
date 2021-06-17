@@ -1461,17 +1461,7 @@ __checkpoint_lock_dirty_tree(
     WT_BTREE_CLEAN_CKPT(session, btree, 0);
     F_CLR(btree, WT_BTREE_OBSOLETE_PAGES);
 
-    /*
-     * Get the list of checkpoints for this file: We try to cache the ckptlist between the
-     * checkpoints. But there might not be one, as there are operations that can invalidate a
-     * ckptlist. So, use a cached ckptlist if there is one. Otherwise go through slow path of
-     * re-generating the ckptlist by reading the metadata. Also, we avoid using a cached checkpoint
-     * list for metadata.
-     */
-    if (WT_IS_METADATA(dhandle) ||
-      __wt_meta_saved_ckptlist_get(session, dhandle->name, &ckptbase) != 0)
-        WT_ERR(
-          __wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
+    WT_ERR(__wt_meta_ckptlist_get(session, dhandle->name, true, &ckptbase, &ckpt_bytes_allocated));
 
     /* We may be dropping specific checkpoints, check the configuration. */
     if (cfg != NULL) {
