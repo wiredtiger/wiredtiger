@@ -596,7 +596,7 @@ void Monitor::_format_json_entry(const tm &tm, const timespec &timespec, bool fi
 }
 
 void Monitor::_format_json_suffix() {
-    (*_json) << "]}";
+    (*_json) << "]}" << std::endl;
 }
 
 void Monitor::_check_latency_threshold(const Stats &interval, uint64_t latency_max) {
