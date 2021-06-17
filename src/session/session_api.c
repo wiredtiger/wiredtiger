@@ -1195,10 +1195,19 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
         ret = __wt_schema_worker(
           session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
     WT_ERR(ret);
+
+    /*
+     * Run rollback-to-stable on the file to get it into compliance with the database timestamps.
+     *
+     * Note the set of the btree-salvage flag, which isn't accidental: rollback-to-stable needs to
+     * own the eviction and other handling on the file, but it doesn't have a high-level exclusive
+     * operation flag of its own. How this should be handled isn't yet clear, use an existing flag
+     * for now.
+     */
     WT_WITH_CHECKPOINT_LOCK(session,
       WT_WITH_SCHEMA_LOCK(session,
-        ret = __wt_schema_worker(
-          session, uri, __wt_rollback_to_stable_btree_apply, NULL, cfg, WT_DHANDLE_EXCLUSIVE)));
+        ret = __wt_schema_worker(session, uri, __wt_rollback_to_stable_btree_apply, NULL, cfg,
+          WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
 
 err:
     if (ret != 0)

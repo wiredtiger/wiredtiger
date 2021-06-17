@@ -1569,15 +1569,15 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
 
     WT_UNUSED(cfg);
 
-    uri = session->dhandle->name;
     config = NULL;
+    uri = session->dhandle->name;
 
     WT_RET(__wt_metadata_search(session, uri, &config));
 
     /* Skip fixed-length column-store objects. */
-    WT_RET(__rollback_col_fix(session, config, &col_fix));
+    WT_ERR(__rollback_col_fix(session, config, &col_fix));
     if (col_fix)
-        return (0);
+        goto err;
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
@@ -1591,6 +1591,7 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
           "%s: skipped performing rollback to stable because the file %s", uri,
           ret == ENOENT ? "does not exist" : "is corrupted.");
 
+err:
     __wt_free(session, config);
 
     return (ret);
