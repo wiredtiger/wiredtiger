@@ -5,7 +5,7 @@ key_sz=100
 value_sz=1024
 icount=120000000
 run_time=3600
-threads=((count=10,reads=95),(count=10,inserts=5))
+threads=((count=20,reads=95,inserts=5))
 read_range=100
 read_range_random=true
 warmup=120
