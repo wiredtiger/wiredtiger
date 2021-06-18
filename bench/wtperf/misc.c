@@ -106,13 +106,13 @@ lprintf(const WTPERF *wtperf, int err, uint32_t level, const char *fmt, ...)
 }
 
 /*
- * backup_read - Read in a file, used mainly to measure the impact 
- * of backup on a single machine. Backup is usually copied across
- * different machines, therefore the write portion doesn't affect the
- * machine backup is performing on.
+ * backup_read --
+ *     Read in a file, used mainly to measure the impact of backup on a single machine. Backup is
+ *     usually copied across different machines, therefore the write portion doesn't affect the
+ *     machine backup is performing on.
  */
 int
-backup_read(const WTPERF *wtperf, WT_SESSION *wt_session, const char *from)
+backup_read(WT_SESSION *wt_session, const WTPERF *wtperf, const char *from)
 {
     WT_DECL_RET;
     WT_FH *fh;
