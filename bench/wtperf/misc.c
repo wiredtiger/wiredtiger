@@ -112,7 +112,7 @@ lprintf(const WTPERF *wtperf, int err, uint32_t level, const char *fmt, ...)
  *     machine backup is performing on.
  */
 void
-backup_read(const char *filename)
+backup_read(WTPERF *wtperf, const char *filename)
 {
     char *buf;
     int rfd;
@@ -120,7 +120,7 @@ backup_read(const char *filename)
     ssize_t rdsize;
     struct stat st;
     uint32_t buf_size, size, total;
-    
+
     buf = NULL;
     rfd = -1;
 
@@ -130,7 +130,7 @@ backup_read(const char *filename)
     testutil_check(__wt_snprintf(buf, len, "%s/%s", wtperf->home, filename));
     error_sys_check(rfd = open(buf, O_RDONLY, 0644));
 
-    /* Get the file's size, then read the bytes. */
+    /* Get the file's size. */
     testutil_check(stat(buf, &st));
     size = (uint32_t)st.st_size;
     free(buf);
@@ -139,7 +139,6 @@ backup_read(const char *filename)
     total = 0;
     buf_size = WT_MIN(size, WT_BACKUP_COPY_SIZE);
     while (total < size) {
-
         /* Use the read size since we may have read less than the granularity. */
         error_sys_check(rdsize = read(rfd, buf, buf_size));
 
