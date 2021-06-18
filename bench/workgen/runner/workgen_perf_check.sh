@@ -28,9 +28,8 @@ fi
 
 ERROR=0
 OUTPUT=output.log
-TEST=$1
-echo "python3 $TEST 2> $OUTPUT"
-python3 $TEST 2> $OUTPUT
+echo "python3 $1 2> $OUTPUT"
+python3 $1 2> $OUTPUT
 
 # Check exceptions
 if grep -io "exception" $OUTPUT; then
