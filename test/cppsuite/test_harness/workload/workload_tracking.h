@@ -90,7 +90,7 @@ class workload_tracking : public component {
         testutil_check(
           session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
         testutil_check(session->open_cursor(
-          session, _schema_table_name.c_str(), NULL, NULL, &_schema_track_cursor));
+          session, _schema_table_name.c_str(), nullptr, nullptr, &_schema_track_cursor));
         debug_print("Schema tracking initiated", DEBUG_TRACE);
 
         /* Initiate operations tracking. */

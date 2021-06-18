@@ -137,7 +137,8 @@ class database_operation {
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : tc->database.get_collection_names()) {
-            testutil_check(tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
+            testutil_check(
+              tc->session->open_cursor(tc->session, it.c_str(), nullptr, nullptr, &cursor));
             cursors.push_back(cursor);
             debug_print("Adding collection to read thread: " + it, DEBUG_TRACE);
         }
@@ -376,7 +377,7 @@ class database_operation {
              * session is closed, WiredTiger APIs close the cursors too.
              */
             testutil_check(
-              session->open_cursor(session, next_collection.c_str(), NULL, NULL, &cursor));
+              session->open_cursor(session, next_collection.c_str(), nullptr, nullptr, &cursor));
             if (tracking->enabled())
                 testutil_check(
                   session->open_cursor(session, tracking->get_operation_table_name().c_str(),
