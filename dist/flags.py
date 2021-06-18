@@ -25,8 +25,9 @@ def flag_declare(name):
             if line.find('AUTOMATIC FLAG VALUE GENERATION START') != -1:
                 m = re.search("\d+", line)
                 if m == None:
-                    print(name + ": automatic flag generation start line " + str(lcnt) +\
-                        "contains no start value", file=sys.stderr)
+                    print(name + ": automatic flag generation start at line " +
+                        str(lcnt) + " needs start value e.g. AUTOMATIC FLAG VALUE" +
+                        " GENERATION START 0", file=sys.stderr)
                     sys.exit(1)
                 start = int(m.group(0))
                 header = line
@@ -35,8 +36,9 @@ def flag_declare(name):
             elif line.find('AUTOMATIC FLAG VALUE GENERATION STOP') != -1:
                 m = re.search("\d+", line)
                 if m == None:
-                    print(name + ": automatic flag generation stop line " + str(lcnt) +\
-                        "contains no stop value", file=sys.stderr)
+                    print(name + ": automatic flag generation stop at line " +
+                        str(lcnt) + " needs stop value e.g. AUTOMATIC FLAG VALUE" +
+                        " GENERATION STOP 32", file=sys.stderr)
                     sys.exit(1)
                 end = int(m.group(0))
                 # Compare the number of flags defined and against the number
