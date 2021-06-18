@@ -1414,6 +1414,11 @@ __rollback_to_stable_btree_apply(
     bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
 
+    /* Ignore non-file objects as well as the metadata and history store files. */
+    if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_HS_URI) == 0 ||
+      strcmp(uri, WT_METAFILE_URI) == 0)
+        return (0);
+
     txn_global = &S2C(session)->txn_global;
     rollback_txnid = 0;
     addr_size = 0;
@@ -1535,57 +1540,28 @@ err:
 }
 
 /*
- * __rollback_skip --
- *     Return if rollback-to-stable should skip this object.
- */
-static int
-__rollback_skip(WT_SESSION_IMPL *session, const char *uri, const char *config, bool *skipp)
-{
-    WT_CONFIG_ITEM cval;
-    uint32_t notused;
-
-    *skipp = false;
-
-    /* Ignore non-file objects as well as the metadata and history store files. */
-    if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_HS_URI) == 0 ||
-      strcmp(uri, WT_METAFILE_URI) == 0) {
-        *skipp = true;
-        return (0);
-    }
-
-    /* Skip fixed-length column-store files. */
-    WT_RET(__wt_config_getones(session, config, "key_format", &cval));
-    if (!WT_STRING_MATCH("r", cval.str, cval.len))
-        return (0);
-    WT_RET(__wt_config_getones(session, config, "value_format", &cval));
-    WT_RET(__wt_struct_check(session, cval.str, cval.len, skipp, &notused));
-    return (0);
-}
-
-/*
- * __wt_rollback_to_stable_btree_apply --
- *     Perform rollback to stable on a single file.
+ * __wt_rollback_to_stable_one --
+ *     Perform rollback to stable on a single object.
  */
 int
-__wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
 {
     WT_DECL_RET;
     wt_timestamp_t rollback_timestamp;
     char *config;
-    const char *uri;
-    bool skip;
 
-    WT_UNUSED(cfg);
-
-    config = NULL;
-    uri = session->dhandle->name;
+    /*
+     * This is confusing: the caller's boolean argument "skip" stops the schema-worker loop from
+     * processing this object and any underlying objects it may have (for example, a table with
+     * multiple underlying file objects). We rollback-to-stable all of the file objects an object
+     * may contain, so set the caller's skip argument to true on all file objects, else set the
+     * caller's skip argument to false so our caller continues down the tree of objects.
+     */
+    *skipp = WT_PREFIX_MATCH(uri, "file:");
+    if (!*skipp)
+        return (0);
 
     WT_RET(__wt_metadata_search(session, uri, &config));
-
-    /* Check if we should skip this object. */
-    WT_ERR(__rollback_skip(session, uri, config, &skip));
-    if (skip)
-        goto err;
 
     /* Read the stable timestamp once, when we first start up. */
     WT_ORDERED_READ(rollback_timestamp, S2C(session)->txn_global.stable_timestamp);
@@ -1594,7 +1570,6 @@ __wt_rollback_to_stable_btree_apply(WT_SESSION_IMPL *session, const char *cfg[])
     ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
     F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
-err:
     __wt_free(session, config);
 
     return (ret);
@@ -1613,7 +1588,6 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
     WT_DECL_RET;
     uint64_t rollback_count, rollback_msg_count, rollback_txnid;
     const char *config, *uri;
-    bool skip;
 
     /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
@@ -1628,18 +1602,13 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
         WT_ERR(cursor->get_key(cursor, &uri));
         WT_ERR(cursor->get_value(cursor, &config));
 
-        /* Check if we should skip this object. */
-        WT_ERR(__rollback_skip(session, uri, config, &skip));
-        if (skip)
-            continue;
-
         F_SET(session, WT_SESSION_QUIET_CORRUPT_FILE);
         ret = __rollback_to_stable_btree_apply(session, uri, config, rollback_timestamp);
         F_CLR(session, WT_SESSION_QUIET_CORRUPT_FILE);
 
         /*
-         * Don't return an error in the case of failures on files that don't exist or files where
-         * corruption is detected.
+         * Ignore rollback to stable failures on files that don't exist or files where corruption is
+         * detected.
          */
         if (ret == ENOENT || (ret == WT_ERROR && F_ISSET(S2C(session), WT_CONN_DATA_CORRUPTION))) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
