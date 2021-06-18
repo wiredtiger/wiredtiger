@@ -691,14 +691,6 @@ tasks:
       - func: "compile wiredtiger"
       - func: "make check all"
 
-  - name: make-check-msan-test
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-      - func: "make check all"
-        vars:
-          smp_command: -j 1
-
   - name: make-check-linux-no-ftruncate-test
     depends_on:
       - name: compile-linux-no-ftruncate
@@ -1213,7 +1205,7 @@ tasks:
             ${test_env_vars|} $(pwd)/test/csuite/test_wt3874_pad_byte_collator 2>&1
 
   - name: csuite-wt4105-large-doc-small-upd-test
-    tags: ["pull_request"]
+    tags: ["pull_request", "no_msan", "no_ubsan"]
     depends_on:
       - name: compile
     commands:
@@ -2587,7 +2579,6 @@ buildvariants:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
-    - name: make-check-test
     - name: examples-c-test
 
 - name: ubuntu1804-msan
@@ -2612,9 +2603,8 @@ buildvariants:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
-    - name: ".pull_request !.windows_only !.pull_request_compilers !.python !.cppsuite"
-    - name: make-check-msan-test
-    - name: examples-c-test
+    - name: ".pull_request !.no_msan !.windows_only !.pull_request_compilers !.python !.cppsuite"
+    - name: examples-c-test/
 
 - name: ubuntu1804-ubsan
   display_name: "! Ubuntu 18.04 UBSAN"
@@ -2633,12 +2623,11 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      UBSAN_OPTIONS="print_stacktrace=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:detect_leaks=1:abort_on_error=1:disable_coredump=0"
+      UBSAN_OPTIONS="print_stacktrace=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:detect_leaks=1:halt_on_error=1:disable_coredump=0"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
-    - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
-    - name: make-check-test
+    - name: ".pull_request !.no_ubsan !.windows_only !.pull_request_compilers !.python"
     - name: examples-c-test
 
 - name: ubuntu1804-compilers
