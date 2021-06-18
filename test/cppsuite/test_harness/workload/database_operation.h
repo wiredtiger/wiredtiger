@@ -409,7 +409,8 @@ class database_operation {
 
                 testutil_check(session->commit_transaction(session, cfg.c_str()));
             }
-            testutil_check(op_track_cursor->close(op_track_cursor));
+            if (op_track_cursor != nullptr)
+                testutil_check(op_track_cursor->close(op_track_cursor));
         }
         debug_print("Populate: thread {" + std::to_string(worker_id) + "} finished", DEBUG_TRACE);
     }
