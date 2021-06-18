@@ -432,8 +432,8 @@ static int
 do_range_reads(WTPERF_THREAD *thread, WT_CURSOR *cursor, int64_t read_range)
 {
     WTPERF *wtperf;
-    uint64_t rand_range, next_val, prev_val;
-    int64_t range;
+    uint64_t next_val, prev_val;
+    int64_t range, rand_range;
     char *range_key_buf;
     char buf[512];
     int ret;
