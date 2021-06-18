@@ -111,42 +111,46 @@ lprintf(const WTPERF *wtperf, int err, uint32_t level, const char *fmt, ...)
  *     usually copied across different machines, therefore the write portion doesn't affect the
  *     machine backup is performing on.
  */
-int
-backup_read(WT_SESSION *wt_session, const WTPERF *wtperf, const char *from)
+void
+backup_read(const char *filename)
 {
-    WT_DECL_RET;
-    WT_FH *fh;
-    WT_SESSION_IMPL *session;
-    wt_off_t n, offset, size;
     char *buf;
-
+    int rfd;
+    size_t len;
+    ssize_t rdsize;
+    struct stat st;
+    uint32_t buf_size, size, total;
+    
     buf = NULL;
-    fh = NULL;
-    session = (WT_SESSION_IMPL *)wt_session;
+    rfd = -1;
 
     /* Open the file handle. */
-    if ((ret = __wt_open(session, from, WT_FS_OPEN_FILE_TYPE_REGULAR, 0, &fh)) != 0) {
-        lprintf(wtperf, ret, 0, "Open file handle %s for backup failed", from);
-        goto err;
-    }
-    buf = dmalloc(WT_BACKUP_COPY_SIZE);
+    len = strlen(wtperf->home) + strlen(filename) + 10;
+    buf = dmalloc(len);
+    testutil_check(__wt_snprintf(buf, len, "%s/%s", wtperf->home, filename));
+    error_sys_check(rfd = open(buf, O_RDONLY, 0644));
 
     /* Get the file's size, then read the bytes. */
-    if ((ret = __wt_filesize(session, fh, &size)) != 0) {
-        lprintf(wtperf, ret, 0, "Grab file size for %s failed", from);
-        goto err;
-    }
-    for (offset = 0; size > 0; size -= n, offset += n) {
-        n = WT_MIN(size, WT_BACKUP_COPY_SIZE);
-        if ((ret = __wt_read(session, fh, offset, (size_t)n, buf)) != 0) {
-            lprintf(wtperf, ret, 0, "Read file %s failed", from);
-            goto err;
-        }
-    }
-
-err:
-    WT_TRET(__wt_close(session, &fh));
-
+    testutil_check(stat(buf, &st));
+    size = (uint32_t)st.st_size;
     free(buf);
-    return (ret);
+
+    buf = dmalloc(WT_BACKUP_COPY_SIZE);
+    total = 0;
+    buf_size = WT_MIN(size, WT_BACKUP_COPY_SIZE);
+    while (total < size) {
+
+        /* Use the read size since we may have read less than the granularity. */
+        error_sys_check(rdsize = read(rfd, buf, buf_size));
+
+        /* If we get EOF, we're done. */
+        if (rdsize == 0)
+            break;
+        total += (uint32_t)rdsize;
+        buf_size = WT_MIN(buf_size, size - total);
+    }
+
+    if (rfd != -1)
+        testutil_check(close(rfd));
+    free(buf);
 }

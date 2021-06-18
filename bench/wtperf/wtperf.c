@@ -1264,7 +1264,7 @@ backup_worker(void *arg)
 
         while ((ret = backup_cursor->next(backup_cursor)) == 0) {
             testutil_check(backup_cursor->get_key(backup_cursor, &key));
-            testutil_check(backup_read(session, wtperf, key));
+            backup_read(session, wtperf, key);
         }
 
         if (ret != WT_NOTFOUND) {
