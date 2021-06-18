@@ -2604,7 +2604,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: ".pull_request !.no_msan !.windows_only !.pull_request_compilers !.python !.cppsuite"
-    - name: examples-c-test/
+    - name: examples-c-test
 
 - name: ubuntu1804-ubsan
   display_name: "! Ubuntu 18.04 UBSAN"
