@@ -8,10 +8,10 @@ usage () {
     cat << EOF
 Usage: $0 test_name threshold_1 threshold_2 threshold_3
 Arguments:
-    test_name		# Test to run
-    threshold_1		# Maximum allowed warnings regarding the DROP operation.
-    threshold_2		# Maximum time in seconds a DROP operation can take up to.
-    threshold_3		# The maximum allowed warnings regarding the CREATE/INSERT/UPDATE operations.
+    test_name    # Test to run
+    threshold_1  # Maximum allowed warnings regarding the DROP operation.
+    threshold_2  # Maximum time in seconds a DROP operation can take up to.
+    threshold_3  # The maximum allowed warnings regarding the CREATE/INSERT/UPDATE operations.
 EOF
 }
 
