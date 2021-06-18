@@ -1761,7 +1761,7 @@ __split_insert(WT_SESSION_IMPL *session, WT_REF *ref)
     child->state = WT_REF_MEM; /* Visible as soon as the split completes. */
     child->addr = ref->addr;
     if (type == WT_PAGE_ROW_LEAF) {
-        __wt_ref_key(page, ref, &key, &key_size);
+        __wt_ref_key(ref->home, ref, &key, &key_size);
         WT_ERR(__wt_row_ikey(session, 0, key, key_size, child));
         parent_incr += sizeof(WT_IKEY) + key_size;
     } else
