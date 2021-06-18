@@ -1129,13 +1129,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
-            WT_WITH_BTREE(session, op->btree,
-              ret = __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false
 #ifdef HAVE_DIAGNOSTIC
-                ,
-                false
+            WT_WITH_BTREE(session, op->btree,
+              ret = __wt_row_modify(
+                cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+#else
+            WT_WITH_BTREE(session, op->btree,
+              ret =
+                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
 #endif
-                ));
             WT_ERR(ret);
             tombstone = NULL;
         } else if (ret == 0)
