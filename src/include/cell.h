@@ -147,7 +147,7 @@ struct __wt_cell {
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CELL_UNPACK_OVERFLOW 0x1u            /* cell is an overflow */
 #define WT_CELL_UNPACK_TIME_WINDOW_CLEARED 0x2u /* time window cleared because of restart */
-/*AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 
 /*
  * We have two "unpacked cell" structures: one holding holds unpacked cells from internal nodes
