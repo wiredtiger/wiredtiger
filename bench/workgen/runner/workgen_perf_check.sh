@@ -41,15 +41,15 @@ fi
 THRESHOLD=$2
 VALUE=$(grep -ic "cycling idle.*drop" $OUTPUT)
 if [[ $VALUE -ge $THRESHOLD ]]; then
-    echo "ERROR: Too many long DROP operations: $VALUE (max: $THRESHOLD)"
+    echo "ERROR: Too many long DROP operations: $VALUE (max allowed: $THRESHOLD)"
     ERROR=1
 fi
 
-# Check if one DROP operation took too long
+# Check if a DROP operation took too long
 THRESHOLD=$3
 VALUE=$(grep -i "cycling idle.*drop" $OUTPUT | awk '{print $9}' | sort -n | tail -1)
 if [[ $VALUE -ge $THRESHOLD ]]; then
-    echo "ERROR: One drop operation took too long: ${VALUE}s (max: ${THRESHOLD}s)"
+    echo "ERROR: A drop operation took too long: ${VALUE}s (max allowed: ${THRESHOLD}s)"
     ERROR=1
 fi
 
@@ -57,7 +57,7 @@ fi
 THRESHOLD=$4
 VALUE=$(grep -ic "max latency exceeded" $OUTPUT)
 if [[ $VALUE -ge $THRESHOLD ]]; then
-    echo "ERROR: Too many long read/insert/update operations: $VALUE (max: $THRESHOLD)"
+    echo "ERROR: Too many long read/insert/update operations: $VALUE (max allowed: $THRESHOLD)"
     ERROR=1
 fi
 
