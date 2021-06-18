@@ -172,9 +172,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         /* Serialize the update. */
         WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
     } else {
-        /* Update restore must have the key on the disk image. */
-        WT_ASSERT(session, !restore);
-
         /*
          * Allocate the insert array as necessary.
          *
