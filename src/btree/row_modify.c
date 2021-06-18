@@ -42,7 +42,12 @@ err:
  */
 int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, WT_UPDATE *upd_arg,
-  u_int modify_type, bool exclusive)
+  u_int modify_type, bool exclusive
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  bool restore
+#endif
+)
 {
     WT_DECL_RET;
     WT_INSERT *ins;
@@ -153,6 +158,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         }
 
         /*
+         * If we restore an update chain in update restore eviction, there should be no update on
+         * the existing update chain.
+         */
+        WT_ASSERT(session, !restore || old_upd == NULL);
+
+        /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
          * serialization function lock acts as our memory barrier to flush this write.
          */
@@ -161,6 +172,9 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
         /* Serialize the update. */
         WT_ERR(__wt_update_serial(session, cbt, page, upd_entry, &upd, upd_size, exclusive));
     } else {
+        /* Update restore must have the key on the disk image. */
+        WT_ASSERT(session, !restore);
+
         /*
          * Allocate the insert array as necessary.
          *

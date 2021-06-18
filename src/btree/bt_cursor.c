@@ -404,7 +404,12 @@ __cursor_col_modify(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 static inline int
 __cursor_row_modify(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
 {
-    return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false));
+    return (__wt_row_modify(cbt, &cbt->iface.key, value, NULL, modify_type, false
+#ifdef HAVE_DIAGNOSTIC
+      ,
+      false
+#endif
+      ));
 }
 
 /*

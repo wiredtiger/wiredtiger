@@ -26,7 +26,12 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
      * ensure that we're locking when inserting new keys to an insert list.
      */
     WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
-      ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false));
+      ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false
+#ifdef HAVE_DIAGNOSTIC
+        ,
+        false
+#endif
+        ));
     return (ret);
 }
 
