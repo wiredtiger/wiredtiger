@@ -1,7 +1,7 @@
 #! /bin/bash
 #
 # Checks warnings and exceptions raised by a given workgen test as well as lantencies of specific operations.
-# This script is used in evergreen to assess performance.
+# This script is used in evergreen to assess performance using workgen.
 #
 
 usage () {
@@ -28,7 +28,7 @@ fi
 
 ERROR=0
 OUTPUT=output.log
-TEST=many-dhandle-stress.py
+TEST=$1
 echo "python3 $TEST 2> $OUTPUT"
 python3 $TEST 2> $OUTPUT
 
