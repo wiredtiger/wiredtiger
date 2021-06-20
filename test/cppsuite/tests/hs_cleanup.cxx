@@ -85,7 +85,7 @@ class hs_cleanup : public test {
             ret = update(tc->tracking, cursor, coll->id, key_value_t(key_tmp).c_str(),
              random_generator::instance().generate_string(tc->value_size).c_str(), ts);
             /* Increment the current op count for the current transaction. */
-            tc->transaction.op_count++;
+            tc->transaction.add_op();
             if (ret == WT_ROLLBACK)
                 tc->transaction.rollback(tc->session, "");
             else if (ret != 0)

@@ -63,7 +63,7 @@ class transaction_context {
         /* This randomizes the number of operations to be executed in one transaction. */
         _target_op_count =
           random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
-        op_count = 0;
+        _op_count = 0;
         _in_txn = true;
     }
 
@@ -71,6 +71,12 @@ class transaction_context {
     active() const
     {
         return (_in_txn);
+    }
+
+    void
+    add_op()
+    {
+        _op_count++;
     }
 
     /* Attempt to commit the transaction given the requirements are met. */
@@ -87,7 +93,7 @@ class transaction_context {
         testutil_assert(_in_txn);
         testutil_check(
           session->commit_transaction(session, config.empty() ? nullptr : config.c_str()));
-        op_count = 0;
+        _op_count = 0;
         _in_txn = false;
     }
 
@@ -105,7 +111,7 @@ class transaction_context {
         testutil_assert(_in_txn);
         testutil_check(
           session->rollback_transaction(session, config.empty() ? nullptr : config.c_str()));
-        op_count = 0;
+        _op_count = 0;
         _in_txn = false;
     }
 
@@ -119,18 +125,17 @@ class transaction_context {
         testutil_check(session->timestamp_transaction(session, config.c_str()));
     }
 
-    /*
-     * op_count is the current number of operations that have been executed in the current
-     * transaction.
-     */
-    int64_t op_count = 0;
-
     private:
     bool
     can_commit_rollback()
     {
-        return (_in_txn && op_count >= _target_op_count);
+        return (_in_txn && _op_count >= _target_op_count);
     }
+    /*
+     * op_count is the current number of operations that have been executed in the current
+     * transaction.
+     */
+    int64_t _op_count = 0;
 
     /*
      * _min_op_count and _max_op_count are the minimum and maximum number of operations within one

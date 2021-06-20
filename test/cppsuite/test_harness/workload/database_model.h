@@ -62,11 +62,32 @@ class collection {
     {
     }
 
-    int
-    get_new_key()
+    uint64_t
+    get_key_count()
     {
         std::lock_guard<std::mutex> lg(_mtx);
-        return _key_count++;
+        return _key_count;
+    }
+
+    /*
+     * Adding new keys should generally be singly threaded per collection. If two threads both
+     * attempt to add keys using the incrementing id pattern they'd frequently conflict.
+     *
+     * The usage pattern is:
+     *   1. Call get_key_count to get the number of keys already existing. Add keys with id's equal
+     *      to and greater than this value.
+     *   2. Once the transaction has successfully committed then call increase_key_count() with the
+     *      number of added keys.
+     *
+     * The set of keys should be always be contiguous such that other threads calling get_key_count
+     * will always know that the keys in existence are 0 -> _key_count - 1.
+     */
+    uint64_t
+    increase_key_count(uint64_t increment)
+    {
+        std::lock_guard<std::mutex> lg(_mtx);
+        _key_count += increment;
+        return _key_count;
     }
 
     std::map<key_value_t, key_t>
@@ -126,52 +147,22 @@ class database {
     void
     add_collection(uint64_t key_count = 0)
     {
-        WT_SESSION *session = connection_manager::instance().create_session();
         std::lock_guard<std::mutex> lg(_mtx);
-        uint64_t next_id = _next_collection_id;
+        if (_session == nullptr)
+            _session = connection_manager::instance().create_session();
+        uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);
         _collections.emplace(next_id, new collection(next_id, key_count, collection_name));
-        ++_next_collection_id;
-        testutil_check(session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+        testutil_check(
+          _session->create(_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
           tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
-        session->close(session, nullptr);
-        ++_next_collection_id;
     }
 
-    /*
-     * Drop a collection, timeout if there are still active users.
-     */
-    bool
-    drop_collection(uint64_t id, uint64_t timeout)
-    {
-        auto start = std::chrono::system_clock::now();
-        _mtx.lock();
-        auto it = _collections.find(id);
-        _mtx.unlock();
-        if (it == _collections.end())
-            return (false);
-
-        while (it->second.use_count() > 1) {
-            if (std::chrono::system_clock::now() - start > std::chrono::seconds(timeout)) {
-                debug_print("Drop collection timed out", DEBUG_WARN);
-                return (false);
-            }
-        }
-        {
-            std::lock_guard<std::mutex> lg(_mtx);
-            if (it->second.use_count() > 1)
-                return (false);
-            it->second = nullptr;
-            _collections.erase(id);
-        }
-        return (true);
-    }
-
+    /* Get a collection using the id of the collection. */
     std::shared_ptr<collection>
     get_collection(uint64_t id)
     {
-        std::lock_guard<std::mutex> lg(_mtx);
         const auto &it = _collections.find(id);
         if (it == _collections.end())
             return nullptr;
@@ -179,17 +170,15 @@ class database {
         return std::shared_ptr<collection>(it->second);
     }
 
-    /* Not super optimal but will suffice for now. */
+    /* Get a random collection. */
     std::shared_ptr<collection>
     get_random_collection()
     {
-        std::lock_guard<std::mutex> lg(_mtx);
-        if (_collections.size() == 0)
+        size_t collection_count = _collections.size();
+        if (collection_count == 0)
             return (nullptr);
-        auto it = _collections.begin();
-        std::advance(
-          it, random_generator::instance().generate_integer<uint64_t>(0, _collections.size()));
-        return std::shared_ptr<collection>(it->second);
+        return get_collection(
+          random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1));
     }
 
     /*
@@ -203,10 +192,6 @@ class database {
         return (_collections.size());
     }
 
-    /*
-     * If someone was dropping a collection concurrently this may cause them to fail, for now that
-     * is okay.
-     */
     std::vector<std::string>
     get_collection_names()
     {
@@ -234,6 +219,7 @@ class database {
     }
 
     private:
+    WT_SESSION *_session = nullptr;
     timestamp_manager *_tsm = nullptr;
     workload_tracking *_tracking = nullptr;
     uint64_t _next_collection_id = 0;

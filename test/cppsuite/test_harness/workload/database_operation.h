@@ -103,12 +103,82 @@ class database_operation {
         debug_print("Populate: finished.", DEBUG_INFO);
     }
 
+    /*
+     * Convert a number to a string. If the resulting string is less than the given length, padding
+     * of '0' is added.
+     */
+    static std::string
+    key_to_string(uint64_t size, uint64_t key_id)
+    {
+        std::string str, value_str = std::to_string(key_id);
+        testutil_assert(size >= value_str.size());
+        uint64_t diff = size - value_str.size();
+        std::string s(diff, '0');
+        str = s.append(value_str);
+        return (str);
+    }
+
     /* Basic insert operation that adds a new key every rate tick. */
     virtual void
     insert_operation(thread_context *tc)
     {
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
+        WT_CURSOR *cursor;
+        WT_DECL_RET;
+        std::vector<WT_CURSOR *> cursors;
+        std::vector<std::shared_ptr<collection>> collections;
+        uint64_t collection_count = tc->database.get_collection_count();
+        uint64_t collections_per_thread = collection_count / tc->thread_count;
+        uint64_t counter = 0;
+        /* Must have unique collections for each thread. */
+        testutil_assert(collection_count % tc->thread_count == 0);
+        for (int i = tc->id * collections_per_thread;
+             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+            auto coll = tc->database.get_collection(i);
+            collections.push_back(coll);
+            testutil_check(
+              tc->session->open_cursor(tc->session, coll->name.c_str(), NULL, NULL, &cursor));
+            cursors.push_back(cursor);
+        }
+
+        while (tc->running()) {
+            uint64_t start_key = collections[counter]->get_key_count();
+            uint64_t added_count = 0;
+            wt_timestamp_t ts;
+            bool committed = true;
+            tc->transaction.begin(tc->session, "");
+            while (tc->transaction.active() && tc->running()) {
+                ts = tc->timestamp_manager->get_next_ts();
+                if (tc->timestamp_manager->enabled())
+                    tc->transaction.set_commit_timestamp(
+                      tc->session, timestamp_manager::decimal_to_hex(ts));
+                ret = insert(cursors[counter], tc->tracking, collections[counter]->id,
+                  key_to_string(tc->key_size, start_key + added_count).c_str(),
+                  random_generator::random_generator::instance()
+                    .generate_string(tc->value_size)
+                    .c_str(),
+                  ts);
+                tc->transaction.add_op();
+                if (ret == WT_ROLLBACK) {
+                    tc->transaction.rollback(tc->session, "");
+                    committed = false;
+                    break;
+                } else if (ret != 0)
+                    testutil_die(ret, "inserting a new key failed unexpectedly.");
+                added_count++;
+                tc->transaction.try_commit(tc->session, "");
+                tc->sleep();
+            }
+            if (committed)
+                collections[counter]->increase_key_count(added_count);
+            counter++;
+            if (counter == collections_per_thread)
+                counter = 0;
+        }
+        /* Make sure the last transaction is rolled back now the work is finished. */
+        if (tc->transaction.active())
+            tc->transaction.rollback(tc->session, "");
     }
 
     /* Basic read operation that chooses a random collection and walks a cursor. */
@@ -128,11 +198,10 @@ class database_operation {
                 if (it == cursors.end()) {
                     testutil_check(tc->session->open_cursor(
                       tc->session, coll->name.c_str(), NULL, NULL, &cursor));
-                    cursors.emplace(coll->id, nullptr);
+                    cursors.emplace(coll->id, cursor);
                 } else
                     cursor = it->second;
             }
-            /* Walk the cursor. */
             tc->transaction.begin(tc->session, "");
             while (tc->transaction.active() && tc->running()) {
                 ret = cursor->next(cursor);
@@ -141,11 +210,12 @@ class database_operation {
                     tc->transaction.rollback(tc->session, "");
                 } else if (ret != 0)
                     testutil_die(ret, "cursor->next() failed");
+                tc->transaction.add_op();
                 tc->transaction.try_rollback(tc->session, "");
                 tc->sleep();
             }
         }
-        /* Make sure the last operation is committed now the work is finished. */
+        /* Make sure the last transaction is rolled back now the work is finished. */
         if (tc->transaction.active())
             tc->transaction.rollback(tc->session, "");
     }
@@ -257,7 +327,7 @@ class database_operation {
               generated_value.c_str(), ts);
 
             /* Increment the current op count for the current transaction. */
-            tc->transaction.op_count++;
+            tc->transaction.add_op();
 
             /*
              * If the wiredtiger API has returned rollback, comply. This will need to rollback
@@ -326,21 +396,6 @@ class database_operation {
         return (0);
     }
 
-    /*
-     * Convert a number to a string. If the resulting string is less than the given length, padding
-     * of '0' is added.
-     */
-    static std::string
-    number_to_string(uint64_t size, uint64_t value)
-    {
-        std::string str, value_str = std::to_string(value);
-        testutil_assert(size >= value_str.size());
-        uint64_t diff = size - value_str.size();
-        std::string s(diff, '0');
-        str = s.append(value_str);
-        return (str);
-    }
-
     private:
     static void
     populate_worker(timestamp_manager *tsm, workload_tracking *tracking, database &database,
@@ -366,7 +421,7 @@ class database_operation {
             testutil_check(session->open_cursor(session, coll->name.c_str(), NULL, NULL, &cursor));
             for (uint64_t i = 0; i < key_count; ++i) {
                 /* Generation of a unique key. */
-                generated_key = number_to_string(key_size, i);
+                generated_key = key_to_string(key_size, i);
                 /*
                  * Generation of a random string value using the size defined in the test
                  * configuration.
