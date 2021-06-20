@@ -28,7 +28,7 @@
 
 #include "test_harness/test.h"
 
-class poc_test : public test_harness::test {
+class base_test : public test_harness::test {
     public:
-    poc_test(const std::string &config, const std::string &name) : test(config, name) {}
+    base_test(const std::string &config, const std::string &name) : test(config, name) {}
 };
