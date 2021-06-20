@@ -51,7 +51,6 @@ class hs_cleanup : public test {
         WT_DECL_RET;
         const char *key_tmp;
         WT_SESSION *session = connection_manager::instance().create_session();
-        /* We don't expect anyone to drop collections in this test. */
         std::shared_ptr<collection> coll = tc->database.get_collection(tc->id);
         testutil_assert(coll != nullptr);
         wt_timestamp_t ts;
@@ -76,20 +75,9 @@ class hs_cleanup : public test {
             /* Start a transaction if possible. */
             tc->transaction.try_begin(tc->session, "");
 
-            ts = tc->timestamp_manager->get_next_ts();
-            if (tc->timestamp_manager->enabled())
-                tc->transaction.set_commit_timestamp(
-                  tc->session, timestamp_manager::decimal_to_hex(ts));
-
-            /* Update the record but take care to handle WT_ROLLBACK. */
-            ret = update(tc->tracking, cursor, coll->id, key_value_t(key_tmp).c_str(),
-             random_generator::instance().generate_string(tc->value_size).c_str(), ts);
-            /* Increment the current op count for the current transaction. */
-            tc->transaction.add_op();
-            if (ret == WT_ROLLBACK)
-                tc->transaction.rollback(tc->session, "");
-            else if (ret != 0)
-                testutil_die(ret, "failed to update a key.");
+            /* Update the record. Copy the key to avoid the buffer being invalidated. */
+            if (!tc->update(cursor, coll->id, key_value_t(key_tmp)))
+                continue;
 
             /* Commit our transaction. */
             tc->transaction.try_commit(tc->session, "");

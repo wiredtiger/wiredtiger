@@ -1,12 +1,6 @@
 # Used as a stress test for the framework.
 duration_seconds=600,
 cache_size_mb=2000,
-enable_logging=true,
-statistics_config=
-(
-    type=all,
-    enable_logging=true
-),
 checkpoint_manager=
 (
     enabled=true,

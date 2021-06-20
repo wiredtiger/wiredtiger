@@ -38,12 +38,16 @@
 namespace test_harness {
 class transaction_context {
     public:
-    explicit transaction_context(configuration *config)
+    explicit transaction_context(configuration *config, timestamp_manager *timestamp_manager)
+        : _timestamp_manager(timestamp_manager)
     {
-        configuration *transaction_config = config->get_subconfig(OPS_PER_TRANSACTION);
-        _min_op_count = transaction_config->get_int(MIN);
-        _max_op_count = transaction_config->get_int(MAX);
-        delete transaction_config;
+        /* Use optional here as our populate threads don't define this configuration. */
+        configuration *transaction_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
+        if (transaction_config != nullptr) {
+            _min_op_count = transaction_config->get_optional_int(MIN, 1);
+            _max_op_count = transaction_config->get_optional_int(MAX, 1);
+            delete transaction_config;
+        }
     }
 
     /* Begin a transaction if we are not currently in one. */
@@ -119,9 +123,12 @@ class transaction_context {
      * Set a commit timestamp.
      */
     void
-    set_commit_timestamp(WT_SESSION *session, const std::string &ts)
+    set_commit_timestamp(WT_SESSION *session, wt_timestamp_t ts)
     {
-        std::string config = std::string(COMMIT_TS) + "=" + ts;
+        /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
+        if (!_timestamp_manager->enabled())
+            return;
+        std::string config = std::string(COMMIT_TS) + "=" + timestamp_manager::decimal_to_hex(ts);
         testutil_check(session->timestamp_transaction(session, config.c_str()));
     }
 
@@ -146,6 +153,8 @@ class transaction_context {
     int64_t _max_op_count = INT64_MAX;
     int64_t _target_op_count = 0;
     bool _in_txn = false;
+
+    timestamp_manager *_timestamp_manager = nullptr;
 };
 
 enum thread_type { READ, INSERT, UPDATE };
@@ -171,8 +180,10 @@ class thread_context {
     thread_context(uint64_t id, thread_type type, configuration *config,
       timestamp_manager *timestamp_manager, workload_tracking *tracking, database &db)
         : id(id), type(type), database(db), timestamp_manager(timestamp_manager),
-          tracking(tracking), transaction(transaction_context(config)),
-          /* These won't exist for read threads which is why we use optional here. */
+          tracking(tracking), transaction(transaction_context(config, timestamp_manager)),
+          /* These won't exist for certain threads which is why we use optional here. */
+          collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
+          key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
           key_size(config->get_optional_int(KEY_SIZE, 1)),
           value_size(config->get_optional_int(VALUE_SIZE, 1)),
           thread_count(config->get_int(THREAD_COUNT))
@@ -187,6 +198,82 @@ class thread_context {
     finish()
     {
         _running = false;
+    }
+
+    /*
+     * Convert a key_id to a string. If the resulting string is less than the given length, padding
+     * of '0' is added.
+     */
+    std::string
+    key_to_string(uint64_t key_id)
+    {
+        std::string str, value_str = std::to_string(key_id);
+        testutil_assert(key_size >= value_str.size());
+        uint64_t diff = key_size - value_str.size();
+        std::string s(diff, '0');
+        str = s.append(value_str);
+        return (str);
+    }
+
+    bool
+    update(WT_CURSOR *cursor, uint64_t collection_id, const std::string &key)
+    {
+        WT_DECL_RET;
+        std::string value;
+        wt_timestamp_t ts = timestamp_manager->get_next_ts();
+        testutil_assert(tracking != nullptr);
+        testutil_assert(cursor != nullptr);
+
+        transaction.set_commit_timestamp(session, ts);
+        value = random_generator::instance().generate_string(value_size);
+        cursor->set_key(cursor, key.c_str());
+        cursor->set_value(cursor, value.c_str());
+        ret = cursor->update(cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session, "");
+                return (false);
+            } else
+                testutil_die(ret, "unhandled error while trying to update a key");
+        }
+        tracking->save_operation(tracking_operation::UPDATE, collection_id, key, value, ts);
+        transaction.add_op();
+        debug_print("key/value updated", DEBUG_TRACE);
+        return (true);
+    }
+
+    bool
+    insert(WT_CURSOR *cursor, uint64_t collection_id, uint64_t key_id)
+    {
+        WT_DECL_RET;
+        std::string key, value;
+        testutil_assert(tracking != nullptr);
+        testutil_assert(cursor != nullptr);
+
+        /*
+         * Get a timestamp to apply to the update. We still do this even if timestamps aren't
+         * enabled as it will return a value for the tracking table.
+         */
+        wt_timestamp_t ts = timestamp_manager->get_next_ts();
+        transaction.set_commit_timestamp(session, ts);
+
+        key = key_to_string(key_id);
+        value = random_generator::instance().generate_string(value_size);
+
+        cursor->set_key(cursor, key.c_str());
+        cursor->set_value(cursor, value.c_str());
+        ret = cursor->insert(cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session, "");
+                return (false);
+            } else
+                testutil_die(ret, "unhandled error while trying to insert a key");
+        }
+        tracking->save_operation(tracking_operation::INSERT, collection_id, key, value, ts);
+        transaction.add_op();
+        debug_print("key/value insert", DEBUG_TRACE);
+        return (true);
     }
 
     void
@@ -206,6 +293,8 @@ class thread_context {
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;
     test_harness::database &database;
+    const int64_t collection_count;
+    const int64_t key_count;
     const int64_t key_size;
     const int64_t value_size;
     const int64_t thread_count;

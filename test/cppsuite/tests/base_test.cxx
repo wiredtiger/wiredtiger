@@ -28,6 +28,12 @@
 
 #include "test_harness/test.h"
 
+/*
+ * The "base test" that the framework uses, because its not overloading any of the database
+ * operation methods it will perform as they are defined and is therefore the "base".
+ *
+ * Can be used to create stress tests in various ways.
+ */
 class base_test : public test_harness::test {
     public:
     base_test(const std::string &config, const std::string &name) : test(config, name) {}
