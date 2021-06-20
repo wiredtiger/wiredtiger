@@ -215,6 +215,11 @@ class thread_context {
         return (str);
     }
 
+    /*
+     * Generic update function, takes a collection_id and key, will generate the value.
+     *
+     * Returns true if it successfully updates the key, false if it receives rollback from the API.
+     */
     bool
     update(WT_CURSOR *cursor, uint64_t collection_id, const std::string &key)
     {
@@ -242,6 +247,11 @@ class thread_context {
         return (true);
     }
 
+    /*
+     * Generic insert function, takes a collection_id and key_id, will generate the value.
+     *
+     * Returns true if it successfully inserts the key, false if it receives rollback from the API.
+     */
     bool
     insert(WT_CURSOR *cursor, uint64_t collection_id, uint64_t key_id)
     {

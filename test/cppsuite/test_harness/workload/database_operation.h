@@ -44,9 +44,10 @@ class database_operation {
     /*
      * Function that performs the following steps using the configuration that is defined by the
      * test:
-     *  - Create n collections as per the configuration.
+     *  - Creates N collections as per the configuration.
+     *  - Creates M threads as per the configuration, each thread will:
      *      - Open a cursor on each collection.
-     *      - Insert m key/value pairs in each collection. Values are random strings which size is
+     *      - Insert K key/value pairs in each collection. Values are random strings which size is
      * defined by the configuration.
      */
     virtual void
@@ -233,7 +234,7 @@ class database_operation {
                 collection_id = coll->id;
 
                 /* Look for existing cursors in our cursor cache. */
-                if (collections.find(collection_id) == collections.end()) {
+                if (ccm.find(collection_id) == ccm.end()) {
                     debug_print("Thread {" + std::to_string(tc->id) +
                         "} Creating cursor for collection: " + coll->name,
                       DEBUG_TRACE);

@@ -54,7 +54,7 @@ struct value_t {
     key_value_t value;
 };
 
-/* A collection is made of mapped Key objects. */
+/* A collection is made of mapped key value objects. */
 class collection {
     public:
     collection(const uint64_t id, const uint64_t key_count, const std::string name)
@@ -163,6 +163,7 @@ class database {
     std::shared_ptr<collection>
     get_collection(uint64_t id)
     {
+        std::lock_guard<std::mutex> lg(_mtx);
         const auto &it = _collections.find(id);
         if (it == _collections.end())
             return nullptr;
@@ -174,7 +175,7 @@ class database {
     std::shared_ptr<collection>
     get_random_collection()
     {
-        size_t collection_count = _collections.size();
+        size_t collection_count = get_collection_count();
         if (collection_count == 0)
             return (nullptr);
         return get_collection(
