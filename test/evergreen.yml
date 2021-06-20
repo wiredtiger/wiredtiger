@@ -950,7 +950,7 @@ tasks:
 
   # Start of cppsuite test tasks.
 
-  - name: poc-test-cpp
+  - name: cppsuite-base-test
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -963,7 +963,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t poc_test -f test/cppsuite/configs/config_poc_test_default.txt -l 1
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -f test/cppsuite/configs/base_test_default.txt
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
