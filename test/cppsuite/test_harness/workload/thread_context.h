@@ -241,7 +241,8 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to update a key");
         }
-        tracking->save_operation(tracking_operation::UPDATE, collection_id, key, value, ts);
+        tracking->save_operation(
+          tracking_operation::UPDATE, collection_id, key.c_str(), value.c_str(), ts);
         transaction.add_op();
         debug_print("key/value updated", DEBUG_TRACE);
         return (true);
@@ -280,7 +281,8 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to insert a key");
         }
-        tracking->save_operation(tracking_operation::INSERT, collection_id, key, value, ts);
+        tracking->save_operation(
+          tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts);
         transaction.add_op();
         debug_print("key/value insert", DEBUG_TRACE);
         return (true);
