@@ -517,6 +517,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                      */
                     WT_ASSERT(session, same_txn_valid_upd->type != WT_UPDATE_TOMBSTONE);
                     upd_select->upd = upd = same_txn_valid_upd;
+
+                } else if (same_txn_valid_upd != NULL && vpack != NULL && vpack->tw.prepare) {
+                    /*
+                     * The on-disk version is from an aborted prepare transaction. Therefore, use
+                     * the update from the same transaction as the selected update.
+                     */
+                    WT_ASSERT(session,
+                      first_upd->prepare_state == WT_PREPARE_INPROGRESS &&
+                        first_upd->txnid == WT_TXN_ABORTED);
+                    WT_ASSERT(session, same_txn_valid_upd->type != WT_UPDATE_TOMBSTONE);
+                    upd_select->upd = upd = same_txn_valid_upd;
                 }
             }
         }
