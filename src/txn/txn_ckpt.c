@@ -1534,7 +1534,8 @@ __checkpoint_lock_dirty_tree(
         /* It is possible that we do not have any checkpoint in the list. */
 err:
         __wt_meta_ckptlist_free(session, &ckptbase);
-        __wt_meta_saved_ckptlist_free(session);
+        btree->ckpt = NULL;
+        btree->ckpt_bytes_allocated = 0;
     }
 skip:
     __wt_free(session, name_alloc);
