@@ -21,15 +21,22 @@ if [ $1 == "-h" ]; then
 fi
 
 if [ "$#" -ne 4 ]; then
-    echo "Illegal number of parameters"
+    echo "Illegal number of parameters."
     usage
+    echo FAILED
+    exit 1
+fi
+
+if [ ! -f $1 ]; then
+    echo "$1 does not exist."
+    echo FAILED
     exit 1
 fi
 
 ERROR=0
 OUTPUT=output.log
-echo "python3 $1 2> $OUTPUT"
-python3 $1 2> $OUTPUT
+echo "python3 $1 2>&1 | tee $OUTPUT"
+python3 $1 2>&1 | tee $OUTPUT
 
 # Check exceptions
 if grep -io "exception" $OUTPUT; then
