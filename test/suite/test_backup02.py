@@ -33,6 +33,7 @@ from wtthread import backup_thread, checkpoint_thread, op_thread
 #   Run background checkpoints and backups repeatedly while doing inserts
 #   in another thread
 class test_backup02(wttest.WiredTigerTestCase):
+    conn_config = 'cache_size=10MB,eviction_target=10'
     uri = 'table:test_backup02'
     fmt = 'L'
     dsize = 100
