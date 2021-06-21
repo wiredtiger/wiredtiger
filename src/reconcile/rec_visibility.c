@@ -285,10 +285,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
     WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *same_txn_valid_upd, *tombstone;
+#ifdef HAVE_DIAGNOSTIC
+    WT_UPDATE *prepared_upd_debug;
+#endif
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, session_txnid, txnid;
     bool has_newer_updates, is_hs_page, supd_restore, upd_saved;
+#ifdef HAVE_DIAGNOSTIC
+    bool aborted_prepare_update;
+#endif
 
     /*
      * The "saved updates" return value is used independently of returning an update we can write,
@@ -523,9 +529,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
                      * The on-disk version is from an aborted prepare transaction. Therefore, use
                      * the update from the same transaction as the selected update.
                      */
-                    WT_ASSERT(session,
-                      first_upd->prepare_state == WT_PREPARE_INPROGRESS &&
-                        first_upd->txnid == WT_TXN_ABORTED);
+#ifdef HAVE_DIAGNOSTIC
+                    aborted_prepare_update = false;
+                    for (prepared_upd_debug = first_upd; prepared_upd_debug != NULL;
+                         prepared_upd_debug = prepared_upd_debug->next)
+                        if (prepared_upd_debug->prepare_state == WT_PREPARE_INPROGRESS &&
+                          prepared_upd_debug->txnid == WT_TXN_ABORTED) {
+                            aborted_prepare_update = true;
+                            break;
+                        }
+#endif
+                    WT_ASSERT(session, aborted_prepare_update == true);
                     WT_ASSERT(session, same_txn_valid_upd->type != WT_UPDATE_TOMBSTONE);
                     upd_select->upd = upd = same_txn_valid_upd;
                 }
