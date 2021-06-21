@@ -84,30 +84,16 @@ class backup_thread(threading.Thread):
                 # TODO: We want a self.assertTrue here - be need to be a
                 # wttest to do that..
 
-                # Make WT panic and test stop if tables don't match.
-                # More descriptive error message - which tables differ.
-
+                # Add an assert to stop running the test if any difference in table contents
+                # is found.
                 wttest.WiredTigerTestCase.printVerbose(3, "Testing if checkpoint tables match:")
                 assert compare_tables(
                         self, sess, uris, "checkpoint=WiredTigerCheckpoint") == True
                 wttest.WiredTigerTestCase.printVerbose(3, "Checkpoint tables match")
 
-                # if not compare_tables(
-                #         self, sess, uris, "checkpoint=WiredTigerCheckpoint"):
-                #     print("Error: checkpoint tables differ.")
-                # else:
-                #     wttest.WiredTigerTestCase.printVerbose(
-                #         3, "Checkpoint tables match")
-
                 wttest.WiredTigerTestCase.printVerbose(3, "Testing if backup tables match:")
                 assert compare_tables(self, bkp_session, uris) == True
                 wttest.WiredTigerTestCase.printVerbose(3, "Backup tables match")
-
-                # if not compare_tables(self, bkp_session, uris):
-                #     print("Error: backup tables differ.")
-                # else:
-                #     wttest.WiredTigerTestCase.printVerbose(
-                #         3, "Backup tables match")
             finally:
                 if bkp_conn != None:
                     bkp_conn.close()
