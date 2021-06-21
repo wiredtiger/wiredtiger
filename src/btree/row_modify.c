@@ -161,7 +161,7 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
          * If we restore an update chain in update restore eviction, there should be no update on
          * the existing update chain.
          */
-        WT_ASSERT(session, !restore || old_upd == NULL);
+        WT_ASSERT(session, !restore || *upd_entry == NULL);
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
