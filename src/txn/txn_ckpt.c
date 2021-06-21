@@ -1318,8 +1318,13 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      * checkpoint.
      */
     WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
-    if (F_ISSET(btree, WT_BTREE_SKIP_CKPT))
+    if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
+        WT_CKPT_FOREACH (ckptbase, ckpt)
+            if (F_ISSET(ckpt, WT_CKPT_DELETE))
+                F_CLR(ckpt, WT_CKPT_DELETE);
         return (0);
+    }
+
     /*
      * Lock the checkpoints that will be deleted.
      *
