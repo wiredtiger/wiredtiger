@@ -1716,9 +1716,9 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
 
     /*
-     * Stable timestamp cannot be moved to beyond and equal the prepared transaction's durable
-     * timestamp before this commit returns. Otherwise, checkpoint may only write partial updates of
-     * the transaction.
+     * Stable timestamp cannot be moved concurrently to beyond and equal to the prepared
+     * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
+     * transaction.
      */
     WT_ASSERT(session, !prepare || txn->durable_timestamp > txn_global->stable_timestamp);
     return (0);
