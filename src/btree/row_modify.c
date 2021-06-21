@@ -147,6 +147,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             last_upd->next = *upd_entry;
 
             /*
+             * If we restore an update chain in update restore eviction, there should be no update
+             * on the existing update chain.
+             */
+            WT_ASSERT(session, !restore || *upd_entry == NULL);
+
+            /*
              * We can either put multiple new updates or a single update on the update chain.
              *
              * Set the "old" entry to the second update in the list so that the serialization
@@ -156,12 +162,6 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
                 *upd_entry = upd->next;
             old_upd = *upd_entry;
         }
-
-        /*
-         * If we restore an update chain in update restore eviction, there should be no update on
-         * the existing update chain.
-         */
-        WT_ASSERT(session, !restore || *upd_entry == NULL);
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
