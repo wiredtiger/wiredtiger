@@ -137,19 +137,28 @@ class database_operation {
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : tc->database.get_collection_names()) {
-            testutil_check(tc->session->open_cursor(tc->session, it.c_str(), NULL, NULL, &cursor));
+            testutil_check(
+              tc->session->open_cursor(tc->session, it.c_str(), nullptr, nullptr, &cursor));
             cursors.push_back(cursor);
             debug_print("Adding collection to read thread: " + it, DEBUG_TRACE);
         }
 
         while (tc->running()) {
             /* Walk each cursor. */
+            tc->transaction.try_begin(tc->session, "");
+
             for (const auto &it : cursors) {
                 if (it->next(it) != 0)
                     it->reset(it);
+                tc->transaction.op_count++;
             }
+
+            tc->transaction.try_rollback(tc->session, "");
             tc->sleep();
         }
+        /* Make sure the last operation is committed now the work is finished. */
+        if (tc->transaction.active())
+            tc->transaction.rollback(tc->session, "");
     }
 
     /*
@@ -218,9 +227,8 @@ class database_operation {
                   collection_id, collection_cursors{collection_name, random_cursor, update_cursor});
             }
 
-            /* Start a transaction. */
-            if (!tc->transaction.active())
-                tc->transaction.begin(tc->session, "");
+            /* Start a transaction if possible. */
+            tc->transaction.try_begin(tc->session, "");
 
             /* Get the random cursor associated with the collection. */
             auto collection = collections[collection_id];
@@ -262,7 +270,7 @@ class database_operation {
              * Additionally first get the update_cursor.
              */
             ret = update(tc->tracking, collection.update_cursor, collection.collection_name,
-              key.c_str(), generated_value.c_str(), ts);
+              key.c_str(), generated_value.c_str(), ts, tc->op_track_cursor);
 
             /* Increment the current op count for the current transaction. */
             tc->transaction.op_count++;
@@ -275,8 +283,7 @@ class database_operation {
                 tc->transaction.rollback(tc->session, "");
 
             /* Commit the current transaction if we're able to. */
-            if (tc->transaction.can_commit())
-                tc->transaction.commit(tc->session, "");
+            tc->transaction.try_commit(tc->session, "");
         }
 
         /* Make sure the last operation is committed now the work is finished. */
@@ -284,12 +291,12 @@ class database_operation {
             tc->transaction.commit(tc->session, "");
     }
 
-    private:
+    protected:
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     static int
     insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
-      const K &key, const V &value, wt_timestamp_t ts)
+      const K &key, const V &value, wt_timestamp_t ts, WT_CURSOR *op_track_cursor)
     {
         WT_DECL_RET;
         testutil_assert(cursor != nullptr);
@@ -306,14 +313,15 @@ class database_operation {
         }
 
         debug_print("key/value inserted", DEBUG_TRACE);
-        tracking->save_operation(tracking_operation::INSERT, collection_name, key, value, ts);
+        tracking->save_operation(
+          tracking_operation::INSERT, collection_name, key, value, ts, op_track_cursor);
         return (0);
     }
 
     template <typename K, typename V>
     static int
     update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
-      K key, V value, wt_timestamp_t ts)
+      K key, V value, wt_timestamp_t ts, WT_CURSOR *op_track_cursor)
     {
         WT_DECL_RET;
         testutil_assert(tracking != nullptr);
@@ -331,7 +339,8 @@ class database_operation {
         }
 
         debug_print("key/value updated", DEBUG_TRACE);
-        tracking->save_operation(tracking_operation::UPDATE, collection_name, key, value, ts);
+        tracking->save_operation(
+          tracking_operation::UPDATE, collection_name, key, value, ts, op_track_cursor);
         return (0);
     }
 
@@ -357,7 +366,7 @@ class database_operation {
       int64_t value_size)
     {
         WT_DECL_RET;
-        WT_CURSOR *cursor;
+        WT_CURSOR *cursor, *op_track_cursor = nullptr;
         std::string cfg;
         wt_timestamp_t ts;
         key_value_t generated_key, generated_value;
@@ -368,7 +377,11 @@ class database_operation {
              * session is closed, WiredTiger APIs close the cursors too.
              */
             testutil_check(
-              session->open_cursor(session, next_collection.c_str(), NULL, NULL, &cursor));
+              session->open_cursor(session, next_collection.c_str(), nullptr, nullptr, &cursor));
+            if (tracking->enabled())
+                testutil_check(
+                  session->open_cursor(session, tracking->get_operation_table_name().c_str(),
+                    nullptr, nullptr, &op_track_cursor));
             for (uint64_t i = 0; i < key_count; ++i) {
                 /* Generation of a unique key. */
                 generated_key = number_to_string(key_size, i);
@@ -384,7 +397,7 @@ class database_operation {
                 testutil_check(session->begin_transaction(session, nullptr));
 
                 ret = insert(cursor, tracking, next_collection, generated_key.c_str(),
-                  generated_value.c_str(), ts);
+                  generated_value.c_str(), ts, op_track_cursor);
 
                 /* This may require some sort of "stuck" mechanism but for now is fine. */
                 if (ret == WT_ROLLBACK)
@@ -397,6 +410,8 @@ class database_operation {
 
                 testutil_check(session->commit_transaction(session, cfg.c_str()));
             }
+            if (op_track_cursor != nullptr)
+                testutil_check(op_track_cursor->close(op_track_cursor));
         }
         debug_print("Populate: thread {" + std::to_string(worker_id) + "} finished", DEBUG_TRACE);
     }
