@@ -1193,6 +1193,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    uint32_t stable_rollback_maxfile;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1210,9 +1211,14 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * inconsistent.
      */
     if (__wt_btree_immediately_durable(session)) {
-        if (btree->id >= conn->stable_rollback_maxfile)
+        /*
+         * We increment the global value before using it, so the current value is already in use,
+         * and hence we need to add one here.
+         */
+        stable_rollback_maxfile = conn->next_file_id + 1;
+        if (btree->id >= stable_rollback_maxfile)
             WT_RET_PANIC(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
-              btree->id, conn->stable_rollback_maxfile);
+              btree->id, stable_rollback_maxfile);
         return (0);
     }
 
@@ -1670,11 +1676,6 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
           conn->recovery_ckpt_snapshot_count);
 
-    /*
-     * Allocate a non-durable btree bitstring. We increment the global value before using it, so the
-     * current value is already in use, and hence we need to add one here.
-     */
-    conn->stable_rollback_maxfile = conn->next_file_id + 1;
     WT_ERR(__rollback_to_stable_btree_apply_all(session, rollback_timestamp));
 
     /* Rollback the global durable timestamp to the stable timestamp. */
