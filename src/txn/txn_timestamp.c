@@ -635,15 +635,19 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
 {
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
     wt_timestamp_t oldest_ts, stable_ts;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool has_oldest_ts, has_stable_ts;
 
     txn = session->txn;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
     txn_global = &S2C(session)->txn_global;
 
     /* Added this redundant initialization to circumvent build failure. */
     oldest_ts = stable_ts = 0;
+    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
+        WT_RET_MSG(session, EINVAL, "durable timestamp has already been set");
 
     if (!F_ISSET(txn, WT_TXN_PREPARE))
         WT_RET_MSG(session, EINVAL,
@@ -683,6 +687,10 @@ __wt_txn_set_durable_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t durable_
           "durable timestamp %s is less than the commit timestamp %s for this transaction",
           __wt_timestamp_to_string(durable_ts, ts_string[0]),
           __wt_timestamp_to_string(txn->commit_timestamp, ts_string[1]));
+
+    /* Publish the durable timestamp. */
+    txn_shared->pinned_durable_timestamp = durable_ts;
+    F_SET(txn, WT_TXN_SHARED_TS_DURABLE);
 
     txn->durable_timestamp = durable_ts;
     F_SET(txn, WT_TXN_HAS_TS_DURABLE);
@@ -875,8 +883,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_txn_set_durable_timestamp(session, ts));
     }
 
-    __wt_txn_publish_durable_timestamp(session);
-
     /* Look for a read timestamp. */
     WT_RET(__wt_config_gets_def(session, cfg, "read_timestamp", 0, &cval));
     if (ret == 0 && cval.len != 0) {
@@ -895,42 +901,6 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
         WT_RET(__wt_txn_ts_log(session));
 
     return (0);
-}
-
-/*
- * __wt_txn_publish_durable_timestamp --
- *     Publish a transaction's durable timestamp.
- */
-void
-__wt_txn_publish_durable_timestamp(WT_SESSION_IMPL *session)
-{
-    WT_TXN *txn;
-    WT_TXN_SHARED *txn_shared;
-    wt_timestamp_t ts;
-
-    txn = session->txn;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
-
-    if (F_ISSET(txn, WT_TXN_SHARED_TS_DURABLE))
-        return;
-
-    if (F_ISSET(txn, WT_TXN_HAS_TS_DURABLE))
-        ts = txn->durable_timestamp;
-    else if (F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
-        /*
-         * If we know for a fact that this is a prepared transaction and we only have a commit
-         * timestamp, don't add to the durable queue. If we poll all_durable after setting the
-         * commit timestamp of a prepared transaction, that prepared transaction should NOT be
-         * visible.
-         */
-        if (F_ISSET(txn, WT_TXN_PREPARE))
-            return;
-        ts = txn->first_commit_timestamp;
-    } else
-        return;
-
-    txn_shared->pinned_durable_timestamp = ts;
-    F_SET(txn, WT_TXN_SHARED_TS_DURABLE);
 }
 
 /*
