@@ -1208,10 +1208,8 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
      *
      * Block out checkpoints to avoid spurious EBUSY errors.
      *
-     * Hold the schema lock across both salvage and rollback-to-stable so we know there are no open
-     * handles during rollback-to-stable. (Salvage will close any open handles before anything else,
-     * and the schema lock will prevent other threads from opening a handle between the salvage and
-     * the rollback-to-stable.)
+     * Hold the schema lock across both salvage and rollback-to-stable to avoid races where another
+     * thread opens the handle before rollback-to-stable completes.
      */
     WT_WITH_CHECKPOINT_LOCK(
       session, WT_WITH_SCHEMA_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
