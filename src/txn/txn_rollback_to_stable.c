@@ -1581,7 +1581,7 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
  *     history store files.
  */
 static int
-__rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback_timestamp)
+__rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     struct timespec rollback_timer;
     WT_CURSOR *cursor;
