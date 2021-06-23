@@ -267,7 +267,8 @@ class workload_validation {
          * cursor.
          */
         WT_CURSOR *cursor;
-        int ret = session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor);
+        int ret =
+          session->open_cursor(session.get(), collection_name.c_str(), nullptr, nullptr, &cursor);
         if (ret == 0)
             testutil_check(cursor->close(cursor));
         return (exists ? (ret == 0) : (ret != 0));
