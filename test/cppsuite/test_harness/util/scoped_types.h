@@ -33,7 +33,7 @@ class scoped_cursor {
     scoped_cursor() = default;
     scoped_cursor(WT_SESSION *session, const char *uri, const char *cfg)
     {
-        reset(session, uri, cfg);
+        reinit(session, uri, cfg);
     }
 
     virtual ~scoped_cursor()
@@ -60,7 +60,7 @@ class scoped_cursor {
     scoped_cursor &operator=(const scoped_cursor &) = delete;
 
     void
-    reset(WT_SESSION *session, const char *uri, const char *cfg)
+    reinit(WT_SESSION *session, const char *uri, const char *cfg)
     {
         if (_cursor != nullptr) {
             testutil_check(_cursor->close(_cursor));
@@ -97,7 +97,7 @@ class scoped_session {
     scoped_session() = default;
     explicit scoped_session(WT_CONNECTION *conn)
     {
-        reset(conn);
+        reinit(conn);
     }
 
     virtual ~scoped_session()
@@ -124,7 +124,7 @@ class scoped_session {
     scoped_session &operator=(const scoped_session &) = delete;
 
     void
-    reset(WT_CONNECTION *conn)
+    reinit(WT_CONNECTION *conn)
     {
         if (_session != nullptr) {
             testutil_check(_session->close(_session, nullptr));
