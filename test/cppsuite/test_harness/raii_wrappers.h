@@ -52,7 +52,7 @@ class scoped_cursor {
     operator=(scoped_cursor &&other)
     {
         scoped_cursor tmp(std::move(other));
-        std::swap(_cursor, other._cursor);
+        std::swap(_cursor, tmp._cursor);
         return (*this);
     }
 
@@ -116,7 +116,7 @@ class scoped_session {
     operator=(scoped_session &&other)
     {
         scoped_session tmp(std::move(other));
-        std::swap(_session, other._session);
+        std::swap(_session, tmp._session);
         return (*this);
     }
 

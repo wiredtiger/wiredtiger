@@ -240,8 +240,8 @@ class runtime_monitor : public component {
     }
 
     private:
-    scoped_cursor _cursor;
     scoped_session _session;
+    scoped_cursor _cursor;
     std::vector<statistic *> _stats;
     database &_database;
 };

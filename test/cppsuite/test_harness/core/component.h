@@ -41,7 +41,7 @@ class component {
     public:
     component(const std::string &name, configuration *config) : _name(name), _config(config) {}
 
-    ~component()
+    virtual ~component()
     {
         delete _config;
     }

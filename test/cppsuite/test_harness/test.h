@@ -93,6 +93,7 @@ class test : public database_operation {
         _workload_tracking = nullptr;
 
         _components.clear();
+        connection_manager::instance().close();
     }
 
     /* Delete the copy constructor and the assignment operator. */
@@ -166,7 +167,6 @@ class test : public database_operation {
         }
 
         debug_print("SUCCESS", DEBUG_INFO);
-        connection_manager::instance().close();
     }
 
     /*
