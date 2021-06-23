@@ -293,7 +293,7 @@ class database_operation {
     template <typename K, typename V>
     static int
     insert(scoped_cursor &cursor, workload_tracking *tracking, const std::string &collection_name,
-      const K &key, const V &value, wt_timestamp_t ts, WT_CURSOR *op_track_cursor)
+      const K &key, const V &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
     {
         WT_DECL_RET;
         testutil_assert(cursor.get() != nullptr);
@@ -318,7 +318,7 @@ class database_operation {
     template <typename K, typename V>
     static int
     update(workload_tracking *tracking, scoped_cursor &cursor, const std::string &collection_name,
-      K key, V value, wt_timestamp_t ts, WT_CURSOR *op_track_cursor)
+      K key, V value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
     {
         WT_DECL_RET;
         testutil_assert(tracking != nullptr);
@@ -363,7 +363,6 @@ class database_operation {
       int64_t key_count, int64_t key_size, int64_t value_size)
     {
         WT_DECL_RET;
-        WT_CURSOR *op_track_cursor = nullptr;
         std::string cfg;
         wt_timestamp_t ts;
         key_value_t generated_key, generated_value;
@@ -373,11 +372,11 @@ class database_operation {
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
              */
-            scoped_cursor cursor = session.open_scoped_cursor(next_collection.c_str());
+            scoped_cursor cursor = session.open_scoped_cursor(next_collection.c_str()),
+                          op_track_cursor;
             if (tracking->enabled())
-                testutil_check(
-                  session->open_cursor(session.get(), tracking->get_operation_table_name().c_str(),
-                    nullptr, nullptr, &op_track_cursor));
+                op_track_cursor =
+                  session.open_scoped_cursor(tracking->get_operation_table_name().c_str());
             for (uint64_t i = 0; i < key_count; ++i) {
                 /* Generation of a unique key. */
                 generated_key = number_to_string(key_size, i);
@@ -406,8 +405,6 @@ class database_operation {
 
                 testutil_check(session->commit_transaction(session.get(), cfg.c_str()));
             }
-            if (op_track_cursor != nullptr)
-                testutil_check(op_track_cursor->close(op_track_cursor));
         }
         debug_print("Populate: thread {" + std::to_string(worker_id) + "} finished", DEBUG_TRACE);
     }

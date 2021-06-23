@@ -176,17 +176,13 @@ class thread_context {
         _throttle = throttle(config);
 
         if (tracking->enabled())
-            testutil_check(session->open_cursor(session.get(),
-              tracking->get_operation_table_name().c_str(), nullptr, nullptr, &op_track_cursor));
+            op_track_cursor =
+              session.open_scoped_cursor(tracking->get_operation_table_name().c_str());
 
         testutil_assert(key_size > 0 && value_size > 0);
     }
 
-    virtual ~thread_context()
-    {
-        if (op_track_cursor != nullptr)
-            testutil_check(op_track_cursor->close(op_track_cursor));
-    }
+    virtual ~thread_context() = default;
 
     void
     finish()
@@ -207,7 +203,7 @@ class thread_context {
     }
 
     scoped_session session;
-    WT_CURSOR *op_track_cursor = nullptr;
+    scoped_cursor op_track_cursor;
     transaction_context transaction;
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;
