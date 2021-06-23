@@ -5,7 +5,7 @@ value_sz=1024
 icount=120000000
 run_time=3600
 select_latest=true
-threads=((count=20,reads=95,inserts=5))
+threads=((count=100,reads=95,inserts=5))
 warmup=120
 sample_interval=5
 populate_threads=8
