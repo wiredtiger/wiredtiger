@@ -3,6 +3,7 @@
 
 import re, string, sys, textwrap
 from dist import compare_srcfile, format_srcfile
+from operator import attrgetter
 
 # Read the source files.
 from stat_data import groups, dsrc_stats, connection_stats, conn_dsrc_stats, join_stats, \
@@ -10,8 +11,10 @@ from stat_data import groups, dsrc_stats, connection_stats, conn_dsrc_stats, joi
 
 connection_statistics = connection_stats
 connection_statistics.extend(conn_dsrc_stats)
+connection_statistics = sorted(connection_statistics, key=attrgetter('desc'))
 dsrc_statistics = dsrc_stats
 dsrc_statistics.extend(conn_dsrc_stats)
+dsrc_statistics = sorted(dsrc_statistics, key=attrgetter('desc'))
 
 def print_struct(title, name, base, stats):
     '''Print the structures for the stat.h file.'''
