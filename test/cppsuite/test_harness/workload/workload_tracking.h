@@ -66,13 +66,13 @@ class workload_tracking : public component {
     const std::string &
     get_schema_table_name() const
     {
-        return _schema_table_name;
+        return (_schema_table_name);
     }
 
     const std::string &
     get_operation_table_name() const
     {
-        return _operation_table_name;
+        return (_operation_table_name);
     }
 
     void
@@ -89,15 +89,15 @@ class workload_tracking : public component {
         session = connection_manager::instance().create_session();
         testutil_check(
           session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
-        testutil_check(
-          session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
+        testutil_check(session->open_cursor(
+          session, _schema_table_name.c_str(), nullptr, nullptr, &_cursor_schema));
         debug_print("Schema tracking initiated", DEBUG_TRACE);
 
         /* Initiate operations tracking. */
         testutil_check(
           session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
         testutil_check(session->open_cursor(
-          session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
+          session, _operation_table_name.c_str(), nullptr, nullptr, &_cursor_operations));
         debug_print("Operations tracking created", DEBUG_TRACE);
     }
 

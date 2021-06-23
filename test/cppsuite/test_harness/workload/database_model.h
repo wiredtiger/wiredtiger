@@ -66,7 +66,7 @@ class collection {
     get_key_count()
     {
         std::lock_guard<std::mutex> lg(_mtx);
-        return _key_count;
+        return (_key_count);
     }
 
     /*
@@ -79,7 +79,7 @@ class collection {
      *   2. Once the transaction has successfully committed then call increase_key_count() with the
      *      number of added keys.
      *
-     * The set of keys should be always be contiguous such that other threads calling get_key_count
+     * The set of keys should always be contiguous such that other threads calling get_key_count
      * will always know that the keys in existence are 0 -> _key_count - 1.
      */
     uint64_t
@@ -87,7 +87,7 @@ class collection {
     {
         std::lock_guard<std::mutex> lg(_mtx);
         _key_count += increment;
-        return _key_count;
+        return (_key_count);
     }
 
     std::map<key_value_t, key_t>
@@ -166,7 +166,7 @@ class database {
         std::lock_guard<std::mutex> lg(_mtx);
         const auto &it = _collections.find(id);
         if (it == _collections.end())
-            return nullptr;
+            return (nullptr);
         /* Make a copy. */
         return std::shared_ptr<collection>(it->second);
     }

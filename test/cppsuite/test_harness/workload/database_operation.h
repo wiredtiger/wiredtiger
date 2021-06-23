@@ -72,13 +72,12 @@ class database_operation {
         testutil_assert(key_count <= pow(10, key_size));
 
         /* Create n collections as per the configuration. */
-        for (int64_t i = 0; i < collection_count; ++i) {
+        for (int64_t i = 0; i < collection_count; ++i)
             /*
              * The database model will call into the API and create the collection, with its own
              * session.
              */
             database.add_collection(key_count);
-        }
 
         debug_print(
           "Populate: " + std::to_string(collection_count) + " collections created.", DEBUG_INFO);
@@ -129,7 +128,7 @@ class database_operation {
              i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             std::shared_ptr<collection> coll = tc->database.get_collection(i);
             testutil_check(
-              tc->session->open_cursor(tc->session, coll->name.c_str(), NULL, NULL, &cursor));
+              tc->session->open_cursor(tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
             ccv.push_back({std::shared_ptr<collection>(coll), cursor});
         }
 
@@ -182,7 +181,7 @@ class database_operation {
                 const auto &it = cursors.find(coll->id);
                 if (it == cursors.end()) {
                     testutil_check(tc->session->open_cursor(
-                      tc->session, coll->name.c_str(), NULL, NULL, &cursor));
+                      tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
                     cursors.emplace(coll->id, cursor);
                 } else
                     cursor = it->second;
@@ -286,7 +285,7 @@ class database_operation {
              * session is closed, WiredTiger APIs close the cursors too.
              */
             testutil_check(
-              tc->session->open_cursor(tc->session, coll->name.c_str(), NULL, NULL, &cursor));
+              tc->session->open_cursor(tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
             for (uint64_t i = 0; i < tc->key_count; ++i) {
                 /* Start a txn. */
                 tc->transaction.begin(tc->session, "");

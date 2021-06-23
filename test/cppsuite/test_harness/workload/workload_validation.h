@@ -85,7 +85,7 @@ class workload_validation {
 
         /* Parse the tracking table. */
         testutil_check(
-          session->open_cursor(session, operation_table_name.c_str(), NULL, NULL, &cursor));
+          session->open_cursor(session, operation_table_name.c_str(), nullptr, nullptr, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_id, &key, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
@@ -156,7 +156,7 @@ class workload_validation {
         int value_operation_type;
 
         testutil_check(
-          session->open_cursor(session, tracking_table_name.c_str(), NULL, NULL, &cursor));
+          session->open_cursor(session, tracking_table_name.c_str(), nullptr, nullptr, &cursor));
 
         while (cursor->next(cursor) == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_id, &key_timestamp));
@@ -275,8 +275,8 @@ class workload_validation {
     verify_collection_state(WT_SESSION *session, const uint64_t &collection_id, bool exists) const
     {
         WT_CURSOR *cursor;
-        int ret = session->open_cursor(
-          session, database::build_collection_name(collection_id).c_str(), NULL, NULL, &cursor);
+        int ret = session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor);
         return (exists ? (ret == 0) : (ret != 0));
     }
 
@@ -286,8 +286,8 @@ class workload_validation {
     is_key_present(WT_SESSION *session, const uint64_t &collection_id, const K &key)
     {
         WT_CURSOR *cursor;
-        testutil_check(session->open_cursor(
-          session, database::build_collection_name(collection_id).c_str(), NULL, NULL, &cursor));
+        testutil_check(session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
         cursor->set_key(cursor, key);
         return (cursor->search(cursor) == 0);
     }
@@ -301,8 +301,8 @@ class workload_validation {
         WT_CURSOR *cursor;
         const char *value;
 
-        testutil_check(session->open_cursor(
-          session, database::build_collection_name(collection_id).c_str(), NULL, NULL, &cursor));
+        testutil_check(session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
         cursor->set_key(cursor, key);
         testutil_check(cursor->search(cursor));
         testutil_check(cursor->get_value(cursor, &value));

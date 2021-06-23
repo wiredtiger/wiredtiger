@@ -90,7 +90,7 @@ class component {
     bool
     enabled() const
     {
-        return _enabled;
+        return (_enabled);
     }
 
     /*

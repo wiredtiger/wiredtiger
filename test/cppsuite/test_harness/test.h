@@ -180,25 +180,25 @@ class test : public database_operation {
     workload_generator *
     get_workload_generator()
     {
-        return _workload_generator;
+        return (_workload_generator);
     }
 
     runtime_monitor *
     get_runtime_monitor()
     {
-        return _runtime_monitor;
+        return (_runtime_monitor);
     }
 
     timestamp_manager *
     get_timestamp_manager()
     {
-        return _timestamp_manager;
+        return (_timestamp_manager);
     }
 
     thread_manager *
     get_thread_manager()
     {
-        return _thread_manager;
+        return (_thread_manager);
     }
 
     private:

@@ -93,7 +93,7 @@ class connection_manager {
         }
 
         _conn_mutex.lock();
-        testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
+        testutil_check(_conn->open_session(_conn, nullptr, nullptr, &session));
         _conn_mutex.unlock();
 
         return (session);
