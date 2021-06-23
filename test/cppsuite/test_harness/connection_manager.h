@@ -38,7 +38,7 @@ extern "C" {
 
 #include "util/api_const.h"
 #include "util/debug_utils.h"
-#include "raii_wrappers.h"
+#include "util/scoped_types.h"
 
 namespace test_harness {
 /*
