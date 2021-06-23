@@ -47,30 +47,28 @@ class hs_cleanup : public test {
     void
     update_operation(thread_context *tc) override final
     {
-        WT_CURSOR *cursor = nullptr;
         WT_DECL_RET;
         const char *key_tmp;
-        auto session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
         std::string collection_name = tc->database.get_collection_name(tc->id);
         wt_timestamp_t ts;
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->database.get_collection_count() == tc->thread_count);
-        testutil_check(
-          session->open_cursor(session.get(), collection_name.c_str(), nullptr, nullptr, &cursor));
+        scoped_cursor cursor = session.open_scoped_cursor(collection_name.c_str());
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
             tc->sleep();
-            ret = cursor->next(cursor);
+            ret = cursor->next(cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-                    testutil_check(cursor->reset(cursor));
+                    testutil_check(cursor->reset(cursor.get()));
                     continue;
                 } else
                     testutil_die(ret, "cursor->next() failed unexpectedly.");
             }
-            testutil_check(cursor->get_key(cursor, &key_tmp));
+            testutil_check(cursor->get_key(cursor.get(), &key_tmp));
 
             /* Start a transaction if possible. */
             tc->transaction.try_begin(tc->session.get(), "");

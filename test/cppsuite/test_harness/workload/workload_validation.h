@@ -57,14 +57,13 @@ class workload_validation {
       database &database)
     {
         WT_DECL_RET;
-        WT_CURSOR *cursor;
         wt_timestamp_t key_timestamp;
         std::vector<std::string> created_collections, deleted_collections;
         const char *key, *key_collection_name, *value;
         int value_operation_type;
         std::string collection_name;
 
-        auto session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
         parse_schema_tracking_table(
@@ -82,11 +81,11 @@ class workload_validation {
         }
 
         /* Parse the tracking table. */
-        testutil_check(
-          session->open_cursor(session.get(), operation_table_name.c_str(), NULL, NULL, &cursor));
-        while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
-            testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
+        scoped_cursor cursor = session.open_scoped_cursor(operation_table_name.c_str());
+        while ((ret = cursor->next(cursor.get())) == 0) {
+            testutil_check(
+              cursor->get_key(cursor.get(), &key_collection_name, &key, &key_timestamp));
+            testutil_check(cursor->get_value(cursor.get(), &value_operation_type, &value));
 
             debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
             debug_print("Key is " + std::string(key), DEBUG_TRACE);
@@ -148,17 +147,15 @@ class workload_validation {
     parse_schema_tracking_table(scoped_session &session, const std::string &collection_name,
       std::vector<std::string> &created_collections, std::vector<std::string> &deleted_collections)
     {
-        WT_CURSOR *cursor;
         wt_timestamp_t key_timestamp;
         const char *key_collection_name;
         int value_operation_type;
 
-        testutil_check(
-          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
+        scoped_cursor cursor = session.open_scoped_cursor(collection_name.c_str());
 
-        while (cursor->next(cursor) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
-            testutil_check(cursor->get_value(cursor, &value_operation_type));
+        while (cursor->next(cursor.get()) == 0) {
+            testutil_check(cursor->get_key(cursor.get(), &key_collection_name, &key_timestamp));
+            testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
 
             debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
             debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
@@ -265,8 +262,14 @@ class workload_validation {
     verify_collection_state(
       scoped_session &session, const std::string &collection_name, bool exists) const
     {
+        /*
+         * We don't necessarily expect to successfully open the cursor so don't create a scoped
+         * cursor.
+         */
         WT_CURSOR *cursor;
         int ret = session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor);
+        if (ret == 0)
+            testutil_check(cursor->close(cursor));
         return (exists ? (ret == 0) : (ret != 0));
     }
 
@@ -275,11 +278,9 @@ class workload_validation {
     bool
     is_key_present(scoped_session &session, const std::string &collection_name, const K &key)
     {
-        WT_CURSOR *cursor;
-        testutil_check(
-          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
-        cursor->set_key(cursor, key);
-        return (cursor->search(cursor) == 0);
+        scoped_cursor cursor = session.open_scoped_cursor(collection_name.c_str());
+        cursor->set_key(cursor.get(), key);
+        return (cursor->search(cursor.get()) == 0);
     }
 
     /* Verify the given expected value is the same on disk. */
@@ -288,14 +289,12 @@ class workload_validation {
     verify_value(scoped_session &session, const std::string &collection_name, const K &key,
       const V &expected_value)
     {
-        WT_CURSOR *cursor;
         const char *value;
 
-        testutil_check(
-          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
-        cursor->set_key(cursor, key);
-        testutil_check(cursor->search(cursor));
-        testutil_check(cursor->get_value(cursor, &value));
+        scoped_cursor cursor = session.open_scoped_cursor(collection_name.c_str());
+        cursor->set_key(cursor.get(), key);
+        testutil_check(cursor->search(cursor.get()));
+        testutil_check(cursor->get_value(cursor.get(), &value));
 
         return (key_value_t(value) == expected_value);
     }

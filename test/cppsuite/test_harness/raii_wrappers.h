@@ -31,9 +31,9 @@ namespace test_harness {
 class scoped_cursor {
     public:
     scoped_cursor() = default;
-    scoped_cursor(WT_SESSION *session, const char *uri)
+    scoped_cursor(WT_SESSION *session, const char *uri, const char *cfg)
     {
-        testutil_check(session->open_cursor(session, uri, nullptr, nullptr, &_cursor));
+        reset(session, uri, cfg);
     }
 
     virtual ~scoped_cursor()
@@ -51,11 +51,36 @@ class scoped_cursor {
     scoped_cursor &
     operator=(scoped_cursor &&other)
     {
+        scoped_cursor tmp(std::move(other));
         std::swap(_cursor, other._cursor);
+        return (*this);
     }
 
     scoped_cursor(const scoped_cursor &) = delete;
     scoped_cursor &operator=(const scoped_cursor &) = delete;
+
+    void
+    reset(WT_SESSION *session, const char *uri, const char *cfg)
+    {
+        if (_cursor != nullptr) {
+            testutil_check(_cursor->close(_cursor));
+            _cursor = nullptr;
+        }
+        if (session != nullptr)
+            testutil_check(session->open_cursor(session, uri, nullptr, cfg, &_cursor));
+    }
+
+    WT_CURSOR &
+    operator*()
+    {
+        return (*_cursor);
+    }
+
+    WT_CURSOR *
+    operator->()
+    {
+        return (_cursor);
+    }
 
     WT_CURSOR *
     get()
@@ -90,7 +115,9 @@ class scoped_session {
     scoped_session &
     operator=(scoped_session &&other)
     {
+        scoped_session tmp(std::move(other));
         std::swap(_session, other._session);
+        return (*this);
     }
 
     scoped_session(const scoped_session &) = delete;
@@ -126,9 +153,9 @@ class scoped_session {
     }
 
     scoped_cursor
-    open_scoped_cursor(const char *uri)
+    open_scoped_cursor(const char *uri, const char *cfg = nullptr)
     {
-        return (scoped_cursor(_session, uri));
+        return (scoped_cursor(_session, uri, cfg));
     }
 
     private:

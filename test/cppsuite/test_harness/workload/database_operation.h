@@ -63,7 +63,7 @@ class database_operation {
         thread_manager tm;
 
         /* Get a session. */
-        auto session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
 
         /* Get our configuration values, validating that they make sense. */
         collection_count = config->get_int(COLLECTION_COUNT);
@@ -131,14 +131,12 @@ class database_operation {
     {
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
-        WT_CURSOR *cursor;
-        std::vector<WT_CURSOR *> cursors;
+        std::vector<scoped_cursor> cursors;
 
         /* Get a cursor for each collection in collection_names. */
         for (const auto &it : tc->database.get_collection_names()) {
-            testutil_check(
-              tc->session->open_cursor(tc->session.get(), it.c_str(), NULL, NULL, &cursor));
-            cursors.push_back(cursor);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(it.c_str());
+            cursors.push_back(std::move(cursor));
             debug_print("Adding collection to read thread: " + it, DEBUG_TRACE);
         }
 
@@ -146,9 +144,9 @@ class database_operation {
             /* Walk each cursor. */
             tc->transaction.try_begin(tc->session.get(), "");
 
-            for (const auto &it : cursors) {
-                if (it->next(it) != 0)
-                    it->reset(it);
+            for (auto &it : cursors) {
+                if (it->next(it.get()) != 0)
+                    it->reset(it.get());
                 tc->transaction.op_count++;
             }
 
@@ -173,8 +171,7 @@ class database_operation {
         /* A structure that's used to track which cursors we've opened for which collection. */
         struct collection_cursors {
             const std::string collection_name;
-            WT_CURSOR *random_cursor;
-            WT_CURSOR *update_cursor;
+            scoped_cursor random_cursor, update_cursor;
         };
 
         WT_DECL_RET;
@@ -205,7 +202,6 @@ class database_operation {
               random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1);
 
             if (collections.find(collection_id) == collections.end()) {
-                WT_CURSOR *random_cursor = nullptr, *update_cursor = nullptr;
                 /* Retrieve the collection name associated with our id. */
                 collection_name = std::move(tc->database.get_collection_name(collection_id));
                 debug_print("Thread {" + std::to_string(tc->id) +
@@ -213,33 +209,35 @@ class database_operation {
                   DEBUG_TRACE);
 
                 /* Open a random cursor for that collection. */
-                tc->session->open_cursor(tc->session.get(), collection_name.c_str(), nullptr,
-                  "next_random=true", &random_cursor);
+                scoped_cursor random_cursor =
+                  tc->session.open_scoped_cursor(collection_name.c_str(), "next_random=true");
                 /*
                  * We can't call update on a random cursor so we open two cursors here, one to do
                  * the randomized next and one to subsequently update the key.
                  */
-                tc->session->open_cursor(
-                  tc->session.get(), collection_name.c_str(), nullptr, nullptr, &update_cursor);
+                scoped_cursor update_cursor =
+                  tc->session.open_scoped_cursor(collection_name.c_str());
 
-                collections.emplace(
-                  collection_id, collection_cursors{collection_name, random_cursor, update_cursor});
+                collections.emplace(collection_id,
+                  collection_cursors{
+                    collection_name, std::move(random_cursor), std::move(update_cursor)});
             }
 
             /* Start a transaction if possible. */
             tc->transaction.try_begin(tc->session.get(), "");
 
             /* Get the random cursor associated with the collection. */
-            auto collection = collections[collection_id];
+            auto &collection = collections[collection_id];
             /* Call next to pick a new random record. */
-            ret = collection.random_cursor->next(collection.random_cursor);
+            ret = collection.random_cursor->next(collection.random_cursor.get());
             if (ret == WT_NOTFOUND)
                 continue;
             else if (ret != 0)
                 testutil_die(ret, "unhandled error returned by cursor->next()");
 
             /* Get the record's key. */
-            testutil_check(collection.random_cursor->get_key(collection.random_cursor, &key_tmp));
+            testutil_check(
+              collection.random_cursor->get_key(collection.random_cursor.get(), &key_tmp));
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -294,16 +292,16 @@ class database_operation {
     /* WiredTiger APIs wrappers for single operations. */
     template <typename K, typename V>
     static int
-    insert(WT_CURSOR *cursor, workload_tracking *tracking, const std::string &collection_name,
+    insert(scoped_cursor &cursor, workload_tracking *tracking, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts)
     {
         WT_DECL_RET;
-        testutil_assert(cursor != nullptr);
+        testutil_assert(cursor.get() != nullptr);
 
-        cursor->set_key(cursor, key);
-        cursor->set_value(cursor, value);
+        cursor->set_key(cursor.get(), key);
+        cursor->set_value(cursor.get(), value);
 
-        ret = cursor->insert(cursor);
+        ret = cursor->insert(cursor.get());
         if (ret != 0) {
             if (ret == WT_ROLLBACK)
                 return (ret);
@@ -318,17 +316,17 @@ class database_operation {
 
     template <typename K, typename V>
     static int
-    update(workload_tracking *tracking, WT_CURSOR *cursor, const std::string &collection_name,
+    update(workload_tracking *tracking, scoped_cursor &cursor, const std::string &collection_name,
       K key, V value, wt_timestamp_t ts)
     {
         WT_DECL_RET;
         testutil_assert(tracking != nullptr);
-        testutil_assert(cursor != nullptr);
+        testutil_assert(cursor.get() != nullptr);
 
-        cursor->set_key(cursor, key);
-        cursor->set_value(cursor, value);
+        cursor->set_key(cursor.get(), key);
+        cursor->set_value(cursor.get(), value);
 
-        ret = cursor->update(cursor);
+        ret = cursor->update(cursor.get());
         if (ret != 0) {
             if (ret == WT_ROLLBACK)
                 return (ret);
@@ -363,7 +361,6 @@ class database_operation {
       int64_t key_count, int64_t key_size, int64_t value_size)
     {
         WT_DECL_RET;
-        WT_CURSOR *cursor;
         std::string cfg;
         wt_timestamp_t ts;
         key_value_t generated_key, generated_value;
@@ -373,8 +370,7 @@ class database_operation {
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
              */
-            testutil_check(
-              session->open_cursor(session.get(), next_collection.c_str(), NULL, NULL, &cursor));
+            scoped_cursor cursor = session.open_scoped_cursor(next_collection.c_str());
             for (uint64_t i = 0; i < key_count; ++i) {
                 /* Generation of a unique key. */
                 generated_key = number_to_string(key_size, i);

@@ -84,7 +84,7 @@ class workload_tracking : public component {
             return;
 
         /* Initiate schema tracking. */
-        auto session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
         testutil_check(
           session->create(session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
         testutil_check(session->open_cursor(
