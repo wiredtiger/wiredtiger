@@ -152,7 +152,8 @@ class database {
             _session = connection_manager::instance().create_session();
         uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);
-        _collections.emplace(next_id, new collection(next_id, key_count, collection_name));
+        _collections.emplace(
+          next_id, std::make_shared<collection>(next_id, key_count, collection_name));
         testutil_check(
           _session->create(_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
