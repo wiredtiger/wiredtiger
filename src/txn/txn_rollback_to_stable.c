@@ -346,7 +346,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
 
         /*
          * Do not include history store updates greater than on-disk data store version to construct
-         * a full update to restore except when the on-disk update is prepared. Include the most
+         * a full update to restore except when the on-disk update is prepared. Including more
          * recent updates than the on-disk version shouldn't be problem as the on-disk version in
          * history store is always a full update. It is better to not to include those updates as it
          * unnecessarily increases the rollback to stable time.
