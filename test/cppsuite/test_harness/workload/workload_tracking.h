@@ -78,26 +78,24 @@ class workload_tracking : public component {
     void
     load() override final
     {
-        WT_SESSION *session;
-
         component::load();
 
         if (!_enabled)
             return;
 
         /* Initiate schema tracking. */
-        session = connection_manager::instance().create_session();
+        auto session = connection_manager::instance().create_session();
         testutil_check(
-          session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
-        testutil_check(
-          session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
+          session->create(session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
+        testutil_check(session->open_cursor(
+          session.get(), _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
         debug_print("Schema tracking initiated", DEBUG_TRACE);
 
         /* Initiate operations tracking. */
-        testutil_check(
-          session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
+        testutil_check(session->create(
+          session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
         testutil_check(session->open_cursor(
-          session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
+          session.get(), _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
         debug_print("Operations tracking created", DEBUG_TRACE);
     }
 

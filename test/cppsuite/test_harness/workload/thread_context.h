@@ -196,7 +196,7 @@ class thread_context {
         return (_running);
     }
 
-    WT_SESSION *session;
+    scoped_session session;
     transaction_context transaction;
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;

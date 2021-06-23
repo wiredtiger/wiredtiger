@@ -58,14 +58,13 @@ class workload_validation {
     {
         WT_DECL_RET;
         WT_CURSOR *cursor;
-        WT_SESSION *session;
         wt_timestamp_t key_timestamp;
         std::vector<std::string> created_collections, deleted_collections;
         const char *key, *key_collection_name, *value;
         int value_operation_type;
         std::string collection_name;
 
-        session = connection_manager::instance().create_session();
+        auto session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
         parse_schema_tracking_table(
@@ -84,7 +83,7 @@ class workload_validation {
 
         /* Parse the tracking table. */
         testutil_check(
-          session->open_cursor(session, operation_table_name.c_str(), NULL, NULL, &cursor));
+          session->open_cursor(session.get(), operation_table_name.c_str(), NULL, NULL, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
@@ -146,7 +145,7 @@ class workload_validation {
      * the test.
      */
     void
-    parse_schema_tracking_table(WT_SESSION *session, const std::string &collection_name,
+    parse_schema_tracking_table(scoped_session &session, const std::string &collection_name,
       std::vector<std::string> &created_collections, std::vector<std::string> &deleted_collections)
     {
         WT_CURSOR *cursor;
@@ -154,7 +153,8 @@ class workload_validation {
         const char *key_collection_name;
         int value_operation_type;
 
-        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+        testutil_check(
+          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
 
         while (cursor->next(cursor) == 0) {
             testutil_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
@@ -216,7 +216,7 @@ class workload_validation {
      * representation in memory of the collection values and keys according to the tracking table.
      */
     void
-    check_reference(WT_SESSION *session, const std::string &collection_name, database &database)
+    check_reference(scoped_session &session, const std::string &collection_name, database &database)
     {
         bool is_valid;
         key_t key;
@@ -263,20 +263,21 @@ class workload_validation {
      */
     bool
     verify_collection_state(
-      WT_SESSION *session, const std::string &collection_name, bool exists) const
+      scoped_session &session, const std::string &collection_name, bool exists) const
     {
         WT_CURSOR *cursor;
-        int ret = session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor);
+        int ret = session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor);
         return (exists ? (ret == 0) : (ret != 0));
     }
 
     /* Check whether a keys exists in a collection on disk. */
     template <typename K>
     bool
-    is_key_present(WT_SESSION *session, const std::string &collection_name, const K &key)
+    is_key_present(scoped_session &session, const std::string &collection_name, const K &key)
     {
         WT_CURSOR *cursor;
-        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+        testutil_check(
+          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
         return (cursor->search(cursor) == 0);
     }
@@ -284,13 +285,14 @@ class workload_validation {
     /* Verify the given expected value is the same on disk. */
     template <typename K, typename V>
     bool
-    verify_value(WT_SESSION *session, const std::string &collection_name, const K &key,
+    verify_value(scoped_session &session, const std::string &collection_name, const K &key,
       const V &expected_value)
     {
         WT_CURSOR *cursor;
         const char *value;
 
-        testutil_check(session->open_cursor(session, collection_name.c_str(), NULL, NULL, &cursor));
+        testutil_check(
+          session->open_cursor(session.get(), collection_name.c_str(), NULL, NULL, &cursor));
         cursor->set_key(cursor, key);
         testutil_check(cursor->search(cursor));
         testutil_check(cursor->get_value(cursor, &value));

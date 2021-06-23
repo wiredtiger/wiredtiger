@@ -217,7 +217,7 @@ class runtime_monitor : public component {
             _session = connection_manager::instance().create_session();
 
             /* Open our statistic cursor. */
-            _session->open_cursor(_session, STATISTICS_URI, nullptr, nullptr, &_cursor);
+            _cursor = _session.open_scoped_cursor(STATISTICS_URI);
 
             /* Load known statistics. */
             sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
@@ -235,13 +235,13 @@ class runtime_monitor : public component {
     {
         for (const auto &it : _stats) {
             if (it->enabled())
-                it->check(_cursor);
+                it->check(_cursor.get());
         }
     }
 
     private:
-    WT_CURSOR *_cursor = nullptr;
-    WT_SESSION *_session = nullptr;
+    scoped_cursor _cursor;
+    scoped_session _session;
     std::vector<statistic *> _stats;
     database &_database;
 };
