@@ -218,8 +218,12 @@ main(int argc, char *argv[])
      * file, used when running checks.
      */
     if (g.reopen) {
-        if (config != NULL)
-            testutil_die(EINVAL, "-c incompatible with -R");
+        /*
+         * The test-format binary can now reopen an already existing database with different CONFIG
+         * file because some configurations are not supported by the older release and in
+         * compatibility testing we want the test format binary to operate on the CONFIG that it
+         * understands.
+         */
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
         config = g.home_config;
