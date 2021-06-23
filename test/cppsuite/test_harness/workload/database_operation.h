@@ -127,6 +127,9 @@ class database_operation {
         for (int i = tc->id * collections_per_thread;
              i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             std::shared_ptr<collection> coll = tc->database.get_collection(i);
+            if (coll == nullptr)
+                testutil_die(
+                  DEBUG_ERROR, "insert_operation: collection id %lu not found in the model", i);
             testutil_check(
               tc->session->open_cursor(tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
             ccv.push_back({std::shared_ptr<collection>(coll), cursor});
@@ -178,6 +181,12 @@ class database_operation {
             {
                 /* Get a collection and find a cached cursor. */
                 std::shared_ptr<collection> coll = tc->database.get_random_collection();
+                if (coll == nullptr) {
+                    debug_print(
+                      "insert_operation: no collections found, did you forget to create one ?",
+                      DEBUG_ERROR);
+                    break;
+                }
                 const auto &it = cursors.find(coll->id);
                 if (it == cursors.end()) {
                     testutil_check(tc->session->open_cursor(
@@ -230,6 +239,12 @@ class database_operation {
             /* Pick a random collection to update. */
             {
                 std::shared_ptr<collection> coll = tc->database.get_random_collection();
+                if (!coll) {
+                    debug_print(
+                      "update_operation: no collections found, did you forget to create one ?",
+                      DEBUG_ERROR);
+                    break;
+                }
                 collection_id = coll->id;
 
                 /* Look for existing cursors in our cursor cache. */
@@ -280,6 +295,10 @@ class database_operation {
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             std::shared_ptr<collection> coll =
               tc->database.get_collection((tc->id * collections_per_thread) + i);
+            if (coll == nullptr)
+                testutil_die(DEBUG_ERROR,
+                  "populate_worker: collection id %lu not found in the model",
+                  (tc->id * collections_per_thread) + i);
             /*
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
