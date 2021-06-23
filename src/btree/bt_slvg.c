@@ -591,6 +591,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * Column-store fixed-sized format: start and stop keys can be taken from the block's
          * header, and doesn't contain overflow items.
          */
+        WT_TIME_AGGREGATE_INIT(&trk->trk_ta);
         trk->col_start = dsk->recno;
         trk->col_stop = dsk->recno + (dsk->u.entries - 1);
 
@@ -599,12 +600,11 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
           trk->col_stop);
         break;
     case WT_PAGE_COL_VAR:
-        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
-
         /*
          * Column-store variable-length format: the start key can be taken from the block's header,
          * stop key requires walking the page.
          */
+        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
         stop_recno = dsk->recno;
         WT_CELL_FOREACH_KV (session, dsk, unpack) {
             stop_recno += __wt_cell_rle(&unpack);
