@@ -222,12 +222,12 @@ upgrade_downgrade()
             for reps in {1..2}; do
                 echo "$1 format running on $2 access method $am..."
                 cd "$top/$1/test/format"
-                flags="-1q $(bflag $1)"
+                flags="-1Rq $(bflag $1)"
                 ./t $flags -c "$top/$2/test/format/${file_name_1}" -h "$top/$2/test/format/RUNDIR.$am" timer=2
 
                 echo "$2 format running on $2 access method $am..."
                 cd "$top/$2/test/format"
-                flags="-1q $(bflag $2)"
+                flags="-1Rq $(bflag $2)"
                 ./t $flags -c $file_name_2 -h "RUNDIR.$am" timer=2
             done
         done
