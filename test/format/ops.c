@@ -505,7 +505,6 @@ commit_transaction(TINFO *tinfo, bool prepared)
     session = tinfo->session;
 
     ts = 0; /* -Wconditional-uninitialized */
-
     if (g.c_txn_timestamps) {
         /* Lock out the oldest timestamp update. */
         lock_readlock(session, &g.ts_lock);
