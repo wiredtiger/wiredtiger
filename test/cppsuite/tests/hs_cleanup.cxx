@@ -74,7 +74,11 @@ class hs_cleanup : public test {
             /* Start a transaction if possible. */
             tc->transaction.try_begin(tc->session, "");
 
-            /* Update the record. Copy the key to avoid the buffer being invalidated. */
+            /*
+             * The retrieved key needs to be passed inside the update function. However, the update
+             * API doesn't guarantee our buffer will still be valid once it is called, as such we
+             * copy the buffer and then pass it into the API.
+             */
             if (!tc->update(cursor, coll.id, key_value_t(key_tmp)))
                 continue;
 

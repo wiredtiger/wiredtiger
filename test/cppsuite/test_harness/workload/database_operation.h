@@ -245,11 +245,6 @@ class database_operation {
             /* Choose a random key to update. */
             uint64_t key_id =
               random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-            /*
-             * The retrieved key needs to be passed inside the update function. However, the update
-             * API doesn't guarantee our buffer will still be valid once it is called, as such we
-             * copy the buffer and then pass it into the API.
-             */
             if (!tc->update(cursor, collection_id, tc->key_to_string(key_id)))
                 continue;
 
