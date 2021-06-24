@@ -129,10 +129,8 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
 
-        # Close all cursors and sessions, this will cause prepared updates to be
-        # rollback-ed
+        # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
         for j in range (0, nsessions):
-            cursors[j].close()
             sessions[j].close()
 
         # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
