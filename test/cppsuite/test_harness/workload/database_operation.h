@@ -310,8 +310,15 @@ class database_operation {
         }
 
         debug_print("key/value inserted", DEBUG_TRACE);
-        tracking->save_operation(
+        ret = tracking->save_operation(
           tracking_operation::INSERT, collection_name, key, value, ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK)
+                return (ret);
+            else
+                testutil_die(
+                  ret, "unhandled error while trying to save insert to operation tracking table.");
+        }
         return (0);
     }
 
@@ -336,8 +343,15 @@ class database_operation {
         }
 
         debug_print("key/value updated", DEBUG_TRACE);
-        tracking->save_operation(
+        ret = tracking->save_operation(
           tracking_operation::UPDATE, collection_name, key, value, ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK)
+                return (ret);
+            else
+                testutil_die(
+                  ret, "unhandled error while trying to save insert to operation tracking table.");
+        }
         return (0);
     }
 

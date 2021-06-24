@@ -126,14 +126,15 @@ class workload_tracking : public component {
     }
 
     template <typename K, typename V>
-    void
+    int
     save_operation(const tracking_operation &operation, const std::string &collection_name,
       const K &key, const V &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
     {
+        WT_DECL_RET;
         std::string error_message;
 
         if (!_enabled)
-            return;
+            return (0);
 
         testutil_assert(op_track_cursor.get() != nullptr);
 
@@ -145,9 +146,10 @@ class workload_tracking : public component {
         } else {
             op_track_cursor->set_key(op_track_cursor.get(), collection_name.c_str(), key, ts);
             op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
-            testutil_check(op_track_cursor->insert(op_track_cursor.get()));
+            ret = op_track_cursor->insert(op_track_cursor.get());
         }
         debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
+        return (ret);
     }
 
     private:
