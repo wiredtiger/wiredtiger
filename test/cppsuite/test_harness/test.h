@@ -68,7 +68,8 @@ class test : public database_operation {
           this, _timestamp_manager, _workload_tracking, _database);
         _thread_manager = new thread_manager();
 
-        _database.add_components(_timestamp_manager, _workload_tracking);
+        _database.set_timestamp_manager(_timestamp_manager);
+        _database.set_workload_tracking(_workload_tracking);
 
         /*
          * Ordering is not important here, any dependencies between components should be resolved

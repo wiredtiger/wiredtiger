@@ -221,10 +221,16 @@ class database {
     }
 
     void
-    add_components(timestamp_manager *tsm, workload_tracking *tracking)
+    set_timestamp_manager(timestamp_manager *tsm)
     {
-        testutil_assert(_tsm == nullptr && _tracking == nullptr);
+        testutil_assert(_tsm == nullptr);
         _tsm = tsm;
+    }
+
+    void
+    set_workload_tracking(workload_tracking *tracking)
+    {
+        testutil_assert(_tracking == nullptr);
         _tracking = tracking;
     }
 
