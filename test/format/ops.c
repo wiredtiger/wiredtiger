@@ -526,8 +526,8 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
         lock_writeunlock(session, &g.ts_lock);
     }
-
     testutil_check(session->commit_transaction(session, NULL));
+
     if (prepared)
         lock_readunlock(session, &g.prepare_commit_lock);
 
