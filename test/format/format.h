@@ -139,6 +139,7 @@ typedef struct {
      * that requires locking out transactional ops that set a timestamp.
      */
     RWLOCK ts_lock;
+    RWLOCK prepare_commit_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
