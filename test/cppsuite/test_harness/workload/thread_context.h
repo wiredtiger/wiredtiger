@@ -191,7 +191,17 @@ class thread_context {
         session = connection_manager::instance().create_session();
         _throttle = throttle(config);
 
+        if (tracking->enabled())
+            testutil_check(session->open_cursor(session,
+              tracking->get_operation_table_name().c_str(), nullptr, nullptr, &op_track_cursor));
+
         testutil_assert(key_size > 0 && value_size > 0);
+    }
+
+    virtual ~thread_context()
+    {
+        if (op_track_cursor != nullptr)
+            testutil_check(op_track_cursor->close(op_track_cursor));
     }
 
     void
@@ -241,8 +251,8 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to update a key");
         }
-        tracking->save_operation(
-          tracking_operation::UPDATE, collection_id, key.c_str(), value.c_str(), ts);
+        tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
+          value.c_str(), ts, _op_track_cursor);
         transaction.add_op();
         debug_print("key/value updated", DEBUG_TRACE);
         return (true);
@@ -281,8 +291,8 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to insert a key");
         }
-        tracking->save_operation(
-          tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts);
+        tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
+          value.c_str(), ts, _op_track_cursor);
         transaction.add_op();
         debug_print("key/value insert", DEBUG_TRACE);
         return (true);
@@ -301,6 +311,7 @@ class thread_context {
     }
 
     WT_SESSION *session;
+    WT_CURSOR *op_track_cursor = nullptr;
     transaction_context transaction;
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;

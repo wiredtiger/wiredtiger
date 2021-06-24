@@ -283,6 +283,7 @@ class database_operation {
                     testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
                 tc->transaction.commit(tc->session, "");
             }
+            cursor->close(cursor);
         }
         debug_print("Populate: thread {" + std::to_string(tc->id) + "} finished", DEBUG_TRACE);
     }
