@@ -3,7 +3,7 @@ pareto=20
 table_config="type=file"
 key_sz=100
 value_sz=1024
-icount=240000000
+icount=180000000
 run_time=3600
 threads=((count=20,reads=95,inserts=5))
 read_range=100
