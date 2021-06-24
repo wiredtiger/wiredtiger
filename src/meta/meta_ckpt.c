@@ -578,15 +578,11 @@ __meta_ckptlist_allocate_new_ckpt(
         WT_CKPT_FOREACH (ckptbase, ckpt)
             slot++;
 
-    /* Either we have a configuration or an existing checkpoint to initialize with. */
-    WT_ASSERT(session, config != NULL || slot != 0);
-
     /*
-     * If we are using an existing checkpoint, we must have the associated metadata. Otherwise we
-     * will have to go slow path and read the metadata.
+     * Either we have a configuration or an existing checkpoint to initialize with. Also, If we are
+     * using an existing checkpoint, we must have the associated metadata.
      */
-    if (config == NULL && ckptbase[slot - 1].block_metadata == NULL)
-        return (WT_NOTFOUND);
+    WT_ASSERT(session, config != NULL || (slot != 0 && ckptbase[slot - 1].block_metadata != NULL));
 
     /*
      * This isn't clean, but there's necessary cooperation between the schema layer (that maintains
@@ -778,6 +774,7 @@ __wt_meta_ckptlist_get_from_config(WT_SESSION_IMPL *session, bool update, WT_CKP
             ckpt = &ckptbase[slot];
 
             WT_ERR(__ckpt_load(session, &k, &v, ckpt));
+            WT_ERR(__wt_meta_block_metadata(session, config, ckpt));
         }
     }
     WT_ERR_NOTFOUND_OK(ret, false);
