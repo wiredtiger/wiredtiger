@@ -294,9 +294,11 @@ timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
       g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
 
-    lock_writelock(session, &g.prepare_commit_lock);
+    if (LOCK_INITIALIZED(&g.prepare_commit_lock))
+        lock_writelock(session, &g.prepare_commit_lock);
     testutil_check(conn->set_timestamp(conn, buf));
-    lock_writeunlock(session, &g.prepare_commit_lock);
+    if (LOCK_INITIALIZED(&g.prepare_commit_lock))
+        lock_writeunlock(session, &g.prepare_commit_lock);
     trace_msg(
       "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
 }
