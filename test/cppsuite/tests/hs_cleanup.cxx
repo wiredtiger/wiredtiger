@@ -51,13 +51,11 @@ class hs_cleanup : public test {
         WT_DECL_RET;
         const char *key_tmp;
         WT_SESSION *session = connection_manager::instance().create_session();
-        std::shared_ptr<collection> coll = tc->database.get_collection(tc->id);
-        testutil_assert(coll != nullptr);
-        wt_timestamp_t ts;
+        collection& coll = tc->database.get_collection(tc->id);
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->database.get_collection_count() == tc->thread_count);
-        testutil_check(session->open_cursor(session,  coll->name.c_str(), nullptr, nullptr, &cursor));
+        testutil_check(session->open_cursor(session,  coll.name.c_str(), nullptr, nullptr, &cursor));
 
         /* We don't know the keyrange we're operating over here so we can't be much smarter here. */
         while (tc->running()) {
@@ -76,7 +74,7 @@ class hs_cleanup : public test {
             tc->transaction.try_begin(tc->session, "");
 
             /* Update the record. Copy the key to avoid the buffer being invalidated. */
-            if (!tc->update(cursor, coll->id, key_value_t(key_tmp)))
+            if (!tc->update(cursor, coll.id, key_value_t(key_tmp)))
                 continue;
 
             /* Commit our transaction. */

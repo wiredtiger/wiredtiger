@@ -187,10 +187,7 @@ class workload_validation {
     update_data_model(const tracking_operation &operation, const uint64_t &collection_id,
       const char *key, const char *value, database &database)
     {
-        std::shared_ptr<collection> collection = database.get_collection(collection_id);
-        if (collection == nullptr)
-            testutil_die(
-              DEBUG_ERROR, "validation: failed looking for a collection that should exist.");
+        collection &collection = database.get_collection(collection_id);
         switch (operation) {
         case tracking_operation::DELETE_KEY:
             /*
@@ -198,17 +195,17 @@ class workload_validation {
              * the key has been inserted previously in an existing collection and can be safely
              * deleted.
              */
-            collection->delete_record(key);
+            collection.delete_record(key);
             break;
         case tracking_operation::INSERT: {
             /*
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
-            collection->insert_record(key, value);
+            collection.insert_record(key, value);
             break;
         }
         case tracking_operation::UPDATE:
-            collection->update_record(key, value);
+            collection.update_record(key, value);
             break;
         default:
             testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
@@ -235,13 +232,10 @@ class workload_validation {
               "created.",
               collection_id);
 
-        std::shared_ptr<collection> collection = database.get_collection(collection_id);
-        if (collection == nullptr)
-            testutil_die(DEBUG_ERROR, "check_reference: collection id %lu not found in the model",
-              collection_id);
+        collection &collection = database.get_collection(collection_id);
 
         /* Walk through each key/value pair of the current collection. */
-        for (const auto &keys : collection->get_keys()) {
+        for (const auto &keys : collection.get_keys()) {
             key_str = keys.first;
             key = keys.second;
             /* The key/value pair exists. */
@@ -258,10 +252,10 @@ class workload_validation {
             /* Check the associated value is valid. */
             if (key.exists) {
                 if (!verify_value(session, collection_id, key_str.c_str(),
-                      collection->get_record(key_str.c_str()).value))
+                      collection.get_record(key_str.c_str()).value))
                     testutil_die(DEBUG_ERROR,
                       "check_reference: failed for key %s / value %s in collection %lu.",
-                      key_str.c_str(), collection->get_record(key_str.c_str()).value.c_str(),
+                      key_str.c_str(), collection.get_record(key_str.c_str()).value.c_str(),
                       collection_id);
             }
         }

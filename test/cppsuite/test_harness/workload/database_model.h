@@ -33,7 +33,6 @@
 #include <map>
 #include <chrono>
 #include <string>
-#include <memory>
 
 #include "../timestamp_manager.h"
 #include "random_generator.h"
@@ -54,13 +53,21 @@ struct value_t {
     key_value_t value;
 };
 
+/*
+ * FIX-ME-Test-Framework: Separate this into two separate objects one for verification and for
+ * database operations.
+ */
 /* A collection is made of mapped key value objects. */
 class collection {
     public:
-    collection(const uint64_t id, const uint64_t key_count, const std::string name)
+    collection(const uint64_t id, const uint64_t key_count, const std::string &name)
         : id(id), _key_count(key_count), name(name)
     {
     }
+
+    /* Copies aren't allowed. */
+    collection(const collection &) = delete;
+    collection &operator=(const collection &) = delete;
 
     uint64_t
     get_key_count()
@@ -152,8 +159,7 @@ class database {
             _session = connection_manager::instance().create_session();
         uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);
-        _collections.emplace(
-          next_id, std::make_shared<collection>(next_id, key_count, collection_name));
+        _collections.emplace(next_id, collection{next_id, key_count, collection_name});
         testutil_check(
           _session->create(_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
@@ -161,26 +167,25 @@ class database {
     }
 
     /* Get a collection using the id of the collection. */
-    std::shared_ptr<collection>
+    collection &
     get_collection(uint64_t id)
     {
         std::lock_guard<std::mutex> lg(_mtx);
         const auto &it = _collections.find(id);
         if (it == _collections.end())
-            return (nullptr);
-        /* Make a copy. */
-        return std::shared_ptr<collection>(it->second);
+            testutil_die(EINVAL, "tried to get collection that doesn't exist.");
+        return (it->second);
     }
 
     /* Get a random collection. */
-    std::shared_ptr<collection>
+    collection &
     get_random_collection()
     {
         size_t collection_count = get_collection_count();
-        if (collection_count == 0)
-            return (nullptr);
-        return get_collection(
-          random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1));
+        /* Any caller should expect at least one collection to exist. */
+        testutil_assert(collection_count != 0);
+        return (get_collection(
+          random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1)));
     }
 
     /*
@@ -201,7 +206,7 @@ class database {
         std::vector<std::string> collection_names;
 
         for (auto const &it : _collections)
-            collection_names.push_back(it.second->name);
+            collection_names.push_back(it.second.name);
 
         return (collection_names);
     }
@@ -225,7 +230,7 @@ class database {
     timestamp_manager *_tsm = nullptr;
     workload_tracking *_tracking = nullptr;
     uint64_t _next_collection_id = 0;
-    std::map<uint64_t, std::shared_ptr<collection>> _collections;
+    std::map<uint64_t, collection> _collections;
     std::mutex _mtx;
 };
 } // namespace test_harness

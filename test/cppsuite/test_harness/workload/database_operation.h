@@ -30,8 +30,6 @@
 #define DATABASE_OPERATION_H
 
 #include <map>
-#include <memory>
-#include <thread>
 
 #include "database_model.h"
 #include "workload_tracking.h"
@@ -105,16 +103,15 @@ class database_operation {
         debug_print("Populate: finished.", DEBUG_INFO);
     }
 
-    /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
-    struct collection_cursor {
-        std::shared_ptr<collection> coll;
-        WT_CURSOR *cursor;
-    };
-
     /* Basic insert operation that adds a new key every rate tick. */
     virtual void
     insert_operation(thread_context *tc)
     {
+        /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
+        struct collection_cursor {
+            collection &coll;
+            WT_CURSOR *cursor;
+        };
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
         WT_CURSOR *cursor;
@@ -126,25 +123,22 @@ class database_operation {
         testutil_assert(collection_count % tc->thread_count == 0);
         for (int i = tc->id * collections_per_thread;
              i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
-            std::shared_ptr<collection> coll = tc->database.get_collection(i);
-            if (coll == nullptr)
-                testutil_die(
-                  DEBUG_ERROR, "insert_operation: collection id %lu not found in the model", i);
+            collection &coll = tc->database.get_collection(i);
             testutil_check(
-              tc->session->open_cursor(tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
-            ccv.push_back({std::shared_ptr<collection>(coll), cursor});
+              tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
+            ccv.push_back({coll, cursor});
         }
 
         uint64_t counter = 0;
         while (tc->running()) {
-            uint64_t start_key = ccv[counter].coll->get_key_count();
+            uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
             bool committed = true;
             tc->transaction.begin(tc->session, "");
             while (tc->transaction.active() && tc->running()) {
                 /* Insert a key value pair. */
                 if (!tc->insert(
-                      ccv[counter].cursor, ccv[counter].coll->id, start_key + added_count)) {
+                      ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
                     committed = false;
                     break;
                 }
@@ -158,7 +152,7 @@ class database_operation {
              * may rely on the key_count data. Only do so if we successfully committed.
              */
             if (committed)
-                ccv[counter].coll->increase_key_count(added_count);
+                ccv[counter].coll.increase_key_count(added_count);
             counter++;
             if (counter == collections_per_thread)
                 counter = 0;
@@ -178,23 +172,16 @@ class database_operation {
         WT_DECL_RET;
         std::map<uint64_t, WT_CURSOR *> cursors;
         while (tc->running()) {
-            {
-                /* Get a collection and find a cached cursor. */
-                std::shared_ptr<collection> coll = tc->database.get_random_collection();
-                if (coll == nullptr) {
-                    debug_print(
-                      "insert_operation: no collections found, did you forget to create one ?",
-                      DEBUG_ERROR);
-                    break;
-                }
-                const auto &it = cursors.find(coll->id);
-                if (it == cursors.end()) {
-                    testutil_check(tc->session->open_cursor(
-                      tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
-                    cursors.emplace(coll->id, cursor);
-                } else
-                    cursor = it->second;
-            }
+            /* Get a collection and find a cached cursor. */
+            collection &coll = tc->database.get_random_collection();
+            const auto &it = cursors.find(coll.id);
+            if (it == cursors.end()) {
+                testutil_check(tc->session->open_cursor(
+                  tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
+                cursors.emplace(coll.id, cursor);
+            } else
+                cursor = it->second;
+
             tc->transaction.begin(tc->session, "");
             while (tc->transaction.active() && tc->running()) {
                 ret = cursor->next(cursor);
@@ -222,8 +209,8 @@ class database_operation {
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
         WT_CURSOR *cursor;
-        /* Collection cursor map. */
-        std::map<uint64_t, collection_cursor> ccm;
+        /* Cursor map. */
+        std::map<uint64_t, WT_CURSOR *> cursors;
         uint64_t collection_id = 0;
 
         /*
@@ -236,45 +223,34 @@ class database_operation {
              */
             tc->sleep();
 
-            /* Pick a random collection to update. */
-            {
-                std::shared_ptr<collection> coll = tc->database.get_random_collection();
-                if (!coll) {
-                    debug_print(
-                      "update_operation: no collections found, did you forget to create one ?",
-                      DEBUG_ERROR);
-                    break;
-                }
-                collection_id = coll->id;
+            /* Choose a random collection to update. */
+            collection &coll = tc->database.get_random_collection();
 
-                /* Look for existing cursors in our cursor cache. */
-                if (ccm.find(collection_id) == ccm.end()) {
-                    debug_print("Thread {" + std::to_string(tc->id) +
-                        "} Creating cursor for collection: " + coll->name,
-                      DEBUG_TRACE);
-                    /* Open a cursor for the chosen collection. */
-                    tc->session->open_cursor(
-                      tc->session, coll->name.c_str(), nullptr, nullptr, &cursor);
-                    ccm.emplace(
-                      collection_id, collection_cursor{std::shared_ptr<collection>(coll), cursor});
-                }
+            /* Look for existing cursors in our cursor cache. */
+            if (cursors.find(coll.id) == cursors.end()) {
+                debug_print("Thread {" + std::to_string(tc->id) +
+                    "} Creating cursor for collection: " + coll.name,
+                  DEBUG_TRACE);
+                /* Open a cursor for the chosen collection. */
+                tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor);
+                cursors.emplace(coll.id, cursor);
             }
 
             /* Start a transaction if possible. */
             tc->transaction.try_begin(tc->session, "");
 
-            /* Get the collection and cursor associated with the collection. */
-            auto cc = ccm[collection_id];
+            /* Get the cursor associated with the collection. */
+            cursor = cursors[coll.id];
 
             /* Choose a random key to update. */
-            uint64_t key_id = random_generator::instance().generate_integer<uint64_t>(
-              0, cc.coll->get_key_count() - 1);
+            uint64_t key_id =
+              random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
              * API doesn't guarantee our buffer will still be valid once it is called, as such we
              * copy the buffer and then pass it into the API.
              */
-            if (!tc->update(cc.cursor, collection_id, tc->key_to_string(key_id)))
+            if (!tc->update(cursor, collection_id, tc->key_to_string(key_id)))
                 continue;
 
             /* Commit the current transaction if we're able to. */
@@ -293,22 +269,17 @@ class database_operation {
         WT_CURSOR *cursor;
         uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
         for (int64_t i = 0; i < collections_per_thread; ++i) {
-            std::shared_ptr<collection> coll =
-              tc->database.get_collection((tc->id * collections_per_thread) + i);
-            if (coll == nullptr)
-                testutil_die(DEBUG_ERROR,
-                  "populate_worker: collection id %lu not found in the model",
-                  (tc->id * collections_per_thread) + i);
+            collection &coll = tc->database.get_collection((tc->id * collections_per_thread) + i);
             /*
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
              */
             testutil_check(
-              tc->session->open_cursor(tc->session, coll->name.c_str(), nullptr, nullptr, &cursor));
+              tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
             for (uint64_t i = 0; i < tc->key_count; ++i) {
                 /* Start a txn. */
                 tc->transaction.begin(tc->session, "");
-                if (!tc->insert(cursor, coll->id, i))
+                if (!tc->insert(cursor, coll.id, i))
                     testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
                 tc->transaction.commit(tc->session, "");
             }
