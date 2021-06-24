@@ -987,7 +987,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
 done:
-    /* Close cached cursors, rollback-to-stable asserts exclusive acccess. */
+    /* Close cached cursors, rollback-to-stable asserts exclusive access. */
     WT_ERR(__recovery_close_cursors(&r));
 
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
