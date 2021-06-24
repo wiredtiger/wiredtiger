@@ -166,8 +166,9 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
         goto done;
 
     /* Check that we are not about to evict an internal page with an active split generation. */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing)
-        WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
+    WT_ASSERT(session,
+      !F_ISSET(ref, WT_REF_FLAG_INTERNAL) || closing ||
+        !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
     if (!closing && F_ISSET(ref, WT_REF_FLAG_INTERNAL))
