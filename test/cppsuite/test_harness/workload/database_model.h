@@ -33,6 +33,7 @@
 #include <map>
 #include <chrono>
 #include <string>
+#include <tuple>
 
 #include "../timestamp_manager.h"
 #include "random_generator.h"
@@ -159,7 +160,9 @@ class database {
             _session = connection_manager::instance().create_session();
         uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);
-        _collections.emplace(next_id, collection{next_id, key_count, collection_name});
+        /* FIX-ME-Test-Framework: This will get removed when we split the model up. */
+        _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
+          std::forward_as_tuple(next_id, key_count, collection_name));
         testutil_check(
           _session->create(_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
