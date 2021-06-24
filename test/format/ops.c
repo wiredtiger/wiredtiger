@@ -523,7 +523,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
             testutil_check(__wt_snprintf(buf, sizeof(buf), "durable_timestamp=%" PRIx64, ts));
             testutil_check(session->timestamp_transaction(session, buf));
         }
-        
+
         lock_writeunlock(session, &g.ts_lock);
     }
 
