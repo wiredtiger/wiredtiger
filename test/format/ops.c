@@ -398,7 +398,7 @@ operations(u_int ops_seconds, bool lastrun)
 
     if (lastrun) {
         tinfo_teardown();
-        timestamp_teardown();
+        timestamp_teardown(session);
     }
 
     testutil_check(session->close(session, NULL));
@@ -505,6 +505,7 @@ commit_transaction(TINFO *tinfo, bool prepared)
     session = tinfo->session;
 
     ts = 0; /* -Wconditional-uninitialized */
+
     if (g.c_txn_timestamps) {
         /* Lock out the oldest timestamp update. */
         lock_writelock(session, &g.ts_lock);
@@ -517,10 +518,11 @@ commit_transaction(TINFO *tinfo, bool prepared)
             testutil_check(__wt_snprintf(buf, sizeof(buf), "durable_timestamp=%" PRIx64, ts));
             testutil_check(session->timestamp_transaction(session, buf));
         }
-
-        lock_writeunlock(session, &g.ts_lock);
     }
+
     testutil_check(session->commit_transaction(session, NULL));
+    if (g.c_txn_timestamps)
+        lock_writeunlock(session, &g.ts_lock);
 
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;

@@ -259,7 +259,7 @@ timestamp_init(void)
  *     Update the timestamp once.
  */
 void
-timestamp_once(bool allow_lag, bool final)
+timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
@@ -294,7 +294,9 @@ timestamp_once(bool allow_lag, bool final)
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
       g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
 
+    lock_writelock(session, &g.ts_lock);
     testutil_check(conn->set_timestamp(conn, buf));
+    lock_writeunlock(session, &g.ts_lock);
     trace_msg(
       "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
 }
@@ -320,7 +322,7 @@ timestamp(void *arg)
         random_sleep(&g.rnd, 15);
 
         lock_writelock(session, &g.ts_lock); /* Lock out transaction timestamp operations. */
-        timestamp_once(true, false);
+        timestamp_once(session, true, false);
         lock_writeunlock(session, &g.ts_lock);
     }
 
@@ -333,13 +335,13 @@ timestamp(void *arg)
  *     Wrap up timestamp operations.
  */
 void
-timestamp_teardown(void)
+timestamp_teardown(WT_SESSION *session)
 {
     /*
      * Do a final bump of the oldest and stable timestamps, otherwise recent operations can prevent
      * verify from running.
      */
-    timestamp_once(false, true);
+    timestamp_once(session, false, true);
 }
 
 /*
