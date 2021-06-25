@@ -97,7 +97,6 @@ class test : public database_operation {
         _workload_tracking = nullptr;
 
         _components.clear();
-        connection_manager::instance().close();
     }
 
     /* Delete the copy constructor and the assignment operator. */
@@ -211,6 +210,12 @@ class test : public database_operation {
     timestamp_manager *_timestamp_manager = nullptr;
     workload_generator *_workload_generator = nullptr;
     workload_tracking *_workload_tracking = nullptr;
+    struct connection_closer {
+        ~connection_closer()
+        {
+            connection_manager::instance().close();
+        }
+    } _connection_closer;
     database _database;
 };
 } // namespace test_harness
