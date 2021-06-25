@@ -114,7 +114,7 @@ class timestamp_manager : public component {
     }
 
     static const std::string
-    decimal_to_hex(int64_t value)
+    decimal_to_hex(uint64_t value)
     {
         std::stringstream ss;
         ss << std::hex << value;

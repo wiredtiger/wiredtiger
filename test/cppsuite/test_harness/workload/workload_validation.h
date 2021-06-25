@@ -60,10 +60,11 @@ class workload_validation {
         WT_CURSOR *cursor;
         WT_SESSION *session;
         wt_timestamp_t key_timestamp;
-        std::vector<std::string> created_collections, deleted_collections;
-        const char *key, *key_collection_name, *value;
+        std::vector<uint64_t> created_collections, deleted_collections;
+        uint64_t key_collection_id;
+        const char *key, *value;
         int value_operation_type;
-        std::string collection_name;
+        uint64_t collection_id = UINT64_MAX;
 
         session = connection_manager::instance().create_session();
 
@@ -79,17 +80,17 @@ class workload_validation {
             if (!verify_collection_state(session, it, false))
                 testutil_die(DEBUG_ERROR,
                   "validate: collection %s present on disk while it has been tracked as deleted.",
-                  it.c_str());
+                  database::build_collection_name(it).c_str());
         }
 
         /* Parse the tracking table. */
         testutil_check(
           session->open_cursor(session, operation_table_name.c_str(), nullptr, nullptr, &cursor));
         while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_name, &key, &key_timestamp));
+            testutil_check(cursor->get_key(cursor, &key_collection_id, &key, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
 
-            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
+            debug_print("Collection id is " + std::to_string(key_collection_id), DEBUG_TRACE);
             debug_print("Key is " + std::string(key), DEBUG_TRACE);
             debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
             debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
@@ -100,28 +101,28 @@ class workload_validation {
              * test, update the data model.
              */
             if (std::find(created_collections.begin(), created_collections.end(),
-                  key_collection_name) != created_collections.end())
+                  key_collection_id) != created_collections.end())
                 update_data_model(static_cast<tracking_operation>(value_operation_type),
-                  key_collection_name, key, value, database);
+                  key_collection_id, key, value, database);
             /*
              * The collection should be part of the deleted collections if it has not be found in
              * the created ones.
              */
             else if (std::find(deleted_collections.begin(), deleted_collections.end(),
-                       key_collection_name) == deleted_collections.end())
+                       key_collection_id) == deleted_collections.end())
                 testutil_die(DEBUG_ERROR,
                   "validate: The collection %s is not part of the created or deleted collections.",
-                  key_collection_name);
+                  key_collection_id);
 
-            if (collection_name.empty())
-                collection_name = key_collection_name;
-            else if (collection_name != key_collection_name) {
+            if (collection_id == UINT64_MAX)
+                collection_id = key_collection_id;
+            else if (collection_id != key_collection_id) {
                 /*
                  * The data model is now fully updated for the last read collection. It can be
                  * checked.
                  */
-                check_reference(session, collection_name, database);
-                collection_name = key_collection_name;
+                check_reference(session, collection_id, database);
+                collection_id = key_collection_id;
             }
         };
 
@@ -131,12 +132,12 @@ class workload_validation {
 
         /*
          * Once the cursor has read the entire table, the last parsed collection has not been
-         * checked yet. We still have to make sure collection_name has been updated. It will remain
+         * checked yet. We still have to make sure collection_id has been updated. It will remain
          * empty if there is no collections to check after the end of the test (no collections
          * created or all deleted).
          */
-        if (!collection_name.empty())
-            check_reference(session, collection_name, database);
+        if (collection_id != UINT64_MAX)
+            check_reference(session, collection_id, database);
     }
 
     private:
@@ -146,46 +147,47 @@ class workload_validation {
      * the test.
      */
     void
-    parse_schema_tracking_table(WT_SESSION *session, const std::string &collection_name,
-      std::vector<std::string> &created_collections, std::vector<std::string> &deleted_collections)
+    parse_schema_tracking_table(WT_SESSION *session, const std::string &tracking_table_name,
+      std::vector<uint64_t> &created_collections, std::vector<uint64_t> &deleted_collections)
     {
         WT_CURSOR *cursor;
         wt_timestamp_t key_timestamp;
-        const char *key_collection_name;
+        uint64_t key_collection_id;
         int value_operation_type;
 
         testutil_check(
-          session->open_cursor(session, collection_name.c_str(), nullptr, nullptr, &cursor));
+          session->open_cursor(session, tracking_table_name.c_str(), nullptr, nullptr, &cursor));
 
         while (cursor->next(cursor) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_name, &key_timestamp));
+            testutil_check(cursor->get_key(cursor, &key_collection_id, &key_timestamp));
             testutil_check(cursor->get_value(cursor, &value_operation_type));
 
-            debug_print("Collection name is " + std::string(key_collection_name), DEBUG_TRACE);
+            debug_print("Collection id is " + std::to_string(key_collection_id), DEBUG_TRACE);
             debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
             debug_print("Operation type is " + std::to_string(value_operation_type), DEBUG_TRACE);
 
             if (static_cast<tracking_operation>(value_operation_type) ==
               tracking_operation::CREATE_COLLECTION) {
                 deleted_collections.erase(std::remove(deleted_collections.begin(),
-                                            deleted_collections.end(), key_collection_name),
+                                            deleted_collections.end(), key_collection_id),
                   deleted_collections.end());
-                created_collections.push_back(key_collection_name);
+                created_collections.push_back(key_collection_id);
             } else if (static_cast<tracking_operation>(value_operation_type) ==
               tracking_operation::DELETE_COLLECTION) {
                 created_collections.erase(std::remove(created_collections.begin(),
-                                            created_collections.end(), key_collection_name),
+                                            created_collections.end(), key_collection_id),
                   created_collections.end());
-                deleted_collections.push_back(key_collection_name);
+                deleted_collections.push_back(key_collection_id);
             }
         }
     }
 
     /* Update the data model. */
     void
-    update_data_model(const tracking_operation &operation, const std::string &collection_name,
+    update_data_model(const tracking_operation &operation, const uint64_t collection_id,
       const char *key, const char *value, database &database)
     {
+        collection &collection = database.get_collection(collection_id);
         switch (operation) {
         case tracking_operation::DELETE_KEY:
             /*
@@ -193,17 +195,17 @@ class workload_validation {
              * the key has been inserted previously in an existing collection and can be safely
              * deleted.
              */
-            database.delete_record(collection_name, key);
+            collection.delete_record(key);
             break;
         case tracking_operation::INSERT: {
             /*
              * Keys are unique, it is safe to assume the key has not been encountered before.
              */
-            database.insert_record(collection_name, key, value);
+            collection.insert_record(key, value);
             break;
         }
         case tracking_operation::UPDATE:
-            database.update_record(collection_name, key, value);
+            collection.update_record(key, value);
             break;
         default:
             testutil_die(DEBUG_ERROR, "Unexpected operation in the tracking table: %d",
@@ -217,43 +219,44 @@ class workload_validation {
      * representation in memory of the collection values and keys according to the tracking table.
      */
     void
-    check_reference(WT_SESSION *session, const std::string &collection_name, database &database)
+    check_reference(WT_SESSION *session, const uint64_t collection_id, database &database)
     {
         bool is_valid;
         key_t key;
         key_value_t key_str;
 
         /* Check the collection exists on disk. */
-        if (!verify_collection_state(session, collection_name, true))
+        if (!verify_collection_state(session, collection_id, true))
             testutil_die(DEBUG_ERROR,
-              "check_reference: collection %s not present on disk while it has been tracked as "
+              "check_reference: collection %lu not present on disk while it has been tracked as "
               "created.",
-              collection_name.c_str());
+              collection_id);
+
+        collection &collection = database.get_collection(collection_id);
 
         /* Walk through each key/value pair of the current collection. */
-        for (const auto &keys : database.get_keys(collection_name)) {
+        for (const auto &keys : collection.get_keys()) {
             key_str = keys.first;
             key = keys.second;
             /* The key/value pair exists. */
             if (key.exists)
-                is_valid = (is_key_present(session, collection_name, key_str.c_str()) == true);
+                is_valid = (is_key_present(session, collection_id, key_str.c_str()) == true);
             /* The key has been deleted. */
             else
-                is_valid = (is_key_present(session, collection_name, key_str.c_str()) == false);
+                is_valid = (is_key_present(session, collection_id, key_str.c_str()) == false);
 
             if (!is_valid)
-                testutil_die(DEBUG_ERROR, "check_reference: failed for key %s in collection %s.",
-                  key_str.c_str(), collection_name.c_str());
+                testutil_die(DEBUG_ERROR, "check_reference: failed for key %s in collection %lu.",
+                  key_str.c_str(), collection_id);
 
             /* Check the associated value is valid. */
             if (key.exists) {
-                if (!verify_value(session, collection_name, key_str.c_str(),
-                      database.get_record(collection_name, key_str.c_str()).value))
+                if (!verify_value(session, collection_id, key_str.c_str(),
+                      collection.get_record(key_str.c_str()).value))
                     testutil_die(DEBUG_ERROR,
-                      "check_reference: failed for key %s / value %s in collection %s.",
-                      key_str.c_str(),
-                      database.get_record(collection_name, key_str.c_str()).value.c_str(),
-                      collection_name.c_str());
+                      "check_reference: failed for key %s / value %s in collection %lu.",
+                      key_str.c_str(), collection.get_record(key_str.c_str()).value.c_str(),
+                      collection_id);
             }
         }
     }
@@ -263,22 +266,22 @@ class workload_validation {
      * is expected to be existing, false otherwise.
      */
     bool
-    verify_collection_state(
-      WT_SESSION *session, const std::string &collection_name, bool exists) const
+    verify_collection_state(WT_SESSION *session, const uint64_t collection_id, bool exists) const
     {
         WT_CURSOR *cursor;
-        int ret = session->open_cursor(session, collection_name.c_str(), nullptr, nullptr, &cursor);
+        int ret = session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor);
         return (exists ? (ret == 0) : (ret != 0));
     }
 
     /* Check whether a keys exists in a collection on disk. */
     template <typename K>
     bool
-    is_key_present(WT_SESSION *session, const std::string &collection_name, const K &key)
+    is_key_present(WT_SESSION *session, const uint64_t collection_id, const K &key)
     {
         WT_CURSOR *cursor;
-        testutil_check(
-          session->open_cursor(session, collection_name.c_str(), nullptr, nullptr, &cursor));
+        testutil_check(session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
         cursor->set_key(cursor, key);
         return (cursor->search(cursor) == 0);
     }
@@ -286,14 +289,14 @@ class workload_validation {
     /* Verify the given expected value is the same on disk. */
     template <typename K, typename V>
     bool
-    verify_value(WT_SESSION *session, const std::string &collection_name, const K &key,
-      const V &expected_value)
+    verify_value(
+      WT_SESSION *session, const uint64_t collection_id, const K &key, const V &expected_value)
     {
         WT_CURSOR *cursor;
         const char *value;
 
-        testutil_check(
-          session->open_cursor(session, collection_name.c_str(), nullptr, nullptr, &cursor));
+        testutil_check(session->open_cursor(session,
+          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
         cursor->set_key(cursor, key);
         testutil_check(cursor->search(cursor));
         testutil_check(cursor->get_value(cursor, &value));
