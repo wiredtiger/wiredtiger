@@ -247,8 +247,16 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to update a key");
         }
-        tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
+        ret = tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
           value.c_str(), ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session.get(), "");
+                return (false);
+            } else
+                testutil_die(
+                  ret, "unhandled error while trying to save an update to the tracking table");
+        }
         transaction.add_op();
         debug_print("key/value updated", DEBUG_TRACE);
         return (true);
@@ -287,8 +295,16 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to insert a key");
         }
-        tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
+        ret = tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
           value.c_str(), ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session.get(), "");
+                return (false);
+            } else
+                testutil_die(
+                  ret, "unhandled error while trying to save an insert to the tracking table");
+        }
         transaction.add_op();
         debug_print("key/value insert", DEBUG_TRACE);
         return (true);
