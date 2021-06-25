@@ -894,7 +894,7 @@ tasks:
   # Start of cppsuite test tasks.
 
   - name: poc-test-cpp
-    tags: ["pull_request", "cppsuite"]
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -1205,7 +1205,7 @@ tasks:
             ${test_env_vars|} $(pwd)/test/csuite/test_wt3874_pad_byte_collator 2>&1
 
   - name: csuite-wt4105-large-doc-small-upd-test
-    tags: ["pull_request", "no_msan", "no_ubsan"]
+    tags: ["pull_request"]
     depends_on:
       - name: compile
     commands:
@@ -2575,21 +2575,27 @@ buildvariants:
       # We don't compile C++ for memory sanitized testing as it creates false positives.
       CC=/opt/mongodbtoolchain/v3/bin/clang
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      CFLAGS="-fsanitize=memory -fno-omit-frame-pointer -ggdb"
+      CFLAGS="-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
     posix_configure_flags:
       --enable-silent-rules --enable-strict --enable-diagnostic
       --disable-static --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      MSAN_OPTIONS=abort_on_error=1:disable_coredump=0
+      MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-      TESTUTIL_SLOW_MACHINE=1
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      TESTUTIL_SLOW_MACHINE=1
   tasks:
-    - name: ".pull_request !.no_msan !.windows_only !.pull_request_compilers !.python !.cppsuite"
-    - name: examples-c-test
+    - name: clang-analyzer
+    - name: compile
+    - name: compile-production-disable-shared
+    - name: compile-production-disable-static
+    - name: examples-c-production-disable-shared-test
+    - name: examples-c-production-disable-static-test
+    - name: format-stress-pull-request-test
+    - name: make-check-test
 
 - name: ubuntu1804-ubsan
   display_name: "! Ubuntu 18.04 UBSAN"
@@ -2600,20 +2606,27 @@ buildvariants:
       CC=/opt/mongodbtoolchain/v3/bin/clang
       CXX=/opt/mongodbtoolchain/v3/bin/clang++
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      CFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -ggdb"
-      CXXFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -ggdb"
+      CFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
+      CXXFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
     posix_configure_flags:
       --enable-silent-rules --enable-strict --enable-diagnostic
       --disable-static --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      UBSAN_OPTIONS="print_stacktrace=1:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:detect_leaks=1:halt_on_error=1:disable_coredump=0"
+      UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:halt_on_error=1:print_stacktrace=1"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
-    - name: ".pull_request !.no_ubsan !.windows_only !.pull_request_compilers !.python"
-    - name: examples-c-test
+    - name: clang-analyzer
+    - name: compile
+    - name: compile-production-disable-shared
+    - name: compile-production-disable-static
+    - name: examples-c-production-disable-shared-test
+    - name: examples-c-production-disable-static-test
+    - name: format-stress-pull-request-test
+    - name: make-check-test
+    - name: poc-test-cpp
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
