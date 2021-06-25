@@ -1319,6 +1319,11 @@ __checkpoint_lock_dirty_tree_int(WT_SESSION_IMPL *session, bool is_checkpoint, b
      */
     WT_RET(__checkpoint_mark_skip(session, ckptbase, force));
     if (F_ISSET(btree, WT_BTREE_SKIP_CKPT)) {
+        /*
+         * If we decide to skip checkpointing, clear the delete flag on the checkpoints. The list of
+         * checkpoints will be cached for a future access. Which checkpoints need to be deleted can
+         * change in the meanwhile.
+         */
         WT_CKPT_FOREACH (ckptbase, ckpt)
             if (F_ISSET(ckpt, WT_CKPT_DELETE))
                 F_CLR(ckpt, WT_CKPT_DELETE);
