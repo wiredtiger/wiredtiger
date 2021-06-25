@@ -128,6 +128,7 @@ class timestamp_manager : public component {
     }
 
     private:
+    /* Get the current time in seconds, bit shifted to the expected location. */
     uint64_t
     get_time_now_s() const
     {
