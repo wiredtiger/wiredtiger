@@ -210,6 +210,12 @@ class test : public database_operation {
     timestamp_manager *_timestamp_manager = nullptr;
     workload_generator *_workload_generator = nullptr;
     workload_tracking *_workload_tracking = nullptr;
+    /*
+     * FIX-ME-Test-Framework: We can't put this code in the destructor of `test` since it will run
+     * before the destructors of each of our members (meaning that sessions will get closed after
+     * the connection gets closed). To work around this, we've added a member with a destructor that
+     * closes the connection.
+     */
     struct connection_closer {
         ~connection_closer()
         {
