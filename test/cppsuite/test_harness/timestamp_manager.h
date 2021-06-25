@@ -53,13 +53,13 @@ class timestamp_manager : public component {
     {
         component::load();
         int64_t oldest_lag = _config->get_int(OLDEST_LAG);
-        testutil_assert(_oldest_lag >= 0);
+        testutil_assert(oldest_lag >= 0);
         /* Cast and then shift left to match the seconds position. */
         _oldest_lag = oldest_lag;
         _oldest_lag <<= 32;
 
         int64_t stable_lag = _config->get_int(STABLE_LAG);
-        testutil_assert(_stable_lag >= 0);
+        testutil_assert(stable_lag >= 0);
         /* Cast and then shift left to match the seconds position. */
         _stable_lag = stable_lag;
         _stable_lag <<= 32;
