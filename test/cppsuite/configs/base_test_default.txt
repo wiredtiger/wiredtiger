@@ -1,7 +1,4 @@
-# Sets up a basic database with 2 collections and 5 keys and run thread for 10 seconds.
-# All components are enabled.
-# Used as a basic test for the framework.
-# Used as a stress test for the framework.
+# Used as a base test for the framework.
 duration_seconds=60,
 cache_size_mb=500,
 enable_logging=true,

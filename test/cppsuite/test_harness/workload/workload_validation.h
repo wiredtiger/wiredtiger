@@ -184,7 +184,7 @@ class workload_validation {
 
     /* Update the data model. */
     void
-    update_data_model(const tracking_operation &operation, const uint64_t &collection_id,
+    update_data_model(const tracking_operation &operation, const uint64_t collection_id,
       const char *key, const char *value, database &database)
     {
         collection &collection = database.get_collection(collection_id);
@@ -219,7 +219,7 @@ class workload_validation {
      * representation in memory of the collection values and keys according to the tracking table.
      */
     void
-    check_reference(WT_SESSION *session, const uint64_t &collection_id, database &database)
+    check_reference(WT_SESSION *session, const uint64_t collection_id, database &database)
     {
         bool is_valid;
         key_t key;
@@ -266,7 +266,7 @@ class workload_validation {
      * is expected to be existing, false otherwise.
      */
     bool
-    verify_collection_state(WT_SESSION *session, const uint64_t &collection_id, bool exists) const
+    verify_collection_state(WT_SESSION *session, const uint64_t collection_id, bool exists) const
     {
         WT_CURSOR *cursor;
         int ret = session->open_cursor(session,
@@ -277,7 +277,7 @@ class workload_validation {
     /* Check whether a keys exists in a collection on disk. */
     template <typename K>
     bool
-    is_key_present(WT_SESSION *session, const uint64_t &collection_id, const K &key)
+    is_key_present(WT_SESSION *session, const uint64_t collection_id, const K &key)
     {
         WT_CURSOR *cursor;
         testutil_check(session->open_cursor(session,
@@ -290,7 +290,7 @@ class workload_validation {
     template <typename K, typename V>
     bool
     verify_value(
-      WT_SESSION *session, const uint64_t &collection_id, const K &key, const V &expected_value)
+      WT_SESSION *session, const uint64_t collection_id, const K &key, const V &expected_value)
     {
         WT_CURSOR *cursor;
         const char *value;

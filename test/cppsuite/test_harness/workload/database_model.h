@@ -174,7 +174,7 @@ class database {
     get_collection(uint64_t id)
     {
         std::lock_guard<std::mutex> lg(_mtx);
-        const auto &it = _collections.find(id);
+        const auto it = _collections.find(id);
         if (it == _collections.end())
             testutil_die(EINVAL, "tried to get collection that doesn't exist.");
         return (it->second);
