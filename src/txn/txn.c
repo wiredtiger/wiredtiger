@@ -1720,7 +1720,13 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
      * transaction.
      */
-    WT_ASSERT(session, !prepare || txn->durable_timestamp > txn_global->stable_timestamp);
+    if (prepare && txn->durable_timestamp <= txn_global->stable_timestamp) {
+        WT_ERR(__wt_verbose_dump_sessions(session, true));
+        WT_ERR_PANIC(session, WT_PANIC,
+          "Stable timestamp is increased beyond or equal to the committing prepared transaction's "
+          "durable timestamp");
+    }
+
     return (0);
 
 err:
