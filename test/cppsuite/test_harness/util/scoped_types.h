@@ -48,6 +48,12 @@ class scoped_cursor {
         std::swap(_cursor, other._cursor);
     }
 
+    /*
+     * Implement move assignment by using move constructing a temporary and swapping its internals
+     * with the current cursor. This means that the currently held WT_CURSOR will get destroyed as
+     * the temporary falls out of the scope and we will steal the one that we're move assigning
+     * from.
+     */
     scoped_cursor &
     operator=(scoped_cursor &&other)
     {
@@ -70,6 +76,10 @@ class scoped_cursor {
             testutil_check(session->open_cursor(session, uri, nullptr, cfg, &_cursor));
     }
 
+    /*
+     * Override the dereference operators. The idea is that we should able to use this class as if
+     * it is a pointer to a WT_CURSOR.
+     */
     WT_CURSOR &
     operator*()
     {
@@ -112,6 +122,12 @@ class scoped_session {
         std::swap(_session, other._session);
     }
 
+    /*
+     * Implement move assignment by using move constructing a temporary and swapping its internals
+     * with the current session. This means that the currently held WT_SESSION will get destroyed as
+     * the temporary falls out of the scope and we will steal the one that we're move assigning
+     * from.
+     */
     scoped_session &
     operator=(scoped_session &&other)
     {
@@ -134,6 +150,10 @@ class scoped_session {
             testutil_check(conn->open_session(conn, nullptr, nullptr, &_session));
     }
 
+    /*
+     * Override the dereference operators. The idea is that we should able to use this class as if
+     * it is a pointer to a WT_SESSION.
+     */
     WT_SESSION &
     operator*()
     {
