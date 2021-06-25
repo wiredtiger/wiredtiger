@@ -50,7 +50,7 @@ class hs_cleanup : public test {
         WT_DECL_RET;
         const char *key_tmp;
         scoped_session session = connection_manager::instance().create_session();
-        collection& coll = tc->database.get_collection(tc->id);
+        collection &coll = tc->database.get_collection(tc->id);
 
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->database.get_collection_count() == tc->thread_count);
@@ -62,7 +62,7 @@ class hs_cleanup : public test {
             ret = cursor->next(cursor.get());
             if (ret != 0) {
                 if (ret == WT_NOTFOUND) {
-	                testutil_check(cursor->reset(cursor.get()));
+                    testutil_check(cursor->reset(cursor.get()));
                     continue;
                 } else
                     testutil_die(ret, "cursor->next() failed unexpectedly.");
@@ -85,6 +85,6 @@ class hs_cleanup : public test {
         }
         /* Ensure our last transaction is resolved. */
         if (tc->transaction.active())
-	        tc->transaction.commit(tc->session.get(), "");
+            tc->transaction.commit(tc->session.get(), "");
     }
 };
