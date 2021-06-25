@@ -67,7 +67,7 @@ class statistic {
     bool
     enabled() const
     {
-        return _enabled;
+        return (_enabled);
     }
 
     protected:

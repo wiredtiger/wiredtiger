@@ -30,19 +30,19 @@
 #define WORKLOAD_TRACKING_H
 
 /*
- * Default schema for tracking operations on collections (key_format: Collection name / Key /
+ * Default schema for tracking operations on collections (key_format: Collection id / Key /
  * Timestamp, value_format: Operation type / Value)
  */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SSQ)
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
 #define OPERATION_TRACKING_TABLE_CONFIG \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
 
 /*
- * Default schema for tracking schema operations on collections (key_format: Collection name /
+ * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
-#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SQ)
+#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QQ)
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
@@ -66,13 +66,13 @@ class workload_tracking : public component {
     const std::string &
     get_schema_table_name() const
     {
-        return _schema_table_name;
+        return (_schema_table_name);
     }
 
     const std::string &
     get_operation_table_name() const
     {
-        return _operation_table_name;
+        return (_operation_table_name);
     }
 
     void
@@ -104,7 +104,7 @@ class workload_tracking : public component {
 
     void
     save_schema_operation(
-      const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
+      const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
     {
         std::string error_message;
 
@@ -113,7 +113,7 @@ class workload_tracking : public component {
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
-            _schema_track_cursor->set_key(_schema_track_cursor.get(), collection_name.c_str(), ts);
+            _schema_track_cursor->set_key(_schema_track_cursor.get(), collection_id, ts);
             _schema_track_cursor->set_value(
               _schema_track_cursor.get(), static_cast<int>(operation));
             testutil_check(_schema_track_cursor->insert(_schema_track_cursor.get()));
@@ -126,15 +126,14 @@ class workload_tracking : public component {
     }
 
     template <typename K, typename V>
-    int
-    save_operation(const tracking_operation &operation, const std::string &collection_name,
-      const K &key, const V &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
+    void
+    save_operation(const tracking_operation &operation, const uint64_t &collection_id, const K &key,
+      const V &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
     {
-        WT_DECL_RET;
         std::string error_message;
 
         if (!_enabled)
-            return (0);
+            return;
 
         testutil_assert(op_track_cursor.get() != nullptr);
 
@@ -144,12 +143,11 @@ class workload_tracking : public component {
               "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         } else {
-            op_track_cursor->set_key(op_track_cursor.get(), collection_name.c_str(), key, ts);
+            op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
             op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
-            ret = op_track_cursor->insert(op_track_cursor.get());
+            testutil_check(op_track_cursor->insert(op_track_cursor.get()));
         }
         debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
-        return (ret);
     }
 
     private:

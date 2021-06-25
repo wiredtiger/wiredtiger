@@ -67,6 +67,10 @@ class test : public database_operation {
         _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR),
           this, _timestamp_manager, _workload_tracking, _database);
         _thread_manager = new thread_manager();
+
+        _database.set_timestamp_manager(_timestamp_manager);
+        _database.set_workload_tracking(_workload_tracking);
+
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
@@ -176,25 +180,25 @@ class test : public database_operation {
     workload_generator *
     get_workload_generator()
     {
-        return _workload_generator;
+        return (_workload_generator);
     }
 
     runtime_monitor *
     get_runtime_monitor()
     {
-        return _runtime_monitor;
+        return (_runtime_monitor);
     }
 
     timestamp_manager *
     get_timestamp_manager()
     {
-        return _timestamp_manager;
+        return (_timestamp_manager);
     }
 
     thread_manager *
     get_thread_manager()
     {
-        return _thread_manager;
+        return (_thread_manager);
     }
 
     private:
