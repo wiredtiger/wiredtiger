@@ -1108,26 +1108,30 @@ __rollback_abort_updates(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
 
 /*
  * __rollback_abort_fast_truncate --
- *     Abort fast truncate on this page newer than the timestamp.
+ *     Abort fast truncate for an internal page of leaf pages.
  */
 static int
 __rollback_abort_fast_truncate(
   WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
-    /*
-     * A fast-truncate page is either in the WT_REF_DELETED state (where the WT_PAGE_DELETED
-     * structure has the timestamp information), or in an in-memory state where it started as a
-     * fast-truncate page which was then instantiated and the timestamp information moved to the
-     * individual WT_UPDATE structures. When reviewing internal pages, ignore the second case, an
-     * instantiated page is handled when the leaf page is visited.
-     */
-    if (ref->state == WT_REF_DELETED && ref->ft_info.del != NULL &&
-      rollback_timestamp < ref->ft_info.del->durable_timestamp) {
-        __wt_verbose(
-          session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page rolled back", (void *)ref);
-        WT_RET(__wt_delete_page_rollback(session, ref));
-    }
+    WT_REF *child_ref;
 
+    WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
+        /*
+         * A fast-truncate page is either in the WT_REF_DELETED state (where the WT_PAGE_DELETED
+         * structure has the timestamp information), or in an in-memory state where it started as a
+         * fast-truncate page which was then instantiated and the timestamp information moved to the
+         * individual WT_UPDATE structures. When reviewing internal pages, ignore the second case,
+         * an instantiated page is handled when the leaf page is visited.
+         */
+        if (child_ref->state == WT_REF_DELETED && child_ref->ft_info.del != NULL &&
+          rollback_timestamp < child_ref->ft_info.del->durable_timestamp) {
+            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: deleted page rolled back",
+              (void *)child_ref);
+            WT_RET(__wt_delete_page_rollback(session, child_ref));
+        }
+    }
+    WT_INTL_FOREACH_END;
     return (0);
 }
 
@@ -1165,19 +1169,17 @@ static int
 __rollback_to_stable_btree_walk(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_DECL_RET;
-    WT_REF *child_ref, *ref;
+    WT_REF *ref;
 
     /* Walk the tree, marking commits aborted where appropriate. */
     ref = NULL;
     while ((ret = __wt_tree_walk_custom_skip(session, &ref, __wt_rts_page_skip, &rollback_timestamp,
               WT_READ_NO_EVICT | WT_READ_WONT_NEED)) == 0 &&
       ref != NULL)
-        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL)) {
-            WT_INTL_FOREACH_BEGIN (session, ref->page, child_ref) {
-                WT_RET(__rollback_abort_fast_truncate(session, child_ref, rollback_timestamp));
-            }
-            WT_INTL_FOREACH_END;
-        } else
+        if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+            WT_WITH_PAGE_INDEX(
+              session, ret = __rollback_abort_fast_truncate(session, ref, rollback_timestamp));
+        else
             WT_RET(__rollback_abort_updates(session, ref, rollback_timestamp));
 
     return (ret);
@@ -1192,7 +1194,6 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     uint32_t stable_rollback_maxfile;
 
     btree = S2BT(session);
@@ -1222,7 +1223,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
         return (0);
     }
 
-    /* There is never anything to do for checkpoint handles */
+    /* There is never anything to do for checkpoint handles. */
     if (session->dhandle->checkpoint != NULL)
         return (0);
 
@@ -1230,8 +1231,7 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
     if (btree->root.page == NULL)
         return (0);
 
-    WT_WITH_PAGE_INDEX(session, ret = __rollback_to_stable_btree_walk(session, rollback_timestamp));
-    return (ret);
+    return (__rollback_to_stable_btree_walk(session, rollback_timestamp));
 }
 
 /*
