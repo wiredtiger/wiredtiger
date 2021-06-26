@@ -192,17 +192,13 @@ class thread_context {
         _throttle = throttle(config);
 
         if (tracking->enabled())
-            testutil_check(session->open_cursor(session,
-              tracking->get_operation_table_name().c_str(), nullptr, nullptr, &op_track_cursor));
+            op_track_cursor =
+              session.open_scoped_cursor(tracking->get_operation_table_name().c_str());
 
         testutil_assert(key_size > 0 && value_size > 0);
     }
 
-    virtual ~thread_context()
-    {
-        if (op_track_cursor != nullptr)
-            testutil_check(op_track_cursor->close(op_track_cursor));
-    }
+    virtual ~thread_context() = default;
 
     void
     finish()
@@ -231,28 +227,36 @@ class thread_context {
      * Returns true if it successfully updates the key, false if it receives rollback from the API.
      */
     bool
-    update(WT_CURSOR *cursor, uint64_t collection_id, const std::string &key)
+    update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
     {
         WT_DECL_RET;
         std::string value;
         wt_timestamp_t ts = timestamp_manager->get_next_ts();
         testutil_assert(tracking != nullptr);
-        testutil_assert(cursor != nullptr);
+        testutil_assert(cursor.get() != nullptr);
 
-        transaction.set_commit_timestamp(session, ts);
+        transaction.set_commit_timestamp(session.get(), ts);
         value = random_generator::instance().generate_string(value_size);
-        cursor->set_key(cursor, key.c_str());
-        cursor->set_value(cursor, value.c_str());
-        ret = cursor->update(cursor);
+        cursor->set_key(cursor.get(), key.c_str());
+        cursor->set_value(cursor.get(), value.c_str());
+        ret = cursor->update(cursor.get());
         if (ret != 0) {
             if (ret == WT_ROLLBACK) {
-                transaction.rollback(session, "");
+                transaction.rollback(session.get(), "");
                 return (false);
             } else
                 testutil_die(ret, "unhandled error while trying to update a key");
         }
-        tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
+        ret = tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
           value.c_str(), ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session.get(), "");
+                return (false);
+            } else
+                testutil_die(
+                  ret, "unhandled error while trying to save an update to the tracking table");
+        }
         transaction.add_op();
         debug_print("key/value updated", DEBUG_TRACE);
         return (true);
@@ -264,35 +268,43 @@ class thread_context {
      * Returns true if it successfully inserts the key, false if it receives rollback from the API.
      */
     bool
-    insert(WT_CURSOR *cursor, uint64_t collection_id, uint64_t key_id)
+    insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id)
     {
         WT_DECL_RET;
         std::string key, value;
         testutil_assert(tracking != nullptr);
-        testutil_assert(cursor != nullptr);
+        testutil_assert(cursor.get() != nullptr);
 
         /*
          * Get a timestamp to apply to the update. We still do this even if timestamps aren't
          * enabled as it will return a value for the tracking table.
          */
         wt_timestamp_t ts = timestamp_manager->get_next_ts();
-        transaction.set_commit_timestamp(session, ts);
+        transaction.set_commit_timestamp(session.get(), ts);
 
         key = key_to_string(key_id);
         value = random_generator::instance().generate_string(value_size);
 
-        cursor->set_key(cursor, key.c_str());
-        cursor->set_value(cursor, value.c_str());
-        ret = cursor->insert(cursor);
+        cursor->set_key(cursor.get(), key.c_str());
+        cursor->set_value(cursor.get(), value.c_str());
+        ret = cursor->insert(cursor.get());
         if (ret != 0) {
             if (ret == WT_ROLLBACK) {
-                transaction.rollback(session, "");
+                transaction.rollback(session.get(), "");
                 return (false);
             } else
                 testutil_die(ret, "unhandled error while trying to insert a key");
         }
-        tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
+        ret = tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
           value.c_str(), ts, op_track_cursor);
+        if (ret != 0) {
+            if (ret == WT_ROLLBACK) {
+                transaction.rollback(session.get(), "");
+                return (false);
+            } else
+                testutil_die(
+                  ret, "unhandled error while trying to save an insert to the tracking table");
+        }
         transaction.add_op();
         debug_print("key/value insert", DEBUG_TRACE);
         return (true);
@@ -310,8 +322,8 @@ class thread_context {
         return (_running);
     }
 
-    WT_SESSION *session;
-    WT_CURSOR *op_track_cursor = nullptr;
+    scoped_session session;
+    scoped_cursor op_track_cursor;
     transaction_context transaction;
     test_harness::timestamp_manager *timestamp_manager;
     test_harness::workload_tracking *tracking;

@@ -156,7 +156,7 @@ class database {
     add_collection(uint64_t key_count = 0)
     {
         std::lock_guard<std::mutex> lg(_mtx);
-        if (_session == nullptr)
+        if (_session.get() == nullptr)
             _session = connection_manager::instance().create_session();
         uint64_t next_id = _next_collection_id++;
         std::string collection_name = build_collection_name(next_id);
@@ -164,7 +164,7 @@ class database {
         _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
           std::forward_as_tuple(next_id, key_count, collection_name));
         testutil_check(
-          _session->create(_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+          _session->create(_session.get(), collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
         _tracking->save_schema_operation(
           tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
     }
@@ -235,7 +235,7 @@ class database {
     }
 
     private:
-    WT_SESSION *_session = nullptr;
+    scoped_session _session;
     timestamp_manager *_tsm = nullptr;
     workload_tracking *_tracking = nullptr;
     uint64_t _next_collection_id = 0;
