@@ -2643,7 +2643,7 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
-    - name: poc-test-cpp
+    - name: cppsuite-base-test
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
