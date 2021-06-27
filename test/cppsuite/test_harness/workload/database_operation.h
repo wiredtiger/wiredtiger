@@ -110,11 +110,10 @@ class database_operation {
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
             collection &coll;
-            WT_CURSOR *cursor;
+            scoped_cursor cursor;
         };
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
-        WT_CURSOR *cursor;
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
         uint64_t collection_count = tc->database.get_collection_count();
@@ -124,9 +123,8 @@ class database_operation {
         for (int i = tc->id * collections_per_thread;
              i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->database.get_collection(i);
-            testutil_check(
-              tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
-            ccv.push_back({coll, cursor});
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+            ccv.push_back({coll, std::move(cursor)});
         }
 
         uint64_t counter = 0;
@@ -134,7 +132,7 @@ class database_operation {
             uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
             bool committed = true;
-            tc->transaction.begin(tc->session, "");
+            tc->transaction.begin(tc->session.get(), "");
             while (tc->transaction.active() && tc->running()) {
                 /* Insert a key value pair. */
                 if (!tc->insert(
@@ -143,7 +141,7 @@ class database_operation {
                     break;
                 }
                 added_count++;
-                tc->transaction.try_commit(tc->session, "");
+                tc->transaction.try_commit(tc->session.get(), "");
                 /* Sleep the duration defined by the op_rate. */
                 tc->sleep();
             }
@@ -159,7 +157,7 @@ class database_operation {
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
         if (tc->transaction.active())
-            tc->transaction.rollback(tc->session, "");
+            tc->transaction.rollback(tc->session.get(), "");
     }
 
     /* Basic read operation that chooses a random collection and walks a cursor. */
@@ -170,19 +168,19 @@ class database_operation {
           DEBUG_INFO);
         WT_CURSOR *cursor = nullptr;
         WT_DECL_RET;
-        std::map<uint64_t, WT_CURSOR *> cursors;
+        std::map<uint64_t, scoped_cursor> cursors;
         while (tc->running()) {
             /* Get a collection and find a cached cursor. */
             collection &coll = tc->database.get_random_collection();
             const auto &it = cursors.find(coll.id);
             if (it == cursors.end()) {
-                testutil_check(tc->session->open_cursor(
-                  tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
-                cursors.emplace(coll.id, cursor);
+                auto sc = tc->session.open_scoped_cursor(coll.name.c_str());
+                cursor = sc.get();
+                cursors.emplace(coll.id, std::move(sc));
             } else
-                cursor = it->second;
+                cursor = it->second.get();
 
-            tc->transaction.begin(tc->session, "");
+            tc->transaction.begin(tc->session.get(), "");
             while (tc->transaction.active() && tc->running()) {
                 ret = cursor->next(cursor);
                 /* If we get not found here we walked off the end. */
@@ -191,13 +189,13 @@ class database_operation {
                 } else if (ret != 0)
                     testutil_die(ret, "cursor->next() failed");
                 tc->transaction.add_op();
-                tc->transaction.try_rollback(tc->session, "");
+                tc->transaction.try_rollback(tc->session.get(), "");
                 tc->sleep();
             }
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
         if (tc->transaction.active())
-            tc->transaction.rollback(tc->session, "");
+            tc->transaction.rollback(tc->session.get(), "");
     }
 
     /*
@@ -208,9 +206,8 @@ class database_operation {
     {
         debug_print(type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.",
           DEBUG_INFO);
-        WT_CURSOR *cursor;
         /* Cursor map. */
-        std::map<uint64_t, WT_CURSOR *> cursors;
+        std::map<uint64_t, scoped_cursor> cursors;
         uint64_t collection_id = 0;
 
         /*
@@ -232,15 +229,15 @@ class database_operation {
                     "} Creating cursor for collection: " + coll.name,
                   DEBUG_TRACE);
                 /* Open a cursor for the chosen collection. */
-                tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor);
-                cursors.emplace(coll.id, cursor);
+                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+                cursors.emplace(coll.id, std::move(cursor));
             }
 
             /* Start a transaction if possible. */
-            tc->transaction.try_begin(tc->session, "");
+            tc->transaction.try_begin(tc->session.get(), "");
 
             /* Get the cursor associated with the collection. */
-            cursor = cursors[coll.id];
+            scoped_cursor &cursor = cursors[coll.id];
 
             /* Choose a random key to update. */
             uint64_t key_id =
@@ -249,19 +246,18 @@ class database_operation {
                 continue;
 
             /* Commit the current transaction if we're able to. */
-            tc->transaction.try_commit(tc->session, "");
+            tc->transaction.try_commit(tc->session.get(), "");
         }
 
         /* Make sure the last operation is committed now the work is finished. */
         if (tc->transaction.active())
-            tc->transaction.commit(tc->session, "");
+            tc->transaction.commit(tc->session.get(), "");
     }
 
     private:
     static void
     populate_worker(thread_context *tc)
     {
-        WT_CURSOR *cursor;
         uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             collection &coll = tc->database.get_collection((tc->id * collections_per_thread) + i);
@@ -269,16 +265,14 @@ class database_operation {
              * WiredTiger lets you open a cursor on a collection using the same pointer. When a
              * session is closed, WiredTiger APIs close the cursors too.
              */
-            testutil_check(
-              tc->session->open_cursor(tc->session, coll.name.c_str(), nullptr, nullptr, &cursor));
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
             for (uint64_t i = 0; i < tc->key_count; ++i) {
                 /* Start a txn. */
-                tc->transaction.begin(tc->session, "");
+                tc->transaction.begin(tc->session.get(), "");
                 if (!tc->insert(cursor, coll.id, i))
                     testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
-                tc->transaction.commit(tc->session, "");
+                tc->transaction.commit(tc->session.get(), "");
             }
-            cursor->close(cursor);
         }
         debug_print("Populate: thread {" + std::to_string(tc->id) + "} finished", DEBUG_TRACE);
     }

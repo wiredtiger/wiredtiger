@@ -57,8 +57,6 @@ class workload_validation {
       database &database)
     {
         WT_DECL_RET;
-        WT_CURSOR *cursor;
-        WT_SESSION *session;
         wt_timestamp_t key_timestamp;
         std::vector<uint64_t> created_collections, deleted_collections;
         uint64_t key_collection_id;
@@ -66,7 +64,7 @@ class workload_validation {
         int value_operation_type;
         uint64_t collection_id = UINT64_MAX;
 
-        session = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
 
         /* Retrieve the collections that were created and deleted during the test. */
         parse_schema_tracking_table(
@@ -84,11 +82,10 @@ class workload_validation {
         }
 
         /* Parse the tracking table. */
-        testutil_check(
-          session->open_cursor(session, operation_table_name.c_str(), nullptr, nullptr, &cursor));
-        while ((ret = cursor->next(cursor)) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_id, &key, &key_timestamp));
-            testutil_check(cursor->get_value(cursor, &value_operation_type, &value));
+        scoped_cursor cursor = session.open_scoped_cursor(operation_table_name.c_str());
+        while ((ret = cursor->next(cursor.get())) == 0) {
+            testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key, &key_timestamp));
+            testutil_check(cursor->get_value(cursor.get(), &value_operation_type, &value));
 
             debug_print("Collection id is " + std::to_string(key_collection_id), DEBUG_TRACE);
             debug_print("Key is " + std::string(key), DEBUG_TRACE);
@@ -147,20 +144,18 @@ class workload_validation {
      * the test.
      */
     void
-    parse_schema_tracking_table(WT_SESSION *session, const std::string &tracking_table_name,
+    parse_schema_tracking_table(scoped_session &session, const std::string &tracking_table_name,
       std::vector<uint64_t> &created_collections, std::vector<uint64_t> &deleted_collections)
     {
-        WT_CURSOR *cursor;
         wt_timestamp_t key_timestamp;
         uint64_t key_collection_id;
         int value_operation_type;
 
-        testutil_check(
-          session->open_cursor(session, tracking_table_name.c_str(), nullptr, nullptr, &cursor));
+        scoped_cursor cursor = session.open_scoped_cursor(tracking_table_name.c_str());
 
-        while (cursor->next(cursor) == 0) {
-            testutil_check(cursor->get_key(cursor, &key_collection_id, &key_timestamp));
-            testutil_check(cursor->get_value(cursor, &value_operation_type));
+        while (cursor->next(cursor.get()) == 0) {
+            testutil_check(cursor->get_key(cursor.get(), &key_collection_id, &key_timestamp));
+            testutil_check(cursor->get_value(cursor.get(), &value_operation_type));
 
             debug_print("Collection id is " + std::to_string(key_collection_id), DEBUG_TRACE);
             debug_print("Timestamp is " + std::to_string(key_timestamp), DEBUG_TRACE);
@@ -219,7 +214,7 @@ class workload_validation {
      * representation in memory of the collection values and keys according to the tracking table.
      */
     void
-    check_reference(WT_SESSION *session, const uint64_t collection_id, database &database)
+    check_reference(scoped_session &session, const uint64_t collection_id, database &database)
     {
         bool is_valid;
         key_t key;
@@ -266,40 +261,45 @@ class workload_validation {
      * is expected to be existing, false otherwise.
      */
     bool
-    verify_collection_state(WT_SESSION *session, const uint64_t collection_id, bool exists) const
+    verify_collection_state(
+      scoped_session &session, const uint64_t collection_id, bool exists) const
     {
+        /*
+         * We don't necessarily expect to successfully open the cursor so don't create a scoped
+         * cursor.
+         */
         WT_CURSOR *cursor;
-        int ret = session->open_cursor(session,
+        int ret = session->open_cursor(session.get(),
           database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor);
+        if (ret == 0)
+            testutil_check(cursor->close(cursor));
         return (exists ? (ret == 0) : (ret != 0));
     }
 
     /* Check whether a keys exists in a collection on disk. */
     template <typename K>
     bool
-    is_key_present(WT_SESSION *session, const uint64_t collection_id, const K &key)
+    is_key_present(scoped_session &session, const uint64_t collection_id, const K &key)
     {
-        WT_CURSOR *cursor;
-        testutil_check(session->open_cursor(session,
-          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
-        cursor->set_key(cursor, key);
-        return (cursor->search(cursor) == 0);
+        scoped_cursor cursor =
+          session.open_scoped_cursor(database::build_collection_name(collection_id).c_str());
+        cursor->set_key(cursor.get(), key);
+        return (cursor->search(cursor.get()) == 0);
     }
 
     /* Verify the given expected value is the same on disk. */
     template <typename K, typename V>
     bool
     verify_value(
-      WT_SESSION *session, const uint64_t collection_id, const K &key, const V &expected_value)
+      scoped_session &session, const uint64_t collection_id, const K &key, const V &expected_value)
     {
-        WT_CURSOR *cursor;
         const char *value;
 
-        testutil_check(session->open_cursor(session,
-          database::build_collection_name(collection_id).c_str(), nullptr, nullptr, &cursor));
-        cursor->set_key(cursor, key);
-        testutil_check(cursor->search(cursor));
-        testutil_check(cursor->get_value(cursor, &value));
+        scoped_cursor cursor =
+          session.open_scoped_cursor(database::build_collection_name(collection_id).c_str());
+        cursor->set_key(cursor.get(), key);
+        testutil_check(cursor->search(cursor.get()));
+        testutil_check(cursor->get_value(cursor.get(), &value));
 
         return (key_value_t(value) == expected_value);
     }

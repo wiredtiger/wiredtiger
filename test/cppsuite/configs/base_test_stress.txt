@@ -54,8 +54,7 @@ workload_generator=
         value_size=2000
     )
 ),
-# Tracking is currently disabled as verification can't handle rollbacks.
 workload_tracking=
 (
-    enabled=false
+    enabled=true
 )
