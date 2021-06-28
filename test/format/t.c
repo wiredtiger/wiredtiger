@@ -208,9 +208,13 @@ main(int argc, char *argv[])
      * to ignore any CONFIG file named ".", that just makes it possible to ignore any local CONFIG
      * file, used when running checks.
      */
+<<<<<<< HEAD
     if (g.reopen || g.replay) {
         if (config != NULL)
             testutil_die(EINVAL, "-c incompatible with -R or -r");
+=======
+    if (g.reopen) {
+>>>>>>> 930029c27... WT-7721 Update test-format to reopen an existing database with different config (v5.0 backport) (#6697) (#6711) (#6715)
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
         config = g.home_config;
