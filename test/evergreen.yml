@@ -44,11 +44,15 @@ functions:
     command: shell.exec
     params:
       script: |
+        set -o errexit
+        set -o verbose
         git clone https://github.com/wiredtiger/mongo-tests
   "fetch mongodb bin" :
     command: shell.exec
     params:
       script: |
+        set -o errexit
+        set -o verbose
         wget https://fastdl.mongodb.org/linux/mongodb-linux-x86_64-ubuntu1804-5.0.0-rc4.tgz
         tar -xvf mongodb-linux-x86_64-ubuntu1804-5.0.0-rc4.tgz
   "configure wiredtiger": &configure_wiredtiger
