@@ -498,11 +498,10 @@ commit_transaction(TINFO *tinfo, bool prepared)
     session = tinfo->session;
 
     ts = 0; /* -Wconditional-uninitialized */
-
-    if (prepared)
-        lock_readlock(session, &g.prepare_commit_lock);
-
     if (g.c_txn_timestamps) {
+        if (prepared)
+            lock_readlock(session, &g.prepare_commit_lock);
+
         /* Lock out the oldest timestamp update. */
         lock_writelock(session, &g.ts_lock);
 
@@ -516,11 +515,11 @@ commit_transaction(TINFO *tinfo, bool prepared)
         }
 
         lock_writeunlock(session, &g.ts_lock);
-    }
-    testutil_check(session->commit_transaction(session, NULL));
-
-    if (prepared)
-        lock_readunlock(session, &g.prepare_commit_lock);
+        testutil_check(session->commit_transaction(session, NULL));
+        if (prepared)
+            lock_readunlock(session, &g.prepare_commit_lock);
+    } else
+        testutil_check(session->commit_transaction(session, NULL));
 
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
