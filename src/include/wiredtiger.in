@@ -127,10 +127,10 @@ struct __wt_item {
 	size_t memsize;
 
 	/*! Object flags (internal use). */
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define	WT_ITEM_ALIGNED	0x1u
 #define	WT_ITEM_INUSE	0x2u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 	uint32_t flags;
 #endif
 };
@@ -696,7 +696,7 @@ struct __wt_cursor {
 	 */
 	const char *internal_uri;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define	WT_CURSTD_APPEND		0x0000001u
 #define	WT_CURSTD_BULK			0x0000002u
 #define	WT_CURSTD_CACHEABLE		0x0000004u
@@ -723,7 +723,7 @@ struct __wt_cursor {
 #define	WT_CURSTD_RAW_SEARCH		0x0800000u
 #define	WT_CURSTD_VALUE_EXT		0x1000000u	/* Value points out of tree. */
 #define	WT_CURSTD_VALUE_INT		0x2000000u	/* Value points into tree. */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 #define	WT_CURSTD_KEY_SET	(WT_CURSTD_KEY_EXT | WT_CURSTD_KEY_INT)
 #define	WT_CURSTD_VALUE_SET	(WT_CURSTD_VALUE_EXT | WT_CURSTD_VALUE_INT)
 	uint32_t flags;
@@ -2620,7 +2620,8 @@ struct __wt_connection {
 	/*!
 	 * Get a storage source implementation.
 	 *
-	 * Look up a storage source by name.
+	 * Look up a storage source by name and return it. The returned storage source
+	 * must be released by calling WT_STORAGE_SOURCE::terminate.
 	 *
 	 * @snippet ex_storage_source.c WT_STORAGE_SOURCE register
 	 *
@@ -4281,7 +4282,7 @@ typedef enum {
  */
 #define	WT_FS_DURABLE		0x0
 #else
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define	WT_FS_OPEN_ACCESS_RAND	0x01u
 #define	WT_FS_OPEN_ACCESS_SEQ	0x02u
 #define	WT_FS_OPEN_CREATE	0x04u
@@ -4290,11 +4291,11 @@ typedef enum {
 #define	WT_FS_OPEN_EXCLUSIVE	0x20u
 #define	WT_FS_OPEN_FIXED	0x40u	/* Path not home relative (internal) */
 #define	WT_FS_OPEN_READONLY	0x80u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define	WT_FS_DURABLE		0x1u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 #endif
 
 /*!
@@ -4765,6 +4766,17 @@ struct __wt_file_handle {
  */
 struct __wt_storage_source {
 	/*!
+	 * A reference is added to the storage source.  The reference is released by a
+	 * call to WT_STORAGE_SOURCE::terminate.  A reference is added as a side effect
+	 * of calling WT_CONNECTION::get_storage_source.
+	 *
+	 * @errors
+	 *
+	 * @param storage_source the WT_STORAGE_SOURCE
+	 */
+	int (*ss_add_reference)(WT_STORAGE_SOURCE *storage_source);
+
+	/*!
 	 * Create a customized file system to access the storage source
 	 * objects.
 	 *
@@ -4849,8 +4861,11 @@ struct __wt_storage_source {
 	    const char *config);
 
 	/*!
-	 * A callback performed when the storage source is closed and will no
-	 * longer be accessed by the WiredTiger database.
+	 * A callback performed when the storage source or reference is closed
+	 * and will no longer be used.  The initial creation of the storage source
+	 * counts as a reference, and each call to WT_STORAGE_SOURCE::add_reference
+	 * increase the number of references.  When all references are released, the
+	 * storage source and any resources associated with it are released.
 	 *
 	 * This method is not required and should be set to NULL when not
 	 * required by the storage source implementation.
