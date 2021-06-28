@@ -161,6 +161,6 @@ unless manually specified through the \c -DCC_OPTIMIZE_LEVEL configuration optio
 a different level of optimization:
 
 @code
-cmake -DCC_OPTIMIZE_LEVEL=-01 -G Ninja ../.
+cmake -DCC_OPTIMIZE_LEVEL=-O1 -G Ninja ../.
 @endcode
 */
