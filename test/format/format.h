@@ -139,6 +139,11 @@ typedef struct {
      * that requires locking out transactional ops that set a timestamp.
      */
     RWLOCK ts_lock;
+    /*
+     * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
+     * Otherwise, it may panic if the stable timestamp is moved to greater than or equal to the
+     * prepared transaction's durable timestamp when it is committing.
+     */
     RWLOCK prepare_commit_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
