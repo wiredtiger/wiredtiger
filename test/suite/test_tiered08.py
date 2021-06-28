@@ -40,8 +40,6 @@ from wtthread import checkpoint_thread, flush_tier_thread
 class test_tiered08(wttest.WiredTigerTestCase):
 
     nkeys = 200000
-    ckpt_freq = nkeys / 12
-    flush_freq = nkeys / 10
 
     uri = "table:test_tiered08"
 
