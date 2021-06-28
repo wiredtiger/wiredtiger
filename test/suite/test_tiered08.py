@@ -147,7 +147,6 @@ class test_tiered08(wttest.WiredTigerTestCase):
         self.verify(key_count)
 
         self.close_conn()
-        return
         self.pr('Reopening tiered table')
         self.reopen_conn()
 
