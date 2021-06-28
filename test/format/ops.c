@@ -270,11 +270,6 @@ operations(u_int ops_seconds, bool lastrun)
     tinfo_init();
     trace_msg("%s", "=============== thread ops start");
 
-    /* Initialize locks to single-thread backups, failures, and timestamp updates. */
-    lock_init(session, &g.backup_lock);
-    lock_init(session, &g.ts_lock);
-    lock_init(session, &g.prepare_commit_lock);
-
     for (i = 0; i < g.c_threads; ++i) {
         tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -382,10 +377,6 @@ operations(u_int ops_seconds, bool lastrun)
     if (g.c_txn_timestamps)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
-
-    lock_destroy(session, &g.backup_lock);
-    lock_destroy(session, &g.ts_lock);
-    lock_destroy(session, &g.prepare_commit_lock);
 
     trace_msg("%s", "=============== thread ops stop");
 
