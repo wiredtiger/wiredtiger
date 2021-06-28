@@ -35,7 +35,7 @@ import os, threading, time, wiredtiger, wttest
 from wtthread import checkpoint_thread, flush_tier_thread
 
 # test_tiered08.py
-#   Run background checkpoings and flush_tier operations while inserting
+#   Run background checkpoints and flush_tier operations while inserting
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase):
 
@@ -97,7 +97,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         flush = flush_tier_thread(self.conn, done)
 
-        # Start background threads and give them a chance to start
+        # Start background threads and give them a chance to start.
         ckpt.start()
         flush.start()
         time.sleep(0.5)
@@ -115,7 +115,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         self.pr('Reopening tiered table')
         self.reopen_conn()
 
-        # FIXME-WT-7729 Opening the table for the final verify runs into trouble
+        # FIXME-WT-7729 Opening the table for the final verify runs into trouble.
         if True:
             return
         self.verify()
