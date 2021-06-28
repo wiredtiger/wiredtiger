@@ -1545,12 +1545,13 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, uint64_t rollback
     struct timespec rollback_timer;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t rollback_count, rollback_msg_count, rollback_txnid;
+    uint64_t rollback_count, rollback_msg_count;
     const char *config, *uri;
 
     /* Initialize the verbose tracking timer. */
     __wt_epoch(session, &rollback_timer);
-    rollback_count = rollback_msg_count = rollback_txnid = 0;
+    rollback_count = 0;
+    rollback_msg_count = 0;
 
     WT_RET(__wt_metadata_cursor(session, &cursor));
     while ((ret = cursor->next(cursor)) == 0) {
