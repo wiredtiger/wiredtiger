@@ -208,12 +208,12 @@ class workload_validation {
             if (it == collection.end())
                 testutil_die(DEBUG_ERROR,
                   "Validation failed: key deleted that doesn't exist. Collection id: %lu Key: %s",
-                  collection_id, it->first);
+                  collection_id, it->first.c_str());
             else if (it->second.exists == false)
                 /* The key has been deleted twice. */
                 testutil_die(DEBUG_ERROR,
                   "Validation failed: deleted key deleted again. Collection id: %lu Key: %s",
-                  collection_id, it->first);
+                  collection_id, it->first.c_str());
 
             /* Update the key_state to deleted. */
             it->second.exists = false;
@@ -316,7 +316,7 @@ class workload_validation {
             testutil_die(DEBUG_ERROR,
               "Validation failed: Value mismatch for key. Key: %s, Collection_id: %lu, Expected "
               "value: %s, Found value: %s",
-              key.c_str(), collection_id, key_state.value, retrieved_value);
+              key.c_str(), collection_id, key_state.value.c_str(), retrieved_value);
     }
 };
 } // namespace test_harness
