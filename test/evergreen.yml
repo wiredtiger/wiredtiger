@@ -2507,10 +2507,13 @@ tasks:
       - command: shell.exec
         params:
           working_dir: mongo-tests/largescale
+          shell: bash
           script: |
             set -o errexit
             set -o verbose
             export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
+            virtualenv -p python3 venv
+            source venv/bin/activate
             pip3 install lorem pymongo
             ./run_many_coll.sh ../../mongodb-linux-x86_64-ubuntu1804-5.0.0-rc4/bin/mongod config/many-collection-testing many-collection clean-and-populate
 
