@@ -87,6 +87,8 @@ class test_tiered08(wttest.WiredTigerTestCase):
         c.close()
 
     def test_tiered08(self):
+        cfg = self.conn_config()
+        self.pr('Config is: ' + cfg)
         intl_page = 'internal_page_max=16K'
         base_create = 'key_format=S,value_format=S,' + intl_page
         self.session.create(self.uri, base_create)
@@ -95,8 +97,10 @@ class test_tiered08(wttest.WiredTigerTestCase):
         ckpt = checkpoint_thread(self.conn, done)
         flush = flush_tier_thread(self.conn, done)
 
+        # Start background threads and give them a chance to start
         ckpt.start()
         flush.start()
+        time.sleep(0.5)
 
         self.populate()
 
@@ -107,13 +111,13 @@ class test_tiered08(wttest.WiredTigerTestCase):
         self.verify()
 
         self.close_conn()
+        return
         self.pr('Reopening tiered table')
         self.reopen_conn()
 
         # FIXME-WT-7729 Opening the table for the final verify runs into trouble
         if True:
             return
-
         self.verify()
 
 if __name__ == '__main__':
