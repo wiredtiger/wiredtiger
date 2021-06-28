@@ -31,7 +31,7 @@
 # [END_TAGS]
 #
 
-import os, threading, time, wiredtiger, wttest
+import os, re, threading, time, wiredtiger, wttest
 from wtthread import checkpoint_thread, flush_tier_thread
 
 # test_tiered08.py
@@ -39,7 +39,10 @@ from wtthread import checkpoint_thread, flush_tier_thread
 #   data into a table from another thread.
 class test_tiered08(wttest.WiredTigerTestCase):
 
-    nkeys = 200000
+    batch_size = 100000
+
+    # Keep inserting keys until we've done this many flush and checkpoint ops.
+    ckpt_flush_target = 100
 
     uri = "table:test_tiered08"
 
@@ -64,6 +67,30 @@ class test_tiered08(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
+    # Return number of latest checkpoint of the test table
+    def checkpoint_count(self):
+        tiered_uri = self.uri.replace('table:', 'tiered:')
+
+        metadata_cursor = self.session.open_cursor('metadata:', None, None)
+        config = metadata_cursor[tiered_uri]
+        checkpoint_num = re.search('WiredTigerCheckpoint.(\d+)', config).group(1)
+        metadata_cursor.close()
+        return int(checkpoint_num)
+
+    # Return object ID from local file part of the test table
+    def flush_count(self):
+        file_num = 0
+        file_uri = self.uri.replace('table:', 'file:')
+
+        metadata_cursor = self.session.open_cursor('metadata:', None, None)
+        while metadata_cursor.next() == 0:
+            key = metadata_cursor.get_key()
+            if key.startswith(file_uri):
+                file_num = re.search('(\d+).wtobj\Z', key).group(1)
+                break
+        metadata_cursor.close()
+        return int(file_num)
+
     def key_gen(self, i):
         return 'KEY' + str(i)
 
@@ -71,16 +98,25 @@ class test_tiered08(wttest.WiredTigerTestCase):
         return 'VALUE_' + 'filler' * (i % 12) + str(i)
 
     def populate(self):
+        ckpt_num = 0
+        flush_num = 0
+        nkeys = 0
+
         self.pr('Populating tiered table')
         c = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nkeys):
-            c[self.key_gen(i)] = self.value_gen(i)
+        while ckpt_num < self.ckpt_flush_target or flush_num < self.ckpt_flush_target:
+            for i in range(nkeys, nkeys + self.batch_size):
+                c[self.key_gen(i)] = self.value_gen(i)
+            nkeys += self.batch_size
+            ckpt_num = self.checkpoint_count()
+            flush_num = self.flush_count()
         c.close()
+        return nkeys
 
-    def verify(self):
+    def verify(self, key_count):
         self.pr('Verifying tiered table')
         c = self.session.open_cursor(self.uri, None, None)
-        for i in range(self.nkeys):
+        for i in range(key_count):
             self.assertEqual(c[self.key_gen(i)], self.value_gen(i))
         c.close()
 
@@ -100,13 +136,15 @@ class test_tiered08(wttest.WiredTigerTestCase):
         flush.start()
         time.sleep(0.5)
 
-        self.populate()
+        key_count = self.populate()
 
+        # How many checkpoints have we created
+        #mcursor = self.session.open_cursor('metadata:', None, None)
         done.set()
         flush.join()
         ckpt.join()
 
-        self.verify()
+        self.verify(key_count)
 
         self.close_conn()
         return
@@ -116,7 +154,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         # FIXME-WT-7729 Opening the table for the final verify runs into trouble.
         if True:
             return
-        self.verify()
+        self.verify(key_count)
 
 if __name__ == '__main__':
     wttest.run()
