@@ -2506,8 +2506,6 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            # sudo su
-            # ulimit -n 1000000
             export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
             pip3 install lorem pymongo
             ./run_many_coll.sh ../../mongodb-linux-x86_64-ubuntu1804-5.0.0-rc4/bin/mongod config/many-collection-testing many-collection clean-and-populate
@@ -2701,6 +2699,7 @@ buildvariants:
 
 - name: large-scale-tests
   display_name: "Large scale tests"
+  batchtime: 480 # 3 times a day
   run_on:
   - ubuntu1804-test
   expansions:
