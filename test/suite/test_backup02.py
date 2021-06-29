@@ -33,7 +33,6 @@ from wtthread import backup_thread, checkpoint_thread, op_thread
 #   Run background checkpoints and backups repeatedly while doing inserts
 #   in another thread
 class test_backup02(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=10MB,eviction_target=10'
     uri = 'table:test_backup02'
     fmt = 'L'
     dsize = 100
@@ -76,7 +75,7 @@ class test_backup02(wttest.WiredTigerTestCase):
                 my_data = str(more_time) + 'a' * (self.dsize - len(str(more_time)))
                 more_time = more_time - 0.1
                 for i in range(self.nops):
-                    work_queue.put_nowait(('gu', i, my_data))
+                    work_queue.put_nowait(('gu', i, my_data + str(i)))
         except:
             # Deplete the work queue if there's an error.
             while not work_queue.empty():

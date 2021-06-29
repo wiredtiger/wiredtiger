@@ -87,8 +87,7 @@ class backup_thread(threading.Thread):
                 # Add an assert to stop running the test if any difference in table contents
                 # is found.
                 wttest.WiredTigerTestCase.printVerbose(3, "Testing if checkpoint tables match:")
-                assert compare_tables(
-                        self, sess, uris, "checkpoint=WiredTigerCheckpoint") == True
+                assert compare_tables(self, sess, uris) == True
                 wttest.WiredTigerTestCase.printVerbose(3, "Checkpoint tables match")
 
                 wttest.WiredTigerTestCase.printVerbose(3, "Testing if backup tables match:")
