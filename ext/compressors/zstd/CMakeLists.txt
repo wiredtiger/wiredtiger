@@ -58,7 +58,6 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
     add_library(wiredtiger_zstd ${link_type} ${sources})
     # HAVE_LIBZSTD contains the full pathname to the lib, which is
     # what the cmake docs recommend using
-    #target_link_libraries(wiredtiger_zstd "zstd")
     target_link_libraries(wiredtiger_zstd ${HAVE_LIBZSTD})
     target_include_directories(
         wiredtiger_zstd
