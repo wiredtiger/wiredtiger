@@ -34,7 +34,8 @@
  */
 class example_test : public test_harness::test {
     public:
-    example_test(const std::string &config, const std::string &name) : test(config, name) {}
+    example_test(const std::string &config, const std::string &wt_open_config,
+      const std::string &name) : test(config, wt_open_config, name) {}
 
     void
     populate(test_harness::database &database, test_harness::timestamp_manager *_timestamp_manager,

@@ -906,7 +906,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -f test/cppsuite/configs/base_test_default.txt
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)'
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks

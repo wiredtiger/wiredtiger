@@ -42,7 +42,8 @@ using namespace test_harness;
  */
 class hs_cleanup : public test {
     public:
-    hs_cleanup(const std::string &config, const std::string &name) : test(config, name) {}
+    hs_cleanup(const std::string &config, const std::string &wt_open_config,
+      const std::string &name) : test(config, wt_open_config, name) {}
 
     void
     update_operation(thread_context *tc) override final

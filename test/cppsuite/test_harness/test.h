@@ -55,8 +55,9 @@ namespace test_harness {
  */
 class test : public database_operation {
     public:
-    test(const std::string &config, const std::string &name)
+    test(const std::string &config, const std::string &wt_open_config, const std::string &name)
     {
+        _wt_open_config = wt_open_config;
         _config = new configuration(name, config);
         _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
         _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
@@ -112,28 +113,29 @@ class test : public database_operation {
         int64_t cache_size_mb, duration_seconds;
         bool enable_logging, statistics_logging;
         configuration *statistics_config;
-        std::string statistics_type;
+        std::string debug_mode, statistics_type;
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
         /* Get the cache size. */
         cache_size_mb = _config->get_int(CACHE_SIZE_MB);
+        db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
         /* Get the statistics configuration for this run. */
         statistics_config = _config->get_subconfig(STATISTICS_CONFIG);
         statistics_type = statistics_config->get_string(TYPE);
         statistics_logging = statistics_config->get_bool(ENABLE_LOGGING);
-
+        db_create_config += statistics_logging ? "," + std::string(STATISTICS_LOG) : "";
+        db_create_config += ",statistics=(" + statistics_type + ")";
         /* Don't forget to delete. */
         delete statistics_config;
-
-        db_create_config += ",statistics=(" + statistics_type + ")";
-        db_create_config += statistics_logging ? "," + std::string(STATISTICS_LOG) : "";
-        db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
 
         /* Enable or disable write ahead logging. */
         enable_logging = _config->get_bool(ENABLE_LOGGING);
         db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
+
+        /* Add the user supplied wiredtiger open config. */
+        db_create_config += _wt_open_config;
 
         /* Set up the test environment. */
         connection_manager::instance().create(db_create_config);
@@ -201,7 +203,7 @@ class test : public database_operation {
     }
 
     private:
-    std::string _name;
+    std::string _name, _wt_open_config;
     std::vector<component *> _components;
     configuration *_config;
     checkpoint_manager *_checkpoint_manager = nullptr;
