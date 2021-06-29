@@ -40,9 +40,9 @@ extern "C" {
 namespace test_harness {
 struct key_state {
     bool exists;
-    std::string value;
+    key_value_t value;
 };
-typedef std::map<std::string, key_state> validation_collection;
+typedef std::map<key_value_t, key_state> validation_collection;
 /*
  * Class that can validate database state and collection data.
  */
@@ -53,8 +53,8 @@ class workload_validation {
      * replaying the tracked operations so a representation in memory of the collections is created.
      * This representation is then compared to what is on disk.
      *
-     *   -  operation_table_name: Table that contains all the operations performed on keys.
-     *   -  schema_table_name: Table that contains all the schema operations performed.
+     * - operation_table_name: Table that contains all the operations performed on keys.
+     * - schema_table_name: Table that contains all the schema operations performed.
      */
     void
     validate(const std::string &operation_table_name, const std::string &schema_table_name,
@@ -93,14 +93,19 @@ class workload_validation {
          * Dropping is currently not supported.
          */
         std::sort(created_collections.begin(), created_collections.end());
-        auto on_disk_collection = created_collections.begin();
-        for (const auto &it : known_collection_ids) {
-            if (it != *on_disk_collection)
+        auto on_disk_collection_id = created_collections.begin();
+        if (created_collections.size() != known_collection_ids.size())
+            testutil_die(DEBUG_ERROR,
+              "Validation failed: collection state mismatch, expected %lu"
+              " collections to exist but have %lu on disk",
+              created_collections.size(), known_collection_ids.size());
+        for (const auto id : known_collection_ids) {
+            if (id != *on_disk_collection_id)
                 testutil_die(DEBUG_ERROR,
                   "Validation failed: collection state mismatch expected "
                   "collection id %lu but got %lu.",
-                  it, *on_disk_collection);
-            on_disk_collection++;
+                  id, *on_disk_collection_id);
+            on_disk_collection_id++;
         }
 
         /* Parse the tracking table. */
@@ -141,7 +146,7 @@ class workload_validation {
 
                 /* Begin processing the next collection. */
                 current_collection_id = tracked_collection_id;
-                current_collection_records = {};
+                current_collection_records.clear();
             }
 
             /*
@@ -220,7 +225,7 @@ class workload_validation {
         } else if (operation == tracking_operation::INSERT) {
             /* Keys are unique, if we have already inserted this key something has gone wrong. */
             const auto result = collection.insert(validation_collection::value_type(
-              std::string(key), key_state{true, std::string(value)}));
+              key_value_t(key), key_state{true, key_value_t(value)}));
             /* The returned result is true if we inserted a new key. */
             if (result.second == false)
                 testutil_die(DEBUG_ERROR,
@@ -312,7 +317,7 @@ class workload_validation {
             return;
         }
         testutil_check(cursor->get_value(cursor.get(), &retrieved_value));
-        if (key_state.value != std::string(retrieved_value))
+        if (key_state.value != key_value_t(retrieved_value))
             testutil_die(DEBUG_ERROR,
               "Validation failed: Value mismatch for key. Key: %s, Collection_id: %lu, Expected "
               "value: %s, Found value: %s",
