@@ -266,16 +266,14 @@ do_range_reads(WTPERF_THREAD *thread, WT_CURSOR *cursor, int64_t read_range)
     extract_key(range_key_buf, &next_val);
 
     /*
-     * If an option tells us to randomly select the number of
-     * values to read in a range, we use the value of read_range
-     * as the upper bound on the number of values to read.
-     * YCSB-E stipulates that we use a uniform random distribution
-     * for the number of values, so we do not use the wtperf random
-     * routine, which may take us to Pareto.
+     * If an option tells us to randomly select the number of values to read in a range, we use the
+     * value of read_range as the upper bound on the number of values to read. YCSB-E stipulates
+     * that we use a uniform random distribution for the number of values, so we do not use the
+     * wtperf random routine, which may take us to Pareto.
      */
     if (wtperf->opts->read_range_random) {
-	rand_range = __wt_random(&thread->rnd) % read_range;
-	read_range = rand_range;
+        rand_range = __wt_random(&thread->rnd) % read_range;
+        read_range = rand_range;
     }
 
     for (range = 0; range < read_range; ++range) {
@@ -2722,48 +2720,41 @@ wtperf_rand(WTPERF_THREAD *thread)
     }
 
     /*
-     * A distribution that selects the record with a higher key with
-     * higher probability. This was added to support the YCSB-D workload,
-     * which calls for "read latest" selection for records that are read.
+     * A distribution that selects the record with a higher key with higher probability. This was
+     * added to support the YCSB-D workload, which calls for "read latest" selection for records
+     * that are read.
      *
-     * We generate a random number that is in the range between 0 and
-     * largest * largest, where largest is the last inserted key. Then we
-     * take a square root of that random number -- this is our target
-     * selection. With this formula, larger keys are more likely to get
-     * selected than smaller keys, and the probability of selection is
-     * proportional to the value of the key, which is what we want.
+     * We generate a random number that is in the range between 0 and largest * largest, where
+     * largest is the last inserted key. Then we take a square root of that random number -- this is
+     * our target selection. With this formula, larger keys are more likely to get selected than
+     * smaller keys, and the probability of selection is proportional to the value of the key, which
+     * is what we want.
      */
     if (opts->select_latest) {
 
-	/*
-	 * First we need a 64-bit random number, and the WiredTiger
-	 * random number function gives us only a 32-bit random value.
-	 * With only a 32-bit value, the range of the random number
-	 * will always be smaller than the square of the largest insert key
-	 * for workloads with a large number of keys. So we need a longer
-	 * random number for that.
-	 *
-	 * We get a 64-bit random number by concatenating two 32-bit
-	 * numbers. We get less entropy this way than via a true 64-bit
-	 * generator, but we are not defending against cryptographic attacks
-	 * here, so this is good enough.
-	 */
-	rval2 = __wt_random(&thread->rnd);
-	rval64 = rval | (rval2 << 32);
+        /*
+         * First we need a 64-bit random number, and the WiredTiger random number function gives us
+         * only a 32-bit random value. With only a 32-bit value, the range of the random number will
+         * always be smaller than the square of the largest insert key for workloads with a large
+         * number of keys. So we need a longer random number for that.
+         *
+         * We get a 64-bit random number by concatenating two 32-bit numbers. We get less entropy
+         * this way than via a true 64-bit generator, but we are not defending against cryptographic
+         * attacks here, so this is good enough.
+         */
+        rval2 = __wt_random(&thread->rnd);
+        rval64 = rval | (rval2 << 32);
 
-	/*
-	 * Now we limit the random value to be within the range of square
-	 * of the latest insert key and take a square root of that value.
-	 */
-	rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
-	rval64 = sqrt((long double)rval64);
+        /*
+         * Now we limit the random value to be within the range of square of the latest insert key
+         * and take a square root of that value.
+         */
+        rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
+        rval64 = sqrt((long double)rval64);
 
-	/*
-	 * Assign the generated value back to rval, so it works with the
-	 * subsequent code. The rval is declared as a 64-bit variable, so
-	 * we don't need to perform a cast.
-	 */
-	rval = rval64;
+        /* This assignment is needed so that the code below returns the generated value to the
+         * caller */
+        rval = rval64;
     }
 
     /*
