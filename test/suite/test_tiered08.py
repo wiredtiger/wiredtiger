@@ -31,7 +31,7 @@
 # [END_TAGS]
 #
 
-import os, re, threading, time, wiredtiger, wttest
+import os, threading, time, wiredtiger, wttest
 from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
 
@@ -122,8 +122,6 @@ class test_tiered08(wttest.WiredTigerTestCase):
 
         key_count = self.populate()
 
-        # How many checkpoints have we created
-        #mcursor = self.session.open_cursor('metadata:', None, None)
         done.set()
         flush.join()
         ckpt.join()
