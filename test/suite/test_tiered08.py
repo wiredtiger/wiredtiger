@@ -56,7 +56,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         if not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
-          'statistics=(all),' + \
+          'statistics=(fast),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
