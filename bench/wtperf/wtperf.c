@@ -243,14 +243,16 @@ op_name(uint8_t *op)
  *     the keys we see are always in order.
  */
 static int
-do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
+do_range_reads(WTPERF_THREAD *thread, WT_CURSOR *cursor, int64_t read_range)
 {
+    WTPERF *wtperf;
     uint64_t next_val, prev_val;
-    int64_t range;
+    int64_t range, rand_range;
     char *range_key_buf;
     char buf[512];
     int ret;
 
+    wtperf = thread->wtperf;
     ret = 0;
 
     if (read_range == 0)
@@ -262,6 +264,19 @@ do_range_reads(WTPERF *wtperf, WT_CURSOR *cursor, int64_t read_range)
     /* Save where the first key is for comparisons. */
     testutil_check(cursor->get_key(cursor, &range_key_buf));
     extract_key(range_key_buf, &next_val);
+
+    /*
+     * If an option tells us to randomly select the number of
+     * values to read in a range, we use the value of read_range
+     * as the upper bound on the number of values to read.
+     * YCSB-E stipulates that we use a uniform random distribution
+     * for the number of values, so we do not use the wtperf random
+     * routine, which may take us to Pareto.
+     */
+    if (wtperf->opts->read_range_random) {
+	rand_range = __wt_random(&thread->rnd) % read_range;
+	read_range = rand_range;
+    }
 
     for (range = 0; range < read_range; ++range) {
         prev_val = next_val;
@@ -487,7 +502,7 @@ worker(void *arg)
                  * If we want to read a range, then call next for several operations, confirming
                  * that the next key is in the correct order.
                  */
-                ret = do_range_reads(wtperf, cursor, workload->read_range);
+                ret = do_range_reads(thread, cursor, workload->read_range);
             }
 
             if (ret == 0 || ret == WT_NOTFOUND)
@@ -805,6 +820,8 @@ run_mix_schedule(WTPERF *wtperf, WORKLOAD *workp)
     int64_t pct;
 
     opts = wtperf->opts;
+
+    workp->read_range = opts->read_range;
 
     if (workp->truncate != 0) {
         if (workp->insert != 0 || workp->modify != 0 || workp->read != 0 || workp->update != 0) {
@@ -2650,7 +2667,7 @@ wtperf_rand(WTPERF_THREAD *thread)
     WT_CURSOR *rnd_cursor;
     WTPERF *wtperf;
     double S1, S2, U;
-    uint64_t end_range, range, rval, start_range;
+    uint64_t end_range, range, rval, rval2, rval64, start_range;
     int ret;
     char *key_buf;
 
@@ -2703,6 +2720,52 @@ wtperf_rand(WTPERF_THREAD *thread)
         if (rval > end_range)
             rval = 0;
     }
+
+    /*
+     * A distribution that selects the record with a higher key with
+     * higher probability. This was added to support the YCSB-D workload,
+     * which calls for "read latest" selection for records that are read.
+     *
+     * We generate a random number that is in the range between 0 and
+     * largest * largest, where largest is the last inserted key. Then we
+     * take a square root of that random number -- this is our target
+     * selection. With this formula, larger keys are more likely to get
+     * selected than smaller keys, and the probability of selection is
+     * proportional to the value of the key, which is what we want.
+     */
+    if (opts->select_latest) {
+
+	/*
+	 * First we need a 64-bit random number, and the WiredTiger
+	 * random number function gives us only a 32-bit random value.
+	 * With only a 32-bit value, the range of the random number
+	 * will always be smaller than the square of the largest insert key
+	 * for workloads with a large number of keys. So we need a longer
+	 * random number for that.
+	 *
+	 * We get a 64-bit random number by concatenating two 32-bit
+	 * numbers. We get less entropy this way than via a true 64-bit
+	 * generator, but we are not defending against cryptographic attacks
+	 * here, so this is good enough.
+	 */
+	rval2 = __wt_random(&thread->rnd);
+	rval64 = rval | (rval2 << 32);
+
+	/*
+	 * Now we limit the random value to be within the range of square
+	 * of the latest insert key and take a square root of that value.
+	 */
+	rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
+	rval64 = sqrt((long double)rval64);
+
+	/*
+	 * Assign the generated value back to rval, so it works with the
+	 * subsequent code. The rval is declared as a 64-bit variable, so
+	 * we don't need to perform a cast.
+	 */
+	rval = rval64;
+    }
+
     /*
      * Wrap the key to within the expected range and avoid zero: we never insert that key.
      */
