@@ -46,11 +46,16 @@ compare_int(int32_t a, int32_t b)
 static int32_t
 item_to_int(const WT_ITEM *item)
 {
-    int32_t buf;
+    int32_t ret;
 
     testutil_assert(item->size == sizeof(int32_t));
-    memcpy(&buf, item->data, sizeof(int32_t));
-    return buf;
+
+    /*
+     * Using memcpy instead of direct type cast to avoid undefined behavior sanitizer complaining
+     * about misaligned address.
+     */
+    memcpy(&ret, item->data, sizeof(int32_t));
+    return ret;
 }
 
 static int
