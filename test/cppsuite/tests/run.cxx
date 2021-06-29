@@ -89,7 +89,8 @@ print_help()
     std::cout << "\t-C Configuration. Cannot be used with -f." << std::endl;
     std::cout << "\t-f File that contains the configuration. Cannot be used with -C." << std::endl;
     std::cout << "\t-l Trace level from 0 to 3. "
-        "1 is the default level, all warnings and errors are logged." << std::endl;
+                 "1 is the default level, all warnings and errors are logged."
+              << std::endl;
     std::cout << "\t-t Test name to be executed." << std::endl;
 }
 
@@ -129,10 +130,16 @@ run_test(const std::string &test_name, const std::string &config)
     return (error_code);
 }
 
+static std::string
+get_default_config_path(const std::string &test_name)
+{
+    return ("configs/" + test_name + "_default.txt");
+}
+
 int
 main(int argc, char *argv[])
 {
-    std::string cfg, config_filename, test_name, current_test_name;
+    std::string cfg, config_filename, current_cfg, current_test_name, test_name;
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {"example_test", "hs_cleanup", "base_test"};
 
@@ -141,9 +148,9 @@ main(int argc, char *argv[])
 
     /* Parse args
      * -C   : Configuration. Cannot be used with -f. If no specific test is specified to be run, the
-     * same coniguration will be used for all existing tests.
+     * same configuration will be used for all existing tests.
      * -f   : Filename that contains the configuration. Cannot be used with -C. If no specific test
-     * is specified to be run, the same coniguration will be used for all existing tests.
+     * is specified to be run, the same configuration will be used for all existing tests.
      * -l   : Trace level.
      * -t   : Test to run. All tests are run if not specified.
      */
@@ -198,13 +205,14 @@ main(int argc, char *argv[])
                 current_test_name = it;
                 /* Configuration parsing. */
                 if (!config_filename.empty())
-                    cfg = parse_configuration_from_file(config_filename);
-                else if (cfg.empty()) {
-                    config_filename = "configs/" + current_test_name + "_default.txt";
-                    cfg = parse_configuration_from_file(config_filename);
-                }
+                    current_cfg = parse_configuration_from_file(config_filename);
+                else if (cfg.empty())
+                    current_cfg =
+                      parse_configuration_from_file(get_default_config_path(config_filename));
+                else
+                    current_cfg = cfg;
 
-                error_code = run_test(current_test_name, cfg);
+                error_code = run_test(current_test_name, current_cfg);
                 if (error_code != 0)
                     break;
             }
@@ -213,10 +221,8 @@ main(int argc, char *argv[])
             /* Configuration parsing. */
             if (!config_filename.empty())
                 cfg = parse_configuration_from_file(config_filename);
-            else if (cfg.empty()) {
-                config_filename = "configs/" + test_name + "_default.txt";
-                cfg = parse_configuration_from_file(config_filename);
-            }
+            else if (cfg.empty())
+                cfg = parse_configuration_from_file(get_default_config_path(current_test_name));
             error_code = run_test(current_test_name, cfg);
         }
 
