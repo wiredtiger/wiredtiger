@@ -36,6 +36,5 @@
  */
 class base_test : public test_harness::test {
     public:
-    base_test(const std::string &config, const std::string &wt_open_config, const std::string &name)
-      : test(config, wt_open_config, name) {}
+    base_test(const test_harness::test_args &args) : test(args) {}
 };

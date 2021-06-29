@@ -109,11 +109,11 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     test_harness::debug_print("Configuration\t:" + config, DEBUG_TRACE);
 
     if (test_name == "base_test")
-        base_test(config, wt_open_config, test_name).run();
+        base_test(test_harness::test_args{config,test_name, wt_open_config}).run();
     else if (test_name == "example_test")
-        example_test(config, wt_open_config, test_name).run();
+        example_test(test_harness::test_args{config,test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(config, wt_open_config, test_name).run();
+        hs_cleanup(test_harness::test_args{config,test_name, wt_open_config}).run();
     else {
         test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
         error_code = -1;

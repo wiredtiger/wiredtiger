@@ -50,15 +50,24 @@ extern "C" {
 #include "workload/workload_validation.h"
 
 namespace test_harness {
+class test_args {
+    public:
+    test_args(const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test_config(config), test_name(name), wt_open_config(wt_open_config)
+    {
+    }
+    const std::string test_config;
+    const std::string test_name;
+    const std::string wt_open_config;
+};
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
 class test : public database_operation {
     public:
-    test(const std::string &config, const std::string &wt_open_config, const std::string &name)
+    test(const test_args &args) : _args(args)
     {
-        _wt_open_config = wt_open_config;
-        _config = new configuration(name, config);
+        _config = new configuration(args.test_name, args.test_config);
         _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
         _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
         _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
@@ -113,7 +122,7 @@ class test : public database_operation {
         int64_t cache_size_mb, duration_seconds;
         bool enable_logging, statistics_logging;
         configuration *statistics_config;
-        std::string debug_mode, statistics_type;
+        std::string statistics_type;
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
@@ -135,7 +144,7 @@ class test : public database_operation {
         db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
 
         /* Add the user supplied wiredtiger open config. */
-        db_create_config += _wt_open_config;
+        db_create_config += _args.wt_open_config;
 
         /* Set up the test environment. */
         connection_manager::instance().create(db_create_config);
@@ -203,7 +212,7 @@ class test : public database_operation {
     }
 
     private:
-    std::string _name, _wt_open_config;
+    const test_args &_args;
     std::vector<component *> _components;
     configuration *_config;
     checkpoint_manager *_checkpoint_manager = nullptr;
