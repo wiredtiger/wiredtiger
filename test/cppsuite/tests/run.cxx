@@ -185,7 +185,8 @@ main(int argc, char *argv[])
                 value_missing_error(argv[i]);
                 error_code = -1;
             }
-        }
+        } else
+            error_code = -1;
     }
 
     if (error_code == 0) {
@@ -222,7 +223,9 @@ main(int argc, char *argv[])
 
         if (error_code != 0)
             test_harness::debug_print("Test " + current_test_name + " failed.", DEBUG_ERROR);
-    }
+    } else
+        test_harness::debug_print("Invalid command line arguments supplied.  ./run -h for help.",
+          DEBUG_ERROR);
 
     return (error_code);
 }
