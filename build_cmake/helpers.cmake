@@ -343,7 +343,7 @@ function(config_include config_name description)
     )
 
     if (NOT "${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to config_func: ${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}")
+        message(FATAL_ERROR "Unknown arguments to config_include: ${CONFIG_INCLUDE_UNPARSED_ARGUMENTS}")
     endif()
     # We require a include header (not optional).
     if ("${CONFIG_INCLUDE_FILE}" STREQUAL "")
