@@ -67,17 +67,14 @@ functions:
       shell: bash
       working_dir: "mongo"
       script: |
-        # This is omitted due to the following insatisified requirement when requirements are installed: "evergreen-lint==0.1.2".
-        # It does not prevent the generation of mongodb binaries.
-        # set -o errexit
+        set -o errexit
         set -o verbose
         virtualenv -p python3 venv
         source venv/bin/activate
         pip3 install requirements_parser
         pip3 install -r etc/pip/compile-requirements.txt
-        pip3 install -r buildscripts/requirements.txt
         sudo apt install -y ccache
-        ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_clang.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
+        ./buildscripts/scons.py --variables-files=etc/scons/mongodbtoolchain_stable_gcc.vars --link-model=dynamic --ninja generate-ninja ICECC=icecc CCACHE=ccache
         ninja -j$(nproc --all) install-mongod
   "configure wiredtiger": &configure_wiredtiger
     command: shell.exec
