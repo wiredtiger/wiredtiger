@@ -32,6 +32,7 @@
 #
 
 import os, re, threading, time, wiredtiger, wttest
+from wiredtiger import stat
 from wtthread import checkpoint_thread, flush_tier_thread
 
 # test_tiered08.py
@@ -66,29 +67,11 @@ class test_tiered08(wttest.WiredTigerTestCase):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
-    # Return number of latest checkpoint of the test table
-    def checkpoint_count(self):
-        tiered_uri = self.uri.replace('table:', 'tiered:')
-
-        metadata_cursor = self.session.open_cursor('metadata:', None, None)
-        config = metadata_cursor[tiered_uri]
-        checkpoint_num = re.search('WiredTigerCheckpoint.(\d+)', config).group(1)
-        metadata_cursor.close()
-        return int(checkpoint_num)
-
-    # Return object ID from local file part of the test table
-    def flush_count(self):
-        file_num = 0
-        file_uri = self.uri.replace('table:', 'file:')
-
-        metadata_cursor = self.session.open_cursor('metadata:', None, None)
-        while metadata_cursor.next() == 0:
-            key = metadata_cursor.get_key()
-            if key.startswith(file_uri):
-                file_num = re.search('(\d+).wtobj\Z', key).group(1)
-                break
-        metadata_cursor.close()
-        return int(file_num)
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def key_gen(self, i):
         return 'KEY' + str(i)
@@ -96,19 +79,21 @@ class test_tiered08(wttest.WiredTigerTestCase):
     def value_gen(self, i):
         return 'VALUE_' + 'filler' * (i % 12) + str(i)
 
+    # Populate the test table.  Keep adding keys until the desired number of flush and
+    # checkpoint operations have happened.
     def populate(self):
-        ckpt_num = 0
-        flush_num = 0
+        ckpt_count = 0
+        flush_count = 0
         nkeys = 0
 
         self.pr('Populating tiered table')
         c = self.session.open_cursor(self.uri, None, None)
-        while ckpt_num < self.ckpt_flush_target or flush_num < self.ckpt_flush_target:
+        while ckpt_count < self.ckpt_flush_target or flush_count < self.ckpt_flush_target:
             for i in range(nkeys, nkeys + self.batch_size):
                 c[self.key_gen(i)] = self.value_gen(i)
             nkeys += self.batch_size
-            ckpt_num = self.checkpoint_count()
-            flush_num = self.flush_count()
+            ckpt_count = self.get_stat(stat.conn.txn_checkpoint)
+            flush_count = self.get_stat(stat.conn.flush_tier)
         c.close()
         return nkeys
 
