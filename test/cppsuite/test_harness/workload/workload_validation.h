@@ -63,7 +63,7 @@ class workload_validation {
         WT_DECL_RET;
         wt_timestamp_t tracked_timestamp;
         std::vector<uint64_t> created_collections, deleted_collections;
-        uint64_t tracked_collection_id, collection_counter, expected_collection_id;
+        uint64_t collection_counter, expected_collection_id, tracked_collection_id;
         const char *tracked_key, *tracked_value;
         int tracked_op_type;
         uint64_t current_collection_id = 0;
