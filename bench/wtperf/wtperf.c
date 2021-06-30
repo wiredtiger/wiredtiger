@@ -247,7 +247,7 @@ do_range_reads(WTPERF_THREAD *thread, WT_CURSOR *cursor, int64_t read_range)
 {
     WTPERF *wtperf;
     uint64_t next_val, prev_val;
-    int64_t range, rand_range;
+    int64_t rand_range, range;
     char *range_key_buf;
     char buf[512];
     int ret;
@@ -2665,8 +2665,11 @@ wtperf_rand(WTPERF_THREAD *thread)
     WT_CURSOR *rnd_cursor;
     WTPERF *wtperf;
     double S1, S2, U;
-    uint64_t end_range, range, rval, rval2, rval64, start_range;
-    int ret;
+    uint64_t end_range, range, rval, start_range;
+#ifdef __SIZEOF_INT128__
+    unsigned __int128 rval128;
+#endif
+    int i, ret;
     char *key_buf;
 
     wtperf = thread->wtperf;
@@ -2723,38 +2726,53 @@ wtperf_rand(WTPERF_THREAD *thread)
      * A distribution that selects the record with a higher key with higher probability. This was
      * added to support the YCSB-D workload, which calls for "read latest" selection for records
      * that are read.
-     *
-     * We generate a random number that is in the range between 0 and largest * largest, where
-     * largest is the last inserted key. Then we take a square root of that random number -- this is
-     * our target selection. With this formula, larger keys are more likely to get selected than
-     * smaller keys, and the probability of selection is proportional to the value of the key, which
-     * is what we want.
      */
     if (opts->select_latest) {
-
         /*
-         * First we need a 64-bit random number, and the WiredTiger random number function gives us
-         * only a 32-bit random value. With only a 32-bit value, the range of the random number will
-         * always be smaller than the square of the largest insert key for workloads with a large
-         * number of keys. So we need a longer random number for that.
-         *
-         * We get a 64-bit random number by concatenating two 32-bit numbers. We get less entropy
-         * this way than via a true 64-bit generator, but we are not defending against cryptographic
-         * attacks here, so this is good enough.
+         * If we have 128-bit integers, we can use a fancy method described below. If not, we use a
+         * simple one.
          */
-        rval2 = __wt_random(&thread->rnd);
-        rval64 = rval | (rval2 << 32);
+#ifdef __SIZEOF_INT128__
+        /*
+         * We generate a random number that is in the range between 0 and largest * largest, where
+         *     largest is the last inserted key. Then we take a square root of that random number --
+         *     this is our target selection. With this formula, larger keys are more likely to get
+         *     selected than smaller keys, and the probability of selection is proportional to the
+         *     value of the key, which is what we want.
+         *
+         * First we need a 128-bit random number, and the WiredTiger random number function gives us
+         *     only a 32-bit random value. With only a 32-bit value, the range of the random number
+         *     will always be smaller than the square of the largest insert key for workloads with a
+         *     large number of keys. So we need a longer random number for that.
+         *
+         * We get a 128-bit random number by concatenating four 32-bit numbers. We get less entropy
+         *     this way than via a true 128-bit generator, but we are not defending against crypto
+         *     attacks here, so this is good enough.
+         */
+        rval128 = rval;
+        for (i = 0; i < 3; i++) {
+            rval = __wt_random(&thread->rnd);
+            rval128 = (rval128 << 32) | rval;
+        }
 
         /*
          * Now we limit the random value to be within the range of square of the latest insert key
          * and take a square root of that value.
          */
-        rval64 = (rval64 % (wtperf->insert_key * wtperf->insert_key));
-        rval64 = sqrt((long double)rval64);
+        rval128 = (rval128 % (wtperf->insert_key * wtperf->insert_key));
+        rval = sqrtl((long double)rval128);
 
-        /* This assignment is needed so that the code below returns the generated value to the
-         * caller */
-        rval = rval64;
+#else
+#define SELECT_LATEST_RANGE 1000
+        /* If we don't have 128-bit integers, we simply select a number from a fixed sized group of
+         * recently inserted records.
+         */
+        (void)i;
+        (void)rval128;
+        range =
+          (SELECT_LATEST_RANGE < wtperf->insert_key) ? SELECT_LATEST_RANGE : wtperf->insert_key;
+        start_range = wtperf->insert_key - range;
+#endif
     }
 
     /*
