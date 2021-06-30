@@ -41,7 +41,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
     bucket = "mybucket"
     bucket_prefix = "pfx_"
     extension_name = "local_store"
-    prefix = "pfx-"
 
     def conn_config(self):
         if not os.path.exists(self.bucket):
@@ -50,7 +49,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s),tiered_manager=(wait=0)' % self.extension_name
 
     # Load the local store extension, but skip the test if it is missing.
@@ -122,6 +121,8 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('populate')
         ds.populate()
         ds.check()
+        self.progress('open extra cursor on ' + self.uri)
+        cursor = self.session.open_cursor(self.uri, None, None)
         self.progress('checkpoint')
         self.session.checkpoint()
 
@@ -146,6 +147,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('populate')
         ds.populate()
         ds.check()
+        cursor.close()
         self.progress('close_conn')
         self.close_conn()
 

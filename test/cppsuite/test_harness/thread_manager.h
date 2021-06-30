@@ -55,7 +55,7 @@ class thread_manager {
     void
     add_thread(Callable &&fct, Args &&... args)
     {
-        std::thread *t = new std::thread(fct, args...);
+        std::thread *t = new std::thread(fct, std::forward<Args>(args)...);
         _workers.push_back(t);
     }
 
@@ -67,6 +67,10 @@ class thread_manager {
     {
         for (const auto &it : _workers) {
             while (!it->joinable()) {
+                /* Helpful for diagnosing hangs. */
+                debug_print("Thread manager: Waiting to join.", DEBUG_TRACE);
+                /* Check every so often to avoid spamming the log. */
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
             it->join();
         }
