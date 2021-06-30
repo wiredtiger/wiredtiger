@@ -43,7 +43,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
     batch_size = 100000
 
     # Keep inserting keys until we've done this many flush and checkpoint ops.
-    ckpt_flush_target = 100
+    ckpt_flush_target = 10
 
     uri = "table:test_tiered08"
 
@@ -56,6 +56,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         if not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
+          'verbose=(tiered),' + \
           'statistics=(fast),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -133,8 +134,8 @@ class test_tiered08(wttest.WiredTigerTestCase):
         self.reopen_conn()
 
         # FIXME-WT-7729 Opening the table for the final verify runs into trouble.
-        if True:
-            return
+        #if True:
+        #    return
         self.verify(key_count)
 
 if __name__ == '__main__':

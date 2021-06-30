@@ -41,7 +41,7 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     char *metaconf, *tmp;
-    const char *base, *cfg[4];
+    const char *base, *cfg[4], *strip;
 
     dhandle = session->dhandle;
     base = NULL;
@@ -99,8 +99,12 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
-        WT_ERR(__wt_config_merge(
-          session, cfg, "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=", &base));
+        strip = NULL;
+        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=";
+        else if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
+            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,last=,tiers=()";
+        WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
         break;
     case WT_DHANDLE_TYPE_TABLE:
@@ -112,6 +116,8 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
+    if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
+        __wt_verbose(session, WT_VERB_TIERED, "DH_CONFIG_SET: base %s", base);
     dhandle->meta_base_length = base == NULL ? 0 : strlen(base);
 #ifdef HAVE_DIAGNOSTIC
     /*  Save the original metadata value for further check to avoid writing corrupted data. */
