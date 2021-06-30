@@ -37,7 +37,26 @@ extern "C" {
 #include "test_util.h"
 }
 
-enum class types { BOOL, INT, STRING, STRUCT };
+inline std::vector<std::string>
+split_string(const std::string &str, const char delim)
+{
+    std::vector<std::string> splits;
+    std::string current_str;
+    for (const auto c : str) {
+        if (c == delim) {
+            if (!current_str.empty()) {
+                splits.push_back(current_str);
+                current_str.clear();
+            }
+        } else
+            current_str.push_back(c);
+    }
+    if (!current_str.empty())
+        splits.push_back(std::move(current_str));
+    return (splits);
+}
+
+enum class types { BOOL, INT, LIST, STRING, STRUCT };
 
 namespace test_harness {
 class configuration {
@@ -143,6 +162,18 @@ class configuration {
           [](WT_CONFIG_ITEM item) { return new configuration(item); });
     }
 
+    std::vector<std::string>
+    get_list(const std::string &key)
+    {
+        return get<std::vector<std::string>>(key, false, types::LIST, {}, config_item_to_list);
+    }
+
+    std::vector<std::string>
+    get_optional_list(const std::string &key)
+    {
+        return get<std::vector<std::string>>(key, true, types::LIST, {}, config_item_to_list);
+    }
+
     private:
     static bool
     config_item_to_bool(const WT_CONFIG_ITEM item)
@@ -160,6 +191,19 @@ class configuration {
     config_item_to_string(const WT_CONFIG_ITEM item)
     {
         return std::string(item.str, item.len);
+    }
+
+    static std::vector<std::string>
+    config_item_to_list(const WT_CONFIG_ITEM item)
+    {
+        auto str = config_item_to_string(item);
+
+        /* Get rid of the brackets. */
+        testutil_assert(!str.empty() && str.front() == '[' && str.back() == ']');
+        str.pop_back();
+        str.erase(0, 1);
+
+        return (split_string(str, ','));
     }
 
     template <typename T>
@@ -185,6 +229,8 @@ class configuration {
         else if (type == types::INT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
             testutil_die(-1, error_msg);
         else if (type == types::STRUCT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
+            testutil_die(-1, error_msg);
+        else if (type == types::LIST && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
             testutil_die(-1, error_msg);
 
         return func(value);
