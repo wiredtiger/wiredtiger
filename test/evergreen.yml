@@ -2527,9 +2527,6 @@ tasks:
       - func: "get project"
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
-        vars:
-          configure_env_vars:
-            PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       - func: "fetch mongo-tests repo"
       - command: shell.exec
         params:
@@ -2741,6 +2738,8 @@ buildvariants:
     posix_configure_flags:
       --enable-silent-rules --enable-python --enable-zlib --enable-snappy
       --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
   tasks:
     - name: many-dhandle-stress-test
     - name: many-collection-test
