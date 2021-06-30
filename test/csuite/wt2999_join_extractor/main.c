@@ -86,8 +86,7 @@ main(int argc, char *argv[])
     WT_CURSOR *cursor1, *cursor2, *jcursor;
     WT_ITEM k, v;
     WT_SESSION *session;
-    /* To avoid integer overflow we have to use uint32_t instead of int32_t for key and value. */
-    uint32_t i, key, val[2];
+    int32_t i, key, val[2];
     int ret;
 
     opts = &_opts;
@@ -116,13 +115,11 @@ main(int argc, char *argv[])
     k.data = &key;
     k.size = sizeof(key);
 
-    key = 10;
-    val[0] = 20;
-    val[1] = 30;
     for (i = 0; i < 100000; ++i) {
-        key += i;
-        val[0] += i;
-        val[1] += i;
+        key = i + 10;
+        val[0] = i + 20;
+        val[1] = i + 30;
+
         cursor1->set_key(cursor1, &k);
         cursor1->set_value(cursor1, &v);
         testutil_check(cursor1->insert(cursor1));
