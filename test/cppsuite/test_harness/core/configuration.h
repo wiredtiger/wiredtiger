@@ -224,7 +224,7 @@ class configuration {
 
     /*
      * Split a config string into keys and values, taking care to not split incorrectly when we have
-     * a sub config.
+     * a sub config or array.
      */
     static std::vector<std::pair<std::string, std::string>>
     split_config(const std::string &config)
@@ -234,7 +234,7 @@ class configuration {
         std::string key = "", value = "";
         bool in_subconfig = false;
         bool expect_value = false;
-        std::stack<char> subconfig_parens;
+        std::stack<char> parens;
 
         /* All configuration strings must be at least 2 characters. */
         testutil_assert(config.size() > 1);
@@ -245,13 +245,13 @@ class configuration {
 
         size_t start = 0, len = 0;
         for (size_t i = 0; i < cut_config.size(); ++i) {
-            if (cut_config[i] == '(') {
-                subconfig_parens.push(cut_config[i]);
+            if (cut_config[i] == '(' || cut_config[i] == '[') {
+                parens.push(cut_config[i]);
                 in_subconfig = true;
             }
-            if (cut_config[i] == ')') {
-                subconfig_parens.pop();
-                in_subconfig = !subconfig_parens.empty();
+            if (cut_config[i] == ')' || cut_config[i] == ']') {
+                parens.pop();
+                in_subconfig = !parens.empty();
             }
             if (cut_config[i] == '=' && !in_subconfig) {
                 expect_value = true;
