@@ -69,9 +69,9 @@ compare_int_items(WT_ITEM *itema, WT_ITEM *itemb)
 static void
 print_int_item(const char *str, const WT_ITEM *item)
 {
-    if (item->size > 0) {
+    if (item->size > 0)
         printf("%s%" PRId32, str, item_to_int(item));
-    } else
+    else
         printf("%s<empty>", str);
 }
 
