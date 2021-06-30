@@ -9,6 +9,7 @@ from operator import attrgetter
 from stat_data import groups, dsrc_stats, conn_stats, conn_dsrc_stats, join_stats, \
     session_stats
 
+# Statistic categories need to be sorted in order to generate a valid statistics JSON file.
 sorted_conn_stats = conn_stats
 sorted_conn_stats.extend(conn_dsrc_stats)
 sorted_conn_stats = sorted(sorted_conn_stats, key=attrgetter('desc'))
