@@ -1466,7 +1466,11 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
             /* Apply the modification. */
+#ifdef HAVE_DIAGNOSTIC
+            WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, true));
+#else
             WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+#endif
             break;
         case WT_PAGE_ROW_LEAF:
             /* Build a key. */
