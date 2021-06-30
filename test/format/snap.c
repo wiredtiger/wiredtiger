@@ -163,7 +163,7 @@ snap_track(TINFO *tinfo, thread_op op)
             snap->kmemsize = ip->size;
         }
         snap->ksize = ip->size;
-        if (ip->size)
+        if (ip->size > 0)
             memcpy(snap->kdata, ip->data, ip->size);
     }
 
