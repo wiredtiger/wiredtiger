@@ -42,13 +42,13 @@ custom_extract1(WT_EXTRACTOR *extractor, WT_SESSION *session, const WT_ITEM *key
   const WT_ITEM *value, WT_CURSOR *result_cursor)
 {
     WT_ITEM item;
-    int32_t v1;
+    int64_t v1;
 
     (void)extractor;
     (void)key;
     testutil_check(wiredtiger_struct_unpack(session, value->data, value->size, "u", &item));
 
-    v1 = ((int *)item.data)[0];
+    v1 = ((int64_t *)item.data)[0];
     item.data = &v1;
     item.size = sizeof(v1);
 
@@ -61,13 +61,13 @@ custom_extract2(WT_EXTRACTOR *extractor, WT_SESSION *session, const WT_ITEM *key
   const WT_ITEM *value, WT_CURSOR *result_cursor)
 {
     WT_ITEM item;
-    int32_t v2;
+    int64_t v2;
 
     (void)extractor;
     (void)key;
     testutil_check(wiredtiger_struct_unpack(session, value->data, value->size, "u", &item));
 
-    v2 = ((int *)item.data)[1];
+    v2 = ((int64_t *)item.data)[1];
     item.data = &v2;
     item.size = sizeof(v2);
 
@@ -86,8 +86,8 @@ main(int argc, char *argv[])
     WT_CURSOR *cursor1, *cursor2, *jcursor;
     WT_ITEM k, v;
     WT_SESSION *session;
-    int32_t i, key, val[2];
-    int ret;
+    int64_t key, val[2];
+    int i, ret;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -115,11 +115,13 @@ main(int argc, char *argv[])
     k.data = &key;
     k.size = sizeof(key);
 
+    key = 10;
+    val[0] = 20;
+    val[1] = 30;
     for (i = 0; i < 100000; ++i) {
-        key = i + 10;
-        val[0] = i + 20;
-        val[1] = i + 30;
-
+        key += i;
+        val[0] += i;
+        val[1] += i;
         cursor1->set_key(cursor1, &k);
         cursor1->set_value(cursor1, &v);
         testutil_check(cursor1->insert(cursor1));
