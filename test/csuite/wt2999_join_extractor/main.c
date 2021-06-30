@@ -86,6 +86,7 @@ main(int argc, char *argv[])
     WT_CURSOR *cursor1, *cursor2, *jcursor;
     WT_ITEM k, v;
     WT_SESSION *session;
+    /* To avoid integer overflow we have to use uint32_t instead of int32_t for key and value. */
     uint32_t i, key, val[2];
     int ret;
 
