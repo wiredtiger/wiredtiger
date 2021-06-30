@@ -54,7 +54,7 @@ functions:
         set -o errexit
         set -o verbose
         git clone https://github.com/mongodb/mongo
-  "merge mongodb wt" :
+  "import wiredtiger into mongo" :
     command: shell.exec
     params:
       script: |
@@ -2525,7 +2525,7 @@ tasks:
     commands:
       - func: "fetch mongo repo"
       - func: "get project"
-      - func: "merge mongodb wt"
+      - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
         vars:
           configure_env_vars:
