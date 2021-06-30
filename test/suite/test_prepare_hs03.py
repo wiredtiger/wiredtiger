@@ -85,11 +85,14 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
         cursor.close()
 
+        # Set the stable/oldest timstamps and checkpoint the database. (You can't salvage a
+        # database that's never been checkpointed for various reasons.)
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.session.checkpoint()
+
         # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
-
-        # Call checkpoint
-        self.session.checkpoint()
 
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
 
@@ -132,9 +135,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
         for j in range (0, nsessions):
             sessions[j].close()
-
-        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
-        self.corrupt_salvage_verify()
 
         self.session.commit_transaction()
         self.session.checkpoint()
