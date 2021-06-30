@@ -82,7 +82,7 @@ def print_defines():
  * @{
  */
 ''')
-    print_defines_one('CONN', 1000, connection_stats)
+    print_defines_one('CONN', 1000, connection_statistics)
     f.write('''
 /*!
  * @}
@@ -91,7 +91,7 @@ def print_defines():
  * @{
  */
 ''')
-    print_defines_one('DSRC', 2000, dsrc_stats)
+    print_defines_one('DSRC', 2000, dsrc_statistics)
     f.write('''
 /*!
  * @}
