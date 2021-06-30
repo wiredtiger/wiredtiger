@@ -49,7 +49,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     struct dirent *dp;
     struct stat sb;
     DIR *dirp;
-    size_t blkalign, blksize, bufsize, readbytes, n, remaining;
+    size_t blksize, bufsize, readbytes, n, remaining;
     ssize_t ioret;
     uintptr_t bufptr;
     int openflags, rfd, wfd;
@@ -65,7 +65,6 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
     orig_buf = dcalloc(COPY_BUF_SIZE, sizeof(u_char));
     buf = NULL;
     blksize = bufsize = 0;
-    blkalign = WT_BUFFER_ALIGNMENT_DEFAULT;
 
     dirp = opendir(todir);
     if (dirp != NULL) {
@@ -116,19 +115,15 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          */
         if (buf == NULL) {
             if (directio) {
-                if (blkalign == 0) {
-                    /* as good a guess as any */
-                    blkalign = (size_t)sb.st_blksize;
-                }
-                blksize = (size_t)sb.st_blksize;
-                testutil_assert(blksize + blkalign < COPY_BUF_SIZE);
+                blksize = (size_t)WT_MAX(sb.st_blksize, WT_BUFFER_ALIGNMENT_DEFAULT);
+                testutil_assert(blksize < COPY_BUF_SIZE);
                 /*
                  * Make sure we have plenty of room for adjusting the pointer.
                  */
-                bufsize = COPY_BUF_SIZE - blkalign;
+                bufsize = COPY_BUF_SIZE - blksize;
                 bufptr = (uintptr_t)orig_buf;
                 /* Align pointer up to next block boundary */
-                buf = (u_char *)ALIGN_UP(bufptr, blkalign);
+                buf = (u_char *)ALIGN_UP(bufptr, blksize);
                 /* Align size down to block boundary */
                 testutil_assert(bufsize >= blksize);
                 bufsize = ALIGN_DOWN(bufsize, blksize);
@@ -142,12 +137,12 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
         while (remaining > 0) {
             readbytes = n = WT_MIN(remaining, bufsize);
             /*
-             * When using direct IO, read sizes must also be a multiple of the block alignment. For
-             * the last block of a file, we must request to read the entire block, and we'll get the
+             * When using direct IO, read sizes must also be a multiple of the block size. For the
+             * last block of a file, we must request to read the entire block, and we'll get the
              * remainder back.
              */
             if (directio)
-                readbytes = ALIGN_UP(n, blkalign);
+                readbytes = ALIGN_UP(n, blksize);
             ioret = read(rfd, buf, readbytes);
             testutil_assert(ioret >= 0 && (size_t)ioret == n);
             ioret = write(wfd, buf, n);
