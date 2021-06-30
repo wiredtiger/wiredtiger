@@ -72,6 +72,10 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
      */
     if (first_upd != NULL) {
         F_CLR(first_upd, WT_UPDATE_HS);
+
+        /* Clear the history store flag of an update following a stable tombstone. */
+        if (first_upd->type == WT_UPDATE_TOMBSTONE && first_upd->next != NULL)
+            F_CLR(first_upd->next, WT_UPDATE_HS);
         *stable_update_found = true;
     }
 }
