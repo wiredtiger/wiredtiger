@@ -13,7 +13,8 @@ runtime_monitor=
     (
         enabled=true,
         limit=100
-    )
+    ),
+    postrun_stats=[foo, bar],
 ),
 timestamp_manager=
 (

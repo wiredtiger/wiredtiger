@@ -134,7 +134,9 @@ runtime_monitor = enabled_config_true + component_config + [
         type='category', subconfig=limit_stat),
     Config('stat_db_size', '', '''
         The maximum on-disk database size in bytes that can be hit while running.''',
-        type='category', subconfig=limit_stat)
+        type='category', subconfig=limit_stat),
+    Config('postrun_stats', '[]', '''
+        A list of stats to be checked after the run.''', type='list')
 ]
 
 #

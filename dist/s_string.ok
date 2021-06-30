@@ -1163,6 +1163,7 @@ portably
 pos
 posint
 posix
+postrun
 postsize
 powerpc
 pragmas

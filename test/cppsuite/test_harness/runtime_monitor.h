@@ -182,6 +182,42 @@ class db_size_statistic : public statistic {
     int64_t _limit;
 };
 
+class postrun_statistic_check {
+    public:
+    explicit postrun_statistic_check(configuration *config)
+    {
+        const auto config_stats = config->get_list("postrun_stats");
+        for (auto &&c : config_stats)
+            _stats.push_back({std::move(c), 0, 1000});
+    }
+    virtual ~postrun_statistic_check() = default;
+
+    void
+    check(scoped_cursor &cursor) const
+    {
+        for (const auto &stat : _stats)
+            check_stat(cursor, stat);
+    }
+
+    private:
+    struct postrun_statistic {
+        const std::string name;
+        const int64_t min_limit, max_limit;
+    };
+    void
+    check_stat(scoped_cursor &cursor, const postrun_statistic &stat) const
+    {
+        int64_t stat_value;
+
+        testutil_assert(cursor.get() != nullptr);
+        const auto stat_name_int = std::stoi(stat.name.c_str());
+        get_stat(cursor, stat_name_int, &stat_value);
+        testutil_assert(stat_value >= stat.min_limit && stat_value <= stat.max_limit);
+    }
+
+    std::vector<postrun_statistic> _stats;
+};
+
 /*
  * The runtime monitor class is designed to track various statistics or other runtime signals
  * relevant to the given workload.
@@ -189,7 +225,7 @@ class db_size_statistic : public statistic {
 class runtime_monitor : public component {
     public:
     runtime_monitor(configuration *config, database &database)
-        : component("runtime_monitor", config), _database(database)
+        : component("runtime_monitor", config), _postrun_stats(config), _database(database)
     {
     }
 
@@ -239,10 +275,17 @@ class runtime_monitor : public component {
         }
     }
 
+    void
+    finish() override final
+    {
+        _postrun_stats.check(_cursor);
+    }
+
     private:
     scoped_session _session;
     scoped_cursor _cursor;
     std::vector<statistic *> _stats;
+    postrun_statistic_check _postrun_stats;
     database &_database;
 };
 } // namespace test_harness
