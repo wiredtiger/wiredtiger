@@ -1194,7 +1194,6 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
 {
     WT_BTREE *btree;
     WT_CONNECTION_IMPL *conn;
-    uint32_t stable_rollback_maxfile;
 
     btree = S2BT(session);
     conn = S2C(session);
@@ -1208,20 +1207,10 @@ __rollback_to_stable_btree(WT_SESSION_IMPL *session, wt_timestamp_t rollback_tim
      * Immediately durable files don't get their commits wiped. This case mostly exists to support
      * the semantic required for the oplog in MongoDB - updates that have been made to the oplog
      * should not be aborted. It also wouldn't be safe to roll back updates for any table that had
-     * it's records logged, since those updates would be recovered after a crash making them
-     * inconsistent.
+     * its records logged: those updates would be recovered after a crash, making them inconsistent.
      */
-    if (__wt_btree_immediately_durable(session)) {
-        /*
-         * We increment the global value before using it, so the current value is already in use,
-         * and hence we need to add one here.
-         */
-        stable_rollback_maxfile = conn->next_file_id + 1;
-        if (btree->id >= stable_rollback_maxfile)
-            WT_RET_PANIC(session, EINVAL, "btree file ID %" PRIu32 " larger than max %" PRIu32,
-              btree->id, stable_rollback_maxfile);
+    if (__wt_btree_immediately_durable(session))
         return (0);
-    }
 
     /* There is never anything to do for checkpoint handles. */
     if (session->dhandle->checkpoint != NULL)
