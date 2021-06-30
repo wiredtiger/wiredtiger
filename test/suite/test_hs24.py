@@ -28,7 +28,7 @@ class test_hs24(wttest.WiredTigerTestCase):
             self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
         cursor.close()
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(5))
-        thread = threading.Thread(target=self.delete_values)
+        thread = threading.Thread(target=self.zero_ts_deletes)
         thread.start()
         self.session.checkpoint()
         thread.join()
@@ -57,13 +57,56 @@ class test_hs24(wttest.WiredTigerTestCase):
         session2.rollback_transaction()
         self.session.rollback_transaction()
 
-    def delete_values(self):
+    def zero_ts_deletes(self):
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
         for i in range(1, 2000):
             session.begin_transaction()
             cursor.set_key(str(i))
             cursor.remove()
+            session.commit_transaction()
+        cursor.close()
+        session.close()
+
+    def test_zero_commit(self):
+        self.session.create(self.uri, 'key_format=S,value_format=S')
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        cursor = self.session.open_cursor(self.uri)
+        for i in range(0, 2000):
+            self.session.begin_transaction()
+            cursor[str(i)] = self.value1
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+            self.session.begin_transaction()
+            cursor[str(i)] = self.value2
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(5))
+        cursor.close()
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(4))
+        thread = threading.Thread(target=self.zero_ts_commits)
+        thread.start()
+        self.session.checkpoint()
+        thread.join()
+        simulate_crash_restart(self, '.', "RESTART")
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
+        # Check we can only see the version committed by the zero timestamp
+        # commit thread before the checkpoint starts or value1.
+        checkpoint_started = False
+        for i in range(0, 2000):
+            value = cursor[str(i)]
+            if not checkpoint_started:
+                checkpoint_started = value != self.value3
+            if checkpoint_started:
+                self.assertEquals(value, self.value1)
+            else:
+                self.assertEquals(value, self.value3)
+        self.session.rollback_transaction()
+
+    def zero_ts_commits(self):
+        session = self.setUpSessionOpen(self.conn)
+        cursor = session.open_cursor(self.uri)
+        for i in range(1, 2000):
+            session.begin_transaction()
+            cursor[str(i)] = self.value3
             session.commit_transaction()
         cursor.close()
         session.close()
