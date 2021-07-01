@@ -52,7 +52,11 @@ get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
     testutil_check(cursor->reset(cursor.get()));
 }
 
-/* Consider generating this programmatically in `stat.py`. */
+/*
+ * This function maps from statistic names to their internal field ID. We should consider generating
+ * it programmatically in `stat.py` to avoid having to manually add a condition every time we want
+ * to observe a new postrun statistic.
+ */
 inline int
 get_stat_field(const std::string &name)
 {
