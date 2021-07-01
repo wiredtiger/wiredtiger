@@ -49,6 +49,7 @@ get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
     cursor->set_key(cursor.get(), stat_field);
     testutil_check(cursor->search(cursor.get()));
     testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
+    testutil_check(cursor->reset(cursor.get()));
 }
 
 /* Consider generating this programmatically in `stat.py`. */
