@@ -59,7 +59,7 @@ get_stat_field(const std::string &name)
         return WT_STAT_CONN_CACHE_HS_INSERT;
     else if (name == "cc_pages_removed")
         return WT_STAT_CONN_CC_PAGES_REMOVED;
-    testutil_die(-1, "get_stat_field: stat %s is unrecognised", name.c_str());
+    testutil_die(-1, "get_stat_field: Stat \"%s\" is unrecognised", name.c_str());
 }
 
 class statistic {
@@ -209,7 +209,7 @@ class postrun_statistic_check {
             if (stat.size() != 3)
                 testutil_die(-1,
                   "runtime_monitor: Each postrun statistic must follow the format of "
-                  "\"stat_name:min_limit:max_limit\". Invalid format %s provided.",
+                  "\"stat_name:min_limit:max_limit\". Invalid format \"%s\" provided.",
                   c.c_str());
             _stats.emplace_back(
               std::move(stat.at(0)), std::stoi(stat.at(1)), std::stoi(stat.at(2)));
@@ -244,8 +244,8 @@ class postrun_statistic_check {
         get_stat(cursor, stat.field, &stat_value);
         if (stat_value < stat.min_limit || stat_value > stat.max_limit)
             testutil_die(-1,
-              "runtime_monitor: Postrun stat %s was outside of the specified limits. Min:%lu "
-              "Max:%lu Actual:%lu",
+              "runtime_monitor: Postrun stat \"%s\" was outside of the specified limits. Min:%ld "
+              "Max:%ld Actual:%ld",
               stat.name.c_str(), stat.min_limit, stat.max_limit, stat_value);
     }
 
@@ -313,6 +313,7 @@ class runtime_monitor : public component {
     finish() override final
     {
         _postrun_stats.check(_cursor);
+        component::finish();
     }
 
     private:

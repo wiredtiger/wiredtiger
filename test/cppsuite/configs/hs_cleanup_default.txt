@@ -18,7 +18,8 @@ runtime_monitor=
     (
         enabled=true,
         limit=100
-    )
+    ),
+    postrun_stats=[cache_hs_insert:0:0, cc_pages_removed:0:0]
 ),
 timestamp_manager=
 (
