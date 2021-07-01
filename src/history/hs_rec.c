@@ -782,7 +782,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
 
     /*
      * Fail the eviction if we detect out of order timestamp when checkpoint is running. We cannot
-     * modify the history store to fix the out of order timestamp updates as it may make he history
+     * modify the history store to fix the out of order timestamp updates as it may make the history
      * store checkpoint inconsistent.
      */
     if (checkpoint_running) {
