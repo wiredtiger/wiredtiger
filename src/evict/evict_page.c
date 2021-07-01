@@ -497,8 +497,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool closing, modified, snapshot_acquired;
-    bool use_snapshot_for_app_thread, is_eviction_thread;
+    bool checkpoint_running, closing, modified, snapshot_acquired;
+    bool is_eviction_thread, use_snapshot_for_app_thread;
 
     *inmem_splitp = false;
 
@@ -507,7 +507,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    snapshot_acquired = false;
+    checkpoint_running = snapshot_acquired = false;
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
@@ -663,7 +663,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    if (!conn->txn_global.checkpoint_running && !WT_IS_HS(btree->dhandle) &&
+    checkpoint_running = conn->txn_global.checkpoint_running;
+    if (!checkpoint_running && !WT_IS_HS(btree->dhandle) &&
       (use_snapshot_for_app_thread || is_eviction_thread)) {
         if (is_eviction_thread) {
             /*
@@ -683,12 +684,15 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             if (conn->txn_global.checkpoint_running) {
                 __wt_txn_release_snapshot(session);
                 snapshot_acquired = false;
+                checkpoint_running = true;
             }
         }
         if (is_eviction_thread && !snapshot_acquired)
             LF_SET(WT_REC_VISIBLE_ALL);
         if (use_snapshot_for_app_thread)
             LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
+        if (checkpoint_running)
+            LF_SET(WT_REC_CHECKPOINT_RUNNING);
     } else if (!WT_SESSION_BTREE_SYNC(session))
         LF_SET(WT_REC_VISIBLE_ALL);
 
