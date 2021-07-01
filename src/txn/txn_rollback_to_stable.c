@@ -71,7 +71,20 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_UPDATE *first_upd,
      * different stop time point.
      */
     if (first_upd != NULL) {
-        F_CLR(first_upd, WT_UPDATE_HS);
+        if (F_ISSET(first_upd, WT_UPDATE_HS)) {
+            F_CLR(first_upd, WT_UPDATE_HS);
+
+            /* Clear the history store flag of an update following a stable tombstone. */
+            if (first_upd->type == WT_UPDATE_TOMBSTONE) {
+                for (upd = first_upd->next; upd != NULL; upd = upd->next) {
+                    if (upd->txnid != WT_TXN_ABORTED) {
+                        WT_ASSERT(session, upd->type != WT_UPDATE_TOMBSTONE);
+                        F_CLR(upd, WT_UPDATE_HS);
+                        break;
+                    }
+                }
+            }
+        }
         *stable_update_found = true;
     }
 }
@@ -123,7 +136,11 @@ __rollback_col_modify(WT_SESSION_IMPL *session, WT_REF *ref, WT_UPDATE *upd, uin
     WT_ERR(__wt_col_search(&cbt, recno, ref, true, NULL));
 
     /* Apply the modification. */
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true, false));
+#else
     WT_ERR(__wt_col_modify(&cbt, recno, NULL, upd, WT_UPDATE_INVALID, true));
+#endif
 
 err:
     /* Free any resources that may have been cached in the cursor. */
