@@ -389,9 +389,7 @@ table_changes(WT_SESSION *session, TABLE *table)
 
             /*
              * To satisfy code analysis checks, we must handle all elements of the enum in the
-             * switch statement. For that reason we use the "less or equal" operator in the assert
-             * condition below to test the upper boundary. We check the lower boundary against 0
-             * since this is the default value of the first element in any enum.
+             * switch statement.
              */
             switch (op_type) {
             case INSERT:
@@ -711,9 +709,7 @@ check_table(WT_SESSION *session, TABLE *table)
 
     /*
      * To satisfy code analysis checks, we must handle all elements of the enum in the switch
-     * statement. For that reason we use the "less or equal" operator in the assert condition below
-     * to test the upper boundary. We check the lower boundary against 0 since this is the default
-     * value of the first element in any enum.
+     * statement.
      */
     switch (op_type) {
     case INSERT:
