@@ -16,7 +16,7 @@ static const WT_CONFIG_CHECK confchk_stat_db_size_subconfigs[] = {
 
 static const WT_CONFIG_CHECK confchk_runtime_monitor_subconfigs[] = {
   {"enabled", "boolean", NULL, NULL, NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
-  {"postrun_stats", "list", NULL, NULL, NULL, 0},
+  {"postrun_statistics", "list", NULL, NULL, NULL, 0},
   {"stat_cache_size", "category", NULL, NULL, confchk_stat_cache_size_subconfigs, 2},
   {"stat_db_size", "category", NULL, NULL, confchk_stat_db_size_subconfigs, 2},
   {NULL, NULL, NULL, NULL, NULL, 0}};
@@ -112,7 +112,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"base_test",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "duration_seconds=0,enable_logging=false,"
-    "runtime_monitor=(enabled=true,op_rate=1s,postrun_stats=[],"
+    "runtime_monitor=(enabled=true,op_rate=1s,postrun_statistics=[],"
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "statistics_config=(enable_logging=true,type=all),"
@@ -130,7 +130,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"example_test",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "duration_seconds=0,enable_logging=false,"
-    "runtime_monitor=(enabled=true,op_rate=1s,postrun_stats=[],"
+    "runtime_monitor=(enabled=true,op_rate=1s,postrun_statistics=[],"
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "statistics_config=(enable_logging=true,type=all),"
@@ -148,7 +148,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
   {"hs_cleanup",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "duration_seconds=0,enable_logging=false,"
-    "runtime_monitor=(enabled=true,op_rate=1s,postrun_stats=[],"
+    "runtime_monitor=(enabled=true,op_rate=1s,postrun_statistics=[],"
     "stat_cache_size=(enabled=false,limit=0),"
     "stat_db_size=(enabled=false,limit=0)),"
     "statistics_config=(enable_logging=true,type=all),"

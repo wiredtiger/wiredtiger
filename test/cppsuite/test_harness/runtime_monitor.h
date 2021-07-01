@@ -51,7 +51,7 @@ get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
     testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
 }
 
-/* Consider generating this programatically in `stat.py`. */
+/* Consider generating this programmatically in `stat.py`. */
 inline int
 get_stat_field(const std::string &name)
 {
@@ -59,7 +59,7 @@ get_stat_field(const std::string &name)
         return WT_STAT_CONN_CACHE_HS_INSERT;
     else if (name == "cc_pages_removed")
         return WT_STAT_CONN_CC_PAGES_REMOVED;
-    testutil_die(-1, "get_stat_field: Stat \"%s\" is unrecognised", name.c_str());
+    testutil_die(-1, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
 class statistic {
@@ -197,7 +197,7 @@ class postrun_statistic_check {
     public:
     explicit postrun_statistic_check(configuration *config)
     {
-        const auto config_stats = config->get_list("postrun_stats");
+        const auto config_stats = config->get_list(POSTRUN_STATISTICS);
         /*
          * Each stat in the configuration is a colon separated list in the following format:
          * - Stat name
