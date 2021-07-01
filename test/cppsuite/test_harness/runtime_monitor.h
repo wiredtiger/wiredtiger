@@ -255,7 +255,9 @@ class postrun_statistic_check {
               "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
               " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
             debug_print(error_string, DEBUG_ERROR);
+            return (false);
         }
+        return (true);
     }
 
     std::vector<postrun_statistic> _stats;
