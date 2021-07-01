@@ -99,7 +99,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
          */
         cfg[0] = tmp;
         cfg[1] = NULL;
-        strip = NULL;
         if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
             strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,last=,tiers=()";
         else
@@ -116,8 +115,6 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
     }
     dhandle->cfg[1] = metaconf;
     dhandle->meta_base = base;
-    if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
-        __wt_verbose(session, WT_VERB_TIERED, "DH_CONFIG_SET: base %s", base);
     dhandle->meta_base_length = base == NULL ? 0 : strlen(base);
 #ifdef HAVE_DIAGNOSTIC
     /*  Save the original metadata value for further check to avoid writing corrupted data. */
