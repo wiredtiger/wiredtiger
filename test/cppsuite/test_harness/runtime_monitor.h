@@ -51,6 +51,17 @@ get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
     testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
 }
 
+/* Consider generating this programatically in `stat.py`. */
+inline int
+get_stat_field(const std::string &name)
+{
+    if (name == "cache_hs_insert")
+        return WT_STAT_CONN_CACHE_HS_INSERT;
+    else if (name == "cc_pages_removed")
+        return WT_STAT_CONN_CC_PAGES_REMOVED;
+    testutil_die(-1, "get_stat_field: stat %s is unrecognised", name.c_str());
+}
+
 class statistic {
     public:
     explicit statistic(configuration *config)
@@ -187,8 +198,22 @@ class postrun_statistic_check {
     explicit postrun_statistic_check(configuration *config)
     {
         const auto config_stats = config->get_list("postrun_stats");
-        for (auto &&c : config_stats)
-            _stats.push_back({std::move(c), 0, 1000});
+        /*
+         * Each stat in the configuration is a colon separated list in the following format:
+         * - Stat name
+         * - Min limit
+         * - Max limit
+         */
+        for (const auto &c : config_stats) {
+            auto stat = split_string(c, ':');
+            if (stat.size() != 3)
+                testutil_die(-1,
+                  "runtime_monitor: Each postrun statistic must follow the format of "
+                  "\"stat_name:min_limit:max_limit\". Invalid format %s provided.",
+                  c.c_str());
+            _stats.emplace_back(
+              std::move(stat.at(0)), std::stoi(stat.at(1)), std::stoi(stat.at(2)));
+        }
     }
     virtual ~postrun_statistic_check() = default;
 
@@ -201,7 +226,13 @@ class postrun_statistic_check {
 
     private:
     struct postrun_statistic {
+        postrun_statistic(std::string &&name, const int64_t min_limit, const int64_t max_limit)
+            : name(std::move(name)), field(get_stat_field(this->name)), min_limit(min_limit),
+              max_limit(max_limit)
+        {
+        }
         const std::string name;
+        const int field;
         const int64_t min_limit, max_limit;
     };
     void
@@ -210,9 +241,12 @@ class postrun_statistic_check {
         int64_t stat_value;
 
         testutil_assert(cursor.get() != nullptr);
-        const auto stat_name_int = std::stoi(stat.name.c_str());
-        get_stat(cursor, stat_name_int, &stat_value);
-        testutil_assert(stat_value >= stat.min_limit && stat_value <= stat.max_limit);
+        get_stat(cursor, stat.field, &stat_value);
+        if (stat_value < stat.min_limit || stat_value > stat.max_limit)
+            testutil_die(-1,
+              "runtime_monitor: Postrun stat %s was outside of the specified limits. Min:%lu "
+              "Max:%lu Actual:%lu",
+              stat.name.c_str(), stat.min_limit, stat.max_limit, stat_value);
     }
 
     std::vector<postrun_statistic> _stats;
