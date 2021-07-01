@@ -201,7 +201,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
         /*
          * Fail the eviction if we detect out of order timestamp when checkpoint is running. We
          * cannot modify the history store to fix the out of order timestamp updates as it may make
-         * he history store checkpoint inconsistent.
+         * the history store checkpoint inconsistent.
          */
         if (checkpoint_running) {
             ret = EBUSY;
@@ -435,7 +435,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
                 /*
                  * Fail the eviction if we detect out of order timestamp when checkpoint is running.
                  * We cannot modify the history store to fix the out of order timestamp updates as
-                 * it may make he history store checkpoint inconsistent.
+                 * it may make the history store checkpoint inconsistent.
                  */
                 if (checkpoint_running) {
                     ret = EBUSY;

@@ -5,7 +5,7 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_hs24.py
-# Test that out of order timstamp fix racing with checkpointing the history store doesn't create inconsistent checkpoint.
+# Test that out of order timestamp fix racing with checkpointing the history store doesn't create inconsistent checkpoint.
 class test_hs24(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,timing_stress_for_test=(history_store_checkpoint_delay)'
     session_config = 'isolation=snapshot'
