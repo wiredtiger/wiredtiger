@@ -67,9 +67,9 @@ get_stat_field(const std::string &name)
     testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
-class statistic {
+class runtime_statistic {
     public:
-    explicit statistic(configuration *config)
+    explicit runtime_statistic(configuration *config)
     {
         _enabled = config->get_bool(ENABLED);
     }
@@ -78,7 +78,7 @@ class statistic {
     virtual void check(scoped_cursor &cursor) = 0;
 
     /* Suppress warning about destructor being non-virtual. */
-    virtual ~statistic() {}
+    virtual ~runtime_statistic() {}
 
     bool
     enabled() const
@@ -90,9 +90,9 @@ class statistic {
     bool _enabled = false;
 };
 
-class cache_limit_statistic : public statistic {
+class cache_limit_statistic : public runtime_statistic {
     public:
-    explicit cache_limit_statistic(configuration *config) : statistic(config)
+    explicit cache_limit_statistic(configuration *config) : runtime_statistic(config)
     {
         limit = config->get_int(LIMIT);
     }
@@ -137,10 +137,10 @@ collection_name_to_file_name(const std::string &collection_name)
     return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
 }
 
-class db_size_statistic : public statistic {
+class db_size_statistic : public runtime_statistic {
     public:
     db_size_statistic(configuration *config, database &database)
-        : statistic(config), _database(database)
+        : runtime_statistic(config), _database(database)
     {
         _limit = config->get_int(LIMIT);
 #ifdef _WIN32
@@ -305,7 +305,7 @@ class runtime_monitor : public component {
             /* Open our statistic cursor. */
             _cursor = _session.open_scoped_cursor(STATISTICS_URI);
 
-            /* Load known statistics. */
+            /* Load known runtime statistics. */
             sub_config = _config->get_subconfig(STAT_CACHE_SIZE);
             _stats.push_back(new cache_limit_statistic(sub_config));
             delete sub_config;
@@ -335,7 +335,7 @@ class runtime_monitor : public component {
     private:
     scoped_session _session;
     scoped_cursor _cursor;
-    std::vector<statistic *> _stats;
+    std::vector<runtime_statistic *> _stats;
     postrun_statistic_check _postrun_stats;
     database &_database;
 };
