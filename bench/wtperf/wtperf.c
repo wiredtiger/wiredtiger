@@ -2768,7 +2768,6 @@ wtperf_rand(WTPERF_THREAD *thread)
          * recently inserted records.
          */
         (void)i;
-        (void)rval128;
         range =
           (SELECT_LATEST_RANGE < wtperf->insert_key) ? SELECT_LATEST_RANGE : wtperf->insert_key;
         start_range = wtperf->insert_key - range;
