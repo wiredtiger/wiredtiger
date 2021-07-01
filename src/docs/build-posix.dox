@@ -167,29 +167,28 @@ cmake -DCC_OPTIMIZE_LEVEL=-O1 -G Ninja ../.
 @section posix_ctest Running WiredTiger C/C++ Tests
 
 The WiredTiger CMake build makes available a suite of C/C++ based tests.
-To run all the tests available, ensure you're in the build directory and execute:
+To run the available tests you can use our smoke test alias (\c check). Ensure you're in the build directory and execute:
+
+@code
+ctest -j$(nproc) -L check
+@endcode
+
+Alternatively to just run all the tests available:
 
 @code
 ctest -j$(nproc)
 @endcode
 
-To run with verbose output:
+In addition, to get verbose output with your test run you can use the \c -VV flag:
 
 @code
 ctest -j$(nproc) -VV
 @endcode
 
-To run a specific test:
+If you want to focus on running a specific test (i.e. run a test that may be failing) you can use the \c -R flag:
 
 @code
 # Note: -R specifies a regex, where any matching test will be run
-ctest -R <test_name> -j$(nproc)
-@endcode
-
-To run our smoke tests, you can use the \c check alias:
-
-@code
-# Note: -R specifies a regex, where any matching test will be run
-ctest -L check -j$(nproc)
+ctest -j$(nproc) -R test_name
 @endcode
 */
