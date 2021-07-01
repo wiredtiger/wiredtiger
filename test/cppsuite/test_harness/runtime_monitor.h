@@ -230,8 +230,10 @@ class postrun_statistic_check {
     check(scoped_cursor &cursor) const
     {
         bool success = true;
-        for (const auto &stat : _stats)
-            success &= check_stat(cursor, stat);
+        for (const auto &stat : _stats) {
+            if (!check_stat(cursor, stat))
+                success = false;
+        }
         if (!success)
             testutil_die(-1,
               "runtime_monitor: One or more postrun statistics were outside of their specified "
