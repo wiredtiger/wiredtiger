@@ -211,8 +211,13 @@ class postrun_statistic_check {
                   "runtime_monitor: Each postrun statistic must follow the format of "
                   "\"stat_name:min_limit:max_limit\". Invalid format \"%s\" provided.",
                   c.c_str());
-            _stats.emplace_back(
-              std::move(stat.at(0)), std::stoi(stat.at(1)), std::stoi(stat.at(2)));
+            const int min_limit = std::stoi(stat.at(1)), max_limit = std::stoi(stat.at(2));
+            if (min_limit > max_limit)
+                testutil_die(-1,
+                  "runtime_monitor: The min limit of each postrun statistic must be less than or "
+                  "equal to its max limit. Config=\"%s\" Min=%ld Max=%ld",
+                  c.c_str(), min_limit, max_limit);
+            _stats.emplace_back(std::move(stat.at(0)), min_limit, max_limit);
         }
     }
     virtual ~postrun_statistic_check() = default;
