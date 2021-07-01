@@ -301,7 +301,7 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
 {
     uint32_t i;
 
-    WT_RET(__wt_buf_fmt(session, buf, "last=%" PRIu32 ",tiers=(", tiered->current_id));
+    WT_RET(__wt_buf_catfmt(session, buf, "last=%" PRIu32 ",tiers=(", tiered->current_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
             __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);

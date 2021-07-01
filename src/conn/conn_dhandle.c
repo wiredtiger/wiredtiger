@@ -100,10 +100,10 @@ __conn_dhandle_config_set(WT_SESSION_IMPL *session)
         cfg[0] = tmp;
         cfg[1] = NULL;
         strip = NULL;
-        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
-            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=";
-        else if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
+        if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
             strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=,last=,tiers=()";
+        else
+            strip = "checkpoint=,checkpoint_backup_info=,checkpoint_lsn=";
         WT_ERR(__wt_config_merge(session, cfg, strip, &base));
         __wt_free(session, tmp);
         break;

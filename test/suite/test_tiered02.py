@@ -32,9 +32,6 @@ from wtdataset import SimpleDataSet
 # test_tiered02.py
 #    Test tiered tree
 class test_tiered02(wttest.WiredTigerTestCase):
-    K = 1024
-    M = 1024 * K
-    G = 1024 * M
     uri = "table:test_tiered02"
 
     auth_token = "test_token"
@@ -46,7 +43,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         if not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
-          'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.bucket_prefix + \
