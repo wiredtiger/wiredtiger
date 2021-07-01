@@ -223,8 +223,13 @@ class postrun_statistic_check {
     void
     check(scoped_cursor &cursor) const
     {
+        bool success = true;
         for (const auto &stat : _stats)
-            check_stat(cursor, stat);
+            success &= check_stat(cursor, stat);
+        if (!success)
+            testutil_die(-1,
+              "runtime_monitor: One or more postrun statistics were outside of their specified "
+              "limits.");
     }
 
     private:
@@ -238,18 +243,19 @@ class postrun_statistic_check {
         const int field;
         const int64_t min_limit, max_limit;
     };
-    void
+    bool
     check_stat(scoped_cursor &cursor, const postrun_statistic &stat) const
     {
         int64_t stat_value;
 
         testutil_assert(cursor.get() != nullptr);
         get_stat(cursor, stat.field, &stat_value);
-        if (stat_value < stat.min_limit || stat_value > stat.max_limit)
-            testutil_die(-1,
-              "runtime_monitor: Postrun stat \"%s\" was outside of the specified limits. Min:%ld "
-              "Max:%ld Actual:%ld",
-              stat.name.c_str(), stat.min_limit, stat.max_limit, stat_value);
+        if (stat_value < stat.min_limit || stat_value > stat.max_limit) {
+            const std::string error_string = "runtime_monitor: Postrun stat \"" + stat.name +
+              "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
+              " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
+            debug_print(error_string, DEBUG_ERROR);
+        }
     }
 
     std::vector<postrun_statistic> _stats;
