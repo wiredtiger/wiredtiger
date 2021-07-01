@@ -236,7 +236,6 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
          * the checkpoint base stripped out.
          */
         WT_ASSERT(session, tmp->size >= dhandle->meta_base_length);
-        __wt_verbose(session, WT_VERB_TIERED, "CKPT_SET1: name %s config %s", fname, tmp->mem);
         WT_ERR(__wt_metadata_update(session, fname, tmp->mem));
     } else {
         /* Retrieve the metadata for this file. */
@@ -246,7 +245,6 @@ __ckpt_set(WT_SESSION_IMPL *session, const char *fname, const char *v, bool use_
         cfg[1] = str;
         cfg[2] = NULL;
         WT_ERR(__wt_config_collapse(session, cfg, &newcfg));
-        __wt_verbose(session, WT_VERB_TIERED, "CKPT_SET2: name %s config %s", fname, newcfg);
         WT_ERR(__wt_metadata_update(session, fname, newcfg));
     }
 
