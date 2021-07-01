@@ -56,9 +56,9 @@ inline int
 get_stat_field(const std::string &name)
 {
     if (name == "cache_hs_insert")
-        return WT_STAT_CONN_CACHE_HS_INSERT;
+        return (WT_STAT_CONN_CACHE_HS_INSERT);
     else if (name == "cc_pages_removed")
-        return WT_STAT_CONN_CC_PAGES_REMOVED;
+        return (WT_STAT_CONN_CC_PAGES_REMOVED);
     testutil_die(-1, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
@@ -129,7 +129,7 @@ collection_name_to_file_name(const std::string &collection_name)
     const auto stripped_name = collection_name.substr(colon_pos + 1);
 
     /* Now add the directory and file extension. */
-    return std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt";
+    return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
 }
 
 class db_size_statistic : public statistic {
@@ -186,7 +186,7 @@ class db_size_statistic : public statistic {
         file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_HS_FILE);
         file_names.push_back(std::string(DEFAULT_DIR) + "/" + WT_METAFILE);
 
-        return file_names;
+        return (file_names);
     }
 
     database &_database;
