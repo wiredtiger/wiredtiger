@@ -681,10 +681,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
              * started between previous check and acquiring snapshot. If there is a checkpoint
              * running, release the snapshot and fallback to global visibility checks.
              */
-            if (conn->txn_global.checkpoint_running) {
+            checkpoint_running = conn->txn_global.checkpoint_running;
+            if (checkpoint_running) {
                 __wt_txn_release_snapshot(session);
                 snapshot_acquired = false;
-                checkpoint_running = true;
             }
         }
         if (is_eviction_thread && !snapshot_acquired)
