@@ -53,9 +53,10 @@ get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
 }
 
 /*
- * This function maps from statistic names to their internal field ID. We should consider generating
- * it programmatically in `stat.py` to avoid having to manually add a condition every time we want
- * to observe a new postrun statistic.
+ * The WiredTiger configuration API doesn't accept string statistic names when retrieving statistic
+ * values. This function provides the required mapping to statistic id. We should consider
+ * generating it programmatically in `stat.py` to avoid having to manually add a condition every
+ * time we want to observe a new postrun statistic.
  */
 inline int
 get_stat_field(const std::string &name)
