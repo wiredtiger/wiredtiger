@@ -200,9 +200,7 @@ class postrun_statistic_check {
         const auto config_stats = config->get_list(POSTRUN_STATISTICS);
         /*
          * Each stat in the configuration is a colon separated list in the following format:
-         * - Stat name
-         * - Min limit
-         * - Max limit
+         * <stat_name>:<min_limit>:<max_limit>
          */
         for (const auto &c : config_stats) {
             auto stat = split_string(c, ':');
