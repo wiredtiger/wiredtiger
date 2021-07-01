@@ -59,7 +59,7 @@ get_stat_field(const std::string &name)
         return (WT_STAT_CONN_CACHE_HS_INSERT);
     else if (name == "cc_pages_removed")
         return (WT_STAT_CONN_CC_PAGES_REMOVED);
-    testutil_die(-1, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
+    testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
 }
 
 class statistic {
@@ -207,13 +207,13 @@ class postrun_statistic_check {
         for (const auto &c : config_stats) {
             auto stat = split_string(c, ':');
             if (stat.size() != 3)
-                testutil_die(-1,
+                testutil_die(EINVAL,
                   "runtime_monitor: Each postrun statistic must follow the format of "
                   "\"stat_name:min_limit:max_limit\". Invalid format \"%s\" provided.",
                   c.c_str());
             const int min_limit = std::stoi(stat.at(1)), max_limit = std::stoi(stat.at(2));
             if (min_limit > max_limit)
-                testutil_die(-1,
+                testutil_die(EINVAL,
                   "runtime_monitor: The min limit of each postrun statistic must be less than or "
                   "equal to its max limit. Config=\"%s\" Min=%ld Max=%ld",
                   c.c_str(), min_limit, max_limit);
