@@ -507,7 +507,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     page = ref->page;
     flags = WT_REC_EVICT;
     closing = FLD_ISSET(evict_flags, WT_EVICT_CALL_CLOSING);
-    checkpoint_running = snapshot_acquired = false;
+    snapshot_acquired = false;
 
     /*
      * Fail if an internal has active children, the children must be evicted first. The test is
