@@ -75,7 +75,7 @@ class test_backup02(wttest.WiredTigerTestCase):
                 my_data = str(more_time) + 'a' * (self.dsize - len(str(more_time)))
                 more_time = more_time - 0.1
                 for i in range(self.nops):
-                    work_queue.put_nowait(('gu', i, my_data + str(i)))
+                    work_queue.put_nowait(('gu', i, my_data))
         except:
             # Deplete the work queue if there's an error.
             while not work_queue.empty():
