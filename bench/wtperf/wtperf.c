@@ -2760,7 +2760,7 @@ wtperf_rand(WTPERF_THREAD *thread)
          * and take a square root of that value.
          */
         rval128 = (rval128 % (wtperf->insert_key * wtperf->insert_key));
-        rval = sqrtl((long double)rval128);
+        rval = (uint64_t)(double)sqrtl((long double)rval128);
 
 #else
 #define SELECT_LATEST_RANGE 1000
