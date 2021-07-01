@@ -56,7 +56,6 @@ class test_tiered08(wttest.WiredTigerTestCase):
         if not os.path.exists(self.bucket):
             os.mkdir(self.bucket)
         return \
-          'verbose=(tiered),' + \
           'statistics=(fast),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
@@ -133,9 +132,6 @@ class test_tiered08(wttest.WiredTigerTestCase):
         self.pr('Reopening tiered table')
         self.reopen_conn()
 
-        # FIXME-WT-7729 Opening the table for the final verify runs into trouble.
-        #if True:
-        #    return
         self.verify(key_count)
 
 if __name__ == '__main__':
