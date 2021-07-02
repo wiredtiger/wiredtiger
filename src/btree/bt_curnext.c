@@ -677,6 +677,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     for (newpage = false;; newpage = true, restart = false) {
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
+        /* Count instances where we moved to a new page. */
+        if (newpage)
+            WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_pages);
+
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
             WT_ASSERT(session, page != NULL);

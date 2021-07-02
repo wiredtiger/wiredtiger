@@ -624,6 +624,10 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     for (newpage = false;; newpage = true, restart = false) {
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
+        /* Count instances where we moved to a new page. */
+        if (newpage)
+            WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_pages);
+
         /*
          * Column-store pages may have appended entries. Handle it separately from the usual cursor
          * code, it's in a simple format.
