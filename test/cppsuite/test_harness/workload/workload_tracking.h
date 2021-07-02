@@ -30,19 +30,19 @@
 #define WORKLOAD_TRACKING_H
 
 /*
- * Default schema for tracking operations on collections (key_format: Collection name / Key /
+ * Default schema for tracking operations on collections (key_format: Collection id / Key /
  * Timestamp, value_format: Operation type / Value)
  */
-#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SSQ)
+#define OPERATION_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QSQ)
 #define OPERATION_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(iS)
 #define OPERATION_TRACKING_TABLE_CONFIG \
     "key_format=" OPERATION_TRACKING_KEY_FORMAT ",value_format=" OPERATION_TRACKING_VALUE_FORMAT
 
 /*
- * Default schema for tracking schema operations on collections (key_format: Collection name /
+ * Default schema for tracking schema operations on collections (key_format: Collection id /
  * Timestamp, value_format: Operation type)
  */
-#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(SQ)
+#define SCHEMA_TRACKING_KEY_FORMAT WT_UNCHECKED_STRING(QQ)
 #define SCHEMA_TRACKING_VALUE_FORMAT WT_UNCHECKED_STRING(i)
 #define SCHEMA_TRACKING_TABLE_CONFIG \
     "key_format=" SCHEMA_TRACKING_KEY_FORMAT ",value_format=" SCHEMA_TRACKING_VALUE_FORMAT
@@ -66,50 +66,45 @@ class workload_tracking : public component {
     const std::string &
     get_schema_table_name() const
     {
-        return _schema_table_name;
+        return (_schema_table_name);
     }
 
     const std::string &
     get_operation_table_name() const
     {
-        return _operation_table_name;
+        return (_operation_table_name);
     }
 
     void
-    load()
+    load() override final
     {
-        WT_SESSION *session;
-
         component::load();
 
         if (!_enabled)
             return;
 
         /* Initiate schema tracking. */
-        session = connection_manager::instance().create_session();
-        testutil_check(
-          session->create(session, _schema_table_name.c_str(), _schema_table_config.c_str()));
-        testutil_check(
-          session->open_cursor(session, _schema_table_name.c_str(), NULL, NULL, &_cursor_schema));
+        _session = connection_manager::instance().create_session();
+        testutil_check(_session->create(
+          _session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
+        _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name.c_str());
         debug_print("Schema tracking initiated", DEBUG_TRACE);
 
         /* Initiate operations tracking. */
-        testutil_check(
-          session->create(session, _operation_table_name.c_str(), _operation_table_config.c_str()));
-        testutil_check(session->open_cursor(
-          session, _operation_table_name.c_str(), NULL, NULL, &_cursor_operations));
+        testutil_check(_session->create(
+          _session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
         debug_print("Operations tracking created", DEBUG_TRACE);
     }
 
     void
-    run()
+    run() override final
     {
         /* Does not do anything. */
     }
 
     void
     save_schema_operation(
-      const tracking_operation &operation, const std::string &collection_name, wt_timestamp_t ts)
+      const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
     {
         std::string error_message;
 
@@ -118,9 +113,10 @@ class workload_tracking : public component {
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
-            _cursor_schema->set_key(_cursor_schema, collection_name.c_str(), ts);
-            _cursor_schema->set_value(_cursor_schema, static_cast<int>(operation));
-            testutil_check(_cursor_schema->insert(_cursor_schema));
+            _schema_track_cursor->set_key(_schema_track_cursor.get(), collection_id, ts);
+            _schema_track_cursor->set_value(
+              _schema_track_cursor.get(), static_cast<int>(operation));
+            testutil_check(_schema_track_cursor->insert(_schema_track_cursor.get()));
         } else {
             error_message = "save_schema_operation: invalid operation " +
               std::to_string(static_cast<int>(operation));
@@ -130,14 +126,17 @@ class workload_tracking : public component {
     }
 
     template <typename K, typename V>
-    void
-    save_operation(const tracking_operation &operation, const std::string &collection_name,
-      const K &key, const V &value, wt_timestamp_t ts)
+    int
+    save_operation(const tracking_operation &operation, const uint64_t &collection_id, const K &key,
+      const V &value, wt_timestamp_t ts, scoped_cursor &op_track_cursor)
     {
+        WT_DECL_RET;
         std::string error_message;
 
         if (!_enabled)
-            return;
+            return (0);
+
+        testutil_assert(op_track_cursor.get() != nullptr);
 
         if (operation == tracking_operation::CREATE_COLLECTION ||
           operation == tracking_operation::DELETE_COLLECTION) {
@@ -145,16 +144,17 @@ class workload_tracking : public component {
               "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         } else {
-            _cursor_operations->set_key(_cursor_operations, collection_name.c_str(), key, ts);
-            _cursor_operations->set_value(_cursor_operations, static_cast<int>(operation), value);
-            testutil_check(_cursor_operations->insert(_cursor_operations));
+            op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
+            op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
+            ret = op_track_cursor->insert(op_track_cursor.get());
         }
         debug_print("save_operation: workload tracking saved operation.", DEBUG_TRACE);
+        return (ret);
     }
 
     private:
-    WT_CURSOR *_cursor_operations = nullptr;
-    WT_CURSOR *_cursor_schema = nullptr;
+    scoped_session _session;
+    scoped_cursor _schema_track_cursor;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;

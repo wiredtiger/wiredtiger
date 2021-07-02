@@ -31,6 +31,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <functional>
 #include <map>
 
 #include "core/throttle.h"
@@ -41,14 +42,46 @@
 
 namespace test_harness {
 /*
+ * Helper class to enable scalable operation types in the database_operation.
+ */
+class operation_config {
+    public:
+    operation_config(configuration *config, thread_type type)
+        : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
+    {
+    }
+
+    /* Returns a function pointer to the member function of the supplied database operation. */
+    std::function<void(test_harness::thread_context *)>
+    get_func(database_operation *dbo)
+    {
+        switch (type) {
+        case thread_type::INSERT:
+            return (std::bind(&database_operation::insert_operation, dbo, std::placeholders::_1));
+        case thread_type::READ:
+            return (std::bind(&database_operation::read_operation, dbo, std::placeholders::_1));
+        case thread_type::UPDATE:
+            return (std::bind(&database_operation::update_operation, dbo, std::placeholders::_1));
+        default:
+            /* This may cause a separate testutil_die in type_string but that should be okay. */
+            testutil_die(EINVAL, "unexpected thread_type: %s", type_string(type).c_str());
+        }
+    }
+    configuration *config;
+    const thread_type type;
+    const int64_t thread_count;
+};
+
+/*
  * Class that can execute operations based on a given configuration.
  */
 class workload_generator : public component {
     public:
     workload_generator(configuration *configuration, database_operation *db_operation,
-      timestamp_manager *timestamp_manager, workload_tracking *tracking)
-        : component("workload_generator", configuration), _database_operation(db_operation),
-          _timestamp_manager(timestamp_manager), _tracking(tracking)
+      timestamp_manager *timestamp_manager, workload_tracking *tracking, database &database)
+        : component("workload_generator", configuration), _database(database),
+          _database_operation(db_operation), _timestamp_manager(timestamp_manager),
+          _tracking(tracking)
     {
     }
 
@@ -64,57 +97,55 @@ class workload_generator : public component {
 
     /* Do the work of the main part of the workload. */
     void
-    run()
+    run() override final
     {
-        configuration *transaction_config, *update_config, *insert_config;
-        int64_t min_operation_per_transaction, max_operation_per_transaction, read_threads,
-          update_threads, value_size;
-
-        /* Populate the database. */
-        _database_operation->populate(_database, _timestamp_manager, _config, _tracking);
-        _db_populated = true;
+        configuration *populate_config;
+        std::vector<operation_config> operation_configs;
+        uint64_t thread_id = 0;
 
         /* Retrieve useful parameters from the test configuration. */
-        transaction_config = _config->get_subconfig(OPS_PER_TRANSACTION);
-        update_config = _config->get_subconfig(UPDATE_CONFIG);
-        insert_config = _config->get_subconfig(INSERT_CONFIG);
-        read_threads = _config->get_int(READ_THREADS);
-        update_threads = _config->get_int(UPDATE_THREADS);
+        operation_configs.push_back(
+          operation_config(_config->get_subconfig(INSERT_CONFIG), thread_type::INSERT));
+        operation_configs.push_back(
+          operation_config(_config->get_subconfig(READ_CONFIG), thread_type::READ));
+        operation_configs.push_back(
+          operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
+        populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
-        min_operation_per_transaction = transaction_config->get_int(MIN);
-        max_operation_per_transaction = transaction_config->get_int(MAX);
-        testutil_assert(max_operation_per_transaction >= min_operation_per_transaction);
-        value_size = _config->get_int(VALUE_SIZE);
-        testutil_assert(value_size >= 0);
+        /* Populate the database. */
+        _database_operation->populate(_database, _timestamp_manager, populate_config, _tracking);
+        _db_populated = true;
+        delete populate_config;
 
         /* Generate threads to execute read operations on the collections. */
-        for (size_t i = 0; i < read_threads && _running; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
-              thread_operation::READ, max_operation_per_transaction, min_operation_per_transaction,
-              value_size, throttle());
-            _workers.push_back(tc);
-            _thread_manager.add_thread(tc, _database_operation, &execute_operation);
-        }
+        for (auto &it : operation_configs) {
+            debug_print("Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
+                type_string(it.type) + " threads.",
+              DEBUG_INFO);
+            for (size_t i = 0; i < it.thread_count && _running; ++i) {
+                thread_context *tc = new thread_context(
+                  thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);
+                _workers.push_back(tc);
+                _thread_manager.add_thread(it.get_func(_database_operation), tc);
+            }
+            /*
+             * Don't forget to delete the config we created earlier. While we do pass the config
+             * into the thread context it is not saved, so we are safe to do this.
+             */
+            delete it.config;
 
-        /* Generate threads to execute update operations on the collections. */
-        for (size_t i = 0; i < update_threads && _running; ++i) {
-            thread_context *tc = new thread_context(_timestamp_manager, _tracking, _database,
-              thread_operation::UPDATE, max_operation_per_transaction,
-              min_operation_per_transaction, value_size, throttle(update_config));
-            _workers.push_back(tc);
-            _thread_manager.add_thread(tc, _database_operation, &execute_operation);
+            /*
+             * Reset the thread_id counter to 0 as we're only interested in knowing per operation
+             * type which thread we are.
+             */
+            thread_id = 0;
         }
-
-        delete transaction_config;
-        delete update_config;
-        delete insert_config;
     }
 
     void
-    finish()
+    finish() override final
     {
         component::finish();
-
         for (const auto &it : _workers)
             it->finish();
         _thread_manager.join();
@@ -133,36 +164,8 @@ class workload_generator : public component {
         return (_db_populated);
     }
 
-    /* Workload threaded operations. */
-    static void
-    execute_operation(thread_context &context, database_operation &db_operation)
-    {
-        WT_SESSION *session;
-
-        session = connection_manager::instance().create_session();
-
-        switch (context.get_thread_operation()) {
-        case thread_operation::READ:
-            db_operation.read_operation(context, session);
-            break;
-        case thread_operation::REMOVE:
-        case thread_operation::INSERT:
-            /* Sleep until it is implemented. */
-            while (context.is_running())
-                std::this_thread::sleep_for(std::chrono::seconds(1));
-            break;
-        case thread_operation::UPDATE:
-            db_operation.update_operation(context, session);
-            break;
-        default:
-            testutil_die(DEBUG_ERROR, "system: thread_operation is unknown : %d",
-              static_cast<int>(context.get_thread_operation()));
-            break;
-        }
-    }
-
     private:
-    database _database;
+    database &_database;
     database_operation *_database_operation;
     thread_manager _thread_manager;
     timestamp_manager *_timestamp_manager;

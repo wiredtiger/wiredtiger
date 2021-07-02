@@ -26,9 +26,48 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
+#ifndef CHECKPOINT_MANAGER_H
+#define CHECKPOINT_MANAGER_H
 
-class poc_test : public test_harness::test {
+#include "util/api_const.h"
+#include "connection_manager.h"
+
+namespace test_harness {
+
+class checkpoint_manager : public component {
     public:
-    poc_test(const std::string &config, const std::string &name) : test(config, name) {}
+    explicit checkpoint_manager(configuration *configuration)
+        : component(CHECKPOINT_MANAGER, configuration)
+    {
+    }
+    virtual ~checkpoint_manager() = default;
+
+    /* Delete the copy constructor and the assignment operator. */
+    checkpoint_manager(const checkpoint_manager &) = delete;
+    checkpoint_manager &operator=(const checkpoint_manager &) = delete;
+
+    void
+    load() override final
+    {
+        /* Load the general component things. */
+        component::load();
+
+        /* Create session that we'll use for checkpointing. */
+        if (_enabled)
+            _session = connection_manager::instance().create_session();
+    }
+
+    void
+    do_work() override final
+    {
+        debug_print("Running checkpoint", DEBUG_INFO);
+        testutil_check(_session->checkpoint(_session.get(), nullptr));
+    }
+
+    private:
+    scoped_session _session;
 };
+
+} // namespace test_harness
+
+#endif

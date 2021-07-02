@@ -35,14 +35,29 @@
 
 #define EXTPATH "../../ext/" /* Extensions path */
 
+#ifndef LZ4_PATH
 #define LZ4_PATH EXTPATH "compressors/lz4/.libs/libwiredtiger_lz4.so"
+#endif
+
+#ifndef SNAPPY_PATH
 #define SNAPPY_PATH EXTPATH "compressors/snappy/.libs/libwiredtiger_snappy.so"
+#endif
+
+#ifndef ZLIB_PATH
 #define ZLIB_PATH EXTPATH "compressors/zlib/.libs/libwiredtiger_zlib.so"
+#endif
+
+#ifndef ZSTD_PATH
 #define ZSTD_PATH EXTPATH "compressors/zstd/.libs/libwiredtiger_zstd.so"
+#endif
 
+#ifndef REVERSE_PATH
 #define REVERSE_PATH EXTPATH "collators/reverse/.libs/libwiredtiger_reverse_collator.so"
+#endif
 
+#ifndef ROTN_PATH
 #define ROTN_PATH EXTPATH "encryptors/rotn/.libs/libwiredtiger_rotn.so"
+#endif
 
 #undef M
 #define M(v) ((v)*WT_MILLION) /* Million */
@@ -124,6 +139,12 @@ typedef struct {
      * that requires locking out transactional ops that set a timestamp.
      */
     RWLOCK ts_lock;
+    /*
+     * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
+     * Otherwise, it may panic if the stable timestamp is moved to greater than or equal to the
+     * prepared transaction's durable timestamp when it is committing.
+     */
+    RWLOCK prepare_commit_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
@@ -412,8 +433,8 @@ int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 void timestamp_init(void);
-void timestamp_once(bool, bool);
-void timestamp_teardown(void);
+void timestamp_once(WT_SESSION *, bool, bool);
+void timestamp_teardown(WT_SESSION *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);

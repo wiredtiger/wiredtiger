@@ -97,8 +97,6 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
             WT_ERR(__wt_block_addr_to_buffer(
               block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
-
-            WT_ERR(__wt_block_tiered_load(session, block, ci));
         }
 
         /*
@@ -745,13 +743,6 @@ live_update:
     WT_ERR(__wt_block_extlist_init(session, &ci->alloc, "live", "alloc", false));
     ci->ckpt_discard = ci->discard;
     WT_ERR(__wt_block_extlist_init(session, &ci->discard, "live", "discard", false));
-
-    /*
-     * TODO: tiered: for now we are switching files on a checkpoint, we'll want to do it only on
-     * flush_tier.
-     */
-    if (block->has_objects)
-        WT_ERR(__wt_block_tiered_newfile(session, block));
 
 #ifdef HAVE_DIAGNOSTIC
     /*

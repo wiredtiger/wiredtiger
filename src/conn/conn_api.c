@@ -716,6 +716,7 @@ __conn_get_storage_source(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage_source;
+    WT_STORAGE_SOURCE *storage_source;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     *storage_sourcep = NULL;
@@ -723,7 +724,9 @@ __conn_get_storage_source(
     ret = EINVAL;
     TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
         if (WT_STREQ(nstorage_source->name, name)) {
-            *storage_sourcep = nstorage_source->storage_source;
+            storage_source = nstorage_source->storage_source;
+            WT_RET(storage_source->ss_add_reference(storage_source));
+            *storage_sourcep = storage_source;
             ret = 0;
             break;
         }
@@ -824,6 +827,10 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.struct_pack = __wt_ext_struct_pack;
     conn->extension_api.struct_size = __wt_ext_struct_size;
     conn->extension_api.struct_unpack = __wt_ext_struct_unpack;
+    conn->extension_api.spin_init = __wt_ext_spin_init;
+    conn->extension_api.spin_lock = __wt_ext_spin_lock;
+    conn->extension_api.spin_unlock = __wt_ext_spin_unlock;
+    conn->extension_api.spin_destroy = __wt_ext_spin_destroy;
     conn->extension_api.transaction_id = __wt_ext_transaction_id;
     conn->extension_api.transaction_isolation_level = __wt_ext_transaction_isolation_level;
     conn->extension_api.transaction_notify = __wt_ext_transaction_notify;
@@ -1962,6 +1969,11 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
     return (0);
 }
 

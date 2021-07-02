@@ -26,59 +26,91 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from test_rollback_to_stable01 import test_rollback_to_stable_base
+from wiredtiger import stat
+from wtscenario import make_scenarios
+from helper import simulate_crash_restart
 from wtdataset import SimpleDataSet
+from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 def timestamp_str(t):
     return '%x' % t
 
-# test_rollback_to_stable21
-# Test history store operations conflicting with rollback to stable. We're trying to trigger a
-# history store eviction concurrently to a rollback to stable call. We'll do this by limiting
-# the cache size to 100MB and performing 100MB worth of inserts while periodically calling rollback
-# to stable.
+# test_rollback_to_stable21.py
+# Test rollback to stable when an out of order prepared transaction is written to disk
 class test_rollback_to_stable21(test_rollback_to_stable_base):
-    conn_config = 'cache_size=100MB,statistics=(fast),statistics_log=(wait=1,json)'
-    session_config = 'isolation=snapshot'
-    prepare = False
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
+    scenarios = make_scenarios(key_format_values)
+
+    def conn_config(self):
+        config = 'cache_size=250MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
+        return config
 
     def test_rollback_to_stable(self):
         nrows = 1000
-        nds = 10
 
-        # Create a few tables and populate them with some initial data.
-        #
-        # Our way of preventing history store operations from interfering with rollback to stable's
-        # transaction check is by draining active evictions from each open dhandle.
-        #
-        # It's important that we have a few different tables to work with so that it's
-        # representative of a real situation. But also don't make the number too high relative to
-        # the number of updates or we may not have history for any of the tables.
-        ds_list = list()
-        for i in range(0, nds):
-            uri = 'table:rollback_to_stable21_{}'.format(i)
-            ds = SimpleDataSet(
-                self, uri, 0, key_format='i', value_format='S', config='log=(enabled=false)')
-            ds.populate()
-            ds_list.append(ds)
-        self.assertEqual(len(ds_list), nds)
+        # Prepare transactions for column store table is not yet supported.
+        if self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
 
-        # 100 bytes of data are being inserted into 1000 rows.
-        # This happens 1000 iterations.
-        # Overall, that's 100MB of data which is guaranteed to kick start eviction.
-        for i in range(1, 1000):
-            # Generate a value, timestamp and table based off the index.
-            value = str(i)[0] * 100
-            ts = i * 10
-            ds = ds_list[i % nds]
+        # Create a table without logging.
+        uri = "table:rollback_to_stable21"
+        ds = SimpleDataSet(
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
+        ds.populate()
 
-            # Perform updates.
-            self.large_updates(ds.uri, value, ds, nrows, False, ts)
+        # Pin oldest and stable timestamps to 10.
+        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
+            ',stable_timestamp=' + timestamp_str(10))
 
-            # Every hundred updates, let's run rollback to stable. This is likely to happen during
-            # a history store eviction at least once.
-            if i % 100 == 0:
-                # Put the timestamp backwards so we can rollback the updates we just did.
-                stable_ts = (i - 1) * 10
-                self.conn.set_timestamp('stable_timestamp=' + timestamp_str(stable_ts))
-                self.conn.rollback_to_stable()
+        valuea = 'a' * 400
+        valueb = 'b' * 400
+
+        cursor = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        for i in range(1, nrows + 1):
+            cursor[i] = valuea
+
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(30))
+
+        self.session.begin_transaction()
+        for i in range(1, nrows + 1):
+            cursor[i] = valueb
+
+        cursor.reset()
+        cursor.close()
+        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(20))
+
+        s = self.conn.open_session()
+        s.begin_transaction('ignore_prepare = true')
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
+        evict_cursor = s.open_cursor(uri, None, "debug=(release_evict)")
+
+        for i in range(1, nrows + 1):
+            evict_cursor.set_key(i)
+            self.assertEquals(evict_cursor.search(), 0)
+            self.assertEqual(evict_cursor.get_value(), valuea)
+            evict_cursor.reset()
+
+        s.rollback_transaction()
+        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(40))
+        s.checkpoint()
+
+        # Rollback the prepared transaction
+        self.session.rollback_transaction()
+
+        # Simulate a server crash and restart.
+        self.pr("restart")
+        simulate_crash_restart(self, ".", "RESTART")
+        self.pr("restart complete")
+
+        self.check(valuea, uri, nrows, 40)
+
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
+        stat_cursor.close()
+
+        self.assertGreater(hs_removed, 0)

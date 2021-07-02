@@ -27,10 +27,17 @@ if(${u_intmax_size} STREQUAL "")
     endif()
 endif()
 
+set(default_offt_def)
+if("${WT_OS}" STREQUAL "windows")
+    set(default_offt_def "typedef int64_t wt_off_t\\;")
+else()
+    set(default_offt_def "typedef off_t wt_off_t\\;")
+endif()
+
 config_string(
     off_t_decl
     "off_t type declaration."
-    DEFAULT "typedef off_t wt_off_t\\;"
+    DEFAULT "${default_offt_def}"
     INTERNAL
 )
 
@@ -244,6 +251,7 @@ config_lib(
     "lz4 library exists."
     LIB "lz4"
     FUNC "LZ4_versionNumber"
+    HEADER "lz4.h"
 )
 
 config_lib(
@@ -251,6 +259,7 @@ config_lib(
     "snappy library exists."
     LIB "snappy"
     FUNC "snappy_compress"
+    HEADER "snappy.h"
 )
 
 config_lib(
@@ -258,6 +267,7 @@ config_lib(
     "zlib library exists."
     LIB "z"
     FUNC "zlibVersion"
+    HEADER "zlib.h"
 )
 
 config_lib(
@@ -265,6 +275,7 @@ config_lib(
     "zstd library exists."
     LIB "zstd"
     FUNC "ZSTD_versionString"
+    HEADER "zstd.h"
 )
 
 config_lib(
@@ -297,7 +308,7 @@ set(wiredtiger_includes_decl)
 if(HAVE_SYS_TYPES_H)
     list(APPEND wiredtiger_includes_decl "#include <sys/types.h>")
 endif()
-if(HAVE_INTTYPES_H)
+if(HAVE_INTTYPES_H AND (NOT "${WT_OS}" STREQUAL "windows"))
     list(APPEND wiredtiger_includes_decl "#include <inttypes.h>")
 endif()
 if(HAVE_STDARG_H)

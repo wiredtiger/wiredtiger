@@ -38,6 +38,7 @@ extern "C" {
 
 #include "util/api_const.h"
 #include "util/debug_utils.h"
+#include "util/scoped_types.h"
 
 namespace test_harness {
 /*
@@ -61,7 +62,7 @@ class connection_manager {
     close()
     {
         if (_conn != nullptr) {
-            testutil_check(_conn->close(_conn, NULL));
+            testutil_check(_conn->close(_conn, nullptr));
             _conn = nullptr;
         }
     }
@@ -73,19 +74,18 @@ class connection_manager {
             debug_print("Connection is not NULL, cannot be re-opened.", DEBUG_ERROR);
             testutil_die(EINVAL, "Connection is not NULL");
         }
+        debug_print("wiredtiger_open config: " + config, DEBUG_INFO);
 
         /* Create the working dir. */
         testutil_make_work_dir(home.c_str());
 
         /* Open conn. */
-        testutil_check(wiredtiger_open(home.c_str(), NULL, config.c_str(), &_conn));
+        testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
     }
 
-    WT_SESSION *
+    scoped_session
     create_session()
     {
-        WT_SESSION *session;
-
         if (_conn == nullptr) {
             debug_print("Connection is NULL, did you forget to call connection_manager::create ?",
               DEBUG_ERROR);
@@ -93,7 +93,7 @@ class connection_manager {
         }
 
         _conn_mutex.lock();
-        testutil_check(_conn->open_session(_conn, NULL, NULL, &session));
+        scoped_session session(_conn);
         _conn_mutex.unlock();
 
         return (session);

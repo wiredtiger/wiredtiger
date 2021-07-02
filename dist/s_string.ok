@@ -147,6 +147,7 @@ FOREACH
 FS
 FTRUNCATE
 FULLFSYNC
+FUNCSIG
 Facebook
 FindClose
 FindFirstFile
@@ -477,6 +478,7 @@ Wunused
 XP
 Xcode
 Xcode/
+YCSB
 Yann
 ZSTD
 Zlib
@@ -640,6 +642,7 @@ create's
 createCStream
 crypto
 cryptobad
+cryptographic
 cstring
 csuite
 csv
@@ -704,6 +707,7 @@ designator
 dest
 destSize
 destructor
+destructors
 dev
 dh
 dhandle
@@ -1259,6 +1263,7 @@ sT
 sanitizer
 sanitizers
 scalability
+scalable
 sched
 scr
 sd
@@ -1401,6 +1406,7 @@ unencrypted
 unesc
 unescape
 unescaped
+unhandled
 unicode
 uninstantiated
 unistd
