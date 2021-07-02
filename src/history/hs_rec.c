@@ -205,6 +205,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
          */
         if (checkpoint_running) {
             ret = EBUSY;
+            WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
             goto err;
         }
         WT_ERR(__hs_delete_reinsert_from_pos(
@@ -439,6 +440,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
                  */
                 if (checkpoint_running) {
                     ret = EBUSY;
+                    WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
                     goto err;
                 }
 
@@ -787,6 +789,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      */
     if (checkpoint_running) {
         ret = EBUSY;
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
         goto err;
     }
 
