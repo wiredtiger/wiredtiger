@@ -150,10 +150,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
         self.progress('reopen_conn')
         self.reopen_conn()
 
-        # FIXME-WT-7589 This test works up to this point, then runs into trouble.
-        if True:
-            return
-
         # Check what was there before
         ds = SimpleDataSet(self, self.uri, 200, config=args)
         ds.check()
