@@ -95,11 +95,11 @@ __cursor_checkvalue(WT_CURSOR *cursor)
 }
 
 /*
- * __cursor_localkey --
+ * __wt_cursor_localkey --
  *     If the key points into the tree, get a local copy.
  */
 static inline int
-__cursor_localkey(WT_CURSOR *cursor)
+__wt_cursor_localkey(WT_CURSOR *cursor)
 {
     if (F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         if (!WT_DATA_IN_ITEM(&cursor->key))
@@ -136,7 +136,7 @@ __cursor_localvalue(WT_CURSOR *cursor)
 static inline int
 __cursor_needkey(WT_CURSOR *cursor)
 {
-    WT_RET(__cursor_localkey(cursor));
+    WT_RET(__wt_cursor_localkey(cursor));
     return (__cursor_checkkey(cursor));
 }
 
@@ -352,10 +352,14 @@ __wt_cursor_dhandle_decr_use(WT_SESSION_IMPL *session)
 
     dhandle = session->dhandle;
 
-    /* If we close a handle with a time of death set, clear it. */
+    /*
+     * If we close a handle with a time of death set, clear it. The ordering is important: after
+     * decrementing the use count, there's a chance that the data handle can be freed.
+     */
     WT_ASSERT(session, dhandle->session_inuse > 0);
-    if (__wt_atomic_subi32(&dhandle->session_inuse, 1) == 0 && dhandle->timeofdeath != 0)
+    if (dhandle->timeofdeath != 0 && dhandle->session_inuse == 1)
         dhandle->timeofdeath = 0;
+    (void)__wt_atomic_subi32(&dhandle->session_inuse, 1);
 }
 
 /*
@@ -404,11 +408,11 @@ __cursor_kv_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 }
 
 /*
- * __cursor_func_init --
+ * __wt_cursor_func_init --
  *     Cursor call setup.
  */
 static inline int
-__cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
+__wt_cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
 {
     WT_SESSION_IMPL *session;
 
@@ -446,16 +450,16 @@ __cursor_func_init(WT_CURSOR_BTREE *cbt, bool reenter)
  *     Return a row-store leaf page slot's key.
  */
 static inline int
-__cursor_row_slot_key_return(
-  WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_KV *kpack, bool *kpack_used)
+__cursor_row_slot_key_return(WT_CURSOR_BTREE *cbt, WT_ROW *rip, WT_CELL_UNPACK_KV *kpack)
 {
     WT_CELL *cell;
     WT_ITEM *kb;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
+    size_t key_size;
+    uint8_t key_prefix;
     void *copy;
-
-    *kpack_used = false;
+    const void *key_data;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -468,47 +472,53 @@ __cursor_row_slot_key_return(
     copy = WT_ROW_KEY_COPY(rip);
 
     /*
-     * Get a key: we could just call __wt_row_leaf_key, but as a cursor is running through the tree,
-     * we may have additional information here (we may have the fully-built key that's immediately
-     * before the prefix-compressed key we want, so it's a faster construction).
-     *
-     * First, check for an immediately available key.
+     * Check for an immediately available key from an encoded or instantiated key, and if that's not
+     * available, from the unpacked cell.
      */
-    if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &kb->data, &kb->size))
+    __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
+    if (key_data == NULL) {
+        if (__wt_cell_type(cell) != WT_CELL_KEY)
+            goto slow;
+        __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+        key_data = kpack->data;
+        key_size = kpack->size;
+        key_prefix = kpack->prefix;
+    }
+    if (key_prefix == 0) {
+        kb->data = key_data;
+        kb->size = key_size;
         return (0);
+    }
 
     /*
-     * Unpack the cell and deal with overflow and prefix-compressed keys. Inline building simple
-     * prefix-compressed keys from a previous key, otherwise build from scratch.
-     *
-     * Clear the key cell structure. It shouldn't be necessary (as far as I can tell, and we don't
-     * do it in lots of other places), but disabling shared builds (--disable-shared) results in the
-     * compiler complaining about uninitialized field use.
+     * A prefix compressed key. As a cursor is running through the tree, we may have the fully-built
+     * key immediately before the prefix-compressed key we want, so it's faster to build here.
      */
-    memset(kpack, 0, sizeof(*kpack));
-    __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-    *kpack_used = true;
-    if (kpack->type == WT_CELL_KEY && cbt->rip_saved != NULL && cbt->rip_saved == rip - 1) {
-        WT_ASSERT(session, cbt->row_key->size >= kpack->prefix);
+    if (cbt->rip_saved == NULL || cbt->rip_saved != rip - 1)
+        goto slow;
 
-        /*
-         * Grow the buffer as necessary as well as ensure data has been copied into local buffer
-         * space, then append the suffix to the prefix already in the buffer.
-         *
-         * Don't grow the buffer unnecessarily or copy data we don't need, truncate the item's data
-         * length to the prefix bytes.
-         */
-        cbt->row_key->size = kpack->prefix;
-        WT_RET(__wt_buf_grow(session, cbt->row_key, cbt->row_key->size + kpack->size));
-        memcpy((uint8_t *)cbt->row_key->data + cbt->row_key->size, kpack->data, kpack->size);
-        cbt->row_key->size += kpack->size;
-    } else {
-        /*
-         * Call __wt_row_leaf_key_work instead of __wt_row_leaf_key: we already did
-         * __wt_row_leaf_key's fast-path checks inline.
-         */
+    /*
+     * Inline building simple prefix-compressed keys from a previous key.
+     *
+     * Grow the buffer as necessary as well as ensure data has been copied into local buffer space,
+     * then append the suffix to the prefix already in the buffer. Don't grow the buffer
+     * unnecessarily or copy data we don't need, truncate the item's CURRENT data length to the
+     * prefix bytes before growing the buffer.
+     */
+    WT_ASSERT(session, cbt->row_key->size >= key_prefix);
+    cbt->row_key->size = key_prefix;
+    WT_RET(__wt_buf_grow(session, cbt->row_key, key_prefix + key_size));
+    memcpy((uint8_t *)cbt->row_key->data + key_prefix, key_data, key_size);
+    cbt->row_key->size = key_prefix + key_size;
+
+    if (0) {
+slow: /*
+       * Call __wt_row_leaf_key_work() instead of __wt_row_leaf_key(): we already did the
+       * __wt_row_leaf_key() fast-path checks inline.
+       */
         WT_RET(__wt_row_leaf_key_work(session, page, rip, cbt->row_key, false));
     }
+
     kb->data = cbt->row_key->data;
     kb->size = cbt->row_key->size;
     cbt->rip_saved = rip;

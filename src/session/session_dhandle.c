@@ -380,7 +380,7 @@ __session_dhandle_sweep(WT_SESSION_IMPL *session)
     {
         dhandle = dhandle_cache->dhandle;
         empty_btree = false;
-        if (dhandle->type == WT_DHANDLE_TYPE_BTREE)
+        if (WT_DHANDLE_BTREE(dhandle))
             WT_WITH_DHANDLE(
               session, dhandle, empty_btree = (__wt_btree_bytes_evictable(session) == 0));
 
@@ -494,7 +494,7 @@ __wt_session_get_dhandle(WT_SESSION_IMPL *session, const char *uri, const char *
          * handles in the meantime. A combination of the schema and handle list locks are used to
          * enforce this.
          */
-        if (!F_ISSET(session, WT_SESSION_LOCKED_SCHEMA)) {
+        if (!FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA)) {
             dhandle->excl_session = NULL;
             dhandle->excl_ref = 0;
             F_CLR(dhandle, WT_DHANDLE_EXCLUSIVE);

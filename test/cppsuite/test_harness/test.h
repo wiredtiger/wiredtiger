@@ -38,54 +38,68 @@ extern "C" {
 #include "wiredtiger.h"
 }
 
-#include "api_const.h"
-#include "component.h"
-#include "configuration.h"
+#include "util/api_const.h"
+#include "core/component.h"
+#include "core/configuration.h"
+#include "checkpoint_manager.h"
 #include "connection_manager.h"
 #include "runtime_monitor.h"
 #include "timestamp_manager.h"
 #include "thread_manager.h"
 #include "workload_generator.h"
-#include "workload_validation.h"
+#include "workload/workload_validation.h"
 
 namespace test_harness {
+class test_args {
+    public:
+    test_args(const std::string &config, const std::string &name, const std::string &wt_open_config)
+        : test_config(config), test_name(name), wt_open_config(wt_open_config)
+    {
+    }
+    const std::string test_config;
+    const std::string test_name;
+    const std::string wt_open_config;
+};
 /*
  * The base class for a test, the standard usage pattern is to just call run().
  */
 class test : public database_operation {
     public:
-    test(const std::string &config, const std::string &name)
-        : _runtime_monitor(nullptr), _thread_manager(nullptr), _timestamp_manager(nullptr),
-          _workload_generator(nullptr), _workload_tracking(nullptr)
+    test(const test_args &args) : _args(args)
     {
-        _configuration = new configuration(name, config);
-        _runtime_monitor = new runtime_monitor(_configuration->get_subconfig(RUNTIME_MONITOR));
-        _timestamp_manager =
-          new timestamp_manager(_configuration->get_subconfig(TIMESTAMP_MANAGER));
-        _workload_tracking = new workload_tracking(_configuration->get_subconfig(WORKLOAD_TRACKING),
+        _config = new configuration(args.test_name, args.test_config);
+        _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
+        _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
+        _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
+        _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
           OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
           TABLE_SCHEMA_TRACKING);
-        _workload_generator =
-          new workload_generator(_configuration->get_subconfig(WORKLOAD_GENERATOR), this,
-            _timestamp_manager, _workload_tracking);
+        _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR),
+          this, _timestamp_manager, _workload_tracking, _database);
         _thread_manager = new thread_manager();
+
+        _database.set_timestamp_manager(_timestamp_manager);
+        _database.set_workload_tracking(_workload_tracking);
+
         /*
          * Ordering is not important here, any dependencies between components should be resolved
          * internally by the components.
          */
-        _components = {
-          _workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor};
+        _components = {_workload_tracking, _workload_generator, _timestamp_manager,
+          _runtime_monitor, _checkpoint_manager};
     }
 
     ~test()
     {
-        delete _configuration;
+        delete _config;
+        delete _checkpoint_manager;
         delete _runtime_monitor;
         delete _timestamp_manager;
         delete _thread_manager;
         delete _workload_generator;
         delete _workload_tracking;
-        _configuration = nullptr;
+        _config = nullptr;
+        _checkpoint_manager = nullptr;
         _runtime_monitor = nullptr;
         _timestamp_manager = nullptr;
         _thread_manager = nullptr;
@@ -105,16 +119,32 @@ class test : public database_operation {
     virtual void
     run()
     {
-        int64_t cache_size_mb = 100, duration_seconds = 0;
-        bool enable_logging, is_success = true;
-
+        int64_t cache_size_mb, duration_seconds;
+        bool enable_logging, statistics_logging;
+        configuration *statistics_config;
+        std::string statistics_type;
         /* Build the database creation config string. */
         std::string db_create_config = CONNECTION_CREATE;
 
-        testutil_check(_configuration->get_int(CACHE_SIZE_MB, cache_size_mb));
-        db_create_config += ",statistics=(fast),cache_size=" + std::to_string(cache_size_mb) + "MB";
-        testutil_check(_configuration->get_bool(ENABLE_LOGGING, enable_logging));
+        /* Get the cache size. */
+        cache_size_mb = _config->get_int(CACHE_SIZE_MB);
+        db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";
+
+        /* Get the statistics configuration for this run. */
+        statistics_config = _config->get_subconfig(STATISTICS_CONFIG);
+        statistics_type = statistics_config->get_string(TYPE);
+        statistics_logging = statistics_config->get_bool(ENABLE_LOGGING);
+        db_create_config += statistics_logging ? "," + std::string(STATISTICS_LOG) : "";
+        db_create_config += ",statistics=(" + statistics_type + ")";
+        /* Don't forget to delete. */
+        delete statistics_config;
+
+        /* Enable or disable write ahead logging. */
+        enable_logging = _config->get_bool(ENABLE_LOGGING);
         db_create_config += ",log=(enabled=" + std::string(enable_logging ? "true" : "false") + ")";
+
+        /* Add the user supplied wiredtiger open config. */
+        db_create_config += _args.wt_open_config;
 
         /* Set up the test environment. */
         connection_manager::instance().create(db_create_config);
@@ -127,25 +157,36 @@ class test : public database_operation {
         for (const auto &it : _components)
             _thread_manager->add_thread(&component::run, it);
 
-        /* Sleep duration seconds. */
-        testutil_check(_configuration->get_int(DURATION_SECONDS, duration_seconds));
+        /* The initial population phase needs to be finished before starting the actual test. */
+        while (_workload_generator->enabled() && !_workload_generator->db_populated())
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+
+        /* The test will run for the duration as defined in the config. */
+        duration_seconds = _config->get_int(DURATION_SECONDS);
         testutil_assert(duration_seconds >= 0);
+        debug_print("Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.",
+          DEBUG_INFO);
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
-        /* End the test. */
+        /* End the test by calling finish on all known components. */
         for (const auto &it : _components)
             it->finish();
+
+        debug_print(
+          "Joining all component threads.\n This could take a while as we need to wait"
+          " for all components to finish their current loop.",
+          DEBUG_INFO);
         _thread_manager->join();
 
         /* Validation stage. */
-        if (_workload_tracking->is_enabled()) {
+        if (_workload_tracking->enabled()) {
             workload_validation wv;
-            is_success = wv.validate(_workload_tracking->get_operation_table_name(),
-              _workload_tracking->get_schema_table_name(), _workload_generator->get_database());
+            wv.validate(_workload_tracking->get_operation_table_name(),
+              _workload_tracking->get_schema_table_name(),
+              _workload_generator->get_database().get_collection_ids());
         }
 
-        debug_print(is_success ? "SUCCESS" : "FAILED", DEBUG_INFO);
-        connection_manager::instance().close();
+        debug_print("SUCCESS", DEBUG_INFO);
     }
 
     /*
@@ -155,36 +196,50 @@ class test : public database_operation {
     workload_generator *
     get_workload_generator()
     {
-        return _workload_generator;
+        return (_workload_generator);
     }
 
     runtime_monitor *
     get_runtime_monitor()
     {
-        return _runtime_monitor;
+        return (_runtime_monitor);
     }
 
     timestamp_manager *
     get_timestamp_manager()
     {
-        return _timestamp_manager;
+        return (_timestamp_manager);
     }
 
     thread_manager *
     get_thread_manager()
     {
-        return _thread_manager;
+        return (_thread_manager);
     }
 
     private:
-    std::string _name;
+    const test_args &_args;
     std::vector<component *> _components;
-    configuration *_configuration;
-    runtime_monitor *_runtime_monitor;
-    thread_manager *_thread_manager;
-    timestamp_manager *_timestamp_manager;
-    workload_generator *_workload_generator;
-    workload_tracking *_workload_tracking;
+    configuration *_config;
+    checkpoint_manager *_checkpoint_manager = nullptr;
+    runtime_monitor *_runtime_monitor = nullptr;
+    thread_manager *_thread_manager = nullptr;
+    timestamp_manager *_timestamp_manager = nullptr;
+    workload_generator *_workload_generator = nullptr;
+    workload_tracking *_workload_tracking = nullptr;
+    /*
+     * FIX-ME-Test-Framework: We can't put this code in the destructor of `test` since it will run
+     * before the destructors of each of our members (meaning that sessions will get closed after
+     * the connection gets closed). To work around this, we've added a member with a destructor that
+     * closes the connection.
+     */
+    struct connection_closer {
+        ~connection_closer()
+        {
+            connection_manager::instance().close();
+        }
+    } _connection_closer;
+    database _database;
 };
 } // namespace test_harness
 

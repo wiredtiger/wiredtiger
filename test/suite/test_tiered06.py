@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -47,14 +47,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         pdb.set_trace()
 
     def get_local_storage_source(self):
-        local = self.conn.get_storage_source('local_store')
-
-        # Note: do not call local.terminate() .
-        # Since the local_storage extension has been loaded as a consequence of the
-        # wiredtiger_open call, WiredTiger already knows to call terminate when the connection
-        # closes.  Calling it twice would attempt to free the same memory twice.
-        local.terminate = None
-        return local
+        return self.conn.get_storage_source('local_store')
 
     def test_local_basic(self):
         # Test some basic functionality of the storage source API, calling
@@ -64,18 +57,18 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local = self.get_local_storage_source()
 
         os.mkdir("objects")
-        fs = local.ss_customize_file_system(session, "./objects", "cluster1-", "Secret", None)
+        fs = local.ss_customize_file_system(session, "./objects", "Secret", None)
 
         # The object doesn't exist yet.
         self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         fh = fs.fs_open_file(session, 'foobar', FileSystem.open_file_type_data, FileSystem.open_create)
 
+        # Just like a regular file system, the object exists now.
+        self.assertTrue(fs.fs_exist(session, 'foobar'))
+
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         fh.fh_write(session, 0, outbytes)
-
-        # The object doesn't even exist now.
-        self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         # The object exists after close
         fh.close(session)
@@ -95,27 +88,45 @@ class test_tiered06(wttest.WiredTigerTestCase):
         fh.fh_lock(session, False)
         fh.close(session)
 
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        # Nothing is in the directory list until a flush.
+        self.assertEquals(fs.fs_directory_list(session, '', ''), [])
 
-        # Make sure any new object is not in the list until it is closed.
         fh = fs.fs_open_file(session, 'zzz', FileSystem.open_file_type_data, FileSystem.open_create)
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+
         # Sync merely syncs to the local disk.
         fh.fh_sync(session)
-        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
         fh.close(session)    # zero length
-        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')),
-          ['foobar', 'zzz'])
+        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), [])
+
+        # See that we can rename objects.
+        fs.fs_rename(session, 'zzz', 'yyy', 0)
+        self.assertEquals(sorted(fs.fs_directory_list(session, '', '')), [])
 
         # See that we can remove objects.
-        fs.fs_remove(session, 'zzz', 0)
+        fs.fs_remove(session, 'yyy', 0)
+
+        # Nothing is in the directory list until a flush.
+        self.assertEquals(fs.fs_directory_list(session, '', ''), [])
+
+        # Flushing moves the file.
+        local.ss_flush(session, fs, 'foobar', 'foobar', None)
+        local.ss_flush_finish(session, fs, 'foobar', 'foobar', None)
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
-        # Flushing doesn't do anything that's visible.
-        local.ss_flush(session, fs, None, '')
+        # Files that have been flushed cannot be manipulated.
+        with self.expectedStderrPattern('foobar: rename of flushed file not allowed'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: fs.fs_rename(session, 'foobar', 'barfoo', 0))
+        self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+
+        # Files that have been flushed cannot be manipulated through the custom file system.
+        with self.expectedStderrPattern('foobar: remove of flushed file not allowed'):
+            self.assertRaisesException(wiredtiger.WiredTigerError,
+                lambda: fs.fs_remove(session, 'foobar', 0))
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         fs.terminate(session)
+        local.terminate(session)
 
     def test_local_write_read(self):
         # Write and read to a file non-sequentially.
@@ -124,7 +135,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local = self.get_local_storage_source()
 
         os.mkdir("objects")
-        fs = local.ss_customize_file_system(session, "./objects", "cluster1-", "Secret", None)
+        fs = local.ss_customize_file_system(session, "./objects", "Secret", None)
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -174,6 +185,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
             else:
                 self.assertEquals(in_block, a_block)
         fh.close(session)
+        local.terminate(session)
 
     def create_with_fs(self, fs, fname):
         session = self.session
@@ -181,80 +193,161 @@ class test_tiered06(wttest.WiredTigerTestCase):
         fh.fh_write(session, 0, 'some stuff'.encode())
         fh.close(session)
 
-    def check(self, fs, prefix, expect):
-        # We don't require any sorted output for location lists,
+    objectdir1 = "./objects1"
+    objectdir2 = "./objects2"
+
+    cachedir1 = "./cache1"
+    cachedir2 = "./cache2"
+
+    # Add a suffix to each in a list
+    def suffix(self, lst, sfx):
+        return [x + '.' + sfx for x in lst]
+
+    def check_dirlist(self, fs, prefix, expect):
+        # We don't require any sorted output for directory lists,
         # so we'll sort before comparing.'
         got = sorted(fs.fs_directory_list(self.session, '', prefix))
-        expect = sorted(expect)
+        expect = sorted(self.suffix(expect, 'wtobj'))
         self.assertEquals(got, expect)
 
-    def test_local_locations(self):
+    # Check for data files in the WiredTiger home directory.
+    def check_home(self, expect):
+        # Get list of all .wt files in home, prune out the WiredTiger produced ones
+        got = sorted(list(os.listdir(self.home)))
+        got = [x for x in got if not x.startswith('WiredTiger') and x.endswith('.wt')]
+        expect = sorted(self.suffix(expect, 'wt'))
+        self.assertEquals(got, expect)
+
+    # Check that objects are "in the cloud" after a flush.
+    # Using the local storage module, they are actually going to be in either
+    # objectdir1 or objectdir2
+    def check_objects(self, expect1, expect2):
+        got = sorted(list(os.listdir(self.objectdir1)))
+        expect = sorted(self.suffix(expect1, 'wtobj'))
+        self.assertEquals(got, expect)
+        got = sorted(list(os.listdir(self.objectdir2)))
+        expect = sorted(self.suffix(expect2, 'wtobj'))
+        self.assertEquals(got, expect)
+
+    # Check that objects are in the cache directory after flush_finish.
+    def check_caches(self, expect1, expect2):
+        got = sorted(list(os.listdir(self.cachedir1)))
+        expect = sorted(self.suffix(expect1, 'wtobj'))
+        self.assertEquals(got, expect)
+        got = sorted(list(os.listdir(self.cachedir2)))
+        expect = sorted(self.suffix(expect2, 'wtobj'))
+        self.assertEquals(got, expect)
+
+    def create_wt_file(self, name):
+        with open(name + '.wt', 'w') as f:
+            f.write('hello')
+
+    def test_local_file_systems(self):
         # Test using various buckets, hosts
 
         session = self.session
         local = self.conn.get_storage_source('local_store')
         self.local = local
-        os.mkdir("objects1")
-        os.mkdir("objects2")
+        os.mkdir(self.objectdir1)
+        os.mkdir(self.objectdir2)
+        os.mkdir(self.cachedir1)
+        os.mkdir(self.cachedir2)
+        config1 = "cache_directory=" + self.cachedir1
+        config2 = "cache_directory=" + self.cachedir2
+        bad_config = "cache_directory=BAD"
 
-        # Any of the activity that happens in the various locations
-        # should be independent.
-        fs1 = local.ss_customize_file_system(session, "./objects1", "cluster1-", "k1", None)
-        fs2 = local.ss_customize_file_system(session, "./objects2", "cluster1-", "k2", None)
-        fs3 = local.ss_customize_file_system(session, "./objects1", "cluster2-", "k3", None)
-        fs4 = local.ss_customize_file_system(session, "./objects2", "cluster2-", "k4", None)
+        # Create file system objects. First try some error cases.
+        errmsg = '/No such file or directory/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: local.ss_customize_file_system(
+                session, "./objects1", "k1", bad_config), errmsg)
 
-        # Create files in the locations with some name overlap
-        self.create_with_fs(fs1, 'alpaca')
-        self.create_with_fs(fs2, 'bear')
-        self.create_with_fs(fs3, 'crab')
-        self.create_with_fs(fs4, 'deer')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: local.ss_customize_file_system(
+                session, "./objects_BAD", "k1", config1), errmsg)
+
+        # Create an empty file, try to use it as a directory.
+        with open("some_file", "w"):
+            pass
+        errmsg = '/Invalid argument/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: local.ss_customize_file_system(
+                session, "some_file", "k1", config1), errmsg)
+
+        # Now create some file systems that should succeed.
+        # Use either different bucket directories or different prefixes,
+        # so activity that happens in the various file systems should be independent.
+        fs1 = local.ss_customize_file_system(session, "./objects1", "k1", config1)
+        fs2 = local.ss_customize_file_system(session, "./objects2", "k2", config2)
+
+        # Create files in the wt home directory.
         for a in ['beagle', 'bird', 'bison', 'bat']:
-            self.create_with_fs(fs1, a)
-        for a in ['bird', 'bison', 'bat', 'badger']:
-            self.create_with_fs(fs2, a)
-        for a in ['bison', 'bat', 'badger', 'baboon']:
-            self.create_with_fs(fs3, a)
-        for a in ['bat', 'badger', 'baboon', 'beagle']:
-            self.create_with_fs(fs4, a)
+            self.create_wt_file(a)
+        for a in ['cat', 'cougar', 'coyote', 'cub']:
+            self.create_wt_file(a)
 
-        # Make sure we see the expected file names
-        self.check(fs1, '', ['alpaca', 'beagle', 'bird', 'bison', 'bat'])
-        self.check(fs1, 'a', ['alpaca'])
-        self.check(fs1, 'b', ['beagle', 'bird', 'bison', 'bat'])
-        self.check(fs1, 'c', [])
-        self.check(fs1, 'd', [])
+        # Everything is in wt home, nothing in the file system yet.
+        self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
+        self.check_dirlist(fs1, '', [])
+        self.check_dirlist(fs2, '', [])
+        self.check_caches([], [])
+        self.check_objects([], [])
 
-        self.check(fs2, '', ['bear', 'bird', 'bison', 'bat', 'badger'])
-        self.check(fs2, 'a', [])
-        self.check(fs2, 'b', ['bear', 'bird', 'bison', 'bat', 'badger'])
-        self.check(fs2, 'c', [])
-        self.check(fs2, 'd', [])
+        # A flush copies to the cloud, nothing is removed.
+        local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
+        self.check_dirlist(fs1, '', [])
+        self.check_dirlist(fs2, '', [])
+        self.check_caches([], [])
+        self.check_objects(['beagle'], [])
 
-        self.check(fs3, '', ['crab', 'bison', 'bat', 'badger', 'baboon'])
-        self.check(fs3, 'a', [])
-        self.check(fs3, 'b', ['bison', 'bat', 'badger', 'baboon'])
-        self.check(fs3, 'c', ['crab'])
-        self.check(fs3, 'd', [])
+        # Bad file to flush
+        errmsg = '/No such file/'
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: local.ss_flush(session, fs1, 'bad.wt', 'bad.wtobj'), errmsg)
 
-        self.check(fs4, '', ['deer', 'bat', 'badger', 'baboon', 'beagle'])
-        self.check(fs4, 'a', [])
-        self.check(fs4, 'b', ['bat', 'badger', 'baboon', 'beagle'])
-        self.check(fs4, 'c', [])
-        self.check(fs4, 'd', ['deer'])
+        # It's okay to flush again, nothing changes
+        local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
+        self.check_dirlist(fs1, '', [])
+        self.check_dirlist(fs2, '', [])
+        self.check_caches([], [])
+        self.check_objects(['beagle'], [])
 
-        # Flushing doesn't do anything that's visible, but calling it still exercises code paths.
-        # At some point, we'll have statistics we can check.
-        #
-        # For now, we can turn on the verbose config option for the local_store extension to verify.
-        local.ss_flush(session, fs4, None, '')
-        local.ss_flush(session, fs3, 'badger', '')
-        local.ss_flush(session, fs3, 'c', '')     # make sure we don't flush prefixes
-        local.ss_flush(session, fs3, 'b', '')     # or suffixes
-        local.ss_flush(session, fs3, 'crab', '')
-        local.ss_flush(session, fs3, 'crab', '')  # should do nothing
-        local.ss_flush(session, None, None, '')         # flush everything else
-        local.ss_flush(session, None, None, '')         # should do nothing
+        # When we flush_finish, the local file will move to the cache directory
+        local.ss_flush_finish(session, fs1, 'beagle.wt', 'beagle.wtobj')
+        self.check_home(['bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
+        self.check_dirlist(fs1, '', ['beagle'])
+        self.check_dirlist(fs2, '', [])
+        self.check_caches(['beagle'], [])
+        self.check_objects(['beagle'], [])
+
+        # Do a some more in each file ssytem
+        local.ss_flush(session, fs1, 'bison.wt', 'bison.wtobj')
+        local.ss_flush(session, fs2, 'cat.wt', 'cat.wtobj')
+        local.ss_flush(session, fs1, 'bat.wt', 'bat.wtobj')
+        local.ss_flush_finish(session, fs2, 'cat.wt', 'cat.wtobj')
+        local.ss_flush(session, fs2, 'cub.wt', 'cub.wtobj')
+        local.ss_flush_finish(session, fs1, 'bat.wt', 'bat.wtobj')
+
+        self.check_home(['bird', 'bison', 'cougar', 'coyote', 'cub'])
+        self.check_dirlist(fs1, '', ['beagle', 'bat'])
+        self.check_dirlist(fs2, '', ['cat'])
+        self.check_caches(['beagle', 'bat'], ['cat'])
+        self.check_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
+
+        # Test directory listing prefixes
+        self.check_dirlist(fs1, '', ['beagle', 'bat'])
+        self.check_dirlist(fs1, 'ba', ['bat'])
+        self.check_dirlist(fs1, 'be', ['beagle'])
+        self.check_dirlist(fs1, 'x', [])
+
+        # Terminate just one of the custom file systems.
+        # We should be able to terminate file systems, but we should
+        # also be able to terminate the storage source without terminating
+        # all the file systems we created.
+        fs1.terminate(session)
+        local.terminate(session)
 
 if __name__ == '__main__':
     wttest.run()

@@ -35,14 +35,29 @@
 
 #define EXTPATH "../../ext/" /* Extensions path */
 
+#ifndef LZ4_PATH
 #define LZ4_PATH EXTPATH "compressors/lz4/.libs/libwiredtiger_lz4.so"
+#endif
+
+#ifndef SNAPPY_PATH
 #define SNAPPY_PATH EXTPATH "compressors/snappy/.libs/libwiredtiger_snappy.so"
+#endif
+
+#ifndef ZLIB_PATH
 #define ZLIB_PATH EXTPATH "compressors/zlib/.libs/libwiredtiger_zlib.so"
+#endif
+
+#ifndef ZSTD_PATH
 #define ZSTD_PATH EXTPATH "compressors/zstd/.libs/libwiredtiger_zstd.so"
+#endif
 
+#ifndef REVERSE_PATH
 #define REVERSE_PATH EXTPATH "collators/reverse/.libs/libwiredtiger_reverse_collator.so"
+#endif
 
+#ifndef ROTN_PATH
 #define ROTN_PATH EXTPATH "encryptors/rotn/.libs/libwiredtiger_rotn.so"
+#endif
 
 #undef M
 #define M(v) ((v)*WT_MILLION) /* Million */
@@ -124,6 +139,12 @@ typedef struct {
      * that requires locking out transactional ops that set a timestamp.
      */
     RWLOCK ts_lock;
+    /*
+     * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
+     * Otherwise, it may panic if the stable timestamp is moved to greater than or equal to the
+     * prepared transaction's durable timestamp when it is committing.
+     */
+    RWLOCK prepare_commit_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
@@ -140,8 +161,8 @@ typedef struct {
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
-    uint32_t c_assert_commit_timestamp;
     uint32_t c_assert_read_timestamp;
+    uint32_t c_assert_write_timestamp;
     uint32_t c_auto_throttle;
     char *c_backup_incremental;
     uint32_t c_backup_incr_granularity;
@@ -172,13 +193,12 @@ typedef struct {
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
     uint32_t c_huffman_value;
+    uint32_t c_import;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
     uint32_t c_internal_key_truncation;
     uint32_t c_intl_page_max;
-    char *c_isolation;
-    uint32_t c_key_gap;
     uint32_t c_key_max;
     uint32_t c_key_min;
     uint32_t c_leaf_page_max;
@@ -196,6 +216,7 @@ typedef struct {
     uint32_t c_mmap_all;
     uint32_t c_modify_pct;
     uint32_t c_ops;
+    uint32_t c_prefix;
     uint32_t c_prefix_compression;
     uint32_t c_prefix_compression_min;
     uint32_t c_prepare;
@@ -227,8 +248,7 @@ typedef struct {
     uint32_t c_timing_stress_split_7;
     uint32_t c_timing_stress_split_8;
     uint32_t c_truncate;
-    uint32_t c_txn_freq;
-    uint32_t c_txn_rollback_to_stable;
+    uint32_t c_txn_implicit;
     uint32_t c_txn_timestamps;
     uint32_t c_value_max;
     uint32_t c_value_min;
@@ -269,13 +289,6 @@ typedef struct {
 #define ENCRYPT_ROTN_7 2
     u_int c_encryption_flag; /* Encryption flag value */
 
-#define ISOLATION_NOT_SET 0
-#define ISOLATION_RANDOM 1
-#define ISOLATION_READ_UNCOMMITTED 2
-#define ISOLATION_READ_COMMITTED 3
-#define ISOLATION_SNAPSHOT 4
-    u_int c_isolation_flag; /* Isolation flag value */
-
 /* The page must be a multiple of the allocation size, and 512 always works. */
 #define BLOCK_ALLOCATION_SIZE 512
     uint32_t intl_page_max; /* Maximum page sizes */
@@ -283,6 +296,7 @@ typedef struct {
 
     uint64_t rows; /* Total rows */
 
+    uint32_t prefix_len;         /* Common key prefix length */
     uint32_t key_rand_len[1031]; /* Key lengths */
 } GLOBAL;
 extern GLOBAL g;
@@ -384,6 +398,7 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
+WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
@@ -395,6 +410,7 @@ void config_final(void);
 void config_print(bool);
 void config_run(void);
 void config_single(const char *, bool);
+void create_database(const char *home, WT_CONNECTION **connp);
 void fclose_and_clear(FILE **);
 bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(WT_ITEM *, uint64_t, const char *);
@@ -417,8 +433,8 @@ int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
 void timestamp_init(void);
-void timestamp_once(bool, bool);
-void timestamp_teardown(void);
+void timestamp_once(WT_SESSION *, bool, bool);
+void timestamp_teardown(WT_SESSION *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);

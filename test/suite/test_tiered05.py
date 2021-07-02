@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, time, wiredtiger, wttest
 from wiredtiger import stat
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -36,23 +36,31 @@ class test_tiered05(wttest.WiredTigerTestCase):
     uri = "table:test_tiered05"
 
     auth_token = "test_token"
+    bucket = "my_bucket"
+    bucket_prefix = "my_prefix"
     extension_name = "local_store"
+    wait = 2
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     def conn_config(self):
+        os.mkdir(self.bucket)
         return \
           'statistics=(fast),' + \
-          'tiered_manager=(wait=10),' + \
+          'tiered_manager=(wait=%d),' % self.wait + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
+          'bucket=%s,' % self.bucket + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s,' % self.extension_name + \
           'object_target_size=20M)'
 
     # Test calling the flush_tier API with a tiered manager. Should get an error.
     def test_tiered(self):
         self.session.create(self.uri, 'key_format=S')
+        # Allow time for the thread to start up.
+        time.sleep(self.wait)
         msg = "/storage manager thread is configured/"
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.assertEquals(self.session.flush_tier(None), 0), msg)

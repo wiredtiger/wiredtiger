@@ -49,12 +49,10 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported. Retained for backward
-            compatibility. Use \c write_timestamp option instead.''',
+            This option is no longer supported, retained for backward compatibility.''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported. Retained for backward
-            compatibility. Use \c write_timestamp option instead.''',
+            This option is no longer supported, retained for backward compatibility.''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
@@ -205,18 +203,37 @@ lsm_config = [
     ]),
 ]
 
-tiered_config = common_runtime_config + [
-    Config('tiered', '', r'''
-        options only relevant for tiered data sources''',
+tiered_config = [
+    Config('tiered_storage', '', r'''
+        configure a storage source for this table''',
         type='category', subconfig=[
-        Config('chunk_size', '1GB', r'''
-            the maximum size of the hot chunk of tiered tree.  This
-            limit is soft - it is possible for chunks to be temporarily
-            larger than this value''',
-            min='1M'),
-        Config('tiers', '', r'''
-            list of data sources to combine into a tiered storage structure''', type='list')
-    ]),
+        Config('name', 'none', r'''
+            permitted values are \c "none"
+            or custom storage source name created with
+            WT_CONNECTION::add_storage_source.
+            See @ref custom_storage_sources for more information'''),
+        Config('auth_token', '', r'''
+            authentication string identifier'''),
+        Config('bucket', '', r'''
+            the bucket indicating the location for this table'''),
+        Config('bucket_prefix', '', r'''
+            the unique bucket prefix for this table'''),
+        Config('local_retention', '300', r'''
+            time in seconds to retain data on tiered storage on the local tier
+            for faster read access''',
+            min='0', max='10000'),
+        Config('object_target_size', '10M', r'''
+            the approximate size of objects before creating them on the
+            tiered storage tier''',
+            min='100K', max='10TB'),
+        ]),
+]
+
+tiered_tree_config = [
+    Config('bucket', '', r'''
+        the bucket indicating the location for this table'''),
+    Config('bucket_prefix', '', r'''
+        the unique bucket prefix for this table'''),
 ]
 
 file_runtime_config = common_runtime_config + [
@@ -255,16 +272,19 @@ file_runtime_config = common_runtime_config + [
         the file is read-only. All methods that may modify a file are
         disabled. See @ref readonly for more information''',
         type='boolean'),
+    Config('tiered_object', 'false', r'''
+        this file is a tiered object. When opened on its own, it is marked as
+        readonly and may be restricted in other ways''',
+        type='boolean', undoc=True),
 ]
 
 # Per-file configuration
-file_config = format_meta + file_runtime_config + [
+file_config = format_meta + file_runtime_config + tiered_config + [
     Config('block_allocation', 'best', r'''
         configure block allocation. Permitted values are \c "best" or \c "first";
         the \c "best" configuration uses a best-fit algorithm,
-        the \c "first" configuration uses a first-available algorithm during block allocation,
-        the \c "log-structure" configuration allocates a new file for each checkpoint''',
-        choices=['best', 'first', 'log-structured',]),
+        the \c "first" configuration uses a first-available algorithm during block allocation''',
+        choices=['best', 'first',]),
     Config('allocation_size', '4KB', r'''
         the file unit allocation size, in bytes, must a power-of-two;
         smaller values decrease the file space required by overflow
@@ -311,8 +331,7 @@ file_config = format_meta + file_runtime_config + [
         the file format''',
         choices=['btree']),
     Config('huffman_key', 'none', r'''
-        This option is no longer supported. Retained for backward
-        compatibility. See @ref huffman for more information'''),
+        This option is no longer supported, retained for backward compatibility.'''),
     Config('huffman_value', 'none', r'''
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
@@ -336,8 +355,8 @@ file_config = format_meta + file_runtime_config + [
         block compression is done''',
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
-        historic term for internal_key_max''',
-        min=0, undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min=0),
     Config('internal_key_max', '0', r'''
         the largest key stored in an internal node, in bytes.  If set, keys
         larger than the specified size are stored as overflow items (which
@@ -346,10 +365,8 @@ file_config = format_meta + file_runtime_config + [
         page''',
         min='0'),
     Config('key_gap', '10', r'''
-        the maximum gap between instantiated keys in a Btree leaf page,
-        constraining the number of keys processed to instantiate a
-        random Btree leaf page key''',
-        min='0', undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min='0'),
     Config('leaf_key_max', '0', r'''
         the largest key stored in a leaf node, in bytes.  If set, keys
         larger than the specified size are stored as overflow items (which
@@ -373,8 +390,8 @@ file_config = format_meta + file_runtime_config + [
         a newly split leaf page''',
         min='0'),
     Config('leaf_item_max', '0', r'''
-        historic term for leaf_key_max and leaf_value_max''',
-        min=0, undoc=True),
+        This option is no longer supported, retained for backward compatibility.''',
+        min=0),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
         Depending on compression efficiency, compression can create storage
@@ -413,27 +430,6 @@ file_config = format_meta + file_runtime_config + [
         split into smaller pages, where each page is the specified
         percentage of the maximum Btree page size''',
         min='50', max='100'),
-    Config('tiered_storage', '', r'''
-        configure a storage source for this table''',
-        type='category', subconfig=[
-        Config('name', 'none', r'''
-            Permitted values are \c "none"
-            or custom storage source name created with
-            WT_CONNECTION::add_storage_source.
-            See @ref custom_storage_sources for more information'''),
-        Config('auth_token', '', r'''
-            authentication string identifier'''),
-        Config('bucket', '', r'''
-            The bucket indicating the location for this table'''),
-        Config('local_retention', '300', r'''
-            time in seconds to retain data on tiered storage on the local tier
-            for faster read access''',
-        min='0', max='10000'),
-        Config('object_target_size', '10M', r'''
-            the approximate size of objects before creating them on the
-            tiered storage tier''',
-            min='100K', max='10TB'),
-        ]),
 ]
 
 # File metadata, including both configurable and non-configurable (internal)
@@ -451,7 +447,7 @@ file_meta = file_config + [
 ]
 
 lsm_meta = file_config + lsm_config + [
-    Config('last', '', r'''
+    Config('last', '0', r'''
         the last allocated chunk ID'''),
     Config('chunks', '', r'''
         active chunks in the LSM tree'''),
@@ -459,7 +455,20 @@ lsm_meta = file_config + lsm_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-tiered_meta = tiered_config
+tiered_meta = file_meta + tiered_config + [
+    Config('last', '0', r'''
+        the last allocated object ID'''),
+    Config('tiers', '', r'''
+        list of data sources to combine into a tiered storage structure''', type='list'),
+]
+
+tier_meta = file_meta + tiered_tree_config
+# Objects need to have the readonly setting set and bucket_prefix.
+# The file_meta already contains those pieces.
+object_meta = file_meta + [
+    Config('flush', '0', r'''
+        indicates the time this object was flushed to shared storage or 0 if unflushed'''),
+]
 
 table_only_config = [
     Config('colgroups', '', r'''
@@ -590,6 +599,9 @@ connection_runtime_config = [
             This setting introduces a log format change that may break older
             versions of WiredTiger. These operations are informational and
             skipped in recovery.''',
+            type='boolean'),
+        Config('update_restore_evict', 'false', r'''
+            if true, control all dirty page evictions through forcing update restore eviction.''',
             type='boolean'),
         ]),
     Config('error_prefix', '', r'''
@@ -742,6 +754,21 @@ connection_runtime_config = [
             this will update the value if one is already set''',
             min='1MB', max='10TB')
         ]),
+    Config('statistics', 'none', r'''
+        Maintain database statistics, which may impact performance.
+        Choosing "all" maintains all statistics regardless of cost,
+        "fast" maintains a subset of statistics that are relatively
+        inexpensive, "none" turns off all statistics. The "clear"
+        configuration resets statistics after they are gathered,
+        where appropriate (for example, a cache size statistic is
+        not cleared, while the count of cursor insert operations will
+        be cleared).   When "clear" is configured for the database,
+        gathered statistics are reset each time a statistics cursor
+        is used to gather statistics, as well as each time statistics
+        are logged using the \c statistics_log configuration.  See
+        @ref statistics for more information''',
+        type='list',
+        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('tiered_manager', '', r'''
         tiered storage manager configuration options''',
         type='category', undoc=True, subconfig=[
@@ -760,21 +787,6 @@ connection_runtime_config = [
                 management inside WiredTiger''',
                 min='0', max='100000'),
             ]),
-    Config('statistics', 'none', r'''
-        Maintain database statistics, which may impact performance.
-        Choosing "all" maintains all statistics regardless of cost,
-        "fast" maintains a subset of statistics that are relatively
-        inexpensive, "none" turns off all statistics. The "clear"
-        configuration resets statistics after they are gathered,
-        where appropriate (for example, a cache size statistic is
-        not cleared, while the count of cursor insert operations will
-        be cleared).   When "clear" is configured for the database,
-        gathered statistics are reset each time a statistics cursor
-        is used to gather statistics, as well as each time statistics
-        are logged using the \c statistics_log configuration.  See
-        @ref statistics for more information''',
-        type='list',
-        choices=['all', 'cache_walk', 'fast', 'none', 'clear', 'tree_walk']),
     Config('timing_stress_for_test', '', r'''
         enable code that interrupts the usual timing of operations with a goal
         of uncovering race conditions and unexpected blocking. This option is
@@ -820,6 +832,7 @@ connection_runtime_config = [
             'split',
             'temporary',
             'thread_group',
+            'tiered',
             'timestamp',
             'transaction',
             'verify',
@@ -1236,6 +1249,14 @@ cursor_runtime_config = [
         if the record exists, WT_CURSOR::update fails with ::WT_NOTFOUND
         if the record does not exist''',
         type='boolean'),
+    Config('prefix_search', 'false', r'''
+        when performing a search near for a prefix, if set to true this
+        configuration will allow the search near to exit early if it has left
+        the key range defined by the prefix. This is relevant when the table
+        contains a large number of records which potentially aren't visible to
+        the caller of search near, as such a large number of records could be skipped.
+        The prefix_search configuration provides a fast exit in this scenario.''', type='boolean',
+        undoc=True),
 ]
 
 methods = {
@@ -1249,7 +1270,11 @@ methods = {
 
 'lsm.meta' : Method(lsm_meta),
 
+'object.meta' : Method(object_meta),
+
 'table.meta' : Method(table_meta),
+
+'tier.meta' : Method(tier_meta),
 
 'tiered.meta' : Method(tiered_meta),
 
@@ -1536,6 +1561,18 @@ methods = {
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),
+    Config('lock_wait', 'true', r'''
+        wait for locks, if \c lock_wait=false, fail if any required locks are
+        not available immediately''',
+        type='boolean'),
+    Config('sync', 'on', r'''
+        wait for all objects to be flushed to the shared storage to the level
+        specified. The \c off setting does not wait for any
+        objects to be written to the tiered storage system but returns immediately after
+        generating the objects and work units for an internal thread.  The
+        \c on setting causes the caller to wait until all work queued for this call to
+        be completely processed before returning''',
+        choices=['off', 'on']),
 ]),
 
 'WT_SESSION.strerror' : Method([]),

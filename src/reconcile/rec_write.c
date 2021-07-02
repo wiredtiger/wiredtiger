@@ -1217,15 +1217,13 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
 
 done:
     /*
-     * Overflow values can be larger than the maximum page size but still be
-     * "on-page". If the next key/value pair is larger than space available
-     * after a split has happened (in other words, larger than the maximum
-     * page size), create a page sized to hold that one key/value pair. This
-     * generally splits the page into key/value pairs before a large object,
-     * the object, and key/value pairs after the object. It's possible other
-     * key/value pairs will also be aggregated onto the bigger page before
-     * or after, if the page happens to hold them, but it won't necessarily
-     * happen that way.
+     * Overflow values can be larger than the maximum page size but still be "on-page". If the next
+     * key/value pair is larger than space available after a split has happened (in other words,
+     * larger than the maximum page size), create a page sized to hold that one key/value pair. This
+     * generally splits the page into key/value pairs before a large object, the object, and
+     * key/value pairs after the object. It's possible other key/value pairs will also be aggregated
+     * onto the bigger page before or after, if the page happens to hold them, but it won't
+     * necessarily happen that way.
      */
     if (r->space_avail < next_len)
         WT_RET(__rec_split_grow(session, r, next_len));
@@ -1514,6 +1512,32 @@ err:
 }
 
 /*
+ * __rec_set_page_write_gen --
+ *     Initialize the page write generation number.
+ */
+static void
+__rec_set_page_write_gen(WT_PAGE_HEADER *dsk, WT_BTREE *btree)
+{
+    /*
+     * We increment the block's write generation so it's easy to identify newer versions of blocks
+     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
+     * multiple blocks to be internally consistent with identical first and last keys, so we need a
+     * way to know the most recent state of the block. We could check which leaf is referenced by a
+     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
+     * it's not as good anyway, because the internal page may not have been written after the leaf
+     * page was updated. So, write generations it is.
+     *
+     * Nothing is locked at this point but two versions of a page with the same generation is pretty
+     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
+     * anyway.
+     *
+     * Other than salvage, the write generation number is used to reset the stale transaction id's
+     * present on the page upon server restart.
+     */
+    dsk->write_gen = ++btree->write_gen;
+}
+
+/*
  * __rec_split_write_header --
  *     Initialize a disk page's header.
  */
@@ -1528,7 +1552,8 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     page = r->page;
 
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
-    dsk->write_gen = 0;
+
+    __rec_set_page_write_gen(dsk, btree);
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
@@ -2341,6 +2366,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
         dsk->type = WT_PAGE_OVFL;
+        __rec_set_page_write_gen(dsk, btree);
         dsk->u.datalen = (uint32_t)kv->buf.size;
         memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
         dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;

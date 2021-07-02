@@ -153,7 +153,7 @@ groups['system'] = [
 ##########################################
 # CONNECTION statistics
 ##########################################
-connection_stats = [
+conn_stats = [
     ##########################################
     # System statistics
     ##########################################
@@ -223,7 +223,6 @@ connection_stats = [
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
     CacheStat('cache_eviction_force_retune', 'force re-tuning of eviction workers once in a while'),
-    CacheStat('cache_eviction_force_rollback', 'forced eviction - session returned rollback error while force evicting due to being oldest'),
     CacheStat('cache_eviction_get_ref', 'eviction calls to get a page'),
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     CacheStat('cache_eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
@@ -502,6 +501,7 @@ connection_stats = [
     ##########################################
     # Tiered storage statistics
     ##########################################
+    StorageStat('flush_state_races', 'flush state races'),
     StorageStat('flush_tier', 'flush_tier operation calls'),
 
     ##########################################
@@ -532,6 +532,7 @@ connection_stats = [
     TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
+    TxnStat('txn_checkpoint_running_hs', 'transaction checkpoint currently running for history store file', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
@@ -551,13 +552,18 @@ connection_stats = [
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
     TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
-    TxnStat('txn_prepared_updates_count', 'Number of prepared updates'),
+    TxnStat('txn_prepared_updates_committed', 'Number of prepared updates committed'),
+    TxnStat('txn_prepared_updates', 'Number of prepared updates'),
+    TxnStat('txn_prepared_updates_key_repeated', 'Number of prepared updates repeated on the same key'),
+    TxnStat('txn_prepared_updates_rolledback', 'Number of prepared updates rolled back'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
     TxnStat('txn_rollback', 'transactions rolled back'),
+    TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
+    TxnStat('txn_sessions_walked', 'sessions scanned in each walk of concurrent sessions'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
     TxnStat('txn_set_ts_durable_upd', 'set timestamp durable updates'),
@@ -589,7 +595,7 @@ connection_stats = [
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
 
-connection_stats = sorted(connection_stats, key=attrgetter('desc'))
+conn_stats = sorted(conn_stats, key=attrgetter('desc'))
 
 ##########################################
 # Data source statistics
@@ -753,6 +759,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
+    CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
@@ -779,11 +786,10 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_insert_restart', 'history store table insert calls that returned restart'),
     CacheStat('cache_hs_key_truncate', 'history store table truncation to remove an update'),
     CacheStat('cache_hs_key_truncate_onpage_removal', 'history store table truncation to remove range of updates due to key being removed from the data page during reconciliation'),
-    CacheStat('cache_hs_key_truncate_non_ts', 'history store table truncation to remove range of updates due to non timestamped update on data page'),
+    CacheStat('cache_hs_order_remove', 'history store table truncation to remove range of updates due to out-of-order timestamp update on data page'),
     CacheStat('cache_hs_key_truncate_rts', 'history store table truncation by rollback to stable to remove an update'),
     CacheStat('cache_hs_key_truncate_rts_unstable', 'history store table truncation by rollback to stable to remove an unstable update'),
-    CacheStat('cache_hs_order_fixup_insert', 'history store table out-of-order updates that were fixed up during insertion'),
-    CacheStat('cache_hs_order_fixup_move', 'history store table out-of-order updates that were fixed up by moving existing records'),
+    CacheStat('cache_hs_order_reinsert', 'history store table out-of-order updates that were fixed up by reinserting with the fixed timestamp'),
     CacheStat('cache_hs_order_lose_durable_timestamp', 'history store table out-of-order resolved updates that lose their durable timestamp'),
     CacheStat('cache_hs_read', 'history store table reads'),
     CacheStat('cache_hs_read_miss', 'history store table reads missed'),
@@ -811,6 +817,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
+    CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
     ##########################################
     # Checkpoint cleanup statistics
@@ -859,6 +866,8 @@ conn_dsrc_stats = [
     ##########################################
     StorageStat('tiered_object_size', 'tiered storage object size', 'no_clear,no_scale,size'),
     StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
+    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
+    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
 
     ##########################################
     # Transaction statistics

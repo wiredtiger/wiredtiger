@@ -21,6 +21,7 @@ Ailamaki
 Alakuijala
 Alexandrescu's
 Alloc
+Async
 AsyncOp
 Athanassoulis
 Athlon
@@ -146,6 +147,7 @@ FOREACH
 FS
 FTRUNCATE
 FULLFSYNC
+FUNCSIG
 Facebook
 FindClose
 FindFirstFile
@@ -322,6 +324,7 @@ Phong
 PlatformSDK
 Posix
 PostgreSQL
+Postrun
 PowerPC
 Pre
 Preload
@@ -471,11 +474,13 @@ WiredTigerTxn
 WithSeeds
 Wpedantic
 WriteFile
+Wsign
 Wuninitialized
 Wunused
 XP
 Xcode
 Xcode/
+YCSB
 Yann
 ZSTD
 Zlib
@@ -539,6 +544,7 @@ boolean
 br
 breakpoint
 bs
+bstorage
 bswap
 bt
 btcur
@@ -638,6 +644,7 @@ create's
 createCStream
 crypto
 cryptobad
+cryptographic
 cstring
 csuite
 csv
@@ -702,6 +709,7 @@ designator
 dest
 destSize
 destructor
+destructors
 dev
 dh
 dhandle
@@ -739,6 +747,7 @@ dup
 eee
 eg
 egrep
+el
 emp
 encodings
 encryptor
@@ -1033,6 +1042,7 @@ mbss
 mem
 memalign
 membar
+memcmp
 memcpy
 memdup
 memget
@@ -1045,6 +1055,7 @@ metadata's
 metafile
 mfence
 minorp
+mips
 mkdir
 mmap
 mmrand
@@ -1109,6 +1120,7 @@ nuls
 num
 numSymbols
 numbare
+objs
 offpage
 ok
 oldv
@@ -1156,6 +1168,7 @@ portably
 pos
 posint
 posix
+postrun
 postsize
 powerpc
 pragmas
@@ -1178,6 +1191,7 @@ printlog
 priv
 prog
 progname
+programmatically
 ps
 psp
 pthread
@@ -1253,6 +1267,7 @@ sT
 sanitizer
 sanitizers
 scalability
+scalable
 sched
 scr
 sd
@@ -1325,6 +1340,7 @@ subtree
 sunique
 supd
 superset
+suseconds
 sw
 sx
 sy
@@ -1349,6 +1365,7 @@ timedwait
 timestamp
 timestamped
 timestamps
+timeval
 tinfo
 tlb
 tmp
@@ -1371,6 +1388,7 @@ trunc
 trylock
 tsc
 tupdate
+tv
 tvalue
 tw
 txn
@@ -1395,6 +1413,7 @@ unencrypted
 unesc
 unescape
 unescaped
+unhandled
 unicode
 uninstantiated
 unistd
@@ -1445,6 +1464,7 @@ variadic
 vectorized
 versa
 vfprintf
+vh
 vm
 vpack
 vpmsum
@@ -1481,6 +1501,7 @@ wrlsn
 ws
 wtbench
 wti
+wtobj
 wtperf
 wtperf's
 wts
@@ -1488,6 +1509,7 @@ wtstats
 xF
 xdeadbeef
 xff
+xfff
 xxxx
 xxxxx
 xxxxxx

@@ -390,7 +390,7 @@ __wt_debug_offset(
      */
     block = S2BT(session)->bm->block;
     endp = addr;
-    WT_RET(__wt_block_addr_to_buffer(block, &endp, block->logid, offset, size, checksum));
+    WT_RET(__wt_block_addr_to_buffer(block, &endp, block->objectid, offset, size, checksum));
 
     /*
      * Read the address through the btree I/O functions (so the block is decompressed as necessary).
@@ -849,10 +849,10 @@ __wt_debug_tree_shape(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile)
     return (ret);
 }
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DEBUG_TREE_LEAF 0x1u /* Debug leaf pages */
 #define WT_DEBUG_TREE_WALK 0x2u /* Descend the tree */
-                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
  * __wt_debug_tree_all --
@@ -1345,7 +1345,7 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page, WT_CURSOR *hs_cursor)
         WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
         WT_RET(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
 
-        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+        __wt_row_leaf_value_cell(session, page, rip, unpack);
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
 
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)

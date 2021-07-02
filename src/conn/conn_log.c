@@ -54,7 +54,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
     log = conn->log;
     sleep_usecs = yield_cnt = 0;
 
-    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, &tmp_session));
+    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, 0, &tmp_session));
     while (log->first_lsn.l.file < lognum) {
         /*
          * Force a checkpoint to be written in the new log file and force the archiving of all
@@ -603,9 +603,8 @@ __log_file_server(void *arg)
                  */
                 if (conn->hot_backup_start == 0 && conn->log_cursors == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
-                      WT_ERR_ERROR_OK(
-                        __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), ENOTSUP, false),
-                      NULL);
+                      ret = __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), NULL);
+                    WT_ERR_ERROR_OK(ret, ENOTSUP, false);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
                 __wt_spin_lock(session, &log->log_sync_lock);
@@ -1043,7 +1042,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      */
     session_flags = WT_SESSION_NO_DATA_HANDLES;
     WT_RET(__wt_open_internal_session(
-      conn, "log-close-server", false, session_flags, &conn->log_file_session));
+      conn, "log-close-server", false, session_flags, 0, &conn->log_file_session));
     WT_RET(__wt_cond_alloc(conn->log_file_session, "log close server", &conn->log_file_cond));
 
     /*
@@ -1058,7 +1057,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      * runs.
      */
     WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, &conn->log_wrlsn_session));
+      conn, "log-wrlsn-server", false, session_flags, 0, &conn->log_wrlsn_session));
     WT_RET(__wt_cond_auto_alloc(
       conn->log_wrlsn_session, "log write lsn server", 10000, WT_MILLION, &conn->log_wrlsn_cond));
     WT_RET(__wt_thread_create(
@@ -1076,8 +1075,8 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
         __wt_cond_signal(session, conn->log_cond);
     } else {
         /* The log server gets its own session. */
-        WT_RET(
-          __wt_open_internal_session(conn, "log-server", false, session_flags, &conn->log_session));
+        WT_RET(__wt_open_internal_session(
+          conn, "log-server", false, session_flags, 0, &conn->log_session));
         WT_RET(__wt_cond_auto_alloc(
           conn->log_session, "log server", 50000, WT_MILLION, &conn->log_cond));
 

@@ -61,7 +61,7 @@ __sweep_expire_one(WT_SESSION_IMPL *session)
     WT_DECL_RET;
 
     dhandle = session->dhandle;
-    btree = dhandle->type == WT_DHANDLE_TYPE_BTREE ? dhandle->handle : NULL;
+    btree = WT_DHANDLE_BTREE(dhandle) ? dhandle->handle : NULL;
 
     /*
      * Acquire an exclusive lock on the handle and mark it dead.
@@ -388,8 +388,8 @@ __wt_sweep_create(WT_SESSION_IMPL *session)
      * manager. Sweep should not block due to the cache being full.
      */
     session_flags = WT_SESSION_CAN_WAIT | WT_SESSION_IGNORE_CACHE_SIZE;
-    WT_RET(
-      __wt_open_internal_session(conn, "sweep-server", true, session_flags, &conn->sweep_session));
+    WT_RET(__wt_open_internal_session(
+      conn, "sweep-server", true, session_flags, 0, &conn->sweep_session));
     session = conn->sweep_session;
 
     WT_RET(__wt_cond_alloc(session, "handle sweep server", &conn->sweep_cond));

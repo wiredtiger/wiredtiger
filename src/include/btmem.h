@@ -8,7 +8,7 @@
 
 #define WT_RECNO_OOB 0 /* Illegal record number */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_READ_CACHE 0x0001u
 #define WT_READ_DELETED_CHECK 0x0002u
 #define WT_READ_DELETED_SKIP 0x0004u
@@ -22,9 +22,9 @@
 #define WT_READ_SKIP_INTL 0x0400u
 #define WT_READ_TRUNCATE 0x0800u
 #define WT_READ_WONT_NEED 0x1000u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
 #define WT_REC_CALL_URGENT 0x002u
 #define WT_REC_CHECKPOINT 0x004u
@@ -35,7 +35,7 @@
 #define WT_REC_SCRUB 0x080u
 #define WT_REC_VISIBILITY_ERR 0x100u
 #define WT_REC_VISIBLE_ALL 0x200u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
  * WT_PAGE_HEADER --
@@ -184,10 +184,10 @@ struct __wt_ovfl_reuse {
  * reconciliation fails for any reason, discard the newly added skiplist entries, along with their
  * underlying blocks.
  */
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_OVFL_REUSE_INUSE 0x1u
 #define WT_OVFL_REUSE_JUST_ADDED 0x2u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 /*
@@ -635,13 +635,16 @@ struct __wt_page {
     } u;
 
     /*
-     * Page entries, type and flags are positioned at the end of the WT_PAGE union to reduce cache
-     * misses in the row-store search function.
+     * Page entry count, page-wide prefix information, type and flags are positioned at the end of
+     * the WT_PAGE union to reduce cache misses when searching row-store pages.
      *
      * The entries field only applies to leaf pages, internal pages use the page-index entries
      * instead.
      */
     uint32_t entries; /* Leaf page entries */
+
+    uint32_t prefix_start; /* Best page prefix starting slot */
+    uint32_t prefix_stop;  /* Maximum slot to which the best page prefix applies */
 
 #define WT_PAGE_IS_INTERNAL(page) \
     ((page)->type == WT_PAGE_COL_INT || (page)->type == WT_PAGE_ROW_INT)
@@ -655,7 +658,7 @@ struct __wt_page {
 #define WT_PAGE_ROW_LEAF 7      /* Row-store leaf page */
     uint8_t type;               /* Page type */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_PAGE_BUILD_KEYS 0x01u        /* Keys have been built in memory */
 #define WT_PAGE_DISK_ALLOC 0x02u        /* Disk image in allocated memory */
 #define WT_PAGE_DISK_MAPPED 0x04u       /* Disk image in mapped memory */
@@ -664,10 +667,23 @@ struct __wt_page {
 #define WT_PAGE_OVERFLOW_KEYS 0x20u     /* Page has overflow keys */
 #define WT_PAGE_SPLIT_INSERT 0x40u      /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x80u     /* Ignore updates on page discard */
-                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags_atomic;               /* Atomic flags, use F_*_ATOMIC */
 
     uint8_t unused[2]; /* Unused padding */
+
+    size_t memory_footprint; /* Memory attached to the page */
+
+    /* Page's on-disk representation: NULL for pages created in memory. */
+    const WT_PAGE_HEADER *dsk;
+
+    /* If/when the page is modified, we need lots more information. */
+    WT_PAGE_MODIFY *modify;
+
+    /*
+     * !!!
+     * This is the 64 byte boundary, try to keep hot fields above here.
+     */
 
 /*
  * The page's read generation acts as an LRU value for each page in the
@@ -697,16 +713,6 @@ struct __wt_page {
 #define WT_READGEN_START_VALUE 100
 #define WT_READGEN_STEP 100
     uint64_t read_gen;
-
-    size_t memory_footprint; /* Memory attached to the page */
-
-    /* Page's on-disk representation: NULL for pages created in memory. */
-    const WT_PAGE_HEADER *dsk;
-
-    /* If/when the page is modified, we need lots more information. */
-    WT_PAGE_MODIFY *modify;
-
-    /* This is the 64 byte boundary, try to keep hot fields above here. */
 
     uint64_t cache_create_gen; /* Page create timestamp */
     uint64_t evict_pass_gen;   /* Eviction pass generation */
@@ -829,7 +835,7 @@ struct __wt_page_deleted {
 
     uint8_t previous_state; /* Previous state */
 
-    WT_UPDATE **update_list; /* List of updates for abort */
+    uint8_t committed; /* Committed */
 };
 
 /*
@@ -867,11 +873,11 @@ struct __wt_ref {
  * miss one). If we run out of bits in the flags field, remove the internal flag and rewrite tests
  * depending on it to be "!leaf" instead.
  */
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REF_FLAG_INTERNAL 0x1u /* Page is an internal page */
 #define WT_REF_FLAG_LEAF 0x2u     /* Page is a leaf page */
 #define WT_REF_FLAG_READING 0x4u  /* Page is being read in */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
 #define WT_REF_DISK 0       /* Page is on disk */
@@ -900,7 +906,21 @@ struct __wt_ref {
 #undef ref_ikey
 #define ref_ikey key.ikey
 
-    WT_PAGE_DELETED *page_del; /* Deleted page information */
+    /*
+     * Fast-truncate information. When a WT_REF is included in a fast-truncate operation, WT_REF.del
+     * is allocated and initialized. If the page must be instantiated before the truncate becomes
+     * globally visible, WT_UPDATE structures are created for the page entries, the transaction
+     * information from WT_REF.del is migrated to those WT_UPDATE structures, and the WT_REF.del
+     * field is freed and replaced by the WT_REF.update array (needed for subsequent transaction
+     * commit/abort). Doing anything other than testing if WT_REF.del/update is non-NULL (which
+     * eviction does), requires the WT_REF be locked. If the locked WT_REF's previous state was
+     * WT_REF_DELETED, WT_REF.del is valid, if the WT_REF's previous state was an in-memory state,
+     * then WT_REF.update is valid.
+     */
+    union {
+        WT_PAGE_DELETED *del; /* Page not instantiated, page-deleted structure */
+        WT_UPDATE **update;   /* Page instantiated, update list for subsequent commit/abort */
+    } ft_info;
 
 /*
  * In DIAGNOSTIC mode we overwrite the WT_REF on free to force failures. Don't clear the history in
@@ -923,10 +943,10 @@ struct __wt_ref {
         (ref)->hist[(ref)->histoff].state = (uint16_t)(s);                \
         (ref)->histoff = ((ref)->histoff + 1) % WT_ELEMENTS((ref)->hist); \
     } while (0)
-#define WT_REF_SET_STATE(ref, s)                       \
-    do {                                               \
-        WT_REF_SAVE_STATE(ref, s, __func__, __LINE__); \
-        WT_PUBLISH((ref)->state, s);                   \
+#define WT_REF_SET_STATE(ref, s)                                  \
+    do {                                                          \
+        WT_REF_SAVE_STATE(ref, s, __PRETTY_FUNCTION__, __LINE__); \
+        WT_PUBLISH((ref)->state, s);                              \
     } while (0)
 #else
 #define WT_REF_SET_STATE(ref, s) WT_PUBLISH((ref)->state, s)
@@ -945,7 +965,7 @@ struct __wt_ref {
 
 /* A macro wrapper allowing us to remember the callers code location */
 #define WT_REF_CAS_STATE(session, ref, old_state, new_state) \
-    __wt_ref_cas_state_int(session, ref, old_state, new_state, __func__, __LINE__)
+    __wt_ref_cas_state_int(session, ref, old_state, new_state, __PRETTY_FUNCTION__, __LINE__)
 
 #define WT_REF_LOCK(session, ref, previous_statep)                             \
     do {                                                                       \
@@ -1110,16 +1130,15 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_UPDATE_BEHIND_MIXED_MODE 0x01u        /* Update that older than a mixed mode update. */
-#define WT_UPDATE_CLEARED_HS 0x02u               /* Update that cleared the history store. */
-#define WT_UPDATE_DS 0x04u                       /* Update has been written to the data store. */
-#define WT_UPDATE_HS 0x08u                       /* Update has been written to history store. */
-#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x10u /* Prepared update restored from data store. */
-#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x20u   /* Fast truncate instantiation */
-#define WT_UPDATE_RESTORED_FROM_DS 0x40u         /* Update restored from data store. */
-#define WT_UPDATE_RESTORED_FROM_HS 0x80u         /* Update restored from history store. */
-                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
+#define WT_UPDATE_FIXED_HS 0x02u                 /* Update that fixed the history store. */
+#define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
+#define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
+#define WT_UPDATE_RESTORED_FAST_TRUNCATE 0x10u   /* Fast truncate instantiation */
+#define WT_UPDATE_RESTORED_FROM_DS 0x20u         /* Update restored from data store. */
+#define WT_UPDATE_RESTORED_FROM_HS 0x40u         /* Update restored from history store. */
+                                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
     /*
@@ -1187,17 +1206,17 @@ struct __wt_update_value {
  * avoid heap allocation, add a few additional slots to that array.
  */
 #define WT_MAX_MODIFY_UPDATE 10
-#define WT_MODIFY_VECTOR_STACK_SIZE (WT_MAX_MODIFY_UPDATE + 10)
+#define WT_UPDATE_VECTOR_STACK_SIZE 20
 
 /*
- * WT_MODIFY_VECTOR --
- * 	A resizable array for storing modify updates. The allocation strategy is similar to that of
+ * WT_UPDATE_VECTOR --
+ * 	A resizable array for storing updates. The allocation strategy is similar to that of
  *	llvm::SmallVector<T> where we keep space on the stack for the regular case but fall back to
  *	dynamic allocation as needed.
  */
-struct __wt_modify_vector {
+struct __wt_update_vector {
     WT_SESSION_IMPL *session;
-    WT_UPDATE *list[WT_MODIFY_VECTOR_STACK_SIZE];
+    WT_UPDATE *list[WT_UPDATE_VECTOR_STACK_SIZE];
     WT_UPDATE **listp;
     size_t allocated_bytes;
     size_t size;
@@ -1302,10 +1321,9 @@ struct __wt_insert_head {
         NULL :                                                          \
         (page)->modify->mod_row_update[WT_ROW_SLOT(page, ip)])
 /*
- * WT_ROW_INSERT_SMALLEST references an additional slot past the end of the
- * "one per WT_ROW slot" insert array.  That's because the insert array requires
- * an extra slot to hold keys that sort before any key found on the original
- * page.
+ * WT_ROW_INSERT_SMALLEST references an additional slot past the end of the "one per WT_ROW slot"
+ * insert array. That's because the insert array requires an extra slot to hold keys that sort
+ * before any key found on the original page.
  */
 #define WT_ROW_INSERT_SMALLEST(page)                                    \
     ((page)->modify == NULL || (page)->modify->mod_row_insert == NULL ? \

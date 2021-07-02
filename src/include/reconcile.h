@@ -196,7 +196,7 @@ struct __wt_reconcile {
     uint32_t count_stop_txn;
     uint32_t count_prepare;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_REC_TIME_NEWEST_START_DURABLE_TS 0x01u
 #define WT_REC_TIME_NEWEST_STOP_DURABLE_TS 0x02u
 #define WT_REC_TIME_NEWEST_STOP_TS 0x04u
@@ -204,7 +204,7 @@ struct __wt_reconcile {
 #define WT_REC_TIME_NEWEST_TXN 0x10u
 #define WT_REC_TIME_OLDEST_START_TS 0x20u
 #define WT_REC_TIME_PREPARE 0x40u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
     uint16_t ts_usage_flags;
 
     /*
@@ -251,6 +251,10 @@ struct __wt_reconcile {
 
     WT_ITEM *cur, _cur;   /* Key/Value being built */
     WT_ITEM *last, _last; /* Last key/value built */
+
+/* Don't increase key prefix-compression unless there's a significant gain. */
+#define WT_KEY_PREFIX_PREVIOUS_MINIMUM 10
+    uint8_t key_pfx_last; /* Last prefix compression */
 
     bool key_pfx_compress;      /* If can prefix-compress next key */
     bool key_pfx_compress_conf; /* If prefix compression configured */

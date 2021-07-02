@@ -9,62 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __wt_hs_row_search --
- *     Search the history store for a given key and position the cursor on it.
- */
-int
-__wt_hs_row_search(WT_CURSOR_BTREE *hs_cbt, WT_ITEM *srch_key, bool insert)
-{
-    WT_CURSOR *hs_cursor;
-    WT_DECL_RET;
-    bool leaf_found;
-
-    hs_cursor = &hs_cbt->iface;
-    leaf_found = false;
-
-    /*
-     * Check whether the search key can be find in the provided leaf page, if exists. Otherwise
-     * perform a full search.
-     */
-    if (hs_cbt->ref != NULL) {
-        WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
-          ret = __wt_row_search(hs_cbt, srch_key, insert, hs_cbt->ref, false, &leaf_found));
-        WT_RET(ret);
-
-        /*
-         * Only use the pinned page search results if search returns an exact match or a slot other
-         * than the page's boundary slots, if that's not the case, the record might belong on an
-         * entirely different page.
-         */
-        if (leaf_found &&
-          (hs_cbt->compare != 0 &&
-            (hs_cbt->slot == 0 || hs_cbt->slot == hs_cbt->ref->page->entries - 1)))
-            leaf_found = false;
-        if (!leaf_found)
-            hs_cursor->reset(hs_cursor);
-    }
-
-    if (!leaf_found)
-        WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
-          ret = __wt_row_search(hs_cbt, srch_key, insert, NULL, false, NULL));
-
-    if (ret == 0 && !insert) {
-        WT_ERR(__wt_key_return(hs_cbt));
-        WT_ERR(__wt_value_return(hs_cbt, hs_cbt->upd_value));
-    }
-
-#ifdef HAVE_DIAGNOSTIC
-    WT_TRET(__wt_cursor_key_order_init(hs_cbt));
-#endif
-
-    if (0) {
-err:
-        WT_TRET(__cursor_reset(hs_cbt));
-    }
-    return (ret);
-}
-
-/*
  * __wt_hs_modify --
  *     Make an update to the history store.
  *
@@ -81,8 +25,14 @@ __wt_hs_modify(WT_CURSOR_BTREE *hs_cbt, WT_UPDATE *hs_upd)
      * We don't have exclusive access to the history store page so we need to pass "false" here to
      * ensure that we're locking when inserting new keys to an insert list.
      */
+#ifdef HAVE_DIAGNOSTIC
+    WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
+      ret =
+        __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false, false));
+#else
     WT_WITH_BTREE(CUR2S(hs_cbt), CUR2BT(hs_cbt),
       ret = __wt_row_modify(hs_cbt, &hs_cbt->iface.key, NULL, hs_upd, WT_UPDATE_INVALID, false));
+#endif
     return (ret);
 }
 
@@ -113,9 +63,9 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     WT_DECL_ITEM(orig_hs_value_buf);
     WT_DECL_RET;
     WT_ITEM hs_key, recno_key;
-    WT_MODIFY_VECTOR modifies;
     WT_TXN_SHARED *txn_shared;
     WT_UPDATE *mod_upd;
+    WT_UPDATE_VECTOR modifies;
     wt_timestamp_t durable_timestamp, durable_timestamp_tmp;
     wt_timestamp_t hs_stop_durable_ts, hs_stop_durable_ts_tmp, read_timestamp;
     uint64_t upd_type_full;
@@ -126,7 +76,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
     mod_upd = NULL;
     orig_hs_value_buf = NULL;
     WT_CLEAR(hs_key);
-    __wt_modify_vector_init(session, &modifies);
+    __wt_update_vector_init(session, &modifies);
     txn_shared = WT_SESSION_TXN_SHARED(session);
     upd_found = false;
 
@@ -201,7 +151,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
 
         while (upd_type == WT_UPDATE_MODIFY) {
             WT_ERR(__wt_upd_alloc(session, hs_value, upd_type, &mod_upd, NULL));
-            WT_ERR(__wt_modify_vector_push(&modifies, mod_upd));
+            WT_ERR(__wt_update_vector_push(&modifies, mod_upd));
             mod_upd = NULL;
 
             /*
@@ -230,7 +180,7 @@ __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
         }
         WT_ASSERT(session, upd_type == WT_UPDATE_STANDARD);
         while (modifies.size > 0) {
-            __wt_modify_vector_pop(&modifies, &mod_upd);
+            __wt_update_vector_pop(&modifies, &mod_upd);
             WT_ERR(__wt_modify_apply_item(session, value_format, hs_value, mod_upd->data));
             __wt_free_update_list(session, &mod_upd);
         }
@@ -258,10 +208,10 @@ err:
 
     __wt_free_update_list(session, &mod_upd);
     while (modifies.size > 0) {
-        __wt_modify_vector_pop(&modifies, &mod_upd);
+        __wt_update_vector_pop(&modifies, &mod_upd);
         __wt_free_update_list(session, &mod_upd);
     }
-    __wt_modify_vector_free(&modifies);
+    __wt_update_vector_free(&modifies);
 
     if (ret == 0) {
         if (upd_found)

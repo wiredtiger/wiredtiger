@@ -664,116 +664,6 @@ __wt_conn_remove_extractor(WT_SESSION_IMPL *session)
 }
 
 /*
- * __tiered_confchk --
- *     Check for a valid tiered storage source.
- */
-static int
-__tiered_confchk(
-  WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cname, WT_NAMED_STORAGE_SOURCE **nstoragep)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-
-    *nstoragep = NULL;
-
-    if (cname->len == 0 || WT_STRING_MATCH("none", cname->str, cname->len))
-        return (0);
-
-    conn = S2C(session);
-    TAILQ_FOREACH (nstorage, &conn->storagesrcqh, q)
-        if (WT_STRING_MATCH(nstorage->name, cname->str, cname->len)) {
-            *nstoragep = nstorage;
-            return (0);
-        }
-    WT_RET_MSG(session, EINVAL, "unknown storage source '%.*s'", (int)cname->len, cname->str);
-}
-
-/*
- * __wt_tiered_bucket_config --
- *     Given a configuration, configure the bucket storage.
- */
-int
-__wt_tiered_bucket_config(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_CONFIG_ITEM *bucket,
-  WT_BUCKET_STORAGE **bstoragep)
-{
-    WT_BUCKET_STORAGE *bstorage, *new;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_NAMED_STORAGE_SOURCE *nstorage;
-#if 0
-    WT_STORAGE_SOURCE *custom, *storage;
-#else
-    WT_STORAGE_SOURCE *storage;
-#endif
-    uint64_t hash_bucket, hash;
-
-    *bstoragep = NULL;
-
-    bstorage = new = NULL;
-    conn = S2C(session);
-
-    __wt_spin_lock(session, &conn->storage_lock);
-
-    WT_ERR(__tiered_confchk(session, cval, &nstorage));
-    if (nstorage == NULL) {
-        if (bucket->len != 0)
-            WT_ERR_MSG(
-              session, EINVAL, "tiered_storage.bucket requires tiered_storage.name to be set");
-        goto out;
-    }
-
-    /*
-     * Check if tiered storage is set on the connection. If someone wants tiered storage on a table,
-     * it needs to be configured on the database as well.
-     */
-    if (conn->bstorage == NULL && bstoragep != &conn->bstorage)
-        WT_ERR_MSG(
-          session, EINVAL, "table tiered storage requires connection tiered storage to be set");
-    hash = __wt_hash_city64(bucket->str, bucket->len);
-    hash_bucket = hash & (conn->hash_size - 1);
-    TAILQ_FOREACH (bstorage, &nstorage->buckethashqh[hash_bucket], q)
-        if (WT_STRING_MATCH(bstorage->bucket, bucket->str, bucket->len))
-            goto out;
-
-    WT_ERR(__wt_calloc_one(session, &new));
-    WT_ERR(__wt_strndup(session, bucket->str, bucket->len, &new->bucket));
-    storage = nstorage->storage_source;
-#if 0
-    if (storage->customize != NULL) {
-        custom = NULL;
-        WT_ERR(storage->customize(storage, &session->iface, cfg_arg, &custom));
-        if (custom != NULL) {
-            bstorage->owned = 1;
-            storage = custom;
-        }
-    }
-#endif
-    new->storage_source = storage;
-    if (bstorage != NULL) {
-        new->object_size = bstorage->object_size;
-        new->retain_secs = bstorage->retain_secs;
-        WT_ERR(__wt_strdup(session, bstorage->auth_token, &new->auth_token));
-    }
-    TAILQ_INSERT_HEAD(&nstorage->bucketqh, new, q);
-    TAILQ_INSERT_HEAD(&nstorage->buckethashqh[hash_bucket], new, hashq);
-    F_SET(new, WT_BUCKET_FREE);
-
-out:
-    __wt_spin_unlock(session, &conn->storage_lock);
-    *bstoragep = new;
-    return (0);
-
-err:
-    if (bstorage != NULL) {
-        __wt_free(session, new->auth_token);
-        __wt_free(session, new->bucket);
-        __wt_free(session, new);
-    }
-    __wt_spin_unlock(session, &conn->storage_lock);
-    return (ret);
-}
-
-/*
  * __conn_add_storage_source --
  *     WT_CONNECTION->add_storage_source method.
  */
@@ -826,6 +716,7 @@ __conn_get_storage_source(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     WT_NAMED_STORAGE_SOURCE *nstorage_source;
+    WT_STORAGE_SOURCE *storage_source;
 
     conn = (WT_CONNECTION_IMPL *)wt_conn;
     *storage_sourcep = NULL;
@@ -833,7 +724,9 @@ __conn_get_storage_source(
     ret = EINVAL;
     TAILQ_FOREACH (nstorage_source, &conn->storagesrcqh, q)
         if (WT_STREQ(nstorage_source->name, name)) {
-            *storage_sourcep = nstorage_source->storage_source;
+            storage_source = nstorage_source->storage_source;
+            WT_RET(storage_source->ss_add_reference(storage_source));
+            *storage_sourcep = storage_source;
             ret = 0;
             break;
         }
@@ -864,10 +757,6 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
         while ((bstorage = TAILQ_FIRST(&nstorage->bucketqh)) != NULL) {
             /* Remove from the connection's list, free memory. */
             TAILQ_REMOVE(&nstorage->bucketqh, bstorage, q);
-            storage = bstorage->storage_source;
-            WT_ASSERT(session, storage != NULL);
-            if (bstorage->owned && storage->terminate != NULL)
-                WT_TRET(storage->terminate(storage, (WT_SESSION *)session));
             __wt_free(session, bstorage->auth_token);
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage);
@@ -885,6 +774,25 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
     }
 
     return (ret);
+}
+
+/*
+ * __conn_ext_file_system_get --
+ *     WT_EXTENSION.file_system_get method. Get file system in use.
+ */
+static int
+__conn_ext_file_system_get(
+  WT_EXTENSION_API *wt_api, WT_SESSION *session, WT_FILE_SYSTEM **file_system)
+{
+    WT_FILE_SYSTEM *fs;
+
+    WT_UNUSED(session);
+
+    fs = ((WT_CONNECTION_IMPL *)wt_api->conn)->file_system;
+    if (fs == NULL)
+        return (WT_NOTFOUND);
+    *file_system = fs;
+    return (0);
 }
 
 /*
@@ -911,6 +819,7 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.config_get_string = __wt_ext_config_get_string;
     conn->extension_api.config_parser_open = __wt_ext_config_parser_open;
     conn->extension_api.config_parser_open_arg = __wt_ext_config_parser_open_arg;
+    conn->extension_api.file_system_get = __conn_ext_file_system_get;
     conn->extension_api.metadata_insert = __wt_ext_metadata_insert;
     conn->extension_api.metadata_remove = __wt_ext_metadata_remove;
     conn->extension_api.metadata_search = __wt_ext_metadata_search;
@@ -918,6 +827,10 @@ __conn_get_extension_api(WT_CONNECTION *wt_conn)
     conn->extension_api.struct_pack = __wt_ext_struct_pack;
     conn->extension_api.struct_size = __wt_ext_struct_size;
     conn->extension_api.struct_unpack = __wt_ext_struct_unpack;
+    conn->extension_api.spin_init = __wt_ext_spin_init;
+    conn->extension_api.spin_lock = __wt_ext_spin_lock;
+    conn->extension_api.spin_unlock = __wt_ext_spin_unlock;
+    conn->extension_api.spin_destroy = __wt_ext_spin_destroy;
     conn->extension_api.transaction_id = __wt_ext_transaction_id;
     conn->extension_api.transaction_isolation_level = __wt_ext_transaction_isolation_level;
     conn->extension_api.transaction_notify = __wt_ext_transaction_notify;
@@ -1244,6 +1157,7 @@ err:
      * the sweep server.
      */
     WT_TRET(__wt_sweep_destroy(session));
+    WT_TRET(__wt_tiered_storage_destroy(session));
 
     /*
      * Shut down the checkpoint and capacity server threads: we don't want to throttle writes and
@@ -1381,7 +1295,7 @@ __conn_query_timestamp(WT_CONNECTION *wt_conn, char *hex_timestamp, const char *
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, query_timestamp, config, cfg);
-    WT_TRET(__wt_txn_query_timestamp(session, hex_timestamp, cfg, true));
+    ret = __wt_txn_query_timestamp(session, hex_timestamp, cfg, true);
 err:
     API_END_RET(session, ret);
 }
@@ -1400,7 +1314,7 @@ __conn_set_timestamp(WT_CONNECTION *wt_conn, const char *config)
     conn = (WT_CONNECTION_IMPL *)wt_conn;
 
     CONNECTION_API_CALL(conn, session, set_timestamp, config, cfg);
-    WT_TRET(__wt_txn_global_set_timestamp(session, cfg));
+    ret = __wt_txn_global_set_timestamp(session, cfg);
 err:
     API_END_RET(session, ret);
 }
@@ -1420,7 +1334,7 @@ __conn_rollback_to_stable(WT_CONNECTION *wt_conn, const char *config)
 
     CONNECTION_API_CALL(conn, session, rollback_to_stable, config, cfg);
     WT_STAT_CONN_INCR(session, txn_rts);
-    WT_TRET(__wt_rollback_to_stable(session, cfg, false));
+    ret = __wt_rollback_to_stable(session, cfg, false);
 err:
     API_END_RET(session, ret);
 }
@@ -2055,6 +1969,11 @@ __wt_debug_mode_config(WT_SESSION_IMPL *session, const char *cfg[])
     else
         FLD_CLR(conn->log_flags, WT_CONN_LOG_DEBUG_MODE);
 
+    WT_RET(__wt_config_gets(session, cfg, "debug_mode.update_restore_evict", &cval));
+    if (cval.val)
+        FLD_SET(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
+    else
+        FLD_CLR(conn->debug_flags, WT_CONN_DEBUG_UPDATE_RESTORE_EVICT);
     return (0);
 }
 
@@ -2898,16 +2817,19 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
     WT_ERR(__conn_load_extensions(session, cfg, false));
 
     /*
-     * The metadata/log encryptor is configured after extensions, since
-     * extensions may load encryptors.  We have to do this before creating
-     * the metadata file.
+     * Do some early initialization for tiered storage, as this may affect our choice of file system
+     * for some operations.
+     */
+    WT_ERR(__wt_tiered_conn_config(session, cfg, false));
+
+    /*
+     * The metadata/log encryptor is configured after extensions, since extensions may load
+     * encryptors. We have to do this before creating the metadata file.
      *
-     * The encryption customize callback needs the fully realized set of
-     * encryption args, as simply grabbing "encryption" doesn't work.
-     * As an example, configuration for the current call may just be
-     * "encryption=(secretkey=xxx)", with encryption.name,
-     * encryption.keyid being 'inherited' from the stored base
-     * configuration.
+     * The encryption customize callback needs the fully realized set of encryption args, as simply
+     * grabbing "encryption" doesn't work. As an example, configuration for the current call may
+     * just be "encryption=(secretkey=xxx)", with encryption.name, encryption.keyid being
+     * 'inherited' from the stored base configuration.
      */
     WT_ERR(__wt_config_gets_none(session, cfg, "encryption.name", &cval));
     WT_ERR(__wt_config_gets_none(session, cfg, "encryption.keyid", &keyid));
@@ -2982,7 +2904,7 @@ wiredtiger_open(const char *home, WT_EVENT_HANDLER *event_handler, const char *c
      * FIXME-WT-6682: temporarily disable history store verification.
      */
     if (verify_meta) {
-        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, &verify_session));
+        WT_ERR(__wt_open_internal_session(conn, "verify hs", false, 0, 0, &verify_session));
         ret = __wt_hs_verify(verify_session);
         WT_TRET(__wt_session_close_internal(verify_session));
         WT_ERR(ret);

@@ -113,6 +113,7 @@ __wt_txn_get_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, uin
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        WT_STAT_CONN_INCR(session, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_read_ts);
         /*
          * A zero timestamp is possible here only when the oldest timestamp is not accounted for.
@@ -172,6 +173,7 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
         WT_ORDERED_READ(session_cnt, conn->session_cnt);
         WT_STAT_CONN_INCR(session, txn_walk_sessions);
         for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+            WT_STAT_CONN_INCR(session, txn_sessions_walked);
             __txn_get_durable_timestamp(s, &tmpts);
             if (tmpts != WT_TS_NONE && --tmpts < ts)
                 ts = tmpts;
@@ -185,10 +187,11 @@ __txn_global_query_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *tsp, cons
          */
         if (ts == WT_TS_NONE)
             return (WT_NOTFOUND);
-    } else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len))
-        /* Read-only value forever. No lock needed. */
+    } else if (WT_STRING_MATCH("last_checkpoint", cval.str, cval.len)) {
+        /* Read-only value forever. Make sure we don't used a cached version. */
+        WT_BARRIER();
         ts = txn_global->last_ckpt_timestamp;
-    else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
+    } else if (WT_STRING_MATCH("oldest", cval.str, cval.len)) {
         if (!txn_global->has_oldest_timestamp)
             return (WT_NOTFOUND);
         ts = txn_global->oldest_timestamp;
@@ -504,6 +507,7 @@ __txn_assert_after_reads(WT_SESSION_IMPL *session, const char *op, wt_timestamp_
     WT_ORDERED_READ(session_cnt, S2C(session)->session_cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
     for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
+        WT_STAT_CONN_INCR(session, txn_sessions_walked);
         __txn_get_read_timestamp(s, &tmp_timestamp);
         if (tmp_timestamp != WT_TS_NONE && tmp_timestamp >= ts) {
             __wt_readunlock(session, &txn_global->rwlock);

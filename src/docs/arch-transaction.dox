@@ -17,7 +17,7 @@ run at a time per session, and that transaction must complete before another tra
 started. Since every session is singly-threaded, all the operations in the transaction are executed
 on the same thread.
 
-@plantuml_start{transaction_lifecycle.png}
+@plantuml_start{transaction_lifecycle.png }
 @startuml{transaction_lifecycle.png}
 :Transaction Lifecycle;
 
@@ -155,14 +155,6 @@ with the newest update at the head, called the update chain. If no value is visi
 chain, it checks the version on the disk image, which is the version that was chosen to be written
 to disk in the last reconciliation. If it is still invisible, WiredTiger will search the history
 store to check if there is a version visible to the reader there.
-
-The repeated read guarantee under snapshot isolation may break in one case if the timestamps
-committed to the updates are out of order, e.g,
-
-`U@20 -> U@30 -> U@15`
-
-In the above example, reading with timestamp 15 doesn't guarantee to return the third update. In
-some cases, users may read the second update U@30 if it is moved to the history store.
 
 @subsection Durability
 

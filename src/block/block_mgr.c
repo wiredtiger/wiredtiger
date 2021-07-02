@@ -439,6 +439,29 @@ __bm_stat(WT_BM *bm, WT_SESSION_IMPL *session, WT_DSRC_STATS *stats)
 }
 
 /*
+ * __bm_switch_object --
+ *     Modify the tiered object.
+ */
+static int
+__bm_switch_object(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
+{
+    return (__wt_block_switch_object(session, bm->block, object_id, flags));
+}
+
+/*
+ * __bm_switch_object_readonly --
+ *     Modify the tiered object; readonly version.
+ */
+static int
+__bm_switch_object_readonly(WT_BM *bm, WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
+{
+    WT_UNUSED(object_id);
+    WT_UNUSED(flags);
+
+    return (__bm_readonly(bm, session));
+}
+
+/*
  * __bm_sync --
  *     Flush a file to disk.
  */
@@ -576,6 +599,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->salvage_valid = __bm_salvage_valid;
     bm->size = __wt_block_manager_size;
     bm->stat = __bm_stat;
+    bm->switch_object = __bm_switch_object;
     bm->sync = __bm_sync;
     bm->verify_addr = __bm_verify_addr;
     bm->verify_end = __bm_verify_end;
@@ -596,6 +620,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
         bm->salvage_next = __bm_salvage_next_readonly;
         bm->salvage_start = __bm_salvage_start_readonly;
         bm->salvage_valid = __bm_salvage_valid_readonly;
+        bm->switch_object = __bm_switch_object_readonly;
         bm->sync = __bm_sync_readonly;
         bm->write = __bm_write_readonly;
         bm->write_size = __bm_write_size_readonly;
@@ -607,8 +632,9 @@ __bm_method_set(WT_BM *bm, bool readonly)
  *     Open a file.
  */
 int
-__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BM **bmp)
+__wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename,
+  WT_BLOCK_FILE_OPENER *opener, const char *cfg[], bool forced_salvage, bool readonly,
+  uint32_t allocsize, WT_BM **bmp)
 {
     WT_BM *bm;
     WT_DECL_RET;
@@ -618,8 +644,8 @@ __wt_block_manager_open(WT_SESSION_IMPL *session, const char *filename, const ch
     WT_RET(__wt_calloc_one(session, &bm));
     __bm_method_set(bm, false);
 
-    WT_ERR(
-      __wt_block_open(session, filename, cfg, forced_salvage, readonly, allocsize, &bm->block));
+    WT_ERR(__wt_block_open(
+      session, filename, opener, cfg, forced_salvage, readonly, allocsize, &bm->block));
 
     *bmp = bm;
     return (0);
