@@ -590,7 +590,7 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    size_t total_skipped, skipped;
+    size_t total_skipped, skipped, pages_skipped;
     uint32_t flags;
     bool newpage, restart;
 
@@ -621,11 +621,11 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
      */
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV);
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
-    for (newpage = false;; newpage = true, restart = false) {
+    for (newpage = false, pages_skipped = 0;; newpage = true, restart = false, pages_skipped++) {
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         /* Count instances where we moved to a new page. */
-        if (newpage)
+        if (pages_skipped > 1)
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_pages);
 
         /*
