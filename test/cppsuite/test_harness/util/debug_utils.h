@@ -29,12 +29,12 @@
 #ifndef DEBUG_UTILS_H
 #define DEBUG_UTILS_H
 
+#include <chrono>
 #include <iostream>
 #include <sstream>
 #include <thread>
 
 extern "C" {
-#include "wt_internal.h"
 #include "test_util.h"
 }
 
@@ -63,15 +63,20 @@ get_time(char *time_buf, size_t buf_size)
     struct timespec tsp;
     struct tm *tm, _tm;
 
-    __wt_epoch(NULL, &tsp);
-    tm = localtime_r(&tsp.tv_sec, &_tm);
+    /* Get time since epoch in nanoseconds. */
+    uint64_t epochNanosec = std::chrono::high_resolution_clock::now().time_since_epoch().count();
+
+    /* Calculate time since epoch in seconds. */
+    time_t timeEpochSec = epochNanosec / WT_BILLION;
+
+    tm = localtime_r(&timeEpochSec, &_tm);
 
     alloc_size =
       strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%d][%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
-    WT_IGNORE_RET(__wt_snprintf(
-      &time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]", (uint64_t)tsp.tv_nsec));
+    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]",
+      (uint64_t)epochNanosec % WT_BILLION));
 }
 
 /* Used to print out traces for debugging purpose. */
@@ -87,7 +92,7 @@ log_msg(int64_t trace_type, const std::string &str)
 
         std::ostringstream ss;
         ss << time_buf << "[" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
-           << "]:" << str << std::endl; //"\r\n";
+           << "]:" << str << std::endl;
 
         if (trace_type == LOG_ERROR)
             std::cerr << ss.str();
