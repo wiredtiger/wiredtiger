@@ -497,7 +497,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_DECL_RET;
     WT_PAGE *page;
     uint32_t flags;
-    bool checkpoint_running, closing, modified, snapshot_acquired;
+    bool closing, modified, snapshot_acquired;
     bool is_eviction_thread, use_snapshot_for_app_thread;
 
     *inmem_splitp = false;
@@ -664,9 +664,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
     if (!WT_IS_HS(btree->dhandle)) {
-        checkpoint_running = conn->txn_global.checkpoint_running;
         if (is_eviction_thread) {
-            if (!checkpoint_running) {
+            if (!conn->txn_global.checkpoint_running) {
                 /*
                  * Eviction threads do not need to pin anything in the cache. We have a exclusive
                  * lock for the page being evicted so we are sure that the page will always be there
@@ -682,27 +681,32 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                  * checkpoint running, release the snapshot and fallback to global visibility
                  * checks.
                  */
-                checkpoint_running = conn->txn_global.checkpoint_running;
-                if (checkpoint_running) {
+                if (conn->txn_global.checkpoint_running) {
                     __wt_txn_release_snapshot(session);
                     snapshot_acquired = false;
+                    LF_SET(WT_REC_CHECKPOINT_RUNNING);
                 }
-            }
+            } else
+                LF_SET(WT_REC_CHECKPOINT_RUNNING);
 
             if (!snapshot_acquired)
                 LF_SET(WT_REC_VISIBLE_ALL);
             else if (!WT_SESSION_BTREE_SYNC(session))
                 LF_SET(WT_REC_VISIBLE_ALL);
         } else if (use_snapshot_for_app_thread) {
-            if (!checkpoint_running)
+            if (!conn->txn_global.checkpoint_running)
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
-            else if (!WT_SESSION_BTREE_SYNC(session))
+            else {
+                if (!WT_SESSION_BTREE_SYNC(session))
+                    LF_SET(WT_REC_VISIBLE_ALL);
+                LF_SET(WT_REC_CHECKPOINT_RUNNING);
+            }
+        } else {
+            if (conn->txn_global.checkpoint_running)
+                LF_SET(WT_REC_CHECKPOINT_RUNNING);
+            if (!WT_SESSION_BTREE_SYNC(session))
                 LF_SET(WT_REC_VISIBLE_ALL);
-        } else if (!WT_SESSION_BTREE_SYNC(session))
-            LF_SET(WT_REC_VISIBLE_ALL);
-
-        if (checkpoint_running)
-            LF_SET(WT_REC_CHECKPOINT_RUNNING);
+        }
 
         WT_ASSERT(
           session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
