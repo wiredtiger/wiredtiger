@@ -72,10 +72,10 @@ get_time(char *time_buf, size_t buf_size)
     tm = localtime_r(&timeEpochSec, &_tm);
 
     alloc_size =
-      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%d][%H:%M:%S" : "[%H:%M:%S", tm);
+      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
-    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]",
+    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
       (uint64_t)epochNanosec % WT_BILLION));
 }
 
@@ -91,7 +91,7 @@ log_msg(int64_t trace_type, const std::string &str)
         get_time(time_buf, sizeof(time_buf));
 
         std::ostringstream ss;
-        ss << time_buf << "[" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
+        ss << time_buf << "[TID:" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
            << "]:" << str << std::endl;
 
         if (trace_type == LOG_ERROR)
