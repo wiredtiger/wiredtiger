@@ -47,14 +47,12 @@ __wt_reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage
     /*
      * Sanity check flags.
      *
-     * History store reconciliation doesn't do any visibility check.
-     *
      * If we try to do eviction using transaction visibility, we had better have a snapshot. This
      * doesn't apply to checkpoints: there are (rare) cases where we write data at read-uncommitted
      * isolation.
      */
     WT_ASSERT(session,
-      WT_IS_HS(btree->dhandle) || !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
+      !LF_ISSET(WT_REC_EVICT) || LF_ISSET(WT_REC_VISIBLE_ALL) ||
         F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /* Can't do history store eviction for history store itself or for metadata. */
