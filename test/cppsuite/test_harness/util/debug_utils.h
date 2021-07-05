@@ -30,29 +30,71 @@
 #define DEBUG_UTILS_H
 
 #include <iostream>
+#include <sstream>
+#include <thread>
+
+extern "C" {
+#include "wt_internal.h"
+#include "test_util.h"
+}
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-#define DEBUG_ERROR 0
-#define DEBUG_WARN 1
-#define DEBUG_INFO 2
-#define DEBUG_TRACE 3
+/* Possible log levels */
+#define LOG_ERROR 0
+#define LOG_WARN  1
+#define LOG_INFO  2
+#define LOG_TRACE 3
 
-static int64_t _trace_level = DEBUG_WARN;
+/* Order of elements in this array corresponds to the definitions abouve. */
+const char * const LOG_LEVELS[] = { "ERROR", "WARN", "INFO", "TRACE" };
+
+/* Current log level */
+static int64_t _trace_level = LOG_TRACE;//LOG_WARN;
+
+/* If true both date and time will be logged, if false only time. */
+static bool _include_date = true;
+
+void get_time(char *time_buf, size_t buf_size) {
+
+    size_t alloc_size;
+    struct timespec tsp;
+    struct tm *tm, _tm;
+
+    __wt_epoch(NULL, &tsp);
+    tm = localtime_r(&tsp.tv_sec, &_tm);
+
+    alloc_size = strftime(time_buf, buf_size, 
+      _include_date ? "[%Y-%m-%d][%H:%M:%S" : "[%H:%M:%S", tm);
+
+    testutil_assert(alloc_size <= buf_size);
+    snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]", (uint64_t)tsp.tv_nsec);
+}
 
 /* Used to print out traces for debugging purpose. */
 static void
-debug_print(const std::string &str, int64_t trace_type)
+log_msg(int64_t trace_type, const std::string &str)
 {
     if (_trace_level >= trace_type) {
-        if (trace_type >= DEBUG_ERROR)
-            std::cerr << str << std::endl;
-        else
-            std::cout << str << std::endl;
+        testutil_assert(trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
+
+        char time_buf[64];
+        get_time(time_buf, sizeof(time_buf));
+
+        std::ostringstream ss;
+        ss << time_buf
+           << "["
+           << std::this_thread::get_id()
+           << "]["
+           << LOG_LEVELS[trace_type]
+           << "]:"
+           << str
+           << "\r\n";
+
+        std::cerr << ss.str();
     }
 }
-
 } // namespace test_harness
 
 #endif
