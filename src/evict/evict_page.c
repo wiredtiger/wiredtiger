@@ -712,7 +712,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
      * eviction workers or application threads.
      */
-    if (!WT_IS_HS(btree->dhandle) && LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || snapshot_acquired)
+    if (!WT_IS_HS(btree->dhandle) && (LF_ISSET(WT_REC_APP_EVICTION_SNAPSHOT) || snapshot_acquired))
         WT_WITH_TXN_ISOLATION(
           session, WT_ISO_READ_COMMITTED, ret = __wt_reconcile(session, ref, NULL, flags));
     else
