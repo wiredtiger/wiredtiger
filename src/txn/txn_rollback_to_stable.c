@@ -1415,6 +1415,7 @@ __rollback_to_stable_btree_apply(
     WT_CONFIG ckptconf;
     WT_CONFIG_ITEM cval, value, key;
     WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t max_durable_ts, newest_start_durable_ts, newest_stop_durable_ts;
     size_t addr_size;
     uint64_t rollback_txnid;
@@ -1423,6 +1424,7 @@ __rollback_to_stable_btree_apply(
     bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
 
+    txn_global = &S2C(session)->txn_global;
     rollback_txnid = 0;
     addr_size = 0;
     dhandle_allocated = false;
@@ -1468,12 +1470,20 @@ __rollback_to_stable_btree_apply(
     if (has_txn_updates_gt_than_ckpt_snap)
         WT_STAT_CONN_DATA_INCR(session, txn_rts_inconsistent_ckpt);
 
-    /* The rollback to stable will skip the empty files during recovery and shutdown */
+    /*
+     * The rollback to stable will skip the tables during recovery and shutdown in the following
+     * conditions.
+     * 1. Empty table.
+     * 2. Table has timestamped updates without a stable timestamp.
+     */
     if ((F_ISSET(S2C(session), WT_CONN_RECOVERING) ||
           F_ISSET(S2C(session), WT_CONN_CLOSING_TIMESTAMP)) &&
-      addr_size == 0) {
+      (addr_size == 0 ||
+        (txn_global->stable_timestamp == WT_TS_NONE && max_durable_ts != WT_TS_NONE))) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "%s: skipping rollback to stable on empty file", uri);
+          "skip rollback to stable on file %s because %s", uri,
+          addr_size == 0 ? "its checkpoint address length is 0" :
+                           "it has timestamped updates and the stable timestamp is 0");
         return (0);
     }
 
