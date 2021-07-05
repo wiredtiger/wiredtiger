@@ -687,15 +687,13 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 if (conn->txn_global.checkpoint_running) {
                     __wt_txn_release_snapshot(session);
                     snapshot_acquired = false;
-                    LF_SET(WT_REC_CHECKPOINT_RUNNING);
+                    LF_SET(WT_REC_VISIBLE_ALL | WT_REC_CHECKPOINT_RUNNING);
                 }
-            } else
+            } else {
+                if (!WT_SESSION_BTREE_SYNC(session))
+                    LF_SET(WT_REC_VISIBLE_ALL);
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
-
-            if (!snapshot_acquired)
-                LF_SET(WT_REC_VISIBLE_ALL);
-            else if (!WT_SESSION_BTREE_SYNC(session))
-                LF_SET(WT_REC_VISIBLE_ALL);
+            }
         } else if (use_snapshot_for_app_thread) {
             if (!conn->txn_global.checkpoint_running)
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
