@@ -663,7 +663,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    if (!WT_IS_HS(btree->dhandle)) {
+    if (WT_IS_HS(btree->dhandle)) {
         if (!WT_SESSION_BTREE_SYNC(session))
             LF_SET(WT_REC_VISIBLE_ALL);
     } else {
@@ -708,10 +708,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             if (!WT_SESSION_BTREE_SYNC(session))
                 LF_SET(WT_REC_VISIBLE_ALL);
         }
-
-        WT_ASSERT(
-          session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
     }
+
+    WT_ASSERT(session, LF_ISSET(WT_REC_VISIBLE_ALL) || F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT));
 
     /*
      * Reconcile the page. Force read-committed isolation level if we are using snapshots for
