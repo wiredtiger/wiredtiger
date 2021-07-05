@@ -53,7 +53,7 @@ const char *const LOG_LEVELS[] = {"ERROR", "WARN", "INFO", "TRACE"};
 /* Current log level */
 static int64_t _trace_level = LOG_WARN;
 
-/* If true both date and time will be logged, if false only time. */
+/* Include date in the logs if enabled. */
 static bool _include_date = true;
 
 void
