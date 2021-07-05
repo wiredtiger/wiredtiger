@@ -119,8 +119,9 @@ class workload_generator : public component {
 
         /* Generate threads to execute read operations on the collections. */
         for (auto &it : operation_configs) {
-            log_msg(LOG_INFO, "Workload_generator: Creating " + 
-              std::to_string(it.thread_count) + " " + type_string(it.type) + " threads.");
+            log_msg(LOG_INFO,
+              "Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
+                type_string(it.type) + " threads.");
             for (size_t i = 0; i < it.thread_count && _running; ++i) {
                 thread_context *tc = new thread_context(
                   thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);

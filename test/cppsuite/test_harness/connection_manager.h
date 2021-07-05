@@ -87,8 +87,9 @@ class connection_manager {
     create_session()
     {
         if (_conn == nullptr) {
-            log_msg(LOG_ERROR, "Connection is NULL, did you forget to call "
-                "connection_manager::create ?");
+            log_msg(LOG_ERROR,
+              "Connection is NULL, did you forget to call "
+              "connection_manager::create ?");
             testutil_die(EINVAL, "Connection is NULL");
         }
 

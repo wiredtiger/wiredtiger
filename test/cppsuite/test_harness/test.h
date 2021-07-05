@@ -164,16 +164,15 @@ class test : public database_operation {
         /* The test will run for the duration as defined in the config. */
         duration_seconds = _config->get_int(DURATION_SECONDS);
         testutil_assert(duration_seconds >= 0);
-        log_msg(LOG_INFO, "Waiting {" + std::to_string(duration_seconds) + 
-          "} for testing to complete.");
+        log_msg(
+          LOG_INFO, "Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.");
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test by calling finish on all known components. */
         for (const auto &it : _components)
             it->finish();
 
-        log_msg(
-          LOG_INFO,
+        log_msg(LOG_INFO,
           "Joining all component threads.\n This could take a while as we need to wait"
           " for all components to finish their current loop.");
         _thread_manager->join();

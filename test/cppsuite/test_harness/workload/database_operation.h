@@ -77,8 +77,8 @@ class database_operation {
              */
             database.add_collection(key_count);
 
-        log_msg(LOG_INFO, "Populate: " + std::to_string(collection_count) + 
-          " collections created.");
+        log_msg(
+          LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
 
         /*
          * Spawn thread_count threads to populate the database, theoretically we should be IO bound
@@ -112,8 +112,8 @@ class database_operation {
             collection &coll;
             scoped_cursor cursor;
         };
-        log_msg(LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + 
-          "} commencing.");
+        log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
@@ -165,8 +165,8 @@ class database_operation {
     virtual void
     read_operation(thread_context *tc)
     {
-        log_msg(LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) +
-          "} commencing.");
+        log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         WT_CURSOR *cursor = nullptr;
         WT_DECL_RET;
         std::map<uint64_t, scoped_cursor> cursors;
@@ -205,8 +205,8 @@ class database_operation {
     virtual void
     update_operation(thread_context *tc)
     {
-        log_msg(LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) +
-          "} commencing.");
+        log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         /* Cursor map. */
         std::map<uint64_t, scoped_cursor> cursors;
         uint64_t collection_id = 0;
@@ -226,7 +226,8 @@ class database_operation {
 
             /* Look for existing cursors in our cursor cache. */
             if (cursors.find(coll.id) == cursors.end()) {
-                log_msg(LOG_TRACE, "Thread {" + std::to_string(tc->id) +
+                log_msg(LOG_TRACE,
+                  "Thread {" + std::to_string(tc->id) +
                     "} Creating cursor for collection: " + coll.name);
                 /* Open a cursor for the chosen collection. */
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());

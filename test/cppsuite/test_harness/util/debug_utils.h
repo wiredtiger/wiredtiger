@@ -43,12 +43,12 @@ namespace test_harness {
 
 /* Possible log levels. If you change anything here make sure you update LOG_LEVELS accordingly. */
 #define LOG_ERROR 0
-#define LOG_WARN  1
-#define LOG_INFO  2
+#define LOG_WARN 1
+#define LOG_INFO 2
 #define LOG_TRACE 3
 
 /* Order of elements in this array corresponds to the definitions above. */
-const char * const LOG_LEVELS[] = { "ERROR", "WARN", "INFO", "TRACE" };
+const char *const LOG_LEVELS[] = {"ERROR", "WARN", "INFO", "TRACE"};
 
 /* Current log level */
 static int64_t _trace_level = LOG_WARN;
@@ -56,8 +56,9 @@ static int64_t _trace_level = LOG_WARN;
 /* If true both date and time will be logged, if false only time. */
 static bool _include_date = true;
 
-void get_time(char *time_buf, size_t buf_size) {
-
+void
+get_time(char *time_buf, size_t buf_size)
+{
     size_t alloc_size;
     struct timespec tsp;
     struct tm *tm, _tm;
@@ -65,11 +66,12 @@ void get_time(char *time_buf, size_t buf_size) {
     __wt_epoch(NULL, &tsp);
     tm = localtime_r(&tsp.tv_sec, &_tm);
 
-    alloc_size = strftime(time_buf, buf_size, 
-      _include_date ? "[%Y-%m-%d][%H:%M:%S" : "[%H:%M:%S", tm);
+    alloc_size =
+      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%d][%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
-    snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]", (uint64_t)tsp.tv_nsec);
+    WT_IGNORE_RET(__wt_snprintf(
+      &time_buf[alloc_size], buf_size - alloc_size, ".%3.3" PRIu64 "Z]", (uint64_t)tsp.tv_nsec));
 }
 
 /* Used to print out traces for debugging purpose. */
@@ -77,22 +79,20 @@ static void
 log_msg(int64_t trace_type, const std::string &str)
 {
     if (_trace_level >= trace_type) {
-        testutil_assert(trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
+        testutil_assert(
+          trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
 
         char time_buf[64];
         get_time(time_buf, sizeof(time_buf));
 
         std::ostringstream ss;
-        ss << time_buf
-           << "["
-           << std::this_thread::get_id()
-           << "]["
-           << LOG_LEVELS[trace_type]
-           << "]:"
-           << str
-           << "\r\n";
+        ss << time_buf << "[" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
+           << "]:" << str << std::endl; //"\r\n";
 
-        std::cerr << ss.str();
+        if (trace_type == LOG_ERROR)
+            std::cerr << ss.str();
+        else
+            std::cout << ss.str();
     }
 }
 } // namespace test_harness

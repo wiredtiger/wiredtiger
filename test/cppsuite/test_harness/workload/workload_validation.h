@@ -116,7 +116,8 @@ class workload_validation {
               cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
             testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
 
-            log_msg(LOG_TRACE, "Retrieved tracked values. \n Collection id: " +
+            log_msg(LOG_TRACE,
+              "Retrieved tracked values. \n Collection id: " +
                 std::to_string(tracked_collection_id) + "\n Key: " + std::string(tracked_key) +
                 "\n Timestamp: " + std::to_string(tracked_timestamp) + "\n Operation type: " +
                 std::to_string(tracked_op_type) + "\n Value: " + std::string(tracked_value));
