@@ -663,11 +663,15 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
+    /* History store data are always evictable. */
     if (WT_IS_HS(btree->dhandle)) {
+        /* TODO: remove this when we have removed history store score and __rec_update_stable. No
+         * need to set visibility flag for history store. */
         if (!WT_SESSION_BTREE_SYNC(session))
             LF_SET(WT_REC_VISIBLE_ALL);
     } else {
         if (is_eviction_thread) {
+            /* Eviction thread doing eviction. */
             if (!conn->txn_global.checkpoint_running) {
                 /*
                  * Eviction threads do not need to pin anything in the cache. We have a exclusive
@@ -683,6 +687,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                  * have started between previous check and acquiring snapshot. If there is a
                  * checkpoint running, release the snapshot and fallback to global visibility
                  * checks.
+                 *
+                 * There should be a read barrier here otherwise the second read may be optimized
+                 * away by the compiler. However, we should have already met a barrier when we bump
+                 * the snapshot so the barrier is omitted here.
                  */
                 if (conn->txn_global.checkpoint_running) {
                     __wt_txn_release_snapshot(session);
@@ -695,7 +703,9 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
             }
         } else if (use_snapshot_for_app_thread) {
+            /* Application thread doing eviction. */
             if (!conn->txn_global.checkpoint_running)
+                /* Use application snapshot for eviction only when checkpoint is not running. */
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
             else {
                 if (!WT_SESSION_BTREE_SYNC(session))
