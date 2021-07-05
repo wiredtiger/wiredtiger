@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# checkpoints:correctness:checkpoint_data
+# data_correctness:checkpoint
 # [END_TAGS]
 #
 

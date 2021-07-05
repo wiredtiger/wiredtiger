@@ -21,12 +21,29 @@ sorted_tags = []
 test_files = []
 
 tagged_files = {}
-valid_tags = {}
+valid_tags = []
 
 END_TAG = "[END_TAGS]"
 IGNORE_FILE = "ignored_file"
-NB_TAG_ARGS = 3
+NB_TAG_ARGS = 2
 START_TAG = "[TEST_TAGS]"
+#####
+
+##### FUNCTIONS ####
+def validate_tag(tag, filename):
+    split_tag = tag.split(":")
+    # Ensure the array isn't too long.
+    if (len(split_tag) > 3):
+        print("Tag contains too many sub tags: " + tag + " filename: " + filename);
+        exit(1)
+
+    # Walk the pieces of the tag and ensure they exist in test_tags.ok.
+    for sub_tag in split_tag:
+        if not sub_tag in valid_tags:
+            print(
+                "Invalid sub tag found: " + sub_tag + " in tag: " + tag + " filename: " + filename)
+            exit(1)
+    return len(split_tag)
 #####
 
 ##### PROCESS ARGS #####
@@ -36,7 +53,7 @@ for arg in sys.argv:
         print("Options:")
         print("\t-i\tShow info")
         print("\t-p\tShow files with no test tags")
-        exit()
+        exit(1)
     elif arg == "-i":
         show_info = True
     elif arg == "-p":
@@ -55,16 +72,16 @@ for root, dirs, files in os.walk("../test/"):
 ##### RETRIEVE VALID TAGS #####
 validation_file = open("test_tags.ok", "r")
 
-# The file has the following pattern
-# <COMPONENT>:<TESTING_TYPE>:<TESTING_AREA>:<DESCRIPTION>
-# A tag is made of the three first values: COMPONENT, TEST_TYPE and TESTING_AREA
+# The validation file contains a list of valid tag words.
 tags = validation_file.readlines()
 tags = [tag.replace('\n', '') for tag in tags]
 
 for tag in tags:
-    current_line = tag.split(':')
-    # Createa key value pair <TAG>:<DESCRIPTION>
-    valid_tags[':'.join(current_line[:NB_TAG_ARGS])] = ':'.join(current_line[NB_TAG_ARGS:])
+    valid_tags.append(tag)
+
+if not all(tags[i] <= tags[i+1] for i in range(len(tags)-1)):
+    print("Error: Tag is not alphabetically ordered!")
+    exit(1)
 
 validation_file.close()
 #####
@@ -74,8 +91,7 @@ for filename in test_files:
     input_file = open(filename, "r")
     lines = input_file.readlines()
 
-    is_start = False
-    is_end = False
+    in_tag_block = False
     is_file_ignored = False
     is_file_tagged = False
 
@@ -89,23 +105,22 @@ for filename in test_files:
         # Check if line is valid
         if not line:
             # Check if invalid line after START_TAG
-            if is_start == True:
-                print("Error syntax in file " + filename)
-                exit()
+            if in_tag_block == True:
+                print("Syntax Error in file: " + filename)
+                exit(1)
             else:
                 continue
 
         # Check if end of test tag
         if END_TAG in line:
             # END_TAG should not be before START_TAG
-            if is_start == False:
-                print("Error syntax in file " + filename + ". Unexpected tag: " + END_TAG)
-                exit()
+            if in_tag_block == False:
+                print("Syntax Error in file: " + filename + ". Unexpected tag: " + END_TAG)
+                exit(1)
             # END_TAG should not be met before a test tag
             if is_file_ignored == False and is_file_tagged == False:
-                print("Error syntax in file " + filename + ". Missing test tag.")
-                exit()
-            is_end = True
+                print("Syntax Error in file: " + filename + ". Missing test tag.")
+                exit(1)
             nb_valid_files = nb_valid_files + 1
             # Go to next file
             break
@@ -113,32 +128,38 @@ for filename in test_files:
         # Check if start of test tag
         if START_TAG in line:
             # Only one START_TAG is allowed
-            if is_start == True:
-                print("Error syntax in file " + filename + ". Unexpected tag: " + START_TAG)
-                exit()
-            is_start = True
+            if in_tag_block == True:
+                print("Syntax Error in file: " + filename + ". Unexpected tag: " + START_TAG)
+                exit(1)
+            in_tag_block = True
             continue
 
-        if is_start == True:
+        if in_tag_block == True:
+            tag = line
             # Check if file is ignored
             if is_file_ignored == True:
                 print("Unexpected value in ignored file: " + filename)
-                exit()
-            if line == IGNORE_FILE:
+                exit(1)
+            if tag == IGNORE_FILE:
                 nb_ignored_files = nb_ignored_files + 1
                 is_file_ignored = True
                 continue
-            # Check if current tag is valid
-            if not line in valid_tags:
-                print("Tag is not valid ! Add the new tag to test_tags.ok:\n" + line)
-                exit()
-            else:
-                is_file_tagged = True
+
+            # Validate the tag's correctness.
+            tag_count = validate_tag(tag, filename)
+            is_file_tagged = True
+
+            # Add the test type to the tag if it wasn't already.
+            if filename.endswith(".c") and tag_count != 3:
+                tag = "data_correctness:" + tag
+            if filename.endswith(".py") and tag_count != 3:
+                tag = "functional_correctness:" + tag
+
             # Check if current tag has already matched test files
-            if line in tagged_files:
-                tagged_files[line].append(filename)
+            if tag in tagged_files:
+                tagged_files[tag].append(filename)
             else:
-                tagged_files[line] = [filename]
+                tagged_files[tag] = [filename]
 
     if is_file_ignored == False and is_file_tagged == False:
         nb_missing_files = nb_missing_files + 1
@@ -152,26 +173,30 @@ for filename in test_files:
 output_file = open("../test/test_coverage.md", "w")
 
 # Table headers
-output_file.write("|Component|Test Type|Testing Area|Description|Existing tests|" + '\n')
-output_file.write("|---|---|---|---|---|" + '\n')
+output_file.write("|Testing type|Component|Sub-component|Existing tests|" + '\n')
+output_file.write("|---|---|---|---|" + '\n')
 
 # Sort tags
 sorted_tags = list(tagged_files.keys())
 sorted_tags.sort()
 
 for tag in sorted_tags:
-    # Split line
+    # Split the tag.
     current_line = tag.split(":")
 
     # Parse tag
-    component = current_line[0]
-    test_type = current_line[1]
-    testing_area = current_line[2]
+    test_type = current_line[0]
+    component = current_line[1]
+    functionality = ""
 
     # Format output
-    component = component.replace("_", " ").title()
     test_type = test_type.replace("_", " ").title()
-    testing_area = testing_area.replace("_", " ").title()
+    component = component.replace("_", " ").title()
+
+    # The end tag is optional.
+    if (len(current_line) == 3):
+        functionality = current_line[2]
+        functionality = functionality.replace("_", " ").title()
 
     # Relative path to test files
     link = ""
@@ -183,9 +208,8 @@ for tag in sorted_tags:
     link = link[:-2]
 
     # Write to output
-    output_file.write('|' + component + '|' + test_type + '|' + \
-                     testing_area + '|' + valid_tags[tag] + '|' \
-                     + link + '\n')
+    output_file.write('|' + test_type + '|' + component + '|' + \
+                     functionality + '|' + link + '\n')
 
 output_file.close()
 #####
