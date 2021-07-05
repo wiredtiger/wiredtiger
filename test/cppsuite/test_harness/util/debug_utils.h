@@ -41,13 +41,13 @@ extern "C" {
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-/* Possible log levels */
+/* Possible log levels. If you change anything here make sure you update LOG_LEVELS accordingly. */
 #define LOG_ERROR 0
 #define LOG_WARN  1
 #define LOG_INFO  2
 #define LOG_TRACE 3
 
-/* Order of elements in this array corresponds to the definitions abouve. */
+/* Order of elements in this array corresponds to the definitions above. */
 const char * const LOG_LEVELS[] = { "ERROR", "WARN", "INFO", "TRACE" };
 
 /* Current log level */
