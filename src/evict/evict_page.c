@@ -698,7 +698,8 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
             else if (!WT_SESSION_BTREE_SYNC(session))
                 LF_SET(WT_REC_VISIBLE_ALL);
-        }
+        } else if (!WT_SESSION_BTREE_SYNC(session))
+            LF_SET(WT_REC_VISIBLE_ALL);
 
         if (checkpoint_running)
             LF_SET(WT_REC_CHECKPOINT_RUNNING);
