@@ -319,8 +319,10 @@ create_object(WT_CONNECTION *conn)
         CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", g.c_bitcnt);
         break;
     case ROW:
-        CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
-          g.c_prefix_compression == 0 ? "false" : "true", g.c_prefix_compression_min);
+        if (g.c_prefix_compression)
+            CONFIG_APPEND(p, ",prefix_compression_min=%" PRIu32, g.c_prefix_compression_min);
+        else
+            CONFIG_APPEND(p, ",prefix_compression=false");
         if (g.c_reverse)
             CONFIG_APPEND(p, ",collator=reverse");
     /* FALLTHROUGH */

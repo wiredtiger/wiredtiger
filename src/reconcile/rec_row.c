@@ -138,27 +138,18 @@ __rec_cell_build_leaf_key(
                     break;
 
             /*
-             * Prefix compression costs CPU and memory when the page is re-loaded, skip unless
-             * there's a reasonable gain. Also, if the previous key was prefix compressed, don't
-             * increase the prefix compression if we aren't getting a reasonable gain. (Groups of
-             * keys with the same prefix can be quickly built without needing to roll forward
-             * through intermediate keys or allocating memory so they can be built faster in the
-             * future, for that reason try and create big groups of keys with the same prefix.)
+             * Prefix compression may cost us CPU and memory when the page is re-loaded, don't do it
+             * unless there's reasonable gain.
              */
             if (pfx < btree->prefix_compression_min)
                 pfx = 0;
-            else if (r->key_pfx_last != 0 && pfx > r->key_pfx_last &&
-              pfx < r->key_pfx_last + WT_KEY_PREFIX_PREVIOUS_MINIMUM)
-                pfx = r->key_pfx_last;
-
-            if (pfx != 0)
+            else
                 WT_STAT_DATA_INCRV(session, rec_prefix_compression, pfx);
         }
 
         /* Copy the non-prefix bytes into the key buffer. */
         WT_RET(__wt_buf_set(session, &key->buf, (uint8_t *)data + pfx, size - pfx));
     }
-    r->key_pfx_last = pfx;
 
     /* Create an overflow object if the data won't fit. */
     if (key->buf.size > btree->maxleafkey) {
@@ -218,7 +209,6 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
          */
         if (r->key_pfx_compress_conf) {
             r->key_pfx_compress = false;
-            r->key_pfx_last = 0;
             if (!ovfl_key)
                 WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
         }
@@ -587,7 +577,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Turn off prefix and suffix compression until a full key is written into the new page.
              */
             r->key_pfx_compress = r->key_sfx_compress = false;
-            r->key_pfx_last = 0;
             continue;
         }
 
@@ -639,7 +628,6 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
-                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
@@ -722,13 +710,10 @@ __wt_rec_row_leaf(
     WT_TIME_WINDOW tw;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
-    size_t key_size;
     uint64_t slvg_skip;
     uint32_t i;
-    uint8_t key_prefix;
     bool dictionary, key_onpage_ovfl, ovfl_key;
     void *copy;
-    const void *key_data;
 
     btree = S2BT(session);
     hs_cursor = NULL;
@@ -774,19 +759,20 @@ __wt_rec_row_leaf(
         dictionary = false;
 
         /*
-         * Figure out if the key is an overflow key, and in that case unpack the cell, we'll need it
-         * later.
+         * Figure out the key: set any cell reference (and unpack it), set any instantiated key
+         * reference.
          */
         copy = WT_ROW_KEY_COPY(rip);
-        __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
-        kpack = NULL;
-        if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL) {
+        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL));
+        if (cell == NULL)
+            kpack = NULL;
+        else {
             kpack = &_kpack;
             __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
         }
 
         /* Unpack the on-page value cell. */
-        __wt_row_leaf_value_cell(session, page, rip, vpack);
+        __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
 
         /* Look for an update. */
         WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
@@ -899,7 +885,7 @@ __wt_rec_row_leaf(
                     /*
                      * Keys are part of the name-space, we can't remove them from the in-memory
                      * tree; if an overflow key was deleted without being instantiated (for example,
-                     * cursor-based truncation), instantiate it now.
+                     * cursor-based truncation), do it now.
                      */
                     if (ikey == NULL)
                         WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
@@ -981,41 +967,25 @@ __wt_rec_row_leaf(
              * previous key (it's a fast path for simple, prefix-compressed keys), or by building
              * the key from scratch.
              */
-            __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
-            if (key_data == NULL) {
-                if (__wt_cell_type(cell) != WT_CELL_KEY)
-                    goto slow;
-                kpack = &_kpack;
-                __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-                key_data = kpack->data;
-                key_size = kpack->size;
-                key_prefix = kpack->prefix;
-            }
-            if (key_prefix == 0) {
-                tmpkey->data = key_data;
-                tmpkey->size = key_size;
+            if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &tmpkey->data, &tmpkey->size))
                 goto build;
-            }
 
-            if (tmpkey->size == 0 || tmpkey->size < key_prefix)
-                goto slow;
-
-            /*
-             * Grow the buffer as necessary as well as ensure data has been copied into local buffer
-             * space, then append the suffix to the prefix already in the buffer. Don't grow the
-             * buffer unnecessarily or copy data we don't need, truncate the item's CURRENT data
-             * length to the prefix bytes before growing the buffer.
-             */
-            tmpkey->size = key_prefix;
-            WT_ERR(__wt_buf_grow(session, tmpkey, key_prefix + key_size));
-            memcpy((uint8_t *)tmpkey->mem + key_prefix, key_data, key_size);
-            tmpkey->size = key_prefix + key_size;
-
-            if (0) {
-slow:
+            kpack = &_kpack;
+            __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+            if (kpack->type == WT_CELL_KEY && tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
+                /*
+                 * Grow the buffer as necessary, ensuring data data has been copied into local
+                 * buffer space, then append the suffix to the prefix already in the buffer.
+                 *
+                 * Don't grow the buffer unnecessarily or copy data we don't need, truncate the
+                 * item's data length to the prefix bytes.
+                 */
+                tmpkey->size = kpack->prefix;
+                WT_ERR(__wt_buf_grow(session, tmpkey, tmpkey->size + kpack->size));
+                memcpy((uint8_t *)tmpkey->mem + tmpkey->size, kpack->data, kpack->size);
+                tmpkey->size += kpack->size;
+            } else
                 WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
-            }
-
 build:
             WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size, &ovfl_key));
         }
@@ -1037,7 +1007,6 @@ build:
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
-                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
