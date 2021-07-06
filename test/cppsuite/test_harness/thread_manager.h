@@ -39,7 +39,7 @@ class thread_manager {
     {
         for (auto &it : _workers) {
             if (it != nullptr && it->joinable()) {
-                log_msg(LOG_ERROR, "You should've called join on the thread manager");
+                debug_print("You should've called join on the thread manager", DEBUG_ERROR);
                 it->join();
             }
             delete it;
@@ -68,7 +68,7 @@ class thread_manager {
         for (const auto &it : _workers) {
             while (!it->joinable()) {
                 /* Helpful for diagnosing hangs. */
-                log_msg(LOG_TRACE, "Thread manager: Waiting to join.");
+                debug_print("Thread manager: Waiting to join.", DEBUG_TRACE);
                 /* Check every so often to avoid spamming the log. */
                 std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }

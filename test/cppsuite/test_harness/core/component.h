@@ -57,7 +57,7 @@ class component {
     virtual void
     load()
     {
-        log_msg(LOG_INFO, "Loading component: " + _name);
+        debug_print("Loading component: " + _name, DEBUG_INFO);
         _enabled = _config->get_optional_bool(ENABLED, true);
         _throttle = throttle(_config);
         /* If we're not enabled we shouldn't be running. */
@@ -74,7 +74,7 @@ class component {
     virtual void
     run()
     {
-        log_msg(LOG_INFO, "Running component: " + _name);
+        debug_print("Running component: " + _name, DEBUG_INFO);
         while (_enabled && _running) {
             do_work();
             _throttle.sleep();
@@ -101,7 +101,7 @@ class component {
     virtual void
     finish()
     {
-        log_msg(LOG_INFO, "Finishing component: " + _name);
+        debug_print("Finishing component: " + _name, DEBUG_INFO);
         _running = false;
     }
 

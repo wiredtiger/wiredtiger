@@ -60,7 +60,7 @@ class checkpoint_manager : public component {
     void
     do_work() override final
     {
-        log_msg(LOG_INFO, "Running checkpoint");
+        debug_print("Running checkpoint", DEBUG_INFO);
         testutil_check(_session->checkpoint(_session.get(), nullptr));
     }
 
