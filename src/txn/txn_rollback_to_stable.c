@@ -1511,8 +1511,11 @@ __rollback_to_stable_btree_apply(
 
     if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-        WT_ERR(__wt_session_get_dhandle(
-          session, uri, NULL, NULL, WT_DHANDLE_DISCARD | WT_DHANDLE_EXCLUSIVE));
+        ret = __wt_session_get_dhandle(
+          session, uri, NULL, NULL, WT_DHANDLE_DISCARD | WT_DHANDLE_EXCLUSIVE);
+        if (ret != 0)
+            WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
+              ret == EBUSY ? ", error indicates handle is unavailable due to concurrent use" : "");
         dhandle_allocated = true;
 
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
