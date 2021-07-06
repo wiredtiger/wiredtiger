@@ -1515,9 +1515,10 @@ __rollback_to_stable_btree_apply(
          * MongoDB does not close all open handles before calling rollback-to-stable; otherwise,
          * don't permit that behavior, the application is likely making a mistake.
          */
-        handle_open_flags = 0;
 #ifdef WT_STANDALONE_BUILD
         handle_open_flags = WT_DHANDLE_DISCARD | WT_DHANDLE_EXCLUSIVE;
+#else
+        handle_open_flags = 0;
 #endif
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, handle_open_flags);
         if (ret != 0)
