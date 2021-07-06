@@ -42,7 +42,6 @@ class test_tiered05(wttest.WiredTigerTestCase):
     wait = 2
 
     def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     def conn_config(self):

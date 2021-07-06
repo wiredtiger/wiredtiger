@@ -54,7 +54,6 @@ class test_tiered02(wttest.WiredTigerTestCase):
 
     # Load the local store extension, but skip the test if it is missing.
     def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     def progress(self, s):
