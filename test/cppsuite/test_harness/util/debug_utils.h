@@ -29,77 +29,30 @@
 #ifndef DEBUG_UTILS_H
 #define DEBUG_UTILS_H
 
-#include <chrono>
 #include <iostream>
-#include <sstream>
-#include <thread>
-
-extern "C" {
-#include "test_util.h"
-}
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {
 
-/* Possible log levels. If you change anything here make sure you update LOG_LEVELS accordingly. */
-#define LOG_ERROR 0
-#define LOG_WARN 1
-#define LOG_INFO 2
-#define LOG_TRACE 3
+#define DEBUG_ERROR 0
+#define DEBUG_WARN 1
+#define DEBUG_INFO 2
+#define DEBUG_TRACE 3
 
-/* Order of elements in this array corresponds to the definitions above. */
-const char *const LOG_LEVELS[] = {"ERROR", "WARN", "INFO", "TRACE"};
-
-/* Current log level */
-static int64_t _trace_level = LOG_WARN;
-
-/* Include date in the logs if enabled. */
-static bool _include_date = true;
-
-void
-get_time(char *time_buf, size_t buf_size)
-{
-    size_t alloc_size;
-    struct timespec tsp;
-    struct tm *tm, _tm;
-
-    /* Get time since epoch in nanoseconds. */
-    uint64_t epoch_nanosec = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-
-    /* Calculate time since epoch in seconds. */
-    time_t time_epoch_sec = epoch_nanosec / WT_BILLION;
-
-    tm = localtime_r(&time_epoch_sec, &_tm);
-
-    alloc_size =
-      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
-
-    testutil_assert(alloc_size <= buf_size);
-    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
-      (uint64_t)epoch_nanosec % WT_BILLION));
-}
+static int64_t _trace_level = DEBUG_WARN;
 
 /* Used to print out traces for debugging purpose. */
 static void
-log_msg(int64_t trace_type, const std::string &str)
+debug_print(const std::string &str, int64_t trace_type)
 {
     if (_trace_level >= trace_type) {
-        testutil_assert(
-          trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
-
-        char time_buf[64];
-        get_time(time_buf, sizeof(time_buf));
-
-        std::ostringstream ss;
-        ss << time_buf << "[TID:" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
-           << "]: " << str << std::endl;
-
-        if (trace_type == LOG_ERROR)
-            std::cerr << ss.str();
+        if (trace_type >= DEBUG_ERROR)
+            std::cerr << str << std::endl;
         else
-            std::cout << ss.str();
+            std::cout << str << std::endl;
     }
 }
+
 } // namespace test_harness
 
 #endif
