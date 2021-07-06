@@ -262,7 +262,7 @@ class postrun_statistic_check {
             const std::string error_string = "runtime_monitor: Postrun stat \"" + stat.name +
               "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
               " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
-            debug_print(error_string, DEBUG_ERROR);
+            log_msg(LOG_ERROR, error_string);
             return (false);
         }
         return (true);
