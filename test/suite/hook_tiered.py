@@ -224,10 +224,6 @@ class TieredHookCreator(wthooks.WiredTigerHookCreator):
         self.Session['alter'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_alter_replace(orig_session_alter, s, uri, config))
 
-        orig_session_close = self.Session['close']
-        self.Session['close'] = (wthooks.HOOK_REPLACE, lambda s, config=None:
-          session_close_replace(orig_session_close, s, config))
-
         orig_session_compact = self.Session['compact']
         self.Session['compact'] =  (wthooks.HOOK_REPLACE, lambda s, uri, config:
           session_compact_replace(orig_session_compact, s, uri, config))
