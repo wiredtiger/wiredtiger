@@ -46,6 +46,10 @@ namespace test_harness {
 #define LOG_ERROR 0
 #define LOG_WARN 1
 #define LOG_INFO 2
+/*
+ * The trace log level can incur a performance overhead since the current logging implementation
+ * requires per-line locking.
+ */
 #define LOG_TRACE 3
 
 /* Order of elements in this array corresponds to the definitions above. */
