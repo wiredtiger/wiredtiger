@@ -479,8 +479,12 @@ __cursor_row_prev(
      * Initialize for each new page.
      */
     if (newpage) {
-        /* Check if keys need to be instantiated before we walk the page. */
-        WT_RET(__wt_row_leaf_key_instantiate(session, page));
+        /*
+         * If we haven't instantiated keys on this page, do so, else it is a very, very slow
+         * traversal.
+         */
+        if (!F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
+            WT_RET(__wt_row_leaf_keys(session, page));
 
         /*
          * Be paranoid and set the slot out of bounds when moving to a new page.
