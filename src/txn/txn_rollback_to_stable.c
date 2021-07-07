@@ -518,7 +518,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
                  * timestamp or the on-disk update is an out of order prepared.
                  */
                 WT_ASSERT(session,
-                  hs_stop_durable_ts == 0 || hs_stop_durable_ts < newer_hs_durable_ts ||
+                  hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
                     unpack->tw.prepare);
 
                 WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
