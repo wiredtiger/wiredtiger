@@ -131,7 +131,9 @@ class workload_tracking : public component {
              */
             if (sweep_key == nullptr || strcmp(sweep_key, key) != 0) {
                 globally_visible_update_found = false;
-                strcpy(sweep_key, key);
+                if (sweep_key != nullptr)
+                    free(sweep_key);
+                sweep_key = static_cast<char *>(dstrdup(key));
             }
             if (timestamp <= oldest_ts) {
                 if (globally_visible_update_found)
@@ -140,6 +142,8 @@ class workload_tracking : public component {
                     globally_visible_update_found = true;
             }
         }
+
+        free(sweep_key);
 
         if (ret != WT_NOTFOUND)
             testutil_die(LOG_ERROR,
