@@ -80,8 +80,9 @@ tags = [tag.replace('\n', '') for tag in tags]
 for tag in tags:
     valid_tags.append(tag)
 
+# Check that the validation file is ordered alphabetically.
 if not all(tags[i] <= tags[i+1] for i in range(len(tags)-1)):
-    print("Error: Tag is not alphabetically ordered!")
+    print("Error: test_tags.ok is not alphabetically ordered!")
     exit(1)
 
 validation_file.close()
