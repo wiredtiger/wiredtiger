@@ -82,7 +82,7 @@ class backup_thread(threading.Thread):
                     uris.append(uri)
 
                 # Add an assert to stop running the test if any difference in table contents
-                # is found. We would have liked to use self.assertTrue instead, but are unable 
+                # is found. We would have liked to use self.assertTrue instead, but are unable
                 # to because backup_thread does not support this method unless it is a wttest.
                 wttest.WiredTigerTestCase.printVerbose(3, "Testing if checkpoint tables match:")
                 assert compare_tables(self, sess, uris) == True
