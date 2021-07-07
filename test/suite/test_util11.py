@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# wt_util:list
+# wt_util
 # [END_TAGS]
 
 import os, struct

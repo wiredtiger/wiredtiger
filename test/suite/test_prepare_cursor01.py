@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# cursors:prepared_transactions
+# cursors:prepare
 # [END_TAGS]
 
 import wiredtiger, wttest

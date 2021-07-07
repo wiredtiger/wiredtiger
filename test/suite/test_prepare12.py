@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# eviction:prepared_transactions
+# eviction:prepare
 # [END_TAGS]
 
 import wiredtiger, wttest
