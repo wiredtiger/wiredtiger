@@ -705,7 +705,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
             }
         } else if (use_snapshot_for_app_thread) {
-            /* Application thread doing eviction. */
+            /* Application thread that has a snapshot doing eviction. */
             if (!conn->txn_global.checkpoint_running)
                 /* Use application snapshot for eviction only when checkpoint is not running. */
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
