@@ -1,6 +1,6 @@
 |Testing type|Component|Sub-component|Existing tests|
 |---|---|---|---|
-|Data Correctness|Checkpoint||[../test/csuite/wt3363_checkpoint_op_races/main.c](../test/csuite/wt3363_checkpoint_op_races/main.c)
+|Data Correctness|Checkpoint||[../test/csuite/wt3363_checkpoint_op_races/main.c](../test/csuite/wt3363_checkpoint_op_races/main.c), [../test/suite/test_checkpoint02.py](../test/suite/test_checkpoint02.py), [../test/suite/test_checkpoint03.py](../test/suite/test_checkpoint03.py)
 |Functional Correctness|Aggregated Time Windows||[../test/suite/test_rollback_to_stable18.py](../test/suite/test_rollback_to_stable18.py)
 |Functional Correctness|Backup||[../test/suite/test_txn04.py](../test/suite/test_txn04.py)
 |Functional Correctness|Backup|Cursors|[../test/suite/test_backup01.py](../test/suite/test_backup01.py), [../test/suite/test_backup11.py](../test/suite/test_backup11.py)
@@ -18,7 +18,6 @@
 |Functional Correctness|Cursors|Search|[../test/suite/test_bug008.py](../test/suite/test_bug008.py)
 |Functional Correctness|Cursors|Search Near|[../test/suite/test_bug008.py](../test/suite/test_bug008.py)
 |Functional Correctness|Cursors|Statistics|[../test/suite/test_stat03.py](../test/suite/test_stat03.py)
-|Functional Correctness|Data Correctness|Checkpoint|[../test/suite/test_checkpoint02.py](../test/suite/test_checkpoint02.py), [../test/suite/test_checkpoint03.py](../test/suite/test_checkpoint03.py)
 |Functional Correctness|Encryption||[../test/suite/test_encrypt02.py](../test/suite/test_encrypt02.py)
 |Functional Correctness|Eviction|Prepare|[../test/suite/test_prepare12.py](../test/suite/test_prepare12.py)
 |Functional Correctness|History Store||[../test/suite/test_hs09.py](../test/suite/test_hs09.py)

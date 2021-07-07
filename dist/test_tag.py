@@ -23,7 +23,10 @@ test_files = []
 
 tagged_files = {}
 valid_tags = []
+test_type_tags = ['data_correctness', 'functional_correctness']
 
+C_FILE_TYPE = 0
+PY_FILE_TYPE = 1
 END_TAG = "[END_TAGS]"
 IGNORE_FILE = "ignored_file"
 NB_TAG_ARGS = 2
@@ -151,11 +154,17 @@ for filename in test_files:
             tag_count = validate_tag(tag, filename)
             is_file_tagged = True
 
+            skip_adding_test_type = False
             # Add the test type to the tag if it wasn't already.
-            if filename.endswith(".c") and tag_count != 3:
-                tag = "data_correctness:" + tag
-            if filename.endswith(".py") and tag_count != 3:
-                tag = "functional_correctness:" + tag
+            for test_type_tag in test_type_tags:
+                if (tag.startswith(test_type_tag)):
+                    skip_adding_test_type = True
+
+            if not skip_adding_test_type:
+                if filename.endswith(".c"):
+                    tag = test_type_tags[C_FILE_TYPE] + ":" + tag
+                if filename.endswith(".py"):
+                    tag = test_type_tags[PY_FILE_TYPE] + ":" + tag
 
             # Check if current tag has already matched test files
             if tag in tagged_files:
