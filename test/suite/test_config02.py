@@ -30,7 +30,6 @@
 # connection_api:wiredtiger_open
 # config_api
 # [END_TAGS]
-#
 
 import os
 import wiredtiger, wttest

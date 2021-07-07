@@ -29,6 +29,7 @@
 # [TEST_TAGS]
 # session_api:reconfigure
 # [END_TAGS]
+
 import wiredtiger, wttest
 
 # test_reconfig04.py

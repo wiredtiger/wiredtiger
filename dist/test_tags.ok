@@ -12,6 +12,7 @@ flush_tier
 functional_correctness
 garbage_collection
 history_store
+huffman_encoding
 indexes
 isolation_levels
 list
@@ -28,5 +29,6 @@ statistics
 tiered_storage
 transactions
 truncate
+turtle_file
 wiredtiger_open
 wt_util

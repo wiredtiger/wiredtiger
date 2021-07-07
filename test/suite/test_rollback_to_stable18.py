@@ -30,7 +30,6 @@
 # rollback_to_stable
 # aggregated_time_windows
 # [END_TAGS]
-#
 
 import fnmatch, os, shutil, time
 from helper import simulate_crash_restart

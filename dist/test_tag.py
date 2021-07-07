@@ -1,5 +1,6 @@
 import os
 import sys
+from dist import compare_srcfile
 
 ##### LOCAL VARIABLES AND CONSTANTS #####
 component = ""
@@ -169,12 +170,12 @@ for filename in test_files:
     input_file.close()
 #####
 
-##### GENERATE OUTPUT #####
-output_file = open("../test/test_coverage.md", "w")
-
+##### GENERATE TEST COVERAGE MD #####
+tmp_filename = '__tmp'
+tfile = open('__tmp', 'w')
 # Table headers
-output_file.write("|Testing type|Component|Sub-component|Existing tests|" + '\n')
-output_file.write("|---|---|---|---|" + '\n')
+tfile.write("|Testing type|Component|Sub-component|Existing tests|\n")
+tfile.write("|---|---|---|---|\n")
 
 # Sort tags
 sorted_tags = list(tagged_files.keys())
@@ -208,10 +209,11 @@ for tag in sorted_tags:
     link = link[:-2]
 
     # Write to output
-    output_file.write('|' + test_type + '|' + component + '|' + \
+    tfile.write('|' + test_type + '|' + component + '|' + \
                      functionality + '|' + link + '\n')
 
-output_file.close()
+tfile.close()
+compare_srcfile(tmp_filename, "../test/test_coverage.md")
 #####
 
 ##### STATS #####
