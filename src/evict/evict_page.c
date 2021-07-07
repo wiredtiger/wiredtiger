@@ -665,8 +665,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
 
     /* History store data are always evictable. */
     if (WT_IS_HS(btree->dhandle)) {
-        /* TODO: remove this when we have removed history store score and __rec_update_stable. No
-         * need to set visibility flag for history store. */
+        /*
+         * FIX-ME-WT-5316: remove this when we have removed history store score and
+         * __rec_update_stable. No need to set visibility flag for history store.
+         */
         if (!WT_SESSION_BTREE_SYNC(session))
             LF_SET(WT_REC_VISIBLE_ALL);
     } else {
