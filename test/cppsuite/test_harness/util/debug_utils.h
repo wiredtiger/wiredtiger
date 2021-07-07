@@ -29,8 +29,9 @@
 #ifndef DEBUG_UTILS_H
 #define DEBUG_UTILS_H
 
-#define __STDC_LIMIT_MACROS   // needed to get UINT64_MAX in C++
-#define __STDC_FORMAT_MACROS  // needed to get PRIuXX macros in C++
+/* Following definitions are required in order to use printing format specifiers in C++. */
+#define __STDC_LIMIT_MACROS
+#define __STDC_FORMAT_MACROS
 
 #include <chrono>
 #include <iostream>
