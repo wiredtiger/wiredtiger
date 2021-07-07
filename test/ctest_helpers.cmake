@@ -181,16 +181,18 @@ function(define_test_variants target)
             separate_arguments(variant_args UNIX_COMMAND ${curr_variant_args})
         endif()
         # Create a variant directory to run the test in.
-        add_custom_target(${curr_variant_name}_test_dir
-            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name})
+        add_custom_command(OUTPUT ${curr_variant_name}_test_dir
+            COMMAND ${CMAKE_COMMAND} -E make_directory ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name}_test_dir
+        )
+        add_custom_target(create_dir_${curr_variant_name} DEPENDS ${curr_variant_name}_test_dir)
         # Ensure the variant target is created prior to building the test.
-        add_dependencies(${target} ${curr_variant_name}_test_dir)
+        add_dependencies(${target} create_dir_${curr_variant_name})
         add_test(
             NAME ${curr_variant_name}
             COMMAND $<TARGET_FILE:${target}> ${variant_args}
             # Run each variant in its own subdirectory, allowing us to execute variants in
             # parallel.
-            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name}
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${curr_variant_name}_test_dir
         )
         list(APPEND defined_tests ${curr_variant_name})
     endforeach()
