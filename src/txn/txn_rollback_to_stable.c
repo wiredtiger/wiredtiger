@@ -8,7 +8,7 @@
 
 #include "wt_internal.h"
 
-#define WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, txnid) \
+#define WT_CHECK_RECOVERY_FLAG_TXNID(session, txnid) \
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
@@ -1055,14 +1055,14 @@ __rollback_page_needs_abort(
         prepared = vpack.ta.prepare;
         newest_txn = vpack.ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     } else if (addr != NULL) {
         tag = "address";
         durable_ts = __rollback_get_ref_max_durable_timestamp(session, &addr->ta);
         prepared = addr->ta.prepare;
         newest_txn = addr->ta.newest_txn;
         result = (durable_ts > rollback_timestamp) || prepared ||
-          WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, newest_txn);
+          WT_CHECK_RECOVERY_FLAG_TXNID(session, newest_txn);
     }
 
     __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
@@ -1472,7 +1472,7 @@ __rollback_to_stable_btree_apply(
         WT_RET_NOTFOUND_OK(ret);
     }
     max_durable_ts = WT_MAX(newest_start_durable_ts, newest_stop_durable_ts);
-    has_txn_updates_gt_than_ckpt_snap = WT_CHECK_RECOVERY_FLAG_TS_TXNID(session, rollback_txnid);
+    has_txn_updates_gt_than_ckpt_snap = WT_CHECK_RECOVERY_FLAG_TXNID(session, rollback_txnid);
 
     /* Increment the inconsistent checkpoint stats counter. */
     if (has_txn_updates_gt_than_ckpt_snap)
