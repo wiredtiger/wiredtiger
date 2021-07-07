@@ -48,6 +48,9 @@ def validate_tag(tag, filename):
                 "Invalid sub tag found: " + sub_tag + " in tag: " + tag + " filename: " + filename)
             exit(1)
     return len(split_tag)
+
+def format_tag(tag):
+    return tag.replace("_", " ").title()
 #####
 
 ##### PROCESS ARGS #####
@@ -183,45 +186,43 @@ for filename in test_files:
 ##### GENERATE TEST COVERAGE MD #####
 tmp_filename = '__tmp'
 tfile = open('__tmp', 'w')
-# Table headers
-tfile.write("|Testing type|Component|Sub-component|Existing tests|\n")
-tfile.write("|---|---|---|---|\n")
+
 
 # Sort tags
 sorted_tags = list(tagged_files.keys())
 sorted_tags.sort()
 
-for tag in sorted_tags:
-    # Split the tag.
-    current_line = tag.split(":")
+for test_type_tag in test_type_tags:
+    tfile.write("## " + format_tag(test_type_tag) + " tests:\n\n")
+    tfile.write("|Component|Sub-component|Existing tests|\n")
+    tfile.write("|---|---|---|\n")
 
-    # Parse tag
-    test_type = current_line[0]
-    component = current_line[1]
-    functionality = ""
+    for tag in sorted_tags:
+        # Split the tag.
+        current_tag = tag.split(":")
+        if (current_tag[0] != test_type_tag):
+            continue
 
-    # Format output
-    test_type = test_type.replace("_", " ").title()
-    component = component.replace("_", " ").title()
+        # Parse and format tag.
+        component = format_tag(current_tag[1])
+        functionality = ""
 
-    # The end tag is optional.
-    if (len(current_line) == 3):
-        functionality = current_line[2]
-        functionality = functionality.replace("_", " ").title()
+        # The end tag is optional.
+        if (len(current_tag) == 3):
+            functionality = format_tag(current_tag[2])
 
-    # Relative path to test files
-    link = ""
-    # Sort the filenames associated to the current tag
-    tagged_files[tag].sort()
-    for name in tagged_files[tag]:
-        link += "[" + name + "](" + name + "), "
-    # Remove the extra ", " at the end
-    link = link[:-2]
+        # Relative path to test files
+        link = ""
+        # Sort the filenames associated to the current tag
+        tagged_files[tag].sort()
+        for name in tagged_files[tag]:
+            link += "[" + name + "](" + name + "), "
+        # Remove the extra ", " at the end
+        link = link[:-2]
 
-    # Write to output
-    tfile.write('|' + test_type + '|' + component + '|' + \
-                     functionality + '|' + link + '\n')
-
+        # Write to output
+        tfile.write('|' + component + '|' + \
+                        functionality + '|' + link + '\n')
 tfile.close()
 compare_srcfile(tmp_filename, "../test/test_coverage.md")
 #####
