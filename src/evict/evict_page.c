@@ -676,7 +676,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             /* Eviction thread doing eviction. */
             if (!conn->txn_global.checkpoint_running) {
                 /*
-                 * Eviction threads do not need to pin anything in the cache. We have a exclusive
+                 * Eviction threads do not need to pin anything in the cache. We have an exclusive
                  * lock for the page being evicted so we are sure that the page will always be there
                  * while it is being processed. Therefore, we use snapshot API that doesn't publish
                  * shared IDs to the outside world.
