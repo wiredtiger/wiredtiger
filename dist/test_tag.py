@@ -178,7 +178,6 @@ for filename in test_files:
 tmp_filename = '__tmp'
 tfile = open('__tmp', 'w')
 
-
 # Sort tags
 sorted_tags = list(tagged_files.keys())
 sorted_tags.sort()
