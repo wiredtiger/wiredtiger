@@ -3,14 +3,6 @@ import sys
 from dist import compare_srcfile
 
 ##### LOCAL VARIABLES AND CONSTANTS #####
-component = ""
-testing_area = ""
-test_type = ""
-
-is_end = False
-is_file_ignored = False
-is_file_tagged = False
-is_start = False
 show_info = False
 show_missing_files = False
 
@@ -29,7 +21,6 @@ C_FILE_TYPE = 0
 PY_FILE_TYPE = 1
 END_TAG = "[END_TAGS]"
 IGNORE_FILE = "ignored_file"
-NB_TAG_ARGS = 2
 START_TAG = "[TEST_TAGS]"
 #####
 
