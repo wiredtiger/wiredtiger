@@ -207,7 +207,7 @@ for test_type_tag in test_type_tags:
         # Sort the filenames associated to the current tag
         tagged_files[tag].sort()
         for name in tagged_files[tag]:
-            link += "[" + name + "](" + name + "), "
+            link += "[" + os.path.basename(name) + "](" + name + "), "
         # Remove the extra ", " at the end
         link = link[:-2]
 
