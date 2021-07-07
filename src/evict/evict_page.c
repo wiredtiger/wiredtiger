@@ -663,7 +663,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    /* History store data is always evictable. */
+    /*
+     * History store data is always evictable.
+     *
+     * If checkpoint is running concurrently, set the checkpoint running flag and we will abort the
+     * eviction if we detect out of order timestamp updates.
+     */
     if (WT_IS_HS(btree->dhandle)) {
         /*
          * FIX-ME-WT-5316: remove this when we have removed history store score and
@@ -697,19 +702,11 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
                 if (conn->txn_global.checkpoint_running) {
                     __wt_txn_release_snapshot(session);
                     snapshot_acquired = false;
-                    /*
-                     * Mark the checkpoint is running and we will abort the eviction if we detect
-                     * out of order timestamp updates.
-                     */
                     LF_SET(WT_REC_VISIBLE_ALL | WT_REC_CHECKPOINT_RUNNING);
                 }
             } else {
                 if (!WT_SESSION_BTREE_SYNC(session))
                     LF_SET(WT_REC_VISIBLE_ALL);
-                /*
-                 * Mark the checkpoint is running and we will abort the eviction if we detect out of
-                 * order timestamp updates.
-                 */
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
             }
         } else if (use_snapshot_for_app_thread) {
@@ -720,18 +717,10 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
             else {
                 if (!WT_SESSION_BTREE_SYNC(session))
                     LF_SET(WT_REC_VISIBLE_ALL);
-                /*
-                 * Mark the checkpoint is running and we will abort the eviction if we detect out of
-                 * order timestamp updates.
-                 */
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
             }
         } else {
             if (conn->txn_global.checkpoint_running)
-                /*
-                 * Mark the checkpoint is running and we will abort the eviction if we detect out of
-                 * order timestamp updates.
-                 */
                 LF_SET(WT_REC_CHECKPOINT_RUNNING);
             if (!WT_SESSION_BTREE_SYNC(session))
                 LF_SET(WT_REC_VISIBLE_ALL);
