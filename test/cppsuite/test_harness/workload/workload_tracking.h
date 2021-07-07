@@ -56,10 +56,10 @@ class workload_tracking : public component {
     public:
     workload_tracking(configuration *_config, const std::string &operation_table_config,
       const std::string &operation_table_name, const std::string &schema_table_config,
-      const std::string &schema_table_name)
+      const std::string &schema_table_name, timestamp_manager &tsm)
         : component("workload_tracking", _config), _operation_table_config(operation_table_config),
           _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-          _schema_table_name(schema_table_name)
+          _schema_table_name(schema_table_name), _tsm(tsm)
     {
     }
 
@@ -94,12 +94,56 @@ class workload_tracking : public component {
         testutil_check(_session->create(
           _session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
         log_msg(LOG_TRACE, "Operations tracking created");
+
+        /*
+         * Open sweep cursor. This cursor will be used to clear out obsolete data from the tracking
+         * table.
+         */
+        _sweep_cursor = _session.open_scoped_cursor(_operation_table_name.c_str());
+        log_msg(LOG_TRACE, "Tracking table sweep initialized");
     }
 
     void
-    run() override final
+    do_work() override final
     {
-        /* Does not do anything. */
+        WT_DECL_RET;
+        wt_timestamp_t timestamp;
+        int64_t collection_id;
+        const char *key;
+        char *sweep_key;
+        bool globally_visible_update_found;
+
+        key = sweep_key = nullptr;
+        globally_visible_update_found = false;
+
+        /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
+        wt_timestamp_t oldest_ts = _tsm.get_oldest_ts();
+
+        /* If we have a position, give it up. */
+        testutil_check(_sweep_cursor->reset(_sweep_cursor.get()));
+
+        while ((ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
+            testutil_check(
+              _sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &timestamp));
+            /*
+             * If we're on a new key, reset the check. We want to track whether we have a globally
+             * visible update for the current key.
+             */
+            if (sweep_key == nullptr || strcmp(sweep_key, key) != 0) {
+                globally_visible_update_found = false;
+                strcpy(sweep_key, key);
+            }
+            if (timestamp <= oldest_ts) {
+                if (globally_visible_update_found)
+                    testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
+                else
+                    globally_visible_update_found = true;
+            }
+        }
+
+        if (ret != WT_NOTFOUND)
+            testutil_die(LOG_ERROR,
+              "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
     }
 
     void
@@ -155,10 +199,12 @@ class workload_tracking : public component {
     private:
     scoped_session _session;
     scoped_cursor _schema_track_cursor;
+    scoped_cursor _sweep_cursor;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;
     const std::string _schema_table_name;
+    timestamp_manager &_tsm;
 };
 } // namespace test_harness
 
