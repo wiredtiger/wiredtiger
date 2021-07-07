@@ -712,7 +712,12 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
         } else if (use_snapshot_for_app_thread) {
             /* Application thread that has a snapshot doing eviction. */
             if (!conn->txn_global.checkpoint_running)
-                /* Use application snapshot for eviction only when checkpoint is not running. */
+                /*
+                 * Use application snapshot for eviction only when checkpoint is not running.
+                 *
+                 * Checkpoint may start concurrently at this point but that is OK as it should have
+                 * obtained a newer snapshot than the application thread.
+                 */
                 LF_SET(WT_REC_APP_EVICTION_SNAPSHOT);
             else {
                 if (!WT_SESSION_BTREE_SYNC(session))
