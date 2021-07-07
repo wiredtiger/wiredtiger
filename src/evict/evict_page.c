@@ -663,7 +663,7 @@ __evict_review(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t evict_flags, bool
     /* Make sure that both conditions above are not true at the same time. */
     WT_ASSERT(session, !use_snapshot_for_app_thread || !is_eviction_thread);
 
-    /* History store data are always evictable. */
+    /* History store data is always evictable. */
     if (WT_IS_HS(btree->dhandle)) {
         /*
          * FIX-ME-WT-5316: remove this when we have removed history store score and
