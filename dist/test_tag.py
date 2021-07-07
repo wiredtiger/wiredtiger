@@ -33,7 +33,7 @@ NB_TAG_ARGS = 2
 START_TAG = "[TEST_TAGS]"
 #####
 
-##### FUNCTIONS ####
+##### FUNCTIONS #####
 def validate_tag(tag, filename):
     split_tag = tag.split(":")
     # Ensure the array isn't too long.
@@ -114,7 +114,7 @@ for filename in test_files:
         if not line:
             # Check if invalid line after START_TAG
             if in_tag_block == True:
-                print("Syntax Error in file: " + filename)
+                print("Syntax error in file: " + filename)
                 exit(1)
             else:
                 continue
@@ -123,11 +123,11 @@ for filename in test_files:
         if END_TAG in line:
             # END_TAG should not be before START_TAG
             if in_tag_block == False:
-                print("Syntax Error in file: " + filename + ". Unexpected tag: " + END_TAG)
+                print("Syntax error in file: " + filename + ". Unexpected tag: " + END_TAG)
                 exit(1)
             # END_TAG should not be met before a test tag
             if is_file_ignored == False and is_file_tagged == False:
-                print("Syntax Error in file: " + filename + ". Missing test tag.")
+                print("Syntax error in file: " + filename + ". Missing test tag.")
                 exit(1)
             nb_valid_files = nb_valid_files + 1
             # Go to next file
@@ -137,7 +137,7 @@ for filename in test_files:
         if START_TAG in line:
             # Only one START_TAG is allowed
             if in_tag_block == True:
-                print("Syntax Error in file: " + filename + ". Unexpected tag: " + START_TAG)
+                print("Syntax error in file: " + filename + ". Unexpected tag: " + START_TAG)
                 exit(1)
             in_tag_block = True
             continue
