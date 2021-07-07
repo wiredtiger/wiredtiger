@@ -136,14 +136,14 @@ function(create_test_executable target)
     # Useful if we need to setup an additional configs and environments needed to run the test executable.
     foreach(dir IN LISTS CREATE_TEST_ADDITIONAL_DIRECTORIES)
         get_filename_component(dir_basename ${dir} NAME)
-        # Copy the file to the given test/targets build directory.
-        add_custom_command(OUTPUT ${test_binary_dir}/${dir_basename}
-            COMMAND ${CMAKE_COMMAND} -E copy_directory
-                ${dir}
-                ${test_binary_dir}/${dir_basename}
+        # Copy the directory to the given test/targets build directory.
+        add_custom_target(sync_dir_${target}_${dir_basename} ALL
+            COMMAND ${CMAKE_COMMAND}
+                -DSYNC_DIR_SRC=${dir}
+                -DSYNC_DIR_DST=${test_binary_dir}/${dir_basename}
+                -P ${CMAKE_SOURCE_DIR}/test/ctest_dir_sync.cmake
         )
-        add_custom_target(copy_dir_${target}_${dir_basename} DEPENDS ${test_binary_dir}/${dir_basename})
-        add_dependencies(${target} copy_dir_${target}_${dir_basename})
+        add_dependencies(${target} sync_dir_${target}_${dir_basename})
     endforeach()
 endfunction()
 
