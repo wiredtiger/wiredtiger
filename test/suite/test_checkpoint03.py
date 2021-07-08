@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# data_correctness:checkpoint
+# checkpoint:history_store
 # [END_TAGS]
 #
 # test_checkpoint03.py

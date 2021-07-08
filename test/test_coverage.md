@@ -2,7 +2,7 @@
 
 |Component|Sub-component|Existing tests|
 |---|---|---|
-|Checkpoint||[main.c](../test/csuite/wt3363_checkpoint_op_races/main.c), [test_checkpoint02.py](../test/suite/test_checkpoint02.py), [test_checkpoint03.py](../test/suite/test_checkpoint03.py)
+|Checkpoint||[main.c](../test/csuite/wt3363_checkpoint_op_races/main.c)
 ## Functional Correctness tests:
 
 |Component|Sub-component|Existing tests|
@@ -10,7 +10,9 @@
 |Aggregated Time Windows||[test_rollback_to_stable18.py](../test/suite/test_rollback_to_stable18.py)
 |Backup||[test_txn04.py](../test/suite/test_txn04.py)
 |Backup|Cursors|[test_backup01.py](../test/suite/test_backup01.py), [test_backup11.py](../test/suite/test_backup11.py)
+|Checkpoint||[test_checkpoint02.py](../test/suite/test_checkpoint02.py)
 |Checkpoint|Garbage Collection|[test_gc01.py](../test/suite/test_gc01.py)
+|Checkpoint|History Store|[test_checkpoint03.py](../test/suite/test_checkpoint03.py)
 |Checkpoint|Metadata|[test_checkpoint_snapshot01.py](../test/suite/test_checkpoint_snapshot01.py)
 |Checkpoint|Obsolete Data|[test_checkpoint08.py](../test/suite/test_checkpoint08.py)
 |Compression||[test_dictionary.py](../test/suite/test_dictionary.py)
