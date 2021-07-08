@@ -49,7 +49,7 @@
 
 namespace test_harness {
 /* Tracking operations. */
-enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY, INSERT, UPDATE };
+enum class tracking_operation { CREATE_COLLECTION, DELETE_COLLECTION, DELETE_KEY, INSERT };
 /* Class used to track operations performed on collections */
 class workload_tracking : public component {
 
@@ -107,9 +107,10 @@ class workload_tracking : public component {
     do_work() override final
     {
         WT_DECL_RET;
-        wt_timestamp_t timestamp;
+        wt_timestamp_t ts, oldest_ts;
         uint64_t collection_id, sweep_collection_id;
-        const char *key;
+        int op_type;
+        const char *key, *value;
         char *sweep_key;
         bool globally_visible_update_found;
 
@@ -117,14 +118,14 @@ class workload_tracking : public component {
         globally_visible_update_found = false;
 
         /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
-        wt_timestamp_t oldest_ts = _tsm.get_oldest_ts();
+        oldest_ts = _tsm.get_oldest_ts();
 
         /* If we have a position, give it up. */
         testutil_check(_sweep_cursor->reset(_sweep_cursor.get()));
 
         while ((ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
-            testutil_check(
-              _sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &timestamp));
+            testutil_check(_sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &ts));
+            testutil_check(_sweep_cursor->get_value(_sweep_cursor.get(), &op_type, &value));
             /*
              * If we're on a new key, reset the check. We want to track whether we have a globally
              * visible update for the current key.
@@ -137,19 +138,19 @@ class workload_tracking : public component {
                 sweep_key = static_cast<char *>(dstrdup(key));
                 sweep_collection_id = collection_id;
             }
-            if (timestamp <= oldest_ts) {
+            if (ts <= oldest_ts) {
                 if (globally_visible_update_found) {
                     if (_trace_level == LOG_TRACE)
                         log_msg(LOG_TRACE,
                           std::string("workload tracking: Obsoleted update, key=") + sweep_key +
-                            ", timestamp=" + std::to_string(timestamp) +
+                            ", timestamp=" + std::to_string(ts) +
                             ", oldest_timestamp=" + std::to_string(oldest_ts));
                     testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
-                } else {
+                } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
                     if (_trace_level == LOG_TRACE)
                         log_msg(LOG_TRACE,
                           std::string("workload tracking: Found globally visible update, key=") +
-                            sweep_key + ", timestamp=" + std::to_string(timestamp) +
+                            sweep_key + ", timestamp=" + std::to_string(ts) +
                             ", oldest_timestamp=" + std::to_string(oldest_ts));
                     globally_visible_update_found = true;
                 }

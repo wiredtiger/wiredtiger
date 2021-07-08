@@ -247,7 +247,7 @@ class thread_context {
             } else
                 testutil_die(ret, "unhandled error while trying to update a key");
         }
-        ret = tracking->save_operation(tracking_operation::UPDATE, collection_id, key.c_str(),
+        ret = tracking->save_operation(tracking_operation::INSERT, collection_id, key.c_str(),
           value.c_str(), ts, op_track_cursor);
         if (ret != 0) {
             if (ret == WT_ROLLBACK) {
