@@ -60,7 +60,7 @@ class test_hs24(wttest.WiredTigerTestCase):
     def zero_ts_deletes(self):
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
-        for i in range(1, 2000):
+        for i in range(0, 2000):
             session.begin_transaction()
             cursor.set_key(str(i))
             cursor.remove()
