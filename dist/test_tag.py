@@ -38,7 +38,6 @@ def validate_tag(tag, filename):
             print(
                 "Invalid sub tag found: " + sub_tag + " in tag: " + tag + " filename: " + filename)
             exit(1)
-    return len(split_tag)
 
 def format_tag(tag):
     return tag.replace("_", " ").title()
@@ -70,14 +69,14 @@ for root, dirs, files in os.walk("../test/"):
 ##### RETRIEVE VALID TAGS #####
 validation_file = open("test_tags.ok", "r")
 
-# The validation file contains a list of valid tag words.
+# The validation file contains an alphabetized list of valid tag words, with one word per line.
 tags = validation_file.readlines()
 tags = [tag.replace('\n', '') for tag in tags]
 
 for tag in tags:
     valid_tags.append(tag)
 
-# Check that the validation file is ordered alphabetically.
+# Check that the validation file is ordered.
 if not all(tags[i] <= tags[i+1] for i in range(len(tags)-1)):
     print("Error: test_tags.ok is not alphabetically ordered!")
     exit(1)
@@ -145,7 +144,7 @@ for filename in test_files:
                 continue
 
             # Validate the tag's correctness.
-            tag_count = validate_tag(tag, filename)
+            validate_tag(tag, filename)
             is_file_tagged = True
 
             skip_adding_test_type = False
@@ -153,6 +152,7 @@ for filename in test_files:
             for test_type_tag in test_type_tags:
                 if (tag.startswith(test_type_tag)):
                     skip_adding_test_type = True
+                    break
 
             if not skip_adding_test_type:
                 if filename.endswith(".c"):
