@@ -108,7 +108,7 @@ class workload_tracking : public component {
     {
         WT_DECL_RET;
         wt_timestamp_t timestamp;
-        int64_t collection_id;
+        uint64_t collection_id, sweep_collection_id;
         const char *key;
         char *sweep_key;
         bool globally_visible_update_found;
@@ -129,24 +129,28 @@ class workload_tracking : public component {
              * If we're on a new key, reset the check. We want to track whether we have a globally
              * visible update for the current key.
              */
-            if (sweep_key == nullptr || strcmp(sweep_key, key) != 0) {
+            if (sweep_key == nullptr ||
+              !(strcmp(sweep_key, key) == 0 && sweep_collection_id == collection_id)) {
                 globally_visible_update_found = false;
                 if (sweep_key != nullptr)
                     free(sweep_key);
                 sweep_key = static_cast<char *>(dstrdup(key));
+                sweep_collection_id = collection_id;
             }
             if (timestamp <= oldest_ts) {
                 if (globally_visible_update_found) {
-                    log_msg(LOG_TRACE,
-                      std::string("workload tracking: Obsoleted update, key=") + sweep_key +
-                        ", timestamp=" + std::to_string(timestamp) +
-                        ", oldest_timestamp=" + std::to_string(oldest_ts));
+                    if (_trace_level == LOG_TRACE)
+                        log_msg(LOG_TRACE,
+                          std::string("workload tracking: Obsoleted update, key=") + sweep_key +
+                            ", timestamp=" + std::to_string(timestamp) +
+                            ", oldest_timestamp=" + std::to_string(oldest_ts));
                     testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
                 } else {
-                    log_msg(LOG_TRACE,
-                      std::string("workload tracking: Found globally visible update, key=") +
-                        sweep_key + ", timestamp=" + std::to_string(timestamp) +
-                        ", oldest_timestamp=" + std::to_string(oldest_ts));
+                    if (_trace_level == LOG_TRACE)
+                        log_msg(LOG_TRACE,
+                          std::string("workload tracking: Found globally visible update, key=") +
+                            sweep_key + ", timestamp=" + std::to_string(timestamp) +
+                            ", oldest_timestamp=" + std::to_string(oldest_ts));
                     globally_visible_update_found = true;
                 }
             }
