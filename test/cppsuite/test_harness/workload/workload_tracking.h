@@ -136,10 +136,19 @@ class workload_tracking : public component {
                 sweep_key = static_cast<char *>(dstrdup(key));
             }
             if (timestamp <= oldest_ts) {
-                if (globally_visible_update_found)
+                if (globally_visible_update_found) {
+                    log_msg(LOG_TRACE,
+                      std::string("workload tracking: Obsoleted update, key=") + sweep_key +
+                        ", timestamp=" + std::to_string(timestamp) +
+                        ", oldest_timestamp=" + std::to_string(oldest_ts));
                     testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
-                else
+                } else {
+                    log_msg(LOG_TRACE,
+                      std::string("workload tracking: Found globally visible update, key=") +
+                        sweep_key + ", timestamp=" + std::to_string(timestamp) +
+                        ", oldest_timestamp=" + std::to_string(oldest_ts));
                     globally_visible_update_found = true;
+                }
             }
         }
 
