@@ -138,6 +138,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of pages skipped (no read) by cursor next calls",
+  "cursor: Total number of pages skipped (no read) by cursor prev calls",
   "cursor: Total number of pages skipped by cursor next calls",
   "cursor: Total number of pages skipped by cursor prev calls",
   "cursor: Total number of times a search near has exited due to prefix config",
@@ -395,6 +397,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_next_skip_noread_pages = 0;
+    stats->cursor_prev_skip_noread_pages = 0;
     stats->cursor_next_skip_pages = 0;
     stats->cursor_prev_skip_pages = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
@@ -637,6 +641,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
+    to->cursor_next_skip_noread_pages += from->cursor_next_skip_noread_pages;
+    to->cursor_prev_skip_noread_pages += from->cursor_prev_skip_noread_pages;
     to->cursor_next_skip_pages += from->cursor_next_skip_pages;
     to->cursor_prev_skip_pages += from->cursor_prev_skip_pages;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
@@ -882,6 +888,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_next_skip_noread_pages += WT_STAT_READ(from, cursor_next_skip_noread_pages);
+    to->cursor_prev_skip_noread_pages += WT_STAT_READ(from, cursor_prev_skip_noread_pages);
     to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
     to->cursor_prev_skip_pages += WT_STAT_READ(from, cursor_prev_skip_pages);
     to->cursor_search_near_prefix_fast_paths +=
@@ -1174,6 +1182,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of pages skipped (no read) by cursor next calls",
+  "cursor: Total number of pages skipped (no read) by cursor prev calls",
   "cursor: Total number of pages skipped by cursor next calls",
   "cursor: Total number of pages skipped by cursor prev calls",
   "cursor: Total number of times a search near has exited due to prefix config",
@@ -1699,6 +1709,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_next_skip_noread_pages = 0;
+    stats->cursor_prev_skip_noread_pages = 0;
     stats->cursor_next_skip_pages = 0;
     stats->cursor_prev_skip_pages = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
@@ -2221,6 +2233,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_next_skip_noread_pages += WT_STAT_READ(from, cursor_next_skip_noread_pages);
+    to->cursor_prev_skip_noread_pages += WT_STAT_READ(from, cursor_prev_skip_noread_pages);
     to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
     to->cursor_prev_skip_pages += WT_STAT_READ(from, cursor_prev_skip_pages);
     to->cursor_search_near_prefix_fast_paths +=

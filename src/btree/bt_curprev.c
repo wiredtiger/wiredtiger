@@ -586,17 +586,21 @@ restart_read_page:
 int
 __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
+    WT_ADDR_COPY addr;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    size_t total_skipped, skipped, pages_skipped;
+    WT_TXN_SHARED *txn_shared;
+    size_t total_skipped, skipped, pages_skipped, pages_skipped_noread;
     uint32_t flags;
     bool newpage, restart;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     total_skipped = 0;
+    pages_skipped_noread = 0;
+    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
@@ -627,6 +631,13 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         /* Count instances where we moved to a new page. */
         if (pages_skipped > 1)
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_pages);
+
+        if (cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
+            ((addr.ta.newest_stop_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
+            (addr.ta.newest_stop_durable_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts))) {
+            pages_skipped_noread++;
+            goto skip_read;
+        }
 
         /*
          * Column-store pages may have appended entries. Handle it separately from the usual cursor
@@ -704,11 +715,14 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
+skip_read:
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
 err:
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_noread_pages, pages_skipped_noread);
+
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
     else
