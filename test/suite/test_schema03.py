@@ -30,7 +30,7 @@
 # schema_api
 # indexes
 # [END_TAGS]
-#
+
 import os
 import suite_random
 import wiredtiger, wtscenario, wttest
