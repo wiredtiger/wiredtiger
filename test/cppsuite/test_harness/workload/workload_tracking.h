@@ -103,6 +103,11 @@ class workload_tracking : public component {
         log_msg(LOG_TRACE, "Tracking table sweep initialized");
     }
 
+    /*
+     * As every operation is tracked in the tracking table we need to clear out obsolete operations
+     * otherwise the file size grow continuously, as such we cleanup operations that are no longer
+     * relevant, i.e. older than the oldest timestamp.
+     */
     void
     do_work() override final
     {
