@@ -321,6 +321,8 @@ __wt_cache_stats_update(WT_SESSION_IMPL *session)
     WT_STAT_SET(session, stats, cache_eviction_aggressive_set, cache->evict_aggressive_score);
     WT_STAT_SET(session, stats, cache_eviction_empty_score, cache->evict_empty_score);
     WT_STAT_SET(session, stats, cache_hs_score, __wt_cache_hs_score(cache));
+    WT_STAT_SET(session, stats, updates_seen, cache->updates_seen);
+    WT_STAT_SET(session, stats, updates_unstable_seen, cache->updates_unstable);
 
     WT_STAT_SET(session, stats, cache_eviction_active_workers, conn->evict_threads.current_threads);
     WT_STAT_SET(

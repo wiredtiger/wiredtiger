@@ -78,6 +78,8 @@ struct __wt_cache {
     uint64_t bytes_read;       /* Bytes read into memory */
     uint64_t bytes_updates;    /* Bytes of updates to pages */
     uint64_t bytes_written;
+    uint64_t updates_seen;
+    uint64_t updates_unstable;
 
     /*
      * History store cache usage. TODO: The values for these variables are cached and potentially

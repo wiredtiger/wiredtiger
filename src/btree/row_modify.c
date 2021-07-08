@@ -303,6 +303,7 @@ __wt_update_obsolete_check(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting)
 {
     WT_TXN_GLOBAL *txn_global;
+    WT_CACHE *cache;
     WT_UPDATE *first, *next;
     size_t size;
     uint64_t oldest, stable;
@@ -311,6 +312,7 @@ __wt_update_obsolete_check(
     txn_global = &S2C(session)->txn_global;
 
     upd_seen = upd_unstable = 0;
+    cache = S2C(session)->cache;
     oldest = txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : WT_TS_NONE;
     stable = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
     /*
@@ -342,6 +344,8 @@ __wt_update_obsolete_check(
         }
     }
 
+    cache->updates_seen = upd_seen;
+    cache->updates_unstable = upd_unstable;
     __wt_cache_update_hs_score(session, upd_seen, upd_unstable);
 
     /*

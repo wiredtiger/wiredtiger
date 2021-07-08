@@ -792,6 +792,8 @@ conn_dsrc_stats = [
     CacheStat('cache_hs_order_reinsert', 'history store table out-of-order updates that were fixed up by reinserting with the fixed timestamp'),
     CacheStat('cache_hs_order_lose_durable_timestamp', 'history store table out-of-order resolved updates that lose their durable timestamp'),
     CacheStat('cache_hs_read', 'history store table reads'),
+    CacheStat('updates_seen', 'updates seen'),
+    CacheStat('updates_unstable_seen', 'updates unstable seen'),
     CacheStat('cache_hs_read_miss', 'history store table reads missed'),
     CacheStat('cache_hs_read_squash', 'history store table reads requiring squashed modifies'),
     CacheStat('cache_hs_write_squash', 'history store table writes requiring squashed modifies'),
