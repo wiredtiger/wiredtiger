@@ -130,8 +130,8 @@ class workload_tracking : public component {
              * If we're on a new key, reset the check. We want to track whether we have a globally
              * visible update for the current key.
              */
-            if (sweep_key == nullptr ||
-              !(sweep_collection_id == collection_id && strcmp(sweep_key, key) == 0)) {
+            if (sweep_key == nullptr || sweep_collection_id != collection_id ||
+              strcmp(sweep_key, key) != 0) {
                 globally_visible_update_found = false;
                 if (sweep_key != nullptr)
                     free(sweep_key);
@@ -143,15 +143,17 @@ class workload_tracking : public component {
                     if (_trace_level == LOG_TRACE)
                         log_msg(LOG_TRACE,
                           std::string("workload tracking: Obsoleted update, key=") + sweep_key +
+                            ", collection_id=" + std::to_string(collection_id) +
                             ", timestamp=" + std::to_string(ts) +
-                            ", oldest_timestamp=" + std::to_string(oldest_ts));
+                            ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
                     testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
                 } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
                     if (_trace_level == LOG_TRACE)
                         log_msg(LOG_TRACE,
                           std::string("workload tracking: Found globally visible update, key=") +
-                            sweep_key + ", timestamp=" + std::to_string(ts) +
-                            ", oldest_timestamp=" + std::to_string(oldest_ts));
+                            sweep_key + ", collection_id=" + std::to_string(collection_id) +
+                            ", timestamp=" + std::to_string(ts) +
+                            ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
                     globally_visible_update_found = true;
                 }
             }
