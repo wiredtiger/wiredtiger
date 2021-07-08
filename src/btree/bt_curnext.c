@@ -645,7 +645,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    WT_TXN_SHARED *txn_shared;
     size_t total_skipped, skipped, pages_skipped, pages_skipped_noread;
     uint32_t flags;
     bool newpage, restart;
@@ -654,7 +653,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     session = CUR2S(cbt);
     total_skipped = 0;
     pages_skipped_noread = 0;
-    txn_shared = WT_SESSION_TXN_SHARED(session);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
@@ -685,9 +683,12 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (pages_skipped > 1)
             WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_pages);
 
-        if (cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
-            ((addr.ta.newest_stop_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
-            (addr.ta.newest_stop_durable_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts))) {
+        if (page != NULL && (page->type == WT_PAGE_ROW_LEAF) && !WT_IS_METADATA(session->dhandle) &&
+          !WT_IS_HS(session->dhandle) && cbt->ref != NULL &&
+          __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
+          addr.ta.newest_stop_ts != WT_TS_NONE &&
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
+          !addr.ta.prepare) {
             pages_skipped_noread++;
             goto skip_read;
         }
