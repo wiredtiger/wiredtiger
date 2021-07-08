@@ -55,5 +55,5 @@ workload_generator=
 workload_tracking=
 (
     enabled=true,
-    op_rate=30s,
+    op_rate=30s
 )
