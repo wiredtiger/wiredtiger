@@ -28,7 +28,6 @@
 #
 # [TEST_TAGS]
 # connection_api:reconfigure
-# config_api
 # [END_TAGS]
 
 import fnmatch, os, time

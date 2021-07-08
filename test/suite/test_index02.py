@@ -27,7 +27,6 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# indexes
 # indexes:search_near
 # [END_TAGS]
 

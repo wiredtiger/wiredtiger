@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# wt_util:backup
+# wt_util
 # backup:cursors
 # [END_TAGS]
 #
