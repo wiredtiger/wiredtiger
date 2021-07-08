@@ -18,7 +18,7 @@ if(POLICY CMP0086)
     cmake_policy(SET CMP0086 NEW)
 endif()
 
-find_package(SWIG REQUIRED)
+find_package(SWIG 3.0 COMPONENTS python REQUIRED)
 include(${SWIG_USE_FILE})
 
 set(python_libs)

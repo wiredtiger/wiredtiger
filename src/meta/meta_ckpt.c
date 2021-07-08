@@ -454,7 +454,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
          * resources and then set up our entry.
          */
 
-        /* Check if the global entry is valid at our index.  */
+        /* Check if the global entry is valid at our index. */
         if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
             free = true;
             setup = false;
@@ -473,7 +473,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
         if (rename && (!free || setup))
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
 
-        /* Free any old information if we need to do so.  */
+        /* Free any old information if we need to do so. */
         if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
             __wt_free(session, blk_mod->id_str);
             __wt_buf_free(session, &blk_mod->bitstring);
@@ -483,7 +483,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
         }
 
-        /* Set up the block list to point to the current information.  */
+        /* Set up the block list to point to the current information. */
         if (setup) {
             WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
             WT_CLEAR(blk_mod->bitstring);
@@ -1124,13 +1124,15 @@ err:
  */
 int
 __wt_meta_ckptlist_set(
-  WT_SESSION_IMPL *session, const char *fname, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
+  WT_SESSION_IMPL *session, WT_DATA_HANDLE *dhandle, WT_CKPT *ckptbase, WT_LSN *ckptlsn)
 {
     WT_CKPT *ckpt;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
+    const char *fname;
     bool has_lsn;
 
+    fname = dhandle->name;
     WT_RET(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_meta_ckptlist_to_meta(session, ckptbase, buf));
     /* Add backup block modifications for any added checkpoint. */
@@ -1143,6 +1145,8 @@ __wt_meta_ckptlist_set(
         WT_ERR(__wt_buf_catfmt(session, buf, ",checkpoint_lsn=(%" PRIu32 ",%" PRIuMAX ")",
           ckptlsn->l.file, (uintmax_t)ckptlsn->l.offset));
 
+    if (dhandle->type == WT_DHANDLE_TYPE_TIERED)
+        WT_ERR(__wt_tiered_set_metadata(session, (WT_TIERED *)dhandle, buf));
     WT_ERR(__ckpt_set(session, fname, buf->mem, has_lsn));
 
 err:

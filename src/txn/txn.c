@@ -965,9 +965,8 @@ __txn_fixup_prepared_update(
         hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
           (uint64_t)WT_UPDATE_STANDARD, &hs_value);
         WT_ERR(hs_cursor->update(hs_cursor));
-    } else {
+    } else
         WT_ERR(hs_cursor->remove(hs_cursor));
-    }
 
 err:
     F_SET(txn, txn_flags);
@@ -1787,7 +1786,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
           "A transaction should not have been assigned a log record if WT_CONN_LOG_DEBUG mode is "
           "not enabled");
 
-    /* Set the prepare timestamp.  */
+    /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg));
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
