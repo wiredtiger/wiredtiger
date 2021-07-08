@@ -183,7 +183,6 @@ class workload_tracking : public component {
               std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
         }
-        log_msg(LOG_TRACE, "save_schema_operation: workload tracking saved operation.");
     }
 
     template <typename K, typename V>
@@ -209,7 +208,6 @@ class workload_tracking : public component {
             op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
             ret = op_track_cursor->insert(op_track_cursor.get());
         }
-        log_msg(LOG_TRACE, "save_operation: workload tracking saved operation.");
         return (ret);
     }
 
