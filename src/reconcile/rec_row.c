@@ -925,8 +925,8 @@ __wt_rec_row_leaf(
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
 
                     /* From WT_TS_NONE to delete all the history store content of the key. */
-                    WT_ERR(__wt_hs_delete_key_from_ts(
-                      session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, tmpkey,
+                      WT_TS_NONE, false, F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
 
                     WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
                     WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
