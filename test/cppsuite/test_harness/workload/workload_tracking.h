@@ -131,7 +131,7 @@ class workload_tracking : public component {
              * visible update for the current key.
              */
             if (sweep_key == nullptr ||
-              !(strcmp(sweep_key, key) == 0 && sweep_collection_id == collection_id)) {
+              !(sweep_collection_id == collection_id && strcmp(sweep_key, key) == 0)) {
                 globally_visible_update_found = false;
                 if (sweep_key != nullptr)
                     free(sweep_key);
