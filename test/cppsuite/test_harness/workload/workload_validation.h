@@ -223,8 +223,7 @@ class workload_validation {
             /* Update the key_state to deleted. */
             it->second.exists = false;
         } else if (operation == tracking_operation::INSERT)
-            collection.insert(validation_collection::value_type(
-              key_value_t(key), key_state{true, key_value_t(value)}));
+            collection[key_value_t(key)] = key_state{true, key_value_t(value)};
         else
             testutil_die(LOG_ERROR,
               "Validation failed: unexpected operation in the tracking table: %d",
