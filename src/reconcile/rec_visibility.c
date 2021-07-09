@@ -484,14 +484,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
 
             /* Move the pointer to the last update on the update chain. */
             for (last_upd = tombstone; last_upd->next != NULL; last_upd = last_upd->next)
-                /*
-                 * Tombstone is the only non-aborted update on the update chain or all the updates
-                 * are from the same transaction.
-                 */
-                WT_ASSERT(session,
-                  last_upd->next->txnid == WT_TXN_ABORTED ||
-                    (last_upd->next->txnid == tombstone->txnid &&
-                      last_upd->next->start_ts == tombstone->start_ts));
+                /* Tombstone is the only non-aborted update on the update chain. */
+                WT_ASSERT(session, last_upd->next->txnid == WT_TXN_ABORTED);
 
             /*
              * It's possible to have a tombstone as the only update in the update list. If we
