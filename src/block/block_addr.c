@@ -222,7 +222,8 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
     ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = 0;
     if (WT_PTRDIFF(*&ckpt, start) != ckpt_size) {
         WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
-        ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = a;
+        ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid =
+          (uint32_t)a;
     }
 
     /*
