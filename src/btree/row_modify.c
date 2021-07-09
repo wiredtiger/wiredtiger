@@ -325,24 +325,25 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
      */
-    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
-        if (upd->txnid == WT_TXN_ABORTED)
-            continue;
+    first = NULL;
+    // for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+    //     if (upd->txnid == WT_TXN_ABORTED)
+    //         continue;
 
-        ++upd_seen;
-        if (__wt_txn_upd_visible_all(session, upd)) {
-            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
-                first = upd;
-        } else {
-            first = NULL;
-            /*
-             * While we're here, also check for the update being kept only for timestamp history to
-             * gauge updates being kept due to history.
-             */
-            if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
-                ++upd_unstable;
-        }
-    }
+    //     ++upd_seen;
+    //     if (__wt_txn_upd_visible_all(session, upd)) {
+    //         if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+    //             first = upd;
+    //     } else {
+    //         first = NULL;
+    //         /*
+    //          * While we're here, also check for the update being kept only for timestamp history to
+    //          * gauge updates being kept due to history.
+    //          */
+    //         if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
+    //             ++upd_unstable;
+    //     }
+    // }
 
     cache->updates_seen = upd_seen;
     cache->updates_unstable = upd_unstable;
