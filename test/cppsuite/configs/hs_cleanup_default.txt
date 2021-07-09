@@ -16,7 +16,7 @@ runtime_monitor=
 (
     stat_cache_size=
     (
-        enabled=true,
+        enabled=false,
         limit=100
     )
 ),
