@@ -32,6 +32,39 @@
 #include "configuration.h"
 
 namespace test_harness {
+/* Static methods implementation. */
+static bool
+config_item_to_bool(const WT_CONFIG_ITEM item)
+{
+    return (item.val != 0);
+}
+
+static int64_t
+config_item_to_int(const WT_CONFIG_ITEM item)
+{
+    return (item.val);
+}
+
+static std::string
+config_item_to_string(const WT_CONFIG_ITEM item)
+{
+    return std::string(item.str, item.len);
+}
+
+static std::vector<std::string>
+config_item_to_list(const WT_CONFIG_ITEM item)
+{
+    auto str = config_item_to_string(item);
+
+    /* Get rid of the brackets. */
+    testutil_assert(!str.empty() && str.front() == '[' && str.back() == ']');
+    str.pop_back();
+    str.erase(0, 1);
+
+    return (split_string(str, ','));
+}
+
+/* configuration class implementation. */
 configuration::configuration(const std::string &test_config_name, const std::string &config)
 {
     const auto *config_entry = __wt_test_config_match(test_config_name.c_str());
@@ -163,37 +196,6 @@ configuration::get(const std::string &key, bool optional, types type, T def, T (
         testutil_die(-1, error_msg);
 
     return func(value);
-}
-
-bool
-configuration::config_item_to_bool(const WT_CONFIG_ITEM item)
-{
-    return (item.val != 0);
-}
-
-int64_t
-configuration::config_item_to_int(const WT_CONFIG_ITEM item)
-{
-    return (item.val);
-}
-
-std::string
-configuration::config_item_to_string(const WT_CONFIG_ITEM item)
-{
-    return std::string(item.str, item.len);
-}
-
-std::vector<std::string>
-configuration::config_item_to_list(const WT_CONFIG_ITEM item)
-{
-    auto str = config_item_to_string(item);
-
-    /* Get rid of the brackets. */
-    testutil_assert(!str.empty() && str.front() == '[' && str.back() == ']');
-    str.pop_back();
-    str.erase(0, 1);
-
-    return (split_string(str, ','));
 }
 
 std::string

@@ -93,12 +93,6 @@ class configuration {
     T
     get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));
 
-    private:
-    static bool config_item_to_bool(const WT_CONFIG_ITEM item);
-    static int64_t config_item_to_int(const WT_CONFIG_ITEM item);
-    static std::string config_item_to_string(const WT_CONFIG_ITEM item);
-    static std::vector<std::string> config_item_to_list(const WT_CONFIG_ITEM item);
-
     /*
      * Merge together two configuration strings, the user one and the default one.
      */
