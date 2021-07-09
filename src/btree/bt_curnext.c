@@ -648,7 +648,15 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_TXN_SHARED *txn_shared;
     size_t total_skipped, skipped, pages_skipped, pages_skipped_noread;
     uint32_t flags;
-    bool newpage, restart;
+    bool newpage, restart, have_addr;
+
+    size_t cbt_ref_null, addr_copy_fail, newest_stop_ts_none, read_ts_none;
+    size_t read_ts_less_than_eq_newest_stop, newest_stop_dur_none,
+      read_ts_less_than_eq_newest_stop_dur;
+
+    cbt_ref_null = addr_copy_fail = newest_stop_ts_none = read_ts_none = 0;
+    read_ts_less_than_eq_newest_stop = newest_stop_dur_none = read_ts_less_than_eq_newest_stop_dur =
+      0;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -685,12 +693,42 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (pages_skipped > 1)
             WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_pages);
 
-        if (cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
-            ((addr.ta.newest_stop_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
-            (addr.ta.newest_stop_durable_ts != WT_TS_NONE && txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts))) {
-            pages_skipped_noread++;
-            goto skip_read;
+        have_addr = false;
+        if (cbt->ref == NULL)
+            cbt_ref_null++;
+        else if (__wt_ref_addr_copy(session, cbt->ref, &addr) == 0)
+            have_addr = true;
+        else
+            addr_copy_fail++;
+
+        if (have_addr) {
+            if (addr.ta.newest_stop_ts == WT_TS_NONE)
+                newest_stop_ts_none++;
+            if (txn_shared->read_timestamp == WT_TS_NONE)
+                read_ts_none++;
+            if (txn_shared->read_timestamp <= addr.ta.newest_stop_ts)
+                read_ts_less_than_eq_newest_stop++;
+            if (addr.ta.newest_stop_durable_ts == WT_TS_NONE)
+                newest_stop_dur_none++;
+            if (txn_shared->read_timestamp <= addr.ta.newest_stop_durable_ts)
+                read_ts_less_than_eq_newest_stop_dur++;
+
+            if ((addr.ta.newest_stop_ts != WT_TS_NONE &&
+                  txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
+              (addr.ta.newest_stop_durable_ts != WT_TS_NONE &&
+                txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts)) {
+                pages_skipped_noread++;
+                goto skip_read;
+            }
         }
+
+        /*
+        if (cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
+            ((addr.ta.newest_stop_ts != WT_TS_NONE && txn_shared->read_timestamp >
+        addr.ta.newest_stop_ts) || (addr.ta.newest_stop_durable_ts != WT_TS_NONE &&
+        txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts))) { pages_skipped_noread++;
+            goto skip_read;
+        }*/
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
@@ -774,6 +812,15 @@ skip_read:
 
 err:
     WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_noread_pages, pages_skipped_noread);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_cbt_ref, cbt_ref_null);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_addr_copy_fail, addr_copy_fail);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_newest_stop_ts_none, newest_stop_ts_none);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_read_ts_none, read_ts_none);
+    WT_STAT_CONN_DATA_INCRV(
+      session, cursor_next_read_ts_less_than_eq_newest_stop, read_ts_less_than_eq_newest_stop);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_newest_stop_dur_none, newest_stop_dur_none);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_read_ts_less_than_eq_newest_stop_dur,
+      read_ts_less_than_eq_newest_stop_dur);
 
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
