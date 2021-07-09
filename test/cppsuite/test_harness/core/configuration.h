@@ -91,33 +91,7 @@ class configuration {
 
     template <typename T>
     T
-    get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item))
-    {
-        WT_DECL_RET;
-        WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
-        const char *error_msg = "Configuration value doesn't match requested type";
-
-        ret = _config_parser->get(_config_parser, key.c_str(), &value);
-        if (ret == WT_NOTFOUND && optional)
-            return (def);
-        else if (ret != 0)
-            testutil_die(ret, "Error while finding config");
-
-        if (type == types::STRING &&
-          (value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
-            value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID))
-            testutil_die(-1, error_msg);
-        else if (type == types::BOOL && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)
-            testutil_die(-1, error_msg);
-        else if (type == types::INT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_NUM)
-            testutil_die(-1, error_msg);
-        else if (type == types::STRUCT && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
-            testutil_die(-1, error_msg);
-        else if (type == types::LIST && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRUCT)
-            testutil_die(-1, error_msg);
-
-        return func(value);
-    }
+    get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));
 
     private:
     static bool config_item_to_bool(const WT_CONFIG_ITEM item);
