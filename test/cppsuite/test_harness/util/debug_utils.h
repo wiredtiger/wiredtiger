@@ -68,7 +68,7 @@ static bool _include_date = true;
 /* Mutex used by logger to synchronize printing. */
 extern std::mutex _logger_mtx;
 
-void
+static void
 get_time(char *time_buf, size_t buf_size)
 {
     size_t alloc_size;
