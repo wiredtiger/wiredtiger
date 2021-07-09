@@ -57,9 +57,6 @@ class database_operation {
      * Basic update operation that chooses a random key and updates it.
      */
     virtual void update_operation(thread_context *tc);
-
-    private:
-    static void populate_worker(thread_context *tc);
 };
 } // namespace test_harness
 #endif

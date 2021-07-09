@@ -34,6 +34,29 @@
 #include "util/debug_utils.h"
 
 namespace test_harness {
+/* Static methods implementation. */
+static void
+get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep)
+{
+    const char *desc, *pvalue;
+    cursor->set_key(cursor.get(), stat_field);
+    testutil_check(cursor->search(cursor.get()));
+    testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, valuep));
+    testutil_check(cursor->reset(cursor.get()));
+}
+
+static std::string
+collection_name_to_file_name(const std::string &collection_name)
+{
+    /* Strip out the URI prefix. */
+    const size_t colon_pos = collection_name.find(':');
+    testutil_assert(colon_pos != std::string::npos);
+    const auto stripped_name = collection_name.substr(colon_pos + 1);
+
+    /* Now add the directory and file extension. */
+    return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
+}
+
 /* runtime_statistic class implementation */
 runtime_statistic::runtime_statistic(configuration *config)
 {

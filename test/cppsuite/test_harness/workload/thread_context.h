@@ -40,11 +40,6 @@ extern "C" {
 #include "../workload/database_model.h"
 #include "workload_tracking.h"
 
-//#include "../core/throttle.h"
-//#include "../util/api_const.h"
-//#include "database_model.h"
-//#include "random_generator.h"
-
 namespace test_harness {
 enum thread_type { READ, INSERT, UPDATE };
 
@@ -67,11 +62,12 @@ class transaction_context {
     public:
     explicit transaction_context(configuration *config, timestamp_manager *timestamp_manager);
 
+    void begin(WT_SESSION *session, const std::string &config);
+    bool active() const;
+
     /* Begin a transaction if we are not currently in one. */
     void try_begin(WT_SESSION *session, const std::string &config);
 
-    void begin(WT_SESSION *session, const std::string &config);
-    bool active() const;
     void add_op();
 
     /* Attempt to commit the transaction given the requirements are met. */
@@ -149,7 +145,7 @@ class thread_context {
     scoped_session session;
     scoped_cursor op_track_cursor;
     transaction_context transaction;
-    timestamp_manager *tmstmp_manager;
+    timestamp_manager *tsm;
     workload_tracking *tracking;
     database &db;
     const int64_t collection_count;

@@ -44,22 +44,12 @@ class scoped_cursor {
 
     virtual ~scoped_cursor();
 
-    /*
-     * Implement move assignment by move constructing a temporary and swapping its internals with
-     * the current cursor. This means that the currently held WT_CURSOR will get destroyed as the
-     * temporary falls out of the scope and we will steal the one that we're move assigning from.
-     */
     scoped_cursor &operator=(scoped_cursor &&other);
-
     scoped_cursor(const scoped_cursor &) = delete;
     scoped_cursor &operator=(const scoped_cursor &) = delete;
 
     void reinit(WT_SESSION *session, const char *uri, const char *cfg);
 
-    /*
-     * Override the dereference operators. The idea is that we should able to use this class as if
-     * it is a pointer to a WT_CURSOR.
-     */
     WT_CURSOR &operator*();
     WT_CURSOR *operator->();
 

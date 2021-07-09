@@ -49,6 +49,11 @@ scoped_cursor::~scoped_cursor()
         testutil_check(_cursor->close(_cursor));
 }
 
+/*
+ * Implement move assignment by move constructing a temporary and swapping its internals with
+ * the current cursor. This means that the currently held WT_CURSOR will get destroyed as the
+ * temporary falls out of the scope and we will steal the one that we're move assigning from.
+ */
 scoped_cursor &
 scoped_cursor::operator=(scoped_cursor &&other)
 {
@@ -68,6 +73,10 @@ scoped_cursor::reinit(WT_SESSION *session, const char *uri, const char *cfg)
         testutil_check(session->open_cursor(session, uri, nullptr, cfg, &_cursor));
 }
 
+/*
+ * Override the dereference operators. The idea is that we should able to use this class as if
+ * it is a pointer to a WT_CURSOR.
+ */
 WT_CURSOR &
 scoped_cursor::operator*()
 {

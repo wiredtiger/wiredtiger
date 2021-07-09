@@ -36,6 +36,30 @@
 #include "workload_tracking.h"
 
 namespace test_harness {
+/* Static methods. */
+static void
+populate_worker(thread_context *tc)
+{
+    uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
+    for (int64_t i = 0; i < collections_per_thread; ++i) {
+        collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
+        /*
+         * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
+         * is closed, WiredTiger APIs close the cursors too.
+         */
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+        for (uint64_t i = 0; i < tc->key_count; ++i) {
+            /* Start a txn. */
+            tc->transaction.begin(tc->session.get(), "");
+            if (!tc->insert(cursor, coll.id, i))
+                testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
+            tc->transaction.commit(tc->session.get(), "");
+        }
+    }
+    log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
+}
+
+/* database_operation class implementation. */
 void
 database_operation::populate(
   database &database, timestamp_manager *tsm, configuration *config, workload_tracking *tracking)
@@ -234,27 +258,5 @@ database_operation::update_operation(thread_context *tc)
     /* Make sure the last operation is committed now the work is finished. */
     if (tc->transaction.active())
         tc->transaction.commit(tc->session.get(), "");
-}
-
-void
-database_operation::populate_worker(thread_context *tc)
-{
-    uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
-    for (int64_t i = 0; i < collections_per_thread; ++i) {
-        collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
-        /*
-         * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
-         * is closed, WiredTiger APIs close the cursors too.
-         */
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
-        for (uint64_t i = 0; i < tc->key_count; ++i) {
-            /* Start a txn. */
-            tc->transaction.begin(tc->session.get(), "");
-            if (!tc->insert(cursor, coll.id, i))
-                testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
-            tc->transaction.commit(tc->session.get(), "");
-        }
-    }
-    log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
 }
 } // namespace test_harness

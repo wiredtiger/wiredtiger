@@ -46,13 +46,6 @@ transaction_context::transaction_context(
 }
 
 void
-transaction_context::try_begin(WT_SESSION *session, const std::string &config)
-{
-    if (!_in_txn)
-        begin(session, config);
-}
-
-void
 transaction_context::begin(WT_SESSION *session, const std::string &config)
 {
     testutil_assert(!_in_txn);
@@ -68,6 +61,13 @@ bool
 transaction_context::active() const
 {
     return (_in_txn);
+}
+
+void
+transaction_context::try_begin(WT_SESSION *session, const std::string &config)
+{
+    if (!_in_txn)
+        begin(session, config);
 }
 
 void
@@ -128,7 +128,7 @@ transaction_context::can_commit_rollback()
 /* thread_context class implementation */
 thread_context::thread_context(uint64_t id, thread_type type, configuration *config,
   timestamp_manager *timestamp_manager, workload_tracking *tracking, database &dbase)
-    : id(id), type(type), db(dbase), tmstmp_manager(timestamp_manager), tracking(tracking),
+    : id(id), type(type), db(dbase), tsm(timestamp_manager), tracking(tracking),
       transaction(transaction_context(config, timestamp_manager)),
       /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
@@ -168,7 +168,7 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
 {
     WT_DECL_RET;
     std::string value;
-    wt_timestamp_t ts = tmstmp_manager->get_next_ts();
+    wt_timestamp_t ts = tsm->get_next_ts();
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -210,7 +210,7 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
      * Get a timestamp to apply to the update. We still do this even if timestamps aren't enabled as
      * it will return a value for the tracking table.
      */
-    wt_timestamp_t ts = tmstmp_manager->get_next_ts();
+    wt_timestamp_t ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(session.get(), ts);
 
     key = key_to_string(key_id);
