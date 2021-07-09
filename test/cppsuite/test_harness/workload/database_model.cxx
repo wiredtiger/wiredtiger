@@ -34,29 +34,33 @@
 #include "random_generator.h"
 
 namespace test_harness {
-// collection class implementation
+/* collection class implementation */
 collection::collection(const uint64_t id, const uint64_t key_count, const std::string &name)
     : id(id), _key_count(key_count), name(name)
 {
 }
 
-uint64_t collection::get_key_count() const
+uint64_t
+collection::get_key_count() const
 {
     return (_key_count);
 }
 
-void collection::increase_key_count(uint64_t increment)
+void
+collection::increase_key_count(uint64_t increment)
 {
     _key_count += increment;
 }
 
-// database class implementation
-std::string database::build_collection_name(const uint64_t id)
+/* database class implementation */
+std::string
+database::build_collection_name(const uint64_t id)
 {
     return (std::string("table:collection_" + std::to_string(id)));
 }
 
-void database::add_collection(uint64_t key_count)
+void
+database::add_collection(uint64_t key_count)
 {
     std::lock_guard<std::mutex> lg(_mtx);
     if (_session.get() == nullptr)
@@ -65,14 +69,15 @@ void database::add_collection(uint64_t key_count)
     std::string collection_name = build_collection_name(next_id);
     /* FIX-ME-Test-Framework: This will get removed when we split the model up. */
     _collections.emplace(std::piecewise_construct, std::forward_as_tuple(next_id),
-        std::forward_as_tuple(next_id, key_count, collection_name));
+      std::forward_as_tuple(next_id, key_count, collection_name));
     testutil_check(
-        _session->create(_session.get(), collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+      _session->create(_session.get(), collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
     _tracking->save_schema_operation(
-        tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
+      tracking_operation::CREATE_COLLECTION, next_id, _tsm->get_next_ts());
 }
 
-collection& database::get_collection(uint64_t id)
+collection &
+database::get_collection(uint64_t id)
 {
     std::lock_guard<std::mutex> lg(_mtx);
     const auto it = _collections.find(id);
@@ -81,22 +86,25 @@ collection& database::get_collection(uint64_t id)
     return (it->second);
 }
 
-collection& database::get_random_collection()
+collection &
+database::get_random_collection()
 {
     size_t collection_count = get_collection_count();
     /* Any caller should expect at least one collection to exist. */
     testutil_assert(collection_count != 0);
     return (get_collection(
-        random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1)));
+      random_generator::instance().generate_integer<uint64_t>(0, collection_count - 1)));
 }
 
-uint64_t database::get_collection_count()
+uint64_t
+database::get_collection_count()
 {
     std::lock_guard<std::mutex> lg(_mtx);
     return (_collections.size());
 }
 
-std::vector<std::string> database::get_collection_names()
+std::vector<std::string>
+database::get_collection_names()
 {
     std::lock_guard<std::mutex> lg(_mtx);
     std::vector<std::string> collection_names;
@@ -107,7 +115,8 @@ std::vector<std::string> database::get_collection_names()
     return (collection_names);
 }
 
-std::vector<uint64_t> database::get_collection_ids()
+std::vector<uint64_t>
+database::get_collection_ids()
 {
     std::lock_guard<std::mutex> lg(_mtx);
     std::vector<uint64_t> collection_ids;
@@ -118,13 +127,15 @@ std::vector<uint64_t> database::get_collection_ids()
     return (collection_ids);
 }
 
-void database::set_timestamp_manager(timestamp_manager *tsm)
+void
+database::set_timestamp_manager(timestamp_manager *tsm)
 {
     testutil_assert(_tsm == nullptr);
     _tsm = tsm;
 }
 
-void database::set_workload_tracking(workload_tracking *tracking)
+void
+database::set_workload_tracking(workload_tracking *tracking)
 {
     testutil_assert(_tracking == nullptr);
     _tracking = tracking;

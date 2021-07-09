@@ -36,8 +36,9 @@
 #include "workload_tracking.h"
 
 namespace test_harness {
-void database_operation::populate(database &database, timestamp_manager *tsm, configuration *config,
-    workload_tracking *tracking)
+void
+database_operation::populate(
+  database &database, timestamp_manager *tsm, configuration *config, workload_tracking *tracking)
 {
     int64_t collection_count, key_count, key_size, thread_count, value_size;
     std::vector<thread_context *> workers;
@@ -59,21 +60,20 @@ void database_operation::populate(database &database, timestamp_manager *tsm, co
     /* Create n collections as per the configuration. */
     for (int64_t i = 0; i < collection_count; ++i)
         /*
-            * The database model will call into the API and create the collection, with its own
-            * session.
-            */
+         * The database model will call into the API and create the collection, with its own
+         * session.
+         */
         database.add_collection(key_count);
 
-    log_msg(
-        LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
+    log_msg(LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
 
     /*
-        * Spawn thread_count threads to populate the database, theoretically we should be IO bound
-        * here.
-        */
+     * Spawn thread_count threads to populate the database, theoretically we should be IO bound
+     * here.
+     */
     for (int64_t i = 0; i < thread_count; ++i) {
         thread_context *tc =
-            new thread_context(i, thread_type::INSERT, config, tsm, tracking, database);
+          new thread_context(i, thread_type::INSERT, config, tsm, tracking, database);
         workers.push_back(tc);
         tm.add_thread(populate_worker, tc);
     }
@@ -90,7 +90,8 @@ void database_operation::populate(database &database, timestamp_manager *tsm, co
     log_msg(LOG_INFO, "Populate: finished.");
 }
 
-void database_operation::insert_operation(thread_context *tc)
+void
+database_operation::insert_operation(thread_context *tc)
 {
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
@@ -98,7 +99,7 @@ void database_operation::insert_operation(thread_context *tc)
         scoped_cursor cursor;
     };
     log_msg(
-        LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* Collection cursor vector. */
     std::vector<collection_cursor> ccv;
@@ -107,7 +108,7 @@ void database_operation::insert_operation(thread_context *tc)
     /* Must have unique collections for each thread. */
     testutil_assert(collection_count % tc->thread_count == 0);
     for (int i = tc->id * collections_per_thread;
-            i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+         i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
         collection &coll = tc->db.get_collection(i);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
         ccv.push_back({coll, std::move(cursor)});
@@ -121,8 +122,7 @@ void database_operation::insert_operation(thread_context *tc)
         tc->transaction.begin(tc->session.get(), "");
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
-            if (!tc->insert(
-                    ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
+            if (!tc->insert(ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
                 committed = false;
                 break;
             }
@@ -132,9 +132,9 @@ void database_operation::insert_operation(thread_context *tc)
             tc->sleep();
         }
         /*
-            * We need to inform the database model that we've added these keys as some other thread
-            * may rely on the key_count data. Only do so if we successfully committed.
-            */
+         * We need to inform the database model that we've added these keys as some other thread may
+         * rely on the key_count data. Only do so if we successfully committed.
+         */
         if (committed)
             ccv[counter].coll.increase_key_count(added_count);
         counter++;
@@ -146,10 +146,11 @@ void database_operation::insert_operation(thread_context *tc)
         tc->transaction.rollback(tc->session.get(), "");
 }
 
-void database_operation::read_operation(thread_context *tc)
+void
+database_operation::read_operation(thread_context *tc)
 {
     log_msg(
-        LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     WT_CURSOR *cursor = nullptr;
     WT_DECL_RET;
     std::map<uint64_t, scoped_cursor> cursors;
@@ -182,22 +183,23 @@ void database_operation::read_operation(thread_context *tc)
         tc->transaction.rollback(tc->session.get(), "");
 }
 
-void database_operation::update_operation(thread_context *tc)
+void
+database_operation::update_operation(thread_context *tc)
 {
     log_msg(
-        LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
     uint64_t collection_id = 0;
 
     /*
-        * Loop while the test is running.
-        */
+     * Loop while the test is running.
+     */
     while (tc->running()) {
         /*
-            * Sleep the period defined by the op_rate in the configuration. Do this at the start of
-            * the loop as it could be skipped by a subsequent continue call.
-            */
+         * Sleep the period defined by the op_rate in the configuration. Do this at the start of the
+         * loop as it could be skipped by a subsequent continue call.
+         */
         tc->sleep();
 
         /* Choose a random collection to update. */
@@ -206,7 +208,7 @@ void database_operation::update_operation(thread_context *tc)
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
             log_msg(LOG_TRACE,
-                "Thread {" + std::to_string(tc->id) +
+              "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
@@ -221,7 +223,7 @@ void database_operation::update_operation(thread_context *tc)
 
         /* Choose a random key to update. */
         uint64_t key_id =
-            random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
+          random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
         if (!tc->update(cursor, collection_id, tc->key_to_string(key_id)))
             continue;
 
@@ -234,15 +236,16 @@ void database_operation::update_operation(thread_context *tc)
         tc->transaction.commit(tc->session.get(), "");
 }
 
-void database_operation::populate_worker(thread_context *tc)
+void
+database_operation::populate_worker(thread_context *tc)
 {
     uint64_t collections_per_thread = tc->collection_count / tc->thread_count;
     for (int64_t i = 0; i < collections_per_thread; ++i) {
         collection &coll = tc->db.get_collection((tc->id * collections_per_thread) + i);
         /*
-            * WiredTiger lets you open a cursor on a collection using the same pointer. When a
-            * session is closed, WiredTiger APIs close the cursors too.
-            */
+         * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
+         * is closed, WiredTiger APIs close the cursors too.
+         */
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
         for (uint64_t i = 0; i < tc->key_count; ++i) {
             /* Start a txn. */

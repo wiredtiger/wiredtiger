@@ -31,13 +31,15 @@
 #include "util/debug_utils.h"
 
 namespace test_harness {
-connection_manager& connection_manager::instance()
+connection_manager &
+connection_manager::instance()
 {
     static connection_manager _instance;
     return (_instance);
 }
 
-void connection_manager::close()
+void
+connection_manager::close()
 {
     if (_conn != nullptr) {
         testutil_check(_conn->close(_conn, nullptr));
@@ -45,7 +47,8 @@ void connection_manager::close()
     }
 }
 
-void connection_manager::create(const std::string &config, const std::string &home)
+void
+connection_manager::create(const std::string &config, const std::string &home)
 {
     if (_conn != nullptr) {
         log_msg(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
@@ -60,12 +63,13 @@ void connection_manager::create(const std::string &config, const std::string &ho
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
 }
 
-scoped_session connection_manager::create_session()
+scoped_session
+connection_manager::create_session()
 {
     if (_conn == nullptr) {
         log_msg(LOG_ERROR,
-            "Connection is NULL, did you forget to call "
-            "connection_manager::create ?");
+          "Connection is NULL, did you forget to call "
+          "connection_manager::create ?");
         testutil_die(EINVAL, "Connection is NULL");
     }
 
@@ -77,16 +81,15 @@ scoped_session connection_manager::create_session()
 }
 
 /*
-    * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
-    */
-void connection_manager::set_timestamp(const std::string &config)
+ * set_timestamp calls into the connection API in a thread safe manner to set global timestamps.
+ */
+void
+connection_manager::set_timestamp(const std::string &config)
 {
     _conn_mutex.lock();
     testutil_check(_conn->set_timestamp(_conn, config.c_str()));
     _conn_mutex.unlock();
 }
 
-connection_manager::connection_manager() 
-{
-}
+connection_manager::connection_manager() {}
 } // namespace test_harness

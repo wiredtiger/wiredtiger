@@ -43,7 +43,8 @@ thread_manager::~thread_manager()
     _workers.clear();
 }
 
-void thread_manager::join()
+void
+thread_manager::join()
 {
     for (const auto &it : _workers) {
         while (!it->joinable()) {

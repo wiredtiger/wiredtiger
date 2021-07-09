@@ -35,7 +35,8 @@ checkpoint_manager::checkpoint_manager(configuration *configuration)
 {
 }
 
-void checkpoint_manager::load()
+void
+checkpoint_manager::load()
 {
     /* Load the general component things. */
     component::load();
@@ -45,9 +46,10 @@ void checkpoint_manager::load()
         _session = connection_manager::instance().create_session();
 }
 
-void checkpoint_manager::do_work()
+void
+checkpoint_manager::do_work()
 {
     log_msg(LOG_INFO, "Running checkpoint");
     testutil_check(_session->checkpoint(_session.get(), nullptr));
 }
-}// namespace test_harness
+} // namespace test_harness

@@ -32,8 +32,9 @@
 #include "workload_validation.h"
 
 namespace test_harness {
-void workload_validation::validate(const std::string &operation_table_name, const std::string &schema_table_name,
-  const std::vector<uint64_t> &known_collection_ids)
+void
+workload_validation::validate(const std::string &operation_table_name,
+  const std::string &schema_table_name, const std::vector<uint64_t> &known_collection_ids)
 {
     WT_DECL_RET;
     wt_timestamp_t tracked_timestamp;
@@ -52,8 +53,8 @@ void workload_validation::validate(const std::string &operation_table_name, cons
       session, schema_table_name, created_collections, deleted_collections);
 
     /*
-     * Make sure the deleted collections do not exist on disk. The created collections are
-     * checked in check_reference.
+     * Make sure the deleted collections do not exist on disk. The created collections are checked
+     * in check_reference.
      */
     for (auto const &it : deleted_collections) {
         if (!verify_collection_file_state(session, it, false))
@@ -64,8 +65,8 @@ void workload_validation::validate(const std::string &operation_table_name, cons
     }
 
     /*
-     * All collections in memory should match those created in the schema tracking table.
-     * Dropping is currently not supported.
+     * All collections in memory should match those created in the schema tracking table. Dropping
+     * is currently not supported.
      */
     std::sort(created_collections.begin(), created_collections.end());
     auto on_disk_collection_id = created_collections.begin();
@@ -87,13 +88,13 @@ void workload_validation::validate(const std::string &operation_table_name, cons
     validation_collection current_collection_records;
     scoped_cursor cursor = session.open_scoped_cursor(operation_table_name.c_str());
     while ((ret = cursor->next(cursor.get())) == 0) {
-        testutil_check(cursor->get_key(
-          cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
+        testutil_check(
+          cursor->get_key(cursor.get(), &tracked_collection_id, &tracked_key, &tracked_timestamp));
         testutil_check(cursor->get_value(cursor.get(), &tracked_op_type, &tracked_value));
 
         log_msg(LOG_TRACE,
-          "Retrieved tracked values. \n Collection id: " +
-            std::to_string(tracked_collection_id) + "\n Key: " + std::string(tracked_key) +
+          "Retrieved tracked values. \n Collection id: " + std::to_string(tracked_collection_id) +
+            "\n Key: " + std::string(tracked_key) +
             "\n Timestamp: " + std::to_string(tracked_timestamp) + "\n Operation type: " +
             std::to_string(tracked_op_type) + "\n Value: " + std::string(tracked_value));
 
@@ -109,13 +110,12 @@ void workload_validation::validate(const std::string &operation_table_name, cons
                   "collection set.",
                   tracked_collection_id);
             if (tracked_collection_id < current_collection_id)
-                testutil_die(LOG_ERROR,
-                  "Validation failed: The collection id %lu is out of order.",
+                testutil_die(LOG_ERROR, "Validation failed: The collection id %lu is out of order.",
                   tracked_collection_id);
 
             /*
-             * Given that we've stepped over to the next collection we've built a full picture
-             * of the current collection and can now validate it.
+             * Given that we've stepped over to the next collection we've built a full picture of
+             * the current collection and can now validate it.
              */
             verify_collection(session, current_collection_id, current_collection_records);
 
@@ -137,8 +137,10 @@ void workload_validation::validate(const std::string &operation_table_name, cons
           LOG_ERROR, "Validation failed: cursor->next() return an unexpected error %d.", ret);
 }
 
-void workload_validation::parse_schema_tracking_table(scoped_session &session, const std::string &tracking_table_name,
-  std::vector<uint64_t> &created_collections, std::vector<uint64_t> &deleted_collections)
+void
+workload_validation::parse_schema_tracking_table(scoped_session &session,
+  const std::string &tracking_table_name, std::vector<uint64_t> &created_collections,
+  std::vector<uint64_t> &deleted_collections)
 {
     wt_timestamp_t key_timestamp;
     uint64_t key_collection_id;
@@ -170,8 +172,10 @@ void workload_validation::parse_schema_tracking_table(scoped_session &session, c
     }
 }
 
-void workload_validation::update_data_model(const tracking_operation &operation, validation_collection &collection,
-  const uint64_t collection_id, const char *key, const char *value)
+void
+workload_validation::update_data_model(const tracking_operation &operation,
+  validation_collection &collection, const uint64_t collection_id, const char *key,
+  const char *value)
 {
     if (operation == tracking_operation::DELETE_KEY) {
         /* Search for the key validating that it exists. */
@@ -191,12 +195,13 @@ void workload_validation::update_data_model(const tracking_operation &operation,
     } else if (operation == tracking_operation::INSERT)
         collection[key_value_t(key)] = key_state{true, key_value_t(value)};
     else
-        testutil_die(LOG_ERROR,
-          "Validation failed: unexpected operation in the tracking table: %d",
+        testutil_die(LOG_ERROR, "Validation failed: unexpected operation in the tracking table: %d",
           static_cast<tracking_operation>(operation));
 }
 
-void workload_validation::verify_collection(scoped_session &session, const uint64_t collection_id, validation_collection &collection)
+void
+workload_validation::verify_collection(
+  scoped_session &session, const uint64_t collection_id, validation_collection &collection)
 {
     /* Check the collection exists on disk. */
     if (!verify_collection_file_state(session, collection_id, true))
@@ -210,11 +215,12 @@ void workload_validation::verify_collection(scoped_session &session, const uint6
         verify_key_value(session, collection_id, record.first, record.second);
 }
 
-bool workload_validation::verify_collection_file_state(scoped_session &session, const uint64_t collection_id, bool exists) const
+bool
+workload_validation::verify_collection_file_state(
+  scoped_session &session, const uint64_t collection_id, bool exists) const
 {
     /*
-     * We don't necessarily expect to successfully open the cursor so don't create a scoped
-     * cursor.
+     * We don't necessarily expect to successfully open the cursor so don't create a scoped cursor.
      */
     WT_CURSOR *cursor;
     int ret = session->open_cursor(session.get(),
@@ -224,8 +230,9 @@ bool workload_validation::verify_collection_file_state(scoped_session &session, 
     return (exists ? (ret == 0) : (ret != 0));
 }
 
-void workload_validation::verify_key_value(scoped_session &session, const uint64_t collection_id, const std::string &key,
-  const key_state &key_state)
+void
+workload_validation::verify_key_value(scoped_session &session, const uint64_t collection_id,
+  const std::string &key, const key_state &key_state)
 {
     WT_DECL_RET;
     const char *retrieved_value;

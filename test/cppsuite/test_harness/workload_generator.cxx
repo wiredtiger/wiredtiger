@@ -35,13 +35,14 @@
 #include "workload_generator.h"
 
 namespace test_harness {
-// operation_config class implementation
+/* operation_config class implementation */
 operation_config::operation_config(configuration *config, thread_type type)
     : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
 {
 }
 
-std::function<void(test_harness::thread_context *)> operation_config::get_func(database_operation *dbo)
+std::function<void(test_harness::thread_context *)>
+operation_config::get_func(database_operation *dbo)
 {
     switch (type) {
     case thread_type::INSERT:
@@ -56,12 +57,12 @@ std::function<void(test_harness::thread_context *)> operation_config::get_func(d
     }
 }
 
-// workload_generator class implementation
-workload_generator::workload_generator(configuration *configuration, database_operation *db_operation,
-    timestamp_manager *timestamp_manager, workload_tracking *tracking, database &database)
+/* workload_generator class implementation */
+workload_generator::workload_generator(configuration *configuration,
+  database_operation *db_operation, timestamp_manager *timestamp_manager,
+  workload_tracking *tracking, database &database)
     : component("workload_generator", configuration), _database(database),
-        _database_operation(db_operation), _timestamp_manager(timestamp_manager),
-        _tracking(tracking)
+      _database_operation(db_operation), _timestamp_manager(timestamp_manager), _tracking(tracking)
 {
 }
 
@@ -71,7 +72,8 @@ workload_generator::~workload_generator()
         delete it;
 }
 
-void workload_generator::run()
+void
+workload_generator::run()
 {
     configuration *populate_config;
     std::vector<operation_config> operation_configs;
@@ -79,11 +81,11 @@ void workload_generator::run()
 
     /* Retrieve useful parameters from the test configuration. */
     operation_configs.push_back(
-        operation_config(_config->get_subconfig(INSERT_CONFIG), thread_type::INSERT));
+      operation_config(_config->get_subconfig(INSERT_CONFIG), thread_type::INSERT));
     operation_configs.push_back(
-        operation_config(_config->get_subconfig(READ_CONFIG), thread_type::READ));
+      operation_config(_config->get_subconfig(READ_CONFIG), thread_type::READ));
     operation_configs.push_back(
-        operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
+      operation_config(_config->get_subconfig(UPDATE_CONFIG), thread_type::UPDATE));
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */
@@ -94,29 +96,30 @@ void workload_generator::run()
     /* Generate threads to execute read operations on the collections. */
     for (auto &it : operation_configs) {
         log_msg(LOG_INFO,
-            "Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
+          "Workload_generator: Creating " + std::to_string(it.thread_count) + " " +
             type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(
-                thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);
+              thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }
         /*
-            * Don't forget to delete the config we created earlier. While we do pass the config
-            * into the thread context it is not saved, so we are safe to do this.
-            */
+         * Don't forget to delete the config we created earlier. While we do pass the config into
+         * the thread context it is not saved, so we are safe to do this.
+         */
         delete it.config;
 
         /*
-            * Reset the thread_id counter to 0 as we're only interested in knowing per operation
-            * type which thread we are.
-            */
+         * Reset the thread_id counter to 0 as we're only interested in knowing per operation type
+         * which thread we are.
+         */
         thread_id = 0;
     }
 }
 
-void workload_generator::finish()
+void
+workload_generator::finish()
 {
     component::finish();
     for (const auto &it : _workers)
@@ -125,12 +128,14 @@ void workload_generator::finish()
     log_msg(LOG_TRACE, "Workload generator: run stage done");
 }
 
-database& workload_generator::get_database()
+database &
+workload_generator::get_database()
 {
     return (_database);
 }
 
-bool workload_generator::db_populated() const
+bool
+workload_generator::db_populated() const
 {
     return (_db_populated);
 }

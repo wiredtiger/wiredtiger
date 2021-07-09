@@ -40,18 +40,17 @@
 #include "util/api_const.h"
 
 namespace test_harness {
-test::test(const test_args &args) 
-    : _args(args)
+test::test(const test_args &args) : _args(args)
 {
     _config = new configuration(args.test_name, args.test_config);
     _checkpoint_manager = new checkpoint_manager(_config->get_subconfig(CHECKPOINT_MANAGER));
     _runtime_monitor = new runtime_monitor(_config->get_subconfig(RUNTIME_MONITOR), _database);
     _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
     _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
-        OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
-        TABLE_SCHEMA_TRACKING, *_timestamp_manager);
-    _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR),
-        this, _timestamp_manager, _workload_tracking, _database);
+      OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
+      TABLE_SCHEMA_TRACKING, *_timestamp_manager);
+    _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR), this,
+      _timestamp_manager, _workload_tracking, _database);
     _thread_manager = new thread_manager();
 
     _database.set_timestamp_manager(_timestamp_manager);
@@ -61,8 +60,8 @@ test::test(const test_args &args)
      * Ordering is not important here, any dependencies between components should be resolved
      * internally by the components.
      */
-    _components = {_workload_tracking, _workload_generator, _timestamp_manager,
-        _runtime_monitor, _checkpoint_manager};
+    _components = {_workload_tracking, _workload_generator, _timestamp_manager, _runtime_monitor,
+      _checkpoint_manager};
 }
 
 test::~test()
@@ -85,7 +84,8 @@ test::~test()
     _components.clear();
 }
 
-void test::run()
+void
+test::run()
 {
     int64_t cache_size_mb, duration_seconds;
     bool enable_logging, statistics_logging;
@@ -133,7 +133,7 @@ void test::run()
     duration_seconds = _config->get_int(DURATION_SECONDS);
     testutil_assert(duration_seconds >= 0);
     log_msg(
-        LOG_INFO, "Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.");
+      LOG_INFO, "Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.");
     std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
     /* End the test by calling finish on all known components. */
@@ -141,37 +141,41 @@ void test::run()
         it->finish();
 
     log_msg(LOG_INFO,
-        "Joining all component threads.\n This could take a while as we need to wait"
-        " for all components to finish their current loop.");
+      "Joining all component threads.\n This could take a while as we need to wait"
+      " for all components to finish their current loop.");
     _thread_manager->join();
 
     /* Validation stage. */
     if (_workload_tracking->enabled()) {
         workload_validation wv;
         wv.validate(_workload_tracking->get_operation_table_name(),
-            _workload_tracking->get_schema_table_name(),
-            _workload_generator->get_database().get_collection_ids());
+          _workload_tracking->get_schema_table_name(),
+          _workload_generator->get_database().get_collection_ids());
     }
 
     log_msg(LOG_INFO, "SUCCESS");
 }
 
-workload_generator* test::get_workload_generator()
+workload_generator *
+test::get_workload_generator()
 {
     return (_workload_generator);
 }
 
-runtime_monitor* test::get_runtime_monitor()
+runtime_monitor *
+test::get_runtime_monitor()
 {
     return (_runtime_monitor);
 }
 
-timestamp_manager* test::get_timestamp_manager()
+timestamp_manager *
+test::get_timestamp_manager()
 {
     return (_timestamp_manager);
 }
 
-thread_manager* test::get_thread_manager()
+thread_manager *
+test::get_thread_manager()
 {
     return (_thread_manager);
 }

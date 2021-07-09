@@ -31,26 +31,30 @@
 #include "workload_tracking.h"
 
 namespace test_harness {
-workload_tracking::workload_tracking(configuration *_config, const std::string &operation_table_config,
-  const std::string &operation_table_name, const std::string &schema_table_config,
-  const std::string &schema_table_name, timestamp_manager &tsm)
+workload_tracking::workload_tracking(configuration *_config,
+  const std::string &operation_table_config, const std::string &operation_table_name,
+  const std::string &schema_table_config, const std::string &schema_table_name,
+  timestamp_manager &tsm)
     : component("workload_tracking", _config), _operation_table_config(operation_table_config),
       _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
       _schema_table_name(schema_table_name), _tsm(tsm)
 {
 }
 
-const std::string& workload_tracking::get_schema_table_name() const
+const std::string &
+workload_tracking::get_schema_table_name() const
 {
     return (_schema_table_name);
 }
 
-const std::string& workload_tracking::get_operation_table_name() const
+const std::string &
+workload_tracking::get_operation_table_name() const
 {
     return (_operation_table_name);
 }
 
-void workload_tracking::load()
+void
+workload_tracking::load()
 {
     component::load();
 
@@ -59,8 +63,8 @@ void workload_tracking::load()
 
     /* Initiate schema tracking. */
     _session = connection_manager::instance().create_session();
-    testutil_check(_session->create(
-      _session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
+    testutil_check(
+      _session->create(_session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
     _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name.c_str());
     log_msg(LOG_TRACE, "Schema tracking initiated");
 
@@ -77,7 +81,8 @@ void workload_tracking::load()
     log_msg(LOG_TRACE, "Tracking table sweep initialized");
 }
 
-void workload_tracking::do_work()
+void
+workload_tracking::do_work()
 {
     WT_DECL_RET;
     wt_timestamp_t ts, oldest_ts;
@@ -139,7 +144,9 @@ void workload_tracking::do_work()
           "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
 }
 
-void workload_tracking::save_schema_operation(const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
+void
+workload_tracking::save_schema_operation(
+  const tracking_operation &operation, const uint64_t &collection_id, wt_timestamp_t ts)
 {
     std::string error_message;
 
@@ -149,12 +156,11 @@ void workload_tracking::save_schema_operation(const tracking_operation &operatio
     if (operation == tracking_operation::CREATE_COLLECTION ||
       operation == tracking_operation::DELETE_COLLECTION) {
         _schema_track_cursor->set_key(_schema_track_cursor.get(), collection_id, ts);
-        _schema_track_cursor->set_value(
-          _schema_track_cursor.get(), static_cast<int>(operation));
+        _schema_track_cursor->set_value(_schema_track_cursor.get(), static_cast<int>(operation));
         testutil_check(_schema_track_cursor->insert(_schema_track_cursor.get()));
     } else {
-        error_message = "save_schema_operation: invalid operation " +
-          std::to_string(static_cast<int>(operation));
+        error_message =
+          "save_schema_operation: invalid operation " + std::to_string(static_cast<int>(operation));
         testutil_die(EINVAL, error_message.c_str());
     }
 }

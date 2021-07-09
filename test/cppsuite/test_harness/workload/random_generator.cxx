@@ -29,13 +29,15 @@
 #include "random_generator.h"
 
 namespace test_harness {
-random_generator& random_generator::instance()
+random_generator &
+random_generator::instance()
 {
     thread_local random_generator _instance;
     return (_instance);
 }
 
-std::string random_generator::generate_string(std::size_t length)
+std::string
+random_generator::generate_string(std::size_t length)
 {
     std::string random_string;
 

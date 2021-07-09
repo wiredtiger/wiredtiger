@@ -34,25 +34,26 @@
 #include "util/debug_utils.h"
 
 namespace test_harness {
-// runtime_statistic class implementation
+/* runtime_statistic class implementation */
 runtime_statistic::runtime_statistic(configuration *config)
 {
     _enabled = config->get_bool(ENABLED);
 }
 
-bool runtime_statistic::enabled() const
+bool
+runtime_statistic::enabled() const
 {
     return (_enabled);
 }
 
-// cache_limit_statistic class implementation
-cache_limit_statistic::cache_limit_statistic(configuration *config) 
-    : runtime_statistic(config)
+/* cache_limit_statistic class implementation */
+cache_limit_statistic::cache_limit_statistic(configuration *config) : runtime_statistic(config)
 {
     limit = config->get_int(LIMIT);
 }
 
-void cache_limit_statistic::check(scoped_cursor &cursor)
+void
+cache_limit_statistic::check(scoped_cursor &cursor)
 {
     testutil_assert(cursor.get() != nullptr);
     int64_t cache_bytes_image, cache_bytes_other, cache_bytes_max;
@@ -62,20 +63,20 @@ void cache_limit_statistic::check(scoped_cursor &cursor)
     get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_OTHER, &cache_bytes_other);
     get_stat(cursor, WT_STAT_CONN_CACHE_BYTES_MAX, &cache_bytes_max);
     /*
-        * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid
-        * floating point conversion errors.
-        */
+     * Assert that we never exceed our configured limit for cache usage. Add 0.0 to avoid floating
+     * point conversion errors.
+     */
     use_percent = ((cache_bytes_image + cache_bytes_other + 0.0) / cache_bytes_max) * 100;
     if (use_percent > limit) {
         const std::string error_string =
-            "runtime_monitor: Cache usage exceeded during test! Limit: " + std::to_string(limit) +
-            " usage: " + std::to_string(use_percent);
+          "runtime_monitor: Cache usage exceeded during test! Limit: " + std::to_string(limit) +
+          " usage: " + std::to_string(use_percent);
         testutil_die(-1, error_string.c_str());
     } else
         log_msg(LOG_TRACE, "Cache usage: " + std::to_string(use_percent));
 }
 
-// db_size_statistic class implementation
+/* db_size_statistic class implementation */
 db_size_statistic::db_size_statistic(configuration *config, database &database)
     : runtime_statistic(config), _database(database)
 {
@@ -85,7 +86,8 @@ db_size_statistic::db_size_statistic(configuration *config, database &database)
 #endif
 }
 
-void db_size_statistic::check(scoped_cursor &)
+void
+db_size_statistic::check(scoped_cursor &)
 {
     const auto file_names = get_file_names();
 #ifndef _WIN32
@@ -102,8 +104,8 @@ void db_size_statistic::check(scoped_cursor &)
     log_msg(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
     if (db_size > _limit) {
         const std::string error_string =
-            "runtime_monitor: Database size limit exceeded during test! Limit: " +
-            std::to_string(_limit) + " db size: " + std::to_string(db_size);
+          "runtime_monitor: Database size limit exceeded during test! Limit: " +
+          std::to_string(_limit) + " db size: " + std::to_string(db_size);
         testutil_die(-1, error_string.c_str());
     }
 #else
@@ -113,7 +115,8 @@ void db_size_statistic::check(scoped_cursor &)
 #endif
 }
 
-std::vector<std::string> db_size_statistic::get_file_names()
+std::vector<std::string>
+db_size_statistic::get_file_names()
 {
     std::vector<std::string> file_names;
     for (const auto &name : _database.get_collection_names())
@@ -126,32 +129,33 @@ std::vector<std::string> db_size_statistic::get_file_names()
     return (file_names);
 }
 
-// postrun_statistic_check class implementation
+/* postrun_statistic_check class implementation */
 postrun_statistic_check::postrun_statistic_check(configuration *config)
 {
     const auto config_stats = config->get_list(POSTRUN_STATISTICS);
     /*
-        * Each stat in the configuration is a colon separated list in the following format:
-        * <stat_name>:<min_limit>:<max_limit>
-        */
+     * Each stat in the configuration is a colon separated list in the following format:
+     * <stat_name>:<min_limit>:<max_limit>
+     */
     for (const auto &c : config_stats) {
         auto stat = split_string(c, ':');
         if (stat.size() != 3)
             testutil_die(EINVAL,
-                "runtime_monitor: Each postrun statistic must follow the format of "
-                "\"stat_name:min_limit:max_limit\". Invalid format \"%s\" provided.",
-                c.c_str());
+              "runtime_monitor: Each postrun statistic must follow the format of "
+              "\"stat_name:min_limit:max_limit\". Invalid format \"%s\" provided.",
+              c.c_str());
         const int min_limit = std::stoi(stat.at(1)), max_limit = std::stoi(stat.at(2));
         if (min_limit > max_limit)
             testutil_die(EINVAL,
-                "runtime_monitor: The min limit of each postrun statistic must be less than or "
-                "equal to its max limit. Config=\"%s\" Min=%ld Max=%ld",
-                c.c_str(), min_limit, max_limit);
+              "runtime_monitor: The min limit of each postrun statistic must be less than or "
+              "equal to its max limit. Config=\"%s\" Min=%ld Max=%ld",
+              c.c_str(), min_limit, max_limit);
         _stats.emplace_back(std::move(stat.at(0)), min_limit, max_limit);
     }
 }
 
-void postrun_statistic_check::check(scoped_cursor &cursor) const
+void
+postrun_statistic_check::check(scoped_cursor &cursor) const
 {
     bool success = true;
     for (const auto &stat : _stats) {
@@ -160,11 +164,12 @@ void postrun_statistic_check::check(scoped_cursor &cursor) const
     }
     if (!success)
         testutil_die(-1,
-            "runtime_monitor: One or more postrun statistics were outside of their specified "
-            "limits.");
+          "runtime_monitor: One or more postrun statistics were outside of their specified "
+          "limits.");
 }
 
-bool postrun_statistic_check::check_stat(scoped_cursor &cursor, const postrun_statistic &stat) const
+bool
+postrun_statistic_check::check_stat(scoped_cursor &cursor, const postrun_statistic &stat) const
 {
     int64_t stat_value;
 
@@ -172,15 +177,15 @@ bool postrun_statistic_check::check_stat(scoped_cursor &cursor, const postrun_st
     get_stat(cursor, stat.field, &stat_value);
     if (stat_value < stat.min_limit || stat_value > stat.max_limit) {
         const std::string error_string = "runtime_monitor: Postrun stat \"" + stat.name +
-            "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
-            " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
+          "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
+          " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
         log_msg(LOG_ERROR, error_string);
         return (false);
     }
     return (true);
 }
 
-// runtime_monitor class implementation
+/* runtime_monitor class implementation */
 runtime_monitor::runtime_monitor(configuration *config, database &database)
     : component("runtime_monitor", config), _postrun_stats(config), _database(database)
 {
@@ -193,7 +198,8 @@ runtime_monitor::~runtime_monitor()
     _stats.clear();
 }
 
-void runtime_monitor::load()
+void
+runtime_monitor::load()
 {
     configuration *sub_config;
     std::string statistic_list;
@@ -218,7 +224,8 @@ void runtime_monitor::load()
     }
 }
 
-void runtime_monitor::do_work()
+void
+runtime_monitor::do_work()
 {
     for (const auto &it : _stats) {
         if (it->enabled())
@@ -226,7 +233,8 @@ void runtime_monitor::do_work()
     }
 }
 
-void runtime_monitor::finish()
+void
+runtime_monitor::finish()
 {
     _postrun_stats.check(_cursor);
     component::finish();

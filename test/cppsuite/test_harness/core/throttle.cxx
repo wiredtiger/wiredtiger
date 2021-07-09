@@ -37,9 +37,9 @@ throttle::throttle(const std::string &throttle_rate)
     std::string magnitude;
     uint64_t multiplier = 0;
     /*
-        * Find the ms, s, or m in the string. Searching for "ms" first as the following two
-        * searches would match as well.
-        */
+     * Find the ms, s, or m in the string. Searching for "ms" first as the following two searches
+     * would match as well.
+     */
     size_t pos = throttle_rate.find("ms");
     if (pos != std::string::npos)
         multiplier = 1;
@@ -61,18 +61,13 @@ throttle::throttle(const std::string &throttle_rate)
 }
 
 /* Use optional and default to 1s per op in case something doesn't define this. */
-throttle::throttle(configuration *config) 
-    : throttle(config->get_optional_string(OP_RATE, "1s"))
-{
-}
+throttle::throttle(configuration *config) : throttle(config->get_optional_string(OP_RATE, "1s")) {}
 
 /* Default to a second per operation. */
-throttle::throttle() 
-    : throttle("1s") 
-{
-}
+throttle::throttle() : throttle("1s") {}
 
-void throttle::sleep()
+void
+throttle::sleep()
 {
     std::this_thread::sleep_for(std::chrono::milliseconds(_ms));
 }

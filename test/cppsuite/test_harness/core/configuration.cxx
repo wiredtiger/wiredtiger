@@ -42,12 +42,11 @@ configuration::configuration(const std::string &test_config_name, const std::str
     _config = merge_default_config(default_config, config);
     log_msg(LOG_INFO, "Full config: " + _config);
 
-    int ret = wiredtiger_test_config_validate(
-        nullptr, nullptr, test_config_name.c_str(), _config.c_str());
+    int ret =
+      wiredtiger_test_config_validate(nullptr, nullptr, test_config_name.c_str(), _config.c_str());
     if (ret != 0)
         testutil_die(EINVAL, "failed to validate given config, ensure test config exists");
-    ret =
-        wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
+    ret = wiredtiger_config_parser_open(nullptr, _config.c_str(), _config.size(), &_config_parser);
     if (ret != 0)
         testutil_die(EINVAL, "failed to create configuration parser for provided config");
 }
@@ -69,79 +68,94 @@ configuration::~configuration()
     }
 }
 
-const std::string& configuration::get_config() const
+const std::string &
+configuration::get_config() const
 {
     return (_config);
 }
 
-std::string configuration::get_string(const std::string &key)
+std::string
+configuration::get_string(const std::string &key)
 {
     return get<std::string>(key, false, types::STRING, "", config_item_to_string);
 }
 
-std::string configuration::get_optional_string(const std::string &key, const std::string &def)
+std::string
+configuration::get_optional_string(const std::string &key, const std::string &def)
 {
     return get<std::string>(key, true, types::STRING, def, config_item_to_string);
 }
 
-bool configuration::get_bool(const std::string &key)
+bool
+configuration::get_bool(const std::string &key)
 {
     return get<bool>(key, false, types::BOOL, false, config_item_to_bool);
 }
 
-bool configuration::get_optional_bool(const std::string &key, const bool def)
+bool
+configuration::get_optional_bool(const std::string &key, const bool def)
 {
     return get<bool>(key, true, types::BOOL, def, config_item_to_bool);
 }
 
-int64_t configuration::get_int(const std::string &key)
+int64_t
+configuration::get_int(const std::string &key)
 {
     return get<int64_t>(key, false, types::INT, 0, config_item_to_int);
 }
 
-int64_t configuration::get_optional_int(const std::string &key, const int64_t def)
+int64_t
+configuration::get_optional_int(const std::string &key, const int64_t def)
 {
     return get<int64_t>(key, true, types::INT, def, config_item_to_int);
 }
 
-configuration* configuration::get_subconfig(const std::string &key)
+configuration *
+configuration::get_subconfig(const std::string &key)
 {
     return get<configuration *>(key, false, types::STRUCT, nullptr,
-        [](WT_CONFIG_ITEM item) { return new configuration(item); });
+      [](WT_CONFIG_ITEM item) { return new configuration(item); });
 }
 
-configuration* configuration::get_optional_subconfig(const std::string &key)
+configuration *
+configuration::get_optional_subconfig(const std::string &key)
 {
     return get<configuration *>(key, true, types::STRUCT, nullptr,
-        [](WT_CONFIG_ITEM item) { return new configuration(item); });
+      [](WT_CONFIG_ITEM item) { return new configuration(item); });
 }
 
-std::vector<std::string> configuration::get_list(const std::string &key)
+std::vector<std::string>
+configuration::get_list(const std::string &key)
 {
     return get<std::vector<std::string>>(key, false, types::LIST, {}, config_item_to_list);
 }
 
-std::vector<std::string> configuration::get_optional_list(const std::string &key)
+std::vector<std::string>
+configuration::get_optional_list(const std::string &key)
 {
     return get<std::vector<std::string>>(key, true, types::LIST, {}, config_item_to_list);
 }
 
-bool configuration::config_item_to_bool(const WT_CONFIG_ITEM item)
+bool
+configuration::config_item_to_bool(const WT_CONFIG_ITEM item)
 {
     return (item.val != 0);
 }
 
-int64_t configuration::config_item_to_int(const WT_CONFIG_ITEM item)
+int64_t
+configuration::config_item_to_int(const WT_CONFIG_ITEM item)
 {
     return (item.val);
 }
 
-std::string configuration::config_item_to_string(const WT_CONFIG_ITEM item)
+std::string
+configuration::config_item_to_string(const WT_CONFIG_ITEM item)
 {
     return std::string(item.str, item.len);
 }
 
-std::vector<std::string> configuration::config_item_to_list(const WT_CONFIG_ITEM item)
+std::vector<std::string>
+configuration::config_item_to_list(const WT_CONFIG_ITEM item)
 {
     auto str = config_item_to_string(item);
 
@@ -153,14 +167,16 @@ std::vector<std::string> configuration::config_item_to_list(const WT_CONFIG_ITEM
     return (split_string(str, ','));
 }
 
-std::string configuration::merge_default_config(const std::string &default_config, const std::string &user_config)
+std::string
+configuration::merge_default_config(
+  const std::string &default_config, const std::string &user_config)
 {
     std::string merged_config;
     auto split_default_config = split_config(default_config);
     auto split_user_config = split_config(user_config);
     auto user_it = split_user_config.begin();
-    for (auto default_it = split_default_config.begin();
-            default_it != split_default_config.end(); ++default_it) {
+    for (auto default_it = split_default_config.begin(); default_it != split_default_config.end();
+         ++default_it) {
         if (user_it->first != default_it->first)
             /* The default does not exist in the user configuration, add it. */
             merged_config += default_it->first + "=" + default_it->second;
@@ -168,7 +184,7 @@ std::string configuration::merge_default_config(const std::string &default_confi
             /* If we have a sub config merge it in. */
             if (user_it->second[0] == '(')
                 merged_config += default_it->first + "=(" +
-                    merge_default_config(default_it->second, user_it->second) + ')';
+                  merge_default_config(default_it->second, user_it->second) + ')';
             else
                 /* Add the user configuration as it exists. */
                 merged_config += user_it->first + "=" + user_it->second;
@@ -181,7 +197,8 @@ std::string configuration::merge_default_config(const std::string &default_confi
     return (merged_config);
 }
 
-std::vector<std::pair<std::string, std::string>> configuration::split_config(const std::string &config)
+std::vector<std::pair<std::string, std::string>>
+configuration::split_config(const std::string &config)
 {
     std::string cut_config = config;
     std::vector<std::pair<std::string, std::string>> split_config;
@@ -236,7 +253,9 @@ std::vector<std::pair<std::string, std::string>> configuration::split_config(con
     return (split_config);
 }
 
-bool configuration::comparator(std::pair<std::string, std::string> a, std::pair<std::string, std::string> b)
+bool
+configuration::comparator(
+  std::pair<std::string, std::string> a, std::pair<std::string, std::string> b)
 {
     return (a.first < b.first);
 }

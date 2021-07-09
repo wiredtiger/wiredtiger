@@ -32,7 +32,7 @@
 
 namespace test_harness {
 
-// scoped_cursor implementation
+/* scoped_cursor implementation */
 scoped_cursor::scoped_cursor(WT_SESSION *session, const char *uri, const char *cfg)
 {
     reinit(session, uri, cfg);
@@ -49,14 +49,16 @@ scoped_cursor::~scoped_cursor()
         testutil_check(_cursor->close(_cursor));
 }
 
-scoped_cursor& scoped_cursor::operator=(scoped_cursor &&other)
+scoped_cursor &
+scoped_cursor::operator=(scoped_cursor &&other)
 {
     scoped_cursor tmp(std::move(other));
     std::swap(_cursor, tmp._cursor);
     return (*this);
 }
 
-void scoped_cursor::reinit(WT_SESSION *session, const char *uri, const char *cfg)
+void
+scoped_cursor::reinit(WT_SESSION *session, const char *uri, const char *cfg)
 {
     if (_cursor != nullptr) {
         testutil_check(_cursor->close(_cursor));
@@ -66,22 +68,25 @@ void scoped_cursor::reinit(WT_SESSION *session, const char *uri, const char *cfg
         testutil_check(session->open_cursor(session, uri, nullptr, cfg, &_cursor));
 }
 
-WT_CURSOR& scoped_cursor::operator*()
+WT_CURSOR &
+scoped_cursor::operator*()
 {
     return (*_cursor);
 }
 
-WT_CURSOR* scoped_cursor::operator->()
+WT_CURSOR *
+scoped_cursor::operator->()
 {
     return (_cursor);
 }
 
-WT_CURSOR* scoped_cursor::get()
+WT_CURSOR *
+scoped_cursor::get()
 {
     return (_cursor);
 }
 
-// scoped_session implementation
+/* scoped_session implementation */
 scoped_session::scoped_session(WT_CONNECTION *conn)
 {
     reinit(conn);
@@ -98,14 +103,16 @@ scoped_session::scoped_session(scoped_session &&other)
     std::swap(_session, other._session);
 }
 
-scoped_session& scoped_session::operator=(scoped_session &&other)
+scoped_session &
+scoped_session::operator=(scoped_session &&other)
 {
     scoped_session tmp(std::move(other));
     std::swap(_session, tmp._session);
     return (*this);
 }
 
-void scoped_session::reinit(WT_CONNECTION *conn)
+void
+scoped_session::reinit(WT_CONNECTION *conn)
 {
     if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
@@ -115,22 +122,26 @@ void scoped_session::reinit(WT_CONNECTION *conn)
         testutil_check(conn->open_session(conn, nullptr, nullptr, &_session));
 }
 
-WT_SESSION& scoped_session::operator*()
+WT_SESSION &
+scoped_session::operator*()
 {
     return (*_session);
 }
 
-WT_SESSION* scoped_session::operator->()
+WT_SESSION *
+scoped_session::operator->()
 {
     return (_session);
 }
 
-WT_SESSION* scoped_session::get()
+WT_SESSION *
+scoped_session::get()
 {
     return (_session);
 }
 
-scoped_cursor scoped_session::open_scoped_cursor(const char *uri, const char *cfg)
+scoped_cursor
+scoped_session::open_scoped_cursor(const char *uri, const char *cfg)
 {
     return (scoped_cursor(_session, uri, cfg));
 }

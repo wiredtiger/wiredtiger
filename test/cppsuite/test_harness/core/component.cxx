@@ -29,9 +29,8 @@
 #include "component.h"
 #include "test_harness/util/api_const.h"
 
-namespace test_harness{
-component::component(const std::string &name, configuration *config) 
-    : _name(name), _config(config) 
+namespace test_harness {
+component::component(const std::string &name, configuration *config) : _name(name), _config(config)
 {
 }
 
@@ -40,7 +39,8 @@ component::~component()
     delete _config;
 }
 
-void component::load()
+void
+component::load()
 {
     log_msg(LOG_INFO, "Loading component: " + _name);
     _enabled = _config->get_optional_bool(ENABLED, true);
@@ -49,7 +49,8 @@ void component::load()
     _running = _enabled;
 }
 
-void component::run()
+void
+component::run()
 {
     log_msg(LOG_INFO, "Running component: " + _name);
     while (_enabled && _running) {
@@ -58,17 +59,20 @@ void component::run()
     }
 }
 
-void component::do_work()
+void
+component::do_work()
 {
     /* Not implemented. */
 }
 
-bool component::enabled() const
+bool
+component::enabled() const
 {
     return (_enabled);
 }
 
-void component::finish()
+void
+component::finish()
 {
     log_msg(LOG_INFO, "Finishing component: " + _name);
     _running = false;

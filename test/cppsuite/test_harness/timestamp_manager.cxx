@@ -35,7 +35,8 @@
 #include "util/api_const.h"
 
 namespace test_harness {
-const std::string timestamp_manager::decimal_to_hex(uint64_t value)
+const std::string
+timestamp_manager::decimal_to_hex(uint64_t value)
 {
     std::stringstream ss;
     ss << std::hex << value;
@@ -43,12 +44,12 @@ const std::string timestamp_manager::decimal_to_hex(uint64_t value)
     return (res);
 }
 
-timestamp_manager::timestamp_manager(configuration *config) 
-    : component("timestamp_manager", config) 
+timestamp_manager::timestamp_manager(configuration *config) : component("timestamp_manager", config)
 {
 }
 
-void timestamp_manager::load()
+void
+timestamp_manager::load()
 {
     component::load();
     int64_t oldest_lag = _config->get_int(OLDEST_LAG);
@@ -64,7 +65,8 @@ void timestamp_manager::load()
     _stable_lag <<= 32;
 }
 
-void timestamp_manager::do_work()
+void
+timestamp_manager::do_work()
 {
     std::string config;
     /* latest_ts_s represents the time component of the latest timestamp provided. */
@@ -99,9 +101,9 @@ void timestamp_manager::do_work()
     }
 
     /*
-     * Save the new timestamps. Any timestamps that we're viewing from another thread should be
-     * set AFTER we've saved the new timestamps to avoid races where we sweep data that is not
-     * yet obsolete.
+     * Save the new timestamps. Any timestamps that we're viewing from another thread should be set
+     * AFTER we've saved the new timestamps to avoid races where we sweep data that is not yet
+     * obsolete.
      */
     if (!config.empty()) {
         connection_manager::instance().set_timestamp(config);
@@ -109,7 +111,8 @@ void timestamp_manager::do_work()
     }
 }
 
-wt_timestamp_t timestamp_manager::get_next_ts()
+wt_timestamp_t
+timestamp_manager::get_next_ts()
 {
     uint64_t current_time = get_time_now_s();
     uint64_t increment = _increment_ts.fetch_add(1);
@@ -117,17 +120,18 @@ wt_timestamp_t timestamp_manager::get_next_ts()
     return (current_time);
 }
 
-wt_timestamp_t timestamp_manager::get_oldest_ts() const
+wt_timestamp_t
+timestamp_manager::get_oldest_ts() const
 {
     return (_oldest_ts);
 }
 
-uint64_t timestamp_manager::get_time_now_s() const
+uint64_t
+timestamp_manager::get_time_now_s() const
 {
     auto now = std::chrono::system_clock::now().time_since_epoch();
     uint64_t current_time_s =
-        static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count())
-        << 32;
+      static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count()) << 32;
     return (current_time_s);
 }
 } // namespace test_harness
