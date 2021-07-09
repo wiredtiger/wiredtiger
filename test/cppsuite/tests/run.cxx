@@ -37,14 +37,6 @@
 #include "example_test.cxx"
 #include "hs_cleanup.cxx"
 
-namespace test_harness {
-/*
- * FIXME-WT-7782: This needs to exist in a single translation unit. At the moment, almost everything
- * is in headers so the only reasonable spot to put it is here.
- */
-std::mutex _logger_mtx;
-} // namespace test_harness
-
 std::string
 parse_configuration_from_file(const std::string &filename)
 {
@@ -114,7 +106,7 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 {
     int error_code = 0;
 
-    test_harness::log_msg(LOG_TRACE, "Configuration\t:" + config);
+    test_harness::Logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
 
     if (test_name == "base_test")
         base_test(test_harness::test_args{config,test_name, wt_open_config}).run();
@@ -123,12 +115,12 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     else if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config,test_name, wt_open_config}).run();
     else {
-        test_harness::log_msg(LOG_ERROR, "Test not found: " + test_name);
+        test_harness::Logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
     }
 
     if (error_code == 0)
-        test_harness::log_msg(LOG_INFO, "Test " + test_name + " done.");
+        test_harness::Logger::log_msg(LOG_INFO, "Test " + test_name + " done.");
 
     return (error_code);
 }
@@ -172,7 +164,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-c") {
             if (!config_filename.empty()) {
-                test_harness::log_msg(LOG_ERROR, "Option -C cannot be used with -f");
+                test_harness::Logger::log_msg(LOG_ERROR, "Option -C cannot be used with -f");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
@@ -180,7 +172,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
-                test_harness::log_msg(LOG_ERROR, "Option -f cannot be used with -C");
+                test_harness::Logger::log_msg(LOG_ERROR, "Option -f cannot be used with -C");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 config_filename = argv[++i];
@@ -201,11 +193,11 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        test_harness::log_msg(
+        test_harness::Logger::log_msg(
           LOG_INFO, "Trace level: " + std::to_string(test_harness::_trace_level));
         if (test_name.empty()) {
             /* Run all tests. */
-            test_harness::log_msg(LOG_INFO, "Running all tests.");
+            test_harness::Logger::log_msg(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
                 current_test_name = it;
                 /* Configuration parsing. */
@@ -232,9 +224,9 @@ main(int argc, char *argv[])
         }
 
         if (error_code != 0)
-            test_harness::log_msg(LOG_ERROR, "Test " + current_test_name + " failed.");
+            test_harness::Logger::log_msg(LOG_ERROR, "Test " + current_test_name + " failed.");
     } else
-        test_harness::log_msg(LOG_ERROR, "Invalid command line arguments supplied. Try "
+        test_harness::Logger::log_msg(LOG_ERROR, "Invalid command line arguments supplied. Try "
           "'./run -h' for help.");
 
     return (error_code);

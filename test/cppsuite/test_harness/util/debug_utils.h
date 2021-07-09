@@ -65,54 +65,13 @@ static int64_t _trace_level = LOG_WARN;
 /* Include date in the logs if enabled. */
 static bool _include_date = true;
 
-/* Mutex used by logger to synchronize printing. */
-extern std::mutex _logger_mtx;
-
-static void
-get_time(char *time_buf, size_t buf_size)
+class Logger
 {
-    size_t alloc_size;
-    struct timespec tsp;
-    struct tm *tm, _tm;
-
-    /* Get time since epoch in nanoseconds. */
-    uint64_t epoch_nanosec = std::chrono::high_resolution_clock::now().time_since_epoch().count();
-
-    /* Calculate time since epoch in seconds. */
-    time_t time_epoch_sec = epoch_nanosec / WT_BILLION;
-
-    tm = localtime_r(&time_epoch_sec, &_tm);
-
-    alloc_size =
-      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
-
-    testutil_assert(alloc_size <= buf_size);
-    WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
-      (uint64_t)epoch_nanosec % WT_BILLION));
-}
-
-/* Used to print out traces for debugging purpose. */
-static void
-log_msg(int64_t trace_type, const std::string &str)
-{
-    if (_trace_level >= trace_type) {
-        testutil_assert(
-          trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
-
-        char time_buf[64];
-        get_time(time_buf, sizeof(time_buf));
-
-        std::ostringstream ss;
-        ss << time_buf << "[TID:" << std::this_thread::get_id() << "][" << LOG_LEVELS[trace_type]
-           << "]: " << str << std::endl;
-
-        std::lock_guard<std::mutex> lg(_logger_mtx);
-        if (trace_type == LOG_ERROR)
-            std::cerr << ss.str();
-        else
-            std::cout << ss.str();
-    }
-}
+public:  
+    /* Used to print out traces for debugging purpose. */
+    static void
+    log_msg(int64_t trace_type, const std::string &str);
+};
 } // namespace test_harness
 
 #endif

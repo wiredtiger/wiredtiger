@@ -49,7 +49,7 @@ checkpoint_manager::load()
 void
 checkpoint_manager::do_work()
 {
-    log_msg(LOG_INFO, "Running checkpoint");
+    Logger::log_msg(LOG_INFO, "Running checkpoint");
     testutil_check(_session->checkpoint(_session.get(), nullptr));
 }
 } // namespace test_harness

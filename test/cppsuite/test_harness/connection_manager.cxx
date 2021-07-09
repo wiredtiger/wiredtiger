@@ -51,10 +51,10 @@ void
 connection_manager::create(const std::string &config, const std::string &home)
 {
     if (_conn != nullptr) {
-        log_msg(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
+        Logger::log_msg(LOG_ERROR, "Connection is not NULL, cannot be re-opened.");
         testutil_die(EINVAL, "Connection is not NULL");
     }
-    log_msg(LOG_INFO, "wiredtiger_open config: " + config);
+    Logger::log_msg(LOG_INFO, "wiredtiger_open config: " + config);
 
     /* Create the working dir. */
     testutil_make_work_dir(home.c_str());
@@ -67,7 +67,7 @@ scoped_session
 connection_manager::create_session()
 {
     if (_conn == nullptr) {
-        log_msg(LOG_ERROR,
+        Logger::log_msg(LOG_ERROR,
           "Connection is NULL, did you forget to call "
           "connection_manager::create ?");
         testutil_die(EINVAL, "Connection is NULL");

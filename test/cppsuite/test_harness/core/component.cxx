@@ -42,7 +42,7 @@ component::~component()
 void
 component::load()
 {
-    log_msg(LOG_INFO, "Loading component: " + _name);
+    Logger::log_msg(LOG_INFO, "Loading component: " + _name);
     _enabled = _config->get_optional_bool(ENABLED, true);
     _throttle = throttle(_config);
     /* If we're not enabled we shouldn't be running. */
@@ -52,7 +52,7 @@ component::load()
 void
 component::run()
 {
-    log_msg(LOG_INFO, "Running component: " + _name);
+    Logger::log_msg(LOG_INFO, "Running component: " + _name);
     while (_enabled && _running) {
         do_work();
         _throttle.sleep();
@@ -74,7 +74,7 @@ component::enabled() const
 void
 component::finish()
 {
-    log_msg(LOG_INFO, "Finishing component: " + _name);
+    Logger::log_msg(LOG_INFO, "Finishing component: " + _name);
     _running = false;
 }
 } // namespace test_harness
