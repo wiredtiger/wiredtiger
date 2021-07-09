@@ -508,6 +508,13 @@ struct __wt_connection_stats {
     int64_t cursor_next_read_ts_less_than_eq_newest_stop;
     int64_t cursor_next_read_ts_less_than_eq_newest_stop_dur;
     int64_t cursor_next_read_ts_none;
+    int64_t cursor_prev_addr_copy_fail;
+    int64_t cursor_prev_cbt_ref;
+    int64_t cursor_prev_newest_stop_dur_none;
+    int64_t cursor_prev_newest_stop_ts_none;
+    int64_t cursor_prev_read_ts_less_than_eq_newest_stop;
+    int64_t cursor_prev_read_ts_less_than_eq_newest_stop_dur;
+    int64_t cursor_prev_read_ts_none;
     int64_t cursor_next_skip_noread_pages;
     int64_t cursor_prev_skip_noread_pages;
     int64_t cursor_next_skip_pages;
@@ -948,6 +955,13 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_read_ts_less_than_eq_newest_stop;
     int64_t cursor_next_read_ts_less_than_eq_newest_stop_dur;
     int64_t cursor_next_read_ts_none;
+    int64_t cursor_prev_addr_copy_fail;
+    int64_t cursor_prev_cbt_ref;
+    int64_t cursor_prev_newest_stop_dur_none;
+    int64_t cursor_prev_newest_stop_ts_none;
+    int64_t cursor_prev_read_ts_less_than_eq_newest_stop;
+    int64_t cursor_prev_read_ts_less_than_eq_newest_stop_dur;
+    int64_t cursor_prev_read_ts_none;
     int64_t cursor_next_skip_noread_pages;
     int64_t cursor_prev_skip_noread_pages;
     int64_t cursor_next_skip_pages;

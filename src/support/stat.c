@@ -146,6 +146,14 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of pages skipped (no read) - "
   "cursor_next_read_ts_less_than_eq_newest_stop_dur",
   "cursor: Total number of pages skipped (no read) - cursor_next_read_ts_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_addr_copy_fail",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_cbt_ref_null",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_newest_stop_dur_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_newest_stop_ts_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_read_ts_less_than_eq_newest_stop",
+  "cursor: Total number of pages skipped (no read) - "
+  "cursor_prev_read_ts_less_than_eq_newest_stop_dur",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_read_ts_none",
   "cursor: Total number of pages skipped (no read) by cursor next calls",
   "cursor: Total number of pages skipped (no read) by cursor prev calls",
   "cursor: Total number of pages skipped by cursor next calls",
@@ -412,6 +420,13 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_read_ts_less_than_eq_newest_stop = 0;
     stats->cursor_next_read_ts_less_than_eq_newest_stop_dur = 0;
     stats->cursor_next_read_ts_none = 0;
+    stats->cursor_prev_addr_copy_fail = 0;
+    stats->cursor_prev_cbt_ref = 0;
+    stats->cursor_prev_newest_stop_dur_none = 0;
+    stats->cursor_prev_newest_stop_ts_none = 0;
+    stats->cursor_prev_read_ts_less_than_eq_newest_stop = 0;
+    stats->cursor_prev_read_ts_less_than_eq_newest_stop_dur = 0;
+    stats->cursor_prev_read_ts_none = 0;
     stats->cursor_next_skip_noread_pages = 0;
     stats->cursor_prev_skip_noread_pages = 0;
     stats->cursor_next_skip_pages = 0;
@@ -665,6 +680,15 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_read_ts_less_than_eq_newest_stop_dur +=
       from->cursor_next_read_ts_less_than_eq_newest_stop_dur;
     to->cursor_next_read_ts_none += from->cursor_next_read_ts_none;
+    to->cursor_prev_addr_copy_fail += from->cursor_prev_addr_copy_fail;
+    to->cursor_prev_cbt_ref += from->cursor_prev_cbt_ref;
+    to->cursor_prev_newest_stop_dur_none += from->cursor_prev_newest_stop_dur_none;
+    to->cursor_prev_newest_stop_ts_none += from->cursor_prev_newest_stop_ts_none;
+    to->cursor_prev_read_ts_less_than_eq_newest_stop +=
+      from->cursor_prev_read_ts_less_than_eq_newest_stop;
+    to->cursor_prev_read_ts_less_than_eq_newest_stop_dur +=
+      from->cursor_prev_read_ts_less_than_eq_newest_stop_dur;
+    to->cursor_prev_read_ts_none += from->cursor_prev_read_ts_none;
     to->cursor_next_skip_noread_pages += from->cursor_next_skip_noread_pages;
     to->cursor_prev_skip_noread_pages += from->cursor_prev_skip_noread_pages;
     to->cursor_next_skip_pages += from->cursor_next_skip_pages;
@@ -921,6 +945,15 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_read_ts_less_than_eq_newest_stop_dur +=
       WT_STAT_READ(from, cursor_next_read_ts_less_than_eq_newest_stop_dur);
     to->cursor_next_read_ts_none += WT_STAT_READ(from, cursor_next_read_ts_none);
+    to->cursor_prev_addr_copy_fail += WT_STAT_READ(from, cursor_prev_addr_copy_fail);
+    to->cursor_prev_cbt_ref += WT_STAT_READ(from, cursor_prev_cbt_ref);
+    to->cursor_prev_newest_stop_dur_none += WT_STAT_READ(from, cursor_prev_newest_stop_dur_none);
+    to->cursor_prev_newest_stop_ts_none += WT_STAT_READ(from, cursor_prev_newest_stop_ts_none);
+    to->cursor_prev_read_ts_less_than_eq_newest_stop +=
+      WT_STAT_READ(from, cursor_prev_read_ts_less_than_eq_newest_stop);
+    to->cursor_prev_read_ts_less_than_eq_newest_stop_dur +=
+      WT_STAT_READ(from, cursor_prev_read_ts_less_than_eq_newest_stop_dur);
+    to->cursor_prev_read_ts_none += WT_STAT_READ(from, cursor_prev_read_ts_none);
     to->cursor_next_skip_noread_pages += WT_STAT_READ(from, cursor_next_skip_noread_pages);
     to->cursor_prev_skip_noread_pages += WT_STAT_READ(from, cursor_prev_skip_noread_pages);
     to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
@@ -1223,6 +1256,14 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of pages skipped (no read) - "
   "cursor_next_read_ts_less_than_eq_newest_stop_dur",
   "cursor: Total number of pages skipped (no read) - cursor_next_read_ts_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_addr_copy_fail",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_cbt_ref_null",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_newest_stop_dur_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_newest_stop_ts_none",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_read_ts_less_than_eq_newest_stop",
+  "cursor: Total number of pages skipped (no read) - "
+  "cursor_prev_read_ts_less_than_eq_newest_stop_dur",
+  "cursor: Total number of pages skipped (no read) - cursor_prev_read_ts_none",
   "cursor: Total number of pages skipped (no read) by cursor next calls",
   "cursor: Total number of pages skipped (no read) by cursor prev calls",
   "cursor: Total number of pages skipped by cursor next calls",
@@ -1757,6 +1798,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next_read_ts_less_than_eq_newest_stop = 0;
     stats->cursor_next_read_ts_less_than_eq_newest_stop_dur = 0;
     stats->cursor_next_read_ts_none = 0;
+    stats->cursor_prev_addr_copy_fail = 0;
+    stats->cursor_prev_cbt_ref = 0;
+    stats->cursor_prev_newest_stop_dur_none = 0;
+    stats->cursor_prev_newest_stop_ts_none = 0;
+    stats->cursor_prev_read_ts_less_than_eq_newest_stop = 0;
+    stats->cursor_prev_read_ts_less_than_eq_newest_stop_dur = 0;
+    stats->cursor_prev_read_ts_none = 0;
     stats->cursor_next_skip_noread_pages = 0;
     stats->cursor_prev_skip_noread_pages = 0;
     stats->cursor_next_skip_pages = 0;
@@ -2290,6 +2338,15 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_read_ts_less_than_eq_newest_stop_dur +=
       WT_STAT_READ(from, cursor_next_read_ts_less_than_eq_newest_stop_dur);
     to->cursor_next_read_ts_none += WT_STAT_READ(from, cursor_next_read_ts_none);
+    to->cursor_prev_addr_copy_fail += WT_STAT_READ(from, cursor_prev_addr_copy_fail);
+    to->cursor_prev_cbt_ref += WT_STAT_READ(from, cursor_prev_cbt_ref);
+    to->cursor_prev_newest_stop_dur_none += WT_STAT_READ(from, cursor_prev_newest_stop_dur_none);
+    to->cursor_prev_newest_stop_ts_none += WT_STAT_READ(from, cursor_prev_newest_stop_ts_none);
+    to->cursor_prev_read_ts_less_than_eq_newest_stop +=
+      WT_STAT_READ(from, cursor_prev_read_ts_less_than_eq_newest_stop);
+    to->cursor_prev_read_ts_less_than_eq_newest_stop_dur +=
+      WT_STAT_READ(from, cursor_prev_read_ts_less_than_eq_newest_stop_dur);
+    to->cursor_prev_read_ts_none += WT_STAT_READ(from, cursor_prev_read_ts_none);
     to->cursor_next_skip_noread_pages += WT_STAT_READ(from, cursor_next_skip_noread_pages);
     to->cursor_prev_skip_noread_pages += WT_STAT_READ(from, cursor_prev_skip_noread_pages);
     to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
