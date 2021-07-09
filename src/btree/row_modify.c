@@ -375,9 +375,9 @@ __wt_update_obsolete_check(
      */
     if (count > 20 && page->modify != NULL) {
         page->modify->obsolete_check_txn = txn_global->last_running;
+        page->modify->obsolete_check_old_timestamp = oldest;
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
     }
-
     return (NULL);
 }

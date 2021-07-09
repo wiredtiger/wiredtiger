@@ -221,11 +221,15 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
   WT_UPDATE **srch_upd, WT_UPDATE **updp, size_t upd_size, bool exclusive)
 {
     WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *obsolete, *upd;
     wt_timestamp_t obsolete_timestamp, prev_upd_ts;
+    
     uint64_t txn;
 
     /* Clear references to memory we now own and must free on error. */
+    obsolete = NULL;
+    txn_global = &S2C(session)->txn_global;
     upd = *updp;
     *updp = NULL;
     prev_upd_ts = WT_TS_NONE;
@@ -293,8 +297,8 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return (0);
 
-    //__wt_update_obsolete_check(session, page, upd->next, true);
-    
+    if (txn_global->has_oldest_timestamp && txn_global->oldest_timestamp > page->modify->obsolete_check_old_timestamp)
+        obsolete = __wt_update_obsolete_check(session, page, upd->next, true);
     WT_PAGE_UNLOCK(session, page);
 
     __wt_free_update_list(session, &obsolete);
