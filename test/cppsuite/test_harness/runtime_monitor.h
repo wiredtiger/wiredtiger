@@ -42,21 +42,6 @@ extern "C" {
 #include "util/scoped_types.h"
 
 namespace test_harness {
-/*
- * The WiredTiger configuration API doesn't accept string statistic names when retrieving statistic
- * values. This function provides the required mapping to statistic id. We should consider
- * generating it programmatically in `stat.py` to avoid having to manually add a condition every
- * time we want to observe a new postrun statistic.
- */
-inline int
-get_stat_field(const std::string &name)
-{
-    if (name == "cache_hs_insert")
-        return (WT_STAT_CONN_CACHE_HS_INSERT);
-    else if (name == "cc_pages_removed")
-        return (WT_STAT_CONN_CC_PAGES_REMOVED);
-    testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
-}
 
 class runtime_statistic {
     public:
@@ -109,11 +94,8 @@ class postrun_statistic_check {
 
     private:
     struct postrun_statistic {
-        postrun_statistic(std::string &&name, const int64_t min_limit, const int64_t max_limit)
-            : name(std::move(name)), field(get_stat_field(this->name)), min_limit(min_limit),
-              max_limit(max_limit)
-        {
-        }
+        postrun_statistic(std::string &&name, const int64_t min_limit, const int64_t max_limit);
+        
         const std::string name;
         const int field;
         const int64_t min_limit, max_limit;

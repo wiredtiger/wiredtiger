@@ -57,6 +57,23 @@ collection_name_to_file_name(const std::string &collection_name)
     return (std::string(DEFAULT_DIR) + "/" + stripped_name + ".wt");
 }
 
+/* Inline methods implementation. */
+/*
+ * The WiredTiger configuration API doesn't accept string statistic names when retrieving statistic
+ * values. This function provides the required mapping to statistic id. We should consider
+ * generating it programmatically in `stat.py` to avoid having to manually add a condition every
+ * time we want to observe a new postrun statistic.
+ */
+inline int
+get_stat_field(const std::string &name)
+{
+    if (name == "cache_hs_insert")
+        return (WT_STAT_CONN_CACHE_HS_INSERT);
+    else if (name == "cc_pages_removed")
+        return (WT_STAT_CONN_CC_PAGES_REMOVED);
+    testutil_die(EINVAL, "get_stat_field: Stat \"%s\" is unrecognized", name.c_str());
+}
+
 /* runtime_statistic class implementation */
 runtime_statistic::runtime_statistic(configuration *config)
 {
@@ -153,6 +170,13 @@ db_size_statistic::get_file_names()
 }
 
 /* postrun_statistic_check class implementation */
+postrun_statistic_check::postrun_statistic::postrun_statistic(std::string &&name, 
+    const int64_t min_limit, const int64_t max_limit)
+    : name(std::move(name)), field(get_stat_field(this->name)), min_limit(min_limit),
+        max_limit(max_limit)
+{
+}
+
 postrun_statistic_check::postrun_statistic_check(configuration *config)
 {
     const auto config_stats = config->get_list(POSTRUN_STATISTICS);
