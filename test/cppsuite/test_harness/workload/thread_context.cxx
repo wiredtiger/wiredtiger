@@ -45,6 +45,18 @@ transaction_context::transaction_context(
     }
 }
 
+bool
+transaction_context::active() const
+{
+    return (_in_txn);
+}
+
+void
+transaction_context::add_op()
+{
+    _op_count++;
+}
+
 void
 transaction_context::begin(WT_SESSION *session, const std::string &config)
 {
@@ -57,30 +69,11 @@ transaction_context::begin(WT_SESSION *session, const std::string &config)
     _in_txn = true;
 }
 
-bool
-transaction_context::active() const
-{
-    return (_in_txn);
-}
-
 void
 transaction_context::try_begin(WT_SESSION *session, const std::string &config)
 {
     if (!_in_txn)
         begin(session, config);
-}
-
-void
-transaction_context::add_op()
-{
-    _op_count++;
-}
-
-void
-transaction_context::try_commit(WT_SESSION *session, const std::string &config)
-{
-    if (can_commit_rollback())
-        commit(session, config);
 }
 
 void
@@ -93,10 +86,10 @@ transaction_context::commit(WT_SESSION *session, const std::string &config)
 }
 
 void
-transaction_context::try_rollback(WT_SESSION *session, const std::string &config)
+transaction_context::try_commit(WT_SESSION *session, const std::string &config)
 {
     if (can_commit_rollback())
-        rollback(session, config);
+        commit(session, config);
 }
 
 void
@@ -107,6 +100,13 @@ transaction_context::rollback(WT_SESSION *session, const std::string &config)
       session->rollback_transaction(session, config.empty() ? nullptr : config.c_str()));
     _op_count = 0;
     _in_txn = false;
+}
+
+void
+transaction_context::try_rollback(WT_SESSION *session, const std::string &config)
+{
+    if (can_commit_rollback())
+        rollback(session, config);
 }
 
 void

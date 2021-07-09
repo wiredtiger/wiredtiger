@@ -90,8 +90,7 @@ class configuration {
     enum class types { BOOL, INT, LIST, STRING, STRUCT };
 
     template <typename T>
-    T
-    get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));
+    T get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item));
 
     /*
      * Merge together two configuration strings, the user one and the default one.

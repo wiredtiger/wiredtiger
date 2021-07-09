@@ -62,27 +62,18 @@ class transaction_context {
     public:
     explicit transaction_context(configuration *config, timestamp_manager *timestamp_manager);
 
-    void begin(WT_SESSION *session, const std::string &config);
     bool active() const;
-
+    void add_op();
+    void begin(WT_SESSION *session, const std::string &config);
     /* Begin a transaction if we are not currently in one. */
     void try_begin(WT_SESSION *session, const std::string &config);
-
-    void add_op();
-
+    void commit(WT_SESSION *session, const std::string &config);
     /* Attempt to commit the transaction given the requirements are met. */
     void try_commit(WT_SESSION *session, const std::string &config);
-
-    void commit(WT_SESSION *session, const std::string &config);
-
+    void rollback(WT_SESSION *session, const std::string &config);
     /* Attempt to rollback the transaction given the requirements are met. */
     void try_rollback(WT_SESSION *session, const std::string &config);
-
-    void rollback(WT_SESSION *session, const std::string &config);
-
-    /*
-     * Set a commit timestamp.
-     */
+    /* Set a commit timestamp. */
     void set_commit_timestamp(WT_SESSION *session, wt_timestamp_t ts);
 
     private:
