@@ -15,7 +15,6 @@
 static int
 __block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id)
 {
-    WT_DECL_RET;
     WT_FH *new_fh, *old_fh;
 
     /*
@@ -25,15 +24,12 @@ __block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t obj
      * requests in flight.
      */
     old_fh = block->fh;
-    WT_ERR(block->opener->open(
+    WT_RET(block->opener->open(
       block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &new_fh));
     block->fh = new_fh;
     block->objectid = object_id;
 
-    WT_ERR(__wt_close(session, &old_fh));
-
-err:
-    return (ret);
+    return (__wt_close(session, &old_fh));
 }
 
 /*
@@ -43,9 +39,6 @@ err:
 int
 __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, WT_FH **fhp)
 {
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-
     /*
      * FIXME-WT-7470: take a read lock to get a handle, and a write lock to open a handle or extend
      * the array.
@@ -63,15 +56,12 @@ __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_
     if ((*fhp = block->ofh[object_id]) != NULL)
         return (0);
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
+    WT_RET(block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
       WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]));
     *fhp = block->ofh[object_id];
     WT_ASSERT(session, *fhp != NULL);
 
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+    return (0);
 }
 
 /*
