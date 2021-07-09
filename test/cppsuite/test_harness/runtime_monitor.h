@@ -42,13 +42,6 @@ extern "C" {
 #include "util/scoped_types.h"
 
 namespace test_harness {
-/* Static statistic get function. */
-static void
-get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep);
-
-static std::string
-collection_name_to_file_name(const std::string &collection_name);
-
 /*
  * The WiredTiger configuration API doesn't accept string statistic names when retrieving statistic
  * values. This function provides the required mapping to statistic id. We should consider
