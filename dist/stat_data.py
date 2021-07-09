@@ -828,6 +828,14 @@ conn_dsrc_stats = [
     CursorStat('cursor_next_read_ts_less_than_eq_newest_stop', 'Total number of pages skipped (no read) - cursor_next_read_ts_less_than_eq_newest_stop'),
     CursorStat('cursor_next_newest_stop_dur_none', 'Total number of pages skipped (no read) - cursor_next_newest_stop_dur_none'),
     CursorStat('cursor_next_read_ts_less_than_eq_newest_stop_dur', 'Total number of pages skipped (no read) - cursor_next_read_ts_less_than_eq_newest_stop_dur'),
+    
+    CursorStat('cursor_prev_cbt_ref', 'Total number of pages skipped (no read) - cursor_prev_cbt_ref_null'),
+    CursorStat('cursor_prev_addr_copy_fail', 'Total number of pages skipped (no read) - cursor_prev_addr_copy_fail'),
+    CursorStat('cursor_prev_newest_stop_ts_none', 'Total number of pages skipped (no read) - cursor_prev_newest_stop_ts_none'),
+    CursorStat('cursor_prev_read_ts_none', 'Total number of pages skipped (no read) - cursor_prev_read_ts_none'),
+    CursorStat('cursor_prev_read_ts_less_than_eq_newest_stop', 'Total number of pages skipped (no read) - cursor_prev_read_ts_less_than_eq_newest_stop'),
+    CursorStat('cursor_prev_newest_stop_dur_none', 'Total number of pages skipped (no read) - cursor_prev_newest_stop_dur_none'),
+    CursorStat('cursor_prev_read_ts_less_than_eq_newest_stop_dur', 'Total number of pages skipped (no read) - cursor_prev_read_ts_less_than_eq_newest_stop_dur'),
 
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),

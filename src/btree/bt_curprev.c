@@ -653,17 +653,17 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 newest_stop_ts_none++;
             if (txn_shared->read_timestamp == WT_TS_NONE)
                 read_ts_none++;
-            if (txn_shared->read_timestamp <= addr.ta.newest_stop_ts)
+            if (txn_shared->read_timestamp < addr.ta.newest_stop_ts)
                 read_ts_less_than_eq_newest_stop++;
             if (addr.ta.newest_stop_durable_ts == WT_TS_NONE)
                 newest_stop_dur_none++;
-            if (txn_shared->read_timestamp <= addr.ta.newest_stop_durable_ts)
+            if (txn_shared->read_timestamp < addr.ta.newest_stop_durable_ts)
                 read_ts_less_than_eq_newest_stop_dur++;
 
             if ((addr.ta.newest_stop_ts != WT_TS_NONE &&
-                  txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
+                  txn_shared->read_timestamp >= addr.ta.newest_stop_ts) ||
               (addr.ta.newest_stop_durable_ts != WT_TS_NONE &&
-                txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts)) {
+                txn_shared->read_timestamp >= addr.ta.newest_stop_durable_ts)) {
                 pages_skipped_noread++;
                 goto skip_read;
             }
@@ -760,14 +760,14 @@ skip_read:
 
 err:
     WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_noread_pages, pages_skipped_noread);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_cbt_ref, cbt_ref_null);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_addr_copy_fail, addr_copy_fail);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_newest_stop_ts_none, newest_stop_ts_none);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_read_ts_none, read_ts_none);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_cbt_ref, cbt_ref_null);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_addr_copy_fail, addr_copy_fail);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_newest_stop_ts_none, newest_stop_ts_none);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_read_ts_none, read_ts_none);
     WT_STAT_CONN_DATA_INCRV(
-      session, cursor_next_read_ts_less_than_eq_newest_stop, read_ts_less_than_eq_newest_stop);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_newest_stop_dur_none, newest_stop_dur_none);
-    WT_STAT_CONN_DATA_INCRV(session, cursor_next_read_ts_less_than_eq_newest_stop_dur,
+      session, cursor_prev_read_ts_less_than_eq_newest_stop, read_ts_less_than_eq_newest_stop);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_newest_stop_dur_none, newest_stop_dur_none);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_read_ts_less_than_eq_newest_stop_dur,
       read_ts_less_than_eq_newest_stop_dur);
 
     if (total_skipped < 100)

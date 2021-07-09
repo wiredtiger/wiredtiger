@@ -706,17 +706,17 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 newest_stop_ts_none++;
             if (txn_shared->read_timestamp == WT_TS_NONE)
                 read_ts_none++;
-            if (txn_shared->read_timestamp <= addr.ta.newest_stop_ts)
+            if (txn_shared->read_timestamp < addr.ta.newest_stop_ts)
                 read_ts_less_than_eq_newest_stop++;
             if (addr.ta.newest_stop_durable_ts == WT_TS_NONE)
                 newest_stop_dur_none++;
-            if (txn_shared->read_timestamp <= addr.ta.newest_stop_durable_ts)
+            if (txn_shared->read_timestamp < addr.ta.newest_stop_durable_ts)
                 read_ts_less_than_eq_newest_stop_dur++;
 
             if ((addr.ta.newest_stop_ts != WT_TS_NONE &&
-                  txn_shared->read_timestamp > addr.ta.newest_stop_ts) ||
+                  txn_shared->read_timestamp >= addr.ta.newest_stop_ts) ||
               (addr.ta.newest_stop_durable_ts != WT_TS_NONE &&
-                txn_shared->read_timestamp > addr.ta.newest_stop_durable_ts)) {
+                txn_shared->read_timestamp >= addr.ta.newest_stop_durable_ts)) {
                 pages_skipped_noread++;
                 goto skip_read;
             }
