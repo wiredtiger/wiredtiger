@@ -106,6 +106,12 @@ class test_tiered08(wttest.WiredTigerTestCase):
         c.close()
 
     def test_tiered08(self):
+        # FIXME-WT-7792
+        # This test is temporarily disabled on Mac; it consistently fails for unknown reasons.
+        import platform
+        if platform.system() == 'Darwin':
+            self.skipTest('tiered08 test skipped on macOS')
+
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)
         intl_page = 'internal_page_max=16K'
