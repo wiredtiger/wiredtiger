@@ -209,21 +209,6 @@ err:
 #endif
 
 /*
- * __wt_block_fh --
- *     Get a block file handle.
- */
-int
-__wt_block_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, WT_FH **fhp)
-{
-    if (!block->has_objects)
-        *fhp = block->fh;
-    else
-        WT_RET(__wt_block_tiered_fh(session, block, objectid, fhp));
-
-    return (0);
-}
-
-/*
  * __wt_block_read_off --
  *     Read an addr/size pair referenced block into a buffer.
  */
