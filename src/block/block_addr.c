@@ -23,13 +23,13 @@ __block_addr_unpack(WT_BLOCK *block, const uint8_t **pp, size_t addr_size, uint3
     /*
      * Address cookies are a file offset, size and checksum triplet, with optional object ID: unpack
      * the trailing object ID if there are bytes following the triple. The checkpoint cookie is more
-     * complicated: it has four address blocks all from the same file. Rather than retrofit the file
-     * ID into each of those address blocks (which would mean somehow figuring out the length of
-     * each individual address block), the object ID is appended to the end of the checkpoint cookie
-     * and this function skips the object ID unpack when the passed in cookie size is 0. (This
-     * feature is ONLY used by the checkpoint code, all other callers assert the cookie size is not
-     * 0. We could alternatively have a "checkpoint cookie" boolean, or use a NULL object ID address
-     * when never returning a object ID, but a cookie size of 0 seems equivalent.)
+     * complicated: it has four address blocks all having the same object ID. Rather than retrofit
+     * the object ID into each of those address blocks (which would mean somehow figuring out the
+     * length of each individual address block), the object ID is appended to the end of the
+     * checkpoint cookie and this function skips the object ID unpack when the passed in cookie size
+     * is 0. (This feature is ONLY used by the checkpoint code, all other callers assert the cookie
+     * size is not 0. We could alternatively have a "checkpoint cookie" boolean, or use a NULL
+     * object ID address when never returning a object ID, but a cookie size of 0 seems equivalent.)
      */
     begin = *pp;
     WT_RET(__wt_vunpack_uint(pp, 0, &o));
@@ -110,6 +110,7 @@ __wt_block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t 
     const uint8_t *start;
 
     WT_UNUSED(session);
+    WT_UNUSED(start);
 
     /* Checkpoint passes zero as the cookie size, nobody else should. */
     WT_ASSERT(session, addr_size != 0);
@@ -203,8 +204,7 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
     /*
      * See the comment above about address cookies and sizes for an explanation.
      *
-     * Note the passing of a address cookie size of 0, triggering the called function's branch to
-     * ignore file object IDs.
+     * Passing an address cookie size of 0 so the unpack function doesn't read an object ID.
      */
     ++ckpt;
     WT_RET(__block_addr_unpack(
@@ -220,7 +220,7 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
     WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
     ci->ckpt_size = a;
     ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = 0;
-    if (WT_PTRDIFF(*&ckpt, start) != ckpt_size) {
+    if (WT_PTRDIFF(ckpt, start) != ckpt_size) {
         WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
         ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid =
           (uint32_t)a;
@@ -283,8 +283,7 @@ __wt_block_ckpt_pack(
     /*
      * See the comment above about address cookies and sizes for an explanation.
      *
-     * Note passing a file object ID of 0, triggering the called function's branch to ignore file
-     * object IDs.
+     * Passing an object ID of 0 so the pack function doesn't store an object ID.
      */
     WT_RET(__wt_block_addr_pack(block, pp, 0, ci->root_offset, ci->root_size, ci->root_checksum));
     WT_RET(
