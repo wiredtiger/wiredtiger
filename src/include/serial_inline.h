@@ -297,8 +297,7 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return (0);
 
-    if (txn_global->has_oldest_timestamp && txn_global->oldest_timestamp > page->modify->obsolete_check_old_timestamp)
-        obsolete = __wt_update_obsolete_check(session, page, upd->next, true);
+    obsolete = __wt_update_obsolete_check(session, page, upd->next, true);
     WT_PAGE_UNLOCK(session, page);
 
     __wt_free_update_list(session, &obsolete);
