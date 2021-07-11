@@ -131,7 +131,6 @@ create_configs_per_release()
 
     # Delete configs from the top folder
     rm -rf CONFIG*
-
 }
 
 #############################################################
