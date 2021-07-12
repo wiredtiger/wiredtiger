@@ -35,6 +35,7 @@ find_cmake ()
         CMAKE="$(readlink -f cmake-install)/bin/cmake"
         CTEST="$(readlink -f cmake-install)/bin/ctest"
     fi
+
     if [ -z "$CMAKE" -o -z "$( $CMAKE --version 2>/dev/null )" ]; then
         # Some images have no cmake yet, or a broken cmake (see: BUILD-8570)
         echo "-- MAKE CMAKE --"
