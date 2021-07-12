@@ -1382,6 +1382,7 @@ tokname
 tokstart
 toktype
 tolower
+toolchain
 toplevel
 totalsec
 toupper

@@ -18,7 +18,7 @@ read into memory; thus an attacker having the ability to directly read system me
 have access to unencrypted data. Many systems may also page memory to a backing disk under
 load. The security of any such \em paging or \em swap devices must be considered when
 planning the security of a system; in general, they should be disabled or themselves
-encrypted using operating system facilities.
+encrypted using operating system or storage system facilities.
 
 @section encryption_use Using an encryption extension
 Enabling encryption involves two steps: first, loading the encryptor extension, and
@@ -90,7 +90,8 @@ using the \c wt utility. Specifying \c keyid is not needed with the \c wt utilit
 \c keyid is stored in the clear on disk by WiredTiger. Note that while the \c wt utility
 takes some steps to prevent it, on most systems it is possible to see command-line
 arguments using operating system facilities. This creates some risk of exposure that must
-be considered. Using a KMS is probably preferable where possible.
+be considered. Using a KMS is probably preferable where possible. Alternatively, one might
+avoid using the \ct wt utility entirely when using encryption, as it is not necessary.
 
 Both \c keyid and \c secretkey values are not interpreted by the configuration framework;
 their exact interpretation and the sets of possible values are determined by the encryptor
@@ -112,7 +113,7 @@ Three additional encryptor extensions are included with WiredTiger. These are bu
 shared libraries to show how that can be done.
 
 @section encryption_sodium The libsodium encryption extension
-The "sodium" encryptor uses the open-source <a href=https://libsodium.org>libsodium</a>
+The "sodium" encryptor uses the open source <a href=https://libsodium.org>libsodium</a>
 cryptography library. It currently has no support for key management and thus does not
 support \c keyid configurations, only \c secretkey. The \c secretkey is expected to be a
 256-bit XChaCha20 key encoded in hex (with no leading <tt>0x</tt>). This is not directly
@@ -129,10 +130,6 @@ context. (Note that on most operating systems, and in most situations, an advers
 write access to the database files is highly likely to also be able to read data out of
 memory while the database is running, and change it as well, so this limitation is not
 necessarily important.)
-
-\warning As it stands, subject to the restrictions associated with using \c secretkey, the
-sodium encryptor is expected to provide reasonable security (at-rest only, as discussed
-above), but has not yet been properly audited and remains experimental.
 
 To use the encryptor, first install libsodium; then you can compile WiredTiger with the
 extension by passing the \c --enable-sodium option to configure, or the argument \c

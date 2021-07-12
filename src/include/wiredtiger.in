@@ -4147,7 +4147,7 @@ struct __wt_encryptor {
 	 * the worst case for the encrypted buffer size.
 	 *
 	 * The WiredTiger encryption infrastructure assumes that buffer sizing is not
-	 * dependent on the number of bytes of input, that there is a one to one
+	 * dependent on the number of bytes of input, that there is a one-to-one
 	 * relationship in number of bytes needed between input and output. This means
 	 * that if the encryption uses a block cipher in such a way that the input size
 	 * needs to be padded to the cipher block size, the sizing method should return

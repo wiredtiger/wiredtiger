@@ -29,23 +29,19 @@
 /*
  * Encryption extension using libsodium for cryptography.
  *
- * This encryptor is experimental and under development.
+ * Note: we recommend that all applications relying on encryption for security audit their
+ * application and storage toolchain code, including this implementation and the underlying
+ * cryptographic libraries.
  *
- * IT HAS NOT BEEN PROPERLY AUDITED YET and SHOULD BE AUDITED BEFORE USE.
+ * The only threat model this extension is intended to protect against is: your database was on your
+ * laptop, and your laptop was stolen while the database was at rest (shut down).
  *
- * In any event the only threat model it is intended to protect against is: your database was on
- * your laptop, and your laptop was stolen while the database was at rest (shut down).
+ * Because the key is necessarily kept in memory while the database is running, it is important to
+ * make sure it does not get written to disk by OS mechanisms; for example, core dumps and kernel
+ * crash dumps should be disabled, and swapping should be either disabled or set up to be encrypted.
+ * Also note that a still-running database on a laptop that is suspended is not at rest.
  *
- * If the database was running when the laptop was stolen, even if the laptop was suspended, the
- * secret key will be in memory and unless the thief can be forced by some external mechanism to
- * disconnect the power and wait for the memory contents to fade (that is, no "chill" attacks) one
- * must assume it can be recovered.
- *
- * Also because the key is necessarily kept in memory while the database is running, it is important
- * to make sure it does not get written to disk by OS mechanisms; disable core dumps, disable kernel
- * crash dumps, and either disable swapping or set up encrypted swap space.
- *
- * Note that it does not, for the moment, support any form of external key server or key management
+ * This code does not, for the moment, support any form of external key server or key management
  * service. Keys must be configured with "secretkey=" at database open time, and not with "keyid=".
  * This is workable, but less than optimal. To add support for your favorite key service, copy this
  * file, edit where indicated below, and install as your own custom extension. (See the other
@@ -58,8 +54,6 @@
  */
 
 #include <errno.h>
-#include <stdlib.h>
-#include <string.h>
 
 #include <wiredtiger.h>
 #include <wiredtiger_ext.h>
@@ -215,7 +209,7 @@ sodium_decrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session, uint8_t *ciphertext
 
 /*
  * sodium_sizing --
- *     report how much extra space we need in the output buffer.
+ *     Report how much extra space we need in the output buffer.
  *
  * Note that the interface assumes the expansion is always a constant; for the construction we're
  *     using that's true, but for one based on a block cipher it might need to be rounded up to
@@ -247,8 +241,8 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
 {
     const SODIUM_ENCRYPTOR *orig;
     SODIUM_ENCRYPTOR *new;
-    WT_EXTENSION_API *wt_api;
     WT_CONFIG_ITEM keyid, secretkey;
+    WT_EXTENSION_API *wt_api;
     size_t keylen;
     int ret;
 

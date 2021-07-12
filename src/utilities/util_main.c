@@ -112,9 +112,8 @@ main(int argc, char *argv[])
             cmd_config = __wt_optarg;
             break;
         case 'E': /* secret key */
-            if (secretkey != NULL) {
+            if (secretkey != NULL)
                 wt_explicit_zero(secretkey, strlen(secretkey));
-            }
             free(secretkey); /* lint: set more than once */
             if ((secretkey = strdup(__wt_optarg)) == NULL) {
                 (void)util_err(NULL, errno, NULL);
