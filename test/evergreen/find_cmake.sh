@@ -50,6 +50,16 @@ find_cmake ()
         CTEST="${CMAKE_INSTALL_DIR}/bin/ctest"
         echo "-- DONE MAKING CMAKE --"
     fi
+
+    echo "=========================================================="
+    echo "CMake and CTest environment variables, paths and versions:"
+    echo "CMAKE: ${CMAKE}"
+    echo "CTEST: ${CTEST}"
+    command -v ${CMAKE}
+    command -v ${CTEST}
+    ${CMAKE} --version
+    ${CTEST} --version
+    echo "=========================================================="
 }
 
 find_cmake
