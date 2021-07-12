@@ -217,7 +217,7 @@ main(int argc, char *argv[])
               cond_wait);
 
         printf(
-              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
+              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64 "\n", i, cond_reset,
               cond_wait);
         testutil_check(connections[i]->close(connections[i], NULL));
     }
