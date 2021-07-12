@@ -186,7 +186,7 @@ main(int argc, char *argv[])
         }
     }
 
-    sleep(10);
+    sleep(30);
 
     /*
      * Record original reset setting. There could have been some activity during the creation
@@ -211,7 +211,7 @@ main(int argc, char *argv[])
         if (idle && cond_reset != cond_reset_orig[i])
             testutil_die(
               ERANGE, "condition reset on idle connection %d of %" PRIu64, i, cond_reset);
-        if (!idle && cond_reset > cond_wait / 20)
+        if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
             testutil_die(ERANGE,
               "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
               cond_wait);
