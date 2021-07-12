@@ -30,7 +30,6 @@
 #define WORKLOAD_TRACKING_H
 
 #include "../core/component.h"
-#include "../connection_manager.h"
 #include "../timestamp_manager.h"
 #include "../util/scoped_types.h"
 

@@ -29,9 +29,13 @@
 #include <atomic>
 #include <map>
 
+#include "core/configuration.h"
 #include "core/throttle.h"
 #include "util/api_const.h"
+#include "workload/database_model.h"
+#include "workload/database_operation.h"
 #include "workload/random_generator.h"
+#include "workload/workload_tracking.h"
 #include "workload_generator.h"
 
 namespace test_harness {

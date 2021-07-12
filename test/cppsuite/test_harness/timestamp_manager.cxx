@@ -31,6 +31,7 @@
 #include <thread>
 
 #include "connection_manager.h"
+#include "core/configuration.h"
 #include "timestamp_manager.h"
 #include "util/api_const.h"
 

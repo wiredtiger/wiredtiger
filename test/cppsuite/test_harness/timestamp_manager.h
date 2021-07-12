@@ -33,7 +33,9 @@
 #include <string>
 
 #include "core/component.h"
-#include "core/configuration.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class configuration;
 
 namespace test_harness {
 /*

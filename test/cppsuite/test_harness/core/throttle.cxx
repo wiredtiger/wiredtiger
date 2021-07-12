@@ -28,6 +28,7 @@
 
 #include <thread>
 
+#include "configuration.h"
 #include "test_harness/util/api_const.h"
 #include "throttle.h"
 

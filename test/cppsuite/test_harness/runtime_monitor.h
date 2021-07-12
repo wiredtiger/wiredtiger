@@ -33,13 +33,15 @@
 #include <vector>
 
 extern "C" {
+#include "test_util.h"
 #include "wiredtiger.h"
 }
 
-#include "core/configuration.h"
-#include "workload/database_model.h"
-#include "workload/database_operation.h"
 #include "util/scoped_types.h"
+#include "workload/database_model.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class configuration;
 
 namespace test_harness {
 

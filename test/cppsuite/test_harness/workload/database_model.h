@@ -33,8 +33,10 @@
 #include <string>
 #include <map>
 
-#include "../timestamp_manager.h"
 #include "workload_tracking.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class timestamp_manager;
 
 namespace test_harness {
 /* Key/Value type. */

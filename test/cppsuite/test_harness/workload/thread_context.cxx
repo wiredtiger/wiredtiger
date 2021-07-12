@@ -26,7 +26,11 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+#include "../connection_manager.h"
+#include "../core/configuration.h"
+#include "../timestamp_manager.h"
 #include "../util/api_const.h"
+#include "workload_tracking.h"
 #include "random_generator.h"
 #include "thread_context.h"
 

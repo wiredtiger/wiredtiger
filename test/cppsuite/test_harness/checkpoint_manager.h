@@ -29,8 +29,9 @@
 #ifndef CHECKPOINT_MANAGER_H
 #define CHECKPOINT_MANAGER_H
 
-#include "connection_manager.h"
+
 #include "core/component.h"
+#include "util/scoped_types.h"
 
 namespace test_harness {
 class checkpoint_manager : public component {

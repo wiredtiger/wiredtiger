@@ -28,6 +28,7 @@
 
 #include "connection_manager.h"
 #include "core/component.h"
+#include "core/configuration.h"
 #include "core/throttle.h"
 #include "runtime_monitor.h"
 #include "util/api_const.h"

@@ -35,10 +35,13 @@ extern "C" {
 #include "test_util.h"
 }
 
-#include "../core/configuration.h"
-#include "../timestamp_manager.h"
+#include "../core/throttle.h"
 #include "../workload/database_model.h"
-#include "workload_tracking.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class configuration;
+class timestamp_manager;
+class workload_tracking;
 
 namespace test_harness {
 enum thread_type { READ, INSERT, UPDATE };

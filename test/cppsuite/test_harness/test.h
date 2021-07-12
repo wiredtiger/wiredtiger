@@ -37,7 +37,10 @@ extern "C" {
 }
 
 #include "checkpoint_manager.h"
+#include "connection_manager.h"
 #include "runtime_monitor.h"
+#include "workload_generator.h"
+#include "workload/database_operation.h"
 #include "workload_generator.h"
 
 namespace test_harness {

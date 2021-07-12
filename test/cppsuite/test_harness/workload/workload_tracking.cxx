@@ -27,6 +27,7 @@
  */
 
 #include "../connection_manager.h"
+#include "../core/configuration.h"
 #include "../util/scoped_types.h"
 #include "workload_tracking.h"
 

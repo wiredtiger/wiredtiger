@@ -32,10 +32,15 @@
 #include <algorithm>
 #include <functional>
 
+#include "core/component.h"
+#include "workload/thread_context.h"
 #include "thread_manager.h"
-#include "workload/database_model.h"
 #include "workload/database_operation.h"
-#include "workload/workload_tracking.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class configuration;
+class database;
+class workload_tracking;
 
 namespace test_harness {
 /*

@@ -28,6 +28,7 @@
 
 #include <algorithm>
 
+#include "../connection_manager.h"
 #include "database_model.h"
 #include "workload_validation.h"
 
