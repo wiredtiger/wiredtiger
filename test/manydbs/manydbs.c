@@ -51,7 +51,7 @@ static const char *const uri = "table:main";
 #define MAX_IDLE_TIME 30
 #define IDLE_INCR 5
 
-#define MAX_KV 10000
+#define MAX_KV 100
 #define MAX_VAL 128
 
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -208,9 +208,6 @@ main(int argc, char *argv[])
          * On an idle workload there should be no resets of condition variables during the idle
          * period. Even with a light workload, resets should not be very common. We look for 5%.
          */
-        printf(
-              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64 "%" PRIu64 "\n", i, cond_reset,
-              cond_reset_orig[i], cond_wait);
         if (idle && cond_reset != cond_reset_orig[i])
             testutil_die(
               ERANGE, "condition reset on idle connection %d of %" PRIu64, i, cond_reset);
