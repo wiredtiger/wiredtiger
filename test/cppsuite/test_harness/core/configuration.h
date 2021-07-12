@@ -32,7 +32,7 @@
 #include <string>
 #include <vector>
 
-#include "test_harness/util/debug_utils.h"
+#include "test_harness/util/logger.h"
 
 extern "C" {
 #include "test_util.h"

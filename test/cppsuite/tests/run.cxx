@@ -30,7 +30,7 @@
 #include <iostream>
 #include <string>
 
-#include "test_harness/util/debug_utils.h"
+#include "test_harness/util/logger.h"
 #include "test_harness/test.h"
 
 #include "base_test.cxx"

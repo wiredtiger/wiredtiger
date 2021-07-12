@@ -32,7 +32,7 @@
 #include <sstream>
 #include <thread>
 
-#include "debug_utils.h"
+#include "logger.h"
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {

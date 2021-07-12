@@ -32,7 +32,7 @@
 #include "core/throttle.h"
 #include "runtime_monitor.h"
 #include "util/api_const.h"
-#include "util/debug_utils.h"
+#include "util/logger.h"
 
 namespace test_harness {
 /* Static methods implementation. */

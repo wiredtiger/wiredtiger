@@ -26,7 +26,7 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/util/debug_utils.h"
+#include "test_harness/util/logger.h"
 #include "thread_manager.h"
 
 namespace test_harness {
