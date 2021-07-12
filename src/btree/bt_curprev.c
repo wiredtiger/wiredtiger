@@ -632,6 +632,7 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 
         if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_HS(session->dhandle) &&
           cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == true &&
+          page != NULL && !__wt_page_is_modified(page) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             pages_skipped_noread++;
