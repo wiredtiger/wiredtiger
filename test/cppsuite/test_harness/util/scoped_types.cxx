@@ -112,6 +112,11 @@ scoped_session::scoped_session(scoped_session &&other)
     std::swap(_session, other._session);
 }
 
+/*
+ * Implement move assignment by move constructing a temporary and swapping its internals with
+ * the current session. This means that the currently held WT_SESSION will get destroyed as the
+ * temporary falls out of the scope and we will steal the one that we're move assigning from.
+ */
 scoped_session &
 scoped_session::operator=(scoped_session &&other)
 {
