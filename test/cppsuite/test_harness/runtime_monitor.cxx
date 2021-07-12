@@ -114,7 +114,7 @@ cache_limit_statistic::check(scoped_cursor &cursor)
           " usage: " + std::to_string(use_percent);
         testutil_die(-1, error_string.c_str());
     } else
-        Logger::log_msg(LOG_TRACE, "Cache usage: " + std::to_string(use_percent));
+        logger::log_msg(LOG_TRACE, "Cache usage: " + std::to_string(use_percent));
 }
 
 /* db_size_statistic class implementation */
@@ -137,12 +137,12 @@ db_size_statistic::check(scoped_cursor &)
         struct stat sb;
         if (stat(name.c_str(), &sb) == 0) {
             db_size += sb.st_size;
-            Logger::log_msg(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
+            logger::log_msg(LOG_TRACE, name + " was " + std::to_string(sb.st_size) + " bytes");
         } else
             /* The only good reason for this to fail is if the file hasn't been created yet. */
             testutil_assert(errno == ENOENT);
     }
-    Logger::log_msg(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
+    logger::log_msg(LOG_TRACE, "Current database size is " + std::to_string(db_size) + " bytes");
     if (db_size > _limit) {
         const std::string error_string =
           "runtime_monitor: Database size limit exceeded during test! Limit: " +
@@ -171,10 +171,10 @@ db_size_statistic::get_file_names()
 }
 
 /* postrun_statistic_check class implementation */
-postrun_statistic_check::postrun_statistic::postrun_statistic(std::string &&name, 
-    const int64_t min_limit, const int64_t max_limit)
+postrun_statistic_check::postrun_statistic::postrun_statistic(
+  std::string &&name, const int64_t min_limit, const int64_t max_limit)
     : name(std::move(name)), field(get_stat_field(this->name)), min_limit(min_limit),
-        max_limit(max_limit)
+      max_limit(max_limit)
 {
 }
 
@@ -227,7 +227,7 @@ postrun_statistic_check::check_stat(scoped_cursor &cursor, const postrun_statist
         const std::string error_string = "runtime_monitor: Postrun stat \"" + stat.name +
           "\" was outside of the specified limits. Min=" + std::to_string(stat.min_limit) +
           " Max=" + std::to_string(stat.max_limit) + " Actual=" + std::to_string(stat_value);
-        Logger::log_msg(LOG_ERROR, error_string);
+        logger::log_msg(LOG_ERROR, error_string);
         return (false);
     }
     return (true);

@@ -73,7 +73,7 @@ configuration::configuration(const std::string &test_config_name, const std::str
     std::string default_config = std::string(config_entry->base);
     /* Merge in the default configuration. */
     _config = merge_default_config(default_config, config);
-    Logger::log_msg(LOG_INFO, "Full config: " + _config);
+    logger::log_msg(LOG_INFO, "Full config: " + _config);
 
     int ret =
       wiredtiger_test_config_validate(nullptr, nullptr, test_config_name.c_str(), _config.c_str());
@@ -169,8 +169,10 @@ configuration::get_optional_list(const std::string &key)
     return get<std::vector<std::string>>(key, true, types::LIST, {}, config_item_to_list);
 }
 
-template <typename T> T
-configuration::get(const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item))
+template <typename T>
+T
+configuration::get(
+  const std::string &key, bool optional, types type, T def, T (*func)(WT_CONFIG_ITEM item))
 {
     WT_DECL_RET;
     WT_CONFIG_ITEM value = {"", 0, 1, WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL};
@@ -183,7 +185,7 @@ configuration::get(const std::string &key, bool optional, types type, T def, T (
         testutil_die(ret, "Error while finding config");
 
     if (type == types::STRING &&
-        (value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
+      (value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING &&
         value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_ID))
         testutil_die(-1, error_msg);
     else if (type == types::BOOL && value.type != WT_CONFIG_ITEM::WT_CONFIG_ITEM_BOOL)

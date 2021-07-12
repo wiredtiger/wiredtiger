@@ -29,7 +29,6 @@
 #ifndef CHECKPOINT_MANAGER_H
 #define CHECKPOINT_MANAGER_H
 
-
 #include "core/component.h"
 #include "util/scoped_types.h"
 

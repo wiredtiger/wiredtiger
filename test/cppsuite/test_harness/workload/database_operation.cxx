@@ -56,7 +56,7 @@ populate_worker(thread_context *tc)
             tc->transaction.commit(tc->session.get(), "");
         }
     }
-    Logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
+    logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
 }
 
 /* database_operation class implementation. */
@@ -89,8 +89,8 @@ database_operation::populate(
          */
         database.add_collection(key_count);
 
-    Logger::log_msg(LOG_INFO, "Populate: " + std::to_string(collection_count) + 
-      " collections created.");
+    logger::log_msg(
+      LOG_INFO, "Populate: " + std::to_string(collection_count) + " collections created.");
 
     /*
      * Spawn thread_count threads to populate the database, theoretically we should be IO bound
@@ -104,7 +104,7 @@ database_operation::populate(
     }
 
     /* Wait for our populate threads to finish and then join them. */
-    Logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+    logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
     tm.join();
 
     /* Cleanup our workers. */
@@ -112,7 +112,7 @@ database_operation::populate(
         delete it;
         it = nullptr;
     }
-    Logger::log_msg(LOG_INFO, "Populate: finished.");
+    logger::log_msg(LOG_INFO, "Populate: finished.");
 }
 
 void
@@ -123,7 +123,7 @@ database_operation::insert_operation(thread_context *tc)
         collection &coll;
         scoped_cursor cursor;
     };
-    Logger::log_msg(
+    logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* Collection cursor vector. */
@@ -174,7 +174,7 @@ database_operation::insert_operation(thread_context *tc)
 void
 database_operation::read_operation(thread_context *tc)
 {
-    Logger::log_msg(
+    logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     WT_CURSOR *cursor = nullptr;
     WT_DECL_RET;
@@ -211,7 +211,7 @@ database_operation::read_operation(thread_context *tc)
 void
 database_operation::update_operation(thread_context *tc)
 {
-    Logger::log_msg(
+    logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
@@ -232,7 +232,7 @@ database_operation::update_operation(thread_context *tc)
 
         /* Look for existing cursors in our cursor cache. */
         if (cursors.find(coll.id) == cursors.end()) {
-            Logger::log_msg(LOG_TRACE,
+            logger::log_msg(LOG_TRACE,
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */

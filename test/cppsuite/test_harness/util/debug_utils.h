@@ -65,7 +65,7 @@ static int64_t _trace_level = LOG_WARN;
 /* Include date in the logs if enabled. */
 static bool _include_date = true;
 
-class Logger {
+class logger {
     public:
     /* Used to print out traces for debugging purpose. */
     static void log_msg(int64_t trace_type, const std::string &str);

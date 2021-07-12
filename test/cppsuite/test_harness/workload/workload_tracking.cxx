@@ -67,19 +67,19 @@ workload_tracking::load()
     testutil_check(
       _session->create(_session.get(), _schema_table_name.c_str(), _schema_table_config.c_str()));
     _schema_track_cursor = _session.open_scoped_cursor(_schema_table_name.c_str());
-    Logger::log_msg(LOG_TRACE, "Schema tracking initiated");
+    logger::log_msg(LOG_TRACE, "Schema tracking initiated");
 
     /* Initiate operations tracking. */
     testutil_check(_session->create(
       _session.get(), _operation_table_name.c_str(), _operation_table_config.c_str()));
-    Logger::log_msg(LOG_TRACE, "Operations tracking created");
+    logger::log_msg(LOG_TRACE, "Operations tracking created");
 
     /*
      * Open sweep cursor. This cursor will be used to clear out obsolete data from the tracking
      * table.
      */
     _sweep_cursor = _session.open_scoped_cursor(_operation_table_name.c_str());
-    Logger::log_msg(LOG_TRACE, "Tracking table sweep initialized");
+    logger::log_msg(LOG_TRACE, "Tracking table sweep initialized");
 }
 
 void
@@ -120,7 +120,7 @@ workload_tracking::do_work()
         if (ts <= oldest_ts) {
             if (globally_visible_update_found) {
                 if (_trace_level == LOG_TRACE)
-                    Logger::log_msg(LOG_TRACE,
+                    logger::log_msg(LOG_TRACE,
                       std::string("workload tracking: Obsoleted update, key=") + sweep_key +
                         ", collection_id=" + std::to_string(collection_id) +
                         ", timestamp=" + std::to_string(ts) +
@@ -128,7 +128,7 @@ workload_tracking::do_work()
                 testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
             } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
                 if (_trace_level == LOG_TRACE)
-                    Logger::log_msg(LOG_TRACE,
+                    logger::log_msg(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
                         sweep_key + ", collection_id=" + std::to_string(collection_id) +
                         ", timestamp=" + std::to_string(ts) +

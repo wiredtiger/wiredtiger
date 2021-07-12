@@ -97,7 +97,7 @@ class postrun_statistic_check {
     private:
     struct postrun_statistic {
         postrun_statistic(std::string &&name, const int64_t min_limit, const int64_t max_limit);
-        
+
         const std::string name;
         const int field;
         const int64_t min_limit, max_limit;
