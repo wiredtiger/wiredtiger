@@ -73,7 +73,7 @@ class test : public database_operation {
         _timestamp_manager = new timestamp_manager(_config->get_subconfig(TIMESTAMP_MANAGER));
         _workload_tracking = new workload_tracking(_config->get_subconfig(WORKLOAD_TRACKING),
           OPERATION_TRACKING_TABLE_CONFIG, TABLE_OPERATION_TRACKING, SCHEMA_TRACKING_TABLE_CONFIG,
-          TABLE_SCHEMA_TRACKING);
+          TABLE_SCHEMA_TRACKING, *_timestamp_manager);
         _workload_generator = new workload_generator(_config->get_subconfig(WORKLOAD_GENERATOR),
           this, _timestamp_manager, _workload_tracking, _database);
         _thread_manager = new thread_manager();
@@ -164,18 +164,17 @@ class test : public database_operation {
         /* The test will run for the duration as defined in the config. */
         duration_seconds = _config->get_int(DURATION_SECONDS);
         testutil_assert(duration_seconds >= 0);
-        debug_print("Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.",
-          DEBUG_INFO);
+        log_msg(
+          LOG_INFO, "Waiting {" + std::to_string(duration_seconds) + "} for testing to complete.");
         std::this_thread::sleep_for(std::chrono::seconds(duration_seconds));
 
         /* End the test by calling finish on all known components. */
         for (const auto &it : _components)
             it->finish();
 
-        debug_print(
+        log_msg(LOG_INFO,
           "Joining all component threads.\n This could take a while as we need to wait"
-          " for all components to finish their current loop.",
-          DEBUG_INFO);
+          " for all components to finish their current loop.");
         _thread_manager->join();
 
         /* Validation stage. */
@@ -186,7 +185,7 @@ class test : public database_operation {
               _workload_generator->get_database().get_collection_ids());
         }
 
-        debug_print("SUCCESS", DEBUG_INFO);
+        log_msg(LOG_INFO, "SUCCESS");
     }
 
     /*
