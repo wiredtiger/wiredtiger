@@ -42,11 +42,14 @@ using namespace test_harness;
  */
 class hs_cleanup : public test {
     public:
-    hs_cleanup(const test_harness::test_args &args) : test(args) {}
+    hs_cleanup(const test_args &args) : test(args) {}
 
     void
     update_operation(thread_context *tc) override final
     {
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
         WT_DECL_RET;
         const char *key_tmp;
         scoped_session session = connection_manager::instance().create_session();

@@ -118,13 +118,14 @@ database_operation::populate(
 void
 database_operation::insert_operation(thread_context *tc)
 {
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
         collection &coll;
         scoped_cursor cursor;
     };
-    logger::log_msg(
-      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* Collection cursor vector. */
     std::vector<collection_cursor> ccv;

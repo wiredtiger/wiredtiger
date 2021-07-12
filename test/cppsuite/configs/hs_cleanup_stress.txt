@@ -1,0 +1,60 @@
+# Run for half an hour.
+duration_seconds=1800,
+cache_size_mb=512,
+statistics_config=
+(
+    type=all,
+    enable_logging=true
+),
+checkpoint_manager=
+(
+    enabled=true,
+    op_rate=60s
+),
+runtime_monitor=
+(
+    stat_cache_size=
+    (
+        enabled=true,
+        limit=100
+    ),
+    postrun_statistics=[cache_hs_insert:250000:400000, cc_pages_removed:200000:300000]
+),
+timestamp_manager=
+(
+    enabled=true,
+    oldest_lag=2,
+    stable_lag=5
+),
+workload_generator=
+(
+    populate_config=
+    (
+        collection_count=10,
+        # Data size = 10*((1000*5)+(1000*200000)) = 2GB
+        key_count_per_collection=1000,
+        key_size=5,
+        thread_count=10,
+        value_size=200000
+    ),
+    read_config=
+    (
+        op_rate=5ms,
+        ops_per_transaction=(max=100,min=1),
+        thread_count=8
+    ),
+    update_config=
+    (
+        op_rate=10ms,
+        # Be careful to not aim too high with this config, if we fill the dirty cache and
+        # all threads are trying to update, they'll get pulled into eviction and will get stuck.
+        ops_per_transaction=(max=20,min=0),
+        thread_count=10,
+        value_size=200000
+    )
+),
+workload_tracking=
+(
+    enabled=true,
+    op_rate=20s
+)
