@@ -308,7 +308,7 @@ __wt_update_obsolete_check(
     size_t size;
     uint64_t oldest, stable;
     u_int count, upd_seen, upd_unstable;
-
+    uint64_t time_now, time_prev;
     txn_global = &S2C(session)->txn_global;
 
     upd_seen = upd_unstable = 0;
@@ -325,16 +325,17 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
      */
+    prev_time = __wt_clock(session);
     first = NULL;
     for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
         ++upd_seen;
-        // if (__wt_txn_upd_visible_all(session, upd)) {
-        //     if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
-        //         first = upd;
-        // } else {
+        if (__wt_txn_upd_visible_all(session, upd)) {
+            if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
+                first = upd;
+        } else {
         first = NULL;
         /*
             * While we're here, also check for the update being kept only for timestamp history to
@@ -342,11 +343,12 @@ __wt_update_obsolete_check(
             */
         if (upd->start_ts != WT_TS_NONE && upd->start_ts >= oldest && upd->start_ts < stable)
             ++upd_unstable;
-        // }
+         }
     }
-
-    cache->updates_seen = upd_seen;
-    cache->updates_unstable = upd_unstable;
+    time_now = __wt_clock(session);
+    cache->updates_seen = time_now - prev_time;
+    
+    prev_time = __wt_clock(session);
     __wt_cache_update_hs_score(session, upd_seen, upd_unstable);
 
     /*
@@ -368,7 +370,8 @@ __wt_update_obsolete_check(
         }
         return (next);
     }
-
+    time_now = __wt_clock(session);
+    cache->updates_unstable = time_now - prev_time;
     /*
      * If the list is long, don't retry checks on this page until the transaction state has moved
      * forwards. This function is used to trim update lists independently of the page state, ensure
