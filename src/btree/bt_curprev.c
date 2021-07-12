@@ -630,12 +630,10 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (pages_skipped > 1)
             WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_pages);
 
-        if (page != NULL && (page->type == WT_PAGE_ROW_LEAF) && !WT_IS_METADATA(session->dhandle) &&
-          !WT_IS_HS(session->dhandle) && cbt->ref != NULL &&
-          __wt_ref_addr_copy(session, cbt->ref, &addr) == 0 &&
-          addr.ta.newest_stop_ts != WT_TS_NONE &&
+        if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_HS(session->dhandle) &&
+          cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == true &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
-          !addr.ta.prepare) {
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             pages_skipped_noread++;
             goto skip_read;
         }
