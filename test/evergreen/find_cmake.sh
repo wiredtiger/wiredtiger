@@ -30,7 +30,7 @@ find_cmake ()
     elif [ -f "/cygdrive/c/cmake/bin/cmake" ]; then
         CMAKE="/cygdrive/c/cmake/bin/cmake"
         CTEST="/cygdrive/c/cmake/bin/ctest"
-    elif [ -f $(readlink -f cmake-install)/bin/cmake ]; then
+    elif [ -f "$(readlink -f cmake-install)"/bin/cmake ]; then
         # If we have a custom cmake install from an earlier build step.
         CMAKE="$(readlink -f cmake-install)/bin/cmake"
         CTEST="$(readlink -f cmake-install)/bin/ctest"
