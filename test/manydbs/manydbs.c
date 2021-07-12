@@ -208,6 +208,9 @@ main(int argc, char *argv[])
          * On an idle workload there should be no resets of condition variables during the idle
          * period. Even with a light workload, resets should not be very common. We look for 5%.
          */
+        printf(
+              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64 "%" PRIu64 "\n", i, cond_reset,
+              cond_reset_orig[i], cond_wait);
         if (idle && cond_reset != cond_reset_orig[i])
             testutil_die(
               ERANGE, "condition reset on idle connection %d of %" PRIu64, i, cond_reset);
@@ -216,9 +219,7 @@ main(int argc, char *argv[])
               "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
               cond_wait);
 
-        printf(
-              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64 "\n", i, cond_reset,
-              cond_wait);
+
         testutil_check(connections[i]->close(connections[i], NULL));
     }
 
