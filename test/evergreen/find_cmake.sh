@@ -7,15 +7,15 @@ find_cmake ()
 {
     if [ ! -z "$CMAKE" ]; then
         return 0
-    elif command -v cmake 2>/dev/null; then
-        CMAKE=cmake
-        CTEST=ctest
-    elif [ -f "/Applications/Cmake.app/Contents/bin/cmake" ]; then
-        CMAKE="/Applications/Cmake.app/Contents/bin/cmake"
-        CTEST="/Applications/Cmake.app/Contents/bin/ctest"
+    elif [ -f "/Applications/CMake.app/Contents/bin/cmake" ]; then
+        CMAKE="/Applications/CMake.app/Contents/bin/cmake"
+        CTEST="/Applications/CMake.app/Contents/bin/ctest"
     elif [ -f "/opt/cmake/bin/cmake" ]; then
         CMAKE="/opt/cmake/bin/cmake"
         CTEST="/opt/cmake/bin/ctest"
+    elif command -v cmake 2>/dev/null; then
+        CMAKE=cmake
+        CTEST=ctest
     elif uname -a | grep -iq 'x86_64 GNU/Linux'; then
         if [ -f "$(pwd)/cmake-3.11.0/bin/cmake" ]; then
             CMAKE="$(pwd)/cmake-3.11.0/bin/cmake"
