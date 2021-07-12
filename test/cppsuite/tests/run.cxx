@@ -109,11 +109,11 @@ run_test(const std::string &test_name, const std::string &config, const std::str
     test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
 
     if (test_name == "base_test")
-        base_test(test_harness::test_args{config,test_name, wt_open_config}).run();
+        base_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "example_test")
-        example_test(test_harness::test_args{config,test_name, wt_open_config}).run();
+        example_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(test_harness::test_args{config,test_name, wt_open_config}).run();
+        hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -157,9 +157,9 @@ main(int argc, char *argv[])
         } else if (std::string(argv[i]) == "-C") {
             if ((i + 1) < argc)
                 wt_open_config = argv[++i];
-                /* Add a comma to the front if the user didn't supply one. */
-                if (wt_open_config[0] != ',')
-                    wt_open_config.insert(0, 1, ',');
+            /* Add a comma to the front if the user didn't supply one. */
+            if (wt_open_config[0] != ',')
+                wt_open_config.insert(0, 1, ',');
             else
                 error_code = -1;
         } else if (std::string(argv[i]) == "-c") {
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
-                test_harness::_trace_level = std::stoi(argv[++i]);
+                test_harness::logger::trace_level = std::stoi(argv[++i]);
             else
                 error_code = -1;
         } else
@@ -194,7 +194,7 @@ main(int argc, char *argv[])
 
     if (error_code == 0) {
         test_harness::logger::log_msg(
-          LOG_INFO, "Trace level: " + std::to_string(test_harness::_trace_level));
+          LOG_INFO, "Trace level: " + std::to_string(test_harness::logger::trace_level));
         if (test_name.empty()) {
             /* Run all tests. */
             test_harness::logger::log_msg(LOG_INFO, "Running all tests.");
@@ -226,7 +226,8 @@ main(int argc, char *argv[])
         if (error_code != 0)
             test_harness::logger::log_msg(LOG_ERROR, "Test " + current_test_name + " failed.");
     } else
-        test_harness::logger::log_msg(LOG_ERROR, "Invalid command line arguments supplied. Try "
+        test_harness::logger::log_msg(LOG_ERROR,
+          "Invalid command line arguments supplied. Try "
           "'./run -h' for help.");
 
     return (error_code);

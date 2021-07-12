@@ -119,7 +119,7 @@ workload_tracking::do_work()
         }
         if (ts <= oldest_ts) {
             if (globally_visible_update_found) {
-                if (_trace_level == LOG_TRACE)
+                if (logger::trace_level == LOG_TRACE)
                     logger::log_msg(LOG_TRACE,
                       std::string("workload tracking: Obsoleted update, key=") + sweep_key +
                         ", collection_id=" + std::to_string(collection_id) +
@@ -127,7 +127,7 @@ workload_tracking::do_work()
                         ", oldest_timestamp=" + std::to_string(oldest_ts) + ", value=" + value);
                 testutil_check(_sweep_cursor->remove(_sweep_cursor.get()));
             } else if (static_cast<tracking_operation>(op_type) == tracking_operation::INSERT) {
-                if (_trace_level == LOG_TRACE)
+                if (logger::trace_level == LOG_TRACE)
                     logger::log_msg(LOG_TRACE,
                       std::string("workload tracking: Found globally visible update, key=") +
                         sweep_key + ", collection_id=" + std::to_string(collection_id) +

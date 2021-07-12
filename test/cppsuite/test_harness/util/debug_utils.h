@@ -56,16 +56,14 @@ namespace test_harness {
  */
 #define LOG_TRACE 3
 
-/* Order of elements in this array corresponds to the definitions above. */
-const char *const LOG_LEVELS[] = {"ERROR", "WARN", "INFO", "TRACE"};
-
-/* Current log level */
-static int64_t _trace_level = LOG_WARN;
-
-/* Include date in the logs if enabled. */
-static bool _include_date = true;
-
 class logger {
+    public:
+    /* Current log level. Default is LOG_WARN. */
+    static int64_t trace_level;
+
+    /* Include date in the logs if enabled. Default is true. */
+    static bool include_date;
+
     public:
     /* Used to print out traces for debugging purpose. */
     static void log_msg(int64_t trace_type, const std::string &str);

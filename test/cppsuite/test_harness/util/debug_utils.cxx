@@ -36,9 +36,17 @@
 
 /* Define helpful functions related to debugging. */
 namespace test_harness {
+/* Order of elements in this array corresponds to the definitions above. */
+const char *const LOG_LEVELS[] = {"ERROR", "WARN", "INFO", "TRACE"};
 
 /* Mutex used by logger to synchronize printing. */
 static std::mutex _logger_mtx;
+
+/* Set default log level. */
+int64_t logger::trace_level = LOG_WARN;
+
+/* Include date in the logs by default. */
+bool logger::include_date = true;
 
 void
 get_time(char *time_buf, size_t buf_size)
@@ -56,7 +64,7 @@ get_time(char *time_buf, size_t buf_size)
     tm = localtime_r(&time_epoch_sec, &_tm);
 
     alloc_size =
-      strftime(time_buf, buf_size, _include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
+      strftime(time_buf, buf_size, logger::include_date ? "[%Y-%m-%dT%H:%M:%S" : "[%H:%M:%S", tm);
 
     testutil_assert(alloc_size <= buf_size);
     WT_IGNORE_RET(__wt_snprintf(&time_buf[alloc_size], buf_size - alloc_size, ".%" PRIu64 "Z]",
@@ -67,7 +75,7 @@ get_time(char *time_buf, size_t buf_size)
 void
 logger::log_msg(int64_t trace_type, const std::string &str)
 {
-    if (_trace_level >= trace_type) {
+    if (logger::trace_level >= trace_type) {
         testutil_assert(
           trace_type >= LOG_ERROR && trace_type < sizeof(LOG_LEVELS) / sizeof(LOG_LEVELS[0]));
 
