@@ -149,3 +149,9 @@ add_custom_command(TARGET ${swig_wt_target}
 )
 
 set_target_properties(${swig_wt_target} PROPERTIES OUTPUT_NAME "_wiredtiger")
+
+# Manually changing the suffix on macOS/Darwin builds since DYLD_LIBRARY_PATH
+# doesn't work well for dynamic modules loaded by python.
+if(WT_DARWIN)
+    set_target_properties(${swig_wt_target} PROPERTIES SUFFIX ".so")
+endif()
