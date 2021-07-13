@@ -301,9 +301,12 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         configure block checksums; permitted values are <code>on</code>
         (checksum all blocks), <code>off</code> (checksum no blocks) and
         <code>uncompresssed</code> (checksum only blocks which are not
-        compressed for any reason).  The \c uncompressed setting is for
-        applications which can rely on decompression to fail if a block
-        has been corrupted''',
+        compressed for any reason).  The \c off setting is for applications
+        which can rely on the underlying storage system, or have configured
+        an encryption extension that provides a cryptographically strong
+        checksum (which should, in general, be all encryptors).  The \c
+        uncompressed setting is for applications which can rely on decompression
+        to fail if a block has been corrupted''',
         choices=['on', 'off', 'uncompressed']),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the Btree

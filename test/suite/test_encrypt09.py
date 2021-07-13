@@ -52,13 +52,12 @@ class test_encrypt09(wttest.WiredTigerTestCase):
     # This key will serve for testing purposes.
     sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
 
-    # Unlike in test_encrypt08, the nokey case is not an error; if no key is
-    # given no separate encryptor is generated and no error occurs.
+    # The nokey case is not an error; if no key is given no separate encryptor is
+    # generated and no error occurs.
 
     # Note that the twokeys, nothex, and badsize cases do not (currently) get to
     # the extension at all because (apparently) secretkey= is not allowed for
-    # per-table encryption. If that changes, the proper expected messages are the
-    # same as those in test_encrypt08.
+    # per-table encryption.
 
     encrypt_type = [
         ('nokey',    dict( file_encrypt='',

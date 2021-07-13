@@ -64,9 +64,9 @@
  * Lengths of the pieces involved: the secret key, the non-secret but unique nonce, and the
  * cryptographic checksum added as part of the encryption.
  */
+#define CHECK_LEN crypto_aead_xchacha20poly1305_ietf_ABYTES
 #define KEY_LEN crypto_aead_xchacha20poly1305_ietf_KEYBYTES
 #define NONCE_LEN crypto_aead_xchacha20poly1305_ietf_NPUBBYTES
-#define CHECK_LEN crypto_aead_xchacha20poly1305_ietf_ABYTES
 
 /*
  * We write a header on each block that records the expected format version and the cryptographic
@@ -81,9 +81,9 @@
 #define HEADER_BYTE_ZERO_1 3
 #define HEADER_LEN 4
 
-/* Constants for the on-disk (output) format */
-#define ONDISK_VERSION_CURRENT 1
+/* Constants for the on-disk (output) format. */
 #define ONDISK_CIPHER_XCHACHA20POLY1305 1
+#define ONDISK_VERSION_CURRENT 1
 
 /*
  * Each output block contains, in order:
@@ -156,16 +156,16 @@ sodium_encrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session, uint8_t *cleartext,
     if (cipher_maxlen < HEADER_LEN + NONCE_LEN + clear_len + CHECK_LEN)
         return (sodium_error(sodium_encryptor, session, ENOMEM, "encrypt buffer not big enough"));
 
-    /* write the header */
+    /* Write the header. */
     ciphertext[HEADER_LOCATION + HEADER_BYTE_FORMATVERSION] = ONDISK_VERSION_CURRENT;
     ciphertext[HEADER_LOCATION + HEADER_BYTE_CONSTRUCTION] = ONDISK_CIPHER_XCHACHA20POLY1305;
     ciphertext[HEADER_LOCATION + HEADER_BYTE_ZERO_0] = 0;
     ciphertext[HEADER_LOCATION + HEADER_BYTE_ZERO_1] = 0;
 
-    /* make a nonce */
+    /* Make a nonce. */
     create_nonce(&ciphertext[NONCE_LOCATION], NONCE_LEN);
 
-    /* encrypt and checksum into the ciphertext part of the output */
+    /* Encrypt and checksum into the ciphertext part of the output. */
     ret = crypto_aead_xchacha20poly1305_ietf_encrypt(&ciphertext[CIPHERTEXT_LOCATION], &cipher_len,
       cleartext, clear_len, &ciphertext[HEADER_LOCATION], HEADER_LEN, NULL,
       &ciphertext[NONCE_LOCATION], sodium_encryptor->secretkey);
@@ -193,10 +193,10 @@ sodium_decrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session, uint8_t *ciphertext
     if (HEADER_LEN + NONCE_LEN + clear_maxlen + CHECK_LEN < cipher_len)
         return (sodium_error(sodium_encryptor, session, ENOMEM, "decrypt buffer not big enough"));
 
-    /* Length of just the ciphertext/checksum part */
+    /* This is the length of just the ciphertext/checksum part. */
     cipher_check_only_len = cipher_len - HEADER_LEN - NONCE_LEN;
 
-    /* Decrypt and verify checksum */
+    /* Decrypt and verify the checksum. */
     ret = crypto_aead_xchacha20poly1305_ietf_decrypt(cleartext, &clear_len, NULL,
       &ciphertext[CIPHERTEXT_LOCATION], cipher_check_only_len, &ciphertext[HEADER_LOCATION],
       HEADER_LEN, &ciphertext[NONCE_LOCATION], sodium_encryptor->secretkey);
@@ -249,7 +249,7 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
     orig = (const SODIUM_ENCRYPTOR *)encryptor;
     wt_api = orig->wt_api;
 
-    /* allocate and initialize */
+    /* Allocate and initialize the new encryptor. */
     if ((new = calloc(1, sizeof(*new))) == NULL)
         return (errno);
     *new = *orig;
@@ -279,7 +279,7 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
         goto err;
     }
 
-    /* sodium_malloc takes assorted precautions for working with secrets */
+    /* Use sodium_malloc, which takes assorted precautions for working with secrets. */
     new->secretkey = sodium_malloc(KEY_LEN);
     if (new->secretkey == NULL) {
         ret = errno;
@@ -387,18 +387,17 @@ wiredtiger_extension_init(WT_CONNECTION *connection, WT_CONFIG_ARG *config)
     sodium_encryptor->encryptor.terminate = sodium_terminate;
     sodium_encryptor->wt_api = connection->get_extension_api(connection);
 
-    /* Initialize the crypto library */
-    if (sodium_init() < 0) {
+    /* Initialize the crypto library. */
+    if (sodium_init() < 0)
         return (WT_ERROR);
-    }
 
-    /* Configure the extension */
+    /* Configure the extension. */
     if ((ret = sodium_configure(sodium_encryptor, config)) != 0) {
         free(sodium_encryptor);
         return (ret);
     }
 
-    /* Attach the extension */
+    /* Attach the extension. */
     if ((ret = connection->add_encryptor(
            connection, "sodium", (WT_ENCRYPTOR *)sodium_encryptor, NULL)) != 0) {
         free(sodium_encryptor);

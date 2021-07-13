@@ -139,8 +139,9 @@ nop_sizing(WT_ENCRYPTOR *encryptor, WT_SESSION *session, size_t *expansion_const
  *     copy is made by calling the customize method. The original uncustomized WT_ENCRYPTOR is
  *     ordinarily never used to encrypt or decrypt anything.
  *
- * If the customize method succeeds but sets *customp to NULL, the original encryptor is used for
- *     that key.
+ * The copy, with the key installed into it, should be returned to the caller via the customp
+ *     argument. If the customize method succeeds but sets *customp to NULL, the original encryptor
+ *     is used for that key.
  *
  * The customize method need not be provided, but in that case key configuration is not performed,
  *     the original encryptor is used for all encryption, and it must have some other means to get
@@ -159,7 +160,7 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
     orig = (const NOP_ENCRYPTOR *)encryptor;
     wt_api = orig->wt_api;
 
-    /* allocate and initialize */
+    /* Allocate and initialize the new encryptor. */
     if ((new = calloc(1, sizeof(*new))) == NULL)
         return (errno);
     *new = *orig;
@@ -183,23 +184,21 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
 
     /* Neither is also normally an error. Allow this here for the benefit of the test suite. */
     if (keyid.len == 0 && secretkey.len == 0)
-        (void)keyid;
+        (void)keyid; /* do nothing */
 
-    if (keyid.len != 0) {
+    if (keyid.len != 0)
         /*
          * Here one would contact a key manager to get the key, then install it.
          */
-        (void)keyid.str;
-    }
+        (void)keyid.str; /* do nothing; add code here */
 
-    if (secretkey.len != 0) {
+    if (secretkey.len != 0)
         /*
          * Here one would install the explicit secret key, probably after base64- or hex-decoding
          * it. If it's a passphrase rather than a key, one might hash it first. Other
          * transformations might be needed or wanted as well.
          */
-        (void)secretkey.str;
-    }
+        (void)secretkey.str; /* do nothing; add code here */
 
     /* Return the new encryptor. */
     *customp = (WT_ENCRYPTOR *)new;

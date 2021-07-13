@@ -31,7 +31,7 @@ static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=s
 static void
 wt_explicit_zero(void *ptr, size_t len)
 {
-    /* call through a volatile pointer to avoid removal even when it's a dead store */
+    /* Call through a volatile pointer to avoid removal even when it's a dead store. */
     static void *(*volatile memsetptr)(void *ptr, int ch, size_t len) = memset;
     (void)memsetptr(ptr, '\0', len);
 }

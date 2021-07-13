@@ -1091,8 +1091,8 @@ struct __wt_session {
 	 * <code>uncompresssed</code> (checksum only blocks which are not compressed for any
 	 * reason). The \c off setting is for applications which can rely on the underlying storage
 	 * system\, or have configured an encryption extension that provides a cryptographically
-	 * strong checksum (which should in general be all encryptors).The \c uncompressed setting
-	 * is for applications which can rely on decompression to fail if a block has been
+	 * strong checksum (which should\, in general\, be all encryptors). The \c uncompressed
+	 * setting is for applications which can rely on decompression to fail if a block has been
 	 * corrupted., a string\, chosen from the following options: \c "on"\, \c "off"\, \c
 	 * "uncompressed"; default \c uncompressed.}
 	 * @config{colgroups, comma-separated list of names of column groups.  Each column group is
