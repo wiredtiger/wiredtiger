@@ -89,16 +89,6 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
             continue;
 
         if (rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
-            /*
-             * If any updates are aborted, all newer updates better be aborted as well.
-             *
-             * Timestamp ordering relies on the validations at the time of commit. Thus if the table
-             * is not configured for key consistency check, the timestamps could be out of order
-             * here.
-             */
-            WT_ASSERT(session,
-              !F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT) || stable_upd == NULL);
-
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
               " durable timestamp: %s and stable timestamp: %s, prepared: %s",
