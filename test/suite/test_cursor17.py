@@ -89,9 +89,9 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.next(), 0)
         self.assertEqual(cursor.get_key(), total_keys-1)
 
-        # Check if we skipped any pages while moving the cursor. 
-        # 
+        # Check if we skipped any pages while moving the cursor.
+        #
         # I ran this test few times and the stat appeared to be in range of ~1400. I have
-        # put 1000 to be on safe side but this number sould be recalculated if we change the number 
+        # put 1000 to be on safe side but this number sould be recalculated if we change the number
         # of keys in the test table.
         self.assertGreater(self.get_stat(stat.conn.cursor_next_skip_pages), 1000)
