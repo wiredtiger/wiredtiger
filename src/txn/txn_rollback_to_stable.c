@@ -85,11 +85,10 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
         /* Skip the updates that are aborted. */
-        if (upd->txnid == WT_TXN_ABORTED) {
-            if (upd == first_upd)
-                first_upd = upd->next;
-        } else if (rollback_timestamp < upd->durable_ts ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        if (rollback_timestamp < upd->durable_ts || upd->prepare_state == WT_PREPARE_INPROGRESS) {
             /*
              * If any updates are aborted, all newer updates better be aborted as well.
              *
@@ -99,7 +98,6 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
              */
             WT_ASSERT(session,
               !F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT) || upd == first_upd);
-            first_upd = upd->next;
 
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
@@ -113,7 +111,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
             upd->durable_ts = upd->start_ts = WT_TS_NONE;
         } else {
             /* Valid update is found. */
-            WT_ASSERT(session, first_upd == upd);
+            stable_upd = upd;
             break;
         }
     }
@@ -124,21 +122,21 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
      * history store. The next time when this update is moved into the history store, it will have a
      * different stop time point.
      */
-    if (first_upd != NULL) {
-        if (F_ISSET(first_upd, WT_UPDATE_HS)) {
+    if (stable_upd != NULL) {
+        if (F_ISSET(stable_upd, WT_UPDATE_HS)) {
             /* Find the update following a stable tombstone. */
-            if (first_upd->type == WT_UPDATE_TOMBSTONE) {
-                tombstone = first_upd;
-                for (upd = first_upd->next; upd != NULL; upd = upd->next) {
-                    if (upd->txnid != WT_TXN_ABORTED) {
-                        WT_ASSERT(
-                          session, upd->type != WT_UPDATE_TOMBSTONE && F_ISSET(upd, WT_UPDATE_HS));
-                        stable_upd = upd;
+            if (stable_upd->type == WT_UPDATE_TOMBSTONE) {
+                tombstone = stable_upd;
+                for (stable_upd = stable_upd->next; stable_upd != NULL;
+                     stable_upd = stable_upd->next) {
+                    if (stable_upd->txnid != WT_TXN_ABORTED) {
+                        WT_ASSERT(session,
+                          stable_upd->type != WT_UPDATE_TOMBSTONE &&
+                            F_ISSET(stable_upd, WT_UPDATE_HS));
                         break;
                     }
                 }
-            } else
-                stable_upd = first_upd;
+            }
 
             /*
              * Delete the first stable update and any newer update from the history store. If the
