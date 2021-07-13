@@ -311,13 +311,13 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
  */
 WT_UPDATE *
 __wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting)
+  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting, u_int *count)
 {
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
     uint64_t oldest, stable;
-    u_int count, upd_seen, upd_unstable;
+    u_int upd_seen, upd_unstable;
 
     txn_global = &S2C(session)->txn_global;
 
@@ -334,7 +334,7 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
      */
-    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
+    for (first = NULL; upd != NULL; upd = upd->next, (*count)++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -380,7 +380,7 @@ __wt_update_obsolete_check(
      * forwards. This function is used to trim update lists independently of the page state, ensure
      * there is a modify structure.
      */
-    if (count > 20 && page->modify != NULL) {
+    if (*count > 20 && page->modify != NULL) {
         page->modify->obsolete_check_txn = txn_global->last_running;
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
