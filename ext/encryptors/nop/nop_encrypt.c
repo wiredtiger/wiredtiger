@@ -174,14 +174,16 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
     if (ret != 0)
         secretkey.len = 0;
 
-    /* Both a keyid and a secretkey is an error. */
+    /* Providing both a keyid and a secretkey is an error. */
     if (keyid.len != 0 && secretkey.len != 0) {
         ret = nop_error(
           new, NULL, EINVAL, "nop_customize: keys specified with both keyid= and secretkey=");
         goto err;
     }
 
-    /* Neither is also normally an error. Allow this here for the benefit of the test suite. */
+    /*
+     * Providing neither is also normally an error. Allow it here for the benefit of the test suite.
+     */
     if (keyid.len == 0 && secretkey.len == 0)
         (void)keyid; /* do nothing */
 

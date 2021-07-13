@@ -260,14 +260,14 @@ sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *en
     if (ret != 0)
         secretkey.len = 0;
 
-    /* Both a keyid and a secretkey is an error. */
+    /* Providing both a keyid and a secretkey is an error. */
     if (keyid.len != 0 && secretkey.len != 0) {
         ret = sodium_error(
           new, NULL, EINVAL, "sodium_customize: keys specified with both keyid= and secretkey=");
         goto err;
     }
 
-    /* Neither is also an error. */
+    /* Providing neither is also an error. */
     if (keyid.len == 0 && secretkey.len == 0) {
         ret = sodium_error(
           new, NULL, EINVAL, "sodium_customize: no key given with either keyid= or secretkey=");
