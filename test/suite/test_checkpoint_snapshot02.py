@@ -47,6 +47,13 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
     uri = "table:test_checkpoint_snapshot02"
     nrows = 1000
 
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
+
+    scenarios = make_scenarios(key_format_values)
+
     def conn_config(self):
         config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[checkpoint_slow]'
         return config
@@ -55,7 +62,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         # Update a large number of records.
         session = self.session
         cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
+        for i in range(1, nrows+1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
             if commit_ts == 0:
@@ -80,7 +87,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
     def test_checkpoint_snapshot(self):
 
-        ds = SimpleDataSet(self, self.uri, 0, key_format="S", value_format="S",config='log=(enabled=false)')
+        ds = SimpleDataSet(self, self.uri, 0, key_format=self.key_format, value_format="S",config='log=(enabled=false)')
         ds.populate()
         valuea = "aaaaa" * 100
 
@@ -91,7 +98,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1 = session1.open_cursor(self.uri)
 
-        for i in range(self.nrows, self.nrows*2):
+        for i in range(self.nrows+1, (self.nrows*2)+1):
             cursor1.set_key(ds.key(i))
             cursor1.set_value(valuea)
             self.assertEqual(cursor1.insert(), 0)
@@ -140,7 +147,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1 = session1.open_cursor(self.uri)
 
-        for i in range(self.nrows, self.nrows*2):
+        for i in range(self.nrows+1, (self.nrows*2)+1):
             cursor1.set_key(ds.key(i))
             cursor1.set_value(valuea)
             self.assertEqual(cursor1.insert(), 0)
@@ -189,11 +196,6 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
 
         session1 = self.conn.open_session()
         session1.begin_transaction()
-        cursor1 = session1.open_cursor(self.uri)
-        for i in range(self.nrows*2, self.nrows + 1):
-            cursor1.set_key(ds.key(i))
-            cursor1.set_value(valueb)
-            self.assertEqual(cursor1.insert(), 0)
 
         self.large_updates(self.uri, valuea, ds, self.nrows, 20)
         self.check(valuea, self.uri, self.nrows, 20)
@@ -202,7 +204,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session2.begin_transaction()
         cursor2 = session2.open_cursor(self.uri)
 
-        for i in range(self.nrows, self.nrows*2):
+        for i in range((self.nrows+1), (self.nrows*2)+1):
             cursor2.set_key(ds.key(i))
             cursor2.set_value(valuea)
             self.assertEqual(cursor2.insert(), 0)
