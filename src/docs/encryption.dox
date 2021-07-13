@@ -53,6 +53,10 @@ protected by the system encryption, contains a shared stream of changes to all d
 files. Thus, if the system key is exposed, even when per-file keys are not exposed, an
 attacker can read database log files, and hence has access to data in individual files.
 
+Note that because every encryptor providing strong encryption should also include a
+cryptographically strong checksum, WiredTiger's own block checksums can safely be disabled.
+See WT_SESSION::create.
+
 @section encryption_config Encryption configuration
 Encryption is configured using the \c encryption= configuration parameter. As noted above
 this must be passed to ::wiredtiger_open and may also be passed to WT_SESSION::create. The
@@ -91,7 +95,7 @@ using the \c wt utility. Specifying \c keyid is not needed with the \c wt utilit
 takes some steps to prevent it, on most systems it is possible to see command-line
 arguments using operating system facilities. This creates some risk of exposure that must
 be considered. Using a KMS is probably preferable where possible. Alternatively, one might
-avoid using the \ct wt utility entirely when using encryption, as it is not necessary.
+avoid using the \c wt utility entirely when using encryption, as it is not necessary.
 
 Both \c keyid and \c secretkey values are not interpreted by the configuration framework;
 their exact interpretation and the sets of possible values are determined by the encryptor
@@ -157,6 +161,9 @@ following code:
 @snippet ex_all.c Configure sodium extension
 
 where \c secretkey comes from some suitable place. (Never compile in cryptographic keys.)
+
+Because this encryptor includes a cryptographically strong checksum, it is safe to
+disable WiredTiger's own block checksums.
 
 @section encryption_nop The nop encryption extension
 The "nop" encryptor is a skeleton extension into which suitable cryptographic code may be
