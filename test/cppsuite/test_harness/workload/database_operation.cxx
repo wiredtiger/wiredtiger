@@ -254,12 +254,14 @@ database_operation::update_operation(thread_context *tc)
         /* Choose a random key to update. */
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id))) {
-            /* Reset our cursor regardless of whether we succeeded to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
-            continue;
-        }
+        bool successful_update = tc->update(cursor, coll.id, tc->key_to_string(key_id));
+
+        /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
+
+        /* We received a rollback in update. */
+        if (!successful_update)
+            continue;
 
         /* Commit the current transaction if we're able to. */
         tc->transaction.try_commit();
