@@ -156,6 +156,9 @@ database_operation::insert_operation(thread_context *tc)
             /* Sleep the duration defined by the op_rate. */
             tc->sleep();
         }
+        /* Reset our cursor to avoid pinning content. */
+        testutil_check(ccv[counter].cursor->reset(ccv[counter].cursor.get()));
+
         /*
          * We need to inform the database model that we've added these keys as some other thread may
          * rely on the key_count data. Only do so if we successfully committed.
@@ -202,6 +205,8 @@ database_operation::read_operation(thread_context *tc)
             tc->transaction.try_rollback(tc->session.get(), "");
             tc->sleep();
         }
+        /* Reset our cursor to avoid pinning content. */
+        testutil_check(cursor->reset(cursor));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     if (tc->transaction.active())
@@ -249,8 +254,12 @@ database_operation::update_operation(thread_context *tc)
         /* Choose a random key to update. */
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, collection_id, tc->key_to_string(key_id)))
+        if (!tc->update(cursor, collection_id, tc->key_to_string(key_id))) {
+            /* Reset our cursor regardless of whether we succeeded to avoid pinning content. */
+            testutil_check(cursor->reset(cursor.get()));
             continue;
+        }
+        testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
         tc->transaction.try_commit(tc->session.get(), "");
