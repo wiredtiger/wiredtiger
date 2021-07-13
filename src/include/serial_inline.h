@@ -232,6 +232,10 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     prev_upd_ts = WT_TS_NONE;
     upd_count = 0;
 
+#ifdef HAVE_DIAGNOSTIC
+    prev_upd_ts = upd->prev_durable_ts;
+#endif
+
     /*
      * All structure setup must be flushed before the structure is entered into the list. We need a
      * write barrier here, our callers depend on it.
