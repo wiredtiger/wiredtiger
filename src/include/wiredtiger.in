@@ -5191,7 +5191,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1086
 /*! cache: forced eviction - pages selected unable to be evicted time */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL_TIME	1087
-/*! cache: forced eviction when more update list found. */
+/*!
+ * cache: forced eviction when more than 1000 updates found in an update
+ * chain.
+ */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_UPDATE_LIST	1088
 /*! cache: hazard pointer blocked page eviction */
 #define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1089

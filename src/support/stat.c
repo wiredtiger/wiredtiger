@@ -1062,7 +1062,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
   "cache: forced eviction - pages selected unable to be evicted time",
-  "cache: forced eviction when more update list found.",
+  "cache: forced eviction when more than 1000 updates found in an update chain.",
   "cache: hazard pointer blocked page eviction",
   "cache: hazard pointer check calls",
   "cache: hazard pointer check entries walked",
