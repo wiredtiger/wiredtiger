@@ -146,10 +146,12 @@ database_operation::insert_operation(thread_context *tc)
         uint64_t added_count = 0;
         bool committed = true;
         tc->transaction.begin();
-        auto &cursor = ccv[counter].cursor;
+
+        /* Collection cursor. */
+        auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
-            if (!tc->insert(cursor, ccv[counter].coll.id, start_key + added_count)) {
+            if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
                 committed = false;
                 break;
             }
@@ -159,14 +161,14 @@ database_operation::insert_operation(thread_context *tc)
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(cursor->reset(cursor.get()));
+        testutil_check(cc.cursor->reset(cc.cursor.get()));
 
         /*
          * We need to inform the database model that we've added these keys as some other thread may
          * rely on the key_count data. Only do so if we successfully committed.
          */
         if (committed)
-            ccv[counter].coll.increase_key_count(added_count);
+            cc.coll.increase_key_count(added_count);
         counter++;
         if (counter == collections_per_thread)
             counter = 0;
