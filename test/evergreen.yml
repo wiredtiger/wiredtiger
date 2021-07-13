@@ -926,7 +926,7 @@ tasks:
   # All cppsuite test tasks must supply the relative path to the config file as we are in the
   # build_posix working directory and the LD_LIBRARY_PATH is .libs.
 
-  - name: cppsuite-base-test
+  - name: cppsuite-base-test-default
     tags: ["pull_request"]
     depends_on:
       - name: compile
@@ -940,6 +940,49 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/base_test_default.txt
+
+  - name: cppsuite-hs-cleanup-default
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/hs_cleanup_default.txt
+
+  - name: cppsuite-base-test-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base-test -f test/cppsuite/configs/base_test_stress.txt -l 2
+
+  - name: cppsuite-hs-cleanup-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -f test/cppsuite/configs/hs_cleanup_stress.txt -l 2
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -2696,7 +2739,8 @@ buildvariants:
     - name: examples-c-production-disable-static-test
     - name: format-stress-pull-request-test
     - name: make-check-test
-    - name: cppsuite-base-test
+    - name: cppsuite-base-test-default
+    - name: cppsuite-hs-cleanup-default
 
 - name: ubuntu1804-compilers
   display_name: "! Ubuntu 18.04 Compilers"
@@ -2743,8 +2787,11 @@ buildvariants:
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
   tasks:
+    - name: compile
     - name: many-dhandle-stress-test
     - name: many-collection-test
+    - name: cppsuite-hs-cleanup-stress
+    - name: cppsuite-base-test-stress
 
 - name: package
   display_name: "~ Package"
