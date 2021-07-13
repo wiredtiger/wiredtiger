@@ -629,13 +629,14 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         /*
          * Determine if all records on the page have been deleted and all the tombstones are visible
          * to our transaction. If so, we can avoid reading the records on the page and move to the
-         * next page. We base this decision on the aggregate timestamp added to the page during the
+         * next page. We base this decision on the aggregate stop point added to the page during the
          * last reconciliation. We can skip this test if the page has been modified since it was
-         * reconciled.
+         * reconciled or the underlying cursor is configured to ignore tombstones.
          */
-        if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_HS(session->dhandle) &&
-          cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == true &&
-          page != NULL && !__wt_page_is_modified(page) &&
+        if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) && cbt->ref != NULL &&
+          __wt_ref_addr_copy(session, cbt->ref, &addr) == true && page != NULL &&
+          !__wt_page_is_modified(page) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             pages_skipped_count++;
