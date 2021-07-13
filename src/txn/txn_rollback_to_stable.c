@@ -77,10 +77,10 @@ static int
 __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first_upd,
   wt_timestamp_t rollback_timestamp, bool *stable_update_found)
 {
-    WT_UPDATE *tombstone, *upd;
+    WT_UPDATE *stable_upd, *tombstone, *upd;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
-    tombstone = NULL;
+    stable_upd = tombstone = NULL;
     if (stable_update_found != NULL)
         *stable_update_found = false;
     for (upd = first_upd; upd != NULL; upd = upd->next) {
@@ -131,18 +131,30 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
                 tombstone = first_upd;
                 for (upd = first_upd->next; upd != NULL; upd = upd->next) {
                     if (upd->txnid != WT_TXN_ABORTED) {
-                        WT_ASSERT(session, upd->type != WT_UPDATE_TOMBSTONE);
-                        first_upd = upd;
+                        WT_ASSERT(
+                          session, upd->type != WT_UPDATE_TOMBSTONE && F_ISSET(upd, WT_UPDATE_HS));
+                        stable_upd = upd;
                         break;
                     }
                 }
-            }
+            } else
+                stable_upd = first_upd;
 
-            /* Delete the first stable update and any newer updates from the history store. */
-            WT_RET(__rollback_delete_hs(session, key, first_upd->start_ts));
-            /* Clear the history store flag for the first stable update. Otherwise, it will not be
-             * moved to history store again. */
-            F_CLR(first_upd, WT_UPDATE_HS);
+            /*
+             * Delete the first stable update and any newer update from the history store. If the
+             * update following the stable tombstone is removed by obsolete check, no need to remove
+             * that update from the history store as it has a globally visible tombstone. In that
+             * case, it is enough to delete everything up until to the tombstone timestamp.
+             */
+            WT_RET(__rollback_delete_hs(
+              session, key, stable_upd == NULL ? tombstone->start_ts : stable_upd->start_ts));
+
+            /*
+             * Clear the history store flag for the first stable update. Otherwise, it will not be
+             * moved to history store again.
+             */
+            if (stable_upd != NULL)
+                F_CLR(stable_upd, WT_UPDATE_HS);
             if (tombstone != NULL)
                 F_CLR(tombstone, WT_UPDATE_HS);
         }
