@@ -231,19 +231,15 @@ next:
         case 'b':                                                  \
         case 'h':                                                  \
         case 'i':                                                  \
+        case 'l':                                                  \
             (pv).u.i = va_arg(ap, int);                            \
             break;                                                 \
         case 'B':                                                  \
         case 'H':                                                  \
         case 'I':                                                  \
         case 't':                                                  \
-            (pv).u.u = va_arg(ap, unsigned int);                   \
-            break;                                                 \
-        case 'l':                                                  \
-            (pv).u.i = va_arg(ap, long);                           \
-            break;                                                 \
         case 'L':                                                  \
-            (pv).u.u = va_arg(ap, unsigned long);                  \
+            (pv).u.u = va_arg(ap, unsigned int);                   \
             break;                                                 \
         case 'q':                                                  \
             (pv).u.i = va_arg(ap, int64_t);                        \
