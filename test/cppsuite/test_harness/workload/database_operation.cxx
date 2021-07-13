@@ -146,9 +146,10 @@ database_operation::insert_operation(thread_context *tc)
         uint64_t added_count = 0;
         bool committed = true;
         tc->transaction.begin();
+        auto &cursor = ccv[counter].cursor;
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
-            if (!tc->insert(ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
+            if (!tc->insert(cursor, ccv[counter].coll.id, start_key + added_count)) {
                 committed = false;
                 break;
             }
@@ -158,7 +159,7 @@ database_operation::insert_operation(thread_context *tc)
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(ccv[counter].cursor->reset(ccv[counter].cursor.get()));
+        testutil_check(cursor->reset(cursor.get()));
 
         /*
          * We need to inform the database model that we've added these keys as some other thread may
