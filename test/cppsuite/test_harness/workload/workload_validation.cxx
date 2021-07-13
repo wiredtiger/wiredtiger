@@ -184,7 +184,7 @@ workload_validation::update_data_model(const tracking_operation &operation,
         if (it == collection.end())
             testutil_die(LOG_ERROR,
               "Validation failed: key deleted that doesn't exist. Collection id: %lu Key: %s",
-              collection_id, it->first.c_str());
+              collection_id, key);
         else if (it->second.exists == false)
             /* The key has been deleted twice. */
             testutil_die(LOG_ERROR,
