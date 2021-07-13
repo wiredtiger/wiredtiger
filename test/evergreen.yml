@@ -968,7 +968,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base-test -f test/cppsuite/configs/base_test_stress.txt -l 2
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -f test/cppsuite/configs/base_test_stress.txt -l 2
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
