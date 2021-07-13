@@ -52,7 +52,6 @@ void
 get_time(char *time_buf, size_t buf_size)
 {
     size_t alloc_size;
-    struct timespec tsp;
     struct tm *tm, _tm;
 
     /* Get time since epoch in nanoseconds. */
