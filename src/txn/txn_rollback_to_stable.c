@@ -97,7 +97,7 @@ __rollback_abort_update(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *first
              * here.
              */
             WT_ASSERT(session,
-              !F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT) || upd == first_upd);
+              !F_ISSET(session->dhandle, WT_DHANDLE_TS_KEY_CONSISTENT) || stable_upd == NULL);
 
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "rollback to stable update aborted with txnid: %" PRIu64
