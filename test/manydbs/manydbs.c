@@ -208,7 +208,7 @@ main(int argc, char *argv[])
          * On an idle workload there should be no resets of condition variables during the idle
          * period. Even with a light workload, resets should not be very common. We look for 5%.
          */
-        if (idle && cond_reset != cond_reset_orig[i])
+        if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 40)
             testutil_die(
               ERANGE, "condition reset on idle connection %d of %" PRIu64, i, cond_reset);
         if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
