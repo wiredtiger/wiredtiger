@@ -18,7 +18,14 @@ runtime_monitor=
         enabled=true,
         limit=100
     ),
-    postrun_statistics=[cache_hs_insert:250000:400000, cc_pages_removed:200000:300000]
+    # 7.5GB, ~4x our expected size, note that the tracking table is not included in the computation.
+    # The history store sits around 2.15GB in this workload. The tables themselves grow to over
+    # double the expected size.
+    stat_db_size=(
+        enabled=true,
+        limit=7500000000,
+    ),
+    postrun_statistics=[cache_hs_insert:210000:250000, cc_pages_removed:200000:300000]
 ),
 timestamp_manager=
 (
