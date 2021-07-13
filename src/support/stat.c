@@ -143,9 +143,11 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: cache cursors reuse count",
   "cursor: close calls that result in cache",
   "cursor: create calls",
+  "cursor: cursor next call skipped pages without reading",
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
+  "cursor: cursor prev call skipped pages without reading",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
   "cursor: cursor prev calls that skip less than 100 entries",
@@ -398,9 +400,11 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_reopen = 0;
     stats->cursor_cache = 0;
     stats->cursor_create = 0;
+    stats->cursor_next_skip_pages = 0;
     stats->cursor_next_hs_tombstone = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
+    stats->cursor_prev_skip_pages = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
     stats->cursor_prev_skip_lt_100 = 0;
@@ -638,9 +642,11 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_reopen += from->cursor_reopen;
     to->cursor_cache += from->cursor_cache;
     to->cursor_create += from->cursor_create;
+    to->cursor_next_skip_pages += from->cursor_next_skip_pages;
     to->cursor_next_hs_tombstone += from->cursor_next_hs_tombstone;
     to->cursor_next_skip_ge_100 += from->cursor_next_skip_ge_100;
     to->cursor_next_skip_lt_100 += from->cursor_next_skip_lt_100;
+    to->cursor_prev_skip_pages += from->cursor_prev_skip_pages;
     to->cursor_prev_hs_tombstone += from->cursor_prev_hs_tombstone;
     to->cursor_prev_skip_ge_100 += from->cursor_prev_skip_ge_100;
     to->cursor_prev_skip_lt_100 += from->cursor_prev_skip_lt_100;
@@ -882,9 +888,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_reopen += WT_STAT_READ(from, cursor_reopen);
     to->cursor_cache += WT_STAT_READ(from, cursor_cache);
     to->cursor_create += WT_STAT_READ(from, cursor_create);
+    to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
     to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
+    to->cursor_prev_skip_pages += WT_STAT_READ(from, cursor_prev_skip_pages);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);
     to->cursor_prev_skip_lt_100 += WT_STAT_READ(from, cursor_prev_skip_lt_100);
@@ -1178,11 +1186,13 @@ static const char *const __stats_connection_desc[] = {
   "cursor: cursor modify calls",
   "cursor: cursor modify key and value bytes affected",
   "cursor: cursor modify value bytes modified",
+  "cursor: cursor next call skipped pages without reading",
   "cursor: cursor next calls",
   "cursor: cursor next calls that skip due to a globally visible history store tombstone",
   "cursor: cursor next calls that skip greater than or equal to 100 entries",
   "cursor: cursor next calls that skip less than 100 entries",
   "cursor: cursor operation restarted",
+  "cursor: cursor prev call skipped pages without reading",
   "cursor: cursor prev calls",
   "cursor: cursor prev calls that skip due to a globally visible history store tombstone",
   "cursor: cursor prev calls that skip greater than or equal to 100 entries",
@@ -1702,11 +1712,13 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_modify = 0;
     stats->cursor_modify_bytes = 0;
     stats->cursor_modify_bytes_touch = 0;
+    stats->cursor_next_skip_pages = 0;
     stats->cursor_next = 0;
     stats->cursor_next_hs_tombstone = 0;
     stats->cursor_next_skip_ge_100 = 0;
     stats->cursor_next_skip_lt_100 = 0;
     stats->cursor_restart = 0;
+    stats->cursor_prev_skip_pages = 0;
     stats->cursor_prev = 0;
     stats->cursor_prev_hs_tombstone = 0;
     stats->cursor_prev_skip_ge_100 = 0;
@@ -2225,11 +2237,13 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_modify += WT_STAT_READ(from, cursor_modify);
     to->cursor_modify_bytes += WT_STAT_READ(from, cursor_modify_bytes);
     to->cursor_modify_bytes_touch += WT_STAT_READ(from, cursor_modify_bytes_touch);
+    to->cursor_next_skip_pages += WT_STAT_READ(from, cursor_next_skip_pages);
     to->cursor_next += WT_STAT_READ(from, cursor_next);
     to->cursor_next_hs_tombstone += WT_STAT_READ(from, cursor_next_hs_tombstone);
     to->cursor_next_skip_ge_100 += WT_STAT_READ(from, cursor_next_skip_ge_100);
     to->cursor_next_skip_lt_100 += WT_STAT_READ(from, cursor_next_skip_lt_100);
     to->cursor_restart += WT_STAT_READ(from, cursor_restart);
+    to->cursor_prev_skip_pages += WT_STAT_READ(from, cursor_prev_skip_pages);
     to->cursor_prev += WT_STAT_READ(from, cursor_prev);
     to->cursor_prev_hs_tombstone += WT_STAT_READ(from, cursor_prev_hs_tombstone);
     to->cursor_prev_skip_ge_100 += WT_STAT_READ(from, cursor_prev_skip_ge_100);

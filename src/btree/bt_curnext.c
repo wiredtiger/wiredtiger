@@ -640,16 +640,18 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 int
 __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
+    WT_ADDR_COPY addr;
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
-    size_t total_skipped, skipped;
+    size_t pages_skipped_count, total_skipped, skipped;
     uint32_t flags;
-    bool newpage, restart;
+    bool newpage, restart, page_skipped;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
+    pages_skipped_count = 0;
     total_skipped = 0;
 
     WT_STAT_CONN_DATA_INCR(session, cursor_next);
@@ -676,6 +678,24 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     for (newpage = false;; newpage = true, restart = false) {
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
+
+        /*
+         * Determine if all records on the page have been deleted and all the tombstones are visible
+         * to our transaction. If so, we can avoid reading the records on the page and move to the
+         * next page. We base this decision on the aggregate timestamp added to the page during the
+         * last reconciliation. We can skip this test if the page has been modified since it was
+         * reconciled.
+         */
+        if (session->txn->isolation == WT_ISO_SNAPSHOT && !WT_IS_HS(session->dhandle) &&
+          cbt->ref != NULL && __wt_ref_addr_copy(session, cbt->ref, &addr) == true &&
+          page != NULL && !__wt_page_is_modified(page) &&
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
+            pages_skipped_count++;
+            page_skipped = true;
+            goto skip_page;
+        } else
+            page_skipped = false;
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
@@ -730,12 +750,14 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 continue;
             }
         }
-
+skip_page:
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
-         * and only saw deleted records, try to evict the page when we release it. Otherwise
-         * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
-         * care not to force eviction of pages that are genuinely empty, in new trees.
+         * and only saw deleted records, try to evict the page when we release it. Also consider
+         * case where we skipped reading the page because we determined that all records on the page
+         * have tombstones visible to this transaction. Otherwise repeatedly deleting from the
+         * beginning of a tree can have quadratic performance. Take care not to force eviction of
+         * pages that are genuinely empty, in new trees.
          *
          * A visible stop timestamp could have been treated as a tombstone and accounted in the
          * deleted count. Such a page might not have any new updates and be clean, but could benefit
@@ -744,7 +766,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
          */
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-            (newpage && cbt->page_deleted_count > 0))) {
+            (newpage && cbt->page_deleted_count > 0) || page_skipped)) {
             WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
             WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
         }
@@ -757,6 +779,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     }
 
 err:
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_pages, pages_skipped_count);
+
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
     else
