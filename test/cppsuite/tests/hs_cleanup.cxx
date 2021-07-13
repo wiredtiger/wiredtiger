@@ -70,7 +70,7 @@ class hs_cleanup : public test {
             testutil_check(cursor->get_key(cursor.get(), &key_tmp));
 
             /* Start a transaction if possible. */
-            tc->transaction.try_begin(tc->session.get(), "");
+            tc->transaction.try_begin();
 
             /*
              * The retrieved key needs to be passed inside the update function. However, the update
@@ -81,10 +81,10 @@ class hs_cleanup : public test {
                 continue;
 
             /* Commit our transaction. */
-            tc->transaction.try_commit(tc->session.get(), "");
+            tc->transaction.try_commit();
         }
         /* Ensure our last transaction is resolved. */
         if (tc->transaction.active())
-            tc->transaction.commit(tc->session.get(), "");
+            tc->transaction.commit();
     }
 };

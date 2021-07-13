@@ -29,6 +29,7 @@
 #include <atomic>
 #include <map>
 
+#include "connection_manager.h"
 #include "core/configuration.h"
 #include "core/throttle.h"
 #include "util/api_const.h"
@@ -105,7 +106,7 @@ workload_generator::run()
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(
-              thread_id++, it.type, it.config, _timestamp_manager, _tracking, _database);
+              thread_id++, it.type, it.config, connection_manager::instance().create_session(), _timestamp_manager, _tracking, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }
