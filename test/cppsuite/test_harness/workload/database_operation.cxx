@@ -221,7 +221,6 @@ database_operation::update_operation(thread_context *tc)
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
-    uint64_t collection_id = 0;
 
     /*
      * Loop while the test is running.
@@ -255,7 +254,7 @@ database_operation::update_operation(thread_context *tc)
         /* Choose a random key to update. */
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, collection_id, tc->key_to_string(key_id))) {
+        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id))) {
             /* Reset our cursor regardless of whether we succeeded to avoid pinning content. */
             testutil_check(cursor->reset(cursor.get()));
             continue;
