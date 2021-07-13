@@ -98,8 +98,8 @@ database_operation::populate(
      * here.
      */
     for (int64_t i = 0; i < thread_count; ++i) {
-        thread_context *tc =
-          new thread_context(i, thread_type::INSERT, config, connection_manager::instance().create_session(), tsm, tracking, database);
+        thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+          connection_manager::instance().create_session(), tsm, tracking, database);
         workers.push_back(tc);
         tm.add_thread(populate_worker, tc);
     }

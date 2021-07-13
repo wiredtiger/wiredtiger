@@ -63,8 +63,8 @@ type_string(thread_type type)
 
 class transaction_context {
     public:
-    explicit transaction_context(configuration *config, timestamp_manager *timestamp_manager,
-      WT_SESSION *session);
+    explicit transaction_context(
+      configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
 
     bool active() const;
     void add_op();
@@ -107,8 +107,9 @@ class transaction_context {
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
-    thread_context(uint64_t id, thread_type type, configuration *config, scoped_session &&created_session,
-      timestamp_manager *timestamp_manager, workload_tracking *tracking, database &dbase);
+    thread_context(uint64_t id, thread_type type, configuration *config,
+      scoped_session &&created_session, timestamp_manager *timestamp_manager,
+      workload_tracking *tracking, database &dbase);
 
     virtual ~thread_context() = default;
 

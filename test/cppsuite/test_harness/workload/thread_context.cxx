@@ -64,7 +64,8 @@ void
 transaction_context::begin(const std::string &config)
 {
     testutil_assert(!_in_txn);
-    testutil_check(_session->begin_transaction(_session, config.empty() ? nullptr : config.c_str()));
+    testutil_check(
+      _session->begin_transaction(_session, config.empty() ? nullptr : config.c_str()));
     /* This randomizes the number of operations to be executed in one transaction. */
     _target_op_count =
       random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
@@ -83,7 +84,8 @@ void
 transaction_context::commit(const std::string &config)
 {
     testutil_assert(_in_txn);
-    testutil_check(_session->commit_transaction(_session, config.empty() ? nullptr : config.c_str()));
+    testutil_check(
+      _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str()));
     _op_count = 0;
     _in_txn = false;
 }
@@ -129,8 +131,9 @@ transaction_context::can_commit_rollback()
 }
 
 /* thread_context class implementation */
-thread_context::thread_context(uint64_t id, thread_type type, configuration *config, scoped_session &&created_session,
-  timestamp_manager *timestamp_manager, workload_tracking *tracking, database &dbase)
+thread_context::thread_context(uint64_t id, thread_type type, configuration *config,
+  scoped_session &&created_session, timestamp_manager *timestamp_manager,
+  workload_tracking *tracking, database &dbase)
     : id(id), type(type), db(dbase), tsm(timestamp_manager), tracking(tracking),
       session(std::move(created_session)),
       transaction(transaction_context(config, timestamp_manager, session.get())),
