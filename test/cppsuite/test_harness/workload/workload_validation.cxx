@@ -136,6 +136,9 @@ workload_validation::validate(const std::string &operation_table_name,
     if (ret != WT_NOTFOUND)
         testutil_die(
           LOG_ERROR, "Validation failed: cursor->next() return an unexpected error %d.", ret);
+
+    /* We still need to validate the last collection. */
+    verify_collection(session, current_collection_id, current_collection_records);
 }
 
 void
