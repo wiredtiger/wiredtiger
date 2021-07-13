@@ -147,9 +147,12 @@ database_operation::insert_operation(thread_context *tc)
         uint64_t added_count = 0;
         bool committed = true;
         tc->transaction.begin();
+
+        /* Collection cursor. */
+        auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
-            if (!tc->insert(ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
+            if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
                 committed = false;
                 break;
             }
@@ -159,14 +162,14 @@ database_operation::insert_operation(thread_context *tc)
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(ccv[counter].cursor->reset(ccv[counter].cursor.get()));
+        testutil_check(cc.cursor->reset(cc.cursor.get()));
 
         /*
          * We need to inform the database model that we've added these keys as some other thread may
          * rely on the key_count data. Only do so if we successfully committed.
          */
         if (committed)
-            ccv[counter].coll.increase_key_count(added_count);
+            cc.coll.increase_key_count(added_count);
         counter++;
         if (counter == collections_per_thread)
             counter = 0;
@@ -255,12 +258,14 @@ database_operation::update_operation(thread_context *tc)
         /* Choose a random key to update. */
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, coll.id, tc->key_to_string(key_id))) {
-            /* Reset our cursor regardless of whether we succeeded to avoid pinning content. */
-            testutil_check(cursor->reset(cursor.get()));
-            continue;
-        }
+        bool successful_update = tc->update(cursor, coll.id, tc->key_to_string(key_id));
+
+        /* Reset our cursor to avoid pinning content. */
         testutil_check(cursor->reset(cursor.get()));
+
+        /* We received a rollback in update. */
+        if (!successful_update)
+            continue;
 
         /* Commit the current transaction if we're able to. */
         tc->transaction.try_commit();
