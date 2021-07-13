@@ -647,7 +647,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t pages_skipped_count, total_skipped, skipped;
     uint32_t flags;
-    bool newpage, restart, page_skipped;
+    bool newpage, restart;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -692,10 +692,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             pages_skipped_count++;
-            page_skipped = true;
             goto skip_page;
-        } else
-            page_skipped = false;
+        }
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
             /* The page cannot be NULL if the above flag is set. */
@@ -753,11 +751,9 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 skip_page:
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
-         * and only saw deleted records, try to evict the page when we release it. Also consider
-         * case where we skipped reading the page because we determined that all records on the page
-         * have tombstones visible to this transaction. Otherwise repeatedly deleting from the
-         * beginning of a tree can have quadratic performance. Take care not to force eviction of
-         * pages that are genuinely empty, in new trees.
+         * and only saw deleted records, try to evict the page when we release it. Otherwise
+         * repeatedly deleting from the beginning of a tree can have quadratic performance. Take
+         * care not to force eviction of pages that are genuinely empty, in new trees.
          *
          * A visible stop timestamp could have been treated as a tombstone and accounted in the
          * deleted count. Such a page might not have any new updates and be clean, but could benefit
@@ -766,7 +762,7 @@ skip_page:
          */
         if (page != NULL &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
-            (newpage && cbt->page_deleted_count > 0) || page_skipped)) {
+            (newpage && cbt->page_deleted_count > 0))) {
             WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));
             WT_STAT_CONN_INCR(session, cache_eviction_force_delete);
         }
