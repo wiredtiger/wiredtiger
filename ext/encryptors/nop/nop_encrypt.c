@@ -154,7 +154,6 @@ nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encry
     NOP_ENCRYPTOR *new;
     WT_CONFIG_ITEM keyid, secretkey;
     WT_EXTENSION_API *wt_api;
-    size_t keylen;
     int ret;
 
     orig = (const NOP_ENCRYPTOR *)encryptor;

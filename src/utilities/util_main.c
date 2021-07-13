@@ -326,6 +326,15 @@ err:
     }
 done:
 
+    /* may get here via either err or done before the free above happens */
+    if (secretkey != NULL) {
+        /* p contains a copy of secretkey, so zero both before freeing */
+        wt_explicit_zero(p, strlen(p));
+        wt_explicit_zero(secretkey, strlen(secretkey));
+        free(p);
+        free(secretkey);
+    }
+
     if (conn != NULL) {
         /* Maintain backward compatibility. */
         if (backward_compatible &&
