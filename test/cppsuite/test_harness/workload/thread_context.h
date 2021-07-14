@@ -100,7 +100,7 @@ class transaction_context {
     int64_t _target_op_count = 0;
     bool _in_txn = false;
 
-    WT_SESSION *_session;
+    WT_SESSION *_session = nullptr;
     timestamp_manager *_timestamp_manager = nullptr;
 };
 
