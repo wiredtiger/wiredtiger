@@ -290,14 +290,13 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         expect_fail = self.expect_recovery_failure()
 
         if expect_fail:
-            with self.expectedStdoutPattern('Failed wiredtiger_open'):
-                errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
-                if self.kind == 'removal':
-                    errmsg = '/No such file or directory/'
-                if self.kind == 'truncate':
-                    errmsg = '/failed to read 128 bytes at offset 0/'
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(newdir, self.base_config), errmsg)
+            errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
+            if self.kind == 'removal':
+                errmsg = '/No such file or directory/'
+            if self.kind == 'truncate':
+                errmsg = '/failed to read 128 bytes at offset 0/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.reopen_conn(newdir, self.base_config), errmsg)
         else:
             if self.expect_warning_corruption():
                 with self.expectedStdoutPattern('log file .* corrupted'):
@@ -488,9 +487,8 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                     errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
                 if self.kind == 'removal':
                     errmsg = '/No such file or directory/'
-            with self.expectedStdoutPattern('Failed wiredtiger_open'):
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(dir, self.conn_config), errmsg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.reopen_conn(dir, self.conn_config), errmsg)
         else:
             # On non-windows platforms, we capture the renaming of WiredTiger.wt file.
             if os.name != 'nt' and self.filename == 'WiredTiger.turtle' and self.kind == 'removal':
