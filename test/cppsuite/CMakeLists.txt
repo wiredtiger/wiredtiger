@@ -54,6 +54,11 @@ create_test_executable(run
     CXX
 )
 
+if (HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
+    # We use Snappy compression to avoid excessive disk spage usage.
+    target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
+endif()
+
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 
 # Run this during a "ctest check" smoke test.
