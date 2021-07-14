@@ -85,6 +85,9 @@ database_operation::populate(
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));
 
+    logger::log_msg(
+      LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
+
     /* Create n collections as per the configuration. */
     for (int64_t i = 0; i < collection_count; ++i)
         /*

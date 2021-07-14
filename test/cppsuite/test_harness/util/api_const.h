@@ -74,7 +74,12 @@ static const char *STABLE_TS = "stable_timestamp";
 static const char *STATISTICS_LOG = "statistics_log=(json,wait=1)";
 
 /* Test harness consts. */
-static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S";
+#define BLKCMP_PFX "block_compressor="
+#define SNAPPY_BLK BLKCMP_PFX "snappy"
+#define EXTPATH "../../ext/compressors/"
+#define SNAPPY_EXT ",extensions=(" EXTPATH "snappy/.libs/libwiredtiger_snappy.so)"
+
+static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S," SNAPPY_BLK;
 static const char *TABLE_OPERATION_TRACKING = "table:operation_tracking";
 static const char *TABLE_SCHEMA_TRACKING = "table:schema_tracking";
 static const char *STATISTICS_URI = "statistics:";

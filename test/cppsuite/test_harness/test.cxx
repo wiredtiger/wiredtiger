@@ -93,7 +93,7 @@ test::run()
     std::string statistics_type;
     /* Build the database creation config string. */
     std::string db_create_config = CONNECTION_CREATE;
-
+    db_create_config += SNAPPY_EXT;
     /* Get the cache size. */
     cache_size_mb = _config->get_int(CACHE_SIZE_MB);
     db_create_config += ",cache_size=" + std::to_string(cache_size_mb) + "MB";

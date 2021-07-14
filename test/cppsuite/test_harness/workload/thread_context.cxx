@@ -178,7 +178,7 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
     testutil_assert(cursor.get() != nullptr);
 
     transaction.set_commit_timestamp(ts);
-    value = random_generator::instance().generate_string(value_size);
+    value = random_generator::instance().generate_pseudo_random_string(value_size);
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
     ret = cursor->update(cursor.get());
@@ -219,7 +219,7 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
     transaction.set_commit_timestamp(ts);
 
     key = key_to_string(key_id);
-    value = random_generator::instance().generate_string(value_size);
+    value = random_generator::instance().generate_pseudo_random_string(value_size);
 
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
