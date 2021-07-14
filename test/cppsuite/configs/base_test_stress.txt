@@ -14,7 +14,8 @@ runtime_monitor=
         enabled=false,
         limit=100
     ),
-    stat_db_size=(
+    stat_db_size=
+    (
         enabled=true,
         #50 GB
         limit=50000000000,
