@@ -884,121 +884,6 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t
 }
 
 /*
- * __rollback_abort_row_reconciled_page_internal --
- *     Abort updates on a history store using the in-memory build reconciled page of data store.
- */
-static int
-__rollback_abort_row_reconciled_page_internal(WT_SESSION_IMPL *session, const void *image,
-  const uint8_t *addr, size_t addr_size, wt_timestamp_t rollback_timestamp)
-{
-    WT_DECL_RET;
-    WT_ITEM tmp;
-    WT_PAGE *mod_page;
-    WT_ROW *rip;
-    uint32_t i, page_flags;
-    const void *image_local;
-
-    /*
-     * Don't pass an allocated buffer to the underlying block read function, force allocation of new
-     * memory of the appropriate size.
-     */
-    WT_CLEAR(tmp);
-
-    mod_page = NULL;
-    image_local = image;
-
-    if (image_local == NULL) {
-        WT_RET(__wt_bt_read(session, &tmp, addr, addr_size));
-        image_local = tmp.data;
-    }
-
-    /* Don't free the passed image later. */
-    page_flags = image != NULL ? 0 : WT_PAGE_DISK_ALLOC;
-    WT_ERR(__wt_page_inmem(session, NULL, image_local, page_flags, &mod_page));
-    tmp.mem = NULL;
-    WT_ROW_FOREACH (mod_page, rip, i)
-        WT_ERR_NOTFOUND_OK(__rollback_ondisk_fixup_key(
-                             session, NULL, mod_page, NULL, rip, rollback_timestamp, false, 0),
-          false);
-
-err:
-    if (mod_page != NULL)
-        __wt_page_out(session, &mod_page);
-    __wt_buf_free(session, &tmp);
-
-    return (ret);
-}
-
-/*
- * __rollback_abort_row_reconciled_page --
- *     Abort updates on a history store using the reconciled pages of data store.
- */
-static int
-__rollback_abort_row_reconciled_page(
-  WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t rollback_timestamp)
-{
-    WT_MULTI *multi;
-    WT_PAGE_MODIFY *mod;
-    uint32_t multi_entry;
-    char ts_string[3][WT_TS_INT_STRING_SIZE];
-
-    if ((mod = page->modify) == NULL)
-        return (0);
-
-    if (mod->rec_result == WT_PM_REC_REPLACE &&
-      (mod->mod_replace.ta.newest_start_durable_ts > rollback_timestamp ||
-        mod->mod_replace.ta.newest_stop_durable_ts > rollback_timestamp ||
-        mod->mod_replace.ta.prepare)) {
-        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "reconciled replace block page history store update removal on-disk with start durable "
-          "timestamp: %s, stop durable timestamp: %s and stable timestamp: %s",
-          __wt_timestamp_to_string(mod->mod_replace.ta.newest_start_durable_ts, ts_string[0]),
-          __wt_timestamp_to_string(mod->mod_replace.ta.newest_stop_durable_ts, ts_string[1]),
-          __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
-
-        /* Remove the history store newer updates. */
-        if (!WT_IS_HS(session->dhandle))
-            WT_RET(__rollback_abort_row_reconciled_page_internal(session, mod->u1.r.disk_image,
-              mod->u1.r.replace.addr, mod->u1.r.replace.size, rollback_timestamp));
-
-        /*
-         * As this page has newer aborts that are aborted, make sure to mark the page as dirty to
-         * let the reconciliation happens again on the page. Otherwise, the eviction may pick the
-         * already reconciled page to write to disk with newer updates.
-         */
-        __wt_page_modify_set(session, page);
-    } else if (mod->rec_result == WT_PM_REC_MULTIBLOCK) {
-        for (multi = mod->mod_multi, multi_entry = 0; multi_entry < mod->mod_multi_entries;
-             ++multi, ++multi_entry)
-            if (multi->addr.ta.newest_start_durable_ts > rollback_timestamp ||
-              multi->addr.ta.newest_stop_durable_ts > rollback_timestamp ||
-              multi->addr.ta.prepare) {
-                __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-                  "reconciled multi block page history store update removal on-disk with start "
-                  "durable timestamp: %s, stop durable timestamp: %s and stable timestamp: %s",
-                  __wt_timestamp_to_string(multi->addr.ta.newest_start_durable_ts, ts_string[0]),
-                  __wt_timestamp_to_string(multi->addr.ta.newest_stop_durable_ts, ts_string[1]),
-                  __wt_timestamp_to_string(rollback_timestamp, ts_string[2]));
-
-                /* Remove the history store newer updates. */
-                if (!WT_IS_HS(session->dhandle))
-                    WT_RET(__rollback_abort_row_reconciled_page_internal(session, multi->disk_image,
-                      multi->addr.addr, multi->addr.size, rollback_timestamp));
-
-                /*
-                 * As this page has newer aborts that are aborted, make sure to mark the page as
-                 * dirty to let the reconciliation happens again on the page. Otherwise, the
-                 * eviction may pick the already reconciled page to write to disk with newer
-                 * updates.
-                 */
-                __wt_page_modify_set(session, page);
-            }
-    }
-
-    return (0);
-}
-
-/*
  * __rollback_abort_row_leaf --
  *     Abort updates on a row leaf page with timestamps newer than the rollback timestamp.
  */
@@ -1045,13 +930,6 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         if (!stable_update_found)
             WT_ERR(__rollback_abort_ondisk_kv(session, ref, NULL, rip, rollback_timestamp, 0));
     }
-
-    /*
-     * If the configuration is not in-memory, abort history store updates from the reconciled pages
-     * of data store.
-     */
-    if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-        WT_ERR(__rollback_abort_row_reconciled_page(session, page, rollback_timestamp));
 
     /* Mark the page as dirty to reconcile the page. */
     if (page->modify)
