@@ -923,8 +923,8 @@ tasks:
   # End of normal make check test tasks
 
   # Start of cppsuite test tasks.
-  # All cppsuite test tasks must supply the relative path to the config file as we are in the
-  # build_posix working directory and the LD_LIBRARY_PATH is .libs.
+  # All cppsuite pull request tasks must supply the relative path to the config file as we are in
+  # the build_posix working directory and the LD_LIBRARY_PATH is .libs.
 
   - name: cppsuite-base-test-default
     tags: ["pull_request"]
@@ -939,7 +939,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/base_test_default.txt
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/base_test_default.txt -l 2
 
   - name: cppsuite-hs-cleanup-default
     tags: ["pull_request"]
@@ -954,7 +954,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/hs_cleanup_default.txt
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -C 'debug_mode=(cursor_copy=true)' -f test/cppsuite/configs/hs_cleanup_default.txt -l 2
 
   - name: cppsuite-base-test-stress
     depends_on:
@@ -968,7 +968,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t base_test -f test/cppsuite/configs/base_test_stress.txt -l 2
+            ${test_env_vars|} $(pwd)/run -t base_test -f configs/base_test_stress.txt -l 2
 
   - name: cppsuite-hs-cleanup-stress
     depends_on:
@@ -982,7 +982,7 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t hs_cleanup -f test/cppsuite/configs/hs_cleanup_stress.txt -l 2
+            ${test_env_vars|} $(pwd)/run -t hs_cleanup -f configs/hs_cleanup_stress.txt -l 2
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -2796,10 +2796,11 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   expansions:
+    test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
-      --enable-silent-rules --enable-python --enable-zlib
-      --enable-strict --enable-static --with-builtins=snappy
+      --enable-silent-rules --enable-python --enable-zlib --enable-snappy
+      --enable-strict --enable-static
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
   tasks:
