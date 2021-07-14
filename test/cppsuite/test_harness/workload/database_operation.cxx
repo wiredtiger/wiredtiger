@@ -53,8 +53,7 @@ populate_worker(thread_context *tc)
             /* Start a txn. */
             tc->transaction.begin();
             if (!tc->insert(cursor, coll.id, i)) {
-                /* We failed to insert, rollback and retry. */
-                tc->transaction.rollback();
+                /* We failed to insert, and our transaction was rolled back retry. */
                 --i;
                 continue;
             }

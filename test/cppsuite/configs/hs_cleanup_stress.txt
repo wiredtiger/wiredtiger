@@ -25,7 +25,9 @@ runtime_monitor=
         enabled=true,
         limit=7500000000,
     ),
-    postrun_statistics=[cache_hs_insert:210000:250000, cc_pages_removed:200000:300000]
+    # Seems to insert around 250000 records. Give it +-30K margin.
+    # Seems to remove 150000 records. Give it the same margin.
+    postrun_statistics=[cache_hs_insert:220000:280000, cc_pages_removed:120000:180000]
 ),
 timestamp_manager=
 (
