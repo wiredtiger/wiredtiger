@@ -157,7 +157,7 @@ main(int argc, char *argv[])
     cond_reset_orig = dcalloc((size_t)dbs, sizeof(uint64_t));
     cursors = idle ? NULL : dcalloc((size_t)dbs, sizeof(WT_CURSOR *));
     memset(cmd, 0, sizeof(cmd));
-    idle = true;
+
     /*
      * Set up all the directory names.
      */
