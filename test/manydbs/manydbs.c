@@ -206,8 +206,13 @@ main(int argc, char *argv[])
         testutil_check(get_stat(sessions[i], WT_STAT_CONN_COND_AUTO_WAIT_RESET, &cond_reset));
         testutil_check(get_stat(sessions[i], WT_STAT_CONN_COND_AUTO_WAIT, &cond_wait));
         /*
-         * On an idle workload there should be no resets of condition variables during the idle
-         * period. Even with a light workload, resets should not be very common. We look for 5%.
+         * On an idle workload there should be minimal resets of condition variables during the idle
+         * period, looking for 5%. Even with a light workload, resets should not be very common. We look for 10%.
+         * 
+         * Condition variables are subject to spurious wakeups (those not associated with an explicit wake) 
+         * and stolen wakeups (another thread manages to run before the woken thread). 
+         * https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleepconditionvariablecs
+         * https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_cond_wait.html
          */
         if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
             testutil_die(ERANGE,
@@ -215,7 +220,7 @@ main(int argc, char *argv[])
               cond_wait);
         if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 10)
             testutil_die(ERANGE,
-              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
+              "connection %d condition reset %" PRIu64 " exceeds 10%% of %" PRIu64, i, cond_reset,
               cond_wait);
         testutil_check(connections[i]->close(connections[i], NULL));
     }
