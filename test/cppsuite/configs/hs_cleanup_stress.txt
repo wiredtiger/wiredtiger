@@ -1,6 +1,6 @@
 # Run for half an hour.
 duration_seconds=1800,
-cache_size_mb=512,
+cache_size_mb=200,
 compression_enabled=true,
 statistics_config=
 (
@@ -19,17 +19,16 @@ runtime_monitor=
         enabled=true,
         limit=100
     ),
-    # 7.5GB, ~4x our expected size, note that the tracking table is not included in the computation.
-    # The history store sits around 2.15GB in this workload. The tables themselves grow to over
-    # double the expected size.
+    # The data files compress to around 25MB per table at the end of a run so 250MB total.
+    # +1.4GB for the history store. With an additional 150MB margin.
     stat_db_size=
     (
         enabled=true,
-        limit=7500000000,
+        limit=1800000000,
     ),
-    # Seems to insert around 250000 records. Give it +-30K margin.
-    # Seems to remove 150000 records. Give it the same margin.
-    postrun_statistics=[cache_hs_insert:220000:280000, cc_pages_removed:120000:180000]
+    # Seems to insert around 500K records. Give it +-25K margin.
+    # Seems to remove 180K records. Give it a similar margin.
+    postrun_statistics=[cache_hs_insert:475000:525000, cc_pages_removed:170000:190000]
 ),
 timestamp_manager=
 (
@@ -42,11 +41,11 @@ workload_generator=
     populate_config=
     (
         collection_count=10,
-        # Data size = 10*((1000*5)+(1000*200000)) = 2GB
         key_count_per_collection=1000,
         key_size=5,
         thread_count=10,
-        value_size=200000
+        # Use smaller value sizes during populate seems to make the test a bit more predictable.
+        value_size=10000
     ),
     read_config=
     (
@@ -61,7 +60,7 @@ workload_generator=
         # all threads are trying to update, they'll get pulled into eviction and will get stuck.
         ops_per_transaction=(max=20,min=0),
         thread_count=10,
-        value_size=200000
+        value_size=100000
     )
 ),
 workload_tracking=
