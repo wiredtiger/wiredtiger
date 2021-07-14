@@ -253,13 +253,13 @@ thread_context::next(scoped_cursor &cursor)
     ret = cursor->next(cursor.get());
 
     if (ret == WT_NOTFOUND) {
-        cursor->reset(cursor.get());
+        testutil_check(cursor->reset(cursor.get()));
         return (ret);
     }
 
     if (ret == WT_ROLLBACK) {
         transaction.rollback();
-        cursor->reset(cursor.get());
+        testutil_check(cursor->reset(cursor.get()));
         return (ret);
     }
 

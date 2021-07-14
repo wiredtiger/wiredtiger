@@ -197,11 +197,11 @@ database_operation::read_operation(thread_context *tc)
             cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name.c_str())));
 
         /* Do a second lookup now that we know it exists. */
-        auto &it = cursors[coll.id];
+        auto &cursor = cursors[coll.id];
 
         tc->transaction.begin();
         while (tc->transaction.active() && tc->running()) {
-            if (tc->next(it) == WT_ROLLBACK)
+            if (tc->next(cursor) == WT_ROLLBACK)
                 /* We got an error, our transaction has been rolled back. */
                 break;
             tc->transaction.add_op();
@@ -209,7 +209,7 @@ database_operation::read_operation(thread_context *tc)
             tc->sleep();
         }
         /* Reset our cursor to avoid pinning content. */
-        testutil_check(it->reset(it.get()));
+        testutil_check(cursor->reset(cursor.get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     if (tc->transaction.active())
