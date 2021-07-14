@@ -301,16 +301,9 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         configure block checksums; the permitted values are \c on, \c off, \c uncompressed and
         \c unencrypted. The default is \c on, in which case all block writes include a checksum
         subsequently verified when the block is read. The \c off setting does no checksums,
-        intended for applications with storage systems that detect block corruption. The
-        \c uncompressed setting only checksums blocks that are not compressed; the \c unencrypted
-        setting only checksums blocks that are not encrypted. The \c uncompressed and
-        \c unencrypted settings are intended for applications with compression or encryption
-        engines that detect block corruption. Corruption detection is often the case for
-        encryption engines, including the \c sodium engine included in WiredTiger. Corruption
-        detection is rarely the case for compression engines, specifically, none of the \c lz4,
-        \c snappy, \c zlib and \c zstd compression engines included in WiredTiger have checksum
-        support sufficient to allow turning off checksums.''',
-
+        the \c uncompressed setting only checksums blocks that are not compressed, and the
+        \c unencrypted setting only checksums blocks that are not encrypted.  See @ref
+        tune_checksum for more information.''',
         choices=['on', 'off', 'uncompressed', 'unencrypted']),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the Btree
