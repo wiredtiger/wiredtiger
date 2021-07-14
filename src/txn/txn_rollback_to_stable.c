@@ -56,9 +56,9 @@ __rollback_delete_hs(WT_SESSION_IMPL *session, WT_ITEM *key, wt_timestamp_t ts)
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         if (hs_start_ts == ts)
-            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
-        else
             WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
+        else
+            WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
