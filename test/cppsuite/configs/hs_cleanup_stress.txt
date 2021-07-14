@@ -17,7 +17,7 @@ runtime_monitor=
     stat_cache_size=
     (
         enabled=true,
-        limit=100
+        limit=110
     ),
     # The data files compress to around 25MB per table at the end of a run so 250MB total.
     # +1.4GB for the history store. With an additional 150MB margin.
