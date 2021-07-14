@@ -132,24 +132,27 @@ nop_sizing(WT_ENCRYPTOR *encryptor, WT_SESSION *session, size_t *expansion_const
 
 /*! [WT_ENCRYPTOR customize] */
 /*
- * nop_customize -- The customize function creates a customized encryptor.
- *
- * This is how keys are set: the extension is first loaded, and then for every distinct key used a
- * copy is made by calling the customize method. The original uncustomized WT_ENCRYPTOR is
- * ordinarily never used to encrypt or decrypt anything.
- *
- * The copy, with the key installed into it, should be returned to the caller via the customp
- * argument. If the customize method succeeds but sets *customp to NULL, the original encryptor is
- * used for that key.
- *
- * The customize method need not be provided, but in that case key configuration is not performed,
- * the original encryptor is used for all encryption, and it must have some other means to get the
- * key or keys it should use.
+ * nop_customize --
+ *     The customize function creates a customized encryptor.
  */
 static int
 nop_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encrypt_config,
   WT_ENCRYPTOR **customp)
 {
+    /*
+     * This is how keys are set: the extension is first loaded, and then for every distinct key used
+     * a copy is made by calling the customize method. The original uncustomized WT_ENCRYPTOR is
+     * ordinarily never used to encrypt or decrypt anything.
+     *
+     * The copy, with the key installed into it, should be returned to the caller via the customp
+     * argument. If the customize method succeeds but sets *customp to NULL, the original encryptor
+     * is used for that key.
+     *
+     * The customize method need not be provided, but in that case key configuration is not
+     * performed, the original encryptor is used for all encryption, and it must have some other
+     * means to get the key or keys it should use.
+     */
+
     const NOP_ENCRYPTOR *orig;
     NOP_ENCRYPTOR *new;
     WT_CONFIG_ITEM keyid, secretkey;

@@ -122,15 +122,18 @@ sodium_error(SODIUM_ENCRYPTOR *encryptor, WT_SESSION *session, int err, const ch
 }
 
 /*
- * create_nonce -- Generate a random nonce.
- *
- * It would be tidier to use incrementing nonces, but currently doing so would require sharing the
- * current nonce between all threads and then doing global locking to use it, which is probably not
- * going to work out that well. There isn't a convenient way to store per-thread extension state.
+ * create_nonce --
+ *     Generate a random nonce.
  */
 static void
 create_nonce(uint8_t *dst, size_t len)
 {
+    /*
+     * It would be tidier to use incrementing nonces, but currently doing so would require sharing
+     * the current nonce between all threads and then doing global locking to use it, which is
+     * probably not going to work out that well. There isn't a convenient way to store per-thread
+     * extension state.
+     */
     randombytes_buf(dst, len);
 }
 
@@ -206,15 +209,18 @@ sodium_decrypt(WT_ENCRYPTOR *encryptor, WT_SESSION *session, uint8_t *ciphertext
 }
 
 /*
- * sodium_sizing -- Report how much extra space we need in the output buffer.
- *
- * Note that the interface assumes the expansion is always a constant; for the construction we're
- * using that's true, but for one based on a block cipher it might need to be rounded up to allow
- * for the ciphertext part of the output always being an integer multiple of the cipher block size.
+ * sodium_sizing --
+ *     Report how much extra space we need in the output buffer.
  */
 static int
 sodium_sizing(WT_ENCRYPTOR *encryptor, WT_SESSION *session, size_t *expansion_constantp)
 {
+    /*
+     * Note that the interface assumes the expansion is always a constant; for the construction
+     * we're using that's true, but for one based on a block cipher it might need to be rounded up
+     * to allow for the ciphertext part of the output always being an integer multiple of the cipher
+     * block size.
+     */
     (void)encryptor; /* Unused parameters */
     (void)session;   /* Unused parameters */
 
@@ -224,16 +230,18 @@ sodium_sizing(WT_ENCRYPTOR *encryptor, WT_SESSION *session, size_t *expansion_co
 }
 
 /*
- * sodium_customize -- The customize function creates a customized encryptor.
- *
- * This is how keys are set: the extension is first loaded, and then for every distinct key used a
- * copy is made by calling the customize method. The original uncustomized WT_ENCRYPTOR is never
- * used to encrypt or decrypt anything.
+ * sodium_customize --
+ *     The customize function creates a customized encryptor.
  */
 static int
 sodium_customize(WT_ENCRYPTOR *encryptor, WT_SESSION *session, WT_CONFIG_ARG *encrypt_config,
   WT_ENCRYPTOR **customp)
 {
+    /*
+     * This is how keys are set: the extension is first loaded, and then for every distinct key used
+     * a copy is made by calling the customize method. The original uncustomized WT_ENCRYPTOR is
+     * never used to encrypt or decrypt anything.
+     */
     const SODIUM_ENCRYPTOR *orig;
     SODIUM_ENCRYPTOR *new;
     WT_CONFIG_ITEM keyid, secretkey;
