@@ -17,6 +17,8 @@ runtime_monitor=
     stat_cache_size=
     (
         enabled=true,
+        # I think this is happening because of history store usage as such it won't affect
+        # the other test.
         limit=1000
     ),
     # The data files compress to around 25MB per table at the end of a run so 250MB total.
