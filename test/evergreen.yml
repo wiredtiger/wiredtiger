@@ -2524,6 +2524,7 @@ tasks:
             ./workgen_perf_check.sh many-dhandle-stress.py output.log 50 500 500
 
   - name: many-collection-test
+    exec_timeout_secs: 86400
     commands:
       - func: "fetch mongo repo"
       - func: "get project"
@@ -2532,6 +2533,7 @@ tasks:
       - func: "fetch mongo-tests repo"
       - command: shell.exec
         params:
+          timeout_secs: 86400
           working_dir: mongo-tests/largescale
           shell: bash
           script: |
