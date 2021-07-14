@@ -2787,9 +2787,23 @@ buildvariants:
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
   tasks:
-    - name: compile
     - name: many-dhandle-stress-test
     - name: many-collection-test
+
+- name: cppsuite-stress-tests
+  display_name: "Cppsuite Stress Tests"
+  batchtime: 480 # 3 times a day
+  run_on:
+  - ubuntu1804-test
+  expansions:
+    make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
+    posix_configure_flags:
+      --enable-silent-rules --enable-python --enable-zlib --enable-snappy
+      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+  tasks:
+    - name: compile
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-base-test-stress
 
