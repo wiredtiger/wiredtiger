@@ -108,7 +108,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
     def test_tiered08(self):
 
         # FIXME-WT-7833
-        #     This test can trigger races in file handle access during flush tier.
+        #     This test can trigger races in file handle access during flush_tier.
         #     We will re-enable it when that is fixed.
         return
 
