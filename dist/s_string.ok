@@ -62,6 +62,7 @@ CHECKKEY
 CKPT
 CLOEXEC
 CMP
+CMake
 CONCAT
 CONFIG
 COVERITY
@@ -426,6 +427,7 @@ URIs
 UTF
 UltraSparc
 Unbuffered
+Unencrypted
 UnixLib
 UnlockFile
 Unmap
@@ -1413,8 +1415,8 @@ uint
 uintmax
 unbare
 unbuffered
+uncompressed
 uncompressing
-uncompresssed
 uncustomized
 undef
 underflowed

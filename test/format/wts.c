@@ -378,6 +378,9 @@ create_object(WT_CONNECTION *conn)
     case CHECKSUM_UNCOMPRESSED:
         CONFIG_APPEND(p, ",checksum=\"uncompressed\"");
         break;
+    case CHECKSUM_UNENCRYPTED:
+        CONFIG_APPEND(p, ",checksum=\"unencrypted\"");
+        break;
     }
 
     /* Configure compression. */
