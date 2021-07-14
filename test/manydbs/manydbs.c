@@ -157,6 +157,7 @@ main(int argc, char *argv[])
     cond_reset_orig = dcalloc((size_t)dbs, sizeof(uint64_t));
     cursors = idle ? NULL : dcalloc((size_t)dbs, sizeof(WT_CURSOR *));
     memset(cmd, 0, sizeof(cmd));
+    idle = true;
     /*
      * Set up all the directory names.
      */
@@ -186,7 +187,7 @@ main(int argc, char *argv[])
         }
     }
 
-    sleep(30);
+    sleep(20);
 
     /*
      * Record original reset setting. There could have been some activity during the creation
@@ -208,10 +209,11 @@ main(int argc, char *argv[])
          * On an idle workload there should be no resets of condition variables during the idle
          * period. Even with a light workload, resets should not be very common. We look for 5%.
          */
-        if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 40)
-            testutil_die(
-              ERANGE, "condition reset on idle connection %d of %" PRIu64, i, cond_reset);
-        if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
+        if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
+            testutil_die(ERANGE,
+              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
+              cond_wait);
+        if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 10)
             testutil_die(ERANGE,
               "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
               cond_wait);
