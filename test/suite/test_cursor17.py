@@ -70,13 +70,12 @@ class test_cursor17(wttest.WiredTigerTestCase):
             commit_timestamp += 1
 
         # Delete everything on the table except for the first and the last KV pair.
-        for key in range(total_keys):
-            if key not in [0, total_keys - 1]:
-                self.session.begin_transaction()
-                cursor.set_key(key)
-                self.assertEqual(cursor.remove(),0)
-                self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
-                commit_timestamp += 1
+        for key in range(1, total_keys - 1):
+            self.session.begin_transaction()
+            cursor.set_key(key)
+            self.assertEqual(cursor.remove(),0)
+            self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
+            commit_timestamp += 1
 
         # Take a checkpoint to reconcile the pages.
         self.session.checkpoint()
