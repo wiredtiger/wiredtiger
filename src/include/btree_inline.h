@@ -2038,7 +2038,7 @@ __wt_btcur_skip_page(WT_CURSOR_BTREE *cbt)
     ref = cbt->ref;
     page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
-    if (ref == NULL || page == NULL)
+    if (page == NULL)
         return false;
 
     previous_state = ref->state;
