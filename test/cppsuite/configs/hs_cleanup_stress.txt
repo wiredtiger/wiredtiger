@@ -24,7 +24,7 @@ runtime_monitor=
     stat_db_size=
     (
         enabled=true,
-        limit=1800000000,
+        limit=1900000000,
     ),
     # Seems to insert around 490K records. Give it +-25K margin.
     # Seems to remove 180K records. Give it a similar margin.
