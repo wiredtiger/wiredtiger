@@ -2061,7 +2061,7 @@ __wt_btcur_skip_page(WT_CURSOR_BTREE *cbt)
         if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             return false;
 
-        if (!__wt_page_is_modified(page) && __wt_ref_addr_copy(session, ref, &addr) == true &&
+        if (!__wt_page_is_modified(page) && __wt_ref_addr_copy(session, ref, &addr) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
             can_skip = true;
