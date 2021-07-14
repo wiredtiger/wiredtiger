@@ -207,10 +207,12 @@ main(int argc, char *argv[])
         testutil_check(get_stat(sessions[i], WT_STAT_CONN_COND_AUTO_WAIT, &cond_wait));
         /*
          * On an idle workload there should be minimal resets of condition variables during the idle
-         * period, looking for 5%. Even with a light workload, resets should not be very common. We look for 10%.
-         * 
-         * Condition variables are subject to spurious wakeups (those not associated with an explicit wake) 
-         * and stolen wakeups (another thread manages to run before the woken thread). 
+         * period, looking for 5%. Even with a light workload, resets should not be very common. We
+         * look for 10%.
+         *
+         * Condition variables are subject to spurious wakeups (those not associated with an
+         * explicit wake) and stolen wakeups (another thread manages to run before the woken
+         * thread).
          * https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleepconditionvariablecs
          * https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_cond_wait.html
          */
