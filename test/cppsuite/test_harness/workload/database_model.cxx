@@ -68,7 +68,7 @@ database::add_collection(uint64_t key_count)
     std::lock_guard<std::mutex> lg(_mtx);
     if (_session.get() == nullptr)
         _session = connection_manager::instance().create_session();
-    if (_collection_create_config == "")
+    if (_collection_create_config.empty())
         testutil_die(EINVAL, "database_model: no collection create config specified!");
     uint64_t next_id = _next_collection_id++;
     std::string collection_name = build_collection_name(next_id);
