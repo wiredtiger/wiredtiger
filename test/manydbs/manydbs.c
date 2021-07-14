@@ -187,7 +187,7 @@ main(int argc, char *argv[])
         }
     }
 
-    sleep(20);
+    sleep(30);
 
     /*
      * Record original reset setting. There could have been some activity during the creation
