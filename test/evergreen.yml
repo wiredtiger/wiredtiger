@@ -963,6 +963,7 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
+          working_dir: "wiredtiger/build_posix/test/cppsuite"
           script: |
             set -o errexit
             set -o verbose
@@ -976,6 +977,7 @@ tasks:
       - func: "fetch artifacts"
       - command: shell.exec
         params:
+          working_dir: "wiredtiger/build_posix/test/cppsuite"
           script: |
             set -o errexit
             set -o verbose
