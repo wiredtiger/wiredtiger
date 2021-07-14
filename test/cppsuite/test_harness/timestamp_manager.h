@@ -30,11 +30,12 @@
 #define TIMESTAMP_MANAGER_H
 
 #include <atomic>
-#include <chrono>
-#include <sstream>
-#include <thread>
+#include <string>
 
 #include "core/component.h"
+
+/* Forward declarations for classes to reduce compilation time and modules coupling. */
+class configuration;
 
 namespace test_harness {
 /*
@@ -46,102 +47,30 @@ namespace test_harness {
  */
 class timestamp_manager : public component {
     public:
-    timestamp_manager(configuration *config) : component("timestamp_manager", config) {}
+    static const std::string decimal_to_hex(uint64_t value);
 
-    void
-    load() override final
-    {
-        component::load();
-        int64_t oldest_lag = _config->get_int(OLDEST_LAG);
-        testutil_assert(oldest_lag >= 0);
-        /* Cast and then shift left to match the seconds position. */
-        _oldest_lag = oldest_lag;
-        _oldest_lag <<= 32;
+    public:
+    timestamp_manager(configuration *config);
 
-        int64_t stable_lag = _config->get_int(STABLE_LAG);
-        testutil_assert(stable_lag >= 0);
-        /* Cast and then shift left to match the seconds position. */
-        _stable_lag = stable_lag;
-        _stable_lag <<= 32;
-    }
-
-    void
-    do_work() override final
-    {
-        std::string config;
-        /* latest_ts_s represents the time component of the latest timestamp provided. */
-        wt_timestamp_t latest_ts_s;
-
-        /* Timestamps are checked periodically. */
-        latest_ts_s = get_time_now_s();
-
-        /*
-         * Keep a time window between the latest and stable ts less than the max defined in the
-         * configuration.
-         */
-        testutil_assert(latest_ts_s >= _stable_ts);
-        if ((latest_ts_s - _stable_ts) > _stable_lag) {
-            debug_print("Timestamp_manager: Stable timestamp expired.", DEBUG_INFO);
-            _stable_ts = latest_ts_s;
-            config += std::string(STABLE_TS) + "=" + decimal_to_hex(_stable_ts);
-        }
-
-        /*
-         * Keep a time window between the stable and oldest ts less than the max defined in the
-         * configuration.
-         */
-        testutil_assert(_stable_ts >= _oldest_ts);
-        if ((_stable_ts - _oldest_ts) > _oldest_lag) {
-            debug_print("Timestamp_manager: Oldest timestamp expired.", DEBUG_INFO);
-            _oldest_ts = _stable_ts - _oldest_lag;
-            if (!config.empty())
-                config += ",";
-            config += std::string(OLDEST_TS) + "=" + decimal_to_hex(_oldest_ts);
-        }
-
-        /* Save the new timestamps. */
-        if (!config.empty()) {
-            connection_manager::instance().set_timestamp(config);
-            config = "";
-        }
-    }
+    void load() override final;
+    void do_work() override final;
 
     /*
      * Get a unique timestamp.
      */
-    wt_timestamp_t
-    get_next_ts()
-    {
-        uint64_t current_time = get_time_now_s();
-        uint64_t increment = _increment_ts.fetch_add(1);
-        current_time |= (increment & 0x00000000FFFFFFFF);
-        return (current_time);
-    }
+    wt_timestamp_t get_next_ts();
 
-    static const std::string
-    decimal_to_hex(uint64_t value)
-    {
-        std::stringstream ss;
-        ss << std::hex << value;
-        std::string res(ss.str());
-        return (res);
-    }
+    wt_timestamp_t get_oldest_ts() const;
 
     private:
     /* Get the current time in seconds, bit shifted to the expected location. */
-    uint64_t
-    get_time_now_s() const
-    {
-        auto now = std::chrono::system_clock::now().time_since_epoch();
-        uint64_t current_time_s =
-          static_cast<uint64_t>(std::chrono::duration_cast<std::chrono::seconds>(now).count())
-          << 32;
-        return (current_time_s);
-    }
+    uint64_t get_time_now_s() const;
 
     private:
     std::atomic<wt_timestamp_t> _increment_ts{0};
-    wt_timestamp_t _oldest_ts = 0U, _stable_ts = 0U;
+    /* The tracking table sweep needs to read the oldest timestamp. */
+    std::atomic<wt_timestamp_t> _oldest_ts{0U};
+    wt_timestamp_t _stable_ts = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
      * _stable_lag is the time window between the latest and stable timestamps.
