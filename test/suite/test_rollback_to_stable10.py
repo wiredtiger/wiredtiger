@@ -129,13 +129,13 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
             # Rollbacks may occur when checkpoint is running, so retry as needed.
             self.pr("updates")
             self.retry_rollback('update ds1, e', None,
-                           lambda: self.large_updates(uri_1, value_e, ds_1, nrows, self.prepare, 70, True))
+                           lambda: self.large_updates(uri_1, value_e, ds_1, nrows, self.prepare, 70))
             self.retry_rollback('update ds2, e', None,
-                           lambda: self.large_updates(uri_2, value_e, ds_2, nrows, self.prepare, 70, True))
+                           lambda: self.large_updates(uri_2, value_e, ds_2, nrows, self.prepare, 70))
             self.retry_rollback('update ds1, f', None,
-                           lambda: self.large_updates(uri_1, value_f, ds_1, nrows, self.prepare, 80, True))
+                           lambda: self.large_updates(uri_1, value_f, ds_1, nrows, self.prepare, 80))
             self.retry_rollback('update ds2, f', None,
-                           lambda: self.large_updates(uri_2, value_f, ds_2, nrows, self.prepare, 80, True))
+                           lambda: self.large_updates(uri_2, value_f, ds_2, nrows, self.prepare, 80))
         finally:
             done.set()
             ckpt.join()

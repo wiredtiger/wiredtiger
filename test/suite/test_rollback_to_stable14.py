@@ -121,13 +121,13 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Rollbacks may occur when checkpoint is running, so retry as needed.
             self.pr("modifies")
             self.retry_rollback('modify ds1, W', None,
-                           lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70, True))
+                           lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70))
             self.retry_rollback('modify ds1, X', None,
-                           lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80, True))
+                           lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80))
             self.retry_rollback('modify ds1, Y', None,
-                           lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90, True))
+                           lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90))
             self.retry_rollback('modify ds1, Z', None,
-                           lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100, True))
+                           lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100))
         finally:
             done.set()
             ckpt.join()
@@ -226,13 +226,13 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Rollbacks may occur when checkpoint is running, so retry as needed.
             self.pr("modifies")
             self.retry_rollback('modify ds1, W', None,
-                           lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70, True))
+                           lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70))
             self.retry_rollback('modify ds1, X', None,
-                           lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80, True))
+                           lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80))
             self.retry_rollback('modify ds1, Y', None,
-                           lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90, True))
+                           lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90))
             self.retry_rollback('modify ds1, Z', None,
-                           lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100, True))
+                           lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100))
         finally:
             done.set()
             ckpt.join()
@@ -329,13 +329,13 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             # Rollbacks may occur when checkpoint is running, so retry as needed.
             self.pr("modifies")
             self.retry_rollback('modify ds1, W', None,
-                           lambda: self.large_modifies(uri, 'W', ds, len(value_modT), 1, nrows, self.prepare, 70, True))
+                           lambda: self.large_modifies(uri, 'W', ds, len(value_modT), 1, nrows, self.prepare, 70))
             self.retry_rollback('modify ds1, X', None,
-                           lambda: self.large_modifies(uri, 'X', ds, len(value_modT) + 1, 1, nrows, self.prepare, 80, True))
+                           lambda: self.large_modifies(uri, 'X', ds, len(value_modT) + 1, 1, nrows, self.prepare, 80))
             self.retry_rollback('modify ds1, Y', None,
-                           lambda: self.large_modifies(uri, 'Y', ds, len(value_modT) + 2, 1, nrows, self.prepare, 90, True))
+                           lambda: self.large_modifies(uri, 'Y', ds, len(value_modT) + 2, 1, nrows, self.prepare, 90))
             self.retry_rollback('modify ds1, Z', None,
-                           lambda: self.large_modifies(uri, 'Z', ds, len(value_modT) + 3, 1, nrows, self.prepare, 100, True))
+                           lambda: self.large_modifies(uri, 'Z', ds, len(value_modT) + 3, 1, nrows, self.prepare, 100))
         finally:
             done.set()
             ckpt.join()

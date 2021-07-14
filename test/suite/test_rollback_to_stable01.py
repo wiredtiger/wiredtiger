@@ -66,7 +66,7 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
         if not completed and saved_exception:
             raise(saved_exception)
 
-    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts, rollback_if_fail = False):
+    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
         # Update a large number of records.
         session = self.session
         try:
@@ -85,13 +85,12 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
             cursor.close()
         except WiredTigerError as e:
-            if (rollback_if_fail):
-                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-                if rollback_str in str(e):
-                    session.rollback_transaction()
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
             raise(e)
 
-    def large_modifies(self, uri, value, ds, location, nbytes, nrows, prepare, commit_ts, rollback_if_fail = False):
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, prepare, commit_ts):
         # Load a slight modification.
         session = self.session
         try:
@@ -113,13 +112,12 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                 session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
             cursor.close()
         except WiredTigerError as e:
-            if (rollback_if_fail):
-                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-                if rollback_str in str(e):
-                    session.rollback_transaction()
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
             raise(e)
 
-    def large_removes(self, uri, ds, nrows, prepare, commit_ts, rollback_if_fail = False):
+    def large_removes(self, uri, ds, nrows, prepare, commit_ts):
         # Remove a large number of records.
         session = self.session
         try:
@@ -139,10 +137,9 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
             cursor.close()
         except WiredTigerError as e:
-            if (rollback_if_fail):
-                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
-                if rollback_str in str(e):
-                    session.rollback_transaction()
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
             raise(e)
 
     def check(self, check_value, uri, nrows, read_ts):
