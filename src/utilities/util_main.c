@@ -327,11 +327,13 @@ err:
 done:
 
     /* may get here via either err or done before the free above happens */
-    if (secretkey != NULL) {
-        /* p contains a copy of secretkey, so zero both before freeing */
+    if (p != NULL) {
+        /* p may contain a copy of secretkey, so zero before freeing */
         wt_explicit_zero(p, strlen(p));
-        wt_explicit_zero(secretkey, strlen(secretkey));
         free(p);
+    }
+    if (secretkey != NULL) {
+        wt_explicit_zero(secretkey, strlen(secretkey));
         free(secretkey);
     }
 
