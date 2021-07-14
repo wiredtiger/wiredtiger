@@ -233,7 +233,9 @@ next:
         case 'i':                                                                      \
         case 'l':                                                                      \
             /* Use the int type as compilers promote smaller sizes to int for variadic \
-             * arguments.*/                                                            \
+             * arguments.                                                              \
+             * Note: 'l' accommodates 4 bytes                                          \
+             */                                                                        \
             (pv).u.i = va_arg(ap, int);                                                \
             break;                                                                     \
         case 'B':                                                                      \
@@ -242,7 +244,9 @@ next:
         case 'L':                                                                      \
         case 't':                                                                      \
             /* Use the int type as compilers promote smaller sizes to int for variadic \
-             * arguments.*/                                                            \
+             * arguments.                                                              \
+             * Note: 'L' accommodates 4 bytes                                          \
+             */                                                                        \
             (pv).u.u = va_arg(ap, unsigned int);                                       \
             break;                                                                     \
         case 'q':                                                                      \
