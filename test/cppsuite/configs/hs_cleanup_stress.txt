@@ -26,9 +26,9 @@ runtime_monitor=
         enabled=true,
         limit=1800000000,
     ),
-    # Seems to insert around 500K records. Give it +-25K margin.
+    # Seems to insert around 490K records. Give it +-25K margin.
     # Seems to remove 180K records. Give it a similar margin.
-    postrun_statistics=[cache_hs_insert:475000:525000, cc_pages_removed:170000:190000]
+    postrun_statistics=[cache_hs_insert:470000:515000, cc_pages_removed:170000:200000]
 ),
 timestamp_manager=
 (
@@ -44,8 +44,7 @@ workload_generator=
         key_count_per_collection=1000,
         key_size=5,
         thread_count=10,
-        # Use smaller value sizes during populate seems to make the test a bit more predictable.
-        value_size=10000
+        value_size=100000
     ),
     read_config=
     (
