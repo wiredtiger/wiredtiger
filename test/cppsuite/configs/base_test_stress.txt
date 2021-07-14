@@ -1,6 +1,7 @@
 # Used as a stress test for the framework.
 duration_seconds=1500,
 cache_size_mb=1000,
+compression_enabled=true,
 checkpoint_manager=
 (
     enabled=true,

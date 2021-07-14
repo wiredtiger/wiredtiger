@@ -42,6 +42,7 @@ static const char *WORKLOAD_TRACKING = "workload_tracking";
 /* Configuration API consts. */
 static const char *CACHE_SIZE_MB = "cache_size_mb";
 static const char *COLLECTION_COUNT = "collection_count";
+static const char *COMPRESSION_ENABLED = "compression_enabled";
 static const char *DURATION_SECONDS = "duration_seconds";
 static const char *ENABLED = "enabled";
 static const char *ENABLE_LOGGING = "enable_logging";
@@ -87,7 +88,7 @@ static const char *STATISTICS_LOG = "statistics_log=(json,wait=1)";
 #define SNAPPY_EXT ",extensions=(" SNAPPY_PATH ")"
 
 /* Test harness consts. */
-static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S," SNAPPY_BLK;
+static const char *DEFAULT_FRAMEWORK_SCHEMA = "key_format=S,value_format=S,";
 static const char *TABLE_OPERATION_TRACKING = "table:operation_tracking";
 static const char *TABLE_SCHEMA_TRACKING = "table:schema_tracking";
 static const char *STATISTICS_URI = "statistics:";

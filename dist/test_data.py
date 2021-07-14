@@ -193,6 +193,8 @@ test_config = [
         type='category', subconfig=workload_tracking),
 
 # Non component top level configuration.
+    Config('compression_enabled', 'false', r'''
+        Whether the database files will use snappy compression or not.''', type='boolean'),
     Config('cache_size_mb', 0, r'''
         The cache size that wiredtiger will be configured to run with''', min=0, max=100000000000),
     Config('duration_seconds', 0, r'''
