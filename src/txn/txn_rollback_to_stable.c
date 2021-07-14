@@ -334,7 +334,7 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
  */
 static int
 __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, WT_COL *cip,
-  WT_ROW *rip, wt_timestamp_t rollback_timestamp, bool replace, uint64_t recno)
+  WT_ROW *rip, wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
@@ -477,23 +477,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         if (hs_stop_durable_ts < newer_hs_durable_ts)
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
 
-        /*
-         * Stop processing when we find the newer version value of this key is stable according to
-         * the current version stop timestamp and transaction id when it is not appending the
-         * selected update to the update chain. Also it confirms that history store doesn't contains
-         * any newer version than the current version for the key.
-         */
         /* Retrieve the time window from the history cursor. */
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-        if (!replace && !__rollback_check_if_txnid_non_committed(session, hs_tw->stop_txn) &&
-          hs_stop_durable_ts <= rollback_timestamp) {
-            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "history store update valid with stop timestamp: %s, stable timestamp: %s, txnid: "
-              "%" PRIu64 " and type: %" PRIu8,
-              __wt_timestamp_to_string(hs_stop_durable_ts, ts_string[0]),
-              __wt_timestamp_to_string(rollback_timestamp, ts_string[1]), hs_tw->stop_txn, type);
-            break;
-        }
 
         /*
          * Stop processing when we find a stable update according to the given timestamp and
@@ -538,18 +523,56 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts_unstable);
     }
 
-    if (replace) {
-        /*
-         * If we found a history value that satisfied the given timestamp, add it to the update
-         * list. Otherwise remove the key by adding a tombstone.
-         */
-        if (valid_update_found) {
-            /* Retrieve the time window from the history cursor. */
-            __wt_hs_upd_time_window(hs_cursor, &hs_tw);
-            WT_ASSERT(session,
-              hs_tw->start_ts < unpack->tw.start_ts || hs_tw->start_txn < unpack->tw.start_txn);
-            WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
+    /*
+     * If we found a history value that satisfied the given timestamp, add it to the update list.
+     * Otherwise remove the key by adding a tombstone.
+     */
+    if (valid_update_found) {
+        /* Retrieve the time window from the history cursor. */
+        __wt_hs_upd_time_window(hs_cursor, &hs_tw);
+        WT_ASSERT(session,
+          hs_tw->start_ts < unpack->tw.start_ts || hs_tw->start_txn < unpack->tw.start_txn);
+        WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
+        /*
+         * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because the
+         * connections write generation will be initialized after rollback to stable and the updates
+         * in the cache will be problematic. The transaction id of pages which are in disk will be
+         * automatically reset as part of unpacking cell when loaded to cache.
+         */
+        if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+            upd->txnid = WT_TXN_NONE;
+        else
+            upd->txnid = hs_tw->start_txn;
+        upd->durable_ts = hs_tw->durable_start_ts;
+        upd->start_ts = hs_tw->start_ts;
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
+          "update restored from history store txnid: %" PRIu64 ", start_ts: %s and durable_ts: %s",
+          upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
+          __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+
+        /*
+         * Set the flag to indicate that this update has been restored from history store for the
+         * rollback to stable operation.
+         */
+        F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
+        WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+
+        /*
+         * We have a tombstone on the original update chain and it is stable according to the
+         * timestamp and txnid, we need to restore that as well.
+         */
+        if (!__rollback_check_if_txnid_non_committed(session, hs_tw->stop_txn) &&
+          hs_stop_durable_ts <= rollback_timestamp) {
+            /*
+             * The restoring tombstone timestamp must be zero or less than previous update start
+             * timestamp or the on-disk update is an out of order prepared.
+             */
+            WT_ASSERT(session,
+              hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
+                unpack->tw.prepare);
+
+            WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
             /*
              * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
              * the connections write generation will be initialized after rollback to stable and the
@@ -557,79 +580,37 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
              * disk will be automatically reset as part of unpacking cell when loaded to cache.
              */
             if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                upd->txnid = WT_TXN_NONE;
+                tombstone->txnid = WT_TXN_NONE;
             else
-                upd->txnid = hs_tw->start_txn;
-            upd->durable_ts = hs_tw->durable_start_ts;
-            upd->start_ts = hs_tw->start_ts;
+                tombstone->txnid = hs_tw->stop_txn;
+            tombstone->durable_ts = hs_tw->durable_stop_ts;
+            tombstone->start_ts = hs_tw->stop_ts;
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-              "update restored from history store txnid: %" PRIu64
-              ", start_ts: %s and durable_ts: %s",
-              upd->txnid, __wt_timestamp_to_string(upd->start_ts, ts_string[0]),
-              __wt_timestamp_to_string(upd->durable_ts, ts_string[1]));
+              "tombstone restored from history store txnid: %" PRIu64
+              ", start_ts: %s, durable_ts: %s",
+              tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
+              __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
 
             /*
              * Set the flag to indicate that this update has been restored from history store for
              * the rollback to stable operation.
              */
-            F_SET(upd, WT_UPDATE_RESTORED_FROM_HS);
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_updates);
+            F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
 
-            /*
-             * We have a tombstone on the original update chain and it is stable according to the
-             * timestamp and txnid, we need to restore that as well.
-             */
-            if (!__rollback_check_if_txnid_non_committed(session, hs_tw->stop_txn) &&
-              hs_stop_durable_ts <= rollback_timestamp) {
-                /*
-                 * The restoring tombstone timestamp must be zero or less than previous update start
-                 * timestamp or the on-disk update is an out of order prepared.
-                 */
-                WT_ASSERT(session,
-                  hs_stop_durable_ts == WT_TS_NONE || hs_stop_durable_ts < newer_hs_durable_ts ||
-                    unpack->tw.prepare);
-
-                WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, NULL));
-                /*
-                 * Set the transaction id of updates to WT_TXN_NONE when called from recovery,
-                 * because the connections write generation will be initialized after rollback to
-                 * stable and the updates in the cache will be problematic. The transaction id of
-                 * pages which are in disk will be automatically reset as part of unpacking cell
-                 * when loaded to cache.
-                 */
-                if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-                    tombstone->txnid = WT_TXN_NONE;
-                else
-                    tombstone->txnid = hs_tw->stop_txn;
-                tombstone->durable_ts = hs_tw->durable_stop_ts;
-                tombstone->start_ts = hs_tw->stop_ts;
-                __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-                  "tombstone restored from history store txnid: %" PRIu64
-                  ", start_ts: %s, durable_ts: %s",
-                  tombstone->txnid, __wt_timestamp_to_string(tombstone->start_ts, ts_string[0]),
-                  __wt_timestamp_to_string(tombstone->durable_ts, ts_string[1]));
-
-                /*
-                 * Set the flag to indicate that this update has been restored from history store
-                 * for the rollback to stable operation.
-                 */
-                F_SET(tombstone, WT_UPDATE_RESTORED_FROM_HS);
-
-                tombstone->next = upd;
-                upd = tombstone;
-                WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
-            }
-        } else {
-            WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
-            WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
-            __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
+            tombstone->next = upd;
+            upd = tombstone;
+            WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_restore_tombstones);
         }
-
-        if (rip != NULL)
-            WT_ERR(__rollback_row_modify(session, page, rip, upd));
-        else
-            WT_ERR(__rollback_col_modify(session, ref, upd, recno));
+    } else {
+        WT_ERR(__wt_upd_alloc_tombstone(session, &upd, NULL));
+        WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
+        __wt_verbose(session, WT_VERB_RECOVERY_RTS(session), "%p: key removed", (void *)key);
     }
+
+    if (rip != NULL)
+        WT_ERR(__rollback_row_modify(session, page, rip, upd));
+    else
+        WT_ERR(__rollback_col_modify(session, ref, upd, recno));
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
@@ -717,8 +698,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rollback_ondisk_fixup_key(
-              session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
+            return (
+              __rollback_ondisk_fixup_key(session, ref, NULL, cip, rip, rollback_timestamp, recno));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -747,7 +728,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 return (__rollback_ondisk_fixup_key(
-                  session, ref, NULL, cip, rip, rollback_timestamp, true, recno));
+                  session, ref, NULL, cip, rip, rollback_timestamp, recno));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
