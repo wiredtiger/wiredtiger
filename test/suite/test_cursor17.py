@@ -53,6 +53,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.session.create(uri, create_params)
 
         value1 = 'a' * 500
+        value2 = 'b' * 500
         total_keys = 40000
 
         # Keep oldest timestamp pinned.
@@ -60,7 +61,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         cursor = self.session.open_cursor(uri)
 
-        commit_timestamp = 2
+        commit_timestamp = 3
 
         # Insert few thousand key-value pairs.
         for key in range(total_keys):
@@ -86,7 +87,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), 0)
         # This should move the cursor to the last record.
         self.assertEqual(cursor.next(), 0)
-        self.assertEqual(cursor.get_key(), total_keys-1)
+        self.assertEqual(cursor.get_key(), total_keys - 1)
 
         # Check if we skipped any pages while moving the cursor.
         #
@@ -94,3 +95,19 @@ class test_cursor17(wttest.WiredTigerTestCase):
         # put 1000 to be on safe side but this number sould be recalculated if we change the number
         # of keys in the test table.
         self.assertGreater(self.get_stat(stat.conn.cursor_next_skip_page_count), 1000)
+        self.session.rollback_transaction()
+
+        # Update a key in the middle of the table.
+        self.session.begin_transaction()
+        cursor[total_keys // 2] = value2
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
+        commit_timestamp += 1
+
+        # Make sure we can reach a the record we update in middle of the table.
+        self.session.begin_transaction('read_timestamp=' + timestamp_str(commit_timestamp))
+        # Position the cursor on the first record.
+        cursor.set_key(0)
+        self.assertEqual(cursor.search(), 0)
+        # This should move the cursor to the record we updated in the middle.
+        self.assertEqual(cursor.next(), 0)
+        self.assertEqual(cursor.get_key(), total_keys // 2)
