@@ -224,13 +224,11 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     WT_UPDATE *obsolete, *upd;
     wt_timestamp_t obsolete_timestamp, prev_upd_ts;
     uint64_t txn;
-    u_int upd_count;
 
     /* Clear references to memory we now own and must free on error. */
     upd = *updp;
     *updp = NULL;
     prev_upd_ts = WT_TS_NONE;
-    upd_count = 0;
 
 #ifdef HAVE_DIAGNOSTIC
     prev_upd_ts = upd->prev_durable_ts;
@@ -299,16 +297,11 @@ __wt_update_serial(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_PAGE *page
     if (WT_PAGE_TRYLOCK(session, page) != 0)
         return (0);
 
-    obsolete = __wt_update_obsolete_check(session, page, upd->next, true, &upd_count);
+    obsolete = __wt_update_obsolete_check(session, cbt, upd->next, true);
 
     WT_PAGE_UNLOCK(session, page);
 
     __wt_free_update_list(session, &obsolete);
-
-    if (upd_count > 1000) {
-        WT_STAT_CONN_INCR(session, cache_eviction_force_update_list);
-        __wt_page_evict_soon(session, cbt->ref);
-    }
 
     return (0);
 }

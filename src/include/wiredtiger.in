@@ -5181,21 +5181,21 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: forced eviction - pages evicted that were dirty time (usecs) */
 #define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DIRTY_TIME	1083
 /*!
+ * cache: forced eviction - pages selected because of a large number of
+ * updates to a single item
+ */
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_LONG_UPDATE_LIST	1084
+/*!
  * cache: forced eviction - pages selected because of too many deleted
  * items count
  */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1084
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_DELETE	1085
 /*! cache: forced eviction - pages selected count */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE		1085
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE		1086
 /*! cache: forced eviction - pages selected unable to be evicted count */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1086
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL		1087
 /*! cache: forced eviction - pages selected unable to be evicted time */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL_TIME	1087
-/*!
- * cache: forced eviction when more than 1000 updates found in an update
- * chain.
- */
-#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_UPDATE_LIST	1088
+#define	WT_STAT_CONN_CACHE_EVICTION_FORCE_FAIL_TIME	1088
 /*! cache: hazard pointer blocked page eviction */
 #define	WT_STAT_CONN_CACHE_EVICTION_HAZARD		1089
 /*! cache: hazard pointer check calls */

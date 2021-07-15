@@ -307,18 +307,21 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 
 /*
  * __wt_update_obsolete_check --
- *     Check for obsolete updates.
+ *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 WT_UPDATE *
 __wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting, u_int *upd_count)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
 {
+    WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
     uint64_t oldest, stable;
-    u_int upd_seen, upd_unstable;
+    u_int count, upd_seen, upd_unstable;
 
+    next = NULL;
+    page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
     upd_seen = upd_unstable = 0;
@@ -334,7 +337,7 @@ __wt_update_obsolete_check(
      * Only updates with globally visible, self-contained data can terminate update chains.
      *
      */
-    for (first = NULL; upd != NULL; upd = upd->next, (*upd_count)++) {
+    for (first = NULL, count = 0; upd != NULL; upd = upd->next, count++) {
         if (upd->txnid == WT_TXN_ABORTED)
             continue;
 
@@ -372,15 +375,23 @@ __wt_update_obsolete_check(
             if (size != 0)
                 __wt_cache_page_inmem_decr(session, page, size);
         }
-        return (next);
     }
+
+    /* Force evict a page when there are more updates to a single item. */
+    if (count > WT_THOUSAND) {
+        WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
+        __wt_page_evict_soon(session, cbt->ref);
+    }
+
+    if (next != NULL)
+        return (next);
 
     /*
      * If the list is long, don't retry checks on this page until the transaction state has moved
      * forwards. This function is used to trim update lists independently of the page state, ensure
      * there is a modify structure.
      */
-    if (*upd_count > 20 && page->modify != NULL) {
+    if (count > 20 && page->modify != NULL) {
         page->modify->obsolete_check_txn = txn_global->last_running;
         if (txn_global->has_pinned_timestamp)
             page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
