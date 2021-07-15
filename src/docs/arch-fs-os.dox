@@ -7,4 +7,13 @@ There are currently OS specific APIs for POSIX and Windows.
 Additionally, a program can use WT_CONNECTION::set_file_system to register
 a set of functions that will be called for each file system operation.
 WiredTiger will then call these functions at the appropriate time.
+
+# Overview #
+- Brief introduction on supporting multiple operating systems
+- Talk about __wt_fh, __wt_fstream, __wt_file_handle_inmem
+- Talk about how these interfaces interact with multiple oses and how functions are called without the interfaces (technical)
+- List about each function that is supported with the oses (Maybe)
+- Talk about how WT utilises File stream.
+
+- Investigate on differences between file stream and file handle
 */
