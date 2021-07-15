@@ -5433,48 +5433,54 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_CONN_CURSOR_SKIP_HS_CUR_POSITION	1188
 /*!
+ * cursor: Total number of pages skipped without reading by cursor next
+ * calls
+ */
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_PAGE_COUNT	1189
+/*!
+ * cursor: Total number of pages skipped without reading by cursor prev
+ * calls
+ */
+#define	WT_STAT_CONN_CURSOR_PREV_SKIP_PAGE_COUNT	1190
+/*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
  */
-#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	1189
+#define	WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	1191
 /*! cursor: cached cursor count */
-#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1190
+#define	WT_STAT_CONN_CURSOR_CACHED_COUNT		1192
 /*! cursor: cursor bulk loaded cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1191
+#define	WT_STAT_CONN_CURSOR_INSERT_BULK			1193
 /*! cursor: cursor close calls that result in cache */
-#define	WT_STAT_CONN_CURSOR_CACHE			1192
+#define	WT_STAT_CONN_CURSOR_CACHE			1194
 /*! cursor: cursor create calls */
-#define	WT_STAT_CONN_CURSOR_CREATE			1193
+#define	WT_STAT_CONN_CURSOR_CREATE			1195
 /*! cursor: cursor insert calls */
-#define	WT_STAT_CONN_CURSOR_INSERT			1194
+#define	WT_STAT_CONN_CURSOR_INSERT			1196
 /*! cursor: cursor insert key and value bytes */
-#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1195
+#define	WT_STAT_CONN_CURSOR_INSERT_BYTES		1197
 /*! cursor: cursor modify calls */
-#define	WT_STAT_CONN_CURSOR_MODIFY			1196
+#define	WT_STAT_CONN_CURSOR_MODIFY			1198
 /*! cursor: cursor modify key and value bytes affected */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1197
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES		1199
 /*! cursor: cursor modify value bytes modified */
-#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1198
-/*! cursor: cursor next call skipped pages without reading */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_PAGES		1199
+#define	WT_STAT_CONN_CURSOR_MODIFY_BYTES_TOUCH		1200
 /*! cursor: cursor next calls */
-#define	WT_STAT_CONN_CURSOR_NEXT			1200
+#define	WT_STAT_CONN_CURSOR_NEXT			1201
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1201
+#define	WT_STAT_CONN_CURSOR_NEXT_HS_TOMBSTONE		1202
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1202
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_GE_100		1203
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1203
+#define	WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100		1204
 /*! cursor: cursor operation restarted */
-#define	WT_STAT_CONN_CURSOR_RESTART			1204
-/*! cursor: cursor prev call skipped pages without reading */
-#define	WT_STAT_CONN_CURSOR_PREV_SKIP_PAGES		1205
+#define	WT_STAT_CONN_CURSOR_RESTART			1205
 /*! cursor: cursor prev calls */
 #define	WT_STAT_CONN_CURSOR_PREV			1206
 /*!
@@ -6544,34 +6550,40 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  */
 #define	WT_STAT_DSRC_CURSOR_SKIP_HS_CUR_POSITION	2129
 /*!
+ * cursor: Total number of pages skipped without reading by cursor next
+ * calls
+ */
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_PAGE_COUNT	2130
+/*!
+ * cursor: Total number of pages skipped without reading by cursor prev
+ * calls
+ */
+#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_PAGE_COUNT	2131
+/*!
  * cursor: Total number of times a search near has exited due to prefix
  * config
  */
-#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2130
+#define	WT_STAT_DSRC_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS	2132
 /*! cursor: bulk loaded cursor insert calls */
-#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2131
+#define	WT_STAT_DSRC_CURSOR_INSERT_BULK			2133
 /*! cursor: cache cursors reuse count */
-#define	WT_STAT_DSRC_CURSOR_REOPEN			2132
+#define	WT_STAT_DSRC_CURSOR_REOPEN			2134
 /*! cursor: close calls that result in cache */
-#define	WT_STAT_DSRC_CURSOR_CACHE			2133
+#define	WT_STAT_DSRC_CURSOR_CACHE			2135
 /*! cursor: create calls */
-#define	WT_STAT_DSRC_CURSOR_CREATE			2134
-/*! cursor: cursor next call skipped pages without reading */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_PAGES		2135
+#define	WT_STAT_DSRC_CURSOR_CREATE			2136
 /*!
  * cursor: cursor next calls that skip due to a globally visible history
  * store tombstone
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2136
+#define	WT_STAT_DSRC_CURSOR_NEXT_HS_TOMBSTONE		2137
 /*!
  * cursor: cursor next calls that skip greater than or equal to 100
  * entries
  */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2137
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_GE_100		2138
 /*! cursor: cursor next calls that skip less than 100 entries */
-#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2138
-/*! cursor: cursor prev call skipped pages without reading */
-#define	WT_STAT_DSRC_CURSOR_PREV_SKIP_PAGES		2139
+#define	WT_STAT_DSRC_CURSOR_NEXT_SKIP_LT_100		2139
 /*!
  * cursor: cursor prev calls that skip due to a globally visible history
  * store tombstone

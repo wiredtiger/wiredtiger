@@ -715,7 +715,7 @@ skip_page:
     }
 
 err:
-    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_pages, pages_skipped_count);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_prev_skip_page_count, pages_skipped_count);
 
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_prev_skip_lt_100);
