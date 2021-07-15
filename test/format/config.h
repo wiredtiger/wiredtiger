@@ -135,11 +135,7 @@ static CONFIG c[] = {
 
   {"cache", "cache size (MB)", 0x0, 1, 100, 100 * 1024, &g.c_cache, NULL},
 
-  /*
-   * FIXME-WT-7582: Temporarily set the max to at least 2 to avoid a race condition that can happen
-   * when we have a single eviction thread.
-   */
-  {"cache.evict_max", "maximum number of eviction workers", 0x0, 2, 5, 100, &g.c_evict_max, NULL},
+  {"cache.evict_max", "maximum number of eviction workers", 0x0, 0, 5, 100, &g.c_evict_max, NULL},
 
   {"cache.minimum", "minimum cache size (MB)", C_IGNORE, 0, 0, 100 * 1024, &g.c_cache_minimum,
     NULL},

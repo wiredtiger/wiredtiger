@@ -209,17 +209,9 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (DATASOURCE("lsm") || g.c_cache < 20)
         CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
 
-    /*
-     * Eviction worker configuration.
-     *
-     * FIXME-WT-7582: When WiredTiger runs with a single eviction thread and adds another, it can
-     * potentially trigger a race condition where we have two eviction servers. Until we fix this,
-     * let's make the minimum number of eviction threads 2.
-     */
+    /* Eviction worker configuration. */
     if (g.c_evict_max != 0)
-        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ",threads_min=2)", g.c_evict_max);
-    else
-        CONFIG_APPEND(p, ",eviction=(threads_min=2)");
+        CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", g.c_evict_max);
 
     /* Logging configuration. */
     if (g.c_logging)
