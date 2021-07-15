@@ -503,15 +503,14 @@ struct __wt_cursor {
 	 * \c S), or raw byte arrays accessed using a WT_ITEM structure (value
 	 * format type \c u).
 	 *
-	 * The WT_CURSOR::modify method stores a change record in cache and
-	 * writes a change record to the log instead of the usual complete
-	 * values. Note that WT_CURSOR::modify is generally slower than the
-	 * WT_CURSOR::update method, and can result in slower reads because
-	 * the complete value must be assembled during retrieval. The
-	 * WT_CURSOR::modify method is intended for applications modifying
-	 * large records where there is cache or I/O pressure, that is,
-	 * applications that will benefit when data updates require less cache
-	 * and they write less logging information.
+	 * The WT_CURSOR::modify method stores a change record in cache and writes a change record
+	 * to the log instead of the usual complete values. Using WT_CURSOR::modify will result in
+	 * slower reads, and slower writes than the WT_CURSOR::insert or WT_CURSOR::update methods,
+	 * because of the need to assemble the complete value in both the read and write paths. The
+	 * WT_CURSOR::modify method is intended for applications where memory and log amplification
+	 * are issues (in other words, applications where there is cache or I/O pressure and the
+	 * application wants to trade performance for a smaller working set in cache and smaller
+	 * log records).
 	 *
 	 * @snippet ex_all.c Modify an existing record
 	 *
@@ -1086,12 +1085,13 @@ struct __wt_session {
 	 * @config{cache_resident, do not ever evict the object's pages from cache.  Not compatible
 	 * with LSM tables; see @ref tuning_cache_resident for more information., a boolean flag;
 	 * default \c false.}
-	 * @config{checksum, configure block checksums; permitted values are <code>on</code>
-	 * (checksum all blocks)\, <code>off</code> (checksum no blocks) and
-	 * <code>uncompresssed</code> (checksum only blocks which are not compressed for any
-	 * reason). The \c uncompressed setting is for applications which can rely on decompression
-	 * to fail if a block has been corrupted., a string\, chosen from the following options: \c
-	 * "on"\, \c "off"\, \c "uncompressed"; default \c uncompressed.}
+	 * @config{checksum, configure block checksums; the permitted values are \c on\, \c off\, \c
+	 * uncompressed and \c unencrypted.  The default is \c on\, in which case all block writes
+	 * include a checksum subsequently verified when the block is read.  The \c off setting does
+	 * no checksums\, the \c uncompressed setting only checksums blocks that are not
+	 * compressed\, and the \c unencrypted setting only checksums blocks that are not encrypted.
+	 * See @ref tune_checksum for more information., a string\, chosen from the following
+	 * options: \c "on"\, \c "off"\, \c "uncompressed"\, \c "unencrypted"; default \c on.}
 	 * @config{colgroups, comma-separated list of names of column groups.  Each column group is
 	 * stored separately\, keyed by the primary key of the table.  If no column groups are
 	 * specified\, all columns are stored together in a single file.  All value columns in the

@@ -30,23 +30,13 @@
 #define THREAD_MANAGER_H
 
 #include <thread>
+#include <vector>
 
 namespace test_harness {
 /* Class that handles threads, from their initialization to their deletion. */
 class thread_manager {
     public:
-    ~thread_manager()
-    {
-        for (auto &it : _workers) {
-            if (it != nullptr && it->joinable()) {
-                log_msg(LOG_ERROR, "You should've called join on the thread manager");
-                it->join();
-            }
-            delete it;
-            it = nullptr;
-        }
-        _workers.clear();
-    }
+    ~thread_manager();
 
     /*
      * Generic function to create threads that call member function of classes.
@@ -62,19 +52,7 @@ class thread_manager {
     /*
      * Complete the operations for all threads.
      */
-    void
-    join()
-    {
-        for (const auto &it : _workers) {
-            while (!it->joinable()) {
-                /* Helpful for diagnosing hangs. */
-                log_msg(LOG_TRACE, "Thread manager: Waiting to join.");
-                /* Check every so often to avoid spamming the log. */
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
-            }
-            it->join();
-        }
-    }
+    void join();
 
     private:
     std::vector<std::thread *> _workers;
