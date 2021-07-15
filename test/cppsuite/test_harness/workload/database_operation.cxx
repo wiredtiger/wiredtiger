@@ -29,6 +29,7 @@
 #include <cmath>
 #include <map>
 
+#include "../connection_manager.h"
 #include "../thread_manager.h"
 #include "../util/api_const.h"
 #include "database_operation.h"
@@ -50,10 +51,13 @@ populate_worker(thread_context *tc)
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
         for (uint64_t i = 0; i < tc->key_count; ++i) {
             /* Start a txn. */
-            tc->transaction.begin(tc->session.get(), "");
-            if (!tc->insert(cursor, coll.id, i))
-                testutil_die(-1, "Got a rollback in populate, this is currently not handled.");
-            tc->transaction.commit(tc->session.get(), "");
+            tc->transaction.begin();
+            if (!tc->insert(cursor, coll.id, i)) {
+                /* We failed to insert, and our transaction was rolled back retry. */
+                --i;
+                continue;
+            }
+            tc->transaction.commit();
         }
     }
     logger::log_msg(LOG_TRACE, "Populate: thread {" + std::to_string(tc->id) + "} finished");
@@ -81,6 +85,9 @@ database_operation::populate(
     /* Keys must be unique. */
     testutil_assert(key_count <= pow(10, key_size));
 
+    logger::log_msg(
+      LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
+
     /* Create n collections as per the configuration. */
     for (int64_t i = 0; i < collection_count; ++i)
         /*
@@ -97,8 +104,8 @@ database_operation::populate(
      * here.
      */
     for (int64_t i = 0; i < thread_count; ++i) {
-        thread_context *tc =
-          new thread_context(i, thread_type::INSERT, config, tsm, tracking, database);
+        thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+          connection_manager::instance().create_session(), tsm, tracking, database);
         workers.push_back(tc);
         tm.add_thread(populate_worker, tc);
     }
@@ -118,13 +125,18 @@ database_operation::populate(
 void
 database_operation::insert_operation(thread_context *tc)
 {
+    logger::log_msg(
+      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
     /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
     struct collection_cursor {
+        collection_cursor(collection &coll, scoped_cursor &&cursor)
+            : coll(coll), cursor(std::move(cursor))
+        {
+        }
         collection &coll;
         scoped_cursor cursor;
     };
-    logger::log_msg(
-      LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
     /* Collection cursor vector. */
     std::vector<collection_cursor> ccv;
@@ -144,31 +156,37 @@ database_operation::insert_operation(thread_context *tc)
         uint64_t start_key = ccv[counter].coll.get_key_count();
         uint64_t added_count = 0;
         bool committed = true;
-        tc->transaction.begin(tc->session.get(), "");
+        tc->transaction.begin();
+
+        /* Collection cursor. */
+        auto &cc = ccv[counter];
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
-            if (!tc->insert(ccv[counter].cursor, ccv[counter].coll.id, start_key + added_count)) {
+            if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
                 committed = false;
                 break;
             }
             added_count++;
-            tc->transaction.try_commit(tc->session.get(), "");
+            tc->transaction.try_commit();
             /* Sleep the duration defined by the op_rate. */
             tc->sleep();
         }
+        /* Reset our cursor to avoid pinning content. */
+        testutil_check(cc.cursor->reset(cc.cursor.get()));
+
         /*
          * We need to inform the database model that we've added these keys as some other thread may
          * rely on the key_count data. Only do so if we successfully committed.
          */
         if (committed)
-            ccv[counter].coll.increase_key_count(added_count);
+            cc.coll.increase_key_count(added_count);
         counter++;
         if (counter == collections_per_thread)
             counter = 0;
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     if (tc->transaction.active())
-        tc->transaction.rollback(tc->session.get(), "");
+        tc->transaction.rollback();
 }
 
 void
@@ -176,36 +194,33 @@ database_operation::read_operation(thread_context *tc)
 {
     logger::log_msg(
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-    WT_CURSOR *cursor = nullptr;
-    WT_DECL_RET;
+
     std::map<uint64_t, scoped_cursor> cursors;
     while (tc->running()) {
         /* Get a collection and find a cached cursor. */
         collection &coll = tc->db.get_random_collection();
-        const auto &it = cursors.find(coll.id);
-        if (it == cursors.end()) {
-            auto sc = tc->session.open_scoped_cursor(coll.name.c_str());
-            cursor = sc.get();
-            cursors.emplace(coll.id, std::move(sc));
-        } else
-            cursor = it->second.get();
 
-        tc->transaction.begin(tc->session.get(), "");
+        if (cursors.find(coll.id) == cursors.end())
+            cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name.c_str())));
+
+        /* Do a second lookup now that we know it exists. */
+        auto &cursor = cursors[coll.id];
+
+        tc->transaction.begin();
         while (tc->transaction.active() && tc->running()) {
-            ret = cursor->next(cursor);
-            /* If we get not found here we walked off the end. */
-            if (ret == WT_NOTFOUND) {
-                testutil_check(cursor->reset(cursor));
-            } else if (ret != 0)
-                testutil_die(ret, "cursor->next() failed");
+            if (tc->next(cursor) == WT_ROLLBACK)
+                /* We got an error, our transaction has been rolled back. */
+                break;
             tc->transaction.add_op();
-            tc->transaction.try_rollback(tc->session.get(), "");
+            tc->transaction.try_rollback();
             tc->sleep();
         }
+        /* Reset our cursor to avoid pinning content. */
+        testutil_check(cursor->reset(cursor.get()));
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
     if (tc->transaction.active())
-        tc->transaction.rollback(tc->session.get(), "");
+        tc->transaction.rollback();
 }
 
 void
@@ -215,7 +230,6 @@ database_operation::update_operation(thread_context *tc)
       LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
     /* Cursor map. */
     std::map<uint64_t, scoped_cursor> cursors;
-    uint64_t collection_id = 0;
 
     /*
      * Loop while the test is running.
@@ -241,7 +255,7 @@ database_operation::update_operation(thread_context *tc)
         }
 
         /* Start a transaction if possible. */
-        tc->transaction.try_begin(tc->session.get(), "");
+        tc->transaction.try_begin();
 
         /* Get the cursor associated with the collection. */
         scoped_cursor &cursor = cursors[coll.id];
@@ -249,15 +263,21 @@ database_operation::update_operation(thread_context *tc)
         /* Choose a random key to update. */
         uint64_t key_id =
           random_generator::instance().generate_integer<uint64_t>(0, coll.get_key_count() - 1);
-        if (!tc->update(cursor, collection_id, tc->key_to_string(key_id)))
+        bool successful_update = tc->update(cursor, coll.id, tc->key_to_string(key_id));
+
+        /* Reset our cursor to avoid pinning content. */
+        testutil_check(cursor->reset(cursor.get()));
+
+        /* We received a rollback in update. */
+        if (!successful_update)
             continue;
 
         /* Commit the current transaction if we're able to. */
-        tc->transaction.try_commit(tc->session.get(), "");
+        tc->transaction.try_commit();
     }
 
     /* Make sure the last operation is committed now the work is finished. */
     if (tc->transaction.active())
-        tc->transaction.commit(tc->session.get(), "");
+        tc->transaction.commit();
 }
 } // namespace test_harness
