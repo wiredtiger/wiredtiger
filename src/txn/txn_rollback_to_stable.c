@@ -1635,7 +1635,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
             break;
         WT_ORDERED_READ(cache_flags, cache->flags);
         /* Check whether eviction has quiesced. */
-        if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_DIRTY | WT_CACHE_EVICT_UPDATES))
+        if (!FLD_ISSET(cache_flags, WT_CACHE_EVICT_ALL))
             break;
         /* If we're retrying, pause for a millisecond and let eviction make some progress. */
         __wt_sleep(0, WT_THOUSAND);
