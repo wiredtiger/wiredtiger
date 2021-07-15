@@ -8,16 +8,19 @@
 
 #include "wt_internal.h"
 
+#define WT_BLOCK_COOKIE_FILEID 0x01 /* The following bytes are an object ID. */
+
 /*
  * __block_addr_unpack --
  *     Unpack an address cookie into components, UPDATING the caller's buffer reference so this
  *     function can be called repeatedly to unpack a buffer containing multiple address cookies.
  */
 static int
-__block_addr_unpack(WT_BLOCK *block, const uint8_t **pp, size_t addr_size, uint32_t *objectidp,
-  wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
+__block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **pp, size_t addr_size,
+  uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
     uint64_t i, o, s, c;
+    uint8_t flags;
     const uint8_t *begin;
 
     /*
@@ -36,8 +39,23 @@ __block_addr_unpack(WT_BLOCK *block, const uint8_t **pp, size_t addr_size, uint3
     WT_RET(__wt_vunpack_uint(pp, 0, &s));
     WT_RET(__wt_vunpack_uint(pp, 0, &c));
     i = 0;
-    if (addr_size != 0 && WT_PTRDIFF(*pp, begin) < addr_size)
-        WT_RET(__wt_vunpack_uint(pp, 0, &i));
+    flags = 0;
+    if (addr_size != 0 && WT_PTRDIFF(*pp, begin) < addr_size) {
+        flags = **pp;
+        ++(*pp);
+        if (LF_ISSET(WT_BLOCK_COOKIE_FILEID))
+            WT_RET(__wt_vunpack_uint(pp, 0, &i));
+    }
+
+    /*
+     * If there's an address cookie size and either there is no flag value or the flag value is the
+     * object ID flag by itself, assert the cookie was entirely consumed. Future extensions will use
+     * different cookie flag values (although the file-ID flag might still be set, our test is for
+     * equality).
+     */
+    WT_ASSERT(session,
+      addr_size == 0 || (flags != 0 && flags != WT_BLOCK_COOKIE_FILEID) ||
+        WT_PTRDIFF(*pp, begin) == addr_size);
 
     /*
      * To avoid storing large offsets, we minimize the value by subtracting a block for description
@@ -58,6 +76,7 @@ __block_addr_unpack(WT_BLOCK *block, const uint8_t **pp, size_t addr_size, uint3
         *sizep = (uint32_t)s * block->allocsize;
         *checksump = (uint32_t)c;
     }
+
     return (0);
 }
 
@@ -89,13 +108,16 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
     /*
      * Don't store object IDs of zero, the function that cracks the cookie defaults IDs to 0.
      *
-     * TODO: Ideally, don't store a object ID if there's only a single object. We want to be able to
-     * convert any existing object to a stack, and that means starting with a single object with no
-     * object IDs, where all future objects in the stack know a missing object ID is a reference to
-     * the base object.
+     * TODO: testing has-objects is not quite right. Ideally, we don't store a object ID if there's
+     * only a single object. We want to be able to convert existing object to a stack, which means
+     * starting with a single object with no object IDs, where all future objects in the stack know
+     * a missing object ID is a reference to the base object.
      */
-    if (i != 0 && block->has_objects)
+    if (i != 0 && block->has_objects) {
+        **pp = WT_BLOCK_COOKIE_FILEID;
+        ++(*pp);
         WT_RET(__wt_vpack_uint(pp, 0, i));
+    }
     return (0);
 }
 
@@ -107,28 +129,11 @@ int
 __wt_block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *p,
   size_t addr_size, uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
-    const uint8_t *start;
-
-    WT_UNUSED(session);
-    WT_UNUSED(start);
-
     /* Checkpoint passes zero as the cookie size, nobody else should. */
     WT_ASSERT(session, addr_size != 0);
 
-    start = p;
-    WT_RET(__block_addr_unpack(block, &p, addr_size, objectidp, offsetp, sizep, checksump));
-
-    /*
-     * Assert the entire cookie was consumed.
-     *
-     * TODO: The assert prevents future extensions of the cookie this code should ignore, but that
-     * may be unavoidable, as the object ID is not a required field, extending the cookie may not be
-     * simple. Consider adding a flag byte before the optional object ID, describing the object ID
-     * and any other fields.
-     */
-    WT_ASSERT(session, WT_PTRDIFF(p, start) == addr_size);
-
-    return (0);
+    return (
+      __block_addr_unpack(session, block, &p, addr_size, objectidp, offsetp, sizep, checksump));
 }
 
 /*
@@ -193,9 +198,11 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
   size_t ckpt_size, WT_BLOCK_CKPT *ci)
 {
     uint64_t a;
-    const uint8_t *start;
+    uint32_t objectid;
+    uint8_t flags;
+    const uint8_t *begin;
 
-    start = ckpt;
+    begin = ckpt;
 
     ci->version = ckpt[0];
     if (ci->version != WT_BM_CHECKPOINT_VERSION)
@@ -207,34 +214,38 @@ __block_ckpt_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *ck
      * Passing an address cookie size of 0 so the unpack function doesn't read an object ID.
      */
     ++ckpt;
-    WT_RET(__block_addr_unpack(
-      block, &ckpt, 0, &ci->root_objectid, &ci->root_offset, &ci->root_size, &ci->root_checksum));
-    WT_RET(__block_addr_unpack(block, &ckpt, 0, &ci->alloc.objectid, &ci->alloc.offset,
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->root_objectid, &ci->root_offset,
+      &ci->root_size, &ci->root_checksum));
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->alloc.objectid, &ci->alloc.offset,
       &ci->alloc.size, &ci->alloc.checksum));
-    WT_RET(__block_addr_unpack(block, &ckpt, 0, &ci->avail.objectid, &ci->avail.offset,
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->avail.objectid, &ci->avail.offset,
       &ci->avail.size, &ci->avail.checksum));
-    WT_RET(__block_addr_unpack(block, &ckpt, 0, &ci->discard.objectid, &ci->discard.offset,
+    WT_RET(__block_addr_unpack(session, block, &ckpt, 0, &ci->discard.objectid, &ci->discard.offset,
       &ci->discard.size, &ci->discard.checksum));
     WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
     ci->file_size = (wt_off_t)a;
     WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
     ci->ckpt_size = a;
-    ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = 0;
-    if (WT_PTRDIFF(ckpt, start) != ckpt_size) {
-        WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
-        ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid =
-          (uint32_t)a;
+
+    /* The first part of the checkpoint cookie is optionally followed by an object ID. */
+    objectid = 0;
+    flags = 0;
+    if (WT_PTRDIFF(ckpt, begin) != ckpt_size) {
+        flags = *ckpt++;
+        if (LF_ISSET(WT_BLOCK_COOKIE_FILEID)) {
+            WT_RET(__wt_vunpack_uint(&ckpt, 0, &a));
+            objectid = (uint32_t)a;
+        }
     }
+    ci->root_objectid = ci->alloc.objectid = ci->avail.objectid = ci->discard.objectid = objectid;
 
     /*
-     * Assert the entire cookie was consumed.
-     *
-     * TODO: The assert prevents future extensions of the cookie this code should ignore, but that
-     * may be unavoidable, as the object ID is not a required field, extending the cookie may not be
-     * simple. Consider adding a flag byte before the optional object ID, describing the object ID
-     * and any other fields.
+     * If there is no flag value or the flag value is the object ID flag by itself, assert the
+     * cookie was entirely consumed. Future extensions will use different cookie flag values
+     * (although the file-ID flag might still be set, our test is for equality).
      */
-    WT_ASSERT(session, WT_PTRDIFF(ckpt, start) == ckpt_size);
+    WT_ASSERT(session,
+      (flags != 0 && flags != WT_BLOCK_COOKIE_FILEID) || WT_PTRDIFF(ckpt, begin) == ckpt_size);
 
     return (0);
 }
@@ -301,6 +312,8 @@ __wt_block_ckpt_pack(
     WT_RET(__wt_vpack_uint(pp, 0, a));
     /* Don't store object IDs of zero, the function that cracks the cookie defaults IDs to 0. */
     if (block->objectid != 0) {
+        **pp = WT_BLOCK_COOKIE_FILEID;
+        ++(*pp);
         a = block->objectid;
         WT_RET(__wt_vpack_uint(pp, 0, a));
     }
