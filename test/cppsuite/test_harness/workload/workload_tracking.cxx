@@ -35,10 +35,10 @@ namespace test_harness {
 workload_tracking::workload_tracking(configuration *_config,
   const std::string &operation_table_config, const std::string &operation_table_name,
   const std::string &schema_table_config, const std::string &schema_table_name,
-  timestamp_manager &tsm)
+  const bool use_compression, timestamp_manager &tsm)
     : component("workload_tracking", _config), _operation_table_config(operation_table_config),
       _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
-      _schema_table_name(schema_table_name), _tsm(tsm)
+      _schema_table_name(schema_table_name), _use_compression(use_compression), _tsm(tsm)
 {
 }
 
@@ -99,9 +99,6 @@ workload_tracking::do_work()
     /* Take a copy of the oldest so that we sweep with a consistent timestamp. */
     oldest_ts = _tsm.get_oldest_ts();
 
-    /* If we have a position, give it up. */
-    testutil_check(_sweep_cursor->reset(_sweep_cursor.get()));
-
     while ((ret = _sweep_cursor->prev(_sweep_cursor.get())) == 0) {
         testutil_check(_sweep_cursor->get_key(_sweep_cursor.get(), &collection_id, &key, &ts));
         testutil_check(_sweep_cursor->get_value(_sweep_cursor.get(), &op_type, &value));
@@ -143,6 +140,9 @@ workload_tracking::do_work()
     if (ret != WT_NOTFOUND)
         testutil_die(LOG_ERROR,
           "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
+
+    /* If we have a position, give it up. */
+    testutil_check(_sweep_cursor->reset(_sweep_cursor.get()));
 }
 
 void

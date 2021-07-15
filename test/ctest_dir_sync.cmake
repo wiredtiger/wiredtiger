@@ -26,35 +26,23 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-project(ext C)
+cmake_minimum_required(VERSION 3.10.0)
 
-# Build the compressor extensions.
-add_subdirectory(compressors/lz4)
-add_subdirectory(compressors/snappy)
-add_subdirectory(compressors/zlib)
-add_subdirectory(compressors/zstd)
-add_subdirectory(compressors/nop)
-
-# Build the collator extensions.
-add_subdirectory(collators/reverse)
-add_subdirectory(collators/revint)
-
-# Build the encryptor extensions.
-add_subdirectory(encryptors/nop)
-
-# Build the extractor extensions.
-add_subdirectory(extractors/csv)
-
-# We currently don't support these tests extensions on non-POSIX systems since they are designed around the
-# existence of POSIX utilities or certain system headers e.g Linux signals.
-if(WT_POSIX)
-    # Build the encryptor extensions.
-    add_subdirectory(encryptors/rotn)
-    add_subdirectory(encryptors/sodium)
-
-    # Build the storage_sources extensions.
-    add_subdirectory(storage_sources/local_store)
-
-    # Build the test extensions.
-    add_subdirectory(test/fail_fs)
+if(NOT SYNC_DIR_SRC)
+    message(FATAL_ERROR "Missing a source directory to sync")
 endif()
+
+if(NOT SYNC_DIR_DST)
+    message(FATAL_ERROR "Missing a destination directory to sync")
+endif()
+
+# Get the list of files in the sync directory
+file(GLOB files ${SYNC_DIR_SRC}/*)
+# Check each file and copy over if it has changed
+foreach (sync_file IN LISTS files)
+    get_filename_component(sync_file_basename ${sync_file} NAME)
+    execute_process(COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        ${sync_file}
+        ${SYNC_DIR_DST}/${sync_file_basename}
+    )
+endforeach()
