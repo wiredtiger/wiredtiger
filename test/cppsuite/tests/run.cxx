@@ -30,7 +30,7 @@
 #include <iostream>
 #include <string>
 
-#include "test_harness/util/debug_utils.h"
+#include "test_harness/util/logger.h"
 #include "test_harness/test.h"
 
 #include "base_test.cxx"
@@ -106,21 +106,21 @@ run_test(const std::string &test_name, const std::string &config, const std::str
 {
     int error_code = 0;
 
-    test_harness::debug_print("Configuration\t:" + config, DEBUG_TRACE);
+    test_harness::logger::log_msg(LOG_TRACE, "Configuration\t:" + config);
 
     if (test_name == "base_test")
-        base_test(test_harness::test_args{config,test_name, wt_open_config}).run();
+        base_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "example_test")
-        example_test(test_harness::test_args{config,test_name, wt_open_config}).run();
+        example_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
-        hs_cleanup(test_harness::test_args{config,test_name, wt_open_config}).run();
+        hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
-        test_harness::debug_print("Test not found: " + test_name, DEBUG_ERROR);
+        test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
     }
 
     if (error_code == 0)
-        test_harness::debug_print("Test " + test_name + " done.", DEBUG_INFO);
+        test_harness::logger::log_msg(LOG_INFO, "Test " + test_name + " done.");
 
     return (error_code);
 }
@@ -155,16 +155,16 @@ main(int argc, char *argv[])
             print_help();
             return 0;
         } else if (std::string(argv[i]) == "-C") {
-            if ((i + 1) < argc)
+            if ((i + 1) < argc) {
                 wt_open_config = argv[++i];
                 /* Add a comma to the front if the user didn't supply one. */
                 if (wt_open_config[0] != ',')
                     wt_open_config.insert(0, 1, ',');
-            else
+            } else
                 error_code = -1;
         } else if (std::string(argv[i]) == "-c") {
             if (!config_filename.empty()) {
-                test_harness::debug_print("Option -C cannot be used with -f", DEBUG_ERROR);
+                test_harness::logger::log_msg(LOG_ERROR, "Option -C cannot be used with -f");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 cfg = argv[++i];
@@ -172,7 +172,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-f") {
             if (!cfg.empty()) {
-                test_harness::debug_print("Option -f cannot be used with -C", DEBUG_ERROR);
+                test_harness::logger::log_msg(LOG_ERROR, "Option -f cannot be used with -C");
                 error_code = -1;
             } else if ((i + 1) < argc)
                 config_filename = argv[++i];
@@ -185,7 +185,7 @@ main(int argc, char *argv[])
                 error_code = -1;
         } else if (std::string(argv[i]) == "-l") {
             if ((i + 1) < argc)
-                test_harness::_trace_level = std::stoi(argv[++i]);
+                test_harness::logger::trace_level = std::stoi(argv[++i]);
             else
                 error_code = -1;
         } else
@@ -193,11 +193,11 @@ main(int argc, char *argv[])
     }
 
     if (error_code == 0) {
-        test_harness::debug_print(
-          "Trace level: " + std::to_string(test_harness::_trace_level), DEBUG_INFO);
+        test_harness::logger::log_msg(
+          LOG_INFO, "Trace level: " + std::to_string(test_harness::logger::trace_level));
         if (test_name.empty()) {
             /* Run all tests. */
-            test_harness::debug_print("Running all tests.", DEBUG_INFO);
+            test_harness::logger::log_msg(LOG_INFO, "Running all tests.");
             for (auto const &it : all_tests) {
                 current_test_name = it;
                 /* Configuration parsing. */
@@ -224,10 +224,11 @@ main(int argc, char *argv[])
         }
 
         if (error_code != 0)
-            test_harness::debug_print("Test " + current_test_name + " failed.", DEBUG_ERROR);
+            test_harness::logger::log_msg(LOG_ERROR, "Test " + current_test_name + " failed.");
     } else
-        test_harness::debug_print("Invalid command line arguments supplied. Try './run -h' "
-          "for help.", DEBUG_ERROR);
+        test_harness::logger::log_msg(LOG_ERROR,
+          "Invalid command line arguments supplied. Try "
+          "'./run -h' for help.");
 
     return (error_code);
 }

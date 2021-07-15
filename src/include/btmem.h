@@ -28,13 +28,14 @@
 #define WT_REC_APP_EVICTION_SNAPSHOT 0x001u
 #define WT_REC_CALL_URGENT 0x002u
 #define WT_REC_CHECKPOINT 0x004u
-#define WT_REC_CLEAN_AFTER_REC 0x008u
-#define WT_REC_EVICT 0x010u
-#define WT_REC_HS 0x020u
-#define WT_REC_IN_MEMORY 0x040u
-#define WT_REC_SCRUB 0x080u
-#define WT_REC_VISIBILITY_ERR 0x100u
-#define WT_REC_VISIBLE_ALL 0x200u
+#define WT_REC_CHECKPOINT_RUNNING 0x008u
+#define WT_REC_CLEAN_AFTER_REC 0x010u
+#define WT_REC_EVICT 0x020u
+#define WT_REC_HS 0x040u
+#define WT_REC_IN_MEMORY 0x080u
+#define WT_REC_SCRUB 0x100u
+#define WT_REC_VISIBILITY_ERR 0x200u
+#define WT_REC_VISIBLE_ALL 0x400u
 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
@@ -1196,7 +1197,7 @@ struct __wt_update_value {
     } while (0)
 
 /*
- * WT_MAX_MODIFY_UPDATE, WT_MODIFY_VECTOR_STACK_SIZE
+ * WT_MODIFY_UPDATE_MIN/MAX, WT_MODIFY_VECTOR_STACK_SIZE
  *	Limit update chains value to avoid penalizing reads and permit truncation. Having a smaller
  * value will penalize the cases when history has to be maintained, resulting in multiplying cache
  * pressure.
@@ -1205,8 +1206,9 @@ struct __wt_update_value {
  * modifications in an update list. We use small vectors of modify updates in a couple of places to
  * avoid heap allocation, add a few additional slots to that array.
  */
-#define WT_MAX_MODIFY_UPDATE 10
-#define WT_UPDATE_VECTOR_STACK_SIZE 20
+#define WT_MODIFY_UPDATE_MIN 10  /* Update count before we bother checking anything else */
+#define WT_MODIFY_UPDATE_MAX 200 /* Update count hard limit */
+#define WT_UPDATE_VECTOR_STACK_SIZE (WT_MODIFY_UPDATE_MIN + 10)
 
 /*
  * WT_UPDATE_VECTOR --
