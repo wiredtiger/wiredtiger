@@ -34,15 +34,18 @@ def timestamp_str(t):
     return '%x' % t
 
 # test_cursor17.py
-# Test optimization that skips page during cursor traversal if it determines that all records on the
-# page have been deleted with a tombstone visible to the current transaction.
-
+# Test the cursor traversal optimization for delete heavy workloads. This optimization enables
+# cursor traversal mechanism to skip pages where all records on the page are deleted with a
+# tombstone visible to the current transaction.
 class test_cursor17(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     session_config = 'isolation=snapshot'
 
-    def get_stat(self, stat):
-        stat_cursor = self.session.open_cursor('statistics:')
+    def get_stat(self, stat, uri):
+        stat_string = 'statistics:'
+        if (uri):
+            stat_string += uri
+        stat_cursor = self.session.open_cursor(stat_string)
         val = stat_cursor[stat][2]
         stat_cursor.close()
         return val
@@ -56,7 +59,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
         total_keys = 40000
 
-        # Keep oldest timestamp pinned.
+        # Keep the oldest and the stable timestamp pinned.
         self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
         self.conn.set_timestamp('stable_timestamp=' + timestamp_str(2))
         cursor = self.session.open_cursor(uri)
@@ -91,10 +94,14 @@ class test_cursor17(wttest.WiredTigerTestCase):
 
         # Check if we skipped any pages while moving the cursor.
         #
-        # I ran this test few times and the stat appeared to be in range of ~1400. I have
-        # put 1000 to be on safe side but this number sould be recalculated if we change the number
-        # of keys in the test table.
-        self.assertGreater(self.get_stat(stat.conn.cursor_next_skip_page_count), 1000)
+        # We calculate the number of pages we expect to skip based on the total number of leaf pages
+        # reported in the WT stats. We subtract 2 from the count of leaf pages in the table and test
+        # that we atleast skipped 80% of the expected number of pages.
+
+        leaf_pages_in_table = self.get_stat(stat.dsrc.btree_row_leaf, uri)
+        expected_pages_skipped = ((leaf_pages_in_table - 2) * 8) // 10
+        skipped_pages = self.get_stat(stat.conn.cursor_next_skip_page_count, None)
+        self.assertGreater(skipped_pages, expected_pages_skipped)
         self.session.rollback_transaction()
 
         # Update a key in the middle of the table.
@@ -103,7 +110,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
         commit_timestamp += 1
 
-        # Make sure we can reach a the record we update in middle of the table.
+        # Make sure we can reach a the record we updated in the middle of the table.
         self.session.begin_transaction('read_timestamp=' + timestamp_str(commit_timestamp))
         # Position the cursor on the first record.
         cursor.set_key(0)
