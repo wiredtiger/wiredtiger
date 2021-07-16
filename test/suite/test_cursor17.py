@@ -66,7 +66,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
 
         commit_timestamp = 3
 
-        # Insert few thousand key-value pairs.
+        # Insert predefined number of key-value pairs.
         for key in range(total_keys):
             self.session.begin_transaction()
             cursor[key] = value1
