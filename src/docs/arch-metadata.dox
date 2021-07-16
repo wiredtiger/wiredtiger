@@ -61,7 +61,7 @@ are all printable \c C strings.
 To read the metadata, a caller can open a cursor with a \c uri equal
 to \c "metadata:". When opening a metadata cursor (through \c WT_SESSION::open_cursor), a user can
 only read the available metadata. Changes to the metadata cannot be written through the metadata
-cursor interface i.e. the metadata cursor is a read-only interface. Metadata is only changed/affected 
+cursor interface i.e. the metadata cursor is a read-only interface. Metadata is only changed/affected
 by API calls such as WT_SESSION::create, WT_SESSION::drop, WT_SESSION::rename & WT_SESSION::alter.
 
 @subsection metadata_create_cursor "metadata:create" cursor
