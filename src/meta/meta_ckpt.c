@@ -454,7 +454,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
          * resources and then set up our entry.
          */
 
-        /* Check if the global entry is valid at our index.  */
+        /* Check if the global entry is valid at our index. */
         if (!F_ISSET(blk, WT_BLKINCR_VALID)) {
             free = true;
             setup = false;
@@ -473,7 +473,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
         if (rename && (!free || setup))
             F_SET(blk_mod, WT_BLOCK_MODS_RENAME);
 
-        /* Free any old information if we need to do so.  */
+        /* Free any old information if we need to do so. */
         if (free && F_ISSET(blk_mod, WT_BLOCK_MODS_VALID)) {
             __wt_free(session, blk_mod->id_str);
             __wt_buf_free(session, &blk_mod->bitstring);
@@ -483,7 +483,7 @@ __ckpt_valid_blk_mods(WT_SESSION_IMPL *session, WT_CKPT *ckpt, bool rename)
             F_CLR(blk_mod, WT_BLOCK_MODS_VALID);
         }
 
-        /* Set up the block list to point to the current information.  */
+        /* Set up the block list to point to the current information. */
         if (setup) {
             WT_RET(__wt_strdup(session, blk->id_str, &blk_mod->id_str));
             WT_CLEAR(blk_mod->bitstring);
@@ -705,6 +705,9 @@ __wt_meta_ckptlist_get(
 
     *ckptbasep = NULL;
 
+    if (allocated != NULL)
+        *allocated = 0;
+
     btree = S2BT(session);
     config = NULL;
 
@@ -717,9 +720,11 @@ __wt_meta_ckptlist_get(
      */
     if (!WT_IS_METADATA(session->dhandle) && btree->ckpt != NULL) {
         *ckptbasep = btree->ckpt;
-        *allocated = btree->ckpt_bytes_allocated;
         if (update)
-            WT_ERR(__meta_ckptlist_allocate_new_ckpt(session, ckptbasep, allocated, NULL));
+            WT_ERR(__meta_ckptlist_allocate_new_ckpt(
+              session, ckptbasep, &btree->ckpt_bytes_allocated, NULL));
+        if (allocated != NULL)
+            *allocated = btree->ckpt_bytes_allocated;
 #ifdef HAVE_DIAGNOSTIC
         /*
          * Sanity check: Let's compare to a list generated from metadata. There should be no
@@ -1293,10 +1298,13 @@ __wt_meta_sysinfo_set(WT_SESSION_IMPL *session)
 
     __wt_verbose(session, WT_VERB_CHECKPOINT_PROGRESS,
       "saving checkpoint snapshot min: %" PRIu64 ", snapshot max: %" PRIu64
-      " snapshot count: %" PRIu32 ", oldest timestamp: %s , meta checkpoint timestamp: %s",
+      " snapshot count: %" PRIu32
+      ", oldest timestamp: %s , meta checkpoint timestamp: %s"
+      " base write gen: %" PRIu64,
       txn->snap_min, txn->snap_max, txn->snapshot_count,
       __wt_timestamp_to_string(txn_global->oldest_timestamp, ts_string[0]),
-      __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]));
+      __wt_timestamp_to_string(txn_global->meta_ckpt_timestamp, ts_string[1]),
+      S2C(session)->base_write_gen);
 
     /* Record the base write gen in metadata as part of checkpoint */
     WT_ERR(__wt_buf_fmt(
