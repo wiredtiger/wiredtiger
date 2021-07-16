@@ -156,7 +156,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t previous_state, uint3
         goto done;
 
     /* Check that we are not about to evict an internal page with an active split generation. */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL) && !closing)
+    if (WT_PAGE_IS_INTERNAL(ref->page) && !closing)
         WT_ASSERT(session, !__wt_gen_active(session, WT_GEN_SPLIT, page->pg_intl_split_gen));
 
     /* Count evictions of internal pages during normal operation. */
