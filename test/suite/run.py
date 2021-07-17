@@ -178,16 +178,38 @@ def show_env(verbose, envvar):
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
+# look for a list of the form 0-9,11,15-17
+def parse_int_list(str):
+    ret = {}
+    # divide into ranges separated by commas
+    for r in str.split(","):
+        # split the range
+        bounds = r.split("-")
+        if len(bounds) == 1 and bounds[0].isdigit():
+            # single number with no dash
+            scenario = int(bounds[0])
+            ret[scenario] = True
+            continue
+        if len(bounds) == 2 and bounds[0].isdigit() and bounds[1].isdigit():
+            # two numbers separated by a dash
+            for scenario in range(int(bounds[0]), int(bounds[1]) + 1):
+                ret[scenario] = True
+            continue
+        # not valid syntax, give up
+        return None
+    return ret
+
 def restrictScenario(testcases, restrict):
     if restrict == '':
         return testcases
-    elif restrict.isdigit():
-        s = int(restrict)
-        return [t for t in testcases
-            if hasattr(t, 'scenario_number') and t.scenario_number == s]
     else:
-        return [t for t in testcases
-            if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
+        scenarios = parse_int_list(restrict)
+        if scenarios is not None:
+            return [t for t in testcases
+                if hasattr(t, 'scenario_number') and t.scenario_number in scenarios]
+        else:
+            return [t for t in testcases
+                if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
 
 def addScenarioTests(tests, loader, testname, scenario):
     loaded = loader.loadTestsFromName(testname)
