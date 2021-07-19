@@ -381,7 +381,6 @@ __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
      * We have to hold the lock around both the wait call for a previous flush tier and the
      * execution of the current flush tier call.
      */
-    locked = false;
     if (wait)
         __wt_spin_lock(session, &conn->flush_tier_lock);
     else
