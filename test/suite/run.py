@@ -131,7 +131,8 @@ Options:\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
                                  execute every Nth (2<=N<=1000) scenario.\n\
-  -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
+  -s N    | --scenario N         use scenario N (N can be symbolic, number, or\n\
+                                 list of numbers and ranges in the form 1,3-5,7)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
   -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
@@ -178,7 +179,7 @@ def show_env(verbose, envvar):
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
-# look for a list of the form 0-9,11,15-17
+# Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
     ret = {}
     # divide into ranges separated by commas
