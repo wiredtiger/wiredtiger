@@ -41,6 +41,9 @@ class test_tiered07(wttest.WiredTigerTestCase):
     extension_name = "local_store"
 
     def conn_extensions(self, extlist):
+        # Windows doesn't support dynamically loading extension libraries.
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     def conn_config(self):
