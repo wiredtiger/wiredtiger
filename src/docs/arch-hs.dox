@@ -4,5 +4,58 @@ The History Store in WiredTiger tracks old (all but the latest committed)
 versions of records.  By having these records in storage separate from
 the current version, they can be used to service long running transactions,
 and be evicted as necessary, without interfering with activity that uses
-the most recent committed versions.
+the most recent committed versions. With introduction of History Store, only the
+newest update to a key is written to the user table while the older updates
+for the key are written to the History Store. All user tables in the database are
+backed up by a single History Store file. History Store has not outward
+visibility to the application code and only WiredTiger's internal modules can
+perform operations on the History Store table using a predefined cursor API.
+
+@section arch_hs_table Historty Store table structure
+WiredTiger uses a standard row-store table to implement History Store internally.
+The key is a combination of:
+- \c btree ID of user table this update belongs to
+- \c record key (byte-string for row-store, record number for column-store)
+- \c start timestamp for the update
+- \c counter value
+This key format above allows us to search efficiently for a given record key and read
+timestamp combination. The last part of the key is a monotonically increasing counter
+to keep the key unique in the case where we have multiple transactions committing at
+the same timestamp. As the key for the history store table is different for row- and column-store,
+we store both keytypes in a WT_ITEM, building/parsing them in the code, because otherwise we'd need
+two history store files with different key formats. We could make the history store table's key
+standard by moving the source key into the history store table value, but that doesn't make the
+coding any simpler, and it makes the history store table's value more likely to overflow the page
+size when the row-store key is relatively large.
+
+The value for each key is stored as a combination of:
+- \c stop timestamp
+- \c durable timestamp
+- \c update type
+- \c value.
+
+Note that every update in the Hisotry Store has a valid stop timestamp and transaction associated
+with it, except for cases where the update was followed by a prepared update. The stop timestamp
+is fixed in this case once prepared update is resolved.
+
+@section arch_hs_initialize Historty Store initialization
+WiredTiger checks for an existing History Store table, and creates a new table if it is not able to
+find one. History Store is usually created when WiredTiger creates a new database, with one
+exception where WiredTiger is openning an existing database created by an older version of
+WiredTiger that didn't support Histoty Store.
+
+@section arch_hs_cursor Historty Store cursor interface
+WiredTiger uses a cursor interface for History Store to make it easier for different modules to
+perform data operations on the History Strore. A new cursor can be opened by calling
+\c __wt_curhs_open. History Store cursor implementation supports most of the standard WT_CURSOR
+methods, with one key exception being WT_CURSOR::search() method. Recall that the key contains a
+counter value and it is expected that caller can not possibly know the correct counter value to use.
+Therefore, WT_CURSOR::search_near() is used for all search operations. Two helper functions,
+\c __wt_curhs_search_near_before and __wt_curhs_search_near_after, have been provided to make it
+easier to search for required record in History Store.
+
+@section arch_hs_reconciliation Historty Store and reconciliation
+@section arch_hs_read Using Historty Store for reading value
+@section arch_hs_rts Historty Store and Rollback-to-stable
+@section arch_hs_prepared Historty Store and prepared transactions
 */
