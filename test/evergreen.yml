@@ -2143,7 +2143,17 @@ tasks:
           permissions: public-read
           content_type: text/html
           display_name: Coverage report (download artifact file to access detailed coverage)
-          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report_${build_id}-${execution}.html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/coverage_report.html
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_files_include_filter: wiredtiger/coverage_report/*
+          bucket: build_external
+          permissions: public-read
+          content_type: text/html
+          remote_file: wiredtiger/${build_variant}/${revision}/coverage_report/
+
 
   - name: spinlock-gcc-test
     commands:
