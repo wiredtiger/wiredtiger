@@ -40,6 +40,25 @@ functions:
       params:
         path: "WT_TEST-big-endian.tgz"
         destination: "wiredtiger/build_posix/test/format"
+  "fetch artifacts from many-coll" :
+    - command: s3.get
+      params:
+        aws_key: ${aws_key}
+        aws_secret: ${aws_secret}
+        remote_file: dbpath_100k_500.tgz
+        bucket: build_external
+        local_file: dbpath_100k_500.tgz
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          set -o errexit
+          set -o verbose
+          mkdir -p mongo-tests/largescale/many-collection/dbpath
+    - command: archive.targz_extract
+      params:
+        path: "dbpath_100k_500.tgz"
+        destination: "mongo-tests/largescale/many-collection/dbpath/."
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
@@ -2564,7 +2583,6 @@ tasks:
             set -o verbose
             export "PATH=/opt/mongodbtoolchain/v3/bin:$PATH"
             ./workgen_perf_check.sh many-dhandle-stress.py output.log 50 500 500
-
   - name: many-collection-test
     commands:
       - command: timeout.update
@@ -2576,6 +2594,9 @@ tasks:
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
+      # Use the following function to retrieve an existing database
+      # Remove the "clean-and-populate" option if you are using an existing database
+      # - func: "fetch artifacts from many-coll"
       - command: shell.exec
         params:
           working_dir: mongo-tests/largescale
