@@ -112,7 +112,7 @@ class test_tiered08(wttest.WiredTigerTestCase):
         # FIXME-WT-7833
         #     This test can trigger races in file handle access during flush_tier.
         #     We will re-enable it when that is fixed.
-        return
+        self.skipTest('Concurrent flush_tier and insert operations not supported yet.')
 
         cfg = self.conn_config()
         self.pr('Config is: ' + cfg)
