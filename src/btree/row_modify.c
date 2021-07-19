@@ -377,7 +377,11 @@ __wt_update_obsolete_check(
         }
     }
 
-    /* Force evict a page when there are more updates to a single item. */
+    /*
+     * Force evict a page when there are more than WT_THOUSAND updates to a single item. WT_THOUSAND
+     * number is chosen because while testing one of the workload created a regression in which the
+     * average number of updates on a single item were approximate WT_THOUSAND
+     */
     if (count > WT_THOUSAND) {
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
         __wt_page_evict_soon(session, cbt->ref);
