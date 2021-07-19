@@ -182,21 +182,21 @@ reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 # Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
     ret = {}
-    # divide into ranges separated by commas
+    # Divide the input into ranges separated by commas.
     for r in str.split(","):
-        # split the range
+        # Split the range we got (if it is one).
         bounds = r.split("-")
         if len(bounds) == 1 and bounds[0].isdigit():
-            # single number with no dash
+            # It's a single number with no dash.
             scenario = int(bounds[0])
             ret[scenario] = True
             continue
         if len(bounds) == 2 and bounds[0].isdigit() and bounds[1].isdigit():
-            # two numbers separated by a dash
+            # It's two numbers separated by a dash.
             for scenario in range(int(bounds[0]), int(bounds[1]) + 1):
                 ret[scenario] = True
             continue
-        # not valid syntax, give up
+        # It's not valid syntax; give up.
         return None
     return ret
 
