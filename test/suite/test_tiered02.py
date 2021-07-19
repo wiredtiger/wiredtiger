@@ -48,7 +48,7 @@ class test_tiered02(wttest.WiredTigerTestCase):
           'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s),tiered_manager=(wait=0)' % self.extension_name
 
-    # Load the local store extension. 
+    # Load the local store extension.
     def conn_extensions(self, extlist):
         # Windows doesn't support dynamically loading extension libraries.
         if os.name == 'nt':
