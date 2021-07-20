@@ -66,13 +66,13 @@ by API calls.
 
 @subsection metadata_create_cursor "metadata:create" cursor
 
-Additionally, if you want to only read strings relating to creation configurations of the various
-\c uri keys present, you can open a cursor with a \c uri equal to \c "metadata:create". This stripping out
+Additionally, to only read strings relating to creation configurations of the various
+\c uri keys present, a cursor can be opened with a \c uri equal to \c "metadata:create". This stripping out
 internal metadata when querying.
 
 @subsection metadata_wt_util Printing metadata with the wt utility
 
-Lastly you can dump the metadata in the \c WiredTiger.wt table using the \c wt utility. Running
+Lastly the metadata in the \c WiredTiger.wt table can be dumped using the \c wt utility. Running
 \c "wt dump file:WiredTiger.wt" will display the various \c uri key strings with their associated
 configuration strings.
 */
