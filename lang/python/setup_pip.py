@@ -196,12 +196,10 @@ def source_filter(sources):
     result = []
     movers = dict()
     py_dir = os.path.join('lang', 'python')
+    pywt_build_dir = os.path.join('cmake_pip_build', py_dir)
     pywt_dir = os.path.join(py_dir, 'wiredtiger')
-    pywt_build_dir = os.path.join('cmake_pip_build', py_dir, 'wiredtiger')
     pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
-        if not re.match(source_regex, f):
-            continue
         src = f
         dest = f
         # move all lang/python files to the top level.
@@ -209,14 +207,14 @@ def source_filter(sources):
             dest = os.path.basename(dest)
             if dest == 'init.py':
                 dest = '__init__.py'
+            result.append(src)
         if dest != src:
             movers[dest] = src
         result.append(dest)
     # Add SWIG generated files
-    result.append(os.path.join(py_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c'))
-    wiredtiger_py = 'swig_wiredtiger.py'
+    result.append(os.path.join(pywt_build_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c'))
     result.append('swig_wiredtiger.py')
-    movers['swig_wiredtiger.py'] = os.path.join(py_dir, 'wiredtiger.py')
+    movers['swig_wiredtiger.py'] = os.path.join(pywt_build_dir, 'wiredtiger.py')
     return result, movers
 
 ################################################################
@@ -258,10 +256,6 @@ long_description = 'WiredTiger is a ' + short_description + '.\n\n' + \
 
 wt_ver, wt_full_ver = get_wiredtiger_versions(wt_dir)
 build_path = get_build_path()
-
-# We only need a small set of directories to build a WT library,
-# we also include any files at the top level.
-source_regex = r'^(?:(?:api|cmake_pip_build|ext|lang/python|src|dist)/|[^/]*$)'
 
 # The builtins that we include in this distribution.
 builtins = [
