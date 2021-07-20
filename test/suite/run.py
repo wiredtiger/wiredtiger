@@ -181,6 +181,8 @@ reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
 # Look for a list of the form 0-9,11,15-17.
 def parse_int_list(str):
+    # Use a dictionary as the result set to avoid repeated list scans.
+    # (Only the keys are used; the values are ignored.)
     ret = {}
     # Divide the input into ranges separated by commas.
     for r in str.split(","):
