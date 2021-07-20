@@ -11,12 +11,11 @@ The main metadata in WiredTiger is stored in the \c WiredTiger.wt file. The
 
 @section metadata_table Metadata Table
 
-The keys in the \c WiredTiger.wt table are \c uri strings. The \c uri keys can be strings
-representing:
-- WiredTiger Tables and Files: \c "table:" & \c "file:"
-- Indexes: \c "index:"
-- Colgroups: \c "colgroup:"
-- System values: \c "system". Representing special system values.
+The keys in the \c WiredTiger.wt table are \c uri strings. The keys representing a
+range of the available URIs in the system. This for example can include \c "table:" & \c "file:"
+prefixed URIs, representing typical row-store WiredTiger tables. A non-exhaustive list of other
+example keys could also include \c "index:", \c "colgroups:" \& \c "system:" prefixed URIs, representing
+indexes, colgroups and special system values respectively.
 
 The value corresponding to a given \c uri key in the metadata table is its
 associated configuration string.  The configuration value itself is a list of key/value
