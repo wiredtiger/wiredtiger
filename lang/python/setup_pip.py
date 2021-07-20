@@ -197,7 +197,7 @@ def source_filter(sources):
     movers = dict()
     py_dir = os.path.join('lang', 'python')
     pywt_dir = os.path.join(py_dir, 'wiredtiger')
-    pywt_build_dir = os.path.join('build_posix', py_dir, 'wiredtiger')
+    pywt_build_dir = os.path.join('cmake_pip_build', py_dir, 'wiredtiger')
     pywt_prefix = pywt_dir + os.path.sep
     for f in sources:
         if not re.match(source_regex, f):
@@ -213,7 +213,7 @@ def source_filter(sources):
             movers[dest] = src
         result.append(dest)
     # Add SWIG generated files
-    result.append(os.path.join(py_dir, 'wiredtiger_wrap.c'))
+    result.append(os.path.join(py_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c'))
     wiredtiger_py = 'swig_wiredtiger.py'
     result.append('swig_wiredtiger.py')
     movers['swig_wiredtiger.py'] = os.path.join(py_dir, 'wiredtiger.py')
@@ -243,10 +243,10 @@ if sys.maxsize < 2**32:
     die('need to be running on a 64 bit system, and have a 64 bit Python')
 
 python_rel_dir = os.path.join('lang', 'python')
-build_dir = os.path.join(wt_dir, 'build_posix')
-makefile = os.path.join(build_dir, 'Makefile')
+build_dir = os.path.join(wt_dir, 'cmake_pip_build')
+makefile = os.path.join(build_dir, 'build.ninja')
 built_sentinal = os.path.join(build_dir, 'built.txt')
-conf_make_dir = 'build_posix'
+conf_make_dir = 'cmake_pip_build'
 wt_swig_lib_name = os.path.join(python_rel_dir, '_wiredtiger.so')
 
 ################################################################
@@ -261,7 +261,7 @@ build_path = get_build_path()
 
 # We only need a small set of directories to build a WT library,
 # we also include any files at the top level.
-source_regex = r'^(?:(?:api|build_posix|ext|lang/python|src|dist)/|[^/]*$)'
+source_regex = r'^(?:(?:api|cmake_pip_build|ext|lang/python|src|dist)/|[^/]*$)'
 
 # The builtins that we include in this distribution.
 builtins = [
@@ -285,21 +285,18 @@ builtin_libraries = [b[1] for b in builtins]
 # Here's the configure/make operations we perform before the python extension
 # is linked.
 configure_cmds = [
-    './makemake --clean-and-make',
-    './reconf',
-    # force building a position independent library; it will be linked
-    # into a single shared library with the SWIG interface code.
-    'CFLAGS="${CFLAGS:-} -fPIC -DPIC" ' + \
-    '../configure --enable-python --with-builtins=' + ','.join(builtin_names)
+    'cmake -B cmake_pip_build -G Ninja -DCMAKE_C_FLAGS="${CFLAGS:-}" -DENABLE_PYTHON=1 ' + \
+    ' '.join(map(lambda name: '-DHAVE_BUILTIN_EXTENSION_' + name.upper() + '=1', builtin_names)),
 ]
 
 # build all the builtins, at the moment they are all compressors.
 make_cmds = []
 for name in builtin_names:
-    make_cmds.append('(cd ext/compressors/' + name + '/; make)')
-make_cmds.append('make libwiredtiger.la')
+    make_cmds.append('ninja -C ' + build_dir  +  ' ext/compressors/' + name + '/all')
+make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
+make_cmds.append('ninja -C ' + build_dir + ' lang/python/all')
 
-inc_paths = [ os.path.join(build_dir, 'src', 'include'), build_dir, '.' ]
+inc_paths = [ os.path.join(build_dir, 'include'), os.path.join(build_dir, 'config'), build_dir, '.' ]
 lib_paths = [ '.' ]   # wiredtiger.so is moved into the top level directory
 
 check_needed_dependencies(builtins, inc_paths, lib_paths)
@@ -338,14 +335,13 @@ if pip_command == 'sdist':
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
-    sources = [ os.path.join(python_rel_dir, 'wiredtiger_wrap.c') ]
+    sources = [ os.path.join(conf_make_dir, python_rel_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c') ]
 
 wt_ext = Extension('_wiredtiger',
     sources = sources,
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
     libraries = builtin_libraries,
-    extra_objects = [ os.path.join(build_dir, '.libs', 'libwiredtiger.a') ],
     include_dirs = inc_paths,
     library_dirs = lib_paths,
 )
@@ -376,12 +372,12 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
             except OSError:
                 pass
             self.execute(
-                lambda: build_commands(configure_cmds, conf_make_dir, env), [],
+                lambda: build_commands(configure_cmds, wt_dir, env), [],
                 'wiredtiger configure')
             if not os.path.isfile(makefile):
                 die('configure failed, file does not exist: ' + makefile)
             self.execute(
-                lambda: build_commands(make_cmds, conf_make_dir, env), [],
+                lambda: build_commands(make_cmds, wt_dir, env), [],
                 'wiredtiger make')
             open(built_sentinal, 'a').close()
         return setuptools.command.build_ext.build_ext.run(self)
