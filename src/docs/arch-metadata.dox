@@ -72,7 +72,7 @@ cursor causes WiredTiger to strip out internal metadata when querying.
 
 @subsection metadata_wt_util Printing metadata with the wt utility
 
-Lastly the metadata in the \c WiredTiger.wt table can be dumped using the \c wt utility. Running
-\c "wt dump file:WiredTiger.wt" will display the various \c uri key strings with their associated
+Lastly the metadata in the \c WiredTiger.wt table can be dumped using the \c wt utility. A command option for
+specifically printing the metadata is \c "wt list -v". This will display the various \c uri key strings with their associated
 configuration strings.
 */
