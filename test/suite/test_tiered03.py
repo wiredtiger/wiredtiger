@@ -51,7 +51,6 @@ class test_tiered03(wttest.WiredTigerTestCase):
     bucket = "mybucket"
     bucket_prefix = "pfx_"
     extension_name = "local_store"
-    prefix = "pfx-"
 
     def conn_config(self):
         if not os.path.exists(self.bucket):
@@ -60,12 +59,14 @@ class test_tiered03(wttest.WiredTigerTestCase):
           'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
-          'bucket_prefix=%s,' % self.prefix + \
+          'bucket_prefix=%s,' % self.bucket_prefix + \
           'name=%s)' % self.extension_name
 
-    # Load the local store extension, but skip the test if it is missing.
+    # Load the local store extension.
     def conn_extensions(self, extlist):
-        extlist.skip_if_missing = True
+        # Windows doesn't support dynamically loaded extension libraries.
+        if os.name == 'nt':
+            extlist.skip_if_missing = True
         extlist.extension('storage_sources', self.extension_name)
 
     # Test sharing data between a primary and a secondary

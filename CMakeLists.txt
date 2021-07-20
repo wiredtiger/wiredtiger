@@ -118,6 +118,10 @@ if(HAVE_LIBDL)
     target_link_libraries(wiredtiger "dl")
 endif()
 
+if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
+    target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
+endif()
+
 if(HAVE_BUILTIN_EXTENSION_LZ4)
     target_link_libraries(wiredtiger wiredtiger_lz4)
 endif()

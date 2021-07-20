@@ -890,6 +890,15 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
 
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
+      !txn_has_ts)
+        WT_RET(
+          __wt_msg(session,
+            WT_COMMIT_TS_VERB_PREFIX "committing a transaction that updates a value without "
+                                     "a timestamp while the previous update (%s) is timestamped "
+                                     "on a table configured for strict ordering",
+            __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts)
         WT_RET(__wt_msg(session,
@@ -965,9 +974,8 @@ __txn_fixup_prepared_update(
         hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
           (uint64_t)WT_UPDATE_STANDARD, &hs_value);
         WT_ERR(hs_cursor->update(hs_cursor));
-    } else {
+    } else
         WT_ERR(hs_cursor->remove(hs_cursor));
-    }
 
 err:
     F_SET(txn, txn_flags);
@@ -1129,9 +1137,15 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
              * and instead write nothing.
              */
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
+#ifdef HAVE_DIAGNOSTIC
+            WT_WITH_BTREE(session, op->btree,
+              ret = __wt_row_modify(
+                cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+#else
             WT_WITH_BTREE(session, op->btree,
               ret =
                 __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
+#endif
             WT_ERR(ret);
             tombstone = NULL;
         } else if (ret == 0)
@@ -1714,6 +1728,20 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (!readonly)
         WT_IGNORE_RET(__wt_cache_eviction_check(session, false, false, NULL));
+
+    /*
+     * Stable timestamp cannot be concurrently increased greater than or equal to the prepared
+     * transaction's durable timestamp. Otherwise, checkpoint may only write partial updates of the
+     * transaction.
+     */
+    if (prepare && txn->durable_timestamp <= txn_global->stable_timestamp) {
+        WT_ERR(__wt_verbose_dump_sessions(session, true));
+        WT_ERR_PANIC(session, WT_PANIC,
+          "Stable timestamp is increased greater than or equal to the committing prepared "
+          "transaction's "
+          "durable timestamp");
+    }
+
     return (0);
 
 err:
@@ -1767,7 +1795,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
           "A transaction should not have been assigned a log record if WT_CONN_LOG_DEBUG mode is "
           "not enabled");
 
-    /* Set the prepare timestamp.  */
+    /* Set the prepare timestamp. */
     WT_RET(__wt_txn_set_timestamp(session, cfg));
 
     if (!F_ISSET(txn, WT_TXN_HAS_TS_PREPARE))
