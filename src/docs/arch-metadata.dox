@@ -1,6 +1,6 @@
 /*! @arch_page arch-metadata Metadata
 
-Metadata in WiredTiger captures important information about the users database.
+Metadata in WiredTiger captures important information about the user's database.
 Metadata includes tracking essential information such as the files and tables
 present in the database, their associated configurations, as well as the latest checkpoints of
 each those files.
@@ -33,8 +33,8 @@ the latest checkpoint information for each btree in the system. The checkpoint m
 point in time in which WiredTiger can recover from (e.g after a crash or unexpected shutdown).
 The checkpoint metadata for a given btree is stored within the configuration string under its
 associated \c uri key within the \c WiredTiger.wt table. Metadata configuration entries relevant to capturing
-a given btrees checkpoint state include:
-- \c checkpoint: The files checkpoint entries, including their timestamp, transaction ID and write generation.
+a given btree's checkpoint state include:
+- \c checkpoint: The file's checkpoint entries, including their timestamp, transaction ID and write generation.
 - \c checkpoint_lsn: The LSN of the last checkpoint.
 - \c checkpoint_backup_info:  Incremental checkpoint backup information.
 
