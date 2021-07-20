@@ -67,8 +67,8 @@ by API calls.
 @subsection metadata_create_cursor "metadata:create" cursor
 
 Additionally, to only read strings relating to creation configurations of the various
-\c uri keys present, a cursor can be opened with a \c uri equal to \c "metadata:create". This stripping out
-internal metadata when querying.
+\c uri keys present, a cursor can be opened with a \c uri equal to \c "metadata:create". This type of
+cursor causes WiredTiger to strip out internal metadata when querying.
 
 @subsection metadata_wt_util Printing metadata with the wt utility
 
