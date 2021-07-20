@@ -85,33 +85,34 @@ create_configs()
         return
     fi
 
-cat > $file_name << EOF
-runs.type=row               # Temporarily disable column store tests
-btree.prefix=0              # Prefix testing isn't portable between releases
-cache=80                    # Medium cache so there's eviction
-checkpoints=1               # Force periodic writes
-compression=snappy          # We only built with snappy, force the choice
-data_source=table
-huffman_key=0               # Not supoprted by newer releases
-in_memory=0                 # Interested in the on-disk format
-leak_memory=1               # Faster runs
-logging=1                   # Test log compatibility
-logging_compression=snappy  # We only built with snappy, force the choice
-rows=1000000
-salvage=0                   # Faster runs
-timer=4
-verify=0                    # Faster runs
-EOF
+    echo "##################################################" >> $file_name
+    echo "runs.type=row" >> $file_name              # Temporarily disable column store tests
+    echo "btree.prefix=0" >> $file_name             # Prefix testing isn't portable between releases
+    echo "cache=80" >> $file_name                   # Medium cache so there's eviction
+    echo "checksum=on" >> $file_name
+    echo "checkpoints=1"  >> $file_name             # Force periodic writes
+    echo "compression=snappy"  >> $file_name        # We only built with snappy, force the choice
+    echo "data_source=table" >> $file_name
+    echo "huffman_key=0" >> $file_name              # Not supoprted by newer releases
+    echo "in_memory=0" >> $file_name                # Interested in the on-disk format
+    echo "leak_memory=1" >> $file_name              # Faster runs
+    echo "logging=1" >> $file_name                  # Test log compatibility
+    echo "logging_compression=snappy" >> $file_name # We only built with snappy, force the choice
+    echo "rows=1000000" >> $file_name
+    echo "salvage=0" >> $file_name                  # Faster runs
+    echo "timer=4" >> $file_name
+    echo "verify=0" >> $file_name                   # Faster runs
 
     # Append older release configs
-    for i in "${older_release_branches[@]}"
+    for i in "${compatible_upgrade_downgrade_releases[@]}"
     do
         if [ "$i" == "$branch_name" ] ; then
-            echo "transaction.isolation=snapshot    # Older releases can't do lower isolation levels" >> $file_name
-            echo "transaction.timestamps=1          # Older releases can't do non-timestamp transactions" >> $file_name
+            echo "transaction.isolation=snapshot" >> $file_name # Older releases can't do lower isolation levels
+            echo "transaction.timestamps=1" >> $file_name       # Older releases can't do non-timestamp transactions
             break
         fi
     done
+    echo "##################################################" >> $file_name
 }
 
 #############################################################
@@ -246,6 +247,9 @@ wt_standalone=false
 # or older branches are EOL.
 newer_release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
 older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
+
+# This array is used to generate compatible configuration files between 
+compatible_upgrade_downgrade_releases=(mongodb-4.4 mongodb-4.2)
 
 declare -A scopes
 scopes[newer]="newer stable release branches"
