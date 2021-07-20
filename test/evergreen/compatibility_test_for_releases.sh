@@ -248,8 +248,12 @@ wt_standalone=false
 newer_release_branches=(develop mongodb-5.0 mongodb-4.4 mongodb-4.2)
 older_release_branches=(mongodb-4.2 mongodb-4.0 mongodb-3.6)
 
-# This array is used to generate compatible configuration files between 
+# This array is used to generate compatible configuration files between releases, because
+# upgrade/downgrade test runs each build's format test program on the second build's
+# configuration file. 
 compatible_upgrade_downgrade_releases=(mongodb-4.4 mongodb-4.2)
+
+each branch format test program on the second branch's build
 
 declare -A scopes
 scopes[newer]="newer stable release branches"
