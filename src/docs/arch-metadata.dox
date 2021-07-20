@@ -28,9 +28,8 @@ with it.
 
 @section metadata_checkpoint Storing Checkpoint Metadata
 
-Metadata plays an important role in the WiredTiger checkpointing process. Metadata is used to store
-the latest checkpoint information for each btree in the system. The checkpoint metadata providing a known
-point in time in which WiredTiger can recover from (e.g after a crash or unexpected shutdown).
+The latest checkpoint information for each btree in the system is stored in its metadata entry. The checkpoint metadata
+provides a known point in time from which WiredTiger can recover a btree's data after a restart.
 The checkpoint metadata for a given btree is stored within the configuration string under its
 associated \c uri key within the \c WiredTiger.wt table. Metadata configuration entries relevant to capturing
 a given btree's checkpoint state include:
