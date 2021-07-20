@@ -2595,8 +2595,9 @@ tasks:
       - func: "import wiredtiger into mongo"
       - func: "compile mongodb"
       - func: "fetch mongo-tests repo"
-      # Use the following function to retrieve an existing database and remove the
-      # "clean-and-populate" option from the script arguments to use the database.
+      # After WT-7868 we can use the following function to retrieve an existing database and remove
+      # the "clean-and-populate" option from the script arguments to skip the initial populating
+      # step.
       # - func: "fetch artifacts from many-coll"
       - command: shell.exec
         params:
