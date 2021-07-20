@@ -58,10 +58,15 @@ build_branch()
 #############################################################
 get_config_file_name()
 {
+    local file_name=""
     branch_name=$1
+    if [ "${wt_standalone}" = true ] || [ $older = true ] ; then
+        file_name="${branch_name}/test/format/CONFIG_default"
+        echo $file_name
+        return
+    fi
     release=$(echo $branch_name |  cut -c9-)
-
-    local file_name="CONFIG_${release}"
+    file_name="CONFIG_${release}"
 
     # Special case to generate develop branch CONFIG
     if [ -z "$release" ] && [ ${branch_name} == "develop" ] ; then
@@ -103,22 +108,37 @@ create_configs()
     echo "timer=4" >> $file_name
     echo "verify=0" >> $file_name                   # Faster runs
 
-    # Append older release configs
-    for i in "${compatible_upgrade_downgrade_releases[@]}"
-    do
-        if [ "$i" == "$branch_name" ] ; then
-            echo "transaction.isolation=snapshot" >> $file_name # Older releases can't do lower isolation levels
-            echo "transaction.timestamps=1" >> $file_name       # Older releases can't do non-timestamp transactions
-            break
-        fi
-    done
+    # Append older release configs for newer compatibility release test
+    if [ $newer = true ]; then
+        for i in "${compatible_upgrade_downgrade_releases[@]}"
+        do
+            if [ "$i" == "$branch_name" ] ; then
+                echo "transaction.isolation=snapshot" >> $file_name # Older releases can't do lower isolation levels
+                echo "transaction.timestamps=1" >> $file_name       # Older releases can't do non-timestamp transactions
+                break
+            fi
+        done
+    fi
     echo "##################################################" >> $file_name
 }
 
 #############################################################
-# create_configs_per_release:
+# create_configs_older_standalone_release:
 #############################################################
-create_configs_per_release()
+create_configs_older_standalone_release()
+{
+    # Iterate over the releases and create configuration files
+    for b in *; do
+        if [ -d "$b" ]; then
+            (create_configs $b)
+        fi
+    done
+}
+
+#############################################################
+# create_configs_per_newer_release:
+#############################################################
+create_configs_per_newer_release()
 {
     # Create configs for all the newer releases
     for b in ${newer_release_branches[@]}; do
@@ -147,17 +167,23 @@ run_format()
         echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
 
         cd "$branch_name/test/format"
-        release=$(echo $branch_name |  cut -c9-)
-
         flags="-1q $(bflag $branch_name)"
-        if [ -z "$release" ] && [ ${branch_name} == "develop" ] ; then
-            release="develop"
+
+        config_file=""
+        if [ "$newer" = true ]; then
+            release=$(echo $branch_name |  cut -c9-)
+            if [ -z "$release" ] && [ ${branch_name} == "develop" ] ; then
+                release="develop"
+            fi
+            config_file="-c CONFIG_${release}"
+        else
+            config_file="-c CONFIG_default"
         fi
 
         for am in $2; do
             dir="RUNDIR.$am"
             echo "./t running $am access method..."
-            ./t $flags -c "CONFIG_${release}" -h $dir "file_type=$am"
+            ./t $flags ${config_file} -h $dir "file_type=$am"
 
             # Remove the version string from the base configuration file. (MongoDB does not create
             # a base configuration file, but format does, so we need to remove its version string
@@ -328,7 +354,12 @@ if [ "${wt_standalone}" = true ]; then
     (build_branch "$wt2")
 fi
 
-create_configs_per_release
+if [ "$newer" = true ]; then
+    create_configs_per_newer_release
+else
+    create_configs_older_standalone_release
+fi
+
 
 # Run format in each branch for supported access methods.
 if [ "$newer" = true ]; then
