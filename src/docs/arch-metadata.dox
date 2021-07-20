@@ -6,8 +6,7 @@ present in the database, their associated configurations, as well as the latest 
 each those files. In particular, the checkpoint metadata also tells WiredTiger where to the find
 root page and all other parts of its tree when accessing the file.
 
-The main metadata in WiredTiger is stored in the \c WiredTiger.wt file. The
-\c WiredTiger.wt file being a table itself.
+The main metadata in WiredTiger is stored in the \c WiredTiger.wt file.
 
 @section metadata_table Metadata Table
 
@@ -38,18 +37,19 @@ this information also tracks an encoded address cookie that describes the blocks
 - \c checkpoint_lsn: The LSN of the last checkpoint.
 - \c checkpoint_backup_info:  Incremental checkpoint backup information.
 
-Additionally, the metadata table \c WiredTiger.wt is a btree itself that needs to be checkpointed. Since a
-new metadata entry needs to be created for each btree at the time of checkpointing, the metadata table is the last
+@section metadata_turtle Turtle file
+
+The metadata file \c WiredTiger.wt is a regular WiredTiger table itself. As such, the metadata table has a btree that also needs to be
+checkpointed. Since a new metadata entry needs to be created for each btree at the time of checkpointing, the metadata table is the last
 file to be checkpointed in the process. Checkpointing the metadata table last is important
 for capturing a consistent metadata state of the btrees in the database at the time of the last checkpoint.
 
-@section metadata_turtle Turtle file
-
-WiredTiger maintains a special turtle file called \c "WiredTiger.turtle" inside the db directory. This containing the
-most recent checkpointing information of the \c WiredTiger.wt metadata file. Using the turtle file, WiredTiger can
-read the latest checkpoint information when recovering the \c WiredTiger.wt table. Recovering the checkpoint
-of the \c WiredTiger.wt table in turn helps restore a consistent view of the checkpointing information for the other btrees in
-the system.
+Due to this ordering, to successfully restore the checkpoint of the \c WiredTiger.wt file, WiredTiger captures the most
+recent checkpointing information of the metadata table in a separate file. This being a special turtle file inside the db directory called
+\c "WiredTiger.turtle". The turtle file itself can be considered as being metadata for the WiredTiger metadata. Using the
+turtle file, WiredTiger can read the latest checkpoint information from the file when recovering the \c WiredTiger.wt table.
+Recovering the checkpoint of the \c WiredTiger.wt table in turn helps restore a consistent view of the checkpointing information
+for the other btrees in the system.
 
 @section metadata_reading Reading Metadata
 
