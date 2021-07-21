@@ -2151,7 +2151,7 @@ tasks:
           bucket: build_external
           permissions: public-read
           content_type: text/html
-          # Ensure that there the first character of the display_name is a space
+          # Ensure that the first character of the display_name is a space
           # This will ensure that it sorts before the main report pages which also get a space
           # at the start of their display name (why this happens is not yet clear).
           display_name: " 1 Coverage report main page"
