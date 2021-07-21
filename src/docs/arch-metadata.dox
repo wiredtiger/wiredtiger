@@ -10,10 +10,9 @@ The main metadata in WiredTiger is stored in the \c WiredTiger.wt file.
 
 @section metadata_table Metadata Table
 
-The keys in the \c WiredTiger.wt table are \c uri strings. The keys representing a
-range of the available URIs in the system. This for example can include \c "table:" & \c "file:"
+The keys in the \c WiredTiger.wt table are \c uri strings. For example, keys can include \c "table:" & \c "file:"
 prefixed URIs, representing typical row-store WiredTiger tables. A non-exhaustive list of other
-example keys could also include \c "index:", \c "colgroups:" \& \c "system:" prefixed URIs, representing
+example keys could also include \c "index:", \c "colgroups:" and \c "system:" prefixed URIs, representing
 indexes, colgroups and special system values respectively.
 
 The value corresponding to a given \c uri key in the metadata table is its
@@ -23,7 +22,7 @@ type of \c uri.  Thus, a metadata entry with a \c uri key beginning with \c "tab
 a configuration string having entries such as \c key_format and \c value_format to
 describe the data encoding for the uri. A metadata key beginning with
 \c "file:" will have a different set of configuration entries associated
-with it.
+with it. See @ref config_strings "Configuration Strings" for more details about WiredTiger configuration strings.
 
 @section metadata_checkpoint Storing Checkpoint Metadata
 
