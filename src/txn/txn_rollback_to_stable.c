@@ -1674,7 +1674,7 @@ __rollback_to_stable(WT_SESSION_IMPL *session, bool no_ckpt)
           session, "timed out waiting for eviction to quiesce, running rollback to stable"));
         /*
          * FIXME: WT-7877 RTS fails when there are active transactions running in parallel to it.
-         * The above loop of waiting them to finish is not efficient in some scenarios where the
+         * Waiting in a loop for eviction to quiesce is not efficient in some scenarios where the
          * cache is not cleared in 2 minutes. Enable the following assert and
          * test_rollback_to_stable22.py when the cache issue is addressed.
          */
