@@ -297,10 +297,11 @@ if pip_command == 'sdist':
     pywt_files = os.listdir(pywt_path)
     for f in pywt_files:
         basename = os.path.basename(f)
+        src = os.path.join(pywt_path, f)
         if basename == 'init.py':
-            shutil.copy2(f, os.path.join(stage_dir, '__init__.py'))
+            shutil.copy2(src, os.path.join(stage_dir, '__init__.py'))
         else:
-            shutil.copy2(f, os.path.join(stage_dir, basename))
+            shutil.copy2(src, os.path.join(stage_dir, basename))
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
