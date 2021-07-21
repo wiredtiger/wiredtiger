@@ -2,8 +2,8 @@
 
 Metadata in WiredTiger captures important information about the user's database.
 Metadata includes tracking essential information such as the files and tables
-present in the database, their associated configurations, as well as the latest checkpoints of
-each those files. In particular, the checkpoint metadata also tells WiredTiger where to the find
+present in the database, their associated configurations, as well as the latest checkpoints.
+The checkpoint information tells WiredTiger where to the find
 root page and all other parts of its tree when accessing the file.
 
 The main metadata in WiredTiger is stored in the \c WiredTiger.wt file.
