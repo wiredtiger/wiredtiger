@@ -39,10 +39,11 @@ with it, except for cases where the update was followed by a prepared update. Th
 is fixed in this case once prepared update is resolved.
 
 @section arch_hs_initialize Historty Store initialization
-WiredTiger checks for an existing History Store table, and creates a new table if it is not able to
-find one. History Store is usually created when WiredTiger creates a new database, with one
-exception where WiredTiger is openning an existing database created by an older version of
-WiredTiger that didn't support Histoty Store.
+WiredTiger checks for an existing History Store table at startup and creates a new table if it is 
+not able to find one. History Store table is usually created when WiredTiger creates a new database, 
+with one exception where WiredTiger is openning an existing database created by an older version of
+WiredTiger that didn't support Histoty Store. WiredTiger uses WiredTigerHS.wt as the filename for 
+the History Stable table. 
 
 @section arch_hs_cursor Historty Store cursor interface
 WiredTiger uses a cursor interface for History Store to make it easier for different modules to
@@ -52,10 +53,24 @@ methods, with one key exception being WT_CURSOR::search() method. Recall that th
 counter value and it is expected that caller can not possibly know the correct counter value to use.
 Therefore, WT_CURSOR::search_near() is used for all search operations. Two helper functions,
 \c __wt_curhs_search_near_before and __wt_curhs_search_near_after, have been provided to make it
-easier to search for required record in History Store.
+easier to search for the required record in History Store.
 
 @section arch_hs_reconciliation Historty Store and reconciliation
+When a modified user page is processed by either checkpoint or eviction module, the reconciliation 
+code examines the update chain for each key and decides on the latest value that need to be 
+written the on-disk version of the page. All the updates older than the one being written to the
+on-disk version of the page but not yet globally visible are added to the History Store table. The
+reconciliation code also takes care of out-of-order timestamps for updates being added to
+History Store table.
+
+When a modified History Store table page is processed by reconciliation, certain records on the page 
+are removed when creating a new page image if the tombstones have become gobally visible. This
+ensures that we are only keeping relevant historical data required to serve the oldest reader in
+the system or as dictated by the oldest timestamp set by the application. 
+
+
 @section arch_hs_read Using Historty Store for reading value
+
 @section arch_hs_rts Historty Store and Rollback-to-stable
 @section arch_hs_prepared Historty Store and prepared transactions
 */
