@@ -292,7 +292,7 @@ if pip_command == 'sdist':
             os.makedirs(d)
         # Symlinks are not followed in setup, we need to use real files.
         shutil.copy2(f, os.path.join(stage_dir, f))
-    # copy files in lang/python/wiredtiger to the root folder
+    # Copy files in lang/python/wiredtiger to the root folder.
     pywt_path = os.path.join(stage_dir, "lang", "python", "wiredtiger")
     pywt_files = os.listdir(pywt_path)
     for f in pywt_files:
