@@ -34,7 +34,7 @@ a given btree's checkpoint state include:
 - \c checkpoint: The file's checkpoint entries, including their timestamp, transaction ID and write generation. Most importantly
 this information also tracks an encoded address cookie that describes the blocks that make up the checkpoint's data.
 - \c checkpoint_lsn: The LSN of the last checkpoint.
-- \c checkpoint_backup_info:  Incremental checkpoint backup information.
+- \c checkpoint_backup_info:  Incremental backup information.
 
 @section metadata_turtle Turtle file
 
