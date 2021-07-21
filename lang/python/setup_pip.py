@@ -125,10 +125,7 @@ def get_build_path():
 # flags, C compilation flags and linker flags.
 def get_compile_flags(inc_paths, lib_paths):
     # Suppress warnings building SWIG generated code
-    if sys.platform == 'win32' and cc == 'msvc':
-        cflags = ['/arch:SSE2', '/EHsc']
-        cppflags = []
-        ldflags = []
+    if sys.platform == 'win32':
         # Windows untested and incomplete, don't claim that it works.
         die('Windows is not supported by this setup script')
     else:
@@ -259,8 +256,6 @@ for name in builtin_names:
     make_cmds.append('ninja -C ' + build_dir  +  ' ext/compressors/' + name + '/all')
 if sys.platform == 'darwin':
     make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dylib')
-elif sys.platform == 'win32':
-    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dll')
 else:
     make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
 make_cmds.append('ninja -C ' + build_dir + ' lang/python/all')
