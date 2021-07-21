@@ -187,36 +187,6 @@ def get_library_dirs():
     dirs = list(set(filter(os.path.isdir, dirs)))
     return dirs
 
-# source_filter
-#   Make any needed changes to the original sources list and return a manifest,
-# a list of source file names relative to the new staging root.  Any entry
-# that needs to be renamed returned in a dictionary where the entry's key
-# is the new name and the value is the old source name.
-def source_filter(sources):
-    result = []
-    movers = dict()
-    py_dir = os.path.join('lang', 'python')
-    pywt_build_dir = os.path.join('cmake_pip_build', py_dir)
-    pywt_dir = os.path.join(py_dir, 'wiredtiger')
-    pywt_prefix = pywt_dir + os.path.sep
-    for f in sources:
-        src = f
-        dest = f
-        # move all lang/python files to the top level.
-        if dest.startswith(pywt_prefix):
-            dest = os.path.basename(dest)
-            if dest == 'init.py':
-                dest = '__init__.py'
-            result.append(src)
-        if dest != src:
-            movers[dest] = src
-        result.append(dest)
-    # Add SWIG generated files
-    result.append(os.path.join(pywt_build_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c'))
-    result.append('swig_wiredtiger.py')
-    movers['swig_wiredtiger.py'] = os.path.join(pywt_build_dir, 'wiredtiger.py')
-    return result, movers
-
 ################################################################
 # Do some initial setup and checks.
 this_abs_script = os.path.abspath(__file__)
@@ -311,7 +281,7 @@ if pip_command == 'sdist':
     if python2:
         die('Python3 should be used to create a source distribution')
 
-    sources, movers = source_filter(get_sources_curdir())
+    sources = get_sources_curdir()
     stage_dir = os.path.join(python_rel_dir, 'stage')
     shutil.rmtree(stage_dir, True)
     os.makedirs(stage_dir)
@@ -320,12 +290,17 @@ if pip_command == 'sdist':
         d = os.path.join(stage_dir, os.path.dirname(f))
         if not os.path.isdir(d):
             os.makedirs(d)
-        if f in movers:
-            src = movers[f]
-        else:
-            src = f
         # Symlinks are not followed in setup, we need to use real files.
-        shutil.copy2(src, os.path.join(stage_dir, f))
+        shutil.copy2(f, os.path.join(stage_dir, f))
+    # copy files in lang/python/wiredtiger to the root folder
+    pywt_path = os.path.join(stage_dir, "lang", "python", "wiredtiger")
+    pywt_files = os.listdir(pywt_path)
+    for f in pywt_files:
+        basename = os.path.basename(f)
+        if basename == 'init.py':
+            shutil.copy2(f, os.path.join(stage_dir, '__init__.py'))
+        else:
+            shutil.copy2(f, os.path.join(stage_dir, basename))
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
