@@ -370,13 +370,13 @@ fi
 
 if [ "$older" = true ]; then
     for b in ${older_release_branches[@]}; do
-        (run_format $b "fix row var")
+        (run_format $b "row")
     done
 fi
 
 if [ "${wt_standalone}" = true ]; then
-    (run_format "$wt1" "fix row var")
-    (run_format "$wt2" "fix row var")
+    (run_format "$wt1" "row")
+    (run_format "$wt2" "row")
 fi
 
 # Verify backward compatibility for supported access methods.
