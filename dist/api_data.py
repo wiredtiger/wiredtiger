@@ -297,14 +297,14 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for
         \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression, these names
         are also available.  See @ref compression for more information'''),
-    Config('checksum', 'uncompressed', r'''
-        configure block checksums; permitted values are <code>on</code>
-        (checksum all blocks), <code>off</code> (checksum no blocks) and
-        <code>uncompresssed</code> (checksum only blocks which are not
-        compressed for any reason).  The \c uncompressed setting is for
-        applications which can rely on decompression to fail if a block
-        has been corrupted''',
-        choices=['on', 'off', 'uncompressed']),
+    Config('checksum', 'on', r'''
+        configure block checksums; the permitted values are \c on, \c off, \c uncompressed and
+        \c unencrypted. The default is \c on, in which case all block writes include a checksum
+        subsequently verified when the block is read. The \c off setting does no checksums,
+        the \c uncompressed setting only checksums blocks that are not compressed, and the
+        \c unencrypted setting only checksums blocks that are not encrypted.  See @ref
+        tune_checksum for more information.''',
+        choices=['on', 'off', 'uncompressed', 'unencrypted']),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the Btree
         row-store leaf page value dictionary; see
@@ -1573,6 +1573,11 @@ methods = {
         \c on setting causes the caller to wait until all work queued for this call to
         be completely processed before returning''',
         choices=['off', 'on']),
+    Config('timeout', '0', r'''
+        maximum amount of time to allow for waiting for previous flushing
+        of objects, in seconds. The actual amount of time spent waiting may
+        exceed the configured value. A value of zero disables the timeout''',
+        type='int'),
 ]),
 
 'WT_SESSION.strerror' : Method([]),

@@ -50,6 +50,7 @@ add_subdirectory(extractors/csv)
 if(WT_POSIX)
     # Build the encryptor extensions.
     add_subdirectory(encryptors/rotn)
+    add_subdirectory(encryptors/sodium)
 
     # Build the storage_sources extensions.
     add_subdirectory(storage_sources/local_store)

@@ -138,6 +138,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of pages skipped without reading by cursor next calls",
+  "cursor: Total number of pages skipped without reading by cursor prev calls",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: bulk loaded cursor insert calls",
   "cursor: cache cursors reuse count",
@@ -393,6 +395,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_next_skip_page_count = 0;
+    stats->cursor_prev_skip_page_count = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     stats->cursor_insert_bulk = 0;
     stats->cursor_reopen = 0;
@@ -633,6 +637,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cursor_next_skip_total += from->cursor_next_skip_total;
     to->cursor_prev_skip_total += from->cursor_prev_skip_total;
     to->cursor_skip_hs_cur_position += from->cursor_skip_hs_cur_position;
+    to->cursor_next_skip_page_count += from->cursor_next_skip_page_count;
+    to->cursor_prev_skip_page_count += from->cursor_prev_skip_page_count;
     to->cursor_search_near_prefix_fast_paths += from->cursor_search_near_prefix_fast_paths;
     to->cursor_insert_bulk += from->cursor_insert_bulk;
     to->cursor_reopen += from->cursor_reopen;
@@ -876,6 +882,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_next_skip_page_count += WT_STAT_READ(from, cursor_next_skip_page_count);
+    to->cursor_prev_skip_page_count += WT_STAT_READ(from, cursor_prev_skip_page_count);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
     to->cursor_insert_bulk += WT_STAT_READ(from, cursor_insert_bulk);
@@ -1058,6 +1066,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: forced eviction - pages evicted that were clean time (usecs)",
   "cache: forced eviction - pages evicted that were dirty count",
   "cache: forced eviction - pages evicted that were dirty time (usecs)",
+  "cache: forced eviction - pages selected because of a large number of updates to a single item",
   "cache: forced eviction - pages selected because of too many deleted items count",
   "cache: forced eviction - pages selected count",
   "cache: forced eviction - pages selected unable to be evicted count",
@@ -1168,6 +1177,8 @@ static const char *const __stats_connection_desc[] = {
   "cursor: Total number of entries skipped by cursor next calls",
   "cursor: Total number of entries skipped by cursor prev calls",
   "cursor: Total number of entries skipped to position the history store cursor",
+  "cursor: Total number of pages skipped without reading by cursor next calls",
+  "cursor: Total number of pages skipped without reading by cursor prev calls",
   "cursor: Total number of times a search near has exited due to prefix config",
   "cursor: cached cursor count",
   "cursor: cursor bulk loaded cursor insert calls",
@@ -1587,6 +1598,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_eviction_force_clean_time = 0;
     stats->cache_eviction_force_dirty = 0;
     stats->cache_eviction_force_dirty_time = 0;
+    stats->cache_eviction_force_long_update_list = 0;
     stats->cache_eviction_force_delete = 0;
     stats->cache_eviction_force = 0;
     stats->cache_eviction_force_fail = 0;
@@ -1692,6 +1704,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cursor_next_skip_total = 0;
     stats->cursor_prev_skip_total = 0;
     stats->cursor_skip_hs_cur_position = 0;
+    stats->cursor_next_skip_page_count = 0;
+    stats->cursor_prev_skip_page_count = 0;
     stats->cursor_search_near_prefix_fast_paths = 0;
     /* not clearing cursor_cached_count */
     stats->cursor_insert_bulk = 0;
@@ -2092,6 +2106,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_force_clean_time += WT_STAT_READ(from, cache_eviction_force_clean_time);
     to->cache_eviction_force_dirty += WT_STAT_READ(from, cache_eviction_force_dirty);
     to->cache_eviction_force_dirty_time += WT_STAT_READ(from, cache_eviction_force_dirty_time);
+    to->cache_eviction_force_long_update_list +=
+      WT_STAT_READ(from, cache_eviction_force_long_update_list);
     to->cache_eviction_force_delete += WT_STAT_READ(from, cache_eviction_force_delete);
     to->cache_eviction_force += WT_STAT_READ(from, cache_eviction_force);
     to->cache_eviction_force_fail += WT_STAT_READ(from, cache_eviction_force_fail);
@@ -2214,6 +2230,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cursor_next_skip_total += WT_STAT_READ(from, cursor_next_skip_total);
     to->cursor_prev_skip_total += WT_STAT_READ(from, cursor_prev_skip_total);
     to->cursor_skip_hs_cur_position += WT_STAT_READ(from, cursor_skip_hs_cur_position);
+    to->cursor_next_skip_page_count += WT_STAT_READ(from, cursor_next_skip_page_count);
+    to->cursor_prev_skip_page_count += WT_STAT_READ(from, cursor_prev_skip_page_count);
     to->cursor_search_near_prefix_fast_paths +=
       WT_STAT_READ(from, cursor_search_near_prefix_fast_paths);
     to->cursor_cached_count += WT_STAT_READ(from, cursor_cached_count);
