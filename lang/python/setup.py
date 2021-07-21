@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import re, os, sys
+import re, os
 from distutils.core import setup, Extension
 
 # OS X hack: turn off the Universal binary support that is built into the
