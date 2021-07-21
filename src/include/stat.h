@@ -77,7 +77,7 @@
 
 #define WT_SESSION_STATS_FIELD_TO_OFFSET(stats, fld) (int)(&(stats)->fld - (int64_t *)(stats))
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_STAT_CLEAR 0x01u
 #define WT_STAT_JSON 0x02u
 #define WT_STAT_ON_CLOSE 0x04u
@@ -86,7 +86,7 @@
 #define WT_STAT_TYPE_FAST 0x20u
 #define WT_STAT_TYPE_SIZE 0x40u
 #define WT_STAT_TYPE_TREE_WALK 0x80u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
  * Sum the values from all structures in the array.
@@ -455,6 +455,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_fail_parent_has_overflow_items;
     int64_t cache_eviction_fail_active_children_on_an_internal_page;
     int64_t cache_eviction_fail_in_reconciliation;
+    int64_t cache_eviction_fail_checkpoint_out_of_order_ts;
     int64_t cache_eviction_walk;
     int64_t cache_write;
     int64_t cache_write_restore;
@@ -501,6 +502,8 @@ struct __wt_connection_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_next_skip_page_count;
+    int64_t cursor_prev_skip_page_count;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
@@ -680,7 +683,6 @@ struct __wt_connection_stats {
     int64_t rec_split_stashed_bytes;
     int64_t rec_split_stashed_objects;
     int64_t flush_state_races;
-    int64_t flush_tier_busy;
     int64_t flush_tier;
     int64_t session_open;
     int64_t session_query_ts;
@@ -931,6 +933,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_next_skip_page_count;
+    int64_t cursor_prev_skip_page_count;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_insert_bulk;
     int64_t cursor_reopen;
