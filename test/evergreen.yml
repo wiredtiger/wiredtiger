@@ -2171,7 +2171,7 @@ tasks:
           permissions: public-read
           content_type: text/html
           # Ensure that the first character of the display_name is a space
-          # This will ensure that it sorts before the main report pages which also get a space
+          # This will ensure that it sorts before the per-file report pages which also get a space
           # at the start of their display name (why this happens is not yet clear).
           display_name: " 1 Coverage report main page"
           remote_file: wiredtiger/${build_variant}/${revision}/coverage_report_${build_id}-${execution}/1_coverage_report_main.html
