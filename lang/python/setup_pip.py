@@ -257,7 +257,12 @@ configure_cmds = [
 make_cmds = []
 for name in builtin_names:
     make_cmds.append('ninja -C ' + build_dir  +  ' ext/compressors/' + name + '/all')
-make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
+if sys.platform == "Darwin":
+    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dylib')
+elif sys.sys.platform == "Win32":
+    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dll')
+else:
+    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
 make_cmds.append('ninja -C ' + build_dir + ' lang/python/all')
 
 inc_paths = [ os.path.join(build_dir, 'include'), os.path.join(build_dir, 'config'), build_dir, '.' ]
