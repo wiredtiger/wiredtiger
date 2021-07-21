@@ -259,7 +259,7 @@ for name in builtin_names:
     make_cmds.append('ninja -C ' + build_dir  +  ' ext/compressors/' + name + '/all')
 if sys.platform == "Darwin":
     make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dylib')
-elif sys.sys.platform == "Win32":
+elif sys.platform == "Win32":
     make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dll')
 else:
     make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
