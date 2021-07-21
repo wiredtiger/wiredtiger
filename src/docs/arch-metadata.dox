@@ -53,13 +53,12 @@ for the other btrees in the system.
 @section metadata_reading Reading Metadata
 
 The contents of the metadata table is ASCII printable. The URIs and configuration values
-are all printable \c C strings.
+are all printable strings.
 
 @subsection metadata_cursor "metadata:" cursor
 
-To read the metadata, a caller can open a cursor with a \c uri equal
-to \c "metadata:". When opening a metadata cursor (through \c WT_SESSION::open_cursor), a user can
-only read the available metadata. Changes to the metadata cannot be written through the metadata
+To read the metadata, a caller can open a cursor, via \c WT_SESSION::open_cursor, with a \c uri equal
+to \c "metadata:". Changes to the metadata cannot be written through the metadata
 cursor interface i.e. the metadata cursor is a read-only interface. Metadata is only changed/affected
 by API calls.
 
