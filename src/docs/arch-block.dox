@@ -6,52 +6,55 @@ disk space and customisability.
 
 @section block What is a block?
 
-The block manager API introduces the concept of a "block" which represents a
-chunk of data that is stored on the disk and operated on as a single atomic
+A block is a chunk of data that is stored on the disk and operated on as a single
 unit. Each WiredTiger data file (any file in the home directory with the \c .wt
-suffix) is made up of these blocks.
+suffix) is made up of these blocks. Each block consists of a page header, a block
+header and contains a single page from the b-tree which it was generated.
+Blocks can only be written once and a new block must be created upon reconciliation
+of a dirty page. The size of a block is a multple of the allocation size which is
+set during creation of associated WiredTiger data file. See: session_api:create
 
-Since a data file can contain page images from multiple reconciliations of the
-same page, each block is associated with a single checkpoint. The API is
-designed in a way that allows users to load a checkpoint into the block manager
-and then read the blocks from that checkpoint as if they were a contiguous
-stream of chunks in the file (in reality, blocks from different checkpoints can
-be interleaved).
+Once a block is written the address of the block is returned and is referred to
+the \c addr. The address is made up of 4 components:
+ - offset: The offset in the file. In order to avoid storing large offsets this value is divided by
+ the allocation size.
+ - file_id: While only relevant to the tiered storage type the file_id is maintained in the address.
+ - size: The size of the block, also devided by the allocation size.
+ - checksum: The checksum of the block for validation purposes.
+
+The block header contains the following fields:
+ - size: The size of the block on disk, used when salvaging data from a corrupt file.
+ - checksun: The checksum of the block, again used for salvaging.
+ - flags: Currently only flag exists.
+ - padding
+
+The page header contains the following fields:
+ - type: the type of page, either internal or leaf.
+ -
 
 @section block_usage How WiredTiger uses the block manager
 
-Whenever a page is read into the cache, WiredTiger will read its corresponding
-block from the data file. This block contains what's referred to as the
-"page image" in other subsystems and has the newest versions of data for each
-key.
+When the a new file is created in WT via session_api:create the file is created on disk
+and the associated allocation size is written out to the metadata file. However the
+block manager itself isn't created. Only when a btree is opened does WiredTiger allocate
+a block manager. Each b-ree has it's own block manager.
 
-Conversely, when a page is reconciled whether that is due to a page eviction or
-by a checkpoint, a new page image is constructed and it is written as a new
-block in the data file. In the case of checkpoint, the newly written block is
-bound to the current checkpoint and in the case of eviction, it is associated
-with the next checkpoint.
+Each file on disk contains a minimum of two checkpoints, each of those checkpoints correspond
+with a set of non mutually exclusive blocks. When opening an existing file the latest checkpoint
+is used as the starting point of the file, and presents a consistent view of the data.
 
-@section block_implementation How the block manager is implemented
+When reading existing data pages are read into the b-tree, WiredTiger will read its corresponding
+block from the data file and create the page image.
 
-We've already discussed the concept of a block and how the data file's on-disk
-representation is divided into smaller blocks that are each associated with a
-checkpoint.
+When writing data a new page image is constructed during reconciliation and it is written as a
+new block in the data file. See arch reconciliation for more details on that.
 
-In this section, we'll dive into the file layout in more detail and talk about
-some of the core data structures used as part of block allocation.
+When WiredTiger performs a checkpoint clean pages will not result in additional blocks being
+created and as such existing blocks from older checkpoints will be reused. Checkpoints are
+created in depth first order, leaf blocks are created, then the parent blocks. This is required
+as the parent blocks contain the addresses of the leaf blocks.
 
-@subsection block_layout Block layout
-
-Each block consists of a page header, followed by a block manager header,
-followed by the actual page image.
-
-The page header contains some metadata about the page contents such as the type
-of page, whether it is compressed, whether it is encrypted, its write generation
-, etc.
-
-The block manager header is simpler. It contains the size of the following disk
-image as well as an optional checksum for when block-level checksums are
-enabled.
+@section block_implementation Block manager implementation details
 
 @subsection desc_block Descriptor block
 
