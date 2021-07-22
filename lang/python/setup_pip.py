@@ -290,7 +290,7 @@ extensions = [ wt_ext ]
 env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
         "LDFLAGS" : ' '.join(ldflags),
-        "PATH" : os.getenv("PATH") }
+        "PATH" : os.environ['PATH'] }
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
