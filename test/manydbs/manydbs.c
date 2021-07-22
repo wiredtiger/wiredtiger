@@ -63,9 +63,9 @@ static const char *const uri = "table:main";
 #if defined(__NetBSD__) || defined(_WIN32)
 /*
  * NetBSD should never generate spurious wakeups, but does: see https://gnats.netbsd.org/56275.
- * Windows can also generate spurious wakeups: 
- * https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables
- * These values allow the test to complete in spite of that.
+ * Windows can also generate spurious wakeups:
+ * https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables These values allow the
+ * test to complete in spite of that.
  */
 #define CV_RESET_THRESH_IDLE 20
 #define CV_RESET_THRESH_DENOM 10
