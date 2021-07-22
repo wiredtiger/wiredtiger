@@ -54,6 +54,27 @@ static const char *const uri = "table:main";
 #define MAX_KV 100
 #define MAX_VAL 128
 
+/*
+ * Maximum expected condition variable wakeups. POSIX allows arbitrarily many spurious wakeups to
+ * happen, so we need to be able to adjust this expectation per-platform. There are two cases: when
+ * completely idle, and when running a light workload. The latter is expressed as a fraction of the
+ * total number of condition variable sleeps; the former is a constant.
+ */
+#if defined(__NetBSD__) || defined(__WINDOWS__)
+/*
+ * NetBSD should never generate spurious wakeups, but does: see https://gnats.netbsd.org/56275.
+ * Windows can also generate spurious wakeups: 
+ * https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables
+ * These values allow the test to complete in spite of that.
+ */
+#define CV_RESET_THRESH_IDLE 10
+#define CV_RESET_THRESH_DENOM 10
+#else
+/* Default values: should be no wakeups when idle and allow 1/20 otherwise. */
+#define CV_RESET_THRESH_IDLE 0
+#define CV_RESET_THRESH_DENOM 20
+#endif
+
 static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
@@ -157,7 +178,6 @@ main(int argc, char *argv[])
     cond_reset_orig = dcalloc((size_t)dbs, sizeof(uint64_t));
     cursors = idle ? NULL : dcalloc((size_t)dbs, sizeof(WT_CURSOR *));
     memset(cmd, 0, sizeof(cmd));
-
     /*
      * Set up all the directory names.
      */
@@ -187,7 +207,7 @@ main(int argc, char *argv[])
         }
     }
 
-    sleep(30);
+    sleep(10);
 
     /*
      * Record original reset setting. There could have been some activity during the creation
@@ -206,23 +226,16 @@ main(int argc, char *argv[])
         testutil_check(get_stat(sessions[i], WT_STAT_CONN_COND_AUTO_WAIT_RESET, &cond_reset));
         testutil_check(get_stat(sessions[i], WT_STAT_CONN_COND_AUTO_WAIT, &cond_wait));
         /*
-         * On an idle workload there should be minimal resets of condition variables during the idle
-         * period, looking for 5%. Even with a light workload, resets should not be very common. We
-         * look for 10%.
-         *
-         * Condition variables are subject to spurious wakeups (those not associated with an
-         * explicit wake) and stolen wakeups (another thread manages to run before the woken
-         * thread). https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables
-         * https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_cond_wait.html
+         * On an idle workload there should be no resets of condition variables during the idle
+         * period. Even with a light workload, resets should not be very common. We look for 5%.
          */
-        if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
+        if (idle && cond_reset > cond_reset_orig[i] + CV_RESET_THRESH_IDLE)
+            testutil_die(ERANGE, "condition reset on idle connection %d of %" PRIu64 " exceeds %d",
+              i, cond_reset, CV_RESET_THRESH_IDLE);
+        if (!idle && cond_reset > cond_wait / CV_RESET_THRESH_DENOM)
             testutil_die(ERANGE,
-              "connection %d condition reset %" PRIu64 " exceeds 5%% of %" PRIu64, i, cond_reset,
-              cond_wait);
-        if (!idle && cond_reset - cond_reset_orig[i] > cond_wait / 10)
-            testutil_die(ERANGE,
-              "connection %d condition reset %" PRIu64 " exceeds 10%% of %" PRIu64, i, cond_reset,
-              cond_wait);
+              "connection %d condition reset %" PRIu64 " exceeds %.2f%% of %" PRIu64, i, cond_reset,
+              100 / CV_RESET_THRESH_DENOM, cond_wait);
         testutil_check(connections[i]->close(connections[i], NULL));
     }
 
