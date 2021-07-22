@@ -344,14 +344,14 @@ __wt_update_obsolete_check(
             continue;
 
         ++upd_seen;
-    if (__wt_txn_upd_visible_all(session, upd)) {
+        if (__wt_txn_upd_visible_all(session, upd)) {
             if (first == NULL && WT_UPDATE_DATA_VALUE(upd))
                 first = upd;
         } else {
             first = NULL;
-            /* 
-             * If we can't find an obsolete update, find the mimimum timestamp that may be blocking
-             * the trimming of the list. 
+            /*
+             * If we can't find an obsolete update, find the minimum timestamp that may be blocking
+             * the trimming of the list.
              */
             min_ts = WT_MIN(upd->durable_ts, min_ts);
             /*
@@ -394,7 +394,7 @@ __wt_update_obsolete_check(
         WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
         __wt_page_evict_soon(session, cbt->ref);
     }
- 
+
     if (next != NULL)
         return (next);
 
