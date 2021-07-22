@@ -317,7 +317,7 @@ __wt_update_obsolete_check(
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
-    uint64_t oldest, stable;
+    uint64_t oldest, stable, min_ts;
     u_int count, upd_seen, upd_unstable;
 
     next = NULL;
@@ -325,8 +325,10 @@ __wt_update_obsolete_check(
     txn_global = &S2C(session)->txn_global;
 
     upd_seen = upd_unstable = 0;
+    min_ts = WT_TS_NONE;
     oldest = txn_global->has_oldest_timestamp ? txn_global->oldest_timestamp : WT_TS_NONE;
     stable = txn_global->has_stable_timestamp ? txn_global->stable_timestamp : WT_TS_NONE;
+    WT_STAT_CONN_INCR(session, cache_update_obsolete_calls);
     /*
      * This function identifies obsolete updates, and truncates them from the rest of the chain;
      * because this routine is called from inside a serialization function, the caller has
@@ -347,6 +349,7 @@ __wt_update_obsolete_check(
                 first = upd;
         } else {
             first = NULL;
+            min_ts = upd->durable_ts;
             /*
              * While we're here, also check for the update being kept only for timestamp history to
              * gauge updates being kept due to history.
@@ -399,7 +402,7 @@ __wt_update_obsolete_check(
     if (count > 20 && page->modify != NULL) {
         page->modify->obsolete_check_txn = txn_global->last_running;
         if (txn_global->has_pinned_timestamp)
-            page->modify->obsolete_check_timestamp = txn_global->pinned_timestamp;
+            page->modify->obsolete_check_timestamp = WT_MAX(txn_global->pinned_timestamp, min_ts);
     }
 
     return (NULL);
