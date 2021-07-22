@@ -59,5 +59,5 @@ setup(name='wiredtiger', version=wt_ver,
     install_requires=[
         'cmake',
         'ninja',
-    ],
+    ]
 )

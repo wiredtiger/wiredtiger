@@ -381,6 +381,10 @@ setup(
         'Operating System :: POSIX :: BSD',
         'Operating System :: POSIX :: Linux',
         'Operating System :: POSIX :: SunOS/Solaris',
+    ],
+    install_requires=[
+        'cmake',
+        'ninja',
     ]
 )
 
