@@ -28,7 +28,7 @@
 #
 
 import re, os
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 
 # OS X hack: turn off the Universal binary support that is built into the
 # Python build machinery, just build for the default CPU architecture.
@@ -56,4 +56,8 @@ setup(name='wiredtiger', version=wt_ver,
     )],
     package_dir={'' : dir},
     packages=['wiredtiger'],
+    install_requires=[
+        'cmake',
+        'ninja',
+    ],
 )
