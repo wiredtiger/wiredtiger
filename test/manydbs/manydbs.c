@@ -212,8 +212,7 @@ main(int argc, char *argv[])
          *
          * Condition variables are subject to spurious wakeups (those not associated with an
          * explicit wake) and stolen wakeups (another thread manages to run before the woken
-         * thread).
-         * https://docs.microsoft.com/en-us/windows/win32/api/synchapi/nf-synchapi-sleepconditionvariablecs
+         * thread). https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables
          * https://pubs.opengroup.org/onlinepubs/7908799/xsh/pthread_cond_wait.html
          */
         if (idle && cond_reset - cond_reset_orig[i] > cond_wait / 20)
