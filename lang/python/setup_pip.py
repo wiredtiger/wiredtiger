@@ -107,17 +107,6 @@ def find_executable(exename, path):
     if not dirname in path:
         path.append(dirname)
 
-# get_build_path --
-#   Create a PATH that can be used for installation.  Apparently,
-# installation commands are run with a restricted PATH, and
-# cmake/ninja will not normally be found.
-def get_build_path():
-    build_paths = []
-    find_executable('cmake', build_paths)
-    find_executable('ninja', build_paths)
-    build_path = os.environ['PATH'] + ':' + ':'.join(build_paths)
-    return build_path
-
 # get_compile_flags --
 #   Get system specific compile flags.  Return a triple: C preprocessor
 # flags, C compilation flags and linker flags.
@@ -220,7 +209,6 @@ long_description = 'WiredTiger is a ' + short_description + '.\n\n' + \
     open(os.path.join(wt_dir, 'README')).read()
 
 wt_ver, wt_full_ver = get_wiredtiger_versions(wt_dir)
-build_path = get_build_path()
 
 # The builtins that we include in this distribution.
 builtins = [
@@ -316,8 +304,7 @@ wt_ext = Extension('_wiredtiger',
 extensions = [ wt_ext ]
 env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
-        "LDFLAGS" : ' '.join(ldflags),
-        "PATH" : build_path }
+        "LDFLAGS" : ' '.join(ldflags) }
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
