@@ -73,7 +73,7 @@ def check_needed_dependencies(builtins, inc_paths, lib_paths):
     distutils.sysconfig.customize_compiler(compiler)
     compiler.set_library_dirs(library_dirs)
     missing = []
-    for name, libname, instructions in builtins:
+    for _, libname, instructions in builtins:
         found = compiler.find_library_file(library_dirs, libname)
         if found is None:
             msg(libname + ": missing")
@@ -91,21 +91,6 @@ def check_needed_dependencies(builtins, inc_paths, lib_paths):
     #
     #if len(missing) > 0:
     #    die("install packages for: " + str(missing))
-
-# find_executable --
-#   Locate an executable in the PATH.
-def find_executable(exename, path):
-    p = subprocess.Popen(['which', exename ], stdout=subprocess.PIPE,
-                         stderr=subprocess.PIPE, universal_newlines=True)
-    out, err = p.communicate('')
-    out = str(out)  # needed for Python3
-    if out == '':
-        if err != '':
-            err = ': "' + err + '"'
-        die('"' + exename + '": not found in path' + err)
-    dirname = os.path.dirname(out)
-    if not dirname in path:
-        path.append(dirname)
 
 # get_compile_flags --
 #   Get system specific compile flags.  Return a triple: C preprocessor
@@ -304,7 +289,8 @@ wt_ext = Extension('_wiredtiger',
 extensions = [ wt_ext ]
 env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
-        "LDFLAGS" : ' '.join(ldflags) }
+        "LDFLAGS" : ' '.join(ldflags),
+        "PATH" : os.getenv("PATH") }
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
