@@ -41,7 +41,9 @@ checkpoint are recorded as a bit string. This bit string information is gets upd
 every new checkpoint.
 
 Whenever the incremental backup cursor is opened to perform the backup. WT returns all the
-modified file offsets and sizes that are modified after the full backup.
+modified file offsets and sizes that are modified after the full backup. WT returns full file
+to be copied for all the new files that are created, renamed or imported into the database
+after incremental backup is started.
 
 # Log based incremental backup #
 
