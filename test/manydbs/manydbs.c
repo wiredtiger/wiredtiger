@@ -60,14 +60,14 @@ static const char *const uri = "table:main";
  * completely idle, and when running a light workload. The latter is expressed as a fraction of the
  * total number of condition variable sleeps; the former is a constant.
  */
-#if defined(__NetBSD__) || defined(__WINDOWS__)
+#if defined(__NetBSD__) || defined(_WIN32)
 /*
  * NetBSD should never generate spurious wakeups, but does: see https://gnats.netbsd.org/56275.
  * Windows can also generate spurious wakeups: 
  * https://docs.microsoft.com/en-us/windows/win32/sync/condition-variables
  * These values allow the test to complete in spite of that.
  */
-#define CV_RESET_THRESH_IDLE 10
+#define CV_RESET_THRESH_IDLE 20
 #define CV_RESET_THRESH_DENOM 10
 #else
 /* Default values: should be no wakeups when idle and allow 1/20 otherwise. */
@@ -234,7 +234,7 @@ main(int argc, char *argv[])
               i, cond_reset, CV_RESET_THRESH_IDLE);
         if (!idle && cond_reset > cond_wait / CV_RESET_THRESH_DENOM)
             testutil_die(ERANGE,
-              "connection %d condition reset %" PRIu64 " exceeds %.2f%% of %" PRIu64, i, cond_reset,
+              "connection %d condition reset %" PRIu64 " exceeds %d%% of %" PRIu64, i, cond_reset,
               100 / CV_RESET_THRESH_DENOM, cond_wait);
         testutil_check(connections[i]->close(connections[i], NULL));
     }
