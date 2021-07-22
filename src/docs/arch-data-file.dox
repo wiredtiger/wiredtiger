@@ -24,8 +24,8 @@ the pages of the B-Tree.
 
 The layout of a .wt file consists of a file description \c WT_BLOCK_DESC which
 always occupies the first block, followed by a set of on-disk pages.
-The file description contains important metadata about the file such as the
-WiredTiger major and minor version, a magic number, and a checksum of the block
+The file description contains metadata about the file such as the WiredTiger
+major and minor version, a magic number, and a checksum of the block
 contents. This information is used to verify that the file is a legitimate
 WiredTiger data file with a compatible WiredTiger version, and that its
 contents are not corrupted.
@@ -46,10 +46,10 @@ a set of cells. There are four main types of cells - keys, data, deleted
 cells, and off-page references. Cells are also usually followed by some
 additional data depending on its type. For example, values may have a time
 validity window, and off-page references may have a validity window and an
-address cookie. Ordering is important, values are all
-associated with the key that precedes them. Multiple values may be present,
-which can represent multiple versions. Extremely large values may be
-represented as a reference to another page (see overflow pages).
+address cookie. Ordering is important, values are all associated with the
+key that precedes them. Multiple values may be present, which can represent
+multiple versions. Extremely large values may be represented as a reference
+to another page (see overflow pages).
 
 The exact encoding of cells is rather complex, and beyond what can be
 described here. The encoding strikes a balance between data that can be
@@ -66,16 +66,19 @@ pages contain keys that point to other pages.
 - The row-store internal page \c WT_PAGE_ROW_INT is made up of a key cell
 (\c WT_CELL_KEY or \c WT_CELL_KEY_OVFL) followed by an offpage-reference
 (\c WT_CELL_ADDR_XXX).
-- The column-store internal page simply contains an off-page reference.
+- The column-store internal page \c WT_PAGE_COL_INT simply contains an
+off-page reference.
 
 (2) Leaf Pages - leaf pages consist of a page header, followed by keys,
 values or addresses (these reference overflow pages).
 - The row-store leaf page \c WT_PAGE_ROW_LEAF is made up of a key cell
 (\c WT_CELL_KEY or \c WT_CELL_KEY_OVFL) followed by a value
 (\c WT_CELL_VALUE/VALUE_COPY/VALUE_OVFL).
-- The column-store leaf page (for variable-length data) WT_PAGE_COL_VAR
-is made up of data cells (WT_CELL_VALUE/VALUE_COPY/VALUE_OVFL) or
-deleted cells (WT_CELL_DEL)
+- The column-store leaf page (for variable-length data) \c WT_PAGE_COL_VAR
+is made up of data cells (\c WT_CELL_VALUE/VALUE_COPY/VALUE_OVFL) or
+deleted cells (\c WT_CELL_DEL). The page header has a starting record
+number, so the associated keys for all column store values is deduced by
+their position in the page.
 
 (3) Overflow Pages - overflow pages are needed when keys/values that are
 too large must be stored separately in the file, apart from where the item
