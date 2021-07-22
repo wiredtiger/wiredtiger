@@ -127,6 +127,10 @@ We go into some detail for some of the internal components.
 
 The Block Manager manages the reading and writing of disk blocks.
 
+@subpage arch-backup
+
+The backup is a type of cursor used to backup the database.
+
 @subpage arch-cache
 
 Cache is represented by the various shared data structures that
