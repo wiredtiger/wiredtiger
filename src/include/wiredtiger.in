@@ -6738,14 +6738,14 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
  * reconciliation: pages written including at least one start transaction
  * ID
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2187
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_START_TXN	2189
 /*!
  * reconciliation: pages written including at least one stop durable
  * timestamp
  */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2188
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_DURABLE_STOP_TS	2190
 /*! reconciliation: pages written including at least one stop timestamp */
-#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2189
+#define	WT_STAT_DSRC_REC_TIME_WINDOW_PAGES_STOP_TS	2191
 /*!
  * reconciliation: pages written including at least one stop transaction
  * ID
