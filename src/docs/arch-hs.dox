@@ -7,7 +7,7 @@ and be evicted as necessary, without interfering with activity that uses
 the most recent committed versions. With introduction of History Store, only the
 newest update to a key is written to the user table while the older updates
 for the key are written to the History Store. All user tables in the database are
-backed up by a single History Store file. History Store has not outward
+backed up by a single History Store table. History Store has no outward
 visibility to the application code and only WiredTiger's internal modules can
 perform operations on the History Store table using a predefined cursor API.
 
@@ -20,74 +20,95 @@ The key is a combination of:
 - \c counter value
 This key format above allows us to search efficiently for a given record key and read
 timestamp combination. The last part of the key is a monotonically increasing counter
-to keep the key unique in the case where we have multiple transactions committing at
-the same timestamp. As the key for the history store table is different for row- and column-store,
-we store both keytypes in a WT_ITEM, building/parsing them in the code, because otherwise we'd need
-two history store files with different key formats. We could make the history store table's key
-standard by moving the source key into the history store table value, but that doesn't make the
-coding any simpler, and it makes the history store table's value more likely to overflow the page
-size when the row-store key is relatively large.
+to keep the key unique in scenarios where we have multiple transactions committing at
+the same timestamp. As the key for the History Store table is different for row- and column-store,
+we store both keytypes in a WT_ITEM because otherwise we'd need two history store files with
+different key formats. We can make the History Store table's key standard by moving the source
+key into the History Store table value, but that doesn't make the coding any simpler, and it makes
+the History Store table's value more likely to overflow the page size when the row-store key is
+relatively large.
 
-The value for each key is stored as a combination of:
+The corresponding value for each key is stored as a combination of:
 - \c stop timestamp
 - \c durable timestamp
 - \c update type
 - \c value.
 
 Note that every update in the Hisotry Store has a valid stop timestamp and transaction associated
-with it, except for cases where the update was followed by a prepared update. The stop timestamp
+with it, except for cases where the update preceded a prepared update. The stop timestamp
 is fixed in this case once prepared update is resolved.
 
 @section arch_hs_initialize Historty Store initialization
 WiredTiger checks for an existing History Store table at startup and creates a new table if it is
 not able to find one. History Store table is usually created when WiredTiger creates a new database,
 with one exception where WiredTiger is openning an existing database created by an older version of
-WiredTiger that didn't support Histoty Store. WiredTiger uses WiredTigerHS.wt as the filename for
-the History Stable table.
+WiredTiger that didn't support Histoty Store feature. WiredTiger uses \c WiredTigerHS.wt as the
+filename for the History Stable table.
 
 @section arch_hs_cursor Historty Store cursor interface
-WiredTiger uses a cursor interface for History Store to make it easier for different modules to
-perform data operations on the History Strore. A new cursor can be opened by calling
-\c __wt_curhs_open. History Store cursor implementation supports most of the standard WT_CURSOR
-methods, with one key exception being WT_CURSOR::search() method. Recall that the key contains a
+WiredTiger uses a cursor interface for History Store table to make it easier for different modules
+to perform data operations on the History Strore table. A new cursor can be opened by calling
+\c __wt_curhs_open(). History Store cursor implementation supports most of the standard \c WT_CURSOR
+methods, with one key exception being \c WT_CURSOR::search() method. Recall that the key contains a
 counter value and it is expected that caller can not possibly know the correct counter value to use.
-Therefore, WT_CURSOR::search_near() is used for all search operations. Two helper functions,
-\c __wt_curhs_search_near_before() and __wt_curhs_search_near_after(), have been provided to make it
-easier to search for the required record in History Store.
+Therefore, \c WT_CURSOR::search_near() is used for all search operations. Two helper functions,
+\c __wt_curhs_search_near_before() and \c __wt_curhs_search_near_after(), have been provided to
+facilitate searching the required record in the History Store table.
 
 @section arch_hs_cursor_visibilty Historty Store cursor interface and visibility rules
+When using the Historty Store cursor interface, the user can configure the type of visibility checks
+that are performed on the records. The behavhiour is controlled by a set of cursor flags:
+
+- When the flag \c WT_CURSTD_HS_READ_ALL is set on the cursor, no visibility checks are performed
+on the records returned to the API user. This means that cursor interface can even return a record
+with a globally visible tombstone. When this flag is set, it suppresses the effect of other
+visibility flags.
+
+- When the flag \c WT_CURSTD_HS_READ_COMMITTED is set, cursor interface can return any record except
+for records that have a globally visible tombstone. This flag has no effect when the flag
+\c WT_CURSTD_HS_READ_ALL is set.
+
+- When none of the flags discussed above are set on the cursor, snapshot based visibility checks are
+performed on all records returned to the API user. History Store cursor users must use one of
+the flags discussed above if the caller thread is running in a lower isolation level and
+doesn't hold a valid snapshot.
 
 @section arch_hs_reconciliation Historty Store and reconciliation
 When a modified user page is processed by either checkpoint or eviction module, the reconciliation
-code examines the update chain for each key and decides on the latest committed value that need to be
-written the on-disk version of the page. All the updates older than the one being written to the
-on-disk version of the page but not yet globally visible are added to the History Store table. The
-reconciliation code also takes care of out-of-order timestamps for updates being added to
-History Store table.
+code examines the update chain for each key and decides on the latest committed update that will be
+written as the on-disk value for the key. All the updates that are older than the on-disk version
+but not yet globally visible are added to the History Store table. The reconciliation code also
+fixes out-of-order timestamps for updates being added to the History Store table.
 
 When a modified History Store table page is processed by reconciliation, certain records on the page
-are removed when creating a new page image if the tombstones on records have become gobally visible.
-This ensures that WiredTiger is only keeping the relevant historical data required to serve the
-oldest reader in the system or as dictated by the oldest timestamp set by the application.
+are removed when creating a new page image if the tombstones on those records have become gobally
+visible. This ensures that WiredTiger is only keeping the relevant historical data required to
+serve the oldest reader in the system or as dictated by the oldest timestamp set by the application.
 
-@section arch_hs_read Using Historty Store for reading value
+@section arch_hs_read Searching for older versions of a key in Historty Store
 When looking for an update visible to the current trasnaction, WiredTiger first searches the update
 chain for any visible updates. If the there is no visible update in the chain, WiredTiger then
-insepcts the on-disk version update for the key. If that version is not visible to the transaction
-as well, WiredTigers searches the History Store table for a visible update for the key. Note that
-although there can be multiple updates in the History Store for a key and read timestamp
-combination, each update would have different visibility based on transaction based visibility
-rules.
+insepcts the on-disk version of the key. If that version is not visible to the transaction
+as well, WiredTiger searches the History Store table for a visible update for the key. When
+searching for updates that satisfy the read timestamp constraint, WiredTiger starts with the  newest
+update of the key in the History Store table and then iterates through the older updates until there
+are no updates left to process. Note that although there can be multiple updates in the
+History Store for a key and read timestamp combination, each update would have different
+visibility based on transaction based visibility rules.
 
 @section arch_hs_rts Historty Store and Rollback-to-stable
 Rollback-to-stable searches the History Store table for valid updates that are stable according to
-the supplied stable timestamp and replaces the on-disk version with an update from History Store
-that fulfills the criteria. Rollback-to-stable also removes any updates from the History Store that
-have a start timestamp newer than the stable timestamp.
+the supplied stable timestamp and replaces the on-disk version with an update from the History Store
+table that fulfills the criteria. Rollback-to-stable also removes updates from the
+History Store table that have a start timestamp newer than the stable timestamp.
 
 @section arch_hs_prepared Historty Store and prepared transactions
-When there is a prepared update for a key, the prepared update can be written to the on-disk version
-of the page and any older updates can be written to the history store page. There can be no update
-after the prepared update for the key and therefore History Store will never contain a prepared
-udpate.
+When there is a prepared update for a key and the page is evicted, the prepared update is written
+to the on-disk page and any older updates are written to the History Store table. There can be
+no updates after the prepared update for the key and therefore History Store will never contain a
+prepared udpate. When a prepared update is resolved (committed), the stop timestamp of the
+newest update in the History Store table is fixed. When prepared update is rolled back, the
+newest update from the History Store table is restored as the on-disk version and then removed
+from the History Store table.
+
 */
