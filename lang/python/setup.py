@@ -55,5 +55,9 @@ setup(name='wiredtiger', version=wt_ver,
         extra_compile_args=extra_cflags,
     )],
     package_dir={'' : dir},
-    packages=['wiredtiger']
+    packages=['wiredtiger'],
+    install_requires=[
+        'cmake',
+        'ninja',
+    ]
 )
