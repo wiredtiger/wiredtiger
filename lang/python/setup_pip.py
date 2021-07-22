@@ -110,11 +110,11 @@ def find_executable(exename, path):
 # get_build_path --
 #   Create a PATH that can be used for installation.  Apparently,
 # installation commands are run with a restricted PATH, and
-# autoreconf/aclocal will not normally be found.
+# cmake/ninja will not normally be found.
 def get_build_path():
     build_paths = []
-    find_executable('autoreconf', build_paths)
-    find_executable('aclocal', build_paths)
+    find_executable('cmake', build_paths)
+    find_executable('ninja', build_paths)
     build_path = os.environ['PATH'] + ':' + ':'.join(build_paths)
     return build_path
 
