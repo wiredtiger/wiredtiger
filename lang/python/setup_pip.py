@@ -78,7 +78,7 @@ def check_needed_dependencies(builtins, inc_paths, lib_paths):
         if found is None:
             msg(libname + ": missing")
             msg(instructions)
-            msg("after installing it, set LD_LIBRARY_PATH or DYLD_LIBRARY_PATH")
+            msg("after installing it, set CMAKE_LIBRARY_PATH")
             missing.append(libname)
         else:
             package_top = os.path.dirname(os.path.dirname(found))
@@ -150,7 +150,7 @@ def get_library_dirs():
     dirs.append("/opt/local/lib")
     dirs.append("/usr/lib")
     dirs.append("/usr/lib64")
-    for path in ['LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH', 'LIBRARY_PATH']:
+    for path in ['CMAKE_LIBRARY_PATH', 'LIBRARY_PATH']:
         if path in os.environ:
             dirs.extend(os.environ[path].split(':'))
     dirs = list(set(filter(os.path.isdir, dirs)))
@@ -209,7 +209,7 @@ builtins = [
       'It can be installed via: apt-get install zlib1g' ],
     [ 'zstd', 'zstd',
       'Need to install zstd\n' + \
-      'It can be installed via: apt-get install zstd' ]
+      'It can be installed via: apt-get install libzstd-dev' ]
 ]
 builtin_names = [b[0] for b in builtins]
 builtin_libraries = [b[1] for b in builtins]
@@ -290,8 +290,8 @@ extensions = [ wt_ext ]
 env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
         "LDFLAGS" : ' '.join(ldflags),
-        "LD_LIBRARY_PATH" : os.getenv('LD_LIBRARY_PATH'),
-        "PATH" : os.getenv('PATH') }
+        "CMAKE_LIBRARY_PATH" : os.getenv("CMAKE_LIBRARY_PATH"),
+        "PATH" : os.getenv("PATH") }
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
