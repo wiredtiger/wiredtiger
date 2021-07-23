@@ -7,7 +7,7 @@ and be evicted as necessary, without interfering with activity that uses
 the most recent committed versions. With the introduction of history store, only the
 newest update to a key is written to the user table while the older updates
 for the key are written to the history store. All user tables in the database are
-backed by a single history store table. history store has no outward
+backed by a single history store table. The history store has no outward
 visibility to the application code and only WiredTiger's internal modules can
 perform operations on the history store table using a predefined cursor API.
 
@@ -39,8 +39,8 @@ is fixed in this case once the prepared update is resolved.
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
 not able to find one. The history store table is usually created when WiredTiger creates a new database,
 with one exception where WiredTiger is opening an existing database created by an older version of
-WiredTiger that didn't support history store. WiredTiger uses \c WiredTigerHS.wt as the
-filename for the History Stable table.
+WiredTiger that didn't support the history store. WiredTiger uses \c WiredTigerHS.wt as the
+filename for the history store table.
 
 @section arch_hs_cursor History Store cursor interface
 WiredTiger uses a cursor interface for history store table to make it easier for different modules
