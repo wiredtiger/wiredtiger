@@ -266,7 +266,7 @@ if pip_command == 'sdist':
     # Copy files in lang/python/wiredtiger to the root folder.
     pywt_path = os.path.join(stage_dir, "lang", "python", "wiredtiger")
     shutil.copytree(pywt_path, stage_dir, dirs_exist_ok=True)
-    shutil.move(os.path.join(stage_dir, 'init.py'), os.path.join('__init__.py'))
+    shutil.move(os.path.join(stage_dir, 'init.py'), os.path.join(stage_dir, '__init__.py'))
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
