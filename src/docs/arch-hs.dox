@@ -12,21 +12,18 @@ visibility to the application code and only WiredTiger's internal modules can
 perform operations on the History Store table using a predefined cursor API.
 
 @section arch_hs_table History Store table structure
-WiredTiger uses a standard row-store table to implement History Store internally.
-The key is a combination of:
+WiredTiger writes history store on the disk as a standard row-store table. The key for
+the history store table is a combination of:
 - \c btree ID of user table this update belongs to
 - \c record key (byte-string for row-store, record number for column-store)
 - \c start timestamp for the update
 - \c counter value
 This key format allows us to search efficiently for a given record key and read
 timestamp combination. The last part of the key is a monotonically increasing counter
-to keep the key unique in scenarios where we have multiple transactions committing at
-the same timestamp. As the key for the History Store table is different for row- and column-store,
-we store both keytypes in a WT_ITEM because otherwise we'd need two history store files with
-different key formats. We can make the History Store table's key standard by moving the source
-key into the History Store table value, but that doesn't make the coding any simpler, and it makes
-the History Store table's value more likely to overflow the page size when the row-store key is
-relatively large.
+to keep the key unique in scenarios where a key has multiple updates with the same commit timestamp.
+As the key for the History Store table is different for row- and column-store,
+we store both keytypes in a byte string because otherwise we'd need two history store files with
+different key formats.
 
 The corresponding value for each key is stored as a combination of:
 - \c stop timestamp
