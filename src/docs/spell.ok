@@ -1,5 +1,6 @@
 personal_ws-1.1 en 200
 ACM
+ADDR
 APIs
 ASAN
 ActiveState
@@ -140,6 +141,7 @@ WiredTigerRollbackException
 WiredTigerStat
 WiredTigerTestCase
 WiredTigerTmplog
+XChaCha
 XRay
 Yann
 Za
@@ -148,6 +150,7 @@ aR
 abc
 abstime
 ack'ed
+addr
 ajn
 alloc
 allocator
@@ -178,6 +181,7 @@ br
 btmem
 btree
 btrees
+btree's
 bufs
 builtin
 builtins
@@ -192,6 +196,7 @@ cdb
 cds
 changelog
 checkpointed
+checkpointing
 checksum
 checksums
 ckp
@@ -218,6 +223,8 @@ cppsuite
 cpu
 crashless
 crc
+cryptographic
+cryptographically
 csuite
 ctest
 curfile
@@ -271,6 +278,7 @@ dups
 encrypt
 encryptor
 encryptors
+encryptor's
 endcode
 endcond
 endian
@@ -370,6 +378,7 @@ keyfmt
 keyid
 keyname
 keyvalue
+kv
 kvs
 lang
 lastname
@@ -382,6 +391,7 @@ libdir
 libfuzzer
 libhe
 libkvs
+libsodium
 libtool
 libwiredtiger
 lifecycle

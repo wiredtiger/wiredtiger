@@ -397,6 +397,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_force_clean_time;
     int64_t cache_eviction_force_dirty;
     int64_t cache_eviction_force_dirty_time;
+    int64_t cache_eviction_force_long_update_list;
     int64_t cache_eviction_force_delete;
     int64_t cache_eviction_force;
     int64_t cache_eviction_force_fail;
@@ -502,6 +503,8 @@ struct __wt_connection_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_next_skip_page_count;
+    int64_t cursor_prev_skip_page_count;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_cached_count;
     int64_t cursor_insert_bulk;
@@ -931,6 +934,8 @@ struct __wt_dsrc_stats {
     int64_t cursor_next_skip_total;
     int64_t cursor_prev_skip_total;
     int64_t cursor_skip_hs_cur_position;
+    int64_t cursor_next_skip_page_count;
+    int64_t cursor_prev_skip_page_count;
     int64_t cursor_search_near_prefix_fast_paths;
     int64_t cursor_insert_bulk;
     int64_t cursor_reopen;
