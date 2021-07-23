@@ -11,7 +11,7 @@ backed by a single history store table. The history store has no outward
 visibility to the application code and only WiredTiger's internal modules can
 perform operations on the history store table using a predefined cursor API.
 
-@section arch_hs_table History Store table structure
+@section arch_hs_table History store table structure
 WiredTiger writes history store on the disk as a standard row-store table. The key for
 the history store table is a combination of:
 - \c btree ID of user table this update belongs to
@@ -35,14 +35,14 @@ Note that every update in the history store has a valid stop timestamp and trans
 with it, except for cases where the update preceded a prepared update. The stop timestamp
 is fixed in this case once the prepared update is resolved.
 
-@section arch_hs_initialize History Store initialization
+@section arch_hs_initialize History store initialization
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
 not able to find one. The history store table is usually created when WiredTiger creates a new database,
 with one exception where WiredTiger is opening an existing database created by an older version of
 WiredTiger that didn't support the history store. WiredTiger uses \c WiredTigerHS.wt as the
 filename for the history store table.
 
-@section arch_hs_cursor History Store cursor interface
+@section arch_hs_cursor History store cursor interface
 WiredTiger uses a cursor interface for history store table to make it easier for different modules
 to perform data operations on the history store table. A new cursor can be opened by calling
 \c __wt_curhs_open(). history store cursor implementation supports most of the standard \c WT_CURSOR
@@ -52,7 +52,7 @@ Therefore, \c WT_CURSOR::search_near() is used for all search operations. Two he
 \c __wt_curhs_search_near_before() and \c __wt_curhs_search_near_after(), have been provided to
 facilitate searching for the required record in the history store table.
 
-@section arch_hs_cursor_visibilty History Store cursor interface and visibility rules
+@section arch_hs_cursor_visibilty History store cursor interface and visibility rules
 When using the history store cursor interface, the user can configure the type of visibility checks
 that are performed on the records. The behaviour is controlled by a set of cursor flags:
 
@@ -70,7 +70,7 @@ performed on all records returned to the API user. history store cursor users mu
 the flags discussed above if the caller thread is running in a lower isolation level and
 doesn't hold a valid snapshot.
 
-@section arch_hs_reconciliation History Store and reconciliation
+@section arch_hs_reconciliation History store and reconciliation
 When a modified user page is processed by either checkpoint or eviction module, the reconciliation
 code examines the update chain for each key and decides on the latest committed update that will be
 written as the on-disk value for the key. All the updates that are older than the on-disk version
@@ -93,14 +93,14 @@ are no updates left to process. Note that although there can be multiple updates
 history store for a key and read timestamp combination, each update would have different
 visibility based on transaction and timestamp based visibility rules.
 
-@section arch_hs_rts History Store and Rollback-to-stable
+@section arch_hs_rts History tore and rollback-to-stable
 Rollback-to-stable searches the history store table for valid updates that are stable according to
 the supplied stable timestamp and replaces the on-disk version with an update from the history store
 table that fulfills the criteria. Rollback-to-stable also removes updates from the
 history store table that are not stable according to the stable timestamp and transaction snapshot
 being used for rollback operation.
 
-@section arch_hs_prepared History Store and prepared transactions
+@section arch_hs_prepared History store and prepared transactions
 When there is a prepared update for a key and the page is evicted, the prepared update is written
 to the on-disk page and any older updates are written to the history store table. There can be
 no update from a different transaction that is newer than the prepared update for the key and
