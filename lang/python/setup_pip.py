@@ -265,8 +265,14 @@ if pip_command == 'sdist':
         shutil.copy2(f, os.path.join(stage_dir, f))
     # Copy files in lang/python/wiredtiger to the root folder.
     pywt_path = os.path.join(stage_dir, "lang", "python", "wiredtiger")
-    shutil.copytree(pywt_path, stage_dir, dirs_exist_ok=True)
-    shutil.move(os.path.join(stage_dir, 'init.py'), os.path.join(stage_dir, '__init__.py'))
+    pywt_files = os.listdir(pywt_path)
+    for f in pywt_files:
+        basename = os.path.basename(f)
+        src = os.path.join(pywt_path, f)
+        if basename == 'init.py':
+            shutil.copy2(src, os.path.join(stage_dir, '__init__.py'))
+        else:
+            shutil.copy2(src, os.path.join(stage_dir, basename))
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
@@ -284,8 +290,8 @@ extensions = [ wt_ext ]
 env = { "CFLAGS" : ' '.join(cflags),
         "CPPFLAGS" : ' '.join(cppflags),
         "LDFLAGS" : ' '.join(ldflags),
-        "CMAKE_LIBRARY_PATH" : os.getenv("CMAKE_LIBRARY_PATH"),
-        "PATH" : os.getenv("PATH") }
+        "CMAKE_LIBRARY_PATH" : os.getenv("CMAKE_LIBRARY_PATH", default=""),
+        "PATH" : os.getenv("PATH", default="") }
 
 class BinaryDistribution(Distribution):
     def is_pure(self):
