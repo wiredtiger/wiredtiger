@@ -8,9 +8,10 @@ column. WiredTiger supports both and each management system is
 represented by a certain type of B-Tree data structure.
 
 Keys and values in row-stores can be anything of arbitrary length, thus, row-stores implement a
-generalized version of a B-Tree. However, column-stores use a 64-bit unsigned integer record id as
-keys, thus, column-stores implement a specialized version of a B-Tree where the key has a
-predictable length.
+generalized version of a B-Tree. Furthermore, keys are explicitly stored. Column-stores use a 64-bit
+unsigned integer record id as keys, thus, column-stores implement a specialized version of a B-Tree
+where the key has a predictable length. In the case of column-stores, keys are implied given the
+B-Tree position.
 
 There are two types of column-stores in WiredTiger:
 - The fixed length column-store, as its name implies, the value has a fixed length, and furthermore
@@ -21,8 +22,8 @@ row-stores.
 
 @section Main differences
 
-Column-store keys are derived from the value's location in the table while row-store keys are
-physically stored in the table. This means there is no repetition of keys across multiple files for
+Column-store keys are derived from the B-Tree location in the memory while row-store keys are
+explicitly stored. This means there is no repetition of keys across multiple files for
 column-stores while row-store keys are duplicated usually within the same single file. Therefore,
 column-stores have a real benefit over row-stores when it comes to finding a record, since there is
 only one key per page and keys take almost no storage, fast lookups can be performed and it is easy
@@ -34,7 +35,7 @@ maintained in memory. For row-stores, the memory usage will depend on the defini
 groups required by the query.
 
 Generally, row-stores are faster for queries where all of the columns are required by every lookup
-because there is only a single set of meta-data pages to read into the cache and search.
+because there is only a single set of internal pages to read into the cache and search.
 Column-stores are faster when most queries require only a subset of the columns because columns can
 be separated into multiple files and only the columns being returned need to be present in the
 cache. In both cases, for better efficiency, one should define column groups according to queries
