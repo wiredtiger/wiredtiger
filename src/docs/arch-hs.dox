@@ -37,6 +37,13 @@ update immediately before the prepared update is set to maximum possible timesta
 The stop timestamp of the latest update in the history store is updated once the prepared update is
 resolved.
 
+@subsection arch_hs_table_tombstone Tombstones in the history store table
+As discussed earlier, every update in the history store table has a valid stop time which is a
+combination of stop timestamp and stop transaction id. An update with a valid stop time is also
+called a \c tombstone. A tombstone becomes globally visible if the stop timestamp is less than
+the oldest timestamp and the stop transaction id is visible to all concurrent transactions in the
+system.
+
 @section arch_hs_initialize History store initialization
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
 not able to find one. The history store table is usually created when WiredTiger creates a new database,
