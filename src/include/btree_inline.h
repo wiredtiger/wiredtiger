@@ -2061,8 +2061,10 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
 
         if (__wt_ref_addr_copy(session, ref, &addr) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
-          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
+          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
+            WT_STAT_CONN_DATA_INCR(session, cursor_skip_page_count);
+        }
 
         WT_REF_SET_STATE(ref, previous_state);
     }
