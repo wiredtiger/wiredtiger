@@ -29,9 +29,6 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_prepare11.py
 # Test prepare rollback with a reserved update between updates.
 class test_prepare11(wttest.WiredTigerTestCase):
@@ -59,8 +56,8 @@ class test_prepare11(wttest.WiredTigerTestCase):
         c['key1'] = 'yyyy'
         self.session.prepare_transaction('prepare_timestamp=10')
         if self.commit:
-            self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(20))
-            self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(30))
+            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
+            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(30))
             self.session.commit_transaction()
         else:
             self.session.rollback_transaction()

@@ -29,9 +29,6 @@
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wtdataset import SimpleDataSet
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_rollback_to_stable22
 # Test history store operations conflicting with rollback to stable. We're trying to trigger a
 # history store eviction concurrently to a rollback to stable call. We'll do this by limiting
@@ -82,5 +79,5 @@ class test_rollback_to_stable22(test_rollback_to_stable_base):
             if i % 100 == 0:
                 # Put the timestamp backwards so we can rollback the updates we just did.
                 stable_ts = (i - 1) * 10
-                self.conn.set_timestamp('stable_timestamp=' + timestamp_str(stable_ts))
+                self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(stable_ts))
                 self.conn.rollback_to_stable()

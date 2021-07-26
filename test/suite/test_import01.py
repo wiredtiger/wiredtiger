@@ -103,10 +103,6 @@ class test_import_base(wttest.WiredTigerTestCase):
             "Tmplog" not in file_name and "Preplog" not in file_name:
             shutil.copy(src_path, dest_dir)
 
-    # Convert a WiredTiger timestamp to a string.
-    def timestamp_str(self, t):
-        return '%x' % t
-
 # test_import01
 class test_import01(test_import_base):
 
