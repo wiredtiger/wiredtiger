@@ -95,12 +95,12 @@ class test_cursor17(wttest.WiredTigerTestCase):
         # Check if we skipped any pages while moving the cursor.
         #
         # We calculate the number of pages we expect to skip based on the total number of leaf pages
-        # reported in the WT stats. We subtract 2 from the count of leaf pages in the table and test
-        # that we atleast skipped 80% of the expected number of pages.
-
+        # reported in the WT stats. We also skip internal pages, hence skipping the parts of the
+        # whole tree wherever we can. The number of pages skipped depends a lot on the tree
+        # structure. It is a good test to check if we skipped atleast 50% of the leaf pages.
         leaf_pages_in_table = self.get_stat(stat.dsrc.btree_row_leaf, uri)
-        expected_pages_skipped = ((leaf_pages_in_table - 2) * 8) // 10
-        skipped_pages = self.get_stat(stat.conn.cursor_next_skip_page_count, None)
+        expected_pages_skipped = ((leaf_pages_in_table - 2) * 5) // 10
+        skipped_pages = self.get_stat(stat.conn.cursor_skip_page_count, None)
         self.assertGreater(skipped_pages, expected_pages_skipped)
         self.session.rollback_transaction()
 
