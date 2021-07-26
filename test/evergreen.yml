@@ -2921,7 +2921,7 @@ buildvariants:
 
 - name: code-statistics
   display_name: "Code statistics"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   run_on:
   - ubuntu1804-test
   expansions:
