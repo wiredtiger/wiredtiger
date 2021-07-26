@@ -48,7 +48,7 @@ WiredTiger uses a cursor interface for history store table to make it easier for
 to perform data operations on the history store table. A new cursor can be opened by calling
 \c __wt_curhs_open(). History store cursor implementation supports most of the standard \c WT_CURSOR
 methods except for \c WT_CURSOR::search() method. Recall that the key contains a
-counter and timestamp value and it is expected that the caller can not possibly know the correct
+counter and timestamp value and it is expected that the caller can not possibly know the exact
 values for both fields beforehand. Therefore, \c WT_CURSOR::search_near() is used for all search
 operations. Two helper functions, \c __wt_curhs_search_near_before() and \c __wt_curhs_search_near_after(),
 have been provided to facilitate searching for the required record in the history store table.
