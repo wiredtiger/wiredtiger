@@ -82,7 +82,7 @@ When a modified history store table page is processed by reconciliation, certain
 are removed when creating a new page image if the tombstones on those records have become globally
 visible. This ensures that WiredTiger is only keeping the relevant historical data required to
 serve the oldest reader in the system or as dictated by the oldest timestamp set by the application.
-Once all records on a page are obselete, the page itself can be removed to reduce the size of
+Once all records on a page are obsolete, the page itself can be removed to reduce the size of
 history store table (see @ref arch-transaction for more details about oldest timestamp).
 
 @section arch_hs_read Searching for older versions of a key in History Store
