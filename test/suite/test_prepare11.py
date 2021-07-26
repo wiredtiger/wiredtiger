@@ -35,7 +35,7 @@ def timestamp_str(t):
 # test_prepare11.py
 # Test prepare rollback with a reserved update between updates.
 class test_prepare11(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
+    conn_config = 'cache_size=2MB'
     session_config = 'isolation=snapshot'
 
     commit_values = [

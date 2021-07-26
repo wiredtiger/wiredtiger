@@ -39,7 +39,7 @@ def timestamp_str(t):
     return '%x' % t
 class test_prepare13(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=10MB,statistics=(all),statistics_log=(json,on_close,wait=1)'
+    conn_config = 'cache_size=10MB'
 
     def test_prepare(self):
         nrows = 20000

@@ -35,7 +35,7 @@ def timestamp_str(t):
     return '%x' % t
 
 class test_timestamp19(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     def updates(self, uri, value, ds, nrows, commit_ts):

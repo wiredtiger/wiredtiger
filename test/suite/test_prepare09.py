@@ -37,7 +37,7 @@ def timestamp_str(t):
 # test_prepare09.py
 # Validate scenarios involving inserting tombstones when rolling back prepares
 class test_prepare09(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
+    conn_config = 'cache_size=2MB'
     session_config = 'isolation=snapshot'
 
     def test_prepared_update_is_aborted_correctly_with_on_disk_value(self):

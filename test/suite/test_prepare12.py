@@ -37,7 +37,7 @@ def timestamp_str(t):
 # test_prepare12.py
 # Test update restore of a page with prepared update.
 class test_prepare12(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all)'
+    conn_config = 'cache_size=2MB'
     session_config = 'isolation=snapshot'
 
     def test_prepare_update_restore(self):

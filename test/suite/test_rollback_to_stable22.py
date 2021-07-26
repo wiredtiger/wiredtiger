@@ -38,7 +38,7 @@ def timestamp_str(t):
 # the cache size to 100MB and performing 100MB worth of inserts while periodically calling rollback
 # to stable.
 class test_rollback_to_stable22(test_rollback_to_stable_base):
-    conn_config = 'cache_size=100MB,statistics=(fast),statistics_log=(wait=1,json)'
+    conn_config = 'cache_size=100MB'
     session_config = 'isolation=snapshot'
     prepare = False
 

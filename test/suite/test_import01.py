@@ -110,7 +110,7 @@ class test_import_base(wttest.WiredTigerTestCase):
 # test_import01
 class test_import01(test_import_base):
 
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     original_db_file = 'original_db_file'
