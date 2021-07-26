@@ -56,6 +56,9 @@ facilitate searching for the required record in the history store table.
 When using the history store cursor interface, the user can configure the type of visibility checks
 that are performed on the records. The behaviour is controlled by a set of cursor flags:
 
+- By default, snapshot based visibility checks are performed on all records returned to the API
+user.
+
 - When the flag \c WT_CURSTD_HS_READ_ALL is set on the cursor, no visibility checks are performed
 on the records returned to the API user. This means that cursor interface can even return a record
 with a globally visible tombstone. When this flag is set, it suppresses the effect of other
@@ -65,10 +68,8 @@ visibility flags.
 except for globally deleted records. This flag has no effect when the flag
 \c WT_CURSTD_HS_READ_ALL is set.
 
-- When none of the flags discussed above are set on the cursor, snapshot based visibility checks are
-performed on all records returned to the API user. history store cursor users must use one of
-the flags discussed above if the caller thread is running in a lower isolation level and
-doesn't hold a valid snapshot.
+History store cursor users must use one of the flags if the caller thread is running in a lower
+isolation level and doesn't hold a valid snapshot.
 
 @section arch_hs_reconciliation History store and reconciliation
 When a modified user page is processed by either checkpoint or eviction module, the reconciliation
