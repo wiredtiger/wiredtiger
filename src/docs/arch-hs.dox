@@ -32,8 +32,9 @@ The corresponding value for each key is stored as a combination of:
 - \c value.
 
 Note that every update in the history store has a valid stop timestamp and transaction associated
-with it, except for cases where the update preceded a prepared update. The stop timestamp
-is fixed in this case once the prepared update is resolved.
+with it, except for cases where the update preceded a prepared update. The stop timestamp of the
+update immediately before the prepared update is set to maximum visibility. The stop timestamp of
+the latest update in this history store is updated once the prepared update is resolved.
 
 @section arch_hs_initialize History store initialization
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
@@ -72,16 +73,16 @@ History store cursor users must use one of the flags if the caller thread is run
 isolation level and doesn't hold a valid snapshot.
 
 @section arch_hs_reconciliation History store and reconciliation
-When a dirty page is reconciled on a user file b-tree, the update chain is examined and the latest 
-committed update is chosen as the on-disk value. All older updates are added to the history store 
-table assuming they are not yet obsolete. Additionally any out of order timestamps will 
+When a dirty page is reconciled on a user file b-tree, the update chain is examined and the latest
+committed update is chosen as the on-disk value. All older updates are added to the history store
+table assuming they are not yet obsolete. Additionally any out of order timestamps will
 be corrected.
 
 When a modified history store table page is processed by reconciliation, certain records on the page
 are removed when creating a new page image if the tombstones on those records have become globally
 visible. This ensures that WiredTiger is only keeping the relevant historical data required to
 serve the oldest reader in the system or as dictated by the oldest timestamp set by the application.
-Once all records on a page are obselete, the page itself can be removed to reduce the size of 
+Once all records on a page are obselete, the page itself can be removed to reduce the size of
 history store table (see @ref arch-transaction for more details about oldest timestamp).
 
 @section arch_hs_read Searching for older versions of a key in History Store
