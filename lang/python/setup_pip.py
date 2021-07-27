@@ -323,7 +323,7 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
                 lambda: build_commands(make_cmds, wt_dir, env), [],
                 'wiredtiger make')
             open(built_sentinal, 'a').close()
-            shutil.move(os.path.join(conf_make_dir, python_rel_dir, '_wiredtiger.so'), '.')
+            shutil.move(os.path.join(conf_make_dir, python_rel_dir, 'wiredtiger.py'), 'swig_wiredtiger.py')
         return setuptools.command.build_ext.build_ext.run(self)
 
 setup(
@@ -344,7 +344,7 @@ setup(
     package_dir = { 'wiredtiger' : '.' },
     cmdclass = { 'install': WTInstall, 'build_ext': WTBuildExt },
     package_data = {
-        'wiredtiger' : [ wt_swig_lib_name, '*.py' ]
+        'wiredtiger' : [ wt_swig_lib_name, '*.py', 'swig_wiredtiger.py' ]
     },
     classifiers=[
         'Intended Audience :: Developers',
