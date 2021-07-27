@@ -317,7 +317,7 @@ __wt_update_obsolete_check(
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
-    uint64_t oldest, stable, min_ts;
+    uint64_t min_ts, oldest, stable;
     u_int count, upd_seen, upd_unstable;
 
     next = NULL;
