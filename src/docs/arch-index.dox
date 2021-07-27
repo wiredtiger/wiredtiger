@@ -129,7 +129,7 @@ The Block Manager manages the reading and writing of disk blocks.
 
 @subpage arch-backup
 
-The backup is a type of cursor used to backup the database.
+Hot backup uses a type of cursor to backup the database.
 
 @subpage arch-cache
 
