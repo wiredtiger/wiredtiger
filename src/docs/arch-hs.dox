@@ -31,11 +31,12 @@ The corresponding value for each key is stored as a combination of:
 - \c update type
 - \c value.
 
-Note that every update in the history store has a valid stop timestamp and transaction id associated
-with it, except for cases where the update preceded a prepared update. The stop timestamp of the
-update immediately before the prepared update is set to the maximum possible timestamp (\c WT_TS_MAX).
-The stop timestamp of the latest update in the history store is updated once the prepared update is
-resolved.
+The stop timestamp refers to the point in time after which the update is no longer visible. This can
+either be a result of deletion or of a new update being committed. Every update
+in the history store has a valid stop timestamp and transaction id associated with it, except for
+cases where the update preceded a prepared update. The stop timestamp of the update immediately
+before the prepared update is set to the maximum possible timestamp (\c WT_TS_MAX). The stop
+timestamp of the latest update in the history store is updated once the prepared update is resolved.
 
 @subsection arch_hs_table_tombstone Tombstones in the history store table
 As discussed earlier, every update in the history store table has a valid stop time which is a
