@@ -232,7 +232,7 @@ else:
 make_cmds.append('ninja -C ' + build_dir + ' lang/python/all')
 
 inc_paths = [ os.path.join(build_dir, 'include'), os.path.join(build_dir, 'config'), build_dir, '.' ]
-lib_paths = [ '.' ]   # wiredtiger.so is moved into the top level directory
+lib_paths = [ '.' ]
 
 check_needed_dependencies(builtins, inc_paths, lib_paths)
 
@@ -276,7 +276,7 @@ if pip_command == 'sdist':
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
-    sources = [ os.path.join(conf_make_dir, python_rel_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c') ]
+    sources = []
 
 wt_ext = Extension('_wiredtiger',
     sources = sources,
@@ -322,6 +322,7 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
                 lambda: build_commands(make_cmds, wt_dir, env), [],
                 'wiredtiger make')
             open(built_sentinal, 'a').close()
+            shutil.move(os.path.join(conf_make_dir, python_rel_dir, '_wiredtiger.so'), '.')
         return setuptools.command.build_ext.build_ext.run(self)
 
 setup(
