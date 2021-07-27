@@ -49,8 +49,8 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
     ]
 
     restart_options = [
-        ('shutdown', dict(crash='false')),
-        ('crash', dict(crash='true')),
+        ('shutdown', dict(crash=False)),
+        ('crash', dict(crash=True)),
     ]
 
     scenarios = make_scenarios(in_memory_values, key_format_values, restart_options)
