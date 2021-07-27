@@ -217,7 +217,7 @@ builtin_libraries = [b[1] for b in builtins]
 # Here's the configure/make operations we perform before the python extension
 # is linked.
 configure_cmds = [
-    'cmake -B cmake_pip_build -G Ninja -DCMAKE_C_FLAGS="${CFLAGS:-}" -DENABLE_PYTHON=1 ' + \
+    'cmake -B cmake_pip_build -G Ninja -DENABLE_STATIC=1 -DCMAKE_C_FLAGS="${CFLAGS:-}" -DENABLE_PYTHON=1 ' + \
     ' '.join(map(lambda name: '-DHAVE_BUILTIN_EXTENSION_' + name.upper() + '=1', builtin_names)),
 ]
 
@@ -225,10 +225,7 @@ configure_cmds = [
 make_cmds = []
 for name in builtin_names:
     make_cmds.append('ninja -C ' + build_dir  +  ' ext/compressors/' + name + '/all')
-if sys.platform == 'darwin':
-    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.dylib')
-else:
-    make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.so')
+make_cmds.append('ninja -C ' + build_dir + ' libwiredtiger.a')
 make_cmds.append('ninja -C ' + build_dir + ' lang/python/all')
 
 inc_paths = [ os.path.join(build_dir, 'include'), os.path.join(build_dir, 'config'), build_dir, '.' ]
@@ -276,13 +273,17 @@ if pip_command == 'sdist':
     os.chdir(stage_dir)
     sys.argv.append('--dist-dir=' + os.path.join('..', 'dist'))
 else:
-    sources = []
+    sources = [ os.path.join(conf_make_dir, python_rel_dir, 'CMakeFiles', '__wiredtiger.dir', 'wiredtigerPYTHON_wrap.c') ]
 
 wt_ext = Extension('_wiredtiger',
     sources = sources,
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
     libraries = builtin_libraries,
+    # As a temporary solution, we need to manually link the ext/compressor libraries. Unfortunately CMake's use of the builtin open
+    # doesn't currently support linking in the extension objects into a static libwiredtiger archive.
+    extra_objects = [ os.path.join(build_dir, 'libwiredtiger.a') ] + \
+        list(map(lambda name: os.path.join(build_dir, 'ext', 'compressors', name) + '/libwiredtiger_' + name + '.a', builtin_names)),
     include_dirs = inc_paths,
     library_dirs = lib_paths,
 )
