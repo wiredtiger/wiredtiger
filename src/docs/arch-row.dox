@@ -22,13 +22,16 @@ row-stores.
 
 @section Main differences
 
-Column-store keys are derived from the B-Tree location in the memory while row-store keys are
-explicitly stored. This means there is no repetition of keys across multiple files for
-column-stores while row-store keys are duplicated usually within the same single file. Therefore,
-column-stores have a real benefit over row-stores when it comes to finding a record, since there is
-only one key per page and keys take almost no storage, fast lookups can be performed and it is easy
-to move between records. For row-stores, a slower approach is necessary (i.e multiple binary
-searches) to locate a particular record and ultimately pull together a complete row.
+Row-store keys are explicitly stored and they are usually duplicated within the same single file. In
+order to locate a specific record and pull together a complete row, a search algorithm is required.
+
+Column-store keys are derived from the B-Tree location in the memory. In fact, there is a starting
+key on each page which is used to figure out the rest of the keys present on that same page. Knowing
+the starting key and the number of records on the page, it can be easy to locate a specific record
+by moving to the right offset. However, this gets more complicated when data compression is used
+such as run-length encoding: any single record can take up a large number of record numbers. Hence,
+it is no longer possible to jump from one record to another in a leaf page by applying a simple
+offset.
 
 When reading and writing column-stores, only the columns required for any particular query are
 maintained in memory. For row-stores, the memory usage will depend on the definition of column
