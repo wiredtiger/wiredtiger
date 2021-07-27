@@ -1,6 +1,6 @@
 /*! @arch_page arch-data-file Data File Format
 
-@section database_files Database Files
+@section data_file_database_files Database Files
 
 WiredTiger stores databases in a durable format through writing data to files
 it has created in the database directory. These include data files representing
@@ -30,7 +30,7 @@ contents. This information is used to verify that the file is a legitimate
 WiredTiger data file with a compatible WiredTiger version, and that its
 contents are not corrupted.
 
-@section on_disk_page_format On-Disk Page Format and Layout
+@section data_file_on_disk_page_format On-Disk Page Format and Layout
 
 Pages consist of a header (\c WT_PAGE_HEADER and \c WT_BLOCK_HEADER) followed
 by a variable number of cells, which encode keys, values or addresses (see
@@ -56,7 +56,7 @@ described here. The encoding strikes a balance between data that can be
 compacted efficiently in time and space, extensibility, and compatibility
 with previous versions.
 
-@section page_types Page Types
+@section data_file_page_types Page Types
 
 Different types of pages are made up of different types of cells.
 
