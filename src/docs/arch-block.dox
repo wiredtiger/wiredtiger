@@ -2,16 +2,16 @@
 
 The WiredTiger block manager subsystem manages the reading and writing of data
 from the disk. It is designed to facilitate high performance, economic use of
-disk space and customisability.
+disk space and customizability.
 
 @section block What is a block?
 
 A block is a chunk of data that is stored on the disk and operated on as a
 single unit. Each WiredTiger data file (any file in the home directory with the
 \c .wt suffix) is made up of these blocks. Each block consists of a page header,
-a block header and contains a single page from the b-tree which it was
+a block header and contains a single page from the btree which it was
 generated. Blocks can only be written once and a new block must be created upon
-reconciliation of a dirty page. The size of a block is a multple of the
+reconciliation of a dirty page. The size of a block is a multiple of the
 allocation size which is set during creation of associated WiredTiger data file.
 
 See: WT_SESSION::create
@@ -22,13 +22,13 @@ the \c addr. The address is made up of 4 components:
    value is divided by the allocation size.
  - file_id: While only relevant to the tiered storage type the file_id is
    maintained in the address.
- - size: The size of the block, also devided by the allocation size.
+ - size: The size of the block, also divided by the allocation size.
  - checksum: The checksum of the block for validation purposes.
 
 The block header contains the following fields:
  - size: The size of the block on disk, used when salvaging data from a corrupt
    file.
- - checksun: The checksum of the block, again used for salvaging.
+ - checksum: The checksum of the block, again used for salvaging.
  - flags: Currently only flag exists.
  - padding
 
@@ -40,7 +40,7 @@ The page header is not described in this document but can be found in
 When the a new file is created in WT via session_api:create the file is created
 on disk the associated allocation size is written out to the metadata file.
 However the block manager itself isn't created. Only when a btree is opened does
-WiredTiger allocate a block manager. Each b-ree has it's own block manager.
+WiredTiger allocate a block manager. Each btree has it's own block manager.
 
 Each file on disk contains a minimum of two checkpoints, each of those
 checkpoints correspond with a set of non mutually exclusive blocks. When opening
