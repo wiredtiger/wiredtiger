@@ -6,58 +6,66 @@ disk space and customisability.
 
 @section block What is a block?
 
-A block is a chunk of data that is stored on the disk and operated on as a single
-unit. Each WiredTiger data file (any file in the home directory with the \c .wt
-suffix) is made up of these blocks. Each block consists of a page header, a block
-header and contains a single page from the b-tree which it was generated.
-Blocks can only be written once and a new block must be created upon reconciliation
-of a dirty page. The size of a block is a multple of the allocation size which is
-set during creation of associated WiredTiger data file. See: session_api:create
+A block is a chunk of data that is stored on the disk and operated on as a
+single unit. Each WiredTiger data file (any file in the home directory with the
+\c .wt suffix) is made up of these blocks. Each block consists of a page header,
+a block header and contains a single page from the b-tree which it was
+generated. Blocks can only be written once and a new block must be created upon
+reconciliation of a dirty page. The size of a block is a multple of the
+allocation size which is set during creation of associated WiredTiger data file.
+
+See: WT_SESSION::create
 
 Once a block is written the address of the block is returned and is referred to
 the \c addr. The address is made up of 4 components:
- - offset: The offset in the file. In order to avoid storing large offsets this value is divided by
- the allocation size.
- - file_id: While only relevant to the tiered storage type the file_id is maintained in the address.
+ - offset: The offset in the file. In order to avoid storing large offsets this
+   value is divided by the allocation size.
+ - file_id: While only relevant to the tiered storage type the file_id is
+   maintained in the address.
  - size: The size of the block, also devided by the allocation size.
  - checksum: The checksum of the block for validation purposes.
 
 The block header contains the following fields:
- - size: The size of the block on disk, used when salvaging data from a corrupt file.
+ - size: The size of the block on disk, used when salvaging data from a corrupt
+   file.
  - checksun: The checksum of the block, again used for salvaging.
  - flags: Currently only flag exists.
  - padding
 
-The page header is not described in this document but can be found in btmem.h
+The page header is not described in this document but can be found in
+\c btmem.h.
 
 @section block_usage How WiredTiger uses the block manager
 
-When the a new file is created in WT via session_api:create the file is created on disk
-and the associated allocation size is written out to the metadata file. However the
-block manager itself isn't created. Only when a btree is opened does WiredTiger allocate
-a block manager. Each b-ree has it's own block manager.
+When the a new file is created in WT via session_api:create the file is created
+on disk the associated allocation size is written out to the metadata file.
+However the block manager itself isn't created. Only when a btree is opened does
+WiredTiger allocate a block manager. Each b-ree has it's own block manager.
 
-Each file on disk contains a minimum of two checkpoints, each of those checkpoints correspond
-with a set of non mutually exclusive blocks. When opening an existing file the latest checkpoint
-is used as the starting point of the file, and presents a consistent view of the data.
+Each file on disk contains a minimum of two checkpoints, each of those
+checkpoints correspond with a set of non mutually exclusive blocks. When opening
+an existing file the latest checkpoint is used as the starting point of the
+file, and represents a consistent view of the data.
 
-When reading existing data pages are read into the b-tree, WiredTiger will read its corresponding
-block from the data file and create the page image.
+When reading existing data pages are read into the b-tree, WiredTiger will read
+its corresponding block from the data file and create the page image.
 
-When writing data a new page image is constructed during reconciliation and it is written as a
-new block in the data file. See arch reconciliation for more details on that.
+When writing data a new page image is constructed during reconciliation and it
+is written as a new block in the data file. See arch reconciliation for more
+details on that.
 
-When WiredTiger performs a checkpoint clean pages will not result in additional blocks being
-created and as such existing blocks from older checkpoints will be reused. Checkpoints are
-created in depth first order, leaf blocks are created, then the parent blocks. This is required
-as the parent blocks contain the addresses of the leaf blocks.
+When WiredTiger performs a checkpoint clean pages will not result in additional
+blocks being created and as such existing blocks from older checkpoints will be
+reused. Checkpoints are created in depth first order, leaf blocks are created,
+then the parent blocks. This is required as the parent blocks contain the
+addresses of the leaf blocks.
 
 @section block_implementation Block manager implementation details
 
 @subsection desc_block Descriptor block
 
-As discussed earlier, a file is divided up into blocks. The first block in a file
-is special as it contains metadata about the file and is referred to as the
+As discussed earlier, a file is divided up into blocks. The first block in a
+file is special as it contains metadata about the file and is referred to as the
 "descriptor block". It contains the WiredTiger major and minor version, a
 checksum of the block contents as well as a "magic" number to check against.
 
@@ -97,14 +105,14 @@ API at the time of file creation.
 
 @subsection allocation_size Allocation size
 
-The \c allocation_size configuration controls the file unit allocation size. Any
-blocks allocated by the block manager must be a multiple of this value.
+The \c allocation_size configuration controls the file unit allocation size.
+Any blocks allocated by the block manager must be a multiple of this value.
 
-For example, if we specify an \c allocation_size of \c 4KB, blocks of size \c 8KB
-and \c 12KB would be permitted but NOT \c 10KB. Higher allocation sizes may
-yield better compression rates, yet may cause larger page sizes. The allocation
-size is set to \c 4KB by default which is a good choice unless your OS or storage
-device has special requirements.
+For example, if we specify an \c allocation_size of \c 4KB, blocks of size
+\c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation sizes
+may yield better compression rates, yet may cause larger page sizes. The
+allocation size is set to \c 4KB by default which is a good choice unless your
+OS or storage device has special requirements.
 
 @subsection checksum Checksum
 
