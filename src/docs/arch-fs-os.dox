@@ -1,15 +1,14 @@
 /*! @arch_page arch-fs-os File System and Operating System Interface
-
-Internally, a layer of abstraction is above all operating system calls,
-allowing main line WiredTiger code to make a call to single set of interfaces.
-There are currently OS specific APIs for POSIX and Windows.
+WiredTiger provides a layer of abstraction above all operating systems. 
+This layer's main functionality is to translate the communication of 
+different operating system calls. Other modules can utilise this layer 
+to interact with the specific underlying operating system. Currently 
+WiredTiger supports POSIX and Windows specific APIs.
 
 Additionally, a program can use WT_CONNECTION::set_file_system to register
 a set of functions that will be called for each file system operation.
-WiredTiger will then call these functions at the appropriate time.
 
 # Overview #
-- Brief introduction on supporting multiple operating systems
 - Talk about __wt_fh, __wt_fstream, __wt_file_handle_inmem
 - Talk about how these interfaces interact with multiple oses and how functions are called without the interfaces (technical)
 - List about each function that is supported with the oses (Maybe)
