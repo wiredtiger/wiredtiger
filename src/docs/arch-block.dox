@@ -28,9 +28,7 @@ The block header contains the following fields:
  - flags: Currently only flag exists.
  - padding
 
-The page header contains the following fields:
- - type: the type of page, either internal or leaf.
- -
+The page header is not described in this document but can be found in btmem.h
 
 @section block_usage How WiredTiger uses the block manager
 
@@ -107,22 +105,6 @@ and \c 12KB would be permitted but NOT \c 10KB. Higher allocation sizes may
 yield better compression rates, yet may cause larger page sizes. The allocation
 size is set to \c 4KB by default which is a good choice unless your OS or storage
 device has special requirements.
-
-@subsection block_compression Block compression
-
-The \c block_compressor configuration controls the compression algorithm used
-to compress each block. By default, WiredTiger supports \c lz4, \c snappy,
-\c zlib and \c zstd for block-level compression. However, WiredTiger also
-supports a compressor API for writing custom compressors so you can extend the
-storage engine to use whatever compression algorithm you desire.
-
-@subsection block_encryption Block encryption
-
-The \c encryption configuration controls the encryption algorithm used to
-encrypt each block. WiredTiger does not support any block-level encryption
-algorithms out of the box. However it supports an encryptor API for writing
-custom encryptors so you can extend the storage engine to use whatever
-encryption algorithm you desire.
 
 @subsection checksum Checksum
 
