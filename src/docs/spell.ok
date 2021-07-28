@@ -46,6 +46,7 @@ ECMA
 EINVAL
 ENCRYPTOR
 ENOTSUP
+EXTLIST
 EmpId
 Encryptors
 Facebook
@@ -149,6 +150,7 @@ aR
 abc
 abstime
 ack'ed
+addr
 ajn
 alloc
 allocator
@@ -227,6 +229,7 @@ curfile
 cursortype
 curtable
 customerABC
+customizability
 cv
 cyclomatic
 dN
