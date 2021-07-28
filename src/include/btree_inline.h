@@ -2050,13 +2050,13 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading.
      */
-    if (session->txn->isolation == WT_ISO_SNAPSHOT && !ignore_tombstone &&
-      previous_state == WT_REF_MEM) {
+    if (session->txn->isolation == WT_ISO_SNAPSHOT && !__wt_page_is_modified(ref->page) &&
+      !ignore_tombstone && previous_state == WT_REF_MEM) {
         /* We only try to lock the page once. */
         if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             return (0);
 
-        if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
+        if (__wt_ref_addr_copy(session, ref, &addr) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
