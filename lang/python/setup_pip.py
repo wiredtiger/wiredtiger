@@ -301,6 +301,10 @@ class BinaryDistribution(Distribution):
 class WTInstall(setuptools.command.install.install):
     def run(self):
         self.run_command("build_ext")
+        # Copy the SWIG generated python module to our build directory. This will
+        # then subsequently be installed by pip into the package directory.
+        shutil.move(os.path.join(conf_make_dir, python_rel_dir, 'wiredtiger.py'),
+            os.path.join(self.build_lib, 'wiredtiger','swig_wiredtiger.py'))
         return setuptools.command.install.install.run(self)
 
 class WTBuildExt(setuptools.command.build_ext.build_ext):
@@ -323,7 +327,6 @@ class WTBuildExt(setuptools.command.build_ext.build_ext):
                 lambda: build_commands(make_cmds, wt_dir, env), [],
                 'wiredtiger make')
             open(built_sentinal, 'a').close()
-            shutil.move(os.path.join(conf_make_dir, python_rel_dir, 'wiredtiger.py'), 'swig_wiredtiger.py')
         return setuptools.command.build_ext.build_ext.run(self)
 
 setup(
@@ -344,7 +347,7 @@ setup(
     package_dir = { 'wiredtiger' : '.' },
     cmdclass = { 'install': WTInstall, 'build_ext': WTBuildExt },
     package_data = {
-        'wiredtiger' : [ wt_swig_lib_name, '*.py', 'swig_wiredtiger.py' ]
+        'wiredtiger' : [ '*.py']
     },
     classifiers=[
         'Intended Audience :: Developers',
