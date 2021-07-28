@@ -434,7 +434,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_maximum_page_size;
     int64_t cache_eviction_dirty;
     int64_t cache_eviction_app_dirty;
-    int64_t cache_update_obsolete_calls;
     int64_t cache_timed_out_ops;
     int64_t cache_read_overflow;
     int64_t cache_eviction_deepen;

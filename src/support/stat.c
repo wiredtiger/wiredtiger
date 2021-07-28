@@ -1106,7 +1106,6 @@ static const char *const __stats_connection_desc[] = {
   "cache: maximum page size at eviction",
   "cache: modified pages evicted",
   "cache: modified pages evicted by application threads",
-  "cache: number of update obsolete check calls",
   "cache: operations timed out waiting for space in cache",
   "cache: overflow pages read into cache",
   "cache: page split during eviction deepened the tree",
@@ -1636,7 +1635,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing cache_eviction_maximum_page_size */
     stats->cache_eviction_dirty = 0;
     stats->cache_eviction_app_dirty = 0;
-    stats->cache_update_obsolete_calls = 0;
     stats->cache_timed_out_ops = 0;
     stats->cache_read_overflow = 0;
     stats->cache_eviction_deepen = 0;
@@ -2153,7 +2151,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_eviction_maximum_page_size += WT_STAT_READ(from, cache_eviction_maximum_page_size);
     to->cache_eviction_dirty += WT_STAT_READ(from, cache_eviction_dirty);
     to->cache_eviction_app_dirty += WT_STAT_READ(from, cache_eviction_app_dirty);
-    to->cache_update_obsolete_calls += WT_STAT_READ(from, cache_update_obsolete_calls);
     to->cache_timed_out_ops += WT_STAT_READ(from, cache_timed_out_ops);
     to->cache_read_overflow += WT_STAT_READ(from, cache_read_overflow);
     to->cache_eviction_deepen += WT_STAT_READ(from, cache_eviction_deepen);
