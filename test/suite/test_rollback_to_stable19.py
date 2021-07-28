@@ -135,7 +135,7 @@ class test_rollback_to_stable19(test_rollback_to_stable_base):
         upd_aborted = stat_cursor[stat.conn.txn_rts_upd_aborted][2]
         keys_removed = stat_cursor[stat.conn.txn_rts_keys_removed][2]
 
-        # After restart (not crash) the stats for the aborted updates will be 0, as the updates 
+        # After restart (not crash) the stats for the aborted updates will be 0, as the updates
         # will be aborted during shutdown, and on startup there will be no updates to be aborted.
         # This is similar case with keys removed.
         if not self.in_memory and not self.crash:
