@@ -2028,7 +2028,6 @@ static inline int
 __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
     WT_ADDR_COPY addr;
-    WT_PAGE *page;
     uint8_t previous_state;
     bool ignore_tombstone;
 
@@ -2036,8 +2035,7 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
 
     ignore_tombstone = *(bool *)(context);
 
-    page = ref == NULL ? NULL : ref->page;
-    if (page == NULL)
+    if (ref == NULL || ref->page == NULL)
         return (0);
 
     previous_state = ref->state;
@@ -2058,7 +2056,7 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
         if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
             return (0);
 
-        if (!__wt_page_is_modified(page) && __wt_ref_addr_copy(session, ref, &addr) &&
+        if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
           __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts)) {
             *skipp = true;
