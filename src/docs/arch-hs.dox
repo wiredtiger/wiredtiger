@@ -47,10 +47,10 @@ system.
 
 @section arch_hs_initialize History store initialization
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
-not able to find one. The history store table is usually created when WiredTiger creates a new database,
-with one exception where WiredTiger is opening an existing database created by an older version of
-WiredTiger that doesn't support the history store. WiredTiger uses \c WiredTigerHS.wt as the
-filename for the history store table.
+not able to find one. The history store table is usually created when WiredTiger creates a
+new database, with one exception where WiredTiger is opening an existing database created by an
+older version of WiredTiger that doesn't support the history store. WiredTiger uses
+\c WiredTigerHS.wt as the filename for the history store table.
 
 @section arch_hs_cursor History store cursor interface
 WiredTiger uses a cursor interface for history store table to make it easier for different modules
@@ -59,7 +59,8 @@ to perform data operations on the history store table. A new cursor can be opene
 methods except for \c WT_CURSOR::search() method. Recall that the key contains a
 counter and timestamp value and it is expected that the caller can not possibly know the exact
 values for both fields beforehand. Therefore, \c WT_CURSOR::search_near() is used for all search
-operations. Two helper functions, \c __wt_curhs_search_near_before() and \c __wt_curhs_search_near_after(),
+operations. Two helper functions, \c __wt_curhs_search_near_before() and
+\c __wt_curhs_search_near_after(),
 have been provided to facilitate searching for the required record in the history store table.
 
 @section arch_hs_cursor_visibilty History store cursor interface and visibility rules
