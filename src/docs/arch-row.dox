@@ -2,7 +2,7 @@
 
 @section Definition
 
-A row oriented storage is a database management system where all columns of a row are stored
+A row oriented storage is an access method where all columns of a row are stored
 together, the data is stored by row, while a column oriented system stores its data tables by
 column. WiredTiger supports both and each management system is represented internally by a certain
 type of B-Tree data structure.
@@ -27,7 +27,7 @@ the Data File Format section to learn more.
 
 @section Row-stores
 
-Row-stores are probably seen as the traditional database management system and they serve a general
+Row-stores are probably seen as the traditional access method and they serve a general
 purpose. In WiredTiger, row-store keys are explicitly stored and they are usually duplicated within
 the same single file. In order to locate a specific record and pull together a complete row, a
 search algorithm is required. When reading and writing row-stores, the memory usage will depend on
