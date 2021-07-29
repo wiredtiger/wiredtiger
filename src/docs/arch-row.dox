@@ -48,8 +48,10 @@ are maintained in memory.
 @section Fixed length column-stores
 
 Fixed length column stores are very different internally and usually serve specific purposes as it
-is a bitmap. It makes fixed length column-stores efficient to retrieve a value at a given offset,
-the use of bloom filters is probably one of the best examples.
+is a <a href="https://en.wikipedia.org/wiki/Bitmap"><b>Bitmap</b></a>. It makes fixed length
+column-stores efficient to retrieve a value at a given offset, the use of
+<a href="https://en.wikipedia.org/wiki/Bloom_filter"><b>Bloom filter</b></a> is probably one of the
+best examples.
 
 @section Performance
 
