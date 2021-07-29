@@ -100,7 +100,7 @@ if(ENABLE_STATIC AND NOT ENABLE_PYTHON)
     # Avoid compiling with fPIC for static builds, this can often lead to
     # GCC disabling many optimizations e.g. inlining, possibly introducing
     # an overhead. We additionally can't turn off fPIC if we are compiling
-    # with python support as the python API library depenends on shared library
+    # with python support as the python API library depends on shared library
     # support.
     set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
 else()
