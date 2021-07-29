@@ -2044,21 +2044,17 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * reconciliation. We can skip this test if the page has been modified since it was reconciled.
      *
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
-     * make changes to the data structures (i.e., aggregate timestamps) we are reading. We try only
-     * once to lock the page, avoiding the time spent waiting on the lock. Instead we default to
-     * reading the page, wherever we can not minimize the cost to execute this skip function.
+     * make changes to the data structures (i.e., aggregate timestamps) we are reading.
      */
-    previous_state = ref->state;
-    if (previous_state != WT_REF_MEM ||
-      !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+    if (ref->state != WT_REF_MEM)
         return (0);
 
+    WT_REF_LOCK(session, ref, &previous_state);
     if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
         *skipp = true;
-
-    WT_REF_SET_STATE(ref, previous_state);
+    WT_REF_UNLOCK(ref, previous_state);
 
     return (0);
 }
