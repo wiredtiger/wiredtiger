@@ -40,8 +40,7 @@ class test_hs02(wttest.WiredTigerTestCase):
 
     key_format_values = [
         ('string', dict(key_format='S')),
-        # FIXME-WT-7120: Uncomment the column store scenario when rollback to stable support is complete.
-        # ('column', dict(key_format='r'))
+        ('column', dict(key_format='r'))
     ]
     scenarios = make_scenarios(key_format_values)
 
