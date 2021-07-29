@@ -58,6 +58,7 @@ static char home[1024]; /* Program working dir */
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
+#define BUCKET "bucket"
 #define INVALID_KEY UINT64_MAX
 #define MAX_CKPT_INVL 5  /* Maximum interval between checkpoints */
 #define MAX_FLUSH_INVL 5 /* Maximum interval between flush_tier calls */
@@ -70,6 +71,7 @@ static char home[1024]; /* Program working dir */
 #define RECORDS_FILE "records-%" PRIu32
 /* Include worker threads and extra sessions */
 #define SESSION_MAX (MAX_TH + 4)
+#define WT_STORAGE_LIB "ext/storage_sources/local_store/.libs/libwiredtiger_local_store.so"
 
 static const char *table_pfx = "table";
 static const char *const uri_collection = "collection";
@@ -93,15 +95,14 @@ static uint32_t flush_timer = 1;
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 
-#define ENV_CONFIG_DEF                                                           \
-    "cache_size=%" PRIu32                                                        \
-    "M,create,"                                                                  \
-    "debug_mode=(table_logging=true,checkpoint_retention=5),"                    \
-    "eviction_updates_target=20,eviction_updates_trigger=90,"                    \
-    "extensions=(ext/storage_sources/local_store/libwiredtiger_local_store.so)," \
-    "log=(archive=true,file_max=10M,enabled),session_max=%d,"                    \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"                       \
-    "tiered_storage=(bucket=mybucket,bucket_prefix=pfx,name=local)"
+#define ENV_CONFIG_DEF                                        \
+    "cache_size=%" PRIu32                                     \
+    "M,create,"                                               \
+    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
+    "eviction_updates_target=20,eviction_updates_trigger=90," \
+    "log=(archive=true,file_max=10M,enabled),session_max=%d," \
+    "statistics=(fast),statistics_log=(wait=1,json=true),"    \
+    "tiered_storage=(bucket=%s,bucket_prefix=pfx,name=local_store)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
     ",transaction_sync=(enabled,method=none)"
@@ -426,16 +427,16 @@ rollback:
  * Child process creates the database and table, and then creates worker threads to add data until
  * it is killed by the parent.
  */
-static void run_workload(uint32_t) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void run_workload(uint32_t, const char *) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
-run_workload(uint32_t nth)
+run_workload(uint32_t nth, const char *buf)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t cache_mb, ckpt_id, flush_id, i, ts_id;
-    char envconf[512], uri[128];
+    char envconf[1024], extconf[512], uri[128];
 
     thr = dcalloc(nth + NUM_INT_THREADS, sizeof(*thr));
     td = dcalloc(nth + NUM_INT_THREADS, sizeof(THREAD_DATA));
@@ -453,10 +454,10 @@ run_workload(uint32_t nth)
         testutil_die(errno, "Child chdir: %s", home);
     if (inmem)
         testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX));
+          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, BUCKET));
     else
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX));
+        testutil_check(__wt_snprintf(
+          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, BUCKET));
     if (compat)
         strcat(envconf, ENV_CONFIG_ADD_COMPAT);
 
@@ -467,6 +468,10 @@ run_workload(uint32_t nth)
     if (!compat && !inmem)
         strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
 
+    testutil_check(__wt_snprintf(
+      extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))", buf, WT_STORAGE_LIB));
+
+    strcat(envconf, extconf);
     printf("wiredtiger_open configuration: %s\n", envconf);
     testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
@@ -581,6 +586,7 @@ main(int argc, char *argv[])
     struct stat sb;
     FILE *fp;
     REPORT c_rep[MAX_TH], l_rep[MAX_TH], o_rep[MAX_TH];
+    TEST_OPTS *opts, _opts;
     WT_CONNECTION *conn;
     WT_CURSOR *cur_coll, *cur_local, *cur_oplog, *cur_shadow;
     WT_RAND_STATE rnd;
@@ -591,7 +597,7 @@ main(int argc, char *argv[])
     uint32_t i, nth, timeout;
     int ch, status, ret;
     const char *working_dir;
-    char buf[512], fname[64], kname[64], statname[1024];
+    char buf[512], bucket[512], fname[64], kname[64];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal, rand_th, rand_time, verify_only;
 
@@ -605,7 +611,15 @@ main(int argc, char *argv[])
     verify_only = false;
     working_dir = "WT_TEST.tiered-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cf:h:LmT:t:vz")) != EOF)
+    /*
+     * Build the directory path needed for the extension before parsing the args.
+     */
+    opts = &_opts;
+    memset(opts, 0, sizeof(*opts));
+    testutil_check(testutil_parse_opts(argc, argv, opts));
+    testutil_build_dir(opts, buf, 512);
+
+    while ((ch = __wt_getopt(progname, argc, argv, "Cf:h:mT:t:vz")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
@@ -615,9 +629,6 @@ main(int argc, char *argv[])
             break;
         case 'h':
             working_dir = __wt_optarg;
-            break;
-        case 'L':
-            table_pfx = "lsm";
             break;
         case 'm':
             inmem = true;
@@ -648,9 +659,9 @@ main(int argc, char *argv[])
     if (argc != 0)
         usage();
 
-    testutil_work_dir_from_path(home, sizeof(home), working_dir);
     testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
+    testutil_work_dir_from_path(home, sizeof(home), working_dir);
     /*
      * If the user wants to verify they need to tell us how many threads there were so we can find
      * the old record files.
@@ -660,7 +671,10 @@ main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
     if (!verify_only) {
+        /* Make both the home directory and the bucket directory under the home. */
         testutil_make_work_dir(home);
+        testutil_check(__wt_snprintf(bucket, sizeof(bucket), "%s/%s", working_dir, BUCKET));
+        testutil_make_work_dir(bucket);
 
         __wt_random_init_seed(NULL, &rnd);
         if (rand_time) {
@@ -689,7 +703,7 @@ main(int argc, char *argv[])
         testutil_checksys((pid = fork()) < 0);
 
         if (pid == 0) { /* child */
-            run_workload(nth);
+            run_workload(nth, buf);
             return (EXIT_SUCCESS);
         }
 
@@ -699,8 +713,8 @@ main(int argc, char *argv[])
          * the time we notice that the file has been created. That allows the test to run correctly
          * on really slow machines.
          */
-        testutil_check(__wt_snprintf(statname, sizeof(statname), "%s/%s", home, sentinel_file));
-        while (stat(statname, &sb) != 0)
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/%s", home, sentinel_file));
+        while (stat(buf, &sb) != 0)
             testutil_sleep_wait(1, pid);
         sleep(timeout);
         sa.sa_handler = SIG_DFL;
