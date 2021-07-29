@@ -821,7 +821,6 @@ conn_dsrc_stats = [
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
-    CursorStat('cursor_skip_page_count', 'Total number of pages skipped without reading by cursor next or prev calls'),
     ##########################################
     # Checkpoint cleanup statistics
     ##########################################
