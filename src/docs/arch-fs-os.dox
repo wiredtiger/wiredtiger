@@ -1,18 +1,48 @@
 /*! @arch_page arch-fs-os File System and Operating System Interface
-WiredTiger provides a layer of abstraction above all operating systems. 
-This layer's main functionality is to translate the communication of 
-different operating system calls. Other modules can utilise this layer 
-to interact with the specific underlying operating system. Currently 
-WiredTiger supports POSIX and Windows specific APIs.
-
-Additionally, a program can use WT_CONNECTION::set_file_system to register
+WiredTiger provides a File System abstraction above all the supported
+operating systems. The layer's main functionality is to translate 
+the communication of different file system calls. Other modules 
+utilise this layer to interact with underlying files.Additionally, 
+a program can use WT_CONNECTION::set_file_system to register
 a set of functions that will be called for each file system operation.
 
+Currently WiredTiger supports POSIX and Windows library operating system
+APIs through checking the macro _WIN32, which is defined when the Operating
+system is windows. Other operating systems are not currently supported when 
+compiling WiredTiger.
+- Interesting fact about compiling different .h files for the specific OS
+
+@section filesystem_usage WiredTiger File Handle Structure
+WiredTiger supports mutiple file system calls through maintaining a common file 
+handle interface called WT_FILE_HANDLE. The structure of the file handle is composed
+of 2 main components.
+
+@subsection filesystem_usage WiredTiger File System
+WiredTiger initialises a file system interface whenever a connection is open.   
+
+- The registered filesystem associated with the file
+- The name of the file
+- A list of file system function pointers (Maybe list the file system functinos that are available)
+ WT_FILE_HANDLE is initialised the filesystem is set to the specific 
+
+@section filesystem_usage WiredTiger File Handle
+
+@section filesystem_usage WiredTiger File Stream
+
+File System Handles
 # Overview #
-- Talk about __wt_fh, __wt_fstream, __wt_file_handle_inmem
+- Talk about __wt_fh, __wt_fstream, __wt_file_handle_inmem all uses WT_FILE_HANDLE
+    - Investigate on differences between file stream and file handle
+    - A file stream uses WT_FH, and seems to be for specific file streams muchalike normal streams (has a buffer). 
+    - The streaming APIs use the buffer to minimize interaction with the file system, which is relatively expensive to access.
+    - As a general rule, the file descriptor API may be slower for small I/O operations due to this buffering, 
+    but it is often faster for "big" accesses than the streaming API.
+    - Investigate on file internal queue
 - Talk about how these interfaces interact with multiple oses and how functions are called without the interfaces (technical)
 - List about each function that is supported with the oses (Maybe)
-- Talk about how WT utilises File stream.
 
-- Investigate on differences between file stream and file handle
+@section filesystem_usage How WiredTiger uses the file system interface
+- Talk about how WT utilises File stream.
+- Block manager uses __wt_fh -> specific file handle which is basically a WT_FILE_HANDLE
+
 */
