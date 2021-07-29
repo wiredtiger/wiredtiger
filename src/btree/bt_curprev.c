@@ -701,9 +701,10 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             LF_SET(WT_READ_WONT_NEED);
 
         /*
-         * If we are running with snapshot isolation, and considering tombstones, we could
-         * potentially skip pages. The skip function looks at the aggregated timestamp information
-         * to determine if something is visible on the page. If nothing is, the page is skipped.
+         * If we are running with snapshot isolation, and not interested in returning tombstones, we
+         * could potentially skip pages. The skip function looks at the aggregated timestamp
+         * information to determine if something is visible on the page. If nothing is, the page is
+         * skipped.
          */
         if (session->txn->isolation == WT_ISO_SNAPSHOT &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
