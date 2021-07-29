@@ -35,15 +35,16 @@ from wiredtiger import stat
 class test_hs11(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,statistics=(all)'
     session_config = 'isolation=snapshot'
-    key_format_values = (
+    key_format_values = [
+        ('column', dict(key_format='r')),
         ('int', dict(key_format='i')),
-        ('string', dict(key_format='S')),
-        ('column', dict(key_format='r'))
-    )
-    scenarios = make_scenarios([
+        ('string', dict(key_format='S'))
+    ]
+    update_type_values = [
         ('deletion', dict(update_type='deletion')),
-        ('update', dict(update_type='update')),
-    ], key_format_values)
+        ('update', dict(update_type='update'))
+    ]
+    scenarios = make_scenarios(key_format_values, update_type_values)
 
     def create_key(self, i):
         if self.key_format == 'S':
@@ -93,11 +94,6 @@ class test_hs11(wttest.WiredTigerTestCase):
             self.session.begin_transaction()
             cursor[self.create_key(i)] = value2
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-
-        # FIXME-WT-7120: Remove for column store until rollback to stable is implemented for column
-        # store.
-        if self.key_format == 'r':
-            return
 
         # Ensure that we blew away history store content.
         for ts in range(1, 5):

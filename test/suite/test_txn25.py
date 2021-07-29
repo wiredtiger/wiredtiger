@@ -31,14 +31,27 @@
 #
 
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 class test_txn25(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('string', dict(key_format='S', usestrings=True)),
+        ('column', dict(key_format='r', usestrings=False)),
+    ]
+    scenarios = make_scenarios(key_format_values)
+
+    def getkey(self, i):
+        if self.usestrings:
+            return str(i)
+        else:
+            return i
+
     def test_txn25(self):
         uri = 'file:test_txn25'
-        create_config = 'allocation_size=512,key_format=S,value_format=S'
+        create_config = 'allocation_size=512,key_format={},value_format=S'.format(self.key_format)
         self.session.create(uri, create_config)
 
         # Populate the file and ensure that we start seeing some high transaction IDs in the system.
@@ -53,17 +66,17 @@ class test_txn25(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         for i in range(1, 1000):
             self.session.begin_transaction()
-            cursor[str(i)] = value1
+            cursor[self.getkey(i)] = value1
             self.session.commit_transaction()
 
         for i in range(1, 1000):
             self.session.begin_transaction()
-            cursor[str(i)] = value2
+            cursor[self.getkey(i)] = value2
             self.session.commit_transaction()
 
         for i in range(1, 1000):
             self.session.begin_transaction()
-            cursor[str(i)] = value3
+            cursor[self.getkey(i)] = value3
             self.session.commit_transaction()
 
         session2.rollback_transaction()
@@ -82,5 +95,5 @@ class test_txn25(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
         for i in range(1, 1000):
-            self.assertEqual(cursor[str(i)], value3)
+            self.assertEqual(cursor[self.getkey(i)], value3)
         self.session.rollback_transaction()

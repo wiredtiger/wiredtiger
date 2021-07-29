@@ -119,11 +119,6 @@ class test_hs09(wttest.WiredTigerTestCase):
         self.check_ckpt_hs(value2, value1, 2, 3)
 
     def test_prepared_updates_not_written_to_hs(self):
-        # FIXME-WT-6061: Prepare reads currently not supported with columnar store.
-        # Remove this once prepare reads is supported.
-        if self.key_format == 'r':
-            return
-
         # Create a small table.
         create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
