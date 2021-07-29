@@ -160,12 +160,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET ex_sync
-    SOURCES ex_sync.c
-    DIR_NAME ex_sync
-)
-
-define_c_test(
     TARGET ex_thread
     SOURCES ex_thread.c
     DIR_NAME ex_thread
