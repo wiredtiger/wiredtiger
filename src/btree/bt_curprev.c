@@ -592,12 +592,11 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool ignore_tombstone, newpage, restart;
+    bool newpage, restart;
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
     total_skipped = 0;
-    ignore_tombstone = F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE);
 
     WT_STAT_CONN_DATA_INCR(session, cursor_prev);
 
@@ -701,8 +700,17 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
 
-        WT_ERR(__wt_tree_walk_custom_skip(
-          session, &cbt->ref, __wt_btcur_skip_page, &ignore_tombstone, flags));
+        /*
+         * If we are running with snapshot isolation, and considering tombstones, we could
+         * potentially skip pages. The skip function looks at the aggregated timestamp information
+         * to determine if something is visible on the page. If nothing is, the page is skipped.
+         */
+        if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
+            WT_ERR(
+              __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
+        else
+            WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 

@@ -2029,40 +2029,36 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
 {
     WT_ADDR_COPY addr;
     uint8_t previous_state;
-    bool ignore_tombstone;
 
     *skipp = false; /* Default to reading */
 
-    ignore_tombstone = *(bool *)(context);
+    WT_UNUSED(context);
 
     if (ref == NULL || ref->page == NULL)
         return (0);
-
-    previous_state = ref->state;
 
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
      * our transaction. If so, we can avoid reading the records on the page and move to the next
      * page. We base this decision on the aggregate stop point added to the page during the last
-     * reconciliation. We can skip this test if the page has been modified since it was reconciled
-     * or the underlying cursor is configured to ignore tombstones.
+     * reconciliation. We can skip this test if the page has been modified since it was reconciled.
      *
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
-     * make changes to the data structures (i.e., aggregate timestamps) we are reading.
+     * make changes to the data structures (i.e., aggregate timestamps) we are reading. We try only
+     * once to lock the page, avoiding the time spent waiting on the lock. Instead we default to
+     * reading the page, wherever we can not minimize the cost to execute this skip function.
      */
-    if (session->txn->isolation == WT_ISO_SNAPSHOT && !ignore_tombstone &&
-      previous_state == WT_REF_MEM) {
-        /* We only try to lock the page once. */
-        if (!WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
-            return (0);
+    previous_state = ref->state;
+    if (previous_state != WT_REF_MEM ||
+      !WT_REF_CAS_STATE(session, ref, previous_state, WT_REF_LOCKED))
+        return (0);
 
-        if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
-          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
-          __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
-            *skipp = true;
+    if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
+      __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
+      __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
+        *skipp = true;
 
-        WT_REF_SET_STATE(ref, previous_state);
-    }
+    WT_REF_SET_STATE(ref, previous_state);
 
     return (0);
 }
