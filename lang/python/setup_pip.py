@@ -280,8 +280,10 @@ wt_ext = Extension('_wiredtiger',
     extra_compile_args = cflags + cppflags,
     extra_link_args = ldflags,
     libraries = builtin_libraries,
-    # As a temporary solution, we need to manually link the ext/compressor libraries. Unfortunately CMake's use of the builtin open
-    # doesn't currently support linking in the extension objects into a static libwiredtiger archive.
+    # FIXME-WT-7905: Remove manual linking of static extension libraries.
+    # Unfortunately CMake's use of the builtin doesn't currently support linking in the extension
+    # objects into a static libwiredtiger archive. As a workaround, we need to manually link
+    # the ext/compressor libraries.
     extra_objects = [ os.path.join(build_dir, 'libwiredtiger.a') ] + \
         list(map(lambda name: os.path.join(build_dir, 'ext', 'compressors', name) + '/libwiredtiger_' + name + '.a', builtin_names)),
     include_dirs = inc_paths,
