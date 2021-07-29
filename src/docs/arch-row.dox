@@ -23,7 +23,7 @@ row-stores.
 @section In-memory and on-disk format
 
 Row-stores and column-stores have a specific in-memory and on-disk data structure. Please refer to
-the Data File Format section to learn more.
+@ref arch-data-file to learn more.
 
 @section Row-stores
 
