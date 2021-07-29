@@ -61,7 +61,7 @@ static char home[1024]; /* Program working dir */
 #define INVALID_KEY UINT64_MAX
 #define MAX_CKPT_INVL 5  /* Maximum interval between checkpoints */
 #define MAX_FLUSH_INVL 5 /* Maximum interval between flush_tier calls */
-#define MAX_TH 20       /* Maximum configurable threads */
+#define MAX_TH 20        /* Maximum configurable threads */
 #define MAX_TIME 40
 #define MAX_VAL 1024
 #define MIN_TH 5
@@ -93,14 +93,14 @@ static uint32_t flush_timer = 1;
 #define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
 #define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
 
-#define ENV_CONFIG_DEF                                        \
-    "cache_size=%" PRIu32                                     \
-    "M,create,"                                               \
-    "debug_mode=(table_logging=true,checkpoint_retention=5)," \
-    "eviction_updates_target=20,eviction_updates_trigger=90," \
+#define ENV_CONFIG_DEF                                                           \
+    "cache_size=%" PRIu32                                                        \
+    "M,create,"                                                                  \
+    "debug_mode=(table_logging=true,checkpoint_retention=5),"                    \
+    "eviction_updates_target=20,eviction_updates_trigger=90,"                    \
     "extensions=(ext/storage_sources/local_store/libwiredtiger_local_store.so)," \
-    "log=(archive=true,file_max=10M,enabled),session_max=%d," \
-    "statistics=(fast),statistics_log=(wait=1,json=true),"     \
+    "log=(archive=true,file_max=10M,enabled),session_max=%d,"                    \
+    "statistics=(fast),statistics_log=(wait=1,json=true),"                       \
     "tiered_storage=(bucket=mybucket,bucket_prefix=pfx,name=local)"
 #define ENV_CONFIG_TXNSYNC \
     ENV_CONFIG_DEF         \
