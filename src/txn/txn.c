@@ -1175,7 +1175,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
                 __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
 #else
             WT_WITH_BTREE(session, op->btree,
-              ret btree->type == BTRE_ROW ?
+              ret btree->type == BTREE_ROW ?
                 __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false) :
                 __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false));
 #endif
