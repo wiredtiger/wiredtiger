@@ -57,9 +57,13 @@ Generally, row-stores are faster for queries where all of the columns are requir
 because there is only a single set of internal pages to read into the cache and search.
 Column-stores are faster when most queries require only a subset of the columns because columns can
 be separated into multiple files and only the columns being returned need to be present in the
-cache. In both cases, for better efficiency, one should define column groups according to queries
-that will be mostly performed. Finally, row-stores and column-stores can be mixed-and-matched at the
-table level: for example, a row-store index can be created on a column-store table.
+cache. In fact, it is possible to split a table into multiple files using a combination of
+row-stores and column-stores, so this benefit can be gained regardless of the access method choice,
+see @ref schema_column_groups for more information. In both cases, for better efficiency, one should
+define column groups according to queries that will be mostly performed. Finally, row-stores and
+column-stores can be mixed-and-matched at the table level: for example, a row-store index can be
+created on a column-store table. It is worth noting that MongoDB does not use the rich schema being
+described. It stores a blob of data in a row-store and manages encoding and decoding itself.
 
 @section Internal usage
 
