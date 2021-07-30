@@ -432,7 +432,7 @@ restart_read:
             continue;
         }
 
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, NULL));
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             ++*skippedp;
