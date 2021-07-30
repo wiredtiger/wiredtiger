@@ -39,11 +39,38 @@ usage(void)
       "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded)",
+      "-px",
+      "similar to -p with the only exception in the raw byte array format. That data will be dumped"
+      " as if -x is specified",
       NULL, NULL};
 
     util_usage(
       "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
+}
+
+/*
+ * Returns dump type string based on the passed format flags
+ */
+static const char *
+__wt_get_dump_type(bool json, bool pretty, bool hex)
+{
+    const char *result;
+
+    result = NULL;
+
+    if (json)
+        result = "json";
+    else if (pretty && hex)
+        result = "pretty_hex";
+    else if (hex)
+        result = "hex";
+    else if (pretty)
+        result = "pretty";
+    else
+        result = "print";
+
+    return result;
 }
 
 static FILE *fp;
@@ -108,8 +135,12 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         ++format_specifiers;
     if (hex)
         ++format_specifiers;
-    if (format_specifiers > 1) {
-        fprintf(stderr, "%s: the -j, -p and -x dump options are incompatible\n", progname);
+
+    /* Supported options are -j, -p, -x and -px */
+    if (format_specifiers > 1 && !(pretty && hex)) {
+        fprintf(stderr,
+          "%s: the only possible options are -j, -p, -x and -px. Other options are incompatible\n",
+          progname);
         return (usage());
     }
 
@@ -147,8 +178,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
-        WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s",
-          json ? "json" : (hex ? "hex" : (pretty ? "pretty" : "print"))));
+        WT_ERR(
+          __wt_buf_catfmt(session_impl, tmp, "dump=%s", __wt_get_dump_type(json, pretty, hex)));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));

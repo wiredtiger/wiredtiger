@@ -625,8 +625,8 @@ __verify_row_int_key_order(
           " on the page at %s sorts before the last key appearing on page %s, earlier in the tree: "
           "%s, %s",
           entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
-          __wt_buf_set_printable(session, item.data, item.size, vs->tmp2),
-          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp3));
+          __wt_buf_set_printable(session, item.data, item.size, vs->tmp2, false),
+          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp3, false));
 
     /* Update the largest key we've seen to the key just checked. */
     WT_RET(__wt_buf_set(session, vs->max_key, item.data, item.size));
@@ -677,8 +677,9 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
               "the first key on the page at %s sorts equal to or less than the last key appearing "
               "on the page at %s, earlier in the tree: %s, %s",
               __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
-              __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, vs->tmp3),
-              __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp4));
+              __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, vs->tmp3, false),
+              __wt_buf_set_printable(
+                session, vs->max_key->data, vs->max_key->size, vs->tmp4, false));
     }
 
     /* Update the largest key we've seen to the last key on this page. */
