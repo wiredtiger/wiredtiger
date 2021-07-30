@@ -27,11 +27,9 @@ Row-stores and column-stores have a specific in-memory and on-disk data structur
 
 @section Row-stores
 
-Row-stores are probably seen as the traditional access method and they serve a general
-purpose. In WiredTiger, row-store keys are explicitly stored and they are usually duplicated within
-the same single file. In order to locate a specific record and pull together a complete row, a
-search algorithm is required. When reading and writing row-stores, the memory usage will depend on
-the definition of column groups required by the query.
+Row-stores are probably seen as the traditional access method and they serve a general purpose. In
+WiredTiger, row-store keys are explicitly stored and they are usually duplicated within the same
+single file which directly impacts the on-disk storage size.
 
 @section Variable length column-stores
 
@@ -41,9 +39,9 @@ page which is used to figure out the rest of the keys present on that same page.
 values also present an advantage to further save more disk space as they can be written in more
 compact forms through encoding techniques. In WiredTiger, the run-length encoding is used to replace
 any sequence of the same value with a count and value indicator. However, this makes the access to a
-specific record more complicated, it is no longer possible to jump to a record in a leaf page.
-Finally, when reading and writing column-stores, only the columns required for any particular query
-are maintained in memory.
+specific record more complicated, it makes impossible to jump to a record in a leaf page. Finally,
+when reading and writing column-stores, only the columns required for any particular query are
+maintained in memory.
 
 @section Fixed length column-stores
 
