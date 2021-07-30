@@ -101,7 +101,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
-        start_row = 1
+        start_row = 2
         for i in range(0, 120000):
             cursor4[start_row] = new_val
             start_row += 1
