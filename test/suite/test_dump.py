@@ -52,6 +52,7 @@ class test_dump(wttest.WiredTigerTestCase, suite_subprocess):
     dumpfmt = [
         ('hex', dict(hex=1)),
         ('txt', dict(hex=0))
+        # TODO: test -px
     ]
     keyfmt = [
         ('integer', dict(keyfmt='i')),
