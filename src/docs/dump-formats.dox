@@ -98,7 +98,7 @@ literal character is written as a pair of characters (first the
 high-nibble and then the low-nibble).  For example, "0a" would be an
 ASCII newline character and "1b" would be an ASCII escape character.
 
-The printable hexadecimal format is the same as the printable except all 
+The printable hexadecimal format is the same as the printable except all
 byte arrays will be printed without backslash character.
 
 Because the definition of "printable" may depend on the application's
