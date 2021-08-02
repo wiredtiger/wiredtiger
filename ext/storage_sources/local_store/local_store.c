@@ -83,9 +83,10 @@ typedef struct {
     /*
      * Statistics are collected but not yet exposed.
      */
-    uint64_t fh_ops;         /* Non-read/write operations in file handles */
-    uint64_t object_flushes; /* (What would be) writes to the cloud */
-    uint64_t op_count;       /* Number of operations done on local */
+    uint64_t fh_ops;        /* Non-read/write operations in file handles */
+    uint64_t object_writes; /* (What would be) writes to the cloud */
+    uint64_t object_reads;  /* (What would be) reads to the cloud */
+    uint64_t op_count;      /* Number of operations done on local */
     uint64_t read_ops;
     uint64_t write_ops;
 
@@ -129,7 +130,6 @@ static int local_file_copy(
   LOCAL_STORAGE *, WT_SESSION *, const char *, const char *, WT_FS_OPEN_FILE_TYPE);
 static int local_get_directory(const char *, ssize_t len, char **);
 static int local_path(WT_FILE_SYSTEM *, const char *, const char *, char **);
-static int local_writeable(LOCAL_STORAGE *, const char *name, bool *writeable);
 
 /*
  * Forward function declarations for storage source API implementation
@@ -243,10 +243,12 @@ local_delay(LOCAL_STORAGE *local)
     int ret;
 
     ret = 0;
-    if (local->force_delay != 0 && local->object_flushes % local->force_delay == 0) {
+    if (local->force_delay != 0 &&
+      (local->object_reads + local->object_writes) % local->force_delay == 0) {
         WT_VERBOSE_LS(local,
-          "Artificial delay %" PRIu32 " milliseconds after %" PRIu64 " object flushes\n",
-          local->delay_ms, local->object_flushes);
+          "Artificial delay %" PRIu32 " milliseconds after %" PRIu64 " object reads, %" PRIu64
+          " object writes\n",
+          local->delay_ms, local->object_reads, local->object_writes);
         /*
          * tv_usec has type suseconds_t, which is signed (hence the s), but ->delay_ms is unsigned.
          * In both gcc8 and gcc10 with -Wsign-conversion enabled (as we do) this causes a spurious
@@ -257,9 +259,11 @@ local_delay(LOCAL_STORAGE *local)
         tv.tv_usec = (suseconds_t)(local->delay_ms % 1000) * 1000;
         (void)select(0, NULL, NULL, NULL, &tv);
     }
-    if (local->force_error != 0 && local->object_flushes % local->force_error == 0) {
-        WT_VERBOSE_LS(local, "Artificial error returned after %" PRIu64 " object flushes\n",
-          local->object_flushes);
+    if (local->force_error != 0 &&
+      (local->object_reads + local->object_writes) % local->force_error == 0) {
+        WT_VERBOSE_LS(local,
+          "Artificial error returned after %" PRIu64 " object reads, %" PRIu64 " object writes\n",
+          local->object_reads, local->object_writes);
         ret = ENETUNREACH;
     }
 
@@ -313,28 +317,6 @@ local_get_directory(const char *s, ssize_t len, char **copy)
         free(dirname);
     else
         *copy = dirname;
-    return (ret);
-}
-
-/*
- * local_writeable --
- *     Check if a file can be written, or equivalently, check to see that it has not been flushed.
- *     This will be true if it is in the regular file system (not one managed by local_store).
- */
-static int
-local_writeable(LOCAL_STORAGE *local, const char *name, bool *writeablep)
-{
-    struct stat sb;
-    int ret;
-
-    ret = 0;
-    *writeablep = false;
-
-    if (stat(name, &sb) == 0)
-        *writeablep = true;
-    else if (errno != ENOENT)
-        ret = local_err(local, NULL, errno, "%s: stat", name);
-
     return (ret);
 }
 
@@ -636,7 +618,7 @@ local_flush(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session, WT_FILE_SYST
     if ((ret = local_file_copy(local, session, source, dest_path, WT_FS_OPEN_FILE_TYPE_DATA)) != 0)
         goto err;
 
-    local->object_flushes++;
+    local->object_writes++;
 
 err:
     free(dest_path);
@@ -868,9 +850,7 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     WT_FILE_SYSTEM *wt_fs;
     struct stat sb;
     int ret;
-    char *alloced_path;
-    const char *path;
-    bool create, exists;
+    char *bucket_path, *cache_path;
 
     (void)flags; /* Unused */
 
@@ -880,7 +860,11 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     local_fs = (LOCAL_FILE_SYSTEM *)file_system;
     local = local_fs->local_storage;
     wt_fs = local_fs->wt_fs;
-    alloced_path = NULL;
+    bucket_path = cache_path = NULL;
+
+    if ((flags & WT_FS_OPEN_READONLY) == 0 || (flags & WT_FS_OPEN_CREATE) != 0)
+        return (
+          local_err(local, session, EINVAL, "ss_open_object: readonly access required: %s", name));
 
     /*
      * We expect that the local file system will be used narrowly, like when creating or opening a
@@ -902,41 +886,32 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
         ret = ENOMEM;
         goto err;
     }
-    create = ((flags & WT_FS_OPEN_CREATE) != 0);
-    if (!create) {
-        ret = stat(name, &sb);
-        if (ret != 0 && errno != ENOENT) {
-            ret = local_err(local, session, errno, "%s: local_open stat", name);
+    if ((ret = local_cache_path(file_system, name, &cache_path)) != 0)
+        goto err;
+    ret = stat(cache_path, &sb);
+    if (ret != 0) {
+        if (errno != ENOENT) {
+            ret = local_err(local, session, errno, "%s: local_open stat", cache_path);
             goto err;
         }
-        exists = (ret == 0);
-    } else
-        exists = false;
-    if (create || exists)
-        /* The file has not been flushed, use the file directly in the file system. */
-        path = name;
-    else {
-        if ((ret = local_cache_path(file_system, name, &alloced_path)) != 0)
-            goto err;
-        path = alloced_path;
-        ret = stat(path, &sb);
-        if (ret != 0 && errno != ENOENT) {
-            ret = local_err(local, session, errno, "%s: local_open stat", path);
-            goto err;
-        }
-        exists = (ret == 0);
-    }
-    /*
-     * TODO: tiered: If the file doesn't exist locally, make a copy of it from the cloud here.
-     *
-     */
-#if 0
-    if ((flags & WT_FS_OPEN_READONLY) != 0 && !exists) {
-    }
-#endif
 
-    if ((ret = wt_fs->fs_open_file(wt_fs, session, path, file_type, flags, &wt_fh)) != 0) {
-        ret = local_err(local, session, ret, "ss_open_object: open: %s", path);
+        /*
+         * The file doesn't exist locally, make a copy of it from the cloud.
+         */
+        if ((ret = local_bucket_path(file_system, name, &bucket_path)) != 0)
+            goto err;
+
+        if ((ret = local_delay(local)) != 0)
+            goto err;
+
+        if ((ret = local_file_copy(
+               local, session, bucket_path, cache_path, WT_FS_OPEN_FILE_TYPE_DATA)) != 0)
+            goto err;
+
+        local->object_reads++;
+    }
+    if ((ret = wt_fs->fs_open_file(wt_fs, session, cache_path, file_type, flags, &wt_fh)) != 0) {
+        ret = local_err(local, session, ret, "ss_open_object: open: %s", name);
         goto err;
     }
     local_fh->fh = wt_fh;
@@ -985,7 +960,8 @@ local_open(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
       WT_SHOW_STRING(local_fh->fh->name));
 
 err:
-    free(alloced_path);
+    free(bucket_path);
+    free(cache_path);
     if (ret != 0) {
         if (local_fh != NULL)
             local_file_close_internal(local, session, local_fh);
@@ -995,75 +971,30 @@ err:
 
 /*
  * local_rename --
- *     POSIX rename, for files not yet flushed to the cloud. If a file has been flushed, we don't
- *     support this operation. That is because cloud implementations may not support it, and more
- *     importantly, we consider anything in the cloud to be readonly as far as the custom file
- *     system is concerned.
+ *     POSIX rename, not supported for cloud objects.
  */
 static int
 local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from, const char *to,
   uint32_t flags)
 {
-    LOCAL_FILE_SYSTEM *local_fs;
-    LOCAL_STORAGE *local;
-    WT_FILE_SYSTEM *wt_fs;
-    int ret;
-    bool writeable;
+    (void)to;    /* unused */
+    (void)flags; /* unused */
 
-    local = WT_FS2LOCAL(file_system);
-    local_fs = (LOCAL_FILE_SYSTEM *)file_system;
-    wt_fs = local_fs->wt_fs;
-
-    local->op_count++;
-    if ((ret = local_writeable(local, from, &writeable)) != 0)
-        goto err;
-    if (!writeable) {
-        ret = local_err(local, session, ENOTSUP, "%s: rename of flushed file not allowed", from);
-        goto err;
-    }
-
-    if ((ret = wt_fs->fs_rename(wt_fs, session, from, to, flags)) != 0) {
-        ret = local_err(local, session, ret, "fs_rename");
-        goto err;
-    }
-
-err:
-    return (ret);
+    return (local_err(
+      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: rename of file not allowed", from));
 }
 
 /*
  * local_remove --
- *     POSIX remove, for files not yet flushed to the cloud. If a file has been flushed, we don't
- *     support this operation. We consider anything in the cloud to be readonly as far as the custom
- *     file system is concerned.
+ *     POSIX remove, not supported for cloud objects.
  */
 static int
 local_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, uint32_t flags)
 {
-    LOCAL_STORAGE *local;
-    int ret;
-    bool writeable;
+    (void)flags; /* unused */
 
-    (void)flags; /* Unused */
-
-    local = WT_FS2LOCAL(file_system);
-
-    local->op_count++;
-    if ((ret = local_writeable(local, name, &writeable)) != 0)
-        goto err;
-    if (!writeable) {
-        ret = local_err(local, session, ENOTSUP, "%s: remove of flushed file not allowed", name);
-        goto err;
-    }
-
-    ret = unlink(name);
-    if (ret != 0) {
-        ret = local_err(local, session, errno, "%s: ss_remove unlink", name);
-        goto err;
-    }
-
-err:
-    return (ret);
+    return (local_err(
+      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: remove of file not allowed", name));
 }
 
 /*
@@ -1083,16 +1014,16 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
 
     local->op_count++;
 
-    /* If the file exists directly in the file system, it's not yet flushed, so use it */
-    ret = stat(name, &sb);
-    if (ret == ENOENT) {
-        /* Otherwise, we'll see if it's in the cache directory. */
-        if ((ret = local_cache_path(file_system, name, &path)) != 0)
-            goto err;
+    /* Otherwise, we'll see if it's in the cache directory. */
+    if ((ret = local_cache_path(file_system, name, &path)) != 0)
+        goto err;
 
-        ret = stat(path, &sb);
-        /* TODO: tiered: if we still get an ENOENT, then we'd need to ping the cloud to get the
-         * size. */
+    ret = stat(path, &sb);
+    if (ret == ENOENT) {
+        free(path);
+        if ((ret = local_bucket_path(file_system, name, &path)) != 0)
+            goto err;
+        ret = stat(name, &sb);
     }
     if (ret == 0)
         *sizep = sb.st_size;
@@ -1249,14 +1180,10 @@ local_file_size(WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t *size
 static int
 local_file_sync(WT_FILE_HANDLE *file_handle, WT_SESSION *session)
 {
-    LOCAL_FILE_HANDLE *local_fh;
-    WT_FILE_HANDLE *wt_fh;
-
-    local_fh = (LOCAL_FILE_HANDLE *)file_handle;
-    wt_fh = local_fh->fh;
-
-    local_fh->local->fh_ops++;
-    return (wt_fh->fh_sync(wt_fh, session));
+    /* This is a no-op.  We could also disallow it. */
+    (void)file_handle;
+    (void)session;
+    return (0);
 }
 
 /*
@@ -1268,13 +1195,14 @@ local_file_write(
   WT_FILE_HANDLE *file_handle, WT_SESSION *session, wt_off_t offset, size_t len, const void *buf)
 {
     LOCAL_FILE_HANDLE *local_fh;
-    WT_FILE_HANDLE *wt_fh;
+
+    (void)offset;
+    (void)len;
+    (void)buf;
 
     local_fh = (LOCAL_FILE_HANDLE *)file_handle;
-    wt_fh = local_fh->fh;
-
-    local_fh->local->write_ops++;
-    return (wt_fh->fh_write(wt_fh, session, offset, len, buf));
+    return (local_err(local_fh->local, session, EINVAL, "ss_open_object: write not allowed: %s",
+      local_fh->iface.name));
 }
 
 /*
