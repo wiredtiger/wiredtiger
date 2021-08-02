@@ -139,6 +139,11 @@ make up in-memory Btrees and subordinate data structures.
 
 A checkpoint is created by WiredTiger to serve as a point from which it can recover.
 
+@subpage arch-column-row
+
+Row Stores and column store are B-Trees. Row Stores have a variable size key and data while column
+stores have as their key a record id.
+
 @subpage arch-cursor
 
 Cursors are used to get and modify data.
@@ -182,11 +187,6 @@ Metadata is stored as <code>uri, config</code> K/V pairs in a designated table.
 @subpage arch-python
 
 WiredTiger has a Python API that is useful for scripting and experimentation.
-
-@subpage arch-column-row
-
-Row Stores and column store are B-Trees. Row Stores have a variable size key and data while column
-stores have as their key a record id.
 
 @subpage arch-rts
 
