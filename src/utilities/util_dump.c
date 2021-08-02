@@ -30,16 +30,16 @@ static int time_pair_to_timestamp(WT_SESSION_IMPL *, char *, WT_ITEM *);
 static int
 usage(void)
 {
-    static const char *options[] = {"-c checkpoint",
+    static const char *options[] = {"-c  checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
-      "-f output", "dump to the specified file (the default is stdout)", "-j",
+      "-f  output", "dump to the specified file (the default is stdout)", "-j",
       "dump in JSON format", "-p", "dump in human readable format (pretty-print)", "-r",
-      "dump in reverse order", "-t timestamp",
+      "dump in reverse order", "-t  timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
       "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
       "encoded)",
-      "-px",
+      "-p and -x combined",
       "similar to -p with the only exception in the raw byte array format. That data will be dumped"
       " as if -x is specified",
       NULL, NULL};
@@ -60,15 +60,15 @@ __wt_get_dump_type(bool json, bool pretty, bool hex)
     result = NULL;
 
     if (json)
-        result = "json";
+        result = "[json]";
     else if (pretty && hex)
-        result = "pretty_hex";
+        result = "[pretty,hex]";
     else if (hex)
-        result = "hex";
+        result = "[hex]";
     else if (pretty)
-        result = "pretty";
+        result = "[pretty]";
     else
-        result = "print";
+        result = "[print]";
 
     return result;
 }
@@ -136,10 +136,10 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     if (hex)
         ++format_specifiers;
 
-    /* Supported options are -j, -p, -x and -px */
     if (format_specifiers > 1 && !(pretty && hex)) {
         fprintf(stderr,
-          "%s: the only possible options are -j, -p, -x and -px. Other options are incompatible\n",
+          "%s: the only possible options are -j, -p, -x and a combination of -p and -x. Other "
+          "options are incompatible\n",
           progname);
         return (usage());
     }

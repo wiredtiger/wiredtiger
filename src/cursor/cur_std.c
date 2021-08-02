@@ -1123,6 +1123,34 @@ __wt_cursor_dup_position(WT_CURSOR *to_dup, WT_CURSOR *cursor)
 }
 
 /*
+ * __parse_dump_config_string --
+ *     Parses configuration string for dump cursor and returns corresponding flags.
+ */
+static uint32_t
+__parse_dump_config_string(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
+{
+    WT_CONFIG_ITEM sval;
+    uint32_t dump_flag;
+
+    dump_flag = 0;
+
+    /* Only "pretty" and "hex" can be combined together. */
+    if (__wt_config_subgets(session, cval, "pretty", &sval) == 0 && sval.val != 0)
+        dump_flag = WT_CURSTD_DUMP_PRETTY;
+
+    if (__wt_config_subgets(session, cval, "hex", &sval) == 0 && sval.val != 0)
+        dump_flag |= WT_CURSTD_DUMP_HEX;
+
+    if (dump_flag == 0 && __wt_config_subgets(session, cval, "json", &sval) == 0 && sval.val != 0)
+        dump_flag = WT_CURSTD_DUMP_JSON;
+
+    if (dump_flag == 0 && __wt_config_subgets(session, cval, "print", &sval) == 0 && sval.val != 0)
+        dump_flag = WT_CURSTD_DUMP_PRINT;
+
+    return dump_flag;
+}
+
+/*
  * __wt_cursor_init --
  *     Default cursor initialization.
  */
@@ -1183,17 +1211,10 @@ __wt_cursor_init(
     WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
     if (cval.len != 0 && owner == NULL) {
         uint32_t dump_flag;
-        if (WT_STRING_MATCH("json", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_JSON;
-        else if (WT_STRING_MATCH("print", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRINT;
-        else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRETTY;
-        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
-            dump_flag = WT_CURSTD_DUMP_PRETTY | WT_CURSTD_DUMP_HEX;
-        else
-            dump_flag = WT_CURSTD_DUMP_HEX;
+        dump_flag = __parse_dump_config_string(session, &cval);
+        // TODO: do we need to add (dump_flag == 0) check here?
         F_SET(cursor, dump_flag);
+
         /*
          * Dump cursors should not have owners: only the top-level cursor should be wrapped in a
          * dump cursor.
