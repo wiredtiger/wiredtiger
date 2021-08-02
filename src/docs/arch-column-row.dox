@@ -15,8 +15,8 @@ B-Tree position.
 
 There are two types of column-stores in WiredTiger:
 - The fixed length column-store, as its name implies, the value has a fixed length, and furthermore
-the value is restricted to 1 and 8 bits in length. The bit length is specified when the column store
-is created. The fixed length column store has specialized use cases like bitmaps.
+the value is restricted to between 1 and 8 bits in length. The bit length is specified when the
+column store is created. The fixed length column store has specialized use cases like bitmaps.
 - The variable length is a more general case which allows for values to have any length similarly to
 row-stores.
 
@@ -34,14 +34,14 @@ single file which directly impacts the on-disk storage size.
 @section Variable length column-stores
 
 The main advantage of variable length column-stores is on-disk storage size. Their keys are not
-stored but derived from the B-Tree location in the memory. In fact, there is a starting key on each
+stored but derived from the row's position in the B-Tree. In fact, there is a starting key on each
 page which is used to figure out the rest of the keys present on that same page. Column-stores
 values also present an advantage to further save more disk space as they can be written in more
 compact forms through encoding techniques. In WiredTiger, the run-length encoding is used to replace
 any sequence of the same value with a count and value indicator. However, this makes the access to a
-specific record more complicated, it makes impossible to jump to a record in a leaf page. Finally,
-when reading and writing column-stores, only the columns required for any particular query are
-maintained in memory.
+specific record more complicated, it makes it impossible to jump to a record in a leaf page.
+Finally, when reading and writing column-stores, only the columns required for any particular query
+are maintained in memory.
 
 @section Fixed length column-stores
 
