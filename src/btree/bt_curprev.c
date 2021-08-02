@@ -616,7 +616,7 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         __wt_btcur_iterate_setup(cbt);
 
     /*
-     * Walk any page we're holding until the underlying call returns not- found. Then, move to the
+     * Walk any page we're holding until the underlying call returns not-found. Then, move to the
      * previous page, until we reach the start of the file.
      */
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV);
