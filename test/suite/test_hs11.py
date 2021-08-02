@@ -37,8 +37,8 @@ class test_hs11(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('int', dict(key_format='i')),
-        ('string', dict(key_format='S'))
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S'))
     ]
     update_type_values = [
         ('deletion', dict(update_type='deletion')),

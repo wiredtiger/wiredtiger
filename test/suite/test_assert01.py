@@ -49,7 +49,7 @@ class test_assert01(wttest.WiredTigerTestCase, suite_subprocess):
 
     key_format_values = [
         ('column', dict(key_format='r', usestrings=False)),
-        ('string', dict(key_format='S', usestrings=True))
+        ('string-row', dict(key_format='S', usestrings=True))
     ]
     scenarios = make_scenarios(key_format_values)
 

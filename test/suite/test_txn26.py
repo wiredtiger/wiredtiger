@@ -42,7 +42,7 @@ class test_txn26(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        ('string', dict(key_format='S', key=str(0))),
+        ('string-row', dict(key_format='S', key=str(0))),
         ('column', dict(key_format='r', key=16)),
     ]
     scenarios = make_scenarios(key_format_values)

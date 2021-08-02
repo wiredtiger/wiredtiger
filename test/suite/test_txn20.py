@@ -37,7 +37,7 @@ class test_txn20(wttest.WiredTigerTestCase):
 
     uri = 'table:test_txn'
     key_format_values = [
-        ('string', dict(key_format='S', key='key')),
+        ('string-row', dict(key_format='S', key='key')),
         ('column', dict(key_format='r', key=12)),
     ]
     iso_types = [

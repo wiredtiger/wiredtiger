@@ -38,7 +38,7 @@ class test_hs23(wttest.WiredTigerTestCase):
 
     key_format_values = [
         ('column', dict(key_format='r', key=1)),
-        ('string', dict(key_format='S', key=str(0))),
+        ('string-row', dict(key_format='S', key=str(0))),
     ]
 
     scenarios = make_scenarios(key_format_values)

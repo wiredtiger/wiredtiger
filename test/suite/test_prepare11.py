@@ -37,7 +37,7 @@ class test_prepare11(wttest.WiredTigerTestCase):
 
     key_format_values = [
         ('column', dict(key_format='r', key1=17)),
-        ('string', dict(key_format='S', key1='key1')),
+        ('string-row', dict(key_format='S', key1='key1')),
     ]
 
     commit_values = [

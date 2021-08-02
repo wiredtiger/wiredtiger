@@ -48,8 +48,8 @@ class test_txn15(wttest.WiredTigerTestCase, suite_subprocess):
             'transaction_sync=(method=%s),' % self.conn_method
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     conn_sync_enabled = [
         ('en_off', dict(conn_enable='false')),

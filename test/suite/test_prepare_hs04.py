@@ -55,7 +55,7 @@ class test_prepare_hs04(wttest.WiredTigerTestCase):
     key_format_values = [
         # Note: commit_key must exceed nrows to give behavior comparable to the row case.
         ('column', dict(key_format='r', commit_key=1000)),
-        ('string', dict(key_format='S', commit_key='C')),
+        ('string-row', dict(key_format='S', commit_key='C')),
     ]
 
     scenarios = make_scenarios(commit_values, key_format_values)
