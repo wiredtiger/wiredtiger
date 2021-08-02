@@ -135,7 +135,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Open session 2.
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
-        # Apply two modify operations (session 1)- replacing the first two items with 'A'.
+        # Apply two modify operations (session1)- replacing the first two items with 'A'.
         self.large_modifies(self.session, uri, 0, ds, nrows)
         self.large_modifies(self.session, uri, 1, ds, nrows)
         # Check to see the value after recovery.
