@@ -55,6 +55,7 @@ class test_txn25(wttest.WiredTigerTestCase):
         self.session.create(uri, create_config)
 
         # Populate the file and ensure that we start seeing some high transaction IDs in the system.
+        nrows = 1000
         value1 = 'aaaaa' * 100
         value2 = 'bbbbb' * 100
         value3 = 'ccccc' * 100
@@ -64,17 +65,17 @@ class test_txn25(wttest.WiredTigerTestCase):
         session2.begin_transaction()
 
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[self.getkey(i)] = value1
             self.session.commit_transaction()
 
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[self.getkey(i)] = value2
             self.session.commit_transaction()
 
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.session.begin_transaction()
             cursor[self.getkey(i)] = value3
             self.session.commit_transaction()
@@ -94,6 +95,6 @@ class test_txn25(wttest.WiredTigerTestCase):
         # so we have to wipe the cell's transaction IDs in order to see them.
         cursor = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, nrows):
             self.assertEqual(cursor[self.getkey(i)], value3)
         self.session.rollback_transaction()
