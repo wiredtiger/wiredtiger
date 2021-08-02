@@ -105,7 +105,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
 
-        # Initially insert a huge number of data.
+        # Initially insert a lot of data.
         bigvalue = b"aaaaa" * 100
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
