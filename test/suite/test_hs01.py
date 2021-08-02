@@ -35,7 +35,7 @@ from wtscenario import make_scenarios
 # Smoke tests to ensure history store tables are working.
 class test_hs01(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=50MB'
+    conn_config = 'cache_size=200MB'
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
