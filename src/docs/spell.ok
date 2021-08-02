@@ -177,7 +177,9 @@ bokeh
 bool
 boolean
 booleans
+bm
 br
+bt
 btmem
 btree
 btrees
@@ -584,6 +586,7 @@ subdatabases
 subdirectory
 subpage
 substring
+subsubsection
 sudo
 superset
 svg

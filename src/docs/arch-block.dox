@@ -10,11 +10,10 @@ A block is a chunk of data that is stored on the disk and operated on as a
 single unit. Each WiredTiger data file (any file in the home directory with the
 \c .wt suffix) is made up of these blocks. Each block consists of a page header,
 a block header and contains a single page from the btree which it was
-generated. Blocks can only be written once and a new block must be created upon
+generated. Blocks can only be written once and a new block is created upon
 reconciliation of a dirty page. The size of a block is a multiple of the
-allocation size which is set during creation of associated WiredTiger data file.
-
-See: WT_SESSION::create
+allocation size which is set during creation of associated WiredTiger data file
+see: WT_SESSION::create.
 
 Once a block is written the address of the block is returned and is referred to
 the \c addr. The address is made up of 4 components:
@@ -37,32 +36,69 @@ The page header is not described in this document but can be found in
 
 @section block_usage How WiredTiger uses the block manager
 
-When the a new file is created in WT via session_api:create the file is created
-on disk the associated allocation size is written out to the metadata file.
-However the block manager itself isn't created. Only when a btree is opened does
-WiredTiger allocate a block manager. Each btree has it's own block manager.
+@subsection creation File creation and the block manager
 
-Each file on disk contains a minimum of two checkpoints, each of those
-checkpoints correspond with a set of non mutually exclusive blocks. When opening
-an existing file the latest checkpoint is used as the starting point of the
-file, and represents a consistent view of the data.
+When a new file is created in WiredTiger via WT_SESSION::create, the file is
+created on disk and the associated \c allocation_size is written out to the
+metadata file. However the block manager itself isn't created. Only when a btree
+is opened does WiredTiger allocate a block manager. Each btree has it's own
+block manager.
 
-When reading existing data pages are read into the b-tree, WiredTiger will read
-its corresponding block from the data file and create the page image.
+@subsection read Reading files and pages
 
-When writing data a new page image is constructed during reconciliation and it
-is written as a new block in the data file. See arch reconciliation for more
-details on that.
+When an existing btree is opened for the first time, the location of the root
+block is contained in the metadata file \c WiredTiger.wt. The block manager will
+read the block at the location specified and return the page image as a buffer
+to the layer above. This will then be instantiated as a page in memory.
+
+From there subsequent page addresses can be read from the root page and the
+process repeated as required. If a cursor traverses to a page which hasn't been
+read into memory the same process will take place.
+
+@subsection Writing
+
+Two cases exist for writing out data using the block manager, checkpoint and
+eviction. Both are explained in the following two sections. When a page image
+is written out the block manager the \c bm->write API is called. See \c bt_io.c
+for more detail.
+
+@subsubsection Checkpoint
+
+Checkpoints are the process by which a file can be guaranteed to contain a
+consistent snapshot of the data at a given point in time for more detail on that
+see @ref arch-checkpoint.
+
+At the block manager level a checkpoint corresponds with a set of blocks which
+are stored in the file associated with the given URI. Typically each file will
+contain a minimum of two checkpoints. When opening an existing file the latest
+checkpoint is read.
 
 When WiredTiger performs a checkpoint clean pages will not result in additional
 blocks being created and as such existing blocks from older checkpoints will be
-reused. Checkpoints are created in depth first order, leaf blocks are created,
-then the parent blocks. This is required as the parent blocks contain the
-addresses of the leaf blocks.
+reused, this means that while there may be more than one checkpoint in a file
+the block are not guaranteed to be mutually exclusive. Checkpoints are created
+in depth first order, leaf blocks are created, then the parent blocks. This is
+a requirement as the parent blocks contain the addresses of the leaf blocks.
+
+The block manager doesn't guarantee that calling \c bm->write will result in
+the data being flushed to disk. In the checkpoint scenario WiredTiger will also
+call \c bm->sync which will call the file system dependent flush function.
+
+@subsubsection Eviction
+
+Eviction also utilizes the block manager, when a page is evicted and contains
+data that needs to be maintained, logically a block needs to be written.
+Eviction also calls \c bm->write however it doesn't force the file system to
+sync the data.
 
 @section block_implementation Block manager implementation details
 
-@subsection desc_block Descriptor block
+@subsection write_once Write once
+
+The block manager is a write once system, once a block is written it cannot be
+overwritten.
+
+@subsection desc_block Descriptor blocks
 
 As discussed earlier, a file is divided up into blocks. The first block in a
 file is special as it contains metadata about the file and is referred to as the
@@ -103,21 +139,21 @@ configuration options that are more commonly of interest to users.
 All of the configuration options below are passed into the \c WT_SESSION::create
 API at the time of file creation.
 
-@subsection allocation_size Allocation size
+@subsection alloc_size Allocation size
 
-The \c allocation_size configuration controls the file unit allocation size.
+The allocation_size configuration controls the file unit allocation_size.
 Any blocks allocated by the block manager must be a multiple of this value.
 
-For example, if we specify an \c allocation_size of \c 4KB, blocks of size
-\c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation sizes
+For example, if we specify an allocation_size of \c 4KB, blocks of size
+\c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation_sizes
 may yield better compression rates, yet may cause larger page sizes. The
-allocation size is set to \c 4KB by default which is a good choice unless your
+allocation_size is set to \c 4KB by default which is a good choice unless your
 OS or storage device has special requirements.
 
 @subsection checksum Checksum
 
 The \c checksum configuration controls whether blocks have a checksum stored
-alongside them. With block checksums enabled, a block write to disk is
+alongside them. With block checksums enabled, a block written to disk it is
 accompanied by a checksum of the block contents. When that block is read off the
 disk to reconstruct a page, we recompute the checksum and verify that is the
 same to defend against the risk of file corruption.
