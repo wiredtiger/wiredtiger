@@ -1,5 +1,6 @@
 personal_ws-1.1 en 200
 ACM
+ADDR
 APIs
 ASAN
 ActiveState
@@ -183,6 +184,7 @@ bt
 btmem
 btree
 btrees
+btree's
 bufs
 builtin
 builtins
@@ -197,6 +199,7 @@ cdb
 cds
 changelog
 checkpointed
+checkpointing
 checksum
 checksums
 ckp
@@ -379,6 +382,7 @@ keyfmt
 keyid
 keyname
 keyvalue
+kv
 kvs
 lang
 lastname
