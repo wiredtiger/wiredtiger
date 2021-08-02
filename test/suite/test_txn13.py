@@ -45,8 +45,8 @@ class test_txn13(wttest.WiredTigerTestCase, suite_subprocess):
     nops = 8
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
 
     # The 1gb, 2gb and 4gb scenario names refer to the valuesize * nops.

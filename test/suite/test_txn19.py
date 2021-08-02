@@ -114,8 +114,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
                 ('nrecords=11', dict(nrecords=11))]
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
 
     # This function prunes out unnecessary or problematic test cases
@@ -392,8 +392,8 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     # Configure the database type.
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
 
     # In many cases, wiredtiger_open without any salvage options will

@@ -53,8 +53,8 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = base_config
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
 
     # File to be corrupted

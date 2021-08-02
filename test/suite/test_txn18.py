@@ -43,8 +43,8 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
     conn_recon = conn_config + ',log=(recover=on)'
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     scenarios = make_scenarios(key_format_values)
 

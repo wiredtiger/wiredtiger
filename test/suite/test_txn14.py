@@ -47,8 +47,8 @@ class test_txn14(wttest.WiredTigerTestCase, suite_subprocess):
         ('sync', dict(sync='on')),
     ]
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     scenarios = make_scenarios(sync_list, key_format_values)
 

@@ -42,8 +42,8 @@ class test_timestamp07(wttest.WiredTigerTestCase, suite_subprocess):
     tablename3 = 'ts07_ts_logged'
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
 
     types = [
