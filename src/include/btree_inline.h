@@ -2030,12 +2030,9 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
     WT_ADDR_COPY addr;
     uint8_t previous_state;
 
-    *skipp = false; /* Default to reading */
-
     WT_UNUSED(context);
 
-    if (ref == NULL)
-        return (0);
+    *skipp = false; /* Default to reading */
 
     /*
      * Determine if all records on the page have been deleted and all the tombstones are visible to
