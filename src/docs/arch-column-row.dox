@@ -1,6 +1,6 @@
 /*! @arch_page arch-column-row Row Store & Column Store
 
-@section Definition
+@section column_row_definition Definition
 
 A row oriented storage is an access method where all columns of a row are stored
 together, the data is stored by row, while a column oriented system stores its data tables by
@@ -20,18 +20,21 @@ column store is created. The fixed length column store has specialized use cases
 - The variable length is a more general case which allows for values to have any length similarly to
 row-stores.
 
-@section In-memory and on-disk format
+@section column_row_definition_memory_disk_format In-memory and on-disk format
 
 Row-stores and column-stores have a specific in-memory and on-disk data structure. Please refer to
 @ref arch-data-file to learn more.
 
-@section Row-stores
+@section column_row_rs Row-stores
 
 Row-stores are probably seen as the traditional access method and they serve a general purpose. In
-WiredTiger, row-store keys are explicitly stored and they are usually duplicated within the same
-single file which directly impacts the on-disk storage size.
+WiredTiger, row-store keys are explicitly stored and they can be duplicated within the same single 
+file which directly impacts the on-disk storage size. However, keys are only duplicated if they are
+the first key on the page, which gets them copied/promoted to an internal page. They are not
+necessarily duplicated, too, they can be prefix/suffix compressed to discard unnecessary bytes on
+the internal pages.
 
-@section Variable length column-stores
+@section column_row_vlcs Variable length column-stores
 
 The main advantage of variable length column-stores is on-disk storage size. Their keys are not
 stored but derived from the row's position in the B-Tree. In fact, there is a starting key on each
@@ -43,7 +46,7 @@ specific record more complicated, it makes it impossible to jump to a record in 
 Finally, when reading and writing column-stores, only the columns required for any particular query
 are maintained in memory.
 
-@section Fixed length column-stores
+@section column_row_flcs Fixed length column-stores
 
 Fixed length column stores are very different internally and usually serve specific purposes as it
 is a <a href="https://en.wikipedia.org/wiki/Bitmap"><b>Bitmap</b></a>. It makes fixed length
@@ -51,7 +54,7 @@ column-stores efficient to retrieve a value at a given offset, the use of
 <a href="https://en.wikipedia.org/wiki/Bloom_filter"><b>Bloom filter</b></a> is probably one of the
 best examples.
 
-@section Performance
+@section column_row_performance Performance
 
 Generally, row-stores are faster for queries where all of the columns are required by every lookup
 because there is only a single set of internal pages to read into the cache and search.
@@ -65,7 +68,7 @@ column-stores can be mixed-and-matched at the table level: for example, a row-st
 created on a column-store table. It is worth noting that MongoDB does not use the rich schema being
 described. It stores a blob of data in a row-store and manages encoding and decoding itself.
 
-@section Internal usage
+@section column_row_internal_use Internal usage
 
 Internally, row-stores and column-stores use a common \c WT_BTREE structure. The fundamental
 difference is that the \c WT_BTREE->type field is set \c BTREE_ROW for row-stores and \c BTREE_COL
