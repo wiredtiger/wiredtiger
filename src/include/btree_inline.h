@@ -2034,7 +2034,7 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
 
     WT_UNUSED(context);
 
-    if (ref == NULL || ref->page == NULL)
+    if (ref == NULL)
         return (0);
 
     /*
@@ -2044,13 +2044,13 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * reconciliation. We can skip this test if the page has been modified since it was reconciled.
      *
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
-     * make changes to the data structures (i.e., aggregate timestamps) we are reading.
+     * make changes to the data structures (i.e., aggregate timestamps) we are reading. It is okay
+     * if the page is not in memory, or gets evicted before we lock it. In such a case, we can forgo
+     * checking if the page has been modified.
      */
-    if (ref->state != WT_REF_MEM)
-        return (0);
-
     WT_REF_LOCK(session, ref, &previous_state);
-    if (!__wt_page_is_modified(ref->page) && __wt_ref_addr_copy(session, ref, &addr) &&
+    if ((ref->page == NULL || !__wt_page_is_modified(ref->page)) &&
+      __wt_ref_addr_copy(session, ref, &addr) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
         *skipp = true;
