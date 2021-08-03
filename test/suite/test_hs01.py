@@ -40,8 +40,8 @@ class test_hs01(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
-        ('string', dict(key_format='S'))
+        ('row_integer', dict(key_format='i')),
+        ('row_string', dict(key_format='S'))
     ]
     scenarios = make_scenarios(key_format_values)
 
@@ -51,25 +51,25 @@ class test_hs01(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
+    def large_updates(self, session, uri, value, ds, timestamp=False):
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
             if timestamp == True:
                 session.begin_transaction()
-            cursor.set_key(ds.key(nrows + i))
+            cursor.set_key(ds.key(i))
             cursor.set_value(value)
             self.assertEqual(cursor.update(), 0)
             if timestamp == True:
                 session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
 
-    def large_modifies(self, session, uri, offset, ds, nrows, timestamp=False):
+    def large_modifies(self, session, uri, offset, ds, timestamp=False):
         cursor = session.open_cursor(uri)
         for i in range(1, 10000):
             # Unlike inserts and updates, modify operations do not implicitly start/commit a transaction.
             # Hence, we begin/commit transaction manually.
             session.begin_transaction()
-            cursor.set_key(ds.key(nrows + i))
+            cursor.set_key(ds.key(i))
             mods = []
             mod = wiredtiger.Modify('A', offset, 1)
             mods.append(mod)
@@ -81,38 +81,33 @@ class test_hs01(wttest.WiredTigerTestCase):
                 session.commit_transaction()
         cursor.close()
 
-    def durable_check(self, check_value, uri, ds, nrows):
+    def durable_check(self, check_value, uri, ds):
         # Simulating recovery.
         newdir = "BACKUP"
         copy_wiredtiger_home(self, '.', newdir, True)
-
         conn = self.setUpConnectionOpen(newdir)
         session = self.setUpSessionOpen(conn)
         cursor = session.open_cursor(uri, None)
 
-        # Skip the initial rows, which were not updated.
-        for i in range(0, nrows+1):
-            self.assertEqual(cursor.next(), 0)
-
+        cursor.next()
         self.assertTrue(check_value == cursor.get_value(),
-            "for key " + str(i) + ", expected " + str(check_value) +
+            "for key " + str(1) + ", expected " + str(check_value) +
             ", got " + str(cursor.get_value()))
         cursor.close()
         session.close()
         conn.close()
 
     def test_hs(self):
-        # Create a small table with 100 rows.
+        # Create a small table.
         uri = "table:test_hs01"
-        nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
+        ds = SimpleDataSet(self, uri, 0, key_format=self.key_format, value_format='u')
         ds.populate()
 
         # Initially insert a lot of data.
         bigvalue = b"aaaaa" * 100
         cursor = self.session.open_cursor(uri)
         for i in range(1, 10000):
-            cursor.set_key(ds.key(nrows + i))
+            cursor.set_key(ds.key(i))
             cursor.set_value(bigvalue)
             self.assertEqual(cursor.insert(), 0)
         cursor.close()
@@ -125,7 +120,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
         # Large updates with session 1.
-        self.large_updates(self.session, uri, bigvalue2, ds, nrows)
+        self.large_updates(self.session, uri, bigvalue2, ds)
 
         # Checkpoint and then assert that the 9999 insertions were moved to history store from data store.
         self.session.checkpoint()
@@ -133,7 +128,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.assertEqual(hs_writes, 9999)
 
         # Check to see the latest updated value after recovery.
-        self.durable_check(bigvalue2, uri, ds, nrows)
+        self.durable_check(bigvalue2, uri, ds)
         session2.rollback_transaction()
         session2.close()
 
@@ -145,8 +140,8 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
         # Apply two modify operations (session1)- replacing the first two items with 'A'.
-        self.large_modifies(self.session, uri, 0, ds, nrows)
-        self.large_modifies(self.session, uri, 1, ds, nrows)
+        self.large_modifies(self.session, uri, 0, ds)
+        self.large_modifies(self.session, uri, 1, ds)
 
         # Checkpoint and then assert if updates (9999) and first large modifies (9999) were moved to history store.
         self.session.checkpoint()
@@ -158,7 +153,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.assertEqual(hs_writes, 29997)
 
         # Check to see the modified value after recovery.
-        self.durable_check(bigvalue3, uri, ds, nrows)
+        self.durable_check(bigvalue3, uri, ds)
         session2.rollback_transaction()
         session2.close()
 
@@ -171,7 +166,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Check to see if the history store is working with the old timestamp.
         bigvalue4 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
+        self.large_updates(self.session, uri, bigvalue4, ds, timestamp=True)
 
         self.session.checkpoint()
         # Check if the 9999 modifications were moved to history store from data store.
@@ -181,13 +176,13 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.assertEqual(hs_writes, 39996)
 
         # Check to see data can be see only till the stable_timestamp.
-        self.durable_check(bigvalue3, uri, ds, nrows)
+        self.durable_check(bigvalue3, uri, ds)
 
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(i + 1))
         # No need to check history store stats here as nothing will be moved.
         self.session.checkpoint()
         # Check that the latest data can be seen.
-        self.durable_check(bigvalue4, uri, ds, nrows)
+        self.durable_check(bigvalue4, uri, ds)
 
 if __name__ == '__main__':
     wttest.run()
