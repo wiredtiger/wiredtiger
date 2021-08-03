@@ -40,7 +40,8 @@ The stop timestamp of the update immediately before the prepared update is set t
 possible timestamp (\c WT_TS_MAX). The stop timestamp of the latest update in the history store is
 updated once the prepared update is resolved. A tombstone becomes globally visible if the stop
 timestamp is less than the oldest timestamp and the stop transaction id is visible to all concurrent
-transactions in the system.
+transactions in the system. A checkpoint can delete history store pages that only contain globally
+visible tombstones. The garbage collection process is discussed in @ref arch-checkpoint.
 
 @section arch_hs_initialize History store initialization
 WiredTiger checks for an existing history store table at startup and creates a new table if it is
