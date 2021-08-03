@@ -432,6 +432,23 @@ functions:
           # Just let the system take a breath
           sleep 10s
         done
+  "upload many-coll artifact":
+    - command: archive.targz_pack
+      params:
+        target: "diagnostic.data.tgz"
+        source_dir: "mongo-tests/largescale/many-collection/dbpath/diagnostic.data"
+        include:
+          - "./**"
+    - command: s3.put
+      params:
+        aws_secret: ${aws_secret}
+        aws_key: ${aws_key}
+        local_file: diagnostic.data.tgz
+        bucket: build_external
+        permissions: public-read
+        content_type: application/tar
+        display_name: Artifacts
+        remote_file: many-coll/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "upload artifact":
     - command: archive.targz_pack
       params:
@@ -2624,6 +2641,7 @@ tasks:
             source venv/bin/activate
             pip3 install lorem pymongo
             ./run_many_coll.sh ../../mongo/build/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
+      - func: "upload many-coll artifact"
 
   - name: cyclomatic-complexity
     commands:
