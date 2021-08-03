@@ -7,11 +7,11 @@ together, the data is stored by row, while a column oriented system stores its d
 column. WiredTiger supports both and each management system is represented internally by a certain
 type of B-Tree data structure.
 
-Keys and values in row-stores can be anything of arbitrary length, thus, row-stores implement a
-generalized version of a B-Tree. Furthermore, keys are explicitly stored. Column-stores use a 64-bit
-unsigned integer record id as keys, thus, column-stores implement a specialized version of a B-Tree
-where the key has a predictable length. In the case of column-stores, keys are implied given the
-B-Tree position.
+Keys and values in row-stores can be of variable length, thus, row-stores implement a generalized
+version of a B-Tree. Furthermore, keys are explicitly stored. Column-stores use a 64-bit unsigned
+integer record id as keys, thus, column-stores implement a specialized version of a B-Tree where the
+key has a predictable length. In the case of column-stores, keys are implied given the row's
+position in the B-Tree.
 
 There are two types of column-stores in WiredTiger:
 - The fixed length column-store, as its name implies, the value has a fixed length, and furthermore
@@ -20,10 +20,8 @@ column store is created. The fixed length column store has specialized use cases
 - The variable length is a more general case which allows for values to have any length similarly to
 row-stores.
 
-@section column_row_definition_memory_disk_format In-memory and on-disk format
-
-Row-stores and column-stores have a specific in-memory and on-disk data structure. Please refer to
-@ref arch-data-file to learn more.
+Please refer to @ref arch-data-file to learn more about the on-disk format for Row-stores and
+column-stores.
 
 @section column_row_rs Row-stores
 
@@ -43,8 +41,6 @@ values also present an advantage to further save more disk space as they can be 
 compact forms through encoding techniques. In WiredTiger, the run-length encoding is used to replace
 any sequence of the same value with a count and value indicator. However, this makes the access to a
 specific record more complicated, it makes it impossible to jump to a record in a leaf page.
-Finally, when reading and writing column-stores, only the columns required for any particular query
-are maintained in memory.
 
 @section column_row_flcs Fixed length column-stores
 
@@ -56,17 +52,24 @@ best examples.
 
 @section column_row_performance Performance
 
-Generally, row-stores are faster for queries where all of the columns are required by every lookup
-because there is only a single set of internal pages to read into the cache and search.
-Column-stores are faster when most queries require only a subset of the columns because columns can
-be separated into multiple files and only the columns being returned need to be present in the
-cache. In fact, it is possible to split a table into multiple files using a combination of
+Often, an application writer has the choice to use a row-store or a column-store for their data. A
+typical way column-stores are used are with column groups, see @ref schema_column_groups. In this
+context, if some queries need to return the complete row, generally a row-store would be faster
+because there is only one B-Tree that would need to be searched whereas in the case of a
+column-stores with column-groups, all the B-Trees that are associated with the requested data will
+need to be searched.
+
+Column-stores are generally faster for queries which require only a subset of the columns because
+columns can be separated into multiple files and only the columns being returned need to be present
+in the cache. In fact, it is possible to split a table into multiple files using a combination of
 row-stores and column-stores, so this benefit can be gained regardless of the access method choice,
-see @ref schema_column_groups for more information. In both cases, for better efficiency, one should
-define column groups according to queries that will be mostly performed. Finally, row-stores and
-column-stores can be mixed-and-matched at the table level: for example, a row-store index can be
-created on a column-store table. It is worth noting that MongoDB does not use the rich schema being
-described. It stores a blob of data in a row-store and manages encoding and decoding itself.
+see @ref schema_column_groups for more information.
+
+In both cases, for better efficiency, one should define column groups according to queries that will
+be mostly performed. Finally, row-stores and column-stores can be mixed-and-matched at the table
+level: for example, a row-store index can be created on a column-store table. It is worth noting
+that MongoDB does not use the rich schema being described: it stores a blob of data in a row-store
+and manages encoding and decoding itself.
 
 @section column_row_internal_use Internal usage
 
