@@ -52,10 +52,10 @@ system was to crash during an overwrite the block state would be unknown.
 
 @subsection desc_block Descriptor blocks
 
-As discussed earlier, a file is divided up into blocks. The first block in a
-file is special as it contains metadata about the file and is referred to as the
-"descriptor block". It contains the WiredTiger major and minor version, a
-checksum of the block contents as well as a "magic" number to check against.
+A file is divided up into blocks. The first block in a file is special as it
+contains metadata about the file and is referred to as the "descriptor block".
+It contains the WiredTiger major and minor version, a checksum of the block
+contents as well as a "magic" number to check against.
 
 The descriptor block serves as a safety check to ensure that the file being
 loaded into the block manager is actually a WiredTiger data file, that it
