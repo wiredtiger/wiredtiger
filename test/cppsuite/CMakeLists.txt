@@ -29,12 +29,35 @@
 project(cppsuite CXX)
 
 create_test_executable(run
-    SOURCES tests/run.cxx
+    SOURCES test_harness/core/component.cxx 
+            test_harness/core/configuration.cxx 
+            test_harness/core/throttle.cxx 
+            test_harness/util/logger.cxx
+            test_harness/util/scoped_types.cxx 
+            test_harness/workload/database_model.cxx 
+            test_harness/workload/database_operation.cxx 
+            test_harness/workload/random_generator.cxx 
+            test_harness/workload/thread_context.cxx 
+            test_harness/workload/workload_tracking.cxx 
+            test_harness/workload/workload_validation.cxx 
+            test_harness/checkpoint_manager.cxx 
+            test_harness/connection_manager.cxx 
+            test_harness/runtime_monitor.cxx 
+            test_harness/test.cxx 
+            test_harness/thread_manager.cxx 
+            test_harness/timestamp_manager.cxx 
+            test_harness/workload_generator.cxx 
+            tests/run.cxx
     FLAGS -std=c++11
     INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}
     ADDITIONAL_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/configs
     CXX
 )
+
+if (HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
+    # We use Snappy compression to avoid excessive disk spage usage.
+    target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
+endif()
 
 add_test(NAME cppsuite COMMAND ${CMAKE_CURRENT_BINARY_DIR}/run)
 

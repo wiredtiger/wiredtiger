@@ -138,9 +138,6 @@ struct __wt_session_impl {
     WT_TXN_ISOLATION isolation;
     WT_TXN *txn; /* Transaction state */
 
-#define WT_SESSION_BG_SYNC_MSEC 1200000
-    WT_LSN bg_sync_lsn; /* Background sync operation LSN. */
-
     void *block_manager; /* Block-manager support */
     int (*block_manager_cleanup)(WT_SESSION_IMPL *);
 
@@ -164,6 +161,9 @@ struct __wt_session_impl {
     void *reconcile; /* Reconciliation support */
     int (*reconcile_cleanup)(WT_SESSION_IMPL *);
 
+    /* Salvage support. */
+    void *salvage_track;
+
     /* Sessions have an associated statistics bucket based on its ID. */
     u_int stat_bucket; /* Statistics bucket offset */
 
@@ -171,7 +171,7 @@ struct __wt_session_impl {
     uint8_t dump_raw; /* Configure debugging page dump */
 #endif
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SESSION_LOCKED_CHECKPOINT 0x0001u
 #define WT_SESSION_LOCKED_HANDLE_LIST_READ 0x0002u
 #define WT_SESSION_LOCKED_HANDLE_LIST_WRITE 0x0004u
@@ -185,10 +185,10 @@ struct __wt_session_impl {
 #define WT_SESSION_LOCKED_TABLE_WRITE 0x0400u
 #define WT_SESSION_LOCKED_TURTLE 0x0800u
 #define WT_SESSION_NO_SCHEMA_LOCK 0x1000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /*AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t lock_flags;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_SESSION_BACKUP_CURSOR 0x00001u
 #define WT_SESSION_BACKUP_DUP 0x00002u
 #define WT_SESSION_CACHE_CURSORS 0x00004u
@@ -208,7 +208,7 @@ struct __wt_session_impl {
 #define WT_SESSION_RESOLVING_TXN 0x10000u
 #define WT_SESSION_ROLLBACK_TO_STABLE 0x20000u
 #define WT_SESSION_SCHEMA_TXN 0x40000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
 /*

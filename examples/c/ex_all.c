@@ -700,10 +700,6 @@ session_ops(WT_SESSION *session)
         error_check(session->truncate(session, "table:mytable", NULL, NULL, NULL));
         /*! [Truncate a table] */
 
-        /*! [Transaction sync] */
-        error_check(session->transaction_sync(session, NULL));
-        /*! [Transaction sync] */
-
         /*! [Reset the session] */
         error_check(session->reset(session));
         /*! [Reset the session] */
@@ -1193,6 +1189,18 @@ main(int argc, char *argv[])
       "create,extensions=[/usr/local/lib/libwiredtiger_zstd.so=[config=[compression_level=9]]]",
       &conn));
     /*! [Configure zstd extension with compression level] */
+    error_check(conn->close(conn, NULL));
+
+    /* this is outside the example snippet on purpose; don't encourage compiling in keys */
+    const char *secretkey = "abcdef";
+    /*! [Configure sodium extension] */
+    char conf[1024];
+    snprintf(conf, sizeof(conf),
+      "create,extensions=[/usr/local/lib/libwiredtiger_sodium.so],"
+      "encryption=(name=sodium,secretkey=%s)",
+      secretkey);
+    error_check(wiredtiger_open(home, NULL, conf, &conn));
+    /*! [Configure sodium extension] */
     error_check(conn->close(conn, NULL));
 
     /*

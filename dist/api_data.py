@@ -297,14 +297,14 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         WT_CONNECTION::add_compressor.  If WiredTiger has builtin support for
         \c "lz4", \c "snappy", \c "zlib" or \c "zstd" compression, these names
         are also available.  See @ref compression for more information'''),
-    Config('checksum', 'uncompressed', r'''
-        configure block checksums; permitted values are <code>on</code>
-        (checksum all blocks), <code>off</code> (checksum no blocks) and
-        <code>uncompresssed</code> (checksum only blocks which are not
-        compressed for any reason).  The \c uncompressed setting is for
-        applications which can rely on decompression to fail if a block
-        has been corrupted''',
-        choices=['on', 'off', 'uncompressed']),
+    Config('checksum', 'on', r'''
+        configure block checksums; the permitted values are \c on, \c off, \c uncompressed and
+        \c unencrypted. The default is \c on, in which case all block writes include a checksum
+        subsequently verified when the block is read. The \c off setting does no checksums,
+        the \c uncompressed setting only checksums blocks that are not compressed, and the
+        \c unencrypted setting only checksums blocks that are not encrypted.  See @ref
+        tune_checksum for more information.''',
+        choices=['on', 'off', 'uncompressed', 'unencrypted']),
     Config('dictionary', '0', r'''
         the maximum number of unique values remembered in the Btree
         row-store leaf page value dictionary; see
@@ -455,7 +455,7 @@ lsm_meta = file_config + lsm_config + [
         obsolete chunks in the LSM tree'''),
 ]
 
-tiered_meta = file_config + tiered_config + [
+tiered_meta = file_meta + tiered_config + [
     Config('last', '0', r'''
         the last allocated object ID'''),
     Config('tiers', '', r'''
@@ -1385,12 +1385,10 @@ methods = {
 'WT_SESSION.log_flush' : Method([
     Config('sync', 'on', r'''
         forcibly flush the log and wait for it to achieve the synchronization
-        level specified.  The \c background setting initiates a background
-        synchronization intended to be used with a later call to
-        WT_SESSION::transaction_sync.  The \c off setting forces any
+        level specified.  The \c off setting forces any
         buffered log records to be written to the file system.  The
         \c on setting forces log records to be written to the storage device''',
-        choices=['background', 'off', 'on']),
+        choices=['off', 'on']),
 ]),
 
 'WT_SESSION.log_printf' : Method([]),
@@ -1561,17 +1559,26 @@ methods = {
     Config('force', 'false', r'''
         force sharing of all data''',
         type='boolean'),
+    Config('lock_wait', 'true', r'''
+        wait for locks, if \c lock_wait=false, fail if any required locks are
+        not available immediately''',
+        type='boolean'),
+    Config('sync', 'on', r'''
+        wait for all objects to be flushed to the shared storage to the level
+        specified. The \c off setting does not wait for any
+        objects to be written to the tiered storage system but returns immediately after
+        generating the objects and work units for an internal thread.  The
+        \c on setting causes the caller to wait until all work queued for this call to
+        be completely processed before returning''',
+        choices=['off', 'on']),
+    Config('timeout', '0', r'''
+        maximum amount of time to allow for waiting for previous flushing
+        of objects, in seconds. The actual amount of time spent waiting may
+        exceed the configured value. A value of zero disables the timeout''',
+        type='int'),
 ]),
 
 'WT_SESSION.strerror' : Method([]),
-'WT_SESSION.transaction_sync' : Method([
-    Config('timeout_ms', '1200000', # !!! Must match WT_SESSION_BG_SYNC_MSEC
-        r'''
-        maximum amount of time to wait for background sync to complete in
-        milliseconds.  A value of zero disables the timeout and returns
-        immediately''',
-        type='int'),
-]),
 
 'WT_SESSION.truncate' : Method([]),
 'WT_SESSION.upgrade' : Method([]),
@@ -1689,13 +1696,10 @@ methods = {
         min=1),
     Config('sync', '', r'''
         override whether to sync log records when the transaction commits,
-        inherited from ::wiredtiger_open \c transaction_sync.
-        The \c background setting initiates a background
-        synchronization intended to be used with a later call to
-        WT_SESSION::transaction_sync.  The \c off setting does not
+        inherited from ::wiredtiger_open \c transaction_sync.  The \c off setting does not
         wait for record to be written or synchronized.  The
         \c on setting forces log records to be written to the storage device''',
-        choices=['background', 'off', 'on']),
+        choices=['off', 'on']),
 ]),
 
 'WT_SESSION.prepare_transaction' : Method([

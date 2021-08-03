@@ -25,6 +25,11 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# salvage:prepare
+# verify:prepare
+# [END_TAGS]
 
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
@@ -32,9 +37,6 @@ from wtdataset import SimpleDataSet
 import os, shutil
 from wtscenario import make_scenarios
 from wiredtiger import stat
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_prepare_hs03.py
 # test to ensure salvage, verify & simulating crash are working for prepared transactions.
@@ -60,10 +62,21 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             tablepointer.write('Bad!' * 1024)
 
     def corrupt_salvage_verify(self):
+        # An exclusive handle operation can fail if there is dirty data in the cache, closing the
+        # open handles before acquiring an exclusive handle will return EBUSY. A checkpoint should
+        # clear the dirty data, but eviction can re-dirty the cache between the checkpoint and the
+        # open attempt, we have to loop.
+        self.session.checkpoint()
         if self.corrupt == True:
             self.corrupt_table()
-        self.session.salvage(self.uri, "force")
-        self.session.verify(self.uri, None)
+        while True:
+            if not self.raisesBusy(lambda: self.session.salvage(self.uri, "force")):
+                break
+            self.session.checkpoint()
+        while True:
+            if not self.raisesBusy(lambda: self.session.verify(self.uri, None)):
+                break
+            self.session.checkpoint()
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -72,8 +85,6 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         return val
 
     def prepare_updates(self, ds, nrows, nsessions, nkeys):
-        # Insert some records with commit timestamp, corrupt file and call salvage, verify before checkpoint.
-
         # Commit some updates to get eviction and history store fired up
         commit_value = b"bbbbb" * 100
         cursor = self.session.open_cursor(self.uri)
@@ -82,14 +93,15 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             cursor.set_key(ds.key(nrows + i))
             cursor.set_value(commit_value)
             self.assertEquals(cursor.insert(), 0)
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(1))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(1))
         cursor.close()
 
-        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
-        self.corrupt_salvage_verify()
+        # Set the stable/oldest timstamps.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
 
-        # Call checkpoint
-        self.session.checkpoint()
+        # Corrupt the table, call salvage to recover data from the corrupted table and call verify
+        self.corrupt_salvage_verify()
 
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
 
@@ -109,7 +121,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
                 cursors[j].set_key(ds.key(nrows + i))
                 cursors[j].set_value(prepare_value)
                 self.assertEquals(cursors[j].insert(), 0)
-            sessions[j].prepare_transaction('prepare_timestamp=' + timestamp_str(4))
+            sessions[j].prepare_transaction('prepare_timestamp=' + self.timestamp_str(4))
 
         hs_writes = self.get_stat(stat.conn.cache_write_hs) - hs_writes_start
 
@@ -118,7 +130,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
 
         # Test if we can read prepared updates from the history store.
         cursor = self.session.open_cursor(self.uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(3))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(3))
         for i in range(1, nsessions * nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass.
@@ -129,25 +141,19 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
             self.assertNotEquals(cursor.get_value(), prepare_value)
         cursor.close()
 
-        # Close all cursors and sessions, this will cause prepared updates to be
-        # rollback-ed
+        # Close all sessions (and cursors), this will cause prepared updates to be rolled back.
         for j in range (0, nsessions):
-            cursors[j].close()
             sessions[j].close()
 
-        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
-        self.corrupt_salvage_verify()
-
         self.session.commit_transaction()
-        self.session.checkpoint()
 
-        # Corrupt the table, Call salvage to recover data from the corrupted table and call verify
+        # Corrupt the table, call salvage to recover data from the corrupted table and call verify
         self.corrupt_salvage_verify()
 
         # Finally, search for the keys inserted with commit timestamp
         cursor = self.session.open_cursor(self.uri)
         self.pr('Read Keys')
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(4))
         for i in range(1, nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass
@@ -168,7 +174,7 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
 
         # Search the keys inserted with commit timestamp after crash
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(4))
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(4))
         for i in range(1, nkeys):
             cursor.set_key(ds.key(nrows + i))
             # The search should pass
@@ -180,8 +186,8 @@ class test_prepare_hs03(wttest.WiredTigerTestCase):
         cursor.close()
         self.session.commit_transaction()
 
-        # After simulating a crash, corrupt the table, call salvage to recover data from the corrupted table
-        # and call verify
+        # After simulating a crash, corrupt the table, call salvage to recover data from the
+        # corrupted table and call verify
         self.corrupt_salvage_verify()
 
     def test_prepare_hs(self):

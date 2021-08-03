@@ -56,7 +56,9 @@ endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
     add_library(wiredtiger_zlib ${link_type} ${sources})
-    target_link_libraries(wiredtiger_zlib "z")
+    # HAVE_LIBZ contains the full pathname to the lib, which is
+    # what the cmake docs recommend using
+    target_link_libraries(wiredtiger_zlib ${HAVE_LIBZ})
     target_include_directories(
         wiredtiger_zlib
         PRIVATE
@@ -73,4 +75,6 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
+
+    set_property(TARGET wiredtiger_zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

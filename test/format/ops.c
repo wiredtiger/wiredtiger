@@ -149,6 +149,7 @@ tinfo_init(void)
         tinfo->session = NULL;
         tinfo->cursor = NULL;
 
+        memset(tinfo->insert_list, 0, sizeof(tinfo->insert_list));
         tinfo->insert_list_cnt = 0;
 
         tinfo->state = TINFO_RUNNING;
@@ -270,10 +271,6 @@ operations(u_int ops_seconds, bool lastrun)
     tinfo_init();
     trace_msg("%s", "=============== thread ops start");
 
-    /* Initialize locks to single-thread backups, failures, and timestamp updates. */
-    lock_init(session, &g.backup_lock);
-    lock_init(session, &g.ts_lock);
-
     for (i = 0; i < g.c_threads; ++i) {
         tinfo = tinfo_list[i];
         testutil_check(__wt_thread_create(NULL, &tinfo->tid, ops, tinfo));
@@ -382,22 +379,20 @@ operations(u_int ops_seconds, bool lastrun)
         testutil_check(__wt_thread_join(NULL, &timestamp_tid));
     g.workers_finished = false;
 
-    lock_destroy(session, &g.backup_lock);
-    lock_destroy(session, &g.ts_lock);
-
     trace_msg("%s", "=============== thread ops stop");
 
     /*
      * The system should be quiescent at this point, call rollback to stable. Generally, we expect
      * applications to do rollback-to-stable as part of the database open, but calling it outside of
      * the open path is expected in the case of applications that are "restarting" but skipping the
-     * close/re-open pair.
+     * close/re-open pair. Note we are not advancing the oldest timestamp, otherwise we wouldn't be
+     * able to replay operations from after rollback-to-stable completes.
      */
     tinfo_rollback_to_stable(session);
 
     if (lastrun) {
         tinfo_teardown();
-        timestamp_teardown();
+        timestamp_teardown(session);
     }
 
     testutil_check(session->close(session, NULL));
@@ -505,6 +500,9 @@ commit_transaction(TINFO *tinfo, bool prepared)
 
     ts = 0; /* -Wconditional-uninitialized */
     if (g.c_txn_timestamps) {
+        if (prepared)
+            lock_readlock(session, &g.prepare_commit_lock);
+
         /* Lock out the oldest timestamp update. */
         lock_writelock(session, &g.ts_lock);
 
@@ -518,8 +516,11 @@ commit_transaction(TINFO *tinfo, bool prepared)
         }
 
         lock_writeunlock(session, &g.ts_lock);
-    }
-    testutil_check(session->commit_transaction(session, NULL));
+        testutil_check(session->commit_transaction(session, NULL));
+        if (prepared)
+            lock_readunlock(session, &g.prepare_commit_lock);
+    } else
+        testutil_check(session->commit_transaction(session, NULL));
 
     /* Remember our oldest commit timestamp. */
     tinfo->commit_ts = ts;
@@ -685,7 +686,7 @@ ops(void *arg)
     WT_SESSION *session;
     iso_level_t iso_level;
     thread_op op;
-    uint64_t reset_op, session_op, truncate_op;
+    uint64_t max_rows, reset_op, session_op, truncate_op;
     uint32_t range, rnd;
     u_int i, j;
     const char *iso_config;
@@ -814,8 +815,12 @@ ops(void *arg)
                 op = UPDATE;
         }
 
-        /* Select a row. */
-        tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
+        /*
+         * Select a row. Column-store extends the object, explicitly read the maximum row count and
+         * then use a local variable so the value won't change inside the loop.
+         */
+        max_rows = (volatile uint64_t)g.rows;
+        tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
         /*
          * Inserts, removes and updates can be done following a cursor set-key, or based on a cursor
@@ -938,7 +943,7 @@ ops(void *arg)
             }
 
             if (!positioned)
-                tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)g.rows);
+                tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
             /*
              * Truncate up to 5% of the table. If the range overlaps the beginning/end of the table,
@@ -950,7 +955,7 @@ ops(void *arg)
              * (truncating from lower keys to higher keys or vice-versa).
              */
             greater_than = mmrand(&tinfo->rnd, 0, 1) == 1;
-            range = g.rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)g.rows / 20);
+            range = max_rows < 20 ? 0 : mmrand(&tinfo->rnd, 0, (u_int)max_rows / 20);
             tinfo->last = tinfo->keyno;
             if (greater_than) {
                 if (g.c_reverse) {
@@ -960,13 +965,13 @@ ops(void *arg)
                         tinfo->last -= range;
                 } else {
                     tinfo->last += range;
-                    if (tinfo->last > g.rows)
+                    if (tinfo->last > max_rows)
                         tinfo->last = 0;
                 }
             } else {
                 if (g.c_reverse) {
                     tinfo->keyno += range;
-                    if (tinfo->keyno > g.rows)
+                    if (tinfo->keyno > max_rows)
                         tinfo->keyno = 0;
                 } else {
                     if (tinfo->keyno <= range)
@@ -1700,7 +1705,7 @@ col_insert_resolve(TINFO *tinfo)
      */
     do {
         WT_ORDERED_READ(v, g.rows);
-        for (i = 0, p = tinfo->insert_list; i < WT_ELEMENTS(tinfo->insert_list); ++i) {
+        for (i = 0, p = tinfo->insert_list; i < WT_ELEMENTS(tinfo->insert_list); ++i, ++p) {
             if (*p == v + 1) {
                 testutil_assert(__wt_atomic_casv64(&g.rows, v, v + 1));
                 *p = 0;
@@ -1746,6 +1751,7 @@ col_insert(TINFO *tinfo, WT_CURSOR *cursor)
     else
         cursor->set_value(cursor, tinfo->value);
 
+    /* Create a record, then add the key to our list of new records for later resolution. */
     if ((ret = cursor->insert(cursor)) != 0)
         return (ret);
 

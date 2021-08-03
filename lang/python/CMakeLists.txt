@@ -10,7 +10,7 @@ project(python_swig C)
 
 # UseSWIG: Policy option to use the standard target name over a generated name.
 if(POLICY CMP0078)
-    cmake_policy(SET CMP0078 NEW)
+    cmake_policy(SET CMP0078 OLD)
 endif()
 
 # UseSWIG: Policy option to honor SWIG_MODULE_NAME.
@@ -18,7 +18,7 @@ if(POLICY CMP0086)
     cmake_policy(SET CMP0086 NEW)
 endif()
 
-find_package(SWIG REQUIRED)
+find_package(SWIG 3.0 COMPONENTS python REQUIRED)
 include(${SWIG_USE_FILE})
 
 set(python_libs)
@@ -148,18 +148,10 @@ add_custom_command(TARGET ${swig_wt_target}
         ${CMAKE_CURRENT_BINARY_DIR}/wiredtiger/swig_wiredtiger.py
 )
 
-# `swig_add_library` will end up prepending an extra '_' to our target name, resulting in
-# an output the  file '__wiredtiger.[so|pyd]'. We are unable to manually specify the output file
-# name.
-set(swig_lib_suffix)
-if(WT_WIN)
-    set(swig_lib_suffix ".pyd")
-else()
-    set(swig_lib_suffix ".so")
+set_target_properties(${swig_wt_target} PROPERTIES OUTPUT_NAME "_wiredtiger")
+
+# Manually changing the suffix on macOS/Darwin builds since DYLD_LIBRARY_PATH
+# doesn't work well for dynamic modules loaded by python.
+if(WT_DARWIN)
+    set_target_properties(${swig_wt_target} PROPERTIES SUFFIX ".so")
 endif()
-add_custom_command(TARGET ${swig_wt_target}
-    POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E rename
-        $<TARGET_FILE:${swig_wt_target}>
-        $<TARGET_FILE_DIR:${swig_wt_target}>/_wiredtiger${swig_lib_suffix}
-)

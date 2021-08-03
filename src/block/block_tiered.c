@@ -13,31 +13,39 @@
  *     Switch a new writeable object.
  */
 static int
-__block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint64_t object_id)
+__block_switch_writeable(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id)
 {
-    WT_DECL_RET;
-
-    WT_ERR(__wt_close(session, &block->fh));
+    WT_FH *new_fh, *old_fh;
 
     /*
      * FIXME-WT-7470: write lock while opening a new write handle.
+     *
+     * The block manager must always have valid file handle since other threads may have concurrent
+     * requests in flight.
      */
-    WT_ERR(block->opener->open(
-      block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
+    old_fh = block->fh;
+    WT_RET(block->opener->open(
+      block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &new_fh));
+    block->fh = new_fh;
+    block->objectid = object_id;
 
-err:
-    return (ret);
+    return (__wt_close(session, &old_fh));
 }
 
 /*
- * __wt_block_tiered_fh --
- *     Open an object from the shared tier.
+ * __wt_block_fh --
+ *     Get a block file handle.
  */
 int
-__wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, WT_FH **fhp)
+__wt_block_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, WT_FH **fhp)
 {
-    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+
+    /* It's the local object if there's no object ID or the object ID matches our own. */
+    if (object_id == 0 || object_id == block->objectid) {
+        *fhp = block->fh;
+        return (0);
+    }
 
     /*
      * FIXME-WT-7470: take a read lock to get a handle, and a write lock to open a handle or extend
@@ -56,15 +64,24 @@ __wt_block_tiered_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_
     if ((*fhp = block->ofh[object_id]) != NULL)
         return (0);
 
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]));
-    *fhp = block->ofh[object_id];
-    WT_ASSERT(session, *fhp != NULL);
+    /*
+     * Fail gracefully if we don't have an opener, or if the opener fails: a release that can't read
+     * tiered storage blocks might have been pointed at a file that it can read, but that references
+     * files it doesn't know about, or there may have been some other mismatch. Regardless, we want
+     * to log a specific error message, we're missing a file.
+     */
+    ret = block->opener->open == NULL ?
+      WT_NOTFOUND :
+      block->opener->open(block->opener, session, object_id, WT_FS_OPEN_FILE_TYPE_DATA,
+        WT_FS_OPEN_READONLY | block->file_flags, &block->ofh[object_id]);
+    if (ret == 0) {
+        *fhp = block->ofh[object_id];
+        return (0);
+    }
 
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
+    WT_RET_MSG(session, ret,
+      "object %s with ID %" PRIu32 " referenced unknown object with ID %" PRIu32, block->name,
+      block->objectid, object_id);
 }
 
 /*
@@ -73,7 +90,7 @@ err:
  */
 int
 __wt_block_switch_object(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, uint64_t object_id, uint32_t flags)
+  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t object_id, uint32_t flags)
 {
     WT_UNUSED(flags);
 
@@ -86,23 +103,4 @@ __wt_block_switch_object(
      *  - allow opens on this object again
      */
     return (__block_switch_writeable(session, block, object_id));
-}
-
-/*
- * __wt_block_tiered_load --
- *     Set up object file processing when loading a new root page.
- */
-int
-__wt_block_tiered_load(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_BLOCK_CKPT *ci)
-{
-    WT_UNUSED(session);
-
-    if (block->has_objects)
-        block->objectid = ci->root_objectid;
-
-    /*
-     * FIXME-WT-7589: There is probably more work here, perhaps in switching the current file, and
-     * setting the live checkpoint to the argument checkpoint.
-     */
-    return (0);
 }

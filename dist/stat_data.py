@@ -153,7 +153,7 @@ groups['system'] = [
 ##########################################
 # CONNECTION statistics
 ##########################################
-connection_stats = [
+conn_stats = [
     ##########################################
     # System statistics
     ##########################################
@@ -209,9 +209,11 @@ connection_stats = [
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
+    CacheStat('cache_eviction_fail_checkpoint_out_of_order_ts', 'pages selected for eviction unable to be evicted because of race between checkpoint and out of order timestamps handling'),
     CacheStat('cache_eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
     CacheStat('cache_eviction_fail_parent_has_overflow_items', 'pages selected for eviction unable to be evicted as the parent page has overflow items'),
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
+    CacheStat('cache_eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     CacheStat('cache_eviction_force_clean_time', 'forced eviction - pages evicted that were clean time (usecs)'),
     CacheStat('cache_eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
@@ -501,8 +503,8 @@ connection_stats = [
     ##########################################
     # Tiered storage statistics
     ##########################################
+    StorageStat('flush_state_races', 'flush state races'),
     StorageStat('flush_tier', 'flush_tier operation calls'),
-    StorageStat('flush_tier_busy', 'flush_tier busy retries'),
 
     ##########################################
     # Thread Count statistics
@@ -571,7 +573,6 @@ connection_stats = [
     TxnStat('txn_set_ts_oldest_upd', 'set timestamp oldest updates'),
     TxnStat('txn_set_ts_stable', 'set timestamp stable calls'),
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
-    TxnStat('txn_sync', 'transaction sync calls'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),
 
@@ -583,7 +584,6 @@ connection_stats = [
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
-    YieldStat('log_server_sync_blocked', 'log server sync yielded for log write'),
     YieldStat('page_busy_blocked', 'page acquire busy blocked'),
     YieldStat('page_del_rollback_blocked', 'page delete rollback time sleeping for state change (usecs)'),
     YieldStat('page_forcible_evict_blocked', 'page acquire eviction blocked'),
@@ -595,7 +595,7 @@ connection_stats = [
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
 
-connection_stats = sorted(connection_stats, key=attrgetter('desc'))
+conn_stats = sorted(conn_stats, key=attrgetter('desc'))
 
 ##########################################
 # Data source statistics
@@ -811,11 +811,13 @@ conn_dsrc_stats = [
     CursorStat('cursor_next_hs_tombstone', 'cursor next calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_next_skip_ge_100', 'cursor next calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_next_skip_lt_100', 'cursor next calls that skip less than 100 entries'),
+    CursorStat('cursor_next_skip_page_count', 'Total number of pages skipped without reading by cursor next calls'),
     CursorStat('cursor_next_skip_total', 'Total number of entries skipped by cursor next calls'),
     CursorStat('cursor_open_count', 'open cursor count', 'no_clear,no_scale'),
     CursorStat('cursor_prev_hs_tombstone', 'cursor prev calls that skip due to a globally visible history store tombstone'),
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
+    CursorStat('cursor_prev_skip_page_count', 'Total number of pages skipped without reading by cursor prev calls'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
     CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),

@@ -96,10 +96,12 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
 )
 
-if(ENABLE_STATIC)
+if(ENABLE_STATIC AND NOT ENABLE_PYTHON)
     # Avoid compiling with fPIC for static builds, this can often lead to
     # GCC disabling many optimizations e.g. inlining, possibly introducing
-    # an overhead.
+    # an overhead. We additionally can't turn off fPIC if we are compiling
+    # with python support as the python API library depends on shared library
+    # support.
     set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
 else()
     set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -116,6 +118,10 @@ endif()
 
 if(HAVE_LIBDL)
     target_link_libraries(wiredtiger "dl")
+endif()
+
+if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
+    target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_LZ4)

@@ -416,8 +416,10 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         btree->checksum = CKSUM_ON;
     else if (WT_STRING_MATCH("off", cval.str, cval.len))
         btree->checksum = CKSUM_OFF;
-    else
+    else if (WT_STRING_MATCH("uncompressed", cval.str, cval.len))
         btree->checksum = CKSUM_UNCOMPRESSED;
+    else
+        btree->checksum = CKSUM_UNENCRYPTED;
 
     /* Huffman encoding */
     WT_RET(__wt_btree_huffman_open(session));
@@ -1018,7 +1020,7 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
  *     Switch to a writeable object for a tiered btree.
  */
 int
-__wt_btree_switch_object(WT_SESSION_IMPL *session, uint64_t object_id, uint32_t flags)
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
 {
     WT_BM *bm;
     WT_DECL_RET;
