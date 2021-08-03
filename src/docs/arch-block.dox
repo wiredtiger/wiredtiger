@@ -34,6 +34,82 @@ The block header contains the following fields:
 The page header is not described in this document but can be found in
 \c btmem.h.
 
+@section block_implementation Block manager implementation details
+
+@subsection write_once Writing
+
+The block manager decides where in the file a block will be written. It has two
+forms of writing modes, first fit and best fit. The default behavior is best
+fit. While operating in best fit mode a block will be placed in first block that
+it finds that fits the block. This is done to avoid extending the file when
+possible. When operating in first fit mode the block manager will place the
+newly created block in the first available slot. When writing the root node
+of a b-tree first fit mode is used.
+
+Additionally the block manager is a no-overwrite system. As such once a block is
+written it cannot be modified. This is for crash recovery reasons as if the
+system was to crash during an overwrite the block state would be unknown.
+
+@subsection desc_block Descriptor blocks
+
+As discussed earlier, a file is divided up into blocks. The first block in a
+file is special as it contains metadata about the file and is referred to as the
+"descriptor block". It contains the WiredTiger major and minor version, a
+checksum of the block contents as well as a "magic" number to check against.
+
+The descriptor block serves as a safety check to ensure that the file being
+loaded into the block manager is actually a WiredTiger data file, that it
+belongs to a compatible version of WiredTiger and that the entire file has not
+been corrupted. WiredTiger also offers block-level checksums to defend against
+file corruption at a more granular level, which can be found in the
+\ref checksum section.
+
+@subsection block_lists Extent lists
+
+Internally, WiredTiger uses a data structure called an extent list or a
+\c WT_EXTLIST to track file usage. An extent list consists of a series of
+extents (or \c WT_EXT elements). Each extent tracks a file offset and size to
+track a portion of the file.
+
+There are three extent lists that are maintained per checkpoint:
+
+- \c alloc: The extents allocated for a given checkpoint.
+- \c avail: The extents that are unused and available for allocation.
+- \c discard: The extents freed in the current checkpoint. After the checkpoint
+completes, these extents are shifted to the \c avail extent list.
+
+The alloc and discard extent lists are maintained as a skiplist sorted by file
+offset. The avail extent list also maintains an extra skiplist sorted by the
+extent size to aid with allocating new blocks.
+
+@section configuration Configuration options
+
+There are a number of configuration options that affect the block manager's
+behavior. This does not aim to be an exhaustive list, however, these are the
+configuration options that are more commonly of interest to users.
+
+All of the configuration options below are passed into the \c WT_SESSION::create
+API at the time of file creation.
+
+@subsection alloc_size Allocation size
+
+The allocation_size configuration controls the file unit allocation_size.
+Any blocks allocated by the block manager must be a multiple of this value.
+
+For example, if we specify an allocation_size of \c 4KB, blocks of size
+\c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation_sizes
+may yield better compression rates, yet may cause larger page sizes. The
+allocation_size is set to \c 4KB by default which is a good choice unless your
+OS or storage device has special requirements.
+
+@subsection checksum Checksum
+
+The \c checksum configuration controls whether blocks have a checksum stored
+alongside them. With block checksums enabled, a block written to disk it is
+accompanied by a checksum of the block contents. When that block is read off the
+disk to reconstruct a page, we recompute the checksum and verify that is the
+same to defend against the risk of file corruption.
+
 @section block_usage How WiredTiger uses the block manager
 
 @subsection creation File creation and the block manager
@@ -112,81 +188,5 @@ available blocks at the end of the file.
 To manage this WiredTiger provides a compaction API call WT_SESSION::compact,
 this instructs the block manager to operate in first fit mode for all writes.
 Thus the data will eventually move to the front of the file across checkpoints.
-
-@section block_implementation Block manager implementation details
-
-@subsection write_once Writing
-
-The block manager decides where in the file a block will be written. It has two
-forms of writing modes, first fit and best fit. The default behavior is best
-fit. While operating in best fit mode a block will be placed in first block that
-it finds that fits the block. This is done to avoid extending the file when
-possible. When operating in first fit mode the block manager will place the
-newly created block in the first available slot. When writing the root node
-of a b-tree first fit mode is used.
-
-Additionally the block manager is a no-overwrite system. As such once a block is
-written it cannot be modified. This is for crash recovery reasons as if the
-system was to crash during an overwrite the block state would be unknown.
-
-@subsection desc_block Descriptor blocks
-
-As discussed earlier, a file is divided up into blocks. The first block in a
-file is special as it contains metadata about the file and is referred to as the
-"descriptor block". It contains the WiredTiger major and minor version, a
-checksum of the block contents as well as a "magic" number to check against.
-
-The descriptor block serves as a safety check to ensure that the file being
-loaded into the block manager is actually a WiredTiger data file, that it
-belongs to a compatible version of WiredTiger and that the entire file has not
-been corrupted. WiredTiger also offers block-level checksums to defend against
-file corruption at a more granular level, which can be found in the
-\ref checksum section.
-
-@subsection block_lists Extent lists
-
-Internally, WiredTiger uses a data structure called an extent list or a
-\c WT_EXTLIST to track file usage. An extent list consists of a series of
-extents (or \c WT_EXT elements). Each extent tracks a file offset and size to
-track a portion of the file.
-
-There are three extent lists that are maintained per checkpoint:
-
-- \c alloc: The extents allocated for a given checkpoint.
-- \c avail: The extents that are unused and available for allocation.
-- \c discard: The extents freed in the current checkpoint. After the checkpoint
-completes, these extents are shifted to the \c avail extent list.
-
-The alloc and discard extent lists are maintained as a skiplist sorted by file
-offset. The avail extent list also maintains an extra skiplist sorted by the
-extent size to aid with allocating new blocks.
-
-@section configuration Configuration options
-
-There are a number of configuration options that affect the block manager's
-behavior. This does not aim to be an exhaustive list, however, these are the
-configuration options that are more commonly of interest to users.
-
-All of the configuration options below are passed into the \c WT_SESSION::create
-API at the time of file creation.
-
-@subsection alloc_size Allocation size
-
-The allocation_size configuration controls the file unit allocation_size.
-Any blocks allocated by the block manager must be a multiple of this value.
-
-For example, if we specify an allocation_size of \c 4KB, blocks of size
-\c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation_sizes
-may yield better compression rates, yet may cause larger page sizes. The
-allocation_size is set to \c 4KB by default which is a good choice unless your
-OS or storage device has special requirements.
-
-@subsection checksum Checksum
-
-The \c checksum configuration controls whether blocks have a checksum stored
-alongside them. With block checksums enabled, a block written to disk it is
-accompanied by a checksum of the block contents. When that block is read off the
-disk to reconstruct a page, we recompute the checksum and verify that is the
-same to defend against the risk of file corruption.
 
 */
