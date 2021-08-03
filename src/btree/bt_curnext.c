@@ -251,6 +251,8 @@ restart_read:
          * previous return data to avoid repeatedly decoding items.
          */
         if (cbt->cip_saved == cip && F_ISSET(cbt, WT_CBT_CACHEABLE_RLE_CELL)) {
+            F_CLR(&cbt->iface, WT_CURSTD_VALUE_EXT);
+            F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
             cbt->iface.value.data = cbt->tmp->data;
             cbt->iface.value.size = cbt->tmp->size;
             return (0);
