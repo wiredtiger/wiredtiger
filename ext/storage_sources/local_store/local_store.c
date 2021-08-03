@@ -1024,7 +1024,8 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
      * maps what a real cloud implementation would do. This will allow us to instrument this code to
      * try out and measure caching implementations.
      */
-    if ((ret = local_cache_path(file_system, name, &path)) != 0) goto err;
+    if ((ret = local_cache_path(file_system, name, &path)) != 0)
+        goto err;
 
     ret = stat(path, &sb);
     if (ret == ENOENT) {
