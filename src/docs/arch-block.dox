@@ -40,11 +40,11 @@ The page header is not described in this document but can be found in
 
 The block manager decides where in the file a block will be written. It has two
 forms of writing modes, first fit and best fit. The default behavior is best
-fit. While operating in best fit mode a block will be placed in first block that
-it finds that fits the block. This is done to avoid extending the file when
-possible. When operating in first fit mode the block manager will place the
-newly created block in the first available slot. When writing the root node
-of a b-tree first fit mode is used.
+fit. While operating in best fit mode a block will be placed in first extent
+in the avail list that it finds that fits the block. This is done to avoid
+extending the file when possible. When operating in first fit mode the block
+manager will place the newly created block in the first available slot. When
+writing the root node of a b-tree first fit mode is used.
 
 Additionally the block manager is a no-overwrite system. As such once a block is
 written it cannot be modified. This is for crash recovery reasons as if the
