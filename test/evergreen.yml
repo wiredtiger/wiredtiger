@@ -448,7 +448,7 @@ functions:
         permissions: public-read
         content_type: application/tar
         display_name: Artifacts
-        remote_file: ${upload_dest_dir|wiredtiger}/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
+        remote_file: wiredtiger/${build_variant}/${revision}/artifacts/${task_name}_${build_id}${postfix|}.tgz
   "cleanup":
     command: shell.exec
     params:
@@ -2831,7 +2831,6 @@ buildvariants:
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     upload_source_dir: mongo-tests/largescale/many-collection/dbpath/diagnostic.data
-    upload_dest_dir: many-coll
     upload_filename: diagnostic.data.tgz
   tasks:
     - name: many-dhandle-stress-test
