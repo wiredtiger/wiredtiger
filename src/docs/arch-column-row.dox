@@ -26,7 +26,7 @@ column-stores.
 @section column_row_rs Row-stores
 
 Row-stores are probably seen as the traditional access method and they serve a general purpose. In
-WiredTiger, row-store keys are explicitly stored and they can be duplicated within the same single 
+WiredTiger, row-store keys are explicitly stored and they can be duplicated within the same single
 file which directly impacts the on-disk storage size. However, keys are only duplicated if they are
 the first key on the page, which gets them copied/promoted to an internal page. They are not
 necessarily duplicated, too, they can be prefix/suffix compressed to discard unnecessary bytes on
