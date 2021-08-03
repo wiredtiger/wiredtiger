@@ -85,6 +85,153 @@ committed update is chosen as the on-disk value. All older updates are added to 
 table assuming they are not yet obsolete. Additionally any out of order timestamps will
 be corrected.
 
+Consider the following update chain for a user table with b-tree id 100 and data store key "aaa":
+
+@plantuml_start{hs_update_chain.png}
+@startuml{hs_update_chain.png}
+
+together {
+rectangle "     U1 \n @ts 70" as U1
+rectangle "     U2 \n @ts 80" as U2
+rectangle "     U3 \n @ts 90" as U3
+rectangle "     U4 \n @ts 100" as U4
+
+U2-right->U1
+U3-right->U2
+U4-right->U3
+
+}
+@enduml
+@plantuml_end
+
+Assuming all updates are committed, updates \c U1, \c U2 and \c U3 will be added to the history
+store table as shown in the table below.
+
+<table style="height: 195px; width: 811px; border-color: Black;" border="4">
+  <tbody>
+    <tr style="height: 32px;">
+      <td style="width: 353.391px; height: 32px; text-align: center;" colspan="4">
+        <strong>KEY</strong>
+      </td>
+      <td style="width: 456.609px; height: 32px; text-align: center;" colspan="4">
+        <strong>VALUE</strong>
+      </td>
+    </tr>
+    <tr style="height: 32px;">
+      <td style="width: 72.5156px; height: 32px; text-align: center;">
+        <strong>Btree ID</strong>
+      </td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">
+        <strong>User Key</strong>
+      </td>
+      <td style="width: 97.0312px; height: 32px; text-align: center;">
+        <strong>Start ts</strong>
+      </td>
+      <td style="width: 93.9688px; height: 32px; text-align: center;">
+        <strong>Counter</strong>
+      </td>
+      <td style="width: 92.4375px; height: 32px; text-align: center;">
+        <strong>Stop ts</strong>
+      </td>
+      <td style="width: 105.719px; height: 32px; text-align: center;">
+        <strong>Durable ts</strong>
+      </td>
+      <td style="width: 110.312px; height: 32px; text-align: center;">
+        <strong>Type</strong>
+      </td>
+      <td style="width: 148.141px; height: 32px; text-align: center;">
+        <strong>Value</strong>
+      </td>
+    </tr>
+    <tr style="height: 32.5625px;">
+      <td style="width: 72.5156px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 89.875px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 97.0312px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 93.9688px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 92.4375px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 105.719px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 110.312px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 148.141px; height: 32.5625px; text-align: center;">
+        <strong>...</strong>
+      </td>
+    </tr>
+    <tr style="height: 32px;">
+      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">&nbsp;"aaa"</td>
+      <td style="width: 97.0312px; height: 32px; text-align: center;">70</td>
+      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+      <td style="width: 92.4375px; height: 32px; text-align: center;">80</td>
+      <td style="width: 105.719px; height: 32px; text-align: center;">70</td>
+      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U1</td>
+    </tr>
+    <tr style="height: 32px;">
+      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">"aaa"</td>
+      <td style="width: 97.0312px; height: 32px; text-align: center;">80</td>
+      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+      <td style="width: 92.4375px; height: 32px; text-align: center;">90</td>
+      <td style="width: 105.719px; height: 32px; text-align: center;">80</td>
+      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U2</td>
+    </tr>
+    <tr style="height: 32px;">
+      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">"aaa"</td>
+      <td style="width: 97.0312px; height: 32px; text-align: center;">90</td>
+      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+      <td style="width: 92.4375px; height: 32px; text-align: center;">100</td>
+      <td style="width: 105.719px; height: 32px; text-align: center;">90</td>
+      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U3&nbsp;</td>
+    </tr>
+    <tr style="height: 32px;">
+      <td style="width: 72.5156px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 97.0312px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 93.9688px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 92.4375px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 105.719px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 110.312px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+      <td style="width: 148.141px; height: 32px; text-align: center;">
+        <strong>...</strong>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+For the history store table entry corresponding to the update \c U1, the start timestamp in the key
+is the start timestamp for the update \c U1 and the stop timestamp in the value is the start
+timestamp for the update \c U2.
+
 When a modified history store table page is processed by reconciliation, certain records on the page
 are removed when creating a new page image if the tombstones on those records have become globally
 visible. This ensures that WiredTiger is only keeping the relevant historical data required to
