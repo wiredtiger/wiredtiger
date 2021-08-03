@@ -504,19 +504,20 @@ local_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, 
     local = WT_FS2LOCAL(file_system);
     path = NULL;
 
-    /* If the file exists directly in the file system, it's not yet flushed, and we're done. */
-    ret = stat(name, &sb);
-    if (ret == 0) {
-        *existp = true;
-        return (0);
-    } else if (errno != ENOENT)
-        ret = local_err(local, session, errno, "%s: ss_exist stat", path);
-
     local->op_count++;
+
+    /* Check if the file is in the cache directory. */
     if ((ret = local_cache_path(file_system, name, &path)) != 0)
         goto err;
 
     ret = stat(path, &sb);
+    if (ret == ENOENT) {
+        /* Otherwise, use the file in the bucket. */
+        free(path);
+        if ((ret = local_bucket_path(file_system, name, &path)) != 0)
+            goto err;
+        ret = stat(name, &sb);
+    }
     if (ret == 0)
         *existp = true;
     else if (errno == ENOENT) {
@@ -981,7 +982,7 @@ local_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *from,
     (void)flags; /* unused */
 
     return (local_err(
-      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: rename of file not allowed", from));
+      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: rename of file not supported", from));
 }
 
 /*
@@ -994,7 +995,7 @@ local_remove(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name,
     (void)flags; /* unused */
 
     return (local_err(
-      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: remove of file not allowed", name));
+      WT_FS2LOCAL(file_system), session, ENOTSUP, "%s: remove of file not supported", name));
 }
 
 /*
@@ -1014,12 +1015,13 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
 
     local->op_count++;
 
-    /* Otherwise, we'll see if it's in the cache directory. */
+    /* Check if the file is in the cache directory. */
     if ((ret = local_cache_path(file_system, name, &path)) != 0)
         goto err;
 
     ret = stat(path, &sb);
     if (ret == ENOENT) {
+        /* Otherwise, use the file in the bucket. */
         free(path);
         if ((ret = local_bucket_path(file_system, name, &path)) != 0)
             goto err;
@@ -1201,7 +1203,7 @@ local_file_write(
     (void)buf;
 
     local_fh = (LOCAL_FILE_HANDLE *)file_handle;
-    return (local_err(local_fh->local, session, EINVAL, "ss_open_object: write not allowed: %s",
+    return (local_err(local_fh->local, session, ENOTSUP, "ss_open_object: write not supported: %s",
       local_fh->iface.name));
 }
 

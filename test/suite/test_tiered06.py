@@ -67,10 +67,12 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # The object doesn't exist yet.
         self.assertFalse(fs.fs_exist(session, 'foobar'))
 
+        # We cannot use the file system to create files, it is readonly.
+        # So use python I/O to build up the file.
         f = open('foobar', 'wb')
 
-        # Just like a regular file system, the object exists now.
-        self.assertTrue(fs.fs_exist(session, 'foobar'))
+        # The object still doesn't exist yet.
+        self.assertFalse(fs.fs_exist(session, 'foobar'))
 
         outbytes = ('MORE THAN ENOUGH DATA\n'*100000).encode()
         f.write(outbytes)
@@ -82,7 +84,10 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # Flushing moves the file into the file system
         local.ss_flush(session, fs, 'foobar', 'foobar', None)
         local.ss_flush_finish(session, fs, 'foobar', 'foobar', None)
+
+        # The object exists now.
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
+        self.assertTrue(fs.fs_exist(session, 'foobar'))
 
         fh = fs.fs_open_file(session, 'foobar', FileSystem.open_file_type_data, FileSystem.open_readonly)
         inbytes = bytes(1000000)         # An empty buffer with a million zero bytes.
@@ -99,13 +104,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
         fh.close(session)
 
         # Files that have been flushed cannot be manipulated.
-        with self.expectedStderrPattern('foobar: rename of file not allowed'):
+        with self.expectedStderrPattern('foobar: rename of file not supported'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: fs.fs_rename(session, 'foobar', 'barfoo', 0))
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
 
         # Files that have been flushed cannot be manipulated through the custom file system.
-        with self.expectedStderrPattern('foobar: remove of file not allowed'):
+        with self.expectedStderrPattern('foobar: remove of file not supported'):
             self.assertRaisesException(wiredtiger.WiredTigerError,
                 lambda: fs.fs_remove(session, 'foobar', 0))
         self.assertEquals(fs.fs_directory_list(session, '', ''), ['foobar'])
