@@ -305,7 +305,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # A flush copies to the cloud, nothing is removed.
         local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
-        self.check_dirlist(fs1, '', [])
+        self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
         self.check_caches([], [])
         self.check_objects(['beagle'], [])
@@ -318,7 +318,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         # It's okay to flush again, nothing changes
         local.ss_flush(session, fs1, 'beagle.wt', 'beagle.wtobj')
         self.check_home(['beagle', 'bird', 'bison', 'bat', 'cat', 'cougar', 'coyote', 'cub'])
-        self.check_dirlist(fs1, '', [])
+        self.check_dirlist(fs1, '', ['beagle'])
         self.check_dirlist(fs2, '', [])
         self.check_caches([], [])
         self.check_objects(['beagle'], [])
@@ -340,13 +340,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local.ss_flush_finish(session, fs1, 'bat.wt', 'bat.wtobj')
 
         self.check_home(['bird', 'bison', 'cougar', 'coyote', 'cub'])
-        self.check_dirlist(fs1, '', ['beagle', 'bat'])
-        self.check_dirlist(fs2, '', ['cat'])
+        self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
+        self.check_dirlist(fs2, '', ['cat', 'cub'])
         self.check_caches(['beagle', 'bat'], ['cat'])
         self.check_objects(['beagle', 'bat', 'bison'], ['cat', 'cub'])
 
         # Test directory listing prefixes
-        self.check_dirlist(fs1, '', ['beagle', 'bat'])
+        self.check_dirlist(fs1, '', ['beagle', 'bat', 'bison'])
         self.check_dirlist(fs1, 'ba', ['bat'])
         self.check_dirlist(fs1, 'be', ['beagle'])
         self.check_dirlist(fs1, 'x', [])

@@ -506,13 +506,17 @@ local_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, 
 
     local->op_count++;
 
-    /* Check if the file is in the cache directory. */
+    /*
+     * We check to see if the file exists in the cache first, and if not the bucket directory. This
+     * maps what a real cloud implementation would do. This will allow us to instrument this code to
+     * try out and measure caching implementations.
+     */
     if ((ret = local_cache_path(file_system, name, &path)) != 0)
         goto err;
 
     ret = stat(path, &sb);
     if (ret == ENOENT) {
-        /* Otherwise, use the file in the bucket. */
+        /* It's not in the cache, try the bucket directory. */
         free(path);
         if ((ret = local_bucket_path(file_system, name, &path)) != 0)
             goto err;
@@ -764,14 +768,14 @@ local_directory_list_internal(WT_FILE_SYSTEM *file_system, WT_SESSION *session,
     *countp = 0;
 
     /*
-     * We list items in the cache directory (these have 'finished' flushing).
+     * The items in the bucket directory represent the definitive list.
      */
-    if ((dirp = opendir(local_fs->cache_dir)) == NULL) {
+    if ((dirp = opendir(local_fs->bucket_dir)) == NULL) {
         ret = errno;
         if (ret == 0)
             ret = EINVAL;
         return (
-          local_err(local, session, ret, "%s: ss_directory_list: opendir", local_fs->cache_dir));
+          local_err(local, session, ret, "%s: ss_directory_list: opendir", local_fs->bucket_dir));
     }
 
     for (count = 0; (dp = readdir(dirp)) != NULL && (limit == 0 || count < limit);) {
@@ -1015,13 +1019,16 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
 
     local->op_count++;
 
-    /* Check if the file is in the cache directory. */
-    if ((ret = local_cache_path(file_system, name, &path)) != 0)
-        goto err;
+    /*
+     * We check to see if the file exists in the cache first, and if not the bucket directory. This
+     * maps what a real cloud implementation would do. This will allow us to instrument this code to
+     * try out and measure caching implementations.
+     */
+    if ((ret = local_cache_path(file_system, name, &path)) != 0) goto err;
 
     ret = stat(path, &sb);
     if (ret == ENOENT) {
-        /* Otherwise, use the file in the bucket. */
+        /* It's not in the cache, try the bucket directory. */
         free(path);
         if ((ret = local_bucket_path(file_system, name, &path)) != 0)
             goto err;
