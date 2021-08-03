@@ -2624,7 +2624,6 @@ tasks:
             source venv/bin/activate
             pip3 install lorem pymongo
             ./run_many_coll.sh ../../mongo/build/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
-      - func: "upload many-coll artifact"
 
   - name: cyclomatic-complexity
     commands:
