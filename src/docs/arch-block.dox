@@ -74,7 +74,7 @@ contain a minimum of two checkpoints. When opening an existing file the latest
 checkpoint is read.
 
 When WiredTiger performs a checkpoint clean pages will not result in additional
-blocks being created and as such existing blocks from older checkpoints will be
+blocks being created and as such existing blocks from older checkpoints may be
 reused, this means that while there may be more than one checkpoint in a file
 the block are not guaranteed to be mutually exclusive. Checkpoints are created
 in depth first order, leaf blocks are created, then the parent blocks. This is
@@ -84,19 +84,50 @@ The block manager doesn't guarantee that calling \c bm->write will result in
 the data being flushed to disk. In the checkpoint scenario WiredTiger will also
 call \c bm->sync which will call the file system dependent flush function.
 
+As a checkpoint progresses it updates its three extent lists, these extent lists
+are written out to disk as part of the checkpoint in blocks. When a checkpoint
+is written the previous checkpoints will be cleaned up if possible, suppose we
+have finished writing out checkpoint C and have checkpoints A and B on disk.
+We only need to retain two checkpoints so we can cleanup checkpoint A.
+Checkpoint A's extent lists get merged into checkpoint B's extent lists. If
+a block, N, is in the alloc list of checkpoint A and the removed discard list
+of checkpoint B the block is considered free. Until a block in an alloc list
+is seen in a discard list the space cannot freed.
+
 @subsubsection Eviction
 
 Eviction also utilizes the block manager, when a page is evicted and contains
 data that needs to be maintained, logically a block needs to be written.
-Eviction also calls \c bm->write however it doesn't force the file system to
-sync the data.
+Eviction also calls \c bm->write however it does not instruct the block manager
+to sync the data.
+
+@subsection Compaction
+
+As WiredTiger maintains two checkpoints by default the file size will often be a
+multiple of the data size modulo the compaction ratio. And given that new blocks
+are written by default where they fit best it's common that removal of data will
+not result in the file shrinking. As the file can only be shrunk when there are
+available blocks at the end of the file.
+
+To manage this WiredTiger provides a compaction API call WT_SESSION::compact,
+this instructs the block manager to operate in first fit mode for all writes.
+Thus the data will eventually move to the front of the file across checkpoints.
 
 @section block_implementation Block manager implementation details
 
-@subsection write_once Write once
+@subsection write_once Writing
 
-The block manager is a write once system, once a block is written it cannot be
-overwritten.
+The block manager decides where in the file a block will be written. It has two
+forms of writing modes, first fit and best fit. The default behavior is best
+fit. While operating in best fit mode a block will be placed in first block that
+it finds that fits the block. This is done to avoid extending the file when
+possible. When operating in first fit mode the block manager will place the
+newly created block in the first available slot. When writing the root node
+of a b-tree first fit mode is used.
+
+Additionally the block manager is a no-overwrite system. As such once a block is
+written it cannot be modified. This is for crash recovery reasons as if the
+system was to crash during an overwrite the block state would be unknown.
 
 @subsection desc_block Descriptor blocks
 
