@@ -2047,7 +2047,8 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * memory before locking.
      */
     WT_REF_LOCK(session, ref, &previous_state);
-    if ((previous_state != WT_REF_MEM || ref->page == NULL || !__wt_page_is_modified(ref->page)) &&
+    if ((previous_state == WT_REF_DISK || previous_state == WT_REF_DELETED ||
+          (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
       __wt_ref_addr_copy(session, ref, &addr) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
       __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
