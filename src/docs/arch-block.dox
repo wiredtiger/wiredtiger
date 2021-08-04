@@ -16,7 +16,8 @@ allocation size which is set during creation of the associated WiredTiger data
 file see: WT_SESSION::create.
 
 Once a block is written an address cookie is returned. This address cookie is
-stored as the \c addr on the associated page ref.
+stored as the \c addr on the associated page ref. The \c WT_REF structure can
+be found in \c btmem.h.
 
 The address cookie is made up of 4 components:
  - offset: The offset in the file. In order to avoid storing large offsets this
@@ -46,7 +47,7 @@ fit. While operating in best fit mode the block manager will search a skip list
 of extents sorted by size, returning either an exact match or the next largest.
 This is done to avoid extending the file when possible. When operating in first
 fit mode the block manager will place the newly created block in the first
-available extent. When writing the root node of a b-tree first fit mode is used.
+available extent. When writing the root node of a btree first fit mode is used.
 
 Additionally the block manager is a no-overwrite system. As such once a block is
 written it cannot be modified.  This is for crash recovery reasons as if the
@@ -122,7 +123,7 @@ same to defend against the risk of file corruption.
 When a new file is created in WiredTiger via WT_SESSION::create, the file is
 created on disk and the associated \c allocation_size is written out to the
 metadata file. However the block manager itself isn't created. Only when a btree
-is opened does WiredTiger allocate a block manager. Each btree has it's own
+is opened does WiredTiger allocate a block manager. Each btree has its own
 block manager.
 
 @subsection read Reading files and pages
@@ -175,10 +176,10 @@ is seen in a discard list the space cannot freed.
 
 @subsubsection Eviction
 
-Eviction also utilizes the block manager, when a page is evicted and contains
+Eviction also utilizes the block manager. When a page is evicted and contains
 data that needs to be maintained, logically a block needs to be written.
-Eviction also calls \c bm->write however it does not instruct the block manager
-to sync the data.
+Eviction calls \c bm->write however it does not instruct the block manager to
+sync the data.
 
 @subsection Compaction
 
