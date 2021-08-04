@@ -66,9 +66,8 @@ contents as well as a "magic" number to check against.
 The descriptor block serves as a safety check to ensure that the file being
 loaded into the block manager is actually a WiredTiger data file, that it
 belongs to a compatible version of WiredTiger and that the entire file has not
-been corrupted. WiredTiger also offers block-level checksums to defend against
-file corruption at a more granular level, which can be found in the
-\ref checksum section.
+been corrupted. WiredTiger also uses checksums to defend against file corruption
+which is descrbied in the \ref checksum section.
 
 @subsection block_lists Extent lists
 
