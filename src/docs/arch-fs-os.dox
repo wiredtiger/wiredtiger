@@ -9,7 +9,7 @@ APIs through checking the macro _WIN32, which is defined when the Operating
 system is windows. Other operating systems are not currently supported when
 compiling WiredTiger.
 
-# Support for Multiple Operating Systems #
+@section multiple_os Support for Multiple Operating Systems
 WiredTiger supports multiple operating systems through compiling specific 
 operating system call implementations. For example to get the local time of 
 the system via __wt_localtime, there is a seperate function implemention for
@@ -21,7 +21,7 @@ operating system which are either defined in posix.h or os_windows.h.
 Note: There is no interface layer that communicates between WiredTiger 
 and the specific operating system.
 
-@section filesystem_usage WiredTiger File System
+@section file_system WiredTiger File System
 WiredTiger initialises a file system abraction layer called WT_FILE_SYSTEM 
 whenever a connection is open. The file system layer's responsibility is 
 to support multiple operating system's directory type calls, maintaining 
@@ -36,7 +36,7 @@ Additionally, a program can use WT_CONNECTION::set_file_system to register
 a set of functions that will be called for each file system type operation.
 ex_file_system.c(link) shows an example of how the file system can be customised.
 
-@section filesystem_usage WiredTiger File Handle Structure
+@section file_handle WiredTiger File Handle Structure
 WiredTiger supports mutiple operating system file calls through maintaining
 a common file handle interface called WT_FILE_HANDLE. The main's responsibility 
 of this layer is to provide specific handling of a file (e.g. read, writes). 
@@ -60,18 +60,17 @@ customised file system WT_FILE_SYSTEM to be already initialised. The WT_FILE_SYS
 function is responsible for maintaing the creation of file handles. ex_file_system.c(link) 
 shows an example of how the file handles can be customised.
 
-@section filesystem_usage WiredTiger File System and Handle in memory
+@section file_system_inmemory WiredTiger File System and Handle in memory
 WiredTiger also supports a special type of file system and handles, which 
 is responsible for when in_memory is configured. The in_memory configuration
 changes WiredTiger to run in cache without writing to a disk. Without writing
 to a disk, each in memory file handle instead holds a buffer to withhold information.
 All in memory file system and file function implementations are present within os_fs_inmemory.c.
 
-@section filesystem_usage WiredTiger File Stream
+@section file_stream WiredTiger File Stream
 WiredTiger has an implementation of file stream muchalike file streams 
 in the C library https://www.gnu.org/software/libc/manual/html_node/Standard-Streams.html. 
-WiredTiger File streams has an internal buffer which holds all the informaton 
-(not sure what to include here)
+WiredTiger File streams has an internal buffer
 
 @section filesystem_usage Multiple System Architecture Support
 WiredTiger also has support for different system architectures inside gcc.h, which currently
