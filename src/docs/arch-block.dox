@@ -9,14 +9,16 @@ disk space and customizability.
 A block is a chunk of data that is stored on the disk and operated on as a
 single unit. Each WiredTiger data file (any file in the home directory with the
 \c .wt suffix) is made up of these blocks. Each block consists of a page header,
-a block header and contains a single page from the btree which it was
+a block header and contains a single page of the btree from which it was
 generated. Blocks can only be written once and a new block is created upon
 reconciliation of a dirty page. The size of a block is a multiple of the
-allocation size which is set during creation of associated WiredTiger data file
-see: WT_SESSION::create.
+allocation size which is set during creation of the associated WiredTiger data
+file see: WT_SESSION::create.
 
-Once a block is written the address of the block is returned and is referred to
-the \c addr. The address is made up of 4 components:
+Once a block is written an address cookie is returned. This address cookie is
+stored as the \c addr on the associated page ref.
+
+The address cookie is made up of 4 components:
  - offset: The offset in the file. In order to avoid storing large offsets this
    value is divided by the allocation size.
  - file_id: While only relevant to the tiered storage type the file_id is
@@ -40,15 +42,18 @@ The page header is not described in this document but can be found in
 
 The block manager decides where in the file a block will be written. It has two
 forms of writing modes, first fit and best fit. The default behavior is best
-fit. While operating in best fit mode a block will be placed in first extent
-in the avail list that it finds that fits the block. This is done to avoid
-extending the file when possible. When operating in first fit mode the block
-manager will place the newly created block in the first available slot. When
-writing the root node of a b-tree first fit mode is used.
+fit. While operating in best fit mode the block manager will search a skip list
+of extents sorted by size, returning either an exact match or the next largest.
+This is done to avoid extending the file when possible. When operating in first
+fit mode the block manager will place the newly created block in the first
+available extent. When writing the root node of a b-tree first fit mode is used.
 
 Additionally the block manager is a no-overwrite system. As such once a block is
-written it cannot be modified. This is for crash recovery reasons as if the
-system was to crash during an overwrite the block state would be unknown.
+written it cannot be modified.  This is for crash recovery reasons as if the
+system was to crash during an overwrite the block state would be unknown. This
+doesn't mean that the associated page cannot be modified, once the associated
+page is modified a subsequent reconciliation will result in a new block being
+created.
 
 @subsection desc_block Descriptor blocks
 
@@ -66,9 +71,9 @@ file corruption at a more granular level, which can be found in the
 
 @subsection block_lists Extent lists
 
-Internally, WiredTiger uses a data structure called an extent list or a
+Internally, the block manager uses a data structure called an extent list or a
 \c WT_EXTLIST to track file usage. An extent list consists of a series of
-extents (or \c WT_EXT elements). Each extent tracks a file offset and size to
+extents (or \c WT_EXT elements). Each extent uses a file offset and size to
 track a portion of the file.
 
 There are three extent lists that are maintained per checkpoint:
@@ -99,7 +104,7 @@ Any blocks allocated by the block manager must be a multiple of this value.
 For example, if we specify an allocation_size of \c 4KB, blocks of size
 \c 8KB and \c 12KB would be permitted but NOT \c 10KB. Higher allocation_sizes
 may yield better compression rates, yet may cause larger page sizes. The
-allocation_size is set to \c 4KB by default which is a good choice unless your
+allocation_size is set to \c 4KB by default which is a good choice unless the
 OS or storage device has special requirements.
 
 @subsection checksum Checksum
@@ -140,9 +145,7 @@ for more detail.
 
 @subsubsection Checkpoint
 
-Checkpoints are the process by which a file can be guaranteed to contain a
-consistent snapshot of the data at a given point in time for more detail on that
-see @ref arch-checkpoint.
+For details on checkpoint at the WiredTiger level see @ref arch-checkpoint.
 
 At the block manager level a checkpoint corresponds with a set of blocks which
 are stored in the file associated with the given URI. Typically each file will
