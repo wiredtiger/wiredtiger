@@ -728,7 +728,7 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended)
+  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended, bool prepare_on_disk)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -769,10 +769,10 @@ __txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     *fix_updp = upd;
 
     /*
-     * When the prepared update is getting committed, use the retrieved history store update to form
-     * a proper stop timestamp in the history store.
+     * When the prepared update is getting committed or the history store update is still on the
+     * update chain, no need to append it onto the update chain.
      */
-    if (commit)
+    if (commit || !prepare_on_disk)
         goto done;
 
     /*
@@ -1056,14 +1056,14 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
     WT_TXN *txn;
-    WT_UPDATE *fix_upd, *tombstone, *upd;
+    WT_UPDATE *first_committed_upd, *fix_upd, *tombstone, *upd;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
 #endif
     size_t not_used;
     uint32_t hs_btree_id;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
-    bool upd_appended;
+    bool first_committed_upd_in_hs, prepare_on_disk, upd_appended;
 
     hs_cursor = NULL;
     txn = session->txn;
@@ -1103,8 +1103,20 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
         goto prepare_verify;
 
     WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
+
+    for (first_committed_upd = upd; first_committed_upd != NULL &&
+         (first_committed_upd->txnid == WT_TXN_ABORTED ||
+           first_committed_upd->prepare_state == WT_PREPARE_INPROGRESS);
+         first_committed_upd = first_committed_upd->next)
+        ;
+
     /*
-     * Retrieve the previous update from the history store and append it to the update chain.
+     * Locate the previous update from the history store and append it to the update chain if
+     * required. We know there may be content in the history store if the prepared update in written
+     * to the disk image or first committed update older than the prepared update is marked as
+     * WT_UPDATE_HS. The second case is rare but can happen if the eviction that writes the prepared
+     * update to the disk image fails after it has inserted the other updates of the key into the
+     * history store.
      *
      * We need to do this before we resolve the prepared updates because if we abort the prepared
      * updates first, the history search logic may race with other sessions modifying the same key
@@ -1114,10 +1126,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * the update is also from the same prepared transaction, restore the update from history store
      * or remove the key.
      */
-    if (F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
+    prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (!commit && upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
-          upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts))) {
+          upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
+    first_committed_upd_in_hs =
+      first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
+    if (prepare_on_disk || first_committed_upd_in_hs) {
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
         hs_btree_id = S2BT(session)->id;
         /* Open a history store table cursor. */
@@ -1130,6 +1145,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
          */
         hs_cursor->set_key(hs_cursor, 4, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
+
+        /* We should only get not found if the prepared update is on disk. */
+        WT_ASSERT(session, ret != WT_NOTFOUND || prepare_on_disk);
         if (ret == WT_NOTFOUND && !commit) {
             /*
              * Allocate a tombstone and prepend it to the row so when we reconcile the update chain
@@ -1149,8 +1167,8 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             WT_ERR(ret);
             tombstone = NULL;
         } else if (ret == 0)
-            WT_ERR(__txn_append_hs_record(
-              session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd, &upd_appended));
+            WT_ERR(__txn_append_hs_record(session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd,
+              &upd_appended, prepare_on_disk));
         else
             ret = 0;
     }
@@ -1217,8 +1235,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * prepared updates are written to the data store. When the page is read back into memory, there
      * will be only one uncommitted prepared update.
      */
-    if (fix_upd != NULL)
+    if (fix_upd != NULL) {
         WT_ERR(__txn_fixup_prepared_update(session, hs_cursor, fix_upd, commit));
+        /* Clear the WT_UPDATE_HS flag as we should have removed it from the history store. */
+        if (first_committed_upd_in_hs && !commit)
+            F_CLR(first_committed_upd, WT_UPDATE_HS);
+    }
 
 prepare_verify:
 #ifdef HAVE_DIAGNOSTIC
