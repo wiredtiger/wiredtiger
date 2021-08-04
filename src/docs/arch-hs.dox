@@ -14,10 +14,11 @@ perform operations on the history store table using a predefined cursor API.
 @section arch_hs_table History store table structure
 WiredTiger writes the history store on the disk as a standard row-store table. The key for
 the history store table is a combination of:
-- \c btree ID of user table this update belongs to
-- \c record key (byte-string for row-store, record number for column-store)
-- \c start timestamp for the update
-- \c counter value
+- btree ID of user table this update belongs to
+- record key (byte-string for row-store, record number for column-store)
+- start timestamp for the update
+- counter value
+
 This key format allows us to search efficiently for a given record key and read
 timestamp combination. The last part of the key is a monotonically increasing counter
 to keep the key unique in scenarios where a key has multiple updates with the same commit timestamp.
@@ -26,10 +27,10 @@ we store both key types in a byte string otherwise we'd need two history store f
 different key formats.
 
 The corresponding value for each key is stored as a combination of:
-- \c stop timestamp
-- \c durable timestamp
-- \c update type
-- \c value.
+- stop timestamp
+- durable timestamp
+- update type
+- value.
 
 @subsection arch_hs_table_tombstone Tombstones in the history store table
 The stop timestamp refers to the point in time after which the update is no longer visible. This can
