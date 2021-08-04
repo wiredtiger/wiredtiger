@@ -67,7 +67,7 @@ The descriptor block serves as a safety check to ensure that the file being
 loaded into the block manager is actually a WiredTiger data file, that it
 belongs to a compatible version of WiredTiger and that the entire file has not
 been corrupted. WiredTiger also uses checksums to defend against file corruption
-which is descrbied in the \ref checksum section.
+which is described in the \ref checksum section.
 
 @subsection block_lists Extent lists
 
@@ -191,13 +191,18 @@ sync the data.
 @subsection Compaction
 
 As WiredTiger maintains two checkpoints by default the file size will often be a
-multiple of the data size modulo the compaction ratio. And given that new blocks
-are written by default where they fit best it's common that removal of data will
-not result in the file shrinking. As the file can only be shrunk when there are
-available blocks at the end of the file.
+multiple of the data size modulo the compaction ratio. As new blocks are written
+where they fit best it's common that removal of data will not result in the
+file shrinking. The file can only be shrunk when there are available blocks at
+the end of the file.
 
-To manage this WiredTiger provides a compaction API call WT_SESSION::compact,
-this instructs the block manager to operate in first fit mode for all writes.
-Thus the data will eventually move to the front of the file across checkpoints.
+To manage this WiredTiger provides a compaction API call WT_SESSION::compact.
+During compaction WiredTiger will instruct the block manager to operate in
+first fit mode. WiredTiger will then walk the btree and for most pages it calls
+into the block manager to determine if compacting that page will be helpful
+for shrinking the file. If a page is useful for compaction WiredTiger will
+mark the page dirty forcing it to be re-written. WiredTiger then calls for a
+two checkpoints as a minimum of two must be taken to delete the checkpoint that
+the block was originally contained in.
 
 */
