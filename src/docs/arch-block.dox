@@ -190,11 +190,10 @@ sync the data.
 
 @subsection Compaction
 
-As WiredTiger maintains two checkpoints by default the file size will often be a
-multiple of the data size modulo the compaction ratio. As new blocks are written
-where they fit best it's common that removal of data will not result in the
-file shrinking. The file can only be shrunk when there are available blocks at
-the end of the file.
+As new blocks are written, the block manager will place them where they fit best.
+Because of this it's common that removal of data will not result in the file
+shrinking. The file can only be shrunk when there are available blocks at the
+end of the file.
 
 To manage this WiredTiger provides a compaction API call WT_SESSION::compact.
 During compaction WiredTiger will instruct the block manager to operate in
