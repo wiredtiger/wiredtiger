@@ -51,9 +51,9 @@ class test_hs01(wttest.WiredTigerTestCase):
         stat_cursor.close()
         return val
 
-    def large_updates(self, session, uri, value, ds, timestamp=False):
+    def large_updates(self, session, uri, value, ds, nrows, timestamp=False):
         cursor = session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, nrows):
             if timestamp == True:
                 session.begin_transaction()
             cursor.set_key(ds.key(i))
@@ -63,9 +63,9 @@ class test_hs01(wttest.WiredTigerTestCase):
                 session.commit_transaction('commit_timestamp=' + self.timestamp_str(i + 1))
         cursor.close()
 
-    def large_modifies(self, session, uri, offset, ds, timestamp=False):
+    def large_modifies(self, session, uri, offset, ds, nrows, timestamp=False):
         cursor = session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, nrows):
             # Unlike inserts and updates, modify operations do not implicitly start/commit a transaction.
             # Hence, we begin/commit transaction manually.
             session.begin_transaction()
@@ -104,9 +104,10 @@ class test_hs01(wttest.WiredTigerTestCase):
         ds.populate()
 
         # Initially insert a lot of data.
+        nrows = 10000
         bigvalue = b"aaaaa" * 100
         cursor = self.session.open_cursor(uri)
-        for i in range(1, 10000):
+        for i in range(1, nrows):
             cursor.set_key(ds.key(i))
             cursor.set_value(bigvalue)
             self.assertEqual(cursor.insert(), 0)
@@ -120,12 +121,12 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
         # Large updates with session 1.
-        self.large_updates(self.session, uri, bigvalue2, ds)
+        self.large_updates(self.session, uri, bigvalue2, ds, nrows)
 
         # Checkpoint and then assert that the 9999 insertions were moved to history store from data store.
         self.session.checkpoint()
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
-        self.assertEqual(hs_writes, 9999)
+        self.assertEqual(hs_writes, nrows-1)
 
         # Check to see the latest updated value after recovery.
         self.durable_check(bigvalue2, uri, ds)
@@ -140,8 +141,8 @@ class test_hs01(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction('isolation=snapshot')
         # Apply two modify operations (session1)- replacing the first two items with 'A'.
-        self.large_modifies(self.session, uri, 0, ds)
-        self.large_modifies(self.session, uri, 1, ds)
+        self.large_modifies(self.session, uri, 0, ds, nrows)
+        self.large_modifies(self.session, uri, 1, ds, nrows)
 
         # Checkpoint and then assert if updates (9999) and first large modifies (9999) were moved to history store.
         self.session.checkpoint()
@@ -150,7 +151,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # The first modifies in cache: 9999
         # The stats was already set at: 9999 (previous hs stats)
         # Total: 29997
-        self.assertEqual(hs_writes, 29997)
+        self.assertEqual(hs_writes, (nrows-1) * 3)
 
         # Check to see the modified value after recovery.
         self.durable_check(bigvalue3, uri, ds)
@@ -166,14 +167,14 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Check to see if the history store is working with the old timestamp.
         bigvalue4 = b"ddddd" * 100
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
-        self.large_updates(self.session, uri, bigvalue4, ds, timestamp=True)
+        self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
 
         self.session.checkpoint()
         # Check if the 9999 modifications were moved to history store from data store.
         # The stats was already set at: 29997 (previous hs stats)
         # Total: 39996
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
-        self.assertEqual(hs_writes, 39996)
+        self.assertEqual(hs_writes, (nrows-1) * 4)
 
         # Check to see data can be see only till the stable_timestamp.
         self.durable_check(bigvalue3, uri, ds)
