@@ -61,9 +61,9 @@ operations. Two helper functions, \c __wt_curhs_search_near_before() and
 \c __wt_curhs_search_near_after(),
 have been provided to facilitate searching for the required record in the history store table.
 
-@section arch_hs_cursor_visibilty History store cursor interface and visibility rules
+@section arch_hs_cursor_visibility History store cursor interface and visibility rules
 When using the history store cursor interface, the user can configure the type of visibility checks
-that are performed on the records. The behaviour is controlled by a set of cursor flags:
+that are performed on the records. The behavior is controlled by a set of cursor flags:
 
 - By default, snapshot based visibility checks are performed on all records returned to the API
 user.
