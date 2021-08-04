@@ -441,10 +441,12 @@ restart_read:
 
 /*
  * __cursor_row_prev --
- *     Move to the previous row-store item.
+ *     Move to the previous row-store item. Taking an optional prefix item for a special case of
+ *     search near.
  */
 static inline int
-__cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_row_prev(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, WT_ITEM *prefix)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
@@ -452,7 +454,6 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool kpack_used;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -478,12 +479,8 @@ __cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
      * Initialize for each new page.
      */
     if (newpage) {
-        /*
-         * If we haven't instantiated keys on this page, do so, else it is a very, very slow
-         * traversal.
-         */
-        if (!F_ISSET_ATOMIC(page, WT_PAGE_BUILD_KEYS))
-            WT_RET(__wt_row_leaf_keys(session, page));
+        /* Check if keys need to be instantiated before we walk the page. */
+        WT_RET(__wt_row_leaf_key_instantiate(session, page));
 
         /*
          * Be paranoid and set the slot out of bounds when moving to a new page.
@@ -552,7 +549,18 @@ restart_read_insert:
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
-        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+        /*
+         * If the cursor has prefix search configured we can early exit here if the key we are
+         * visiting is before our prefix.
+         */
+        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
+          __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
+            /* It is not okay for the user to have a custom collator. */
+            WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
+            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
+            return (WT_NOTFOUND);
+        }
         WT_RET(__wt_txn_read(
           session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -572,11 +580,11 @@ restart_read_page:
 }
 
 /*
- * __wt_btcur_prev --
+ * __wt_btcur_prev_prefix --
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
+__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -599,7 +607,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    WT_ERR(__cursor_func_init(cbt, false));
+    WT_ERR(__wt_cursor_func_init(cbt, false));
 
     /*
      * If we aren't already iterating in the right direction, there's some setup to do.
@@ -608,7 +616,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
         __wt_btcur_iterate_setup(cbt);
 
     /*
-     * Walk any page we're holding until the underlying call returns not- found. Then, move to the
+     * Walk any page we're holding until the underlying call returns not-found. Then, move to the
      * previous page, until we reach the start of the file.
      */
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV);
@@ -625,6 +633,8 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             F_SET(cbt, WT_CBT_ITERATE_APPEND);
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
+            /* The page cannot be NULL if the above flag is set. */
+            WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
                 ret = __cursor_fix_append_prev(cbt, newpage, restart);
@@ -653,8 +663,14 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart, &skipped);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
+                 * us, this way we don't leave the cursor positioned after returning WT_NOTFOUND.
+                 */
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                    return (WT_NOTFOUND);
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
@@ -662,7 +678,6 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
             if (ret != WT_NOTFOUND)
                 break;
         }
-
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
@@ -684,7 +699,19 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
-        WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
+
+        /*
+         * If we are running with snapshot isolation, and not interested in returning tombstones, we
+         * could potentially skip pages. The skip function looks at the aggregated timestamp
+         * information to determine if something is visible on the page. If nothing is, the page is
+         * skipped.
+         */
+        if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
+            WT_ERR(
+              __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
+        else
+            WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
@@ -725,4 +752,14 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     return (ret);
+}
+
+/*
+ * __wt_btcur_prev --
+ *     Move to the previous record in the tree.
+ */
+int
+__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
+{
+    return (__wt_btcur_prev_prefix(cbt, NULL, truncating));
 }

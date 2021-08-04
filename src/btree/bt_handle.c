@@ -57,6 +57,7 @@ __btree_clear(WT_SESSION_IMPL *session)
 int
 __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 {
+    WT_BLOCK_FILE_OPENER *opener;
     WT_BM *bm;
     WT_BTREE *btree;
     WT_CKPT ckpt;
@@ -110,13 +111,18 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     /* Initialize and configure the WT_BTREE structure. */
     WT_ERR(__btree_conf(session, &ckpt));
 
-    /* Connect to the underlying block manager. */
-    filename = dhandle->name;
-    if (!WT_PREFIX_SKIP(filename, "file:"))
-        WT_ERR_MSG(session, EINVAL, "expected a 'file:' URI");
+    /*
+     * Get an opener abstraction that the block manager can use to open any of the files that
+     * represent a btree. In the case of a tiered Btree, that would allow opening different files
+     * according to an object id in a reference. For a non-tiered Btree, the opener will know to
+     * always open a single file (given by the filename).
+     */
+    WT_ERR(__wt_tiered_opener(session, dhandle, &opener, &filename));
 
-    WT_ERR(__wt_block_manager_open(session, filename, dhandle->cfg, forced_salvage,
+    /* Connect to the underlying block manager. */
+    WT_ERR(__wt_block_manager_open(session, filename, opener, dhandle->cfg, forced_salvage,
       F_ISSET(btree, WT_BTREE_READONLY), btree->allocsize, &btree->bm));
+
     bm = btree->bm;
 
     /*
@@ -217,6 +223,9 @@ __wt_btree_close(WT_SESSION_IMPL *session)
       !F_ISSET(S2C(session), WT_CONN_HS_OPEN) || !btree->hs_entries ||
         (!WT_IS_METADATA(btree->dhandle) && !WT_IS_HS(btree->dhandle)));
 
+    /* Clear the saved checkpoint information. */
+    __wt_meta_saved_ckptlist_free(session);
+
     /*
      * If we turned eviction off and never turned it back on, do that now, otherwise the counter
      * will be off.
@@ -295,56 +304,6 @@ __wt_btree_config_encryptor(
 }
 
 /*
- * __btree_config_tiered --
- *     Return a bucket storage handle based on the configuration.
- */
-static int
-__btree_config_tiered(WT_SESSION_IMPL *session, const char **cfg, WT_BUCKET_STORAGE **bstoragep)
-{
-    WT_BUCKET_STORAGE *bstorage;
-    WT_CONFIG_ITEM bucket, cval;
-    WT_DECL_RET;
-    bool local_free;
-
-    /*
-     * We do not use __wt_config_gets_none for name because "none" and the empty string have
-     * different meanings. The empty string means inherit the system tiered storage setting and
-     * "none" means this table is not using tiered storage.
-     */
-    *bstoragep = NULL;
-    local_free = false;
-    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.name", &cval));
-    if (cval.len == 0)
-        *bstoragep = S2C(session)->bstorage;
-    else if (!WT_STRING_MATCH("none", cval.str, cval.len)) {
-        WT_RET(__wt_config_gets_none(session, cfg, "tiered_storage.bucket", &bucket));
-        WT_RET(__wt_tiered_bucket_config(session, &cval, &bucket, bstoragep));
-        local_free = true;
-        WT_ASSERT(session, *bstoragep != NULL);
-    }
-    bstorage = *bstoragep;
-    if (bstorage != NULL) {
-        /*
-         * If we get here then we have a valid bucket storage entry. Now see if the config overrides
-         * any of the other settings.
-         */
-        if (bstorage != S2C(session)->bstorage)
-            WT_ERR(__wt_tiered_common_config(session, cfg, bstorage));
-        WT_STAT_DATA_SET(session, tiered_object_size, bstorage->object_size);
-        WT_STAT_DATA_SET(session, tiered_retention, bstorage->retain_secs);
-    }
-    return (0);
-err:
-    /* If the bucket storage was set up with copies of the strings, free them here. */
-    if (bstorage != NULL && local_free && F_ISSET(bstorage, WT_BUCKET_FREE)) {
-        __wt_free(session, bstorage->auth_token);
-        __wt_free(session, bstorage->bucket);
-        __wt_free(session, bstorage);
-    }
-    return (ret);
-}
-
-/*
  * __btree_conf --
  *     Configure a WT_BTREE structure.
  */
@@ -389,7 +348,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     WT_RET(__wt_struct_confchk(session, &cval));
     WT_RET(__wt_strndup(session, cval.str, cval.len, &btree->value_format));
 
-    /* Row-store key comparison and key gap for prefix compression. */
+    /* Row-store key comparison. */
     if (btree->type == BTREE_ROW) {
         WT_RET(__wt_config_gets_none(session, cfg, "collator", &cval));
         if (cval.len != 0) {
@@ -397,9 +356,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
             WT_RET(__wt_collator_config(session, btree->dhandle->name, &cval, &metadata,
               &btree->collator, &btree->collator_owned));
         }
-
-        WT_RET(__wt_config_gets(session, cfg, "key_gap", &cval));
-        btree->key_gap = (uint32_t)cval.val;
     }
 
     /* Column-store: check for fixed-size data. */
@@ -434,9 +390,8 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_CLR(btree, WT_BTREE_IGNORE_CACHE);
 
     /*
-     * The metadata isn't blocked by in-memory cache limits because metadata
-     * "unroll" is performed by updates that are potentially blocked by the
-     * cache-full checks.
+     * The metadata isn't blocked by in-memory cache limits because metadata "unroll" is performed
+     * by updates that are potentially blocked by the cache-full checks.
      */
     if (WT_IS_METADATA(btree->dhandle))
         F_SET(btree, WT_BTREE_IGNORE_CACHE);
@@ -447,14 +402,22 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
     else
         F_SET(btree, WT_BTREE_NO_LOGGING);
 
+    WT_RET(__wt_config_gets(session, cfg, "tiered_object", &cval));
+    if (cval.val)
+        F_SET(btree, WT_BTREE_NO_CHECKPOINT);
+    else
+        F_CLR(btree, WT_BTREE_NO_CHECKPOINT);
+
     /* Checksums */
     WT_RET(__wt_config_gets(session, cfg, "checksum", &cval));
     if (WT_STRING_MATCH("on", cval.str, cval.len))
         btree->checksum = CKSUM_ON;
     else if (WT_STRING_MATCH("off", cval.str, cval.len))
         btree->checksum = CKSUM_OFF;
-    else
+    else if (WT_STRING_MATCH("uncompressed", cval.str, cval.len))
         btree->checksum = CKSUM_UNCOMPRESSED;
+    else
+        btree->checksum = CKSUM_UNENCRYPTED;
 
     /* Huffman encoding */
     WT_RET(__wt_btree_huffman_open(session));
@@ -528,9 +491,6 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
         F_SET(btree->dhandle, WT_DHANDLE_HS);
         F_SET(btree, WT_BTREE_NO_LOGGING);
     }
-
-    /* Configure tiered storage. */
-    WT_RET(__btree_config_tiered(session, cfg, &btree->bstorage));
 
     /* Configure encryption. */
     WT_RET(__wt_btree_config_encryptor(session, cfg, &btree->kencryptor));
@@ -1051,4 +1011,27 @@ __wt_btree_immediately_durable(WT_SESSION_IMPL *session)
     return ((FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) ||
               (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))) &&
       !F_ISSET(btree, WT_BTREE_NO_LOGGING));
+}
+
+/*
+ * __wt_btree_switch_object --
+ *     Switch to a writeable object for a tiered btree.
+ */
+int
+__wt_btree_switch_object(WT_SESSION_IMPL *session, uint32_t object_id, uint32_t flags)
+{
+    WT_BM *bm;
+    WT_DECL_RET;
+
+    bm = S2BT(session)->bm;
+
+    /*
+     * When initially opening a tiered Btree, a tier switch is done internally without the btree
+     * being fully opened. That's okay, the btree will be told later about the current object
+     * number.
+     */
+    if (bm != NULL)
+        ret = bm->switch_object(bm, session, object_id, flags);
+
+    return (ret);
 }

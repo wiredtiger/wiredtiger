@@ -27,7 +27,7 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 # [TEST_TAGS]
-# checkpoints:correctness:checkpoint_data
+# checkpoint:history_store
 # [END_TAGS]
 #
 # test_checkpoint03.py
@@ -38,9 +38,6 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_checkpoint03'

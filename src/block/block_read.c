@@ -21,7 +21,7 @@ __wt_bm_preload(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
     WT_FH *fh;
     WT_FILE_HANDLE *handle;
     wt_off_t offset;
-    uint32_t checksum, logid, size;
+    uint32_t checksum, objectid, size;
     bool mapped;
 
     block = bm->block;
@@ -29,9 +29,10 @@ __wt_bm_preload(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
     WT_STAT_CONN_INCR(session, block_preload);
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_buffer_to_addr(block, addr, &logid, &offset, &size, &checksum));
+    WT_RET(__wt_block_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    WT_RET(__wt_block_fh(session, block, logid, &fh));
+    WT_RET(__wt_block_fh(session, block, objectid, &fh));
     handle = fh->handle;
     mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
     if (mapped && handle->fh_map_preload != NULL)
@@ -64,19 +65,19 @@ __wt_bm_read(
     WT_FH *fh;
     WT_FILE_HANDLE *handle;
     wt_off_t offset;
-    uint32_t checksum, logid, size;
+    uint32_t checksum, objectid, size;
     bool mapped;
 
-    WT_UNUSED(addr_size);
     block = bm->block;
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_buffer_to_addr(block, addr, &logid, &offset, &size, &checksum));
+    WT_RET(__wt_block_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
     /*
      * Map the block if it's possible.
      */
-    WT_RET(__wt_block_fh(session, block, logid, &fh));
+    WT_RET(__wt_block_fh(session, block, objectid, &fh));
     handle = fh->handle;
     mapped = bm->map != NULL && offset + size <= (wt_off_t)bm->maplen;
     if (mapped && handle->fh_map_preload != NULL) {
@@ -95,12 +96,12 @@ __wt_bm_read(
      * In diagnostic mode, verify the block we're about to read isn't on the available list, or for
      * live systems, the discard list.
      */
-    WT_RET(
-      __wt_block_misplaced(session, block, "read", offset, size, bm->is_live, __func__, __LINE__));
+    WT_RET(__wt_block_misplaced(
+      session, block, "read", offset, size, bm->is_live, __PRETTY_FUNCTION__, __LINE__));
 #endif
     /* Read the block. */
     __wt_capacity_throttle(session, size, WT_THROTTLE_READ);
-    WT_RET(__wt_block_read_off(session, block, buf, logid, offset, size, checksum));
+    WT_RET(__wt_block_read_off(session, block, buf, objectid, offset, size, checksum));
 
     /* Optionally discard blocks from the system's buffer cache. */
     WT_RET(__wt_block_discard(session, block, (size_t)size));
@@ -113,7 +114,7 @@ __wt_bm_read(
  *     Dump a block into the log in 1KB chunks.
  */
 static int
-__wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t logid, wt_off_t offset,
+__wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t objectid, wt_off_t offset,
   uint32_t size, uint32_t checksum) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_DECL_ITEM(tmp);
@@ -122,7 +123,7 @@ __wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t logid, wt_
 
 #define WT_CORRUPT_FMT "{%" PRIu32 ": %" PRIuMAX ", %" PRIu32 ", %#" PRIx32 "}"
     if (buf->size == 0) {
-        __wt_errx(session, WT_CORRUPT_FMT ": empty buffer, no dump available", logid,
+        __wt_errx(session, WT_CORRUPT_FMT ": empty buffer, no dump available", objectid,
           (uintmax_t)offset, size, checksum);
         return (0);
     }
@@ -134,7 +135,7 @@ __wt_bm_corrupt_dump(WT_SESSION_IMPL *session, WT_ITEM *buf, uint32_t logid, wt_
         WT_ERR(__wt_buf_catfmt(session, tmp, "%02x ", ((uint8_t *)buf->data)[i]));
         if (++i == buf->size || i % 1024 == 0) {
             __wt_errx(session,
-              WT_CORRUPT_FMT ": (chunk %" WT_SIZET_FMT " of %" WT_SIZET_FMT "): %.*s", logid,
+              WT_CORRUPT_FMT ": (chunk %" WT_SIZET_FMT " of %" WT_SIZET_FMT "): %.*s", objectid,
               (uintmax_t)offset, size, checksum, ++chunk, nchunks, (int)tmp->size,
               (char *)tmp->data);
             if (i == buf->size)
@@ -158,15 +159,16 @@ __wt_bm_corrupt(WT_BM *bm, WT_SESSION_IMPL *session, const uint8_t *addr, size_t
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     wt_off_t offset;
-    uint32_t checksum, logid, size;
+    uint32_t checksum, objectid, size;
 
     /* Read the block. */
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
     WT_ERR(__wt_bm_read(bm, session, tmp, addr, addr_size));
 
     /* Crack the cookie, dump the block. */
-    WT_ERR(__wt_block_buffer_to_addr(bm->block, addr, &logid, &offset, &size, &checksum));
-    WT_ERR(__wt_bm_corrupt_dump(session, tmp, logid, offset, size, checksum));
+    WT_ERR(__wt_block_addr_unpack(
+      session, bm->block, addr, addr_size, &objectid, &offset, &size, &checksum));
+    WT_ERR(__wt_bm_corrupt_dump(session, tmp, objectid, offset, size, checksum));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -207,56 +209,11 @@ err:
 #endif
 
 /*
- * __wt_block_fh --
- *     Get a block file handle.
- */
-int
-__wt_block_fh(WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t logid, WT_FH **fhp)
-{
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    const char *filename;
-
-    if (!block->log_structured || logid == block->logid) {
-        *fhp = block->fh;
-        return (0);
-    }
-
-    /* TODO: fh readlock */
-    if (logid * sizeof(WT_FILE_HANDLE *) < block->lfh_alloc && (*fhp = block->lfh[logid]) != NULL)
-        return (0);
-
-    /* TODO: fh writelock */
-    /* Ensure the array goes far enough. */
-    WT_RET(__wt_realloc_def(session, &block->lfh_alloc, logid + 1, &block->lfh));
-    if (logid >= block->max_logid)
-        block->max_logid = logid + 1;
-    if ((*fhp = block->lfh[logid]) != NULL)
-        return (0);
-
-    WT_RET(__wt_scr_alloc(session, 0, &tmp));
-    if (logid == 0)
-        filename = block->name;
-    else {
-        WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, logid));
-        filename = tmp->data;
-    }
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_READONLY | block->file_flags, &block->lfh[logid]));
-    *fhp = block->lfh[logid];
-    WT_ASSERT(session, *fhp != NULL);
-
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
  * __wt_block_read_off --
  *     Read an addr/size pair referenced block into a buffer.
  */
 int
-__wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t logid,
+__wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint32_t objectid,
   wt_off_t offset, uint32_t size, uint32_t checksum)
 {
     WT_BLOCK_HEADER *blk, swap;
@@ -293,7 +250,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
           block->name, size, block->allocsize);
 
     WT_RET(__wt_buf_init(session, buf, bufsize));
-    WT_RET(__wt_block_fh(session, block, logid, &fh));
+    WT_RET(__wt_block_fh(session, block, objectid, &fh));
     WT_RET(__wt_read(session, fh, offset, size, buf->mem));
     buf->size = size;
 
@@ -327,7 +284,7 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
           block->name, size, (uintmax_t)offset, swap.checksum, checksum);
 
     if (!F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))
-        WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, logid, offset, size, checksum));
+        WT_IGNORE_RET(__wt_bm_corrupt_dump(session, buf, objectid, offset, size, checksum));
 
     /* Panic if a checksum fails during an ordinary read. */
     F_SET(S2C(session), WT_CONN_DATA_CORRUPTION);

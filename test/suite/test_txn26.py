@@ -25,36 +25,43 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# transactions:timestamps
+# [END_TAGS]
 
 import wiredtiger, wttest
 
 # test_txn26.py
-#   Test that commit should fail if commit timestamp is smaller or equal to the active timestamp. Our handling of out of order timestamp relies on this to ensure repeated reads are working as expected.
-def timestamp_str(t):
-    return '%x' % t
+#   Test that commit should fail if commit timestamp is smaller or equal to the active timestamp.
+#   Our handling of out of order timestamp relies on this to ensure repeated reads are working as
+#   expected.
 class test_txn26(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
     def test_commit_larger_than_active_timestamp(self):
+        if not wiredtiger.diagnostic_build():
+            self.skipTest('requires a diagnostic build')
+
         uri = 'table:test_txn26'
         self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
-            'oldest_timestamp=' + timestamp_str(1) + ',stable_timestamp=' + timestamp_str(1))
+            'oldest_timestamp=' + self.timestamp_str(1) + ',stable_timestamp=' + self.timestamp_str(1))
 
         value = 'a'
 
         # Start a session with timestamp 10
         session2 = self.conn.open_session(self.session_config)
-        session2.begin_transaction('read_timestamp=' + timestamp_str(10))
+        session2.begin_transaction('read_timestamp=' + self.timestamp_str(10))
 
         # Try to commit at timestamp 10
         self.session.begin_transaction()
         cursor[str(0)] = value
         with self.expectedStderrPattern("must be greater than the latest active read timestamp"):
             try:
-                self.session.commit_transaction('commit_timestamp=' + timestamp_str(10))
+                self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
             except wiredtiger.WiredTigerError as e:
                 gotException = True
                 self.pr('got expected exception: ' + str(e))

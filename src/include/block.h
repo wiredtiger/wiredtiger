@@ -51,7 +51,7 @@ struct __wt_extlist {
     uint64_t bytes;   /* Byte count */
     uint32_t entries; /* Entry count */
 
-    uint32_t logid;    /* Written log ID */
+    uint32_t objectid; /* Written object ID */
     wt_off_t offset;   /* Written extent offset */
     uint32_t checksum; /* Written extent checksum */
     uint32_t size;     /* Written extent size */
@@ -141,7 +141,7 @@ struct __wt_size {
 struct __wt_block_ckpt {
     uint8_t version; /* Version */
 
-    uint32_t root_logid;
+    uint32_t root_objectid;
     wt_off_t root_offset; /* The root */
     uint32_t root_checksum, root_size;
 
@@ -196,6 +196,7 @@ struct __wt_bm {
     int (*salvage_valid)(WT_BM *, WT_SESSION_IMPL *, uint8_t *, size_t, bool);
     int (*size)(WT_BM *, WT_SESSION_IMPL *, wt_off_t *);
     int (*stat)(WT_BM *, WT_SESSION_IMPL *, WT_DSRC_STATS *stats);
+    int (*switch_object)(WT_BM *, WT_SESSION_IMPL *, uint32_t, uint32_t);
     int (*sync)(WT_BM *, WT_SESSION_IMPL *, bool);
     int (*verify_addr)(WT_BM *, WT_SESSION_IMPL *, const uint8_t *, size_t);
     int (*verify_end)(WT_BM *, WT_SESSION_IMPL *);
@@ -220,8 +221,9 @@ struct __wt_bm {
  *	Block manager handle, references a single file.
  */
 struct __wt_block {
-    const char *name;   /* Name */
-    uint64_t name_hash; /* Hash of name */
+    const char *name;             /* Name */
+    uint64_t name_hash;           /* Hash of name */
+    WT_BLOCK_FILE_OPENER *opener; /* how to open files/objects */
 
     /* A list of block manager handles, sharing a file descriptor. */
     uint32_t ref;                  /* References */
@@ -238,17 +240,19 @@ struct __wt_block {
     /* Configuration information, set when the file is opened. */
     uint32_t allocfirst; /* Allocation is first-fit */
     uint32_t allocsize;  /* Allocation size */
-    bool log_structured; /* Write checkpoint as separate files */
     size_t os_cache;     /* System buffer cache flush max */
     size_t os_cache_max;
     size_t os_cache_dirty_max;
 
     u_int block_header; /* Header length */
 
-    /* Log-structured tracking. */
-    uint32_t file_flags, logid, max_logid;
-    WT_FH **lfh;
-    size_t lfh_alloc;
+    /* Object file tracking. */
+    bool has_objects;      /* Address cookies contain object id */
+    uint32_t file_flags;   /* Flags for opening objects */
+    uint32_t objectid;     /* Current writeable object id */
+    uint32_t max_objectid; /* Size of object handle array */
+    WT_FH **ofh;           /* Object file handles */
+    size_t ofh_alloc;
 
     /*
      * There is only a single checkpoint in a file that can be written. The information could
@@ -313,6 +317,20 @@ struct __wt_block_desc {
  * of the file for this information, but it would be worth investigation, regardless).
  */
 #define WT_BLOCK_DESC_SIZE 16
+
+/*
+ * WT_BLOCK_FILE_OPENER --
+ *	An open callback for the block manager.  This hides details about how to access the
+ * different objects that make up a tiered file.
+ */
+struct __wt_block_file_opener {
+    /* An id to be used with the open call to reference the current object. */
+#define WT_TIERED_CURRENT_ID UINT32_MAX
+    int (*open)(
+      WT_BLOCK_FILE_OPENER *, WT_SESSION_IMPL *, uint32_t, WT_FS_OPEN_FILE_TYPE, u_int, WT_FH **);
+    uint32_t (*current_object_id)(WT_BLOCK_FILE_OPENER *);
+    void *cookie; /* Used in open call */
+};
 
 /*
  * __wt_block_desc_byteswap --

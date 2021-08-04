@@ -52,7 +52,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
     ci = NULL;
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-        __wt_ckpt_verbose(session, block, "load", NULL, addr);
+        __wt_ckpt_verbose(session, block, "load", NULL, addr, addr_size);
 
     /*
      * There's a single checkpoint in the file that can be written, all of the others are read-only.
@@ -85,7 +85,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         ci->file_size = block->allocsize;
     else {
         /* Crack the checkpoint cookie. */
-        WT_ERR(__wt_block_buffer_to_ckpt(session, block, addr, ci));
+        WT_ERR(__wt_block_ckpt_unpack(session, block, addr, addr_size, ci));
 
         /* Verify sets up next. */
         if (block->verify)
@@ -94,14 +94,9 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
         /* Read any root page. */
         if (ci->root_offset != WT_BLOCK_INVALID_OFFSET) {
             endp = root_addr;
-            WT_ERR(__wt_block_addr_to_buffer(
-              block, &endp, ci->root_logid, ci->root_offset, ci->root_size, ci->root_checksum));
+            WT_ERR(__wt_block_addr_pack(
+              block, &endp, ci->root_objectid, ci->root_offset, ci->root_size, ci->root_checksum));
             *root_addr_sizep = WT_PTRDIFF(endp, root_addr);
-
-            if (block->log_structured) {
-                block->logid = ci->root_logid;
-                WT_ERR(__wt_block_newfile(session, block));
-            }
         }
 
         /*
@@ -118,7 +113,7 @@ __wt_block_checkpoint_load(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint
      * the end of the file, that was done when the checkpoint was first written (re-writing the
      * checkpoint might possibly make it relevant here, but it's unlikely enough I don't bother).
      */
-    if (!checkpoint && !block->log_structured)
+    if (!checkpoint && !block->has_objects)
         WT_ERR(__wt_block_truncate(session, block, ci->file_size));
 
     if (0) {
@@ -242,9 +237,9 @@ __wt_block_checkpoint(
      */
     if (buf == NULL) {
         ci->root_offset = WT_BLOCK_INVALID_OFFSET;
-        ci->root_logid = ci->root_size = ci->root_checksum = 0;
+        ci->root_objectid = ci->root_size = ci->root_checksum = 0;
     } else
-        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_logid, &ci->root_offset,
+        WT_ERR(__wt_block_write_off(session, block, buf, &ci->root_objectid, &ci->root_offset,
           &ci->root_size, &ci->root_checksum, data_checksum, true, false));
 
     /*
@@ -288,7 +283,7 @@ __ckpt_extlist_read(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckpt)
 
     ci = ckpt->bpriv;
     WT_RET(__wt_block_ckpt_init(session, ci, ckpt->name));
-    WT_RET(__wt_block_buffer_to_ckpt(session, block, ckpt->raw.data, ci));
+    WT_RET(__wt_block_ckpt_unpack(session, block, ckpt->raw.data, ckpt->raw.size, ci));
     WT_RET(__wt_block_extlist_read(session, block, &ci->alloc, ci->file_size));
     WT_RET(__wt_block_extlist_read(session, block, &ci->discard, ci->file_size));
 
@@ -468,37 +463,6 @@ __ckpt_add_blk_mods_ext(WT_SESSION_IMPL *session, WT_CKPT *ckptbase, WT_BLOCK_CK
 }
 
 /*
- * __wt_block_newfile --
- *     Switch a log-structured block object to a new file.
- */
-int
-__wt_block_newfile(WT_SESSION_IMPL *session, WT_BLOCK *block)
-{
-    WT_DECL_ITEM(tmp);
-    WT_DECL_RET;
-    const char *filename;
-
-    /* Bump to a new file ID. */
-    ++block->logid;
-
-    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
-    WT_ERR(__wt_buf_fmt(session, tmp, "%s.%08" PRIu32, block->name, block->logid));
-    filename = tmp->data;
-    WT_ERR(__wt_close(session, &block->fh));
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA,
-      WT_FS_OPEN_CREATE | block->file_flags, &block->fh));
-    WT_ERR(__wt_desc_write(session, block->fh, block->allocsize));
-
-    block->size = block->allocsize;
-    __wt_block_ckpt_destroy(session, &block->live);
-    WT_ERR(__wt_block_ckpt_init(session, &block->live, "live"));
-
-err:
-    __wt_scr_free(session, &tmp);
-    return (ret);
-}
-
-/*
  * __ckpt_process --
  *     Process the list of checkpoints.
  */
@@ -646,11 +610,11 @@ __ckpt_process(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_CKPT *ckptbase)
      * lists, and the freed blocks will then be included when writing the live extent lists.
      */
     WT_CKPT_FOREACH (ckptbase, ckpt) {
-        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) || block->log_structured)
+        if (F_ISSET(ckpt, WT_CKPT_FAKE) || !F_ISSET(ckpt, WT_CKPT_DELETE) || block->has_objects)
             continue;
 
         if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-            __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data);
+            __wt_ckpt_verbose(session, block, "delete", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
         /*
          * Find the checkpoint into which we'll roll this checkpoint's blocks: it's the next real
@@ -780,9 +744,6 @@ live_update:
     ci->ckpt_discard = ci->discard;
     WT_ERR(__wt_block_extlist_init(session, &ci->discard, "live", "discard", false));
 
-    if (block->log_structured)
-        WT_ERR(__wt_block_newfile(session, block));
-
 #ifdef HAVE_DIAGNOSTIC
     /*
      * The first checkpoint in the system should always have an empty discard list. If we've read
@@ -853,7 +814,7 @@ __ckpt_update(
          */
         WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
         endp = ckpt->raw.mem;
-        WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, ci, true));
+        WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, true));
         ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
         /*
@@ -922,11 +883,11 @@ __ckpt_update(
     /* Copy the COMPLETE checkpoint information into the checkpoint. */
     WT_RET(__wt_buf_init(session, &ckpt->raw, WT_BLOCK_CHECKPOINT_BUFFER));
     endp = ckpt->raw.mem;
-    WT_RET(__wt_block_ckpt_to_buffer(session, block, &endp, ci, false));
+    WT_RET(__wt_block_ckpt_pack(session, block, &endp, ci, false));
     ckpt->raw.size = WT_PTRDIFF(endp, ckpt->raw.mem);
 
     if (WT_VERBOSE_ISSET(session, WT_VERB_CHECKPOINT))
-        __wt_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data);
+        __wt_ckpt_verbose(session, block, "create", ckpt->name, ckpt->raw.data, ckpt->raw.size);
 
     return (0);
 }

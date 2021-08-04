@@ -563,7 +563,7 @@ __recovery_correct_write_gen(WT_SESSION_IMPL *session)
     while ((ret = cursor->next(cursor)) == 0) {
         WT_ERR(cursor->get_key(cursor, &uri));
 
-        if (!WT_PREFIX_MATCH(uri, "file:"))
+        if (!WT_PREFIX_MATCH(uri, "file:") && !WT_PREFIX_MATCH(uri, "tiered:"))
             continue;
 
         WT_ERR(cursor->get_value(cursor, &config));
@@ -640,11 +640,11 @@ __recovery_setup_file(WT_RECOVERY *r, const char *uri, const char *config)
 }
 
 /*
- * __recovery_free --
- *     Free the recovery state.
+ * __recovery_close_cursors --
+ *     Close the logging recovery cursors.
  */
 static int
-__recovery_free(WT_RECOVERY *r)
+__recovery_close_cursors(WT_RECOVERY *r)
 {
     WT_CURSOR *c;
     WT_DECL_RET;
@@ -658,8 +658,48 @@ __recovery_free(WT_RECOVERY *r)
             WT_TRET(c->close(c));
     }
 
+    r->nfiles = 0;
     __wt_free(session, r->files);
     return (ret);
+}
+
+/*
+ * __recovery_file_scan_prefix --
+ *     Scan the files matching the prefix referenced from the metadata and gather information about
+ *     them for recovery.
+ */
+static int
+__recovery_file_scan_prefix(WT_RECOVERY *r, const char *prefix, const char *ignore_suffix)
+{
+    WT_CURSOR *c;
+    WT_DECL_RET;
+    int cmp;
+    const char *uri, *config;
+
+    /* Scan through all entries in the metadata matching the prefix. */
+    c = r->files[0].c;
+    c->set_key(c, prefix);
+    if ((ret = c->search_near(c, &cmp)) != 0) {
+        /* Is the metadata empty? */
+        WT_RET_NOTFOUND_OK(ret);
+        return (0);
+    }
+    if (cmp < 0 && (ret = c->next(c)) != 0) {
+        /* No matching entries? */
+        WT_RET_NOTFOUND_OK(ret);
+        return (0);
+    }
+    for (; ret == 0; ret = c->next(c)) {
+        WT_RET(c->get_key(c, &uri));
+        if (!WT_PREFIX_MATCH(uri, prefix))
+            break;
+        if (ignore_suffix != NULL && WT_SUFFIX_MATCH(uri, ignore_suffix))
+            continue;
+        WT_RET(c->get_value(c, &config));
+        WT_RET(__recovery_setup_file(r, uri, config));
+    }
+    WT_RET_NOTFOUND_OK(ret);
+    return (0);
 }
 
 /*
@@ -669,29 +709,9 @@ __recovery_free(WT_RECOVERY *r)
 static int
 __recovery_file_scan(WT_RECOVERY *r)
 {
-    WT_CURSOR *c;
-    WT_DECL_RET;
-    int cmp;
-    const char *uri, *config;
-
-    /* Scan through all files in the metadata. */
-    c = r->files[0].c;
-    c->set_key(c, "file:");
-    if ((ret = c->search_near(c, &cmp)) != 0) {
-        /* Is the metadata empty? */
-        WT_RET_NOTFOUND_OK(ret);
-        return (0);
-    }
-    if (cmp < 0)
-        WT_RET_NOTFOUND_OK(c->next(c));
-    for (; ret == 0; ret = c->next(c)) {
-        WT_RET(c->get_key(c, &uri));
-        if (!WT_PREFIX_MATCH(uri, "file:"))
-            break;
-        WT_RET(c->get_value(c, &config));
-        WT_RET(__recovery_setup_file(r, uri, config));
-    }
-    WT_RET_NOTFOUND_OK(ret);
+    /* Scan through all files and tiered entries in the metadata. */
+    WT_RET(__recovery_file_scan_prefix(r, "file:", ".wtobj"));
+    WT_RET(__recovery_file_scan_prefix(r, "tiered:", NULL));
 
     /*
      * Set the connection level file id tracker, as such upon creation of a new file we'll begin
@@ -795,7 +815,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     was_backup = F_ISSET(conn, WT_CONN_WAS_BACKUP);
 
     /* We need a real session for recovery. */
-    WT_RET(__wt_open_internal_session(conn, "txn-recover", false, WT_SESSION_NO_LOGGING, &session));
+    WT_RET(
+      __wt_open_internal_session(conn, "txn-recover", false, WT_SESSION_NO_LOGGING, 0, &session));
     r.session = session;
     WT_MAX_LSN(&r.max_ckpt_lsn);
     WT_MAX_LSN(&r.max_rec_lsn);
@@ -966,6 +987,9 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     WT_ERR(ret);
 
 done:
+    /* Close cached cursors, rollback-to-stable asserts exclusive access. */
+    WT_ERR(__recovery_close_cursors(&r));
+
     WT_ERR(__recovery_set_checkpoint_timestamp(&r));
     WT_ERR(__recovery_set_oldest_timestamp(&r));
     WT_ERR(__recovery_set_checkpoint_snapshot(session));
@@ -1015,6 +1039,14 @@ done:
         WT_ERR(__wt_rollback_to_stable(session, NULL, true));
     }
 
+    /*
+     * Sometimes eviction is triggered after doing a checkpoint. However, we don't want eviction to
+     * make the tree dirty after checkpoint as this will interfere with WT_SESSION alter which
+     * expects a clean tree.
+     */
+    if (eviction_started)
+        WT_TRET(__wt_evict_destroy(session));
+
     if (do_checkpoint || rts_executed)
         /*
          * Forcibly log a checkpoint so the next open is fast and keep the metadata up to date with
@@ -1045,7 +1077,7 @@ done:
     FLD_SET(conn->log_flags, WT_CONN_LOG_RECOVER_DONE);
 
 err:
-    WT_TRET(__recovery_free(&r));
+    WT_TRET(__recovery_close_cursors(&r));
     __wt_free(session, config);
     FLD_CLR(conn->log_flags, WT_CONN_LOG_RECOVER_DIRTY);
 

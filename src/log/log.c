@@ -16,9 +16,9 @@ static int __log_write_internal(WT_SESSION_IMPL *, WT_ITEM *, WT_LSN *, uint32_t
 #define WT_LOG_COMPRESS_SKIP (offsetof(WT_LOG_RECORD, record))
 #define WT_LOG_ENCRYPT_SKIP (offsetof(WT_LOG_RECORD, record))
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_LOG_OPEN_CREATE_OK 0x1u /* Flag to __log_openfile() */
-                                   /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
  * __wt_log_printf --
@@ -157,7 +157,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
          * If we're on a locked path and the write LSN is not advancing, unlock in case an earlier
          * thread is trying to switch its slot and complete its operation.
          */
-        if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT))
             __wt_spin_unlock(session, &log->log_slot_lock);
         /*
          * This may not be initialized if we are starting at an older log file version. So only
@@ -169,7 +169,7 @@ __log_wait_for_earlier_slot(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
             __wt_yield();
         else
             __wt_cond_wait(session, log->log_write_cond, 200, NULL);
-        if (F_ISSET(session, WT_SESSION_LOCKED_SLOT))
+        if (FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT))
             __wt_spin_lock(session, &log->log_slot_lock);
     }
 }
@@ -266,35 +266,6 @@ __wt_log_flush_lsn(WT_SESSION_IMPL *session, WT_LSN *lsn, bool start)
     else
         WT_ASSIGN_LSN(lsn, &log->write_lsn);
     return (0);
-}
-
-/*
- * __wt_log_background --
- *     Record the given LSN as the background LSN and signal the thread as needed.
- */
-void
-__wt_log_background(WT_SESSION_IMPL *session, WT_LSN *lsn)
-{
-    WT_CONNECTION_IMPL *conn;
-    WT_LOG *log;
-
-    conn = S2C(session);
-    log = conn->log;
-    /*
-     * If a thread already set the LSN to a bigger LSN, we're done.
-     */
-    if (__wt_log_cmp(&session->bg_sync_lsn, lsn) > 0)
-        return;
-    WT_ASSIGN_LSN(&session->bg_sync_lsn, lsn);
-
-    /*
-     * Advance the logging subsystem background sync LSN if needed.
-     */
-    __wt_spin_lock(session, &log->log_sync_lock);
-    if (__wt_log_cmp(lsn, &log->bg_sync_lsn) > 0)
-        WT_ASSIGN_LSN(&log->bg_sync_lsn, lsn);
-    __wt_spin_unlock(session, &log->log_sync_lock);
-    __wt_cond_signal(session, conn->log_file_cond);
 }
 
 /*
@@ -1129,7 +1100,7 @@ __log_newfile(WT_SESSION_IMPL *session, bool conn_open, bool *created)
      * write to the log. If the log file size is small we could fill a log file before the previous
      * one is closed. Wait for that to close.
      */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     for (yield_cnt = 0; log->log_close_fh != NULL;) {
         WT_STAT_CONN_INCR(session, log_close_yields);
         /*
@@ -1334,7 +1305,7 @@ __wt_log_acquire(WT_SESSION_IMPL *session, uint64_t recsize, WT_LOGSLOT *slot)
      * the release LSN. That way when log files switch, we're waiting for the correct LSN from
      * outstanding writes.
      */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     /*
      * We need to set the release LSN earlier, before a log file change.
      */
@@ -2715,12 +2686,6 @@ __log_write_internal(WT_SESSION_IMPL *session, WT_ITEM *record, WT_LSN *lsnp, ui
             __wt_cond_wait(session, log->log_sync_cond, 10000, NULL);
     }
 
-    /*
-     * Advance the background sync LSN if needed.
-     */
-    if (LF_ISSET(WT_LOG_BACKGROUND))
-        __wt_log_background(session, &lsn);
-
 err:
     if (ret == 0 && lsnp != NULL)
         *lsnp = lsn;
@@ -2836,9 +2801,7 @@ __wt_log_flush(WT_SESSION_IMPL *session, uint32_t flags)
      * If the user wants write-no-sync, there is nothing more to do. If the user wants background
      * sync, set the LSN and we're done. If the user wants sync, force it now.
      */
-    if (LF_ISSET(WT_LOG_BACKGROUND))
-        __wt_log_background(session, &lsn);
-    else if (LF_ISSET(WT_LOG_FSYNC))
+    if (LF_ISSET(WT_LOG_FSYNC))
         WT_RET(__wt_log_force_sync(session, &lsn));
     return (0);
 }

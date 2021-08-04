@@ -89,6 +89,36 @@ encryptor(uint32_t encrypt_flag)
     case ENCRYPT_ROTN_7:
         p = "rotn,keyid=7";
         break;
+    case ENCRYPT_SODIUM:
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+        break;
+    default:
+        testutil_die(EINVAL, "illegal encryption flag: %#" PRIx32, encrypt_flag);
+        /* NOTREACHED */
+    }
+    return (p);
+}
+
+/*
+ * encryptor_at_open --
+ *     Configure encryption for wts_open().
+ *
+ * This must set any secretkey. When keyids are in use it can return NULL.
+ */
+static const char *
+encryptor_at_open(uint32_t encrypt_flag)
+{
+    const char *p;
+
+    p = NULL;
+    switch (encrypt_flag) {
+    case ENCRYPT_NONE:
+        break;
+    case ENCRYPT_ROTN_7:
+        break;
+    case ENCRYPT_SODIUM:
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+        break;
     default:
         testutil_die(EINVAL, "illegal encryption flag: %#" PRIx32, encrypt_flag);
         /* NOTREACHED */
@@ -148,12 +178,13 @@ static WT_EVENT_HANDLER event_handler = {
  * create_database --
  *     Create a WiredTiger database.
  */
-static void
+void
 create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
     char config[8 * 1024], *p;
+    const char *enc;
 
     p = config;
     max = sizeof(config);
@@ -190,8 +221,11 @@ create_database(const char *home, WT_CONNECTION **connp)
           compressor(g.c_logging_compression_flag));
 
     /* Encryption. */
-    if (g.c_encryption)
-        CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor(g.c_encryption_flag));
+    if (g.c_encryption) {
+        enc = encryptor(g.c_encryption_flag);
+        if (enc != NULL)
+            CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
+    }
 
 /* Miscellaneous. */
 #ifdef HAVE_POSIX_MEMALIGN
@@ -255,11 +289,12 @@ create_database(const char *home, WT_CONNECTION **connp)
     CONFIG_APPEND(p, "]");
 
     /* Extensions. */
-    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
+    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
       g.c_reverse ? REVERSE_PATH : "", access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
       access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
       access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
-      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "");
+      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "",
+      access(SODIUM_PATH, R_OK) == 0 ? SODIUM_PATH : "");
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -319,10 +354,8 @@ create_object(WT_CONNECTION *conn)
         CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", g.c_bitcnt);
         break;
     case ROW:
-        if (g.c_prefix_compression)
-            CONFIG_APPEND(p, ",prefix_compression_min=%" PRIu32, g.c_prefix_compression_min);
-        else
-            CONFIG_APPEND(p, ",prefix_compression=false");
+        CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
+          g.c_prefix_compression == 0 ? "false" : "true", g.c_prefix_compression_min);
         if (g.c_reverse)
             CONFIG_APPEND(p, ",collator=reverse");
     /* FALLTHROUGH */
@@ -345,28 +378,25 @@ create_object(WT_CONNECTION *conn)
     case CHECKSUM_UNCOMPRESSED:
         CONFIG_APPEND(p, ",checksum=\"uncompressed\"");
         break;
+    case CHECKSUM_UNENCRYPTED:
+        CONFIG_APPEND(p, ",checksum=\"unencrypted\"");
+        break;
     }
 
     /* Configure compression. */
     if (g.c_compression_flag != COMPRESS_NONE)
         CONFIG_APPEND(p, ",block_compressor=\"%s\"", compressor(g.c_compression_flag));
 
-    /* Configure Btree internal key truncation. */
+    /* Configure Btree. */
     CONFIG_APPEND(p, ",internal_key_truncate=%s", g.c_internal_key_truncation ? "true" : "false");
-
-    /* Configure Btree page key gap. */
-    CONFIG_APPEND(p, ",key_gap=%" PRIu32, g.c_key_gap);
-
-    /* Configure Btree split page percentage. */
     CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
 
-    /*
-     * Assertions. Assertions slow down the code for additional diagnostic checking.
-     */
-    if (g.c_txn_timestamps && g.c_assert_commit_timestamp)
-        CONFIG_APPEND(p, ",write_timestamp_usage=key_consistent,assert=(write_timestamp=on)");
-    if (g.c_txn_timestamps && g.c_assert_read_timestamp)
-        CONFIG_APPEND(p, ",assert=(read_timestamp=always)");
+    /* Assertions: assertions slow down the code for additional diagnostic checking.  */
+    if (g.c_assert_read_timestamp)
+        CONFIG_APPEND(p, ",assert=(read_timestamp=%s)", g.c_txn_timestamps ? "always" : "never");
+    if (g.c_assert_write_timestamp)
+        CONFIG_APPEND(p, ",assert=(write_timestamp=on),write_timestamp_usage=%s",
+          g.c_txn_timestamps ? "key_consistent" : "never");
 
     /* Configure LSM. */
     if (DATASOURCE("lsm")) {
@@ -433,19 +463,28 @@ void
 wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
 {
     WT_CONNECTION *conn;
-    const char *config;
+    size_t max;
+    char config[1024], *p;
+    const char *enc;
 
     *connp = NULL;
     *sessionp = NULL;
+
+    p = config;
+    max = sizeof(config);
+    config[0] = '\0';
+
+    enc = encryptor_at_open(g.c_encryption_flag);
+    if (enc != NULL)
+        CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (g.c_in_memory != 0)
         conn = g.wts_conn_inmemory;
     else {
-        config = "";
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (g.c_verify && allow_verify)
-            config = ",verify_metadata=true";
+            CONFIG_APPEND(p, ",verify_metadata=true");
 #else
         WT_UNUSED(allow_verify);
 #endif

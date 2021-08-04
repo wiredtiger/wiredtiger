@@ -52,11 +52,16 @@ wt_3rdpartydir = os.path.join(wt_disttop, 'test', '3rdparty')
 # could pick the wrong one. We also need to account for the fact that there
 # may be an executable 'wt' file the build directory and a subordinate .libs
 # directory.
+env_builddir = os.getenv('WT_BUILDDIR')
 curdir = os.getcwd()
-if os.path.basename(curdir) == '.libs' and \
+if env_builddir and os.path.isfile(os.path.join(env_builddir, 'wt')):
+    wt_builddir = env_builddir
+elif os.path.basename(curdir) == '.libs' and \
    os.path.isfile(os.path.join(curdir, os.pardir, 'wt')):
     wt_builddir = os.path.join(curdir, os.pardir)
 elif os.path.isfile(os.path.join(curdir, 'wt')):
+    wt_builddir = curdir
+elif os.path.isfile(os.path.join(curdir, 'wt.exe')):
     wt_builddir = curdir
 elif os.path.isfile(os.path.join(wt_disttop, 'wt')):
     wt_builddir = wt_disttop
@@ -126,13 +131,15 @@ Options:\n\
   -p      | --preserve           preserve output files in WT_TEST/<testname>\n\
   -r N    | --random-sample N    randomly sort scenarios to be run, then\n\
                                  execute every Nth (2<=N<=1000) scenario.\n\
-  -s N    | --scenario N         use scenario N (N can be number or symbolic)\n\
+  -s N    | --scenario N         use scenario N (N can be symbolic, number, or\n\
+                                 list of numbers and ranges in the form 1,3-5,7)\n\
   -t      | --timestamp          name WT_TEST according to timestamp\n\
   -v N    | --verbose N          set verboseness to N (0<=N<=3, default=1)\n\
   -i      | --ignore-stdout      dont fail on unexpected stdout or stderr\n\
   -R      | --randomseed         run with random seeds for generates random numbers\n\
   -S      | --seed               run with two seeds that generates random numbers, \n\
                                  format "seed1.seed2", seed1 or seed2 can\'t be zero\n\
+  -z      | --zstd               run the zstd tests\n\
 \n\
 Tests:\n\
   may be a file name in test/suite: (e.g. test_base01.py)\n\
@@ -172,16 +179,40 @@ def show_env(verbose, envvar):
 # e.g. test_util03 -> util
 reCatname = re.compile(r"test_([^0-9]+)[0-9]*")
 
+# Look for a list of the form 0-9,11,15-17.
+def parse_int_list(str):
+    # Use a dictionary as the result set to avoid repeated list scans.
+    # (Only the keys are used; the values are ignored.)
+    ret = {}
+    # Divide the input into ranges separated by commas.
+    for r in str.split(","):
+        # Split the range we got (if it is one).
+        bounds = r.split("-")
+        if len(bounds) == 1 and bounds[0].isdigit():
+            # It's a single number with no dash.
+            scenario = int(bounds[0])
+            ret[scenario] = True
+            continue
+        if len(bounds) == 2 and bounds[0].isdigit() and bounds[1].isdigit():
+            # It's two numbers separated by a dash.
+            for scenario in range(int(bounds[0]), int(bounds[1]) + 1):
+                ret[scenario] = True
+            continue
+        # It's not valid syntax; give up.
+        return None
+    return ret
+
 def restrictScenario(testcases, restrict):
     if restrict == '':
         return testcases
-    elif restrict.isdigit():
-        s = int(restrict)
-        return [t for t in testcases
-            if hasattr(t, 'scenario_number') and t.scenario_number == s]
     else:
-        return [t for t in testcases
-            if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
+        scenarios = parse_int_list(restrict)
+        if scenarios is not None:
+            return [t for t in testcases
+                if hasattr(t, 'scenario_number') and t.scenario_number in scenarios]
+        else:
+            return [t for t in testcases
+                if hasattr(t, 'scenario_name') and t.scenario_name == restrict]
 
 def addScenarioTests(tests, loader, testname, scenario):
     loaded = loader.loadTestsFromName(testname)
@@ -307,7 +338,7 @@ def error(exitval, prefix, msg):
 
 if __name__ == '__main__':
     # Turn numbers and ranges into test module names
-    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = ignoreStdout = False
+    preserve = timestamp = debug = dryRun = gdbSub = lldbSub = longtest = zstdtest = ignoreStdout = False
     removeAtStart = True
     asan = False
     parallel = 0
@@ -379,6 +410,9 @@ if __name__ == '__main__':
                 continue
             if option == '-long' or option == 'l':
                 longtest = True
+                continue
+            if option == '-zstd' or option == 'z':
+                zstdtest = True
                 continue
             if option == '-noremove':
                 removeAtStart = False
@@ -537,7 +571,7 @@ if __name__ == '__main__':
     # All global variables should be set before any test classes are loaded.
     # That way, verbose printing can be done at the class definition level.
     wttest.WiredTigerTestCase.globalSetup(preserve, removeAtStart, timestamp, gdbSub, lldbSub,
-                                          verbose, wt_builddir, dirarg, longtest,
+                                          verbose, wt_builddir, dirarg, longtest, zstdtest,
                                           ignoreStdout, seedw, seedz, hookmgr)
 
     # Without any tests listed as arguments, do discovery

@@ -213,7 +213,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
      * there's no work to do.
      */
-    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase), true);
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -314,7 +314,7 @@ exclusive_on_error:
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
              * that handle, and there's a race with eviction entering the tree and seeing an invalid
              * root page. Eviction must work on trees being verified (else we'd have to do our own
-             * eviction), lock eviction out whenever we're loading a new root page. This loops works
+             * eviction), lock eviction out whenever we're loading a new root page. This loop works
              * because we are called with eviction locked out, so we release the lock at the top of
              * the loop and re-acquire it here.
              */

@@ -70,7 +70,7 @@
  */
 #define WT_WITH_TURTLE_LOCK(session, op)                                                      \
     do {                                                                                      \
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));                      \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));        \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
     } while (0)
 
@@ -81,11 +81,11 @@
 struct __wt_blkincr {
     const char *id_str;   /* User's name for this backup. */
     uint64_t granularity; /* Granularity of this backup. */
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLKINCR_FULL 0x1u  /* There is no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */
 #define WT_BLKINCR_VALID 0x4u /* This entry is valid */
-                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                              /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t flags;
 };
 
@@ -104,10 +104,10 @@ struct __wt_block_mods {
 
     uint64_t offset; /* Zero bit offset for bitstring */
     uint64_t granularity;
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLOCK_MODS_RENAME 0x1u /* Entry is from a rename */
 #define WT_BLOCK_MODS_VALID 0x2u  /* Entry is valid */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -118,6 +118,8 @@ struct __wt_block_mods {
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
+#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
+    for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */
@@ -154,12 +156,12 @@ struct __wt_ckpt {
 
     void *bpriv; /* Block manager private */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CKPT_ADD 0x01u        /* Checkpoint to be added */
 #define WT_CKPT_BLOCK_MODS 0x02u /* Return list of modified blocks */
 #define WT_CKPT_DELETE 0x04u     /* Checkpoint to be deleted */
 #define WT_CKPT_FAKE 0x08u       /* Checkpoint is a fake */
 #define WT_CKPT_UPDATE 0x10u     /* Checkpoint requires update */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

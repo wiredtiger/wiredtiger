@@ -99,10 +99,10 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
 
     __wt_free(session, block->name);
 
-    if (block->log_structured && block->lfh != NULL) {
-        for (i = 0; i < block->max_logid; i++)
-            WT_TRET(__wt_close(session, &block->lfh[i]));
-        __wt_free(session, block->lfh);
+    if (block->has_objects && block->ofh != NULL) {
+        for (i = 0; i < block->max_objectid; i++)
+            WT_TRET(__wt_close(session, &block->ofh[i]));
+        __wt_free(session, block->ofh);
     }
 
     if (block->fh != NULL)
@@ -138,8 +138,8 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  *     Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OPENER *opener,
+  const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -176,13 +176,16 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     block->ref = 1;
     block->name_hash = hash;
     block->allocsize = allocsize;
+    block->opener = opener;
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
     WT_ERR(__wt_strdup(session, filename, &block->name));
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
     block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
-    block->log_structured = WT_STRING_MATCH("log-structured", cval.str, cval.len);
+    block->has_objects = (opener != NULL);
+    if (block->has_objects)
+        block->objectid = opener->current_object_id(opener);
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -212,7 +215,12 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
         LF_SET(WT_FS_OPEN_DIRECTIO);
     block->file_flags = flags;
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
+    if (block->has_objects)
+        WT_ERR(opener->open(opener, session, WT_TIERED_CURRENT_ID, WT_FS_OPEN_FILE_TYPE_DATA,
+          block->file_flags, &block->fh));
+    else
+        WT_ERR(
+          __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));

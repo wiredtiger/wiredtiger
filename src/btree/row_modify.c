@@ -42,7 +42,12 @@ err:
  */
 int
 __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, WT_UPDATE *upd_arg,
-  u_int modify_type, bool exclusive)
+  u_int modify_type, bool exclusive
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  bool restore
+#endif
+)
 {
     WT_DECL_RET;
     WT_INSERT *ins;
@@ -140,6 +145,12 @@ __wt_row_modify(WT_CURSOR_BTREE *cbt, const WT_ITEM *key, const WT_ITEM *value, 
             for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
                 ;
             last_upd->next = *upd_entry;
+
+            /*
+             * If we restore an update chain in update restore eviction, there should be no update
+             * on the existing update chain.
+             */
+            WT_ASSERT(session, !restore || *upd_entry == NULL);
 
             /*
              * We can either put multiple new updates or a single update on the update chain.
@@ -296,18 +307,21 @@ __wt_row_insert_alloc(WT_SESSION_IMPL *session, const WT_ITEM *key, u_int skipde
 
 /*
  * __wt_update_obsolete_check --
- *     Check for obsolete updates.
+ *     Check for obsolete updates and force evict the page if the update list is too long.
  */
 WT_UPDATE *
 __wt_update_obsolete_check(
-  WT_SESSION_IMPL *session, WT_PAGE *page, WT_UPDATE *upd, bool update_accounting)
+  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, bool update_accounting)
 {
+    WT_PAGE *page;
     WT_TXN_GLOBAL *txn_global;
     WT_UPDATE *first, *next;
     size_t size;
     uint64_t oldest, stable;
     u_int count, upd_seen, upd_unstable;
 
+    next = NULL;
+    page = cbt->ref->page;
     txn_global = &S2C(session)->txn_global;
 
     upd_seen = upd_unstable = 0;
@@ -361,8 +375,21 @@ __wt_update_obsolete_check(
             if (size != 0)
                 __wt_cache_page_inmem_decr(session, page, size);
         }
-        return (next);
     }
+
+    /*
+     * Force evict a page when there are more than WT_THOUSAND updates to a single item. Increasing
+     * the minSnapshotHistoryWindowInSeconds to 300 introduced a performance regression in which the
+     * average number of updates on a single item was approximately 1000 in write-heavy workloads.
+     * This is why we use WT_THOUSAND here.
+     */
+    if (count > WT_THOUSAND) {
+        WT_STAT_CONN_INCR(session, cache_eviction_force_long_update_list);
+        __wt_page_evict_soon(session, cbt->ref);
+    }
+
+    if (next != NULL)
+        return (next);
 
     /*
      * If the list is long, don't retry checks on this page until the transaction state has moved

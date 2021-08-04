@@ -335,10 +335,12 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     blk = NULL;
     for (i = 0; i < WT_BLKINCR_MAX; ++i) {
         blk = &conn->incr_backups[i];
-        __wt_verbose(session, WT_VERB_BACKUP, "blk[%u] flags 0x%" PRIx64, i, blk->flags);
         /* If it isn't already in use, we can use it. */
-        if (!F_ISSET(blk, WT_BLKINCR_INUSE))
+        if (!F_ISSET(blk, WT_BLKINCR_INUSE)) {
+            __wt_verbose(session, WT_VERB_BACKUP, "Free blk[%u] entry", i);
             break;
+        }
+        __wt_verbose(session, WT_VERB_BACKUP, "Entry blk[%u] has flags 0x%" PRIx64, i, blk->flags);
     }
     /*
      * We didn't find an entry. This should not happen.
@@ -346,7 +348,7 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
     if (i == WT_BLKINCR_MAX)
         WT_RET_PANIC(session, WT_NOTFOUND, "Could not find an incremental backup slot to use");
 
-    /* Use the slot.  */
+    /* Use the slot. */
     if (blk->id_str != NULL)
         __wt_verbose(
           session, WT_VERB_BACKUP, "Freeing and reusing backup slot with old id %s", blk->id_str);
@@ -364,11 +366,12 @@ __backup_add_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval)
         /*
          * If we don't find any checkpoint, backup files need to be full copy.
          */
-        __wt_verbose(session, WT_VERB_BACKUP, "ID %s: Did not find any metadata checkpoint for %s.",
-          blk->id_str, WT_METAFILE_URI);
+        __wt_verbose(session, WT_VERB_BACKUP,
+          "Backup id %s: Did not find any metadata checkpoint for %s.", blk->id_str,
+          WT_METAFILE_URI);
         F_SET(blk, WT_BLKINCR_FULL);
     } else {
-        __wt_verbose(session, WT_VERB_BACKUP, "Using backup slot %u for id %s", i, blk->id_str);
+        __wt_verbose(session, WT_VERB_BACKUP, "Backup id %s using backup slot %u", blk->id_str, i);
         F_CLR(blk, WT_BLKINCR_FULL);
     }
     F_SET(blk, WT_BLKINCR_VALID);
@@ -402,11 +405,12 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
                 WT_RET_MSG(session, EINVAL, "Incremental backup structure already in use");
             if (incrp != NULL)
                 *incrp = blk;
-            __wt_verbose(session, WT_VERB_BACKUP, "Found backup slot %u for id %s", i, blk->id_str);
+            __wt_verbose(
+              session, WT_VERB_BACKUP, "Found src id %s at backup slot %u", blk->id_str, i);
             return (0);
         }
     }
-    __wt_verbose(session, WT_VERB_BACKUP, "Did not find %.*s", (int)cval->len, cval->str);
+    __wt_verbose(session, WT_VERB_BACKUP, "Search %.*s not found", (int)cval->len, cval->str);
     return (WT_NOTFOUND);
 }
 
@@ -447,7 +451,7 @@ err:
  */
 static int
 __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[],
-  WT_CURSOR_BACKUP *othercb, bool *foundp, bool *log_only, bool *incr_only)
+  WT_CURSOR_BACKUP *othercb, bool *foundp, bool *log_only)
 {
     WT_CONFIG targetconf;
     WT_CONFIG_ITEM cval, k, v;
@@ -457,7 +461,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     const char *uri;
     bool consolidate, incremental_config, is_dup, log_config, target_list;
 
-    *foundp = *incr_only = *log_only = false;
+    *foundp = *log_only = false;
 
     conn = S2C(session);
     incremental_config = log_config = false;
@@ -474,6 +478,8 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
             if (conn->incr_granularity != 0)
                 WT_RET_MSG(session, EINVAL, "Cannot change the incremental backup granularity");
             conn->incr_granularity = (uint64_t)cval.val;
+            __wt_verbose(session, WT_VERB_BACKUP, "Backup config set granularity value %" PRIu64,
+              conn->incr_granularity);
         }
         /* Granularity can only be set once at the beginning */
         F_SET(conn, WT_CONN_INCR_BACKUP);
@@ -659,7 +665,7 @@ __backup_start(
     WT_DECL_RET;
     WT_FSTREAM *srcfs;
     const char *dest;
-    bool exist, is_dup, is_incr, log_only, target_list;
+    bool exist, is_dup, log_only, target_list;
 
     conn = S2C(session);
     srcfs = NULL;
@@ -742,7 +748,7 @@ __backup_start(
      * database objects and log files to the list.
      */
     target_list = false;
-    WT_ERR(__backup_config(session, cb, cfg, othercb, &target_list, &log_only, &is_incr));
+    WT_ERR(__backup_config(session, cb, cfg, othercb, &target_list, &log_only));
     /*
      * For a duplicate cursor, all the work is done in backup_config.
      */

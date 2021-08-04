@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# checkpoint:metadata
+# [END_TAGS]
 
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
@@ -38,7 +42,7 @@ from wiredtiger import stat
 #
 
 class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+    conn_config = 'cache_size=50MB'
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot01"

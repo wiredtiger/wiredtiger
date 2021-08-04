@@ -280,18 +280,16 @@ __wt_block_misplaced(WT_SESSION_IMPL *session, WT_BLOCK *block, const char *list
         return (0);
 
     /*
-     * Verify a block the btree engine thinks it "owns" doesn't appear on
-     * the available or discard lists (it might reasonably be on the alloc
-     * list, if it was allocated since the last checkpoint).  The engine
-     * "owns" a block if it's trying to read or free the block, and those
+     * Verify a block the btree engine thinks it "owns" doesn't appear on the available or discard
+     * lists (it might reasonably be on the alloc list, if it was allocated since the last
+     * checkpoint). The engine "owns" a block if it's trying to read or free the block, and those
      * functions make this check.
      *
      * Any block being read or freed should not be "available".
      *
-     * Any block being read or freed in the live system should not be on the
-     * discard list.  (A checkpoint handle might be reading a block which is
-     * on the live system's discard list; any attempt to free a block from a
-     * checkpoint handle has already failed.)
+     * Any block being read or freed in the live system should not be on the discard list. (A
+     * checkpoint handle might be reading a block which is on the live system's discard list; any
+     * attempt to free a block from a checkpoint handle has already failed.)
      */
     __wt_spin_lock(session, &block->live_lock);
     if (__block_off_match(&block->live.avail, offset, size))
@@ -565,28 +563,30 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
 {
     WT_DECL_RET;
     wt_off_t offset;
-    uint32_t checksum, logid, size;
+    uint32_t checksum, objectid, size;
 
-    WT_UNUSED(addr_size);
     WT_STAT_DATA_INCR(session, block_free);
 
     /* Crack the cookie. */
-    WT_RET(__wt_block_buffer_to_addr(block, addr, &logid, &offset, &size, &checksum));
+    WT_RET(__wt_block_addr_unpack(
+      session, block, addr, addr_size, &objectid, &offset, &size, &checksum));
 
-    __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, logid,
+    /* We can't reuse free space in an object. */
+    if (objectid != block->objectid)
+        return (0);
+
+    __wt_verbose(session, WT_VERB_BLOCK, "free %" PRIu32 ": %" PRIdMAX "/%" PRIdMAX, objectid,
       (intmax_t)offset, (intmax_t)size);
 
 #ifdef HAVE_DIAGNOSTIC
-    WT_RET(__wt_block_misplaced(session, block, "free", offset, size, true, __func__, __LINE__));
+    WT_RET(__wt_block_misplaced(
+      session, block, "free", offset, size, true, __PRETTY_FUNCTION__, __LINE__));
 #endif
-    if (logid == block->logid) {
-        WT_RET(__wt_block_ext_prealloc(session, 5));
-        __wt_spin_lock(session, &block->live_lock);
-        ret = __wt_block_off_free(session, block, logid, offset, (wt_off_t)size);
-        __wt_spin_unlock(session, &block->live_lock);
-    } else {
-        /* TODO: update stats about older files to drive garbage collection. */
-    }
+
+    WT_RET(__wt_block_ext_prealloc(session, 5));
+    __wt_spin_lock(session, &block->live_lock);
+    ret = __wt_block_off_free(session, block, objectid, offset, (wt_off_t)size);
+    __wt_spin_unlock(session, &block->live_lock);
 
     return (ret);
 }
@@ -597,15 +597,15 @@ __wt_block_free(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t *addr, 
  */
 int
 __wt_block_off_free(
-  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t logid, wt_off_t offset, wt_off_t size)
+  WT_SESSION_IMPL *session, WT_BLOCK *block, uint32_t objectid, wt_off_t offset, wt_off_t size)
 {
     WT_DECL_RET;
 
     /* If a sync is running, no other sessions can free blocks. */
     WT_ASSERT(session, WT_SESSION_BTREE_SYNC_SAFE(session, S2BT(session)));
 
-    /* TODO: track stats for old files to drive garbage collection. */
-    if (logid != block->logid)
+    /* We can't reuse free space in an object. */
+    if (objectid != block->objectid)
         return (0);
 
     /*
@@ -1105,7 +1105,8 @@ __wt_block_extlist_read(
         return (0);
 
     WT_RET(__wt_scr_alloc(session, el->size, &tmp));
-    WT_ERR(__wt_block_read_off(session, block, tmp, el->logid, el->offset, el->size, el->checksum));
+    WT_ERR(
+      __wt_block_read_off(session, block, tmp, el->objectid, el->offset, el->size, el->checksum));
 
     p = WT_BLOCK_HEADER_BYTE(tmp->mem);
     WT_ERR(__wt_extlist_read_pair(&p, &off, &size));
@@ -1165,7 +1166,7 @@ __wt_block_extlist_write(
     WT_EXT *ext;
     WT_PAGE_HEADER *dsk;
     size_t size;
-    uint32_t logid, entries;
+    uint32_t entries;
     uint8_t *p;
 
     WT_RET(__block_extlist_dump(session, block, el, "write"));
@@ -1223,8 +1224,7 @@ __wt_block_extlist_write(
 
     /* Write the extent list to disk. */
     WT_ERR(__wt_block_write_off(
-      session, block, tmp, &logid, &el->offset, &el->size, &el->checksum, true, true, true));
-    WT_UNUSED(logid); /* TODO check */
+      session, block, tmp, &el->objectid, &el->offset, &el->size, &el->checksum, true, true, true));
 
     /*
      * Remove the allocated blocks from the system's allocation list, extent blocks never appear on

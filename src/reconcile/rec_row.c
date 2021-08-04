@@ -18,29 +18,24 @@ __rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
     WT_ITEM *a;
 
     /*
-     * If writing an overflow key onto the page, don't update the "last key"
-     * value, and leave the state of prefix compression alone.  (If we are
-     * currently doing prefix compression, we have a key state which will
-     * continue to work, we're just skipping the key just created because
-     * it's an overflow key and doesn't participate in prefix compression.
-     * If we are not currently doing prefix compression, we can't start, an
-     * overflow key doesn't give us any state.)
+     * If writing an overflow key onto the page, don't update the "last key" value, and leave the
+     * state of prefix compression alone. (If we are currently doing prefix compression, we have a
+     * key state which will continue to work, we're just skipping the key just created because it's
+     * an overflow key and doesn't participate in prefix compression. If we are not currently doing
+     * prefix compression, we can't start, an overflow key doesn't give us any state.)
      *
-     * Additionally, if we wrote an overflow key onto the page, turn off the
-     * suffix compression of row-store internal node keys.  (When we split,
-     * "last key" is the largest key on the previous page, and "cur key" is
-     * the first key on the next page, which is being promoted.  In some
-     * cases we can discard bytes from the "cur key" that are not needed to
-     * distinguish between the "last key" and "cur key", compressing the
-     * size of keys on internal nodes.  If we just built an overflow key,
-     * we're not going to update the "last key", making suffix compression
-     * impossible for the next key. Alternatively, we could remember where
-     * the last key was on the page, detect it's an overflow key, read it
-     * from disk and do suffix compression, but that's too much work for an
-     * unlikely event.)
+     * Additionally, if we wrote an overflow key onto the page, turn off the suffix compression of
+     * row-store internal node keys. (When we split, "last key" is the largest key on the previous
+     * page, and "cur key" is the first key on the next page, which is being promoted. In some cases
+     * we can discard bytes from the "cur key" that are not needed to distinguish between the "last
+     * key" and "cur key", compressing the size of keys on internal nodes. If we just built an
+     * overflow key, we're not going to update the "last key", making suffix compression impossible
+     * for the next key. Alternatively, we could remember where the last key was on the page, detect
+     * it's an overflow key, read it from disk and do suffix compression, but that's too much work
+     * for an unlikely event.)
      *
-     * If we're not writing an overflow key on the page, update the last-key
-     * value and turn on both prefix and suffix compression.
+     * If we're not writing an overflow key on the page, update the last-key value and turn on both
+     * prefix and suffix compression.
      */
     if (ovfl_key)
         r->key_sfx_compress = false;
@@ -143,18 +138,27 @@ __rec_cell_build_leaf_key(
                     break;
 
             /*
-             * Prefix compression may cost us CPU and memory when the page is re-loaded, don't do it
-             * unless there's reasonable gain.
+             * Prefix compression costs CPU and memory when the page is re-loaded, skip unless
+             * there's a reasonable gain. Also, if the previous key was prefix compressed, don't
+             * increase the prefix compression if we aren't getting a reasonable gain. (Groups of
+             * keys with the same prefix can be quickly built without needing to roll forward
+             * through intermediate keys or allocating memory so they can be built faster in the
+             * future, for that reason try and create big groups of keys with the same prefix.)
              */
             if (pfx < btree->prefix_compression_min)
                 pfx = 0;
-            else
+            else if (r->key_pfx_last != 0 && pfx > r->key_pfx_last &&
+              pfx < r->key_pfx_last + WT_KEY_PREFIX_PREVIOUS_MINIMUM)
+                pfx = r->key_pfx_last;
+
+            if (pfx != 0)
                 WT_STAT_DATA_INCRV(session, rec_prefix_compression, pfx);
         }
 
         /* Copy the non-prefix bytes into the key buffer. */
         WT_RET(__wt_buf_set(session, &key->buf, (uint8_t *)data + pfx, size - pfx));
     }
+    r->key_pfx_last = pfx;
 
     /* Create an overflow object if the data won't fit. */
     if (key->buf.size > btree->maxleafkey) {
@@ -214,6 +218,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
          */
         if (r->key_pfx_compress_conf) {
             r->key_pfx_compress = false;
+            r->key_pfx_last = 0;
             if (!ovfl_key)
                 WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
         }
@@ -612,6 +617,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              * Turn off prefix and suffix compression until a full key is written into the new page.
              */
             r->key_pfx_compress = r->key_sfx_compress = false;
+            r->key_pfx_last = 0;
             continue;
         }
 
@@ -663,6 +669,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
+                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_RET(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
@@ -745,28 +752,46 @@ __wt_rec_row_leaf(
     WT_PAGE *page;
     WT_REC_KV *key, *val;
     WT_ROW *rip;
-    WT_TIME_WINDOW tw;
+    WT_TIME_WINDOW *twp;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
+    size_t key_size;
     uint64_t slvg_skip;
     uint32_t i;
-    bool dictionary, key_onpage_ovfl, ovfl_key;
+    uint8_t key_prefix;
+    bool dictionary, hs_clear, key_onpage_ovfl, ovfl_key;
     void *copy;
+    const void *key_data;
 
     btree = S2BT(session);
-    hs_cursor = NULL;
     page = pageref->page;
+    twp = NULL;
+    upd = NULL;
     slvg_skip = salvage == NULL ? 0 : salvage->skip;
-    WT_TIME_WINDOW_INIT(&tw);
-
-    cbt = &r->update_modify_cbt;
-    cbt->iface.session = (WT_SESSION *)session;
 
     key = &r->k;
     val = &r->v;
     vpack = &_vpack;
 
-    upd = NULL;
+    cbt = &r->update_modify_cbt;
+    cbt->iface.session = (WT_SESSION *)session;
+
+    /*
+     * When removing a key due to a tombstone with a durable timestamp of "none", also remove the
+     * history store contents associated with that key. It's safe to do even if we fail
+     * reconciliation after the removal, the history store content must be obsolete in order for us
+     * to consider removing the key.
+     *
+     * Ignore if this is metadata, as metadata doesn't have any history.
+     *
+     * Some code paths, such as schema removal, involve deleting keys in metadata and assert that
+     * they shouldn't open new dhandles. In those cases we won't ever need to blow away history
+     * store content, so we can skip this.
+     */
+    hs_cursor = NULL;
+    hs_clear = F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
+      !F_ISSET(session, WT_SESSION_NO_DATA_HANDLES) && !WT_IS_HS(btree->dhandle) &&
+      !WT_IS_METADATA(btree->dhandle);
 
     WT_RET(__wt_rec_split_init(session, r, page, 0, btree->maxleafpage_precomp));
 
@@ -797,42 +822,36 @@ __wt_rec_row_leaf(
         dictionary = false;
 
         /*
-         * Figure out the key: set any cell reference (and unpack it), set any instantiated key
-         * reference.
+         * Figure out if the key is an overflow key, and in that case unpack the cell, we'll need it
+         * later.
          */
         copy = WT_ROW_KEY_COPY(rip);
-        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, &cell, NULL, NULL));
-        if (cell == NULL)
-            kpack = NULL;
-        else {
+        __wt_row_leaf_key_info(page, copy, &ikey, &cell, &key_data, &key_size, &key_prefix);
+        kpack = NULL;
+        if (__wt_cell_type(cell) == WT_CELL_KEY_OVFL) {
             kpack = &_kpack;
             __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
         }
 
         /* Unpack the on-page value cell. */
-        __wt_row_leaf_value_cell(session, page, rip, NULL, vpack);
+        __wt_row_leaf_value_cell(session, page, rip, vpack);
 
         /* Look for an update. */
         WT_ERR(__wt_rec_upd_select(session, r, NULL, rip, vpack, &upd_select));
         upd = upd_select.upd;
 
-        /*
-         * Figure out the timestamps. If there's no update and salvaging the file, clear the time
-         * pair information, else take the time window from the cell.
-         */
+        /* Take the timestamp from the update or the cell. */
         if (upd == NULL) {
-            if (!salvage)
-                WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
-            else
-                WT_TIME_WINDOW_INIT(&tw);
+            __cell_pack_kv_window_cleanup(session, page->dsk, vpack);
+            twp = &vpack->tw;
         } else
-            WT_TIME_WINDOW_COPY(&tw, &upd_select.tw);
+            twp = &upd_select.tw;
 
         /*
          * If we reconcile an on disk key with a globally visible stop time point and there are no
          * new updates for that key, skip writing that key.
          */
-        if (upd == NULL && __wt_txn_tw_stop_visible_all(session, &tw))
+        if (upd == NULL && __wt_txn_tw_stop_visible_all(session, twp))
             upd = &upd_tombstone;
 
         /* Build value cell. */
@@ -847,7 +866,7 @@ __wt_rec_row_leaf(
              * Repack the cell if we clear the transaction ids in the cell.
              */
             if (vpack->raw == WT_CELL_VALUE_COPY) {
-                WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
+                WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;
             } else if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
@@ -863,10 +882,10 @@ __wt_rec_row_leaf(
 
                     /* Rebuild the cell. */
                     val->cell_len =
-                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, &tw, 0, val->buf.size);
+                      __wt_cell_pack_ovfl(session, &val->cell, vpack->raw, twp, 0, val->buf.size);
                     val->len = val->cell_len + val->buf.size;
                 } else
-                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, &tw));
+                    WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;
             } else {
@@ -890,7 +909,7 @@ __wt_rec_row_leaf(
              */
             WT_ASSERT(session,
               F_ISSET(upd, WT_UPDATE_DS) || !F_ISSET(r, WT_REC_HS) ||
-                __wt_txn_tw_start_visible_all(session, &upd_select.tw));
+                __wt_txn_tw_start_visible_all(session, twp));
 
             /* The first time we find an overflow record, discard the underlying blocks. */
             if (F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) && vpack->raw != WT_CELL_VALUE_OVFL_RM)
@@ -902,12 +921,12 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_modify_reconstruct_from_upd_list(session, cbt, upd, cbt->upd_value));
                 WT_ERR(__wt_value_return(cbt, cbt->upd_value));
                 WT_ERR(__wt_rec_cell_build_val(
-                  session, r, cbt->iface.value.data, cbt->iface.value.size, &tw, 0));
+                  session, r, cbt->iface.value.data, cbt->iface.value.size, twp, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_STANDARD:
                 /* Take the value from the update. */
-                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, &tw, 0));
+                WT_ERR(__wt_rec_cell_build_val(session, r, upd->data, upd->size, twp, 0));
                 dictionary = true;
                 break;
             case WT_UPDATE_TOMBSTONE:
@@ -923,7 +942,7 @@ __wt_rec_row_leaf(
                     /*
                      * Keys are part of the name-space, we can't remove them from the in-memory
                      * tree; if an overflow key was deleted without being instantiated (for example,
-                     * cursor-based truncation), do it now.
+                     * cursor-based truncation), instantiate it now.
                      */
                     if (ikey == NULL)
                         WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
@@ -932,37 +951,22 @@ __wt_rec_row_leaf(
                 }
 
                 /*
-                 * If we're removing a key due to a tombstone with a durable timestamp of "none",
-                 * also remove the history store contents associated with that key. Even if we fail
-                 * reconciliation after this point, we're safe to do this. The history store content
-                 * must be obsolete in order for us to consider removing the key. Ignore if this is
-                 * metadata, as metadata doesn't have any history.
+                 * When removing a key due to a tombstone with a durable timestamp of "none", also
+                 * remove the history store contents associated with that key.
                  */
-                if (tw.durable_stop_ts == WT_TS_NONE && F_ISSET(S2C(session), WT_CONN_HS_OPEN) &&
-                  !WT_IS_HS(btree->dhandle) && !WT_IS_METADATA(btree->dhandle)) {
+                if (twp->durable_stop_ts == WT_TS_NONE && hs_clear) {
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
-                    /*
-                     * Start from WT_TS_NONE to delete all the history store content of the key.
-                     *
-                     * Some code paths, such as schema removal, involve deleting keys in metadata
-                     * and assert that they shouldn't open new dhandles. In those cases we won't
-                     * ever need to blow away history store content, so we can skip this.
-                     */
-                    if (!F_ISSET(session, WT_SESSION_NO_DATA_HANDLES)) {
-                        /*
-                         * FIXME-WT-7053: we will hit the dhandle deadlock if we open multiple
-                         * history store cursors in reconciliation. Once it is fixed, we can move
-                         * the open and close of the history store cursor inside the delete key
-                         * function.
-                         */
+
+                    /* Open a history store cursor if we don't yet have one. */
+                    if (hs_cursor == NULL)
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-                        WT_ERR(__wt_hs_delete_key_from_ts(
-                          session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false));
-                        WT_ERR(hs_cursor->close(hs_cursor));
-                        hs_cursor = NULL;
-                        WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
-                        WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
-                    }
+
+                    /* From WT_TS_NONE to delete all the history store content of the key. */
+                    WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, tmpkey,
+                      WT_TS_NONE, false, F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)));
+
+                    WT_STAT_CONN_INCR(session, cache_hs_key_truncate_onpage_removal);
+                    WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                 }
 
                 /*
@@ -1005,25 +1009,41 @@ __wt_rec_row_leaf(
              * previous key (it's a fast path for simple, prefix-compressed keys), or by building
              * the key from scratch.
              */
-            if (__wt_row_leaf_key_info(page, copy, NULL, &cell, &tmpkey->data, &tmpkey->size))
+            __wt_row_leaf_key_info(page, copy, NULL, &cell, &key_data, &key_size, &key_prefix);
+            if (key_data == NULL) {
+                if (__wt_cell_type(cell) != WT_CELL_KEY)
+                    goto slow;
+                kpack = &_kpack;
+                __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
+                key_data = kpack->data;
+                key_size = kpack->size;
+                key_prefix = kpack->prefix;
+            }
+            if (key_prefix == 0) {
+                tmpkey->data = key_data;
+                tmpkey->size = key_size;
                 goto build;
+            }
 
-            kpack = &_kpack;
-            __wt_cell_unpack_kv(session, page->dsk, cell, kpack);
-            if (kpack->type == WT_CELL_KEY && tmpkey->size >= kpack->prefix && tmpkey->size != 0) {
-                /*
-                 * Grow the buffer as necessary, ensuring data data has been copied into local
-                 * buffer space, then append the suffix to the prefix already in the buffer.
-                 *
-                 * Don't grow the buffer unnecessarily or copy data we don't need, truncate the
-                 * item's data length to the prefix bytes.
-                 */
-                tmpkey->size = kpack->prefix;
-                WT_ERR(__wt_buf_grow(session, tmpkey, tmpkey->size + kpack->size));
-                memcpy((uint8_t *)tmpkey->mem + tmpkey->size, kpack->data, kpack->size);
-                tmpkey->size += kpack->size;
-            } else
+            if (tmpkey->size == 0 || tmpkey->size < key_prefix)
+                goto slow;
+
+            /*
+             * Grow the buffer as necessary as well as ensure data has been copied into local buffer
+             * space, then append the suffix to the prefix already in the buffer. Don't grow the
+             * buffer unnecessarily or copy data we don't need, truncate the item's CURRENT data
+             * length to the prefix bytes before growing the buffer.
+             */
+            tmpkey->size = key_prefix;
+            WT_ERR(__wt_buf_grow(session, tmpkey, key_prefix + key_size));
+            memcpy((uint8_t *)tmpkey->mem + key_prefix, key_data, key_size);
+            tmpkey->size = key_prefix + key_size;
+
+            if (0) {
+slow:
                 WT_ERR(__wt_row_leaf_key_copy(session, page, rip, tmpkey));
+            }
+
 build:
             WT_ERR(__rec_cell_build_leaf_key(session, r, tmpkey->data, tmpkey->size, &ovfl_key));
         }
@@ -1045,6 +1065,7 @@ build:
              */
             if (r->key_pfx_compress_conf) {
                 r->key_pfx_compress = false;
+                r->key_pfx_last = 0;
                 if (!ovfl_key)
                     WT_ERR(__rec_cell_build_leaf_key(session, r, NULL, 0, &ovfl_key));
             }
@@ -1054,17 +1075,17 @@ build:
 
         /* Copy the key/value pair onto the page. */
         __wt_rec_image_copy(session, r, key);
-        if (val->len == 0 && __rec_row_zero_len(session, &tw))
+        if (val->len == 0 && __rec_row_zero_len(session, twp))
             r->any_empty_value = true;
         else {
             r->all_empty_value = false;
             if (dictionary && btree->dictionary)
-                WT_ERR(__wt_rec_dict_replace(session, r, &tw, 0, val));
+                WT_ERR(__wt_rec_dict_replace(session, r, twp, 0, val));
             __wt_rec_image_copy(session, r, val);
         }
 
         /* Track accumulated time window, row count and memory usage. */
-        WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
+        WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
         ++r->cur_ptr->addr_row_count;
 
         /* Update compression state. */

@@ -54,7 +54,7 @@ __logmgr_force_archive(WT_SESSION_IMPL *session, uint32_t lognum)
     log = conn->log;
     sleep_usecs = yield_cnt = 0;
 
-    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, &tmp_session));
+    WT_RET(__wt_open_internal_session(conn, "compatibility-reconfig", true, 0, 0, &tmp_session));
     while (log->first_lsn.l.file < lognum) {
         /*
          * Force a checkpoint to be written in the new log file and force the archiving of all
@@ -555,9 +555,8 @@ __log_file_server(void *arg)
     WT_DECL_RET;
     WT_FH *close_fh;
     WT_LOG *log;
-    WT_LSN close_end_lsn, min_lsn;
+    WT_LSN close_end_lsn;
     WT_SESSION_IMPL *session;
-    uint64_t yield_count;
     uint32_t filenum;
     bool locked;
 
@@ -565,7 +564,6 @@ __log_file_server(void *arg)
     conn = S2C(session);
     log = conn->log;
     locked = false;
-    yield_count = 0;
     while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LOG)) {
         /*
          * If there is a log file to close, make sure any outstanding write operations have
@@ -603,9 +601,8 @@ __log_file_server(void *arg)
                  */
                 if (conn->hot_backup_start == 0 && conn->log_cursors == 0) {
                     WT_WITH_HOTBACKUP_READ_LOCK(session,
-                      WT_ERR_ERROR_OK(
-                        __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), ENOTSUP, false),
-                      NULL);
+                      ret = __wt_ftruncate(session, close_fh, close_end_lsn.l.offset), NULL);
+                    WT_ERR_ERROR_OK(ret, ENOTSUP, false);
                 }
                 WT_SET_LSN(&close_end_lsn, close_end_lsn.l.file + 1, 0);
                 __wt_spin_lock(session, &log->log_sync_lock);
@@ -618,54 +615,6 @@ __log_file_server(void *arg)
                 __wt_spin_unlock(session, &log->log_sync_lock);
             }
         }
-        /*
-         * If a later thread asked for a background sync, do it now.
-         */
-        if (__wt_log_cmp(&log->bg_sync_lsn, &log->sync_lsn) > 0) {
-            /*
-             * Save the latest write LSN which is the minimum we will have written to disk.
-             */
-            WT_ASSIGN_LSN(&min_lsn, &log->write_lsn);
-            /*
-             * We have to wait until the LSN we asked for is written. If it isn't signal the wrlsn
-             * thread to get it written.
-             *
-             * We also have to wait for the written LSN and the sync LSN to be in the same file so
-             * that we know we have synchronized all earlier log files.
-             */
-            if (__wt_log_cmp(&log->bg_sync_lsn, &min_lsn) <= 0) {
-                /*
-                 * If the sync file is behind either the one wanted for a background sync or the
-                 * write LSN has moved to another file continue to let this worker thread process
-                 * that older file immediately.
-                 */
-                if ((log->sync_lsn.l.file < log->bg_sync_lsn.l.file) ||
-                  (log->sync_lsn.l.file < min_lsn.l.file))
-                    continue;
-                WT_ERR(__wt_fsync(session, log->log_fh, true));
-                __wt_spin_lock(session, &log->log_sync_lock);
-                WT_NOT_READ(locked, true);
-                /*
-                 * The sync LSN could have advanced while we were writing to disk.
-                 */
-                if (__wt_log_cmp(&log->sync_lsn, &min_lsn) <= 0) {
-                    WT_ASSERT(session, min_lsn.l.file == log->sync_lsn.l.file);
-                    WT_ASSIGN_LSN(&log->sync_lsn, &min_lsn);
-                    __wt_cond_signal(session, log->log_sync_cond);
-                }
-                locked = false;
-                __wt_spin_unlock(session, &log->log_sync_lock);
-            } else {
-                __wt_cond_signal(session, conn->log_wrlsn_cond);
-                /*
-                 * We do not want to wait potentially a second to process this. Yield to give the
-                 * wrlsn thread a chance to run and try again in this case.
-                 */
-                yield_count++;
-                __wt_yield();
-                continue;
-            }
-        }
 
         /* Wait until the next event. */
         __wt_cond_wait(session, conn->log_file_cond, 100000, NULL);
@@ -675,7 +624,6 @@ __log_file_server(void *arg)
 err:
         WT_IGNORE_RET(__wt_panic(session, ret, "log close server error"));
     }
-    WT_STAT_CONN_INCRV(session, log_server_sync_blocked, yield_count);
     if (locked)
         __wt_spin_unlock(session, &log->log_sync_lock);
     return (WT_THREAD_RET_VALUE);
@@ -1043,7 +991,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      */
     session_flags = WT_SESSION_NO_DATA_HANDLES;
     WT_RET(__wt_open_internal_session(
-      conn, "log-close-server", false, session_flags, &conn->log_file_session));
+      conn, "log-close-server", false, session_flags, 0, &conn->log_file_session));
     WT_RET(__wt_cond_alloc(conn->log_file_session, "log close server", &conn->log_file_cond));
 
     /*
@@ -1058,7 +1006,7 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
      * runs.
      */
     WT_RET(__wt_open_internal_session(
-      conn, "log-wrlsn-server", false, session_flags, &conn->log_wrlsn_session));
+      conn, "log-wrlsn-server", false, session_flags, 0, &conn->log_wrlsn_session));
     WT_RET(__wt_cond_auto_alloc(
       conn->log_wrlsn_session, "log write lsn server", 10000, WT_MILLION, &conn->log_wrlsn_cond));
     WT_RET(__wt_thread_create(
@@ -1076,8 +1024,8 @@ __wt_logmgr_open(WT_SESSION_IMPL *session)
         __wt_cond_signal(session, conn->log_cond);
     } else {
         /* The log server gets its own session. */
-        WT_RET(
-          __wt_open_internal_session(conn, "log-server", false, session_flags, &conn->log_session));
+        WT_RET(__wt_open_internal_session(
+          conn, "log-server", false, session_flags, 0, &conn->log_session));
         WT_RET(__wt_cond_auto_alloc(
           conn->log_session, "log server", 50000, WT_MILLION, &conn->log_cond));
 

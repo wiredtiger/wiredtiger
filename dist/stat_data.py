@@ -153,7 +153,7 @@ groups['system'] = [
 ##########################################
 # CONNECTION statistics
 ##########################################
-connection_stats = [
+conn_stats = [
     ##########################################
     # System statistics
     ##########################################
@@ -209,9 +209,11 @@ connection_stats = [
     CacheStat('cache_eviction_empty_score', 'eviction empty score', 'no_clear,no_scale'),
     CacheStat('cache_eviction_fail', 'pages selected for eviction unable to be evicted'),
     CacheStat('cache_eviction_fail_active_children_on_an_internal_page', 'pages selected for eviction unable to be evicted because of active children on an internal page'),
+    CacheStat('cache_eviction_fail_checkpoint_out_of_order_ts', 'pages selected for eviction unable to be evicted because of race between checkpoint and out of order timestamps handling'),
     CacheStat('cache_eviction_fail_in_reconciliation', 'pages selected for eviction unable to be evicted because of failure in reconciliation'),
     CacheStat('cache_eviction_fail_parent_has_overflow_items', 'pages selected for eviction unable to be evicted as the parent page has overflow items'),
     CacheStat('cache_eviction_force', 'forced eviction - pages selected count'),
+    CacheStat('cache_eviction_force_long_update_list', 'forced eviction - pages selected because of a large number of updates to a single item'),
     CacheStat('cache_eviction_force_clean', 'forced eviction - pages evicted that were clean count'),
     CacheStat('cache_eviction_force_clean_time', 'forced eviction - pages evicted that were clean time (usecs)'),
     CacheStat('cache_eviction_force_delete', 'forced eviction - pages selected because of too many deleted items count'),
@@ -223,7 +225,6 @@ connection_stats = [
     CacheStat('cache_eviction_force_hs_fail', 'forced eviction - history store pages failed to evict while session has history store cursor open'),
     CacheStat('cache_eviction_force_hs_success', 'forced eviction - history store pages successfully evicted while session has history store cursor open'),
     CacheStat('cache_eviction_force_retune', 'force re-tuning of eviction workers once in a while'),
-    CacheStat('cache_eviction_force_rollback', 'forced eviction - session returned rollback error while force evicting due to being oldest'),
     CacheStat('cache_eviction_get_ref', 'eviction calls to get a page'),
     CacheStat('cache_eviction_get_ref_empty', 'eviction calls to get a page found queue empty'),
     CacheStat('cache_eviction_get_ref_empty2', 'eviction calls to get a page found queue empty after locking'),
@@ -505,6 +506,7 @@ connection_stats = [
     ##########################################
     # Tiered storage statistics
     ##########################################
+    StorageStat('flush_state_races', 'flush state races'),
     StorageStat('flush_tier', 'flush_tier operation calls'),
 
     ##########################################
@@ -535,6 +537,7 @@ connection_stats = [
     TxnStat('txn_checkpoint_prep_running', 'transaction checkpoint prepare currently running', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_prep_total', 'transaction checkpoint prepare total time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_running', 'transaction checkpoint currently running', 'no_clear,no_scale'),
+    TxnStat('txn_checkpoint_running_hs', 'transaction checkpoint currently running for history store file', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_target', 'transaction checkpoint scrub dirty target', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_scrub_time', 'transaction checkpoint scrub time (msecs)', 'no_clear,no_scale'),
     TxnStat('txn_checkpoint_skipped', 'transaction checkpoints skipped because database was clean'),
@@ -554,13 +557,18 @@ connection_stats = [
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
     TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
-    TxnStat('txn_prepared_updates_count', 'Number of prepared updates'),
+    TxnStat('txn_prepared_updates_committed', 'Number of prepared updates committed'),
+    TxnStat('txn_prepared_updates', 'Number of prepared updates'),
+    TxnStat('txn_prepared_updates_key_repeated', 'Number of prepared updates repeated on the same key'),
+    TxnStat('txn_prepared_updates_rolledback', 'Number of prepared updates rolled back'),
     TxnStat('txn_query_ts', 'query timestamp calls'),
     TxnStat('txn_rollback', 'transactions rolled back'),
+    TxnStat('txn_rollback_to_stable_running', 'transaction rollback to stable currently running', 'no_clear,no_scale'),
     TxnStat('txn_rts', 'rollback to stable calls'),
     TxnStat('txn_rts_pages_visited', 'rollback to stable pages visited'),
     TxnStat('txn_rts_tree_walk_skip_pages', 'rollback to stable tree walk skipping pages'),
     TxnStat('txn_rts_upd_aborted', 'rollback to stable updates aborted'),
+    TxnStat('txn_sessions_walked', 'sessions scanned in each walk of concurrent sessions'),
     TxnStat('txn_set_ts', 'set timestamp calls'),
     TxnStat('txn_set_ts_durable', 'set timestamp durable calls'),
     TxnStat('txn_set_ts_durable_upd', 'set timestamp durable updates'),
@@ -568,7 +576,6 @@ connection_stats = [
     TxnStat('txn_set_ts_oldest_upd', 'set timestamp oldest updates'),
     TxnStat('txn_set_ts_stable', 'set timestamp stable calls'),
     TxnStat('txn_set_ts_stable_upd', 'set timestamp stable updates'),
-    TxnStat('txn_sync', 'transaction sync calls'),
     TxnStat('txn_timestamp_oldest_active_read', 'transaction read timestamp of the oldest active reader', 'no_clear,no_scale'),
     TxnStat('txn_walk_sessions', 'transaction walk of concurrent sessions'),
 
@@ -580,7 +587,6 @@ connection_stats = [
     YieldStat('child_modify_blocked_page', 'page reconciliation yielded due to child modification'),
     YieldStat('conn_close_blocked_lsm', 'connection close yielded for lsm manager shutdown'),
     YieldStat('dhandle_lock_blocked', 'data handle lock yielded'),
-    YieldStat('log_server_sync_blocked', 'log server sync yielded for log write'),
     YieldStat('page_busy_blocked', 'page acquire busy blocked'),
     YieldStat('page_del_rollback_blocked', 'page delete rollback time sleeping for state change (usecs)'),
     YieldStat('page_forcible_evict_blocked', 'page acquire eviction blocked'),
@@ -592,7 +598,7 @@ connection_stats = [
     YieldStat('txn_release_blocked', 'connection close blocked waiting for transaction state stabilization'),
 ]
 
-connection_stats = sorted(connection_stats, key=attrgetter('desc'))
+conn_stats = sorted(conn_stats, key=attrgetter('desc'))
 
 ##########################################
 # Data source statistics
@@ -756,6 +762,7 @@ conn_dsrc_stats = [
     CacheStat('cache_bytes_read', 'bytes read into cache', 'size'),
     CacheStat('cache_bytes_write', 'bytes written from cache', 'size'),
     CacheStat('cache_eviction_checkpoint', 'checkpoint blocked page eviction'),
+    CacheStat('cache_eviction_blocked_checkpoint_hs', 'checkpoint of history store file blocked non-history store page eviction'),
     CacheStat('cache_eviction_clean', 'unmodified pages evicted'),
     CacheStat('cache_eviction_deepen', 'page split during eviction deepened the tree'),
     CacheStat('cache_eviction_dirty', 'modified pages evicted'),
@@ -813,6 +820,7 @@ conn_dsrc_stats = [
     CursorStat('cursor_prev_skip_ge_100', 'cursor prev calls that skip greater than or equal to 100 entries'),
     CursorStat('cursor_prev_skip_lt_100', 'cursor prev calls that skip less than 100 entries'),
     CursorStat('cursor_prev_skip_total', 'Total number of entries skipped by cursor prev calls'),
+    CursorStat('cursor_search_near_prefix_fast_paths', 'Total number of times a search near has exited due to prefix config'),
     CursorStat('cursor_skip_hs_cur_position', 'Total number of entries skipped to position the history store cursor'),
     ##########################################
     # Checkpoint cleanup statistics
@@ -861,6 +869,8 @@ conn_dsrc_stats = [
     ##########################################
     StorageStat('tiered_object_size', 'tiered storage object size', 'no_clear,no_scale,size'),
     StorageStat('tiered_retention', 'tiered storage local retention time (secs)', 'no_clear,no_scale,size'),
+    StorageStat('tiered_work_units_created', 'tiered operations scheduled'),
+    StorageStat('tiered_work_units_dequeued', 'tiered operations dequeued and processed'),
 
     ##########################################
     # Transaction statistics

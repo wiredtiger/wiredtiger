@@ -383,17 +383,19 @@ __wt_debug_offset(
 
     /*
      * This routine depends on the default block manager's view of files, where an address consists
-     * of a file offset, length, and checksum. This is for debugging only: other block managers
-     * might not see a file or address the same way, that's why there's no block manager method.
+     * of a file ID, file offset, length, and checksum. This is only for debugging, other block
+     * managers might not describe underlying objects the same way, that's why there's no block
+     * manager method.
      *
      * Convert the triplet into an address structure.
      */
     block = S2BT(session)->bm->block;
     endp = addr;
-    WT_RET(__wt_block_addr_to_buffer(block, &endp, block->logid, offset, size, checksum));
+    WT_RET(__wt_block_addr_pack(block, &endp, block->objectid, offset, size, checksum));
 
     /*
-     * Read the address through the btree I/O functions (so the block is decompressed as necessary).
+     * Read the address through the btree I/O functions (so the block is decompressed and/or
+     * unencrypted as necessary).
      */
     WT_RET(__wt_scr_alloc(session, 0, &buf));
     WT_ERR(__wt_bt_read(session, buf, addr, WT_PTRDIFF(endp, addr)));
@@ -857,10 +859,10 @@ __wt_debug_tree_shape(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile)
     return (ret);
 }
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DEBUG_TREE_LEAF 0x1u /* Debug leaf pages */
 #define WT_DEBUG_TREE_WALK 0x2u /* Descend the tree */
-                                /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 /*
  * __wt_debug_tree_all --
@@ -1353,7 +1355,7 @@ __debug_page_row_leaf(WT_DBG *ds, WT_PAGE *page, WT_CURSOR *hs_cursor)
         WT_RET(__wt_row_leaf_key(session, page, rip, ds->key, false));
         WT_RET(__debug_item_key(ds, "K", ds->key->data, ds->key->size));
 
-        __wt_row_leaf_value_cell(session, page, rip, NULL, unpack);
+        __wt_row_leaf_value_cell(session, page, rip, unpack);
         WT_RET(__debug_cell_kv(ds, page, WT_PAGE_ROW_LEAF, "V", unpack));
 
         if ((upd = WT_ROW_UPDATE(page, rip)) != NULL)

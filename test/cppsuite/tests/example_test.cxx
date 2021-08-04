@@ -29,26 +29,29 @@
 #include "test_harness/test.h"
 
 /*
- * Class that defines operations that do nothing as an example.
- * This shows how database operations can be overriden and customized.
+ * Class that defines operations that do nothing as an example. This shows how database operations
+ * can be overriden and customized.
  */
 class example_test : public test_harness::test {
     public:
-    example_test(const std::string &config, const std::string &name) : test(config, name) {}
+    example_test(const test_harness::test_args &args) : test(args) {}
 
-    virtual void
+    void
     populate(test_harness::database &database, test_harness::timestamp_manager *_timestamp_manager,
-      test_harness::configuration *_config, test_harness::workload_tracking *tracking)
+      test_harness::configuration *_config,
+      test_harness::workload_tracking *tracking) override final
     {
         std::cout << "populate: nothing done." << std::endl;
     }
-    virtual void
-    read_operation(test_harness::thread_context &context, WT_SESSION *session)
+
+    void
+    read_operation(test_harness::thread_context *context) override final
     {
         std::cout << "read_operation: nothing done." << std::endl;
     }
-    virtual void
-    update_operation(test_harness::thread_context &context, WT_SESSION *session)
+
+    void
+    update_operation(test_harness::thread_context *context) override final
     {
         std::cout << "update_operation: nothing done." << std::endl;
     }
