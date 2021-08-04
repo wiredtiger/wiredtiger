@@ -123,7 +123,7 @@ class test_hs01(wttest.WiredTigerTestCase):
         # Large updates with session 1.
         self.large_updates(self.session, uri, bigvalue2, ds, nrows)
 
-        # Checkpoint and then assert that the 9999 insertions were moved to history store from data store.
+        # Checkpoint and then assert that the (nrows-1) insertions were moved to history store from data store.
         self.session.checkpoint()
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
         self.assertEqual(hs_writes, nrows-1)
@@ -144,13 +144,13 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.large_modifies(self.session, uri, 0, ds, nrows)
         self.large_modifies(self.session, uri, 1, ds, nrows)
 
-        # Checkpoint and then assert if updates (9999) and first large modifies (9999) were moved to history store.
+        # Checkpoint and then assert if updates (nrows-1) and first large modifies (nrows-1) were moved to history store.
         self.session.checkpoint()
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
-        # The updates in data store: 9999
-        # The first modifies in cache: 9999
-        # The stats was already set at: 9999 (previous hs stats)
-        # Total: 29997
+        # The updates in data store: nrows-1
+        # The first modifies in cache: nrows-1
+        # The stats was already set at: nrows-1 (previous hs stats)
+        # Total: (nrows-1)*3
         self.assertEqual(hs_writes, (nrows-1) * 3)
 
         # Check to see the modified value after recovery.
@@ -170,9 +170,9 @@ class test_hs01(wttest.WiredTigerTestCase):
         self.large_updates(self.session, uri, bigvalue4, ds, nrows, timestamp=True)
 
         self.session.checkpoint()
-        # Check if the 9999 modifications were moved to history store from data store.
-        # The stats was already set at: 29997 (previous hs stats)
-        # Total: 39996
+        # Check if the (nrows-1) modifications were moved to history store from data store.
+        # The stats was already set at: (nrows-1)*3 (previous hs stats)
+        # Total: (nrows-1)*4
         hs_writes = self.get_stat(stat.conn.cache_hs_insert)
         self.assertEqual(hs_writes, (nrows-1) * 4)
 
