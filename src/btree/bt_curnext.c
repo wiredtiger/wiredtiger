@@ -310,8 +310,17 @@ restart_read:
         cbt->cip_saved = cip;
         if (rle > 1 &&
           __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.durable_start_ts)) {
-            cbt->tmp->data = cbt->iface.value.data;
-            cbt->tmp->size = cbt->iface.value.size;
+            /*
+             * Copy the value into cbt->tmp to cache it. This is perhaps unfortunate, because
+             * copying isn't free, but it's currently necessary. The memory we're copying might be
+             * on the disk page (which is safe because the page is pinned as long as the cursor is
+             * sitting on it) but if not it belongs to cbt->upd_value, and that (though it belongs
+             * to the cursor and won't disappear arbitrarily) might be invalidated or changed by
+             * other paths through this function on a subsequent call but before we are done with
+             * this RLE cell. In principle those paths could clear WT_CBT_CACHEABLE_RLE_CELL, but
+             * the code is currently structured in a way that makes that difficult.
+             */
+            WT_RET(__wt_buf_set(session, cbt->tmp, cbt->iface.value.data, cbt->iface.value.size));
             F_SET(cbt, WT_CBT_CACHEABLE_RLE_CELL);
         } else
             F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
