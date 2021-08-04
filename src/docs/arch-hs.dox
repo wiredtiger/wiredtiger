@@ -30,7 +30,7 @@ The corresponding value for each key is stored as a combination of:
 - stop timestamp
 - durable timestamp
 - update type
-- value.
+- value
 
 @subsection arch_hs_table_tombstone Tombstones in the history store table
 The stop timestamp refers to the point in time after which the update is no longer visible. This can
@@ -82,12 +82,12 @@ History store cursor users must use one of the flags if the caller thread is run
 isolation level and doesn't hold a valid snapshot.
 
 @section arch_hs_reconciliation History store and reconciliation
-When a dirty page is reconciled on a user file b-tree, the update chain is examined and the latest
+When a dirty page is reconciled on a user file btree, the update chain is examined and the latest
 committed update is chosen as the on-disk value. All older updates are added to the history store
 table assuming they are not yet obsolete. Additionally any out of order timestamps will
 be corrected.
 
-Consider the following update chain for a user table with b-tree id 1000 and data store key "AAA":
+Consider the following update chain for a user table with btree id 1000 and data store key "AAA":
 
 @plantuml_start{hs_update_chain.png}
 @startuml{hs_update_chain.png}
@@ -232,22 +232,22 @@ For the history store table entry corresponding to the update \c U1, the start t
 is the start timestamp for the update \c U1 and the stop timestamp in the value is the start
 timestamp for the update \c U2.
 
-When a modified history store table page is processed by reconciliation, certain records on the page
-are removed when creating a new page image if the tombstones on those records have become globally
-visible. This ensures that WiredTiger is only keeping the relevant historical data required to
-serve the oldest reader in the system or as dictated by the oldest timestamp set by the application.
-Once all records on a page are obsolete, the page itself can be removed to reduce the size of
-the history store table (see @ref arch-transaction for more details about oldest timestamp).
+When a modified history store table page is processed by reconciliation, a new page image is
+created without records which have globally visible tombstones. This ensures that WiredTiger is
+only keeping the relevant historical data required to serve the oldest reader in the system or
+as dictated by the oldest timestamp set by the application. Once all records on a page are obsolete,
+the page itself can be removed to reduce the size of the history store table
+(see @ref arch-transaction for more details about oldest timestamp).
 
 @section arch_hs_read Searching for older versions of a key in History Store
 When looking for an update visible to the current transaction, WiredTiger first searches the update
 chain for any visible updates. If there is no visible update in the chain, WiredTiger then
 inspects the on-disk version of the key. If that version is not visible to the transaction,
 WiredTiger searches the history store table for a visible update for the key. When
-searching for update that satisfies the read timestamp constraint, WiredTiger starts with the newest
-update of the key in the history store table and then iterates through the older updates until there
-are no updates left to process. Note that although there can be multiple updates in the
-history store for a key and read timestamp combination, each update would have different
+searching for an update that satisfies the read timestamp constraint, WiredTiger starts
+with the newest update of the key in the history store table and then iterates through the older
+updates until there are no updates left to process. Note that although there can be multiple updates
+in the history store for a key and read timestamp combination, each update would have different
 visibility based on transaction and timestamp based visibility rules. In case there are no records
 visible in the history store table, \c WT_NOTFOUND error is returned to the reader.
 
@@ -265,7 +265,7 @@ to the on-disk page and any older updates are written to the history store table
 no update from a different transaction that is newer than the prepared update for the key and
 therefore the history store should never contain a prepared update. When a prepared update is
 committed, the stop timestamp of the newest update in the history store table is updated from
-\c WT_TS_MAX to the commit timestamp of the prepared update. When prepared update is rolled back,
+\c WT_TS_MAX to the commit timestamp of the prepared update. When a prepared update is rolled back,
 the newest update from the history store table is restored as the on-disk version and then removed
 from the history store table.
 
