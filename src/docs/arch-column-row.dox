@@ -2,16 +2,10 @@
 
 @section column_row_definition Definition
 
-A row oriented storage is an access method where all columns of a row are stored
-together, the data is stored by row, while a column oriented system stores its data tables by
-column. WiredTiger supports both and each management system is represented internally by a certain
-type of B-Tree data structure.
-
-Keys and values in row-stores can be of variable length, thus, row-stores implement a generalized
-version of a B-Tree. Furthermore, keys are explicitly stored. Column-stores use a 64-bit unsigned
-integer record id as keys, thus, column-stores implement a specialized version of a B-Tree where the
-key has a predictable length. In the case of column-stores, keys are implied given the row's
-position in the B-Tree.
+WiredTiger supports both row-stores and column-stores and each access method is represented
+internally by a B-Tree. Keys and values in row-stores can be of variable length. Furthermore, keys
+are explicitly stored. Column-stores use a 64-bit unsigned integer record id as keys and they are
+implied given the row's position in the B-Tree.
 
 There are two types of column-stores in WiredTiger:
 - The fixed length column-store, as its name implies, the value has a fixed length, and furthermore
