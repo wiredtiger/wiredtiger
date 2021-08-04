@@ -874,15 +874,21 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
 #ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
+    /*
+     * Exit abnormally as the key consistency mode dictates all updates must use timestamps 
+     * once they have been used.
+     */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts)
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "no timestamp provided for an update to a "
           "table configured to always use timestamps once they are first used"));
+        WT_ASSERT(session, false);
 
     /*
-     * The program should exit abnormally in addition to just logging a message.
+     * Exit abnormally as we don't allow out of order timestamps on a table configured for
+     * strict ordering.
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
         WT_RET(__wt_msg(session,
@@ -892,11 +898,12 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
           "update (%s) on a table configured for strict ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-        WT_ASSERT(session, op_ts > prev_op_durable_ts);
-    }
+        WT_ASSERT(session, false);
 
     /*
-     * The program should exit abnormally in addition to just logging a message.
+     * Exit abnormally as we don't allow an update without a timestamp if the previous update 
+     * had an associated timestamp. This applies to both tables configured for strict and 
+     * mixed mode orderings.
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
@@ -906,7 +913,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
                                      "a timestamp while the previous update (%s) is timestamped "
                                      "on a table configured for strict ordering",
             __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-        WT_ASSERT(session, !((prev_op_durable_ts != WT_TS_NONE) && (!txn_has_ts)));
+        WT_ASSERT(session, false);
     }
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
@@ -918,6 +925,7 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
           "update (%s) on a table configured for mixed mode ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        WT_ASSERT(session, false);
 #else
     WT_UNUSED(prev_op_durable_ts);
 #endif
