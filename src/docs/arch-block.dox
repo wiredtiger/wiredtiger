@@ -153,9 +153,9 @@ contain a minimum of two checkpoints. Upon opening an existing file the most
 recent checkpoint is read.
 
 During a checkpoint new blocks are only written out for dirty pages. A block can
-be included in multiple checkpoints. Assuming a page 'X' is dirty and gets
-checkpointed in checkpoint 'A', it will be created as a new block on disk. Now
-the same page 'X' isn't modified and another checkpoint is taken. The page is
+be included in multiple checkpoints. Assuming a page \c X is dirty and gets
+checkpointed in checkpoint \c A, it will be created as a new block on disk. Now
+the same page \c X isn't modified and another checkpoint is taken. The page is
 clean and as such will not require a new block to be written for it. The address
 of the original block is still valid.
 
@@ -170,11 +170,11 @@ call \c bm->sync which will call the file system dependent flush function.
 As a checkpoint progresses it updates its three extent lists, these extent lists
 are written out to disk as part of the checkpoint in blocks. When a checkpoint
 is written the previous checkpoints will be cleaned up if possible, suppose we
-have finished writing out checkpoint C and have checkpoints A and B on disk.
-We only need to retain two checkpoints so we can cleanup checkpoint A.
-Checkpoint A's extent lists get merged into checkpoint B's extent lists. If
-a block, N, is in the alloc list of checkpoint A and the removed discard list
-of checkpoint B the block is considered free. Until a block in an alloc list
+have finished writing out checkpoint \c C and have checkpoints \c A and \c B on
+disk. We only need to retain two checkpoints so we can cleanup checkpoint \c A.
+Checkpoint \c A's extent lists get merged into checkpoint \c B's extent lists.
+If a block, \c N, is in the alloc list of checkpoint A and the removed discard
+list of checkpoint \c B the block is considered free. Until a block in an alloc list
 is seen in a discard list the space cannot freed.
 
 @subsubsection Eviction
