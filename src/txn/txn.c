@@ -723,11 +723,12 @@ __wt_txn_release(WT_SESSION_IMPL *session)
 }
 
 /*
- * __txn_append_hs_record --
- *     Append the update older than the prepared update to the update chain
+ * __txn_locate_hs_record --
+ *     Locate the update older than the prepared update in the history store and append it to the
+ *     update chain if necessary.
  */
 static int
-__txn_append_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
+__txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
   WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended, bool prepare_on_disk)
 {
     WT_DECL_ITEM(hs_value);
@@ -1167,7 +1168,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             WT_ERR(ret);
             tombstone = NULL;
         } else if (ret == 0)
-            WT_ERR(__txn_append_hs_record(session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd,
+            WT_ERR(__txn_locate_hs_record(session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd,
               &upd_appended, prepare_on_disk));
         else
             ret = 0;
