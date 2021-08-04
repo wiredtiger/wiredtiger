@@ -213,8 +213,8 @@ class backup_base(wttest.WiredTigerTestCase, suite_subprocess):
         # the data are different if running in consolidate mode. It's
         # possible that we change multiple blocks in a single write and
         # some of the blocks are the same as before. If we are not running
-        # in consolidate mode, these blocks are copied separately one by
-        # one, which will trigger this assert.
+        # in consolidate mode, these blocks which are copied separately one
+        # by one will trigger this assert.
         old_to = self.home_tmp + '/' + filename
         if os.path.exists(old_to) and consolidate:
             self.pr('RANGE CHECK file ' + old_to + ' offset ' + str(offset) + ' len ' + str(size))
