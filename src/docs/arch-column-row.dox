@@ -74,9 +74,9 @@ and manages encoding and decoding itself.
 @section column_row_internal_use Internal usage
 
 Internally, row-stores and column-stores use a common \c WT_BTREE structure. The fundamental
-difference is that the \c WT_BTREE->type field is set \c BTREE_ROW for row-stores and \c BTREE_COL
-for column-stores. Internal functions that navigate, access and manipulate B-Trees have code
-sprinkled throughout that is conditional on \c WT_BTREE->type.
+difference is that the \c WT_BTREE->type field is set to \c BTREE_ROW for row-stores and
+\c BTREE_COL for column-stores. Internal functions that navigate, access and manipulate B-Trees have
+code sprinkled throughout that is conditional on \c WT_BTREE->type.
 
 <table>
 @hrow{, Row Store, Column Store - Variable Length, Column Store - Fixed Length}
