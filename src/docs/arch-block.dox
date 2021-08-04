@@ -140,9 +140,8 @@ read into memory the same process will take place.
 @subsection Writing
 
 Two cases exist for writing out data using the block manager, checkpoint and
-eviction. Both are explained in the following two sections. When a page image
-is written out the block manager the \c bm->write API is called. See \c bt_io.c
-for more detail.
+eviction. When a page image is written out the block manager the \c bm->write
+API is called. See \c bt_io.c for more detail.
 
 @subsubsection Checkpoint
 
