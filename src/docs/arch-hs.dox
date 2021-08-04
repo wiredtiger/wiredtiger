@@ -109,124 +109,122 @@ Assuming all updates are committed, updates \c U1, \c U2 and \c U3 will be added
 store table as shown in the table below.
 
 <table style="height: 195px; width: 811px; border-color: Black;" border="4">
-  <tbody>
-    <tr style="height: 32px;">
-      <td style="width: 353.391px; height: 32px; text-align: center;" colspan="4">
-        <strong>KEY</strong>
-      </td>
-      <td style="width: 456.609px; height: 32px; text-align: center;" colspan="4">
-        <strong>VALUE</strong>
-      </td>
-    </tr>
-    <tr style="height: 32px;">
-      <td style="width: 72.5156px; height: 32px; text-align: center;">
-        <strong>Btree ID</strong>
-      </td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">
-        <strong>User Key</strong>
-      </td>
-      <td style="width: 97.0312px; height: 32px; text-align: center;">
-        <strong>Start ts</strong>
-      </td>
-      <td style="width: 93.9688px; height: 32px; text-align: center;">
-        <strong>Counter</strong>
-      </td>
-      <td style="width: 92.4375px; height: 32px; text-align: center;">
-        <strong>Stop ts</strong>
-      </td>
-      <td style="width: 105.719px; height: 32px; text-align: center;">
-        <strong>Durable ts</strong>
-      </td>
-      <td style="width: 110.312px; height: 32px; text-align: center;">
-        <strong>Type</strong>
-      </td>
-      <td style="width: 148.141px; height: 32px; text-align: center;">
-        <strong>Value</strong>
-      </td>
-    </tr>
-    <tr style="height: 32.5625px;">
-      <td style="width: 72.5156px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 89.875px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 97.0312px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 93.9688px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 92.4375px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 105.719px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 110.312px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 148.141px; height: 32.5625px; text-align: center;">
-        <strong>...</strong>
-      </td>
-    </tr>
-    <tr style="height: 32px;">
-      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
-      <td style="width: 97.0312px; height: 32px; text-align: center;">70</td>
-      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
-      <td style="width: 92.4375px; height: 32px; text-align: center;">80</td>
-      <td style="width: 105.719px; height: 32px; text-align: center;">70</td>
-      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
-      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U1</td>
-    </tr>
-    <tr style="height: 32px;">
-      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
-      <td style="width: 97.0312px; height: 32px; text-align: center;">80</td>
-      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
-      <td style="width: 92.4375px; height: 32px; text-align: center;">90</td>
-      <td style="width: 105.719px; height: 32px; text-align: center;">80</td>
-      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
-      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U2</td>
-    </tr>
-    <tr style="height: 32px;">
-      <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
-      <td style="width: 97.0312px; height: 32px; text-align: center;">90</td>
-      <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
-      <td style="width: 92.4375px; height: 32px; text-align: center;">100</td>
-      <td style="width: 105.719px; height: 32px; text-align: center;">90</td>
-      <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
-      <td style="width: 148.141px; height: 32px; text-align: center;">Value from U3</td>
-    </tr>
-    <tr style="height: 32px;">
-      <td style="width: 72.5156px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 97.0312px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 93.9688px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 92.4375px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 105.719px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 110.312px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-      <td style="width: 148.141px; height: 32px; text-align: center;">
-        <strong>...</strong>
-      </td>
-    </tr>
-  </tbody>
+  <tr style="height: 32px;">
+    <td style="width: 353.391px; height: 32px; text-align: center;" colspan="4">
+      <strong>KEY</strong>
+    </td>
+    <td style="width: 456.609px; height: 32px; text-align: center;" colspan="4">
+      <strong>VALUE</strong>
+    </td>
+  </tr>
+  <tr style="height: 32px;">
+    <td style="width: 72.5156px; height: 32px; text-align: center;">
+      <strong>Btree ID</strong>
+    </td>
+    <td style="width: 89.875px; height: 32px; text-align: center;">
+      <strong>User Key</strong>
+    </td>
+    <td style="width: 97.0312px; height: 32px; text-align: center;">
+      <strong>Start ts</strong>
+    </td>
+    <td style="width: 93.9688px; height: 32px; text-align: center;">
+      <strong>Counter</strong>
+    </td>
+    <td style="width: 92.4375px; height: 32px; text-align: center;">
+      <strong>Stop ts</strong>
+    </td>
+    <td style="width: 105.719px; height: 32px; text-align: center;">
+      <strong>Durable ts</strong>
+    </td>
+    <td style="width: 110.312px; height: 32px; text-align: center;">
+      <strong>Type</strong>
+    </td>
+    <td style="width: 148.141px; height: 32px; text-align: center;">
+      <strong>Value</strong>
+    </td>
+  </tr>
+  <tr style="height: 32.5625px;">
+    <td style="width: 72.5156px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 89.875px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 97.0312px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 93.9688px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 92.4375px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 105.719px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 110.312px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 148.141px; height: 32.5625px; text-align: center;">
+      <strong>...</strong>
+    </td>
+  </tr>
+  <tr style="height: 32px;">
+    <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+    <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
+    <td style="width: 97.0312px; height: 32px; text-align: center;">70</td>
+    <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+    <td style="width: 92.4375px; height: 32px; text-align: center;">80</td>
+    <td style="width: 105.719px; height: 32px; text-align: center;">70</td>
+    <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+    <td style="width: 148.141px; height: 32px; text-align: center;">Value from U1</td>
+  </tr>
+  <tr style="height: 32px;">
+    <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+    <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
+    <td style="width: 97.0312px; height: 32px; text-align: center;">80</td>
+    <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+    <td style="width: 92.4375px; height: 32px; text-align: center;">90</td>
+    <td style="width: 105.719px; height: 32px; text-align: center;">80</td>
+    <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+    <td style="width: 148.141px; height: 32px; text-align: center;">Value from U2</td>
+  </tr>
+  <tr style="height: 32px;">
+    <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
+    <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
+    <td style="width: 97.0312px; height: 32px; text-align: center;">90</td>
+    <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
+    <td style="width: 92.4375px; height: 32px; text-align: center;">100</td>
+    <td style="width: 105.719px; height: 32px; text-align: center;">90</td>
+    <td style="width: 110.312px; height: 32px; text-align: center;">STANDARD</td>
+    <td style="width: 148.141px; height: 32px; text-align: center;">Value from U3</td>
+  </tr>
+  <tr style="height: 32px;">
+    <td style="width: 72.5156px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 89.875px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 97.0312px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 93.9688px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 92.4375px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 105.719px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 110.312px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+    <td style="width: 148.141px; height: 32px; text-align: center;">
+      <strong>...</strong>
+    </td>
+  </tr>
 </table>
 
 For the history store table entry corresponding to the update \c U1, the start timestamp in the key
