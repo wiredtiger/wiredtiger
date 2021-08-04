@@ -169,13 +169,13 @@ call \c bm->sync which will call the file system dependent flush function.
 
 As a checkpoint progresses it updates its three extent lists, these extent lists
 are written out to disk as part of the checkpoint in blocks. When a checkpoint
-is written the previous checkpoints will be cleaned up if possible, suppose we
-have finished writing out checkpoint \c C and have checkpoints \c A and \c B on
-disk. We only need to retain two checkpoints so we can cleanup checkpoint \c A.
+is written the previous checkpoints will be cleaned up if possible, suppose
+the block manager has finished writing out a checkpoint. Which we will call
+checkpoint \c C, checkpoints \c A and \c B exist on disk. By default the block
+manager only retains two checkpoints so it can cleanup checkpoint \c A.
 Checkpoint \c A's extent lists get merged into checkpoint \c B's extent lists.
-If a block, \c N, is in the alloc list of checkpoint A and the removed discard
-list of checkpoint \c B the block is considered free. Until a block in an alloc list
-is seen in a discard list the space cannot freed.
+If a block, \c N, is created in checkpoint \c A and removed in checkpoint \c B
+the space occupied by the block is considered free and can be utilized.
 
 @subsubsection Eviction
 
