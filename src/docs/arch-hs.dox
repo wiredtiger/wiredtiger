@@ -86,7 +86,7 @@ committed update is chosen as the on-disk value. All older updates are added to 
 table assuming they are not yet obsolete. Additionally any out of order timestamps will
 be corrected.
 
-Consider the following update chain for a user table with b-tree id 100 and data store key "aaa":
+Consider the following update chain for a user table with b-tree id 100 and data store key "AAA":
 
 @plantuml_start{hs_update_chain.png}
 @startuml{hs_update_chain.png}
@@ -172,7 +172,7 @@ store table as shown in the table below.
     </tr>
     <tr style="height: 32px;">
       <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">&nbsp;"aaa"</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
       <td style="width: 97.0312px; height: 32px; text-align: center;">70</td>
       <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
       <td style="width: 92.4375px; height: 32px; text-align: center;">80</td>
@@ -182,7 +182,7 @@ store table as shown in the table below.
     </tr>
     <tr style="height: 32px;">
       <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">"aaa"</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
       <td style="width: 97.0312px; height: 32px; text-align: center;">80</td>
       <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
       <td style="width: 92.4375px; height: 32px; text-align: center;">90</td>
@@ -192,7 +192,7 @@ store table as shown in the table below.
     </tr>
     <tr style="height: 32px;">
       <td style="width: 72.5156px; height: 32px; text-align: center;">1000</td>
-      <td style="width: 89.875px; height: 32px; text-align: center;">"aaa"</td>
+      <td style="width: 89.875px; height: 32px; text-align: center;">"AAA"</td>
       <td style="width: 97.0312px; height: 32px; text-align: center;">90</td>
       <td style="width: 93.9688px; height: 32px; text-align: center;">0</td>
       <td style="width: 92.4375px; height: 32px; text-align: center;">100</td>
