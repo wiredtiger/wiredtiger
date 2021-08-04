@@ -86,7 +86,7 @@ committed update is chosen as the on-disk value. All older updates are added to 
 table assuming they are not yet obsolete. Additionally any out of order timestamps will
 be corrected.
 
-Consider the following update chain for a user table with b-tree id 100 and data store key "AAA":
+Consider the following update chain for a user table with b-tree id 1000 and data store key "AAA":
 
 @plantuml_start{hs_update_chain.png}
 @startuml{hs_update_chain.png}
