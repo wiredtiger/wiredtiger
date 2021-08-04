@@ -538,7 +538,7 @@ __inmem_col_var(
             repeats[repeat_off++].rle = rle;
         }
 
-        /* If we find a prepare, we'll have to resolve it. */
+        /* If we find a prepare, we'll have to instantiate it in the update chain later. */
         if (unpack.tw.prepare)
             prepare = true;
 
@@ -830,7 +830,7 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
             WT_ERR(__wt_illegal_value(session, unpack.type));
         }
 
-        /* If we find a prepare, we'll have to resolve it. */
+        /* If we find a prepare, we'll have to instantiate it in the update chain later. */
         if (unpack.tw.prepare)
             prepare = true;
     }
