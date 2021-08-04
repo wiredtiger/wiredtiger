@@ -44,27 +44,6 @@ column-stores efficient to retrieve a value at a given offset, the use of
 <a href="https://en.wikipedia.org/wiki/Bloom_filter"><b>Bloom filter</b></a> is probably one of the
 best examples.
 
-@section column_row_performance Performance
-
-Often, an application writer has the choice to use a row-store or a column-store for their data. A
-typical way column-stores are used are with column groups, see @ref schema_column_groups. In this
-context, if some queries need to return the complete row, generally a row-store would be faster
-because there is only one B-Tree that would need to be searched whereas in the case of a
-column-stores with column-groups, all the B-Trees that are associated with the requested data will
-need to be searched.
-
-Column-stores are generally faster for queries which require only a subset of the columns because
-columns can be separated into multiple files and only the columns being returned need to be present
-in the cache. In fact, it is possible to split a table into multiple files using a combination of
-row-stores and column-stores, so this benefit can be gained regardless of the access method choice,
-see @ref schema_column_groups for more information.
-
-In both cases, for better efficiency, one should define column groups according to queries that will
-be mostly performed. Finally, row-stores and column-stores can be mixed-and-matched at the table
-level: for example, a row-store index can be created on a column-store table. It is worth noting
-that MongoDB does not use the rich schema being described: it stores a blob of data in a row-store
-and manages encoding and decoding itself.
-
 @section column_row_internal_use Internal usage
 
 Internally, row-stores and column-stores use a common \c WT_BTREE structure. The fundamental
