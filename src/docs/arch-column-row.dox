@@ -28,13 +28,13 @@ the internal pages.
 
 @section column_row_vlcs Variable length column-stores
 
-The main advantage of variable length column-stores is on-disk storage size. Their keys are not
-stored but derived from the row's position in the B-Tree. In fact, there is a starting key on each
-page which is used to figure out the rest of the keys present on that same page. Column-stores
-values also present an advantage to further save more disk space as they can be written in more
-compact forms through encoding techniques. In WiredTiger, the run-length encoding is used to replace
-any sequence of the same value with a count and value indicator. However, this makes the access to a
-specific record more complicated, it makes it impossible to jump to a record in a leaf page.
+Keys in column-stores are not stored but derived from the row's position in the B-Tree which saves
+disk space. In fact, there is a starting key on each page which is used to figure out the rest of
+the keys present on that same page. Column-stores values also present an advantage to further save
+more disk space as they can be written in more compact forms through encoding techniques. In
+WiredTiger, the run-length encoding is used to replace any sequence of the same value with a count
+and value indicator. However, this makes the access to a specific record more complicated, it makes
+it impossible to jump to a record in a leaf page.
 
 @section column_row_flcs Fixed length column-stores
 
