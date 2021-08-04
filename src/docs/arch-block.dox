@@ -45,9 +45,9 @@ The block manager decides where in the file a block will be written. It has two
 forms of writing modes, first fit and best fit. The default behavior is best
 fit. While operating in best fit mode the block manager will search a skip list
 of extents sorted by size, returning either an exact match or the next largest.
-This is done to avoid extending the file when possible. When operating in first
-fit mode the block manager will place the newly created block in the first
-available extent. When writing the root node of a btree first fit mode is used.
+This is done to avoid extending the file when possible. In first fit mode the
+block manager will place the newly created block in the first available extent.
+First fit mode is used for all root pages.
 
 Additionally the block manager is a no-overwrite system. As such once a block is
 written it cannot be modified.  This is for crash recovery reasons as if the
@@ -149,15 +149,19 @@ For details on checkpoint at the WiredTiger level see @ref arch-checkpoint.
 
 At the block manager level a checkpoint corresponds with a set of blocks which
 are stored in the file associated with the given URI. Typically each file will
-contain a minimum of two checkpoints. When opening an existing file the latest
-checkpoint is read.
+contain a minimum of two checkpoints. Upon opening an existing file the most
+recent checkpoint is read.
 
-When WiredTiger performs a checkpoint clean pages will not result in additional
-blocks being created and as such existing blocks from older checkpoints may be
-reused, this means that while there may be more than one checkpoint in a file
-the block are not guaranteed to be mutually exclusive. Checkpoints are created
-in depth first order, leaf blocks are created, then the parent blocks. This is
-a requirement as the parent blocks contain the addresses of the leaf blocks.
+During a checkpoint new blocks are only written out for dirty pages. A block can
+be included in multiple checkpoints. Assuming a page 'X' is dirty and gets
+checkpointed in checkpoint 'A', it will be created as a new block on disk. Now
+the same page 'X' isn't modified and another checkpoint is taken. The page is
+clean and as such will not require a new block to be written for it. The address
+of the original block is still valid.
+
+Checkpoints are created in depth first order, leaf blocks are created, then
+the parent blocks. This is a requirement as the parent blocks contain the
+addresses of the leaf blocks.
 
 The block manager doesn't guarantee that calling \c bm->write will result in
 the data being flushed to disk. In the checkpoint scenario WiredTiger will also
