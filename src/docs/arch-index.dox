@@ -183,14 +183,14 @@ Metadata is stored as <code>uri, config</code> K/V pairs in a designated table.
 
 WiredTiger has a Python API that is useful for scripting and experimentation.
 
-@subpage arch-rts
-
-Rollback to stable to remove the unstable updates from the database.
-
 @subpage arch-row-column
 
 Row stores and column store are B-Trees. Row stores have a variable size key and data while column
 stores have as their key a record id.
+
+@subpage arch-rts
+
+Rollback to stable to remove the unstable updates from the database.
 
 @subpage arch-schema
 
