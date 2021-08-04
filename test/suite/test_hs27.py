@@ -281,7 +281,7 @@ class test_hs27(wttest.WiredTigerTestCase):
         session_read = self.conn.open_session()
         session_read.begin_transaction('read_timestamp=' + self.timestamp_str(2))
 
-        # Check that the inital writes (at timestamp 1) are seen (at timestamp 2).
+        # Check that the initial writes (at timestamp 1) are seen (at timestamp 2).
         self.check(session_read, ds.uri, ds, 2, make_own_txn=False)
 
         # Write more values at assorted timestamps.
