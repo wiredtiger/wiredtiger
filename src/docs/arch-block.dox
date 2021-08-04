@@ -139,7 +139,7 @@ read into memory the same process will take place.
 
 @subsection Writing
 
-Two cases exist for writing out data using the block manager, checkpoint and
+Two cases exist for writing out data using the block manager: checkpoint and
 eviction. When a page image is written out the block manager the \c bm->write
 API is called. See \c bt_io.c for more detail.
 
@@ -147,7 +147,7 @@ API is called. See \c bt_io.c for more detail.
 
 For details on checkpoint at the WiredTiger level see @ref arch-checkpoint.
 
-At the block manager level a checkpoint corresponds with a set of blocks which
+At the block manager level, a checkpoint corresponds with a set of blocks that
 are stored in the file associated with the given URI. Typically each file will
 contain a minimum of two checkpoints. Upon opening an existing file the most
 recent checkpoint is read.
