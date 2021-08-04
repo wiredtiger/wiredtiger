@@ -110,11 +110,16 @@ OS or storage device has special requirements.
 
 @subsection checksum Checksum
 
-The \c checksum configuration controls whether blocks have a checksum stored
-alongside them. With block checksums enabled, a block written to disk it is
-accompanied by a checksum of the block contents. When that block is read off the
-disk to reconstruct a page, we recompute the checksum and verify that is the
-same to defend against the risk of file corruption.
+The \c checksum configuration can be provided during creation of the file.
+This configuration instructs the block manager to checksum the full length of
+the buffer provided to be written into the block. Be default it is enabled.
+When disabled the block manager still does perform a checksum operation but only
+the first 64 bytes of the buffer are included.
+
+The checksum is used when reading blocks to validate their contents, it
+is compared with the checksum extracted from the address cookie and it is
+compared with a checksum generated from the buffer that was held in the block
+being read. In both cases the checksum should match.
 
 @section block_usage How WiredTiger uses the block manager
 
