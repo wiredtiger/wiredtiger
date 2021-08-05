@@ -108,6 +108,7 @@ PPC
 PRELOAD
 PROFDATA
 README
+RLE
 RedHat
 RepMgr
 Riak
@@ -267,6 +268,7 @@ dl
 dll
 dlp
 dontlock
+doxtable
 dp
 ds
 dsrc
@@ -362,6 +364,7 @@ insn
 intl
 intpack
 inuse
+invariants
 io
 ip
 je
@@ -565,6 +568,7 @@ sess
 sid
 skinparam
 skiplist
+sortable
 spinlock
 spinlocks
 sql
