@@ -1113,7 +1113,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
 
     /*
      * Locate the previous update from the history store and append it to the update chain if
-     * required. We know there may be content in the history store if the prepared update in written
+     * required. We know there may be content in the history store if the prepared update is written
      * to the disk image or first committed update older than the prepared update is marked as
      * WT_UPDATE_HS. The second case is rare but can happen if the eviction that writes the prepared
      * update to the disk image fails after it has inserted the other updates of the key into the
