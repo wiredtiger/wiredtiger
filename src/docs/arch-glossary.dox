@@ -61,7 +61,7 @@ they are used in other settings.
 <tr><td>overflow page<td>btree<td>either in-memory or on disk, a page in a Btree that has a key or value that is too large to appear on a leaf or internal page.
 <tr><td>pack<td>general<td>convert in-memory representations of keys or values to a compact format for file storage
 <tr><td>page<td>btree<td>one logical node of a Btree, in memory, or on disk, that may store keys and/or values.  See internal page, leaf page, overflow page.
-<tr><td>page reference<td>btree<td>an indirect reference to a key on a page in a Btree.  The reference struct (WT_REF) acts as the indirection and may include a pointer to an in memory object or a an address cookie to find the object on disk.  "ref" for short.
+<tr><td>page reference<td>btree<td>an indirect reference to a key on a page in a Btree.  The reference struct (WT_REF) acts as the indirection and may include a pointer to an in memory object or an address cookie to find the object on disk.  "ref" for short.
 <tr><td>pthread<td>general<td>a thread implementation used on POSIX systems
 <tr><td>raw<td>schema<td>data as it appears on-disk, typically in a packed format.
 <tr><td>read timestamp<td>transactions<td>a timestamp that specifies what data should be visible.
