@@ -6,66 +6,66 @@ the communication of different file system calls. Other modules
 utilise this layer to interact with underlying files.
 
 @section multiple_os Support for Multiple Operating Systems
-WiredTiger supports multiple operating systems through compiling specific 
-operating system call implementations. For example to get the local time of 
+WiredTiger supports multiple operating systems through compiling specific
+operating system call implementations. For example to get the local time of
 the system via __wt_localtime, there is a seperate function implemention for
 windows and posix systems. WiredTiger currently only supports POSIX and Windows
 operating system calls. When compiling on a windows system, it only compiles
-the os_win folder for accomodating window system calls and respectively for 
+the os_win folder for accomodating window system calls and respectively for
 a posix system. There are also specific definitions made for each
 operating system which are either defined in posix.h or os_windows.h.
 
-Note: There is no interface layer that communicates between WiredTiger 
+Note: There is no interface layer that communicates between WiredTiger
 and the specific operating system.
 
 @section file_system WiredTiger File System
-WiredTiger initialises a file system abraction layer called WT_FILE_SYSTEM 
-whenever a connection is open. The file system layer's responsibility is 
-to support multiple operating system's directory type calls, maintaining 
+WiredTiger initialises a file system abraction layer called WT_FILE_SYSTEM
+whenever a connection is open. The file system layer's responsibility is
+to support multiple operating system's directory type calls, maintaining
 the creation, removal and metadata about files within a directory.
 
-WiredTiger currently supports POSIX and Windows file system calls, 
+WiredTiger currently supports POSIX and Windows file system calls,
 under the usage of WT_FILE_HANDLE_WIN AND WT_FILE_HANDLE_POSIX respectively.
-All file system calls implementations for their specific Operating System 
+All file system calls implementations for their specific Operating System
 can be found within os_posix or os_win folder. Additionally, a program can use
-WT_CONNECTION::set_file_system to register a set of functions that will be 
+WT_CONNECTION::set_file_system to register a set of functions that will be
 called for each file system type operation. @ex_ref{ex_file_system.c} shows an
-example of how the file system can be customised. 
+example of how the file system can be customised.
 
 @section file_handle WiredTiger File Handle Structure
 WiredTiger supports mutiple operating system file calls through maintaining
-a common file handle interface called WT_FILE_HANDLE. The main's responsibility 
-of this layer is to provide specific handling of a file (e.g. read, writes). 
+a common file handle interface called WT_FILE_HANDLE. The main's responsibility
+of this layer is to provide specific handling of a file (e.g. read, writes).
 The structure of the file handle is composed of 2 main components, the registered
-file system and a list of function pointers to accomodate common file calls. 
+file system and a list of function pointers to accomodate common file calls.
 This file handle interface is used as a base for other structures.
 
-WiredTiger implements a file handle using the file handle interface called WT_FH. 
+WiredTiger implements a file handle using the file handle interface called WT_FH.
 WT_FH holds extra information on the file and accessing the file handle. WiredTiger
-accesses the file handle through the usage of a queue entry, which has a next and 
+accesses the file handle through the usage of a queue entry, which has a next and
 previous pointer to other file handle entries.
 
 WiredTiger currently supports POSIX and Windows file calls, through implementing
-WT_FILE_HANDLE_WIN and WT_FILE_HANDLE_POSIX respectively which uses WT_FILE_HANDLE 
+WT_FILE_HANDLE_WIN and WT_FILE_HANDLE_POSIX respectively which uses WT_FILE_HANDLE
 within it's structure to customise it's own file calls. All file call implementations
 can be found in os_posix or os_win folder. Both operating systems maintain direct I/O,
 which is explained within @ref_single tune_system_buffer_cache.
 
-A program can also customise the file calls within WT_FILE_HANDLE, but needs a 
+A program can also customise the file calls within WT_FILE_HANDLE, but needs a
 customised file system WT_FILE_SYSTEM to be already initialised. The WT_FILE_SYSTEM::fs_open_file
 function is responsible for maintaing the creation of file handles. @ex_ref{ex_file_system.c}
 shows an example of how the file handles can be customised.
 
 @section file_system_inmemory WiredTiger File System and Handle in memory
-WiredTiger also supports a special type of file system and handles, which 
+WiredTiger also supports a special type of file system and handles, which
 is responsible for when in_memory is configured. The in_memory configuration
 changes WiredTiger to run in cache without writing to a disk. Without writing
 to a disk, each in memory file handle instead holds a buffer to withhold information.
 All in memory file system and file function implementations are present within os_fs_inmemory.c.
 
 @section file_stream WiredTiger File Stream
-WiredTiger has an implementation of file stream muchalike file streams 
-in the C library https://www.gnu.org/software/libc/manual/html_node/Standard-Streams.html. 
+WiredTiger has an implementation of file stream muchalike file streams
+in the C library https://www.gnu.org/software/libc/manual/html_node/Standard-Streams.html.
 WiredTiger File streams has an internal buffer
 
 @section filesystem_usage Multiple System Architecture Support
