@@ -4,11 +4,6 @@ operating systems. The layer's main functionality is to translate
 the communication of different file system calls. Other modules
 utilise this layer to interact with underlying files.
 
-Currently WiredTiger supports POSIX and Windows library operating system
-APIs through checking the macro _WIN32, which is defined when the Operating
-system is windows. Other operating systems are not currently supported when
-compiling WiredTiger.
-
 @section multiple_os Support for Multiple Operating Systems
 WiredTiger supports multiple operating systems through compiling specific 
 operating system call implementations. For example to get the local time of 
@@ -18,6 +13,7 @@ operating system calls. When compiling on a windows system, it only compiles
 the os_win folder for accomodating window system calls and respectively for 
 a posix system. There are also specific definitions made for each
 operating system which are either defined in posix.h or os_windows.h.
+
 Note: There is no interface layer that communicates between WiredTiger 
 and the specific operating system.
 
@@ -30,11 +26,10 @@ the creation, removal and metadata about files within a directory.
 WiredTiger currently supports POSIX and Windows file system calls, 
 under the usage of WT_FILE_HANDLE_WIN AND WT_FILE_HANDLE_POSIX respectively.
 All file system calls implementations for their specific Operating System 
-can be found within os_posix or os_win folder.
-
-Additionally, a program can use WT_CONNECTION::set_file_system to register
-a set of functions that will be called for each file system type operation.
-ex_file_system.c(link) shows an example of how the file system can be customised.
+can be found within os_posix or os_win folder. Additionally, a program can use
+WT_CONNECTION::set_file_system to register a set of functions that will be 
+called for each file system type operation. \include ex_file_system.c shows an
+example of how the file system can be customised.
 
 @section file_handle WiredTiger File Handle Structure
 WiredTiger supports mutiple operating system file calls through maintaining
@@ -74,5 +69,5 @@ WiredTiger File streams has an internal buffer
 
 @section filesystem_usage Multiple System Architecture Support
 WiredTiger also has support for different system architectures inside gcc.h, which currently
-supports clang, x86_64, i386, mips, ppc, aarch64, s390x, and sparc architectures.
+supports x86_64, i386, mips, ppc, aarch64, s390x, and sparc architectures.
 */
