@@ -13,12 +13,12 @@
 #define STRING_MATCH_CONFIG(s, item) \
     (strncmp(s, (item).str, (item).len) == 0 && (s)[(item).len] == '\0')
 
-static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool);
+static int dump_config(WT_SESSION *, const char *, WT_CURSOR *, bool, bool, bool);
 static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
 static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
-static int dump_prefix(WT_SESSION *, bool, bool);
+static int dump_prefix(WT_SESSION *, bool, bool, bool);
 static int dump_record(WT_CURSOR *, bool, bool);
 static int dump_suffix(WT_SESSION *, bool);
 static int dump_table_config(WT_SESSION *, WT_CURSOR *, WT_CURSOR *, const char *, bool);
@@ -150,7 +150,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     else if ((fp = fopen(ofile, "w")) == NULL)
         return (util_err(session, errno, "%s: open", ofile));
 
-    if (json && (dump_json_begin(session) != 0 || dump_prefix(session, hex, json) != 0))
+    if (json && (dump_json_begin(session) != 0 || dump_prefix(session, pretty, hex, json) != 0))
         goto err;
 
     WT_RET(__wt_scr_alloc(session_impl, 0, &tmp));
@@ -203,7 +203,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             /* Set the "ignore tombstone" flag on the underlying cursor. */
             F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
         }
-        if (dump_config(session, simpleuri, cursor, hex, json) != 0)
+        if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
             goto err;
 
         if (dump_record(cursor, reverse, json) != 0)
@@ -272,7 +272,7 @@ time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *
  *     Dump the config for the uri.
  */
 static int
-dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex, bool json)
+dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool pretty, bool hex, bool json)
 {
     WT_CURSOR *mcursor;
     WT_DECL_RET;
@@ -291,7 +291,7 @@ dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool hex, b
      */
     mcursor->set_key(mcursor, uri);
     if ((ret = mcursor->search(mcursor)) == 0) {
-        if ((!json && dump_prefix(session, hex, json) != 0) ||
+        if ((!json && dump_prefix(session, pretty, hex, json) != 0) ||
           dump_table_config(session, mcursor, cursor, uri, json) != 0 ||
           dump_suffix(session, json) != 0)
             ret = 1;
@@ -595,7 +595,7 @@ match:
  *     Output the dump file header prefix.
  */
 static int
-dump_prefix(WT_SESSION *session, bool hex, bool json)
+dump_prefix(WT_SESSION *session, bool pretty, bool hex, bool json)
 {
     int vmajor, vminor, vpatch;
 
@@ -608,7 +608,8 @@ dump_prefix(WT_SESSION *session, bool hex, bool json)
 
     if (!json &&
       (fprintf(fp, "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n", vmajor, vminor, vpatch) < 0 ||
-        fprintf(fp, "Format=%s\n", hex ? "hex" : "print") < 0 || fprintf(fp, "Header\n") < 0))
+        fprintf(fp, "Format=%s\n", (pretty && hex) ? "print hex" : hex ? "hex" : "print") < 0 || 
+        fprintf(fp, "Header\n") < 0))
         return (util_err(session, EIO, NULL));
 
     return (0);
