@@ -2623,6 +2623,7 @@ tasks:
             virtualenv -p python3 venv
             source venv/bin/activate
             pip3 install lorem pymongo
+            pip3 install "pymongo[srv]"
             echo "num_collections=100" >> config/many-collection-testing
             echo "working_set_docs=50000" >> config/many-collection-testing
             echo "run_duration=300" >> config/many-collection-testing
