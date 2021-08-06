@@ -17,7 +17,8 @@ file see: WT_SESSION::create.
 
 Once a block is written an address cookie is returned. This address cookie is
 stored as the \c addr on the associated page ref. The \c WT_REF structure can
-be found in \c btmem.h.
+be found in \c btmem.h. The address cookie is opaque to other parts of the
+system and cannot be interpreted meaningfully.
 
 The address cookie is made up of 4 components:
  - offset: The offset in the file. In order to avoid storing large offsets this
