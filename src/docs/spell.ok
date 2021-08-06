@@ -8,6 +8,7 @@ Adler's
 Atomicity
 BLOBs
 BLRrVv
+CAS
 CFLAGS
 CMake
 COV
