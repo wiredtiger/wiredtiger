@@ -34,18 +34,10 @@
 #   Fast-truncate fails when a page contains prepared updates.
 import wiredtiger, wttest
 from wtdataset import simple_key, simple_value
-from wtscenario import make_scenarios
 
 class test_prepare13(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=10MB'
-
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('string-row', dict(key_format='S')),
-    ]
-
-    scenarios = make_scenarios(key_format_values)
 
     def test_prepare(self):
         nrows = 20000
@@ -55,8 +47,7 @@ class test_prepare13(wttest.WiredTigerTestCase):
 
         # Create a large table with lots of pages.
         uri = "table:test_prepare13"
-        key_format_str = "key_format=" + self.key_format
-        config = 'allocation_size=512,leaf_page_max=512,{},value_format=S'.format(key_format_str)
+        config = 'allocation_size=512,leaf_page_max=512,key_format=S,value_format=S'
         self.session.create(uri, config)
         cursor = self.session.open_cursor(uri)
         for i in range(1, nrows):

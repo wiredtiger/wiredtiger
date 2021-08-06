@@ -31,7 +31,6 @@
 # [END_TAGS]
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 # test_txn26.py
 #   Test that commit should fail if commit timestamp is smaller or equal to the active timestamp.
@@ -41,18 +40,12 @@ class test_txn26(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
-    key_format_values = [
-        ('string-row', dict(key_format='S', key=str(0))),
-        ('column', dict(key_format='r', key=16)),
-    ]
-    scenarios = make_scenarios(key_format_values)
-
     def test_commit_larger_than_active_timestamp(self):
         if not wiredtiger.diagnostic_build():
             self.skipTest('requires a diagnostic build')
 
         uri = 'table:test_txn26'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(uri, 'key_format=S,value_format=S')
         cursor = self.session.open_cursor(uri)
         self.conn.set_timestamp(
             'oldest_timestamp=' + self.timestamp_str(1) + ',stable_timestamp=' + self.timestamp_str(1))
@@ -65,7 +58,7 @@ class test_txn26(wttest.WiredTigerTestCase):
 
         # Try to commit at timestamp 10
         self.session.begin_transaction()
-        cursor[self.key] = value
+        cursor[str(0)] = value
         with self.expectedStderrPattern("must be greater than the latest active read timestamp"):
             try:
                 self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))

@@ -973,8 +973,8 @@ __wt_txn_read_upd_list(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE
  *     function will search the history store for a visible update.
  */
 static inline int
-__wt_txn_read(
-  WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, WT_UPDATE *upd)
+__wt_txn_read(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno,
+  WT_UPDATE *upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_TIME_WINDOW tw;
     WT_UPDATE *prepare_upd, *restored_upd;
@@ -1013,7 +1013,14 @@ retry:
         have_stop_tw = WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw);
 
         /* Check the ondisk value. */
-        WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        if (vpack == NULL) {
+            WT_TIME_WINDOW_INIT(&tw);
+            WT_RET(__wt_value_return_buf(cbt, cbt->ref, &cbt->upd_value->buf, &tw));
+        } else {
+            WT_TIME_WINDOW_COPY(&tw, &vpack->tw);
+            cbt->upd_value->buf.data = vpack->data;
+            cbt->upd_value->buf.size = vpack->size;
+        }
 
         /*
          * If the stop time point is set, that means that there is a tombstone at that time. If it

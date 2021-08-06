@@ -28,7 +28,6 @@
 
 import wttest
 from wiredtiger import WT_NOTFOUND
-from wtdataset import simple_key
 from wtscenario import make_scenarios
 
 # test_prepare14.py
@@ -59,9 +58,13 @@ class test_prepare14(wttest.WiredTigerTestCase):
         return config
 
     def test_prepare14(self):
+        # Prepare transactions for column store table is not yet supported.
+        if self.key_format == 'r':
+            self.skipTest('Prepare transactions for column store table is not yet supported')
+
         # Create a table without logging.
         uri = "table:prepare14"
-        create_config = 'allocation_size=512,key_format={},value_format=S'.format(self.key_format)
+        create_config = 'allocation_size=512,key_format=S,value_format=S'
         self.session.create(uri, create_config)
 
         # Pin oldest and stable timestamps to 10.
@@ -70,13 +73,12 @@ class test_prepare14(wttest.WiredTigerTestCase):
 
         value = 'a'
 
-        # Perform an update and a remove.
+        # Perform several updates and removes.
         s = self.conn.open_session()
         cursor = s.open_cursor(uri)
         s.begin_transaction()
-        key = simple_key(cursor, 1)
-        cursor[key] = value
-        cursor.set_key(key)
+        cursor[str(0)] = value
+        cursor.set_key(str(0))
         cursor.remove()
         cursor.close()
         s.prepare_transaction('prepare_timestamp=' + self.timestamp_str(20))
@@ -86,7 +88,7 @@ class test_prepare14(wttest.WiredTigerTestCase):
 
         # Search for the key so we position our cursor on the page that we want to evict.
         self.session.begin_transaction("ignore_prepare = true")
-        evict_cursor.set_key(key)
+        evict_cursor.set_key(str(0))
         self.assertEquals(evict_cursor.search(), WT_NOTFOUND)
         evict_cursor.reset()
         evict_cursor.close()
@@ -94,6 +96,6 @@ class test_prepare14(wttest.WiredTigerTestCase):
 
         self.session.begin_transaction("ignore_prepare = true")
         cursor2 = self.session.open_cursor(uri)
-        cursor2.set_key(key)
+        cursor2.set_key(str(0))
         self.assertEquals(cursor2.search(), WT_NOTFOUND)
         self.session.commit_transaction()

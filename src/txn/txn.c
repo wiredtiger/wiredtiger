@@ -1073,18 +1073,16 @@ __txn_search_prepared_op(
 static int
 __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
 {
-    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    WT_ITEM hs_recno_key;
     WT_TXN *txn;
     WT_UPDATE *fix_upd, *tombstone, *upd;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
 #endif
     size_t not_used;
-    uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
+    uint32_t hs_btree_id;
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool upd_appended;
 
@@ -1141,24 +1139,17 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (!commit && upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts))) {
-        btree = S2BT(session);
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
-
-        /*
-         * Open a history store table cursor and scan the history store for the given btree and key
-         * with maximum start timestamp to let the search point to the last version of the key.
-         */
+        hs_btree_id = S2BT(session)->id;
+        /* Open a history store table cursor. */
         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
-        if (btree->type == BTREE_ROW)
-            hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
-        else {
-            p = hs_recno_key_buf;
-            WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
-            hs_recno_key.data = hs_recno_key_buf;
-            hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
-            hs_cursor->set_key(hs_cursor, 4, btree->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
-        }
+
+        /*
+         * Scan the history store for the given btree and key with maximum start timestamp to let
+         * the search point to the last version of the key.
+         */
+        hs_cursor->set_key(hs_cursor, 4, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, UINT64_MAX);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
         if (ret == WT_NOTFOUND && !commit) {
             /*
@@ -1169,15 +1160,12 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
 #ifdef HAVE_DIAGNOSTIC
             WT_WITH_BTREE(session, op->btree,
-              ret = btree->type == BTREE_ROW ?
-                __wt_row_modify(
-                  cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
-                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+              ret = __wt_row_modify(
+                cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false));
 #else
             WT_WITH_BTREE(session, op->btree,
-              ret = btree->type == BTREE_ROW ?
-                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false) :
-                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false));
+              ret =
+                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
 #endif
             WT_ERR(ret);
             tombstone = NULL;

@@ -33,20 +33,14 @@
 import fnmatch, os, shutil, time
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
 
 class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
     t1 = 'table:test_txn18'
+    create_params = 'key_format=i,value_format=i'
     conn_config = 'log=(archive=false,enabled,file_max=100K),' + \
                 'transaction_sync=(method=dsync,enabled)'
     conn_recerror = conn_config + ',log=(recover=error)'
     conn_recon = conn_config + ',log=(recover=on)'
-
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def simulate_crash(self, olddir, newdir):
         ''' Simulate a crash from olddir and restart in newdir. '''
@@ -77,14 +71,13 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         #
         # If we aren't tracking file IDs properly, it's possible that
         # we'd end up apply the log records for t2 to table t1.
-        create_params = 'key_format={},value_format=i'.format(self.key_format)
-        self.session.create(self.t1, create_params)
+        self.session.create(self.t1, self.create_params)
         #
         # Since we're logging, we need to flush out the meta-data file
         # from the create.
         self.session.checkpoint()
         c = self.session.open_cursor(self.t1, None, None)
-        for i in range(1, 10001):
+        for i in range(10000):
             c[i] = i + 1
         c.close()
         olddir = "."
@@ -110,12 +103,12 @@ class test_txn18(wttest.WiredTigerTestCase, suite_subprocess):
         # Make sure the data we added originally is there
         self.session = self.setUpSessionOpen(self.conn)
         c = self.session.open_cursor(self.t1, None, None)
-        i = 1
+        i = 0
         for key, value in c:
             self.assertEqual(i, key)
             self.assertEqual(i+1, value)
             i += 1
-        self.assertEqual(i, 10001)
+        self.assertEqual(i, 10000)
         c.close()
         self.close_conn()
         # Reopening with recover=error after a clean shutdown should succeed.
