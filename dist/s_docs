@@ -171,7 +171,6 @@ build()
 {
 	# Build from scratch on demand.
 	[ "$1" -eq 0 ] || (cd .. && rm -rf docs && mkdir docs)
-	cp ../src/docs/js/* ../docs/
 
 	# Run doxygen to generate warnings for the base HTML documentation.
 	#
@@ -188,6 +187,9 @@ EOF
 		cat $t
 		e=1
 	}
+
+	# Copy any needed javascript
+	cp ../src/docs/js/* ../docs/
 
 	# Fix up bad links doxygen generates in navtree.js
 	(cd ../docs &&
