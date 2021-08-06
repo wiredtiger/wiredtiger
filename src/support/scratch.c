@@ -118,7 +118,7 @@ err:
  */
 const char *
 __wt_buf_set_printable(
-  WT_SESSION_IMPL *session, const void *p, size_t size, WT_ITEM *buf, bool hexonly)
+  WT_SESSION_IMPL *session, const void *p, size_t size, bool hexonly, WT_ITEM *buf)
 {
     WT_DECL_RET;
 
@@ -141,7 +141,7 @@ __wt_buf_set_printable(
  */
 const char *
 __wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size_t size,
-  const char *format, WT_ITEM *buf, bool hexonly)
+  const char *format, bool hexonly, WT_ITEM *buf)
 {
     WT_DECL_ITEM(tmp);
     WT_DECL_PACK_VALUE(pv);
@@ -174,7 +174,7 @@ __wt_buf_set_printable_format(WT_SESSION_IMPL *session, const void *buffer, size
             if (tmp == NULL)
                 WT_ERR(__wt_scr_alloc(session, 0, &tmp));
             WT_ERR(__wt_buf_catfmt(session, buf, "%s%s", sep,
-              __wt_buf_set_printable(session, pv.u.item.data, pv.u.item.size, tmp, hexonly)));
+              __wt_buf_set_printable(session, pv.u.item.data, pv.u.item.size, hexonly, tmp)));
             break;
         case 'b':
         case 'h':
@@ -211,7 +211,7 @@ err:
      * is truncated, and then passed here by a page debugging routine). Our current callers aren't
      * interested in error handling in such cases, return a byte string instead.
      */
-    return (__wt_buf_set_printable(session, buffer, size, buf, hexonly));
+    return (__wt_buf_set_printable(session, buffer, size, hexonly, buf));
 }
 
 /*

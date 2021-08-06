@@ -91,7 +91,7 @@ __wt_key_string(
 
 #ifdef HAVE_DIAGNOSTIC
     if (session->dump_raw)
-        return (__wt_buf_set_printable(session, data_arg, size, buf, false));
+        return (__wt_buf_set_printable(session, data_arg, size, false, buf));
 #endif
 
     /*
@@ -107,7 +107,7 @@ __wt_key_string(
             size = sizeof(WT_ERR_STRING);
         }
     }
-    return (__wt_buf_set_printable_format(session, data_arg, size, key_format, buf, false));
+    return (__wt_buf_set_printable_format(session, data_arg, size, key_format, false, buf));
 }
 
 /*
