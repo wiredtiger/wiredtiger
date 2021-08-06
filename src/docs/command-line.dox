@@ -187,8 +187,11 @@ format.
 
 @par <code>-p</code>
 Dump in human-readable format (pretty-print). The \c -p flag is incompatible
-with the \c load command. Can be combined with \c -x In that case it will dump raw byte data hex
-without escape symbols preceeding each byte. The \c -p flag is incompatible with the \c load command.
+with the \c load command.
+
+@par <code>-px</code>
+Dump in human-readable format (pretty-print). Raw byte data will be printed in hex without escape
+symbols preceeding each byte. The \c -p flag is incompatible with the \c load command.
 
 @par <code>-r</code>
 Dump in reverse order, from largest key to smallest.
@@ -200,9 +203,7 @@ timestamp.
 
 @par <code>-x</code>
 Dump all characters in a hexadecimal encoding (the default is to leave
-printable characters unencoded). Can be combined with \c -p In that case it will dump in
-human-readable format (pretty-print) with raw byte data printed in hex without escape
-symbols preceeding each byte. The \c -p flag is incompatible with the \c load command.
+printable characters unencoded).
 
 <hr>
 @section util_list wt list
