@@ -13,18 +13,18 @@ they are used in other settings.
 
 <table class="doxtable sortable">
 <tr><th>Term<th>Category<th>Definition
-<tr><td>address cookie<td>block manager<td>an opaque set of bytes returned by the block manager to reference a block in a Btree file, it includes an offset, size and checksum.
+<tr><td>address cookie<td>block manager<td>an opaque set of bytes returned by the block manager to reference a block in a Btree file, it includes an offset, size, checksum, and object id.
 <tr><td>atomicity<td>transactions<td>a guarantee provided within the context of a transaction that all operations made within that transaction either succeed or fail.
 <tr><td>barrier<td>general<td>a call that forces the CPU and compiler to enforce ordering constraints on memory operations, used in multithreaded code.
-<tr><td>block<td>block manager<td>the smallest granularity of a Btree that is written or read.  A btree page, when it appears on disk, may consist of one or more blocks.
+<tr><td>block<td>block manager<td>the smallest granularity of data that is read from or written to a Btree file.  A btree page, when it appears on disk, may consist of one or more blocks.
 <tr><td>block compression<td>btree<td>after pages of btrees are encoded to be written, they may be compressed according to a configured algorithm.  Compressors may be added to WiredTiger via the extension mechanism.
-<tr><td>block manager<td>block manager<td>an internal API that abstracts writing and reading blocks to and from files.  A block manager is associated with a Btree.
+<tr><td>block manager<td>block manager<td>an internal API that abstracts writing, reading and allocating blocks to and from files.  A block manager is associated with a Btree.
 <tr><td>Bloom filter<td>lsm<td>a data structure that identifies that a key cannot be present.  Used by LSM.
 <tr><td>btree<td>btree<td>a data structure on disk or in memory that stores keys, it with its associated value. In WiredTiger, all btrees are in fact B+trees, meaning that adjacent keys and values are grouped into pages.
-<tr><td>bulk insert<td>btree<td>the capability to rapidly push a set of ordered key value pairs into a Btree. In WiredTiger, a Btree's dhandle must be obtained exclusively, guaranteeing that the inserts can be done single threaded.
+<tr><td>bulk insert<td>btree<td>the capability to rapidly insert a set of ordered key value pairs into a Btree. In WiredTiger, a Btree's dhandle must be obtained exclusively, guaranteeing that the inserts can be done single threaded.
 <tr><td>cell<td>file format<td>a key or value packed as it appears on disk for a Btree.
 <tr><td>checkpoint<td>checkpoint<td>a stable point that bounds how much work recovery must do. Data committed before a checkpoint is guaranteed to reside in data files. Thus, recovery must replay log files starting at the last completed checkpoint.
-<tr><td>chunk<td>lsm<td>a single file withing an LSM tree.
+<tr><td>chunk<td>lsm<td>a single file within an LSM tree.
 <tr><td>collator<td>general<td>a comparison function that determines how keys will be ordered in a Btree. The default collator is byte oriented. A custom collator may be packaged as an extension and attached to a Btree.
 <tr><td>column<td>schema<td>a single field in a record, which must be unpacked from a raw key or value.
 <tr><td>column group<td>schema<td>a set of column store Btrees, whose record ids logically correspond. Together, a column group represents a table of data, with its columns being the union of columns in the individual Btrees.
@@ -62,7 +62,8 @@ they are used in other settings.
 <tr><td>merge<td>btree<td>the process of making a single page out of two adjacent smaller pages in a Btree.  This can occur with leaf pages or internal pages.
 <tr><td>metadata<td>general<td>a set of data that is used to help manage files, tables, indices and column groups in WiredTiger.
 <tr><td>metadata tracking<td>general<td>a technique to track a set of changes to the metadata, so they can be "rolled back" when an error occurs.
-<tr><td>mutex<td>general<td>a locking algorithm that waits, with CPU idle, when the lock cannot be immediately acquired, and is woken to retry when the lock is available.  Although more heavyweight than a spin lock, it consumes fewer resources while waiting.  Appropriate for resources that may be in contention and may be held for longer periods.
+<tr><td>mutex<td>general<td>a locking algorithm that waits, allowing other threads to execute, when the lock cannot be immediately acquired, and is woken to retry when the lock is available.  Although more heavyweight than a spin lock, it consumes fewer resources while waiting.  Appropriate for resources that may be in contention and may be held for longer periods.
+<tr><td>btree<td>tiered storage<td>an integer that indicates an individual file that is a part of a Btree.
 <tr><td>oldest timestamp<td>transactions<td>a connection-wide value, specifies the oldest timestamp that must be tracked by the system. Values with stop timestamps older than this value do not have to be retained.
 <tr><td>on disk<td>general<td>a shorthand meaning "in the file system", and may or may not be stored on a physical disk.
 <tr><td>overflow page<td>btree<td>either in-memory or on disk, a page in a Btree that has a key or value that is too large to appear on a leaf or internal page.
@@ -75,7 +76,7 @@ they are used in other settings.
 <tr><td>read timestamp<td>transactions<td>a timestamp that specifies what data should be visible.
 <tr><td>recno<td>general<td>a 64 bit integer. When used as a key, the Btree is said to be a column store, and the keys are assigned incrementally by WiredTiger when new records are inserted.
 <tr><td>reconcile<td>general<td>convert the in-memory version of a page to a more compact form for file storage.
-<tr><td>recover<td>general<td>a procedure used on opening WiredTiger whereby, starting at the last checkpoint written, log records are played back to bring the database up to date.
+<tr><td>recovery<td>general<td>a procedure used on opening WiredTiger whereby, starting at the last checkpoint written, log records are played back to bring the database up to date.
 <tr><td>ref<td>btree<td>see page reference
 <tr><td>RLE<td>general<td>see run length encoding
 <tr><td>run length encoding<td>general<td>also known as "RLE".  A technique to save space whereby repeated items can be represented by a count followed by the item.  For example the string of letters \sic "AAAAAAABBBCDDDD" might be encoded as \sic "7A3BC4D" using "out of band" digits.
@@ -88,11 +89,11 @@ they are used in other settings.
 <tr><td>stable timestamp<td>transactions<td>a connection-wide value, checkpoints will not include commits newer than this value.
 <tr><td>table<td>schema<td>an abstraction that allows one or more btrees to be used in a coordinated way, which is specified by the schema.  The table coordinates indices and column groups.
 <tr><td>thread<td>general<td>a thread of control.  WiredTiger uses pthreads for POSIX systems.
-<tr><td>thread group<td>general<td>a group of threads that work together.  Eviction is performed by a thread group.
+<tr><td>thread group<td>general<td>a group of threads that perform a common task.  Eviction is performed by a thread group.
 <tr><td>timestamp<td>transactions<td>refers to one of several types of 64 bit values used to control transactional visibility of data in WiredTiger.  See oldest timestamp, stable timestamp, commit timestamp, read timestamp.
-<tr><td>transaction<td>transactions<td>a unit of work performed in WiredTiger that is atomic and consistent with the specified isolation levels, and durability levels.
+<tr><td>transaction<td>transactions<td>a unit of work performed in WiredTiger that is atomic and consistent with the specified isolation level and durability level.
 <tr><td>truncate<td>btree<td>an operation to remove a range of key/values from a Btree.  See also fast truncate
-<tr><td>update<td>btree<td>a value associated with a key in a Btree.  A key may have many updates, that relate to values seen by various transactions.
+<tr><td>update<td>btree<td>a value associated with a key in a Btree.  A key may have many updates, that correspond to values written to the key previously.
 <tr><td>update chain<td>btree<td>a list of updates.
 <tr><td>verify<td>general<td>functionality to check integrity of Btree disk files.
 </table>
