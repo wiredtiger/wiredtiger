@@ -199,7 +199,7 @@ end of the file.
 To manage this WiredTiger provides a compaction API call WT_SESSION::compact.
 During compaction WiredTiger will instruct the block manager to operate in
 first fit mode. WiredTiger will then walk the btree and for most pages it calls
-into the block manager to determine if compacting that page will be helpful
+into the block manager to determine if relocating that page will be helpful
 for shrinking the file. If a page is useful for compaction WiredTiger will
 mark the page dirty forcing it to be re-written. WiredTiger then calls for a
 two checkpoints as a minimum of two must be taken to delete the checkpoint that
