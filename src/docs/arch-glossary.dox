@@ -93,7 +93,7 @@ they are used in other settings.
 <tr><td>timestamp<td>transactions<td>refers to one of several types of 64 bit values used to control transactional visibility of data in WiredTiger.  See oldest timestamp, stable timestamp, commit timestamp, read timestamp.
 <tr><td>transaction<td>transactions<td>a unit of work performed in WiredTiger that is atomic and consistent with the specified isolation level and durability level.
 <tr><td>truncate<td>btree<td>an operation to remove a range of key/values from a Btree.  See also fast truncate
-<tr><td>update<td>btree<td>a value associated with a key in a Btree.  A key may have many updates, that correspond to values written to the key previously.
+<tr><td>update<td>btree<td>a value associated with a key in a Btree.  A key may have many updates, these correspond to values written to the key previously.
 <tr><td>update chain<td>btree<td>a list of updates.
 <tr><td>verify<td>general<td>functionality to check integrity of Btree disk files.
 </table>
