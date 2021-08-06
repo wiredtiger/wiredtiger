@@ -52,11 +52,6 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'cache_size=1GB'
     conn_config = base_config
 
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
-
     # File to be corrupted
     filename_scenarios = [
         ('WiredTiger', dict(filename='WiredTiger')),
@@ -80,8 +75,9 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
         "removal:WiredTiger.wt",
     ]
 
-    scenarios = make_scenarios(key_format_values, filename_scenarios)
+    scenarios = make_scenarios(filename_scenarios)
     uri = 'table:test_txn22'
+    create_params = 'key_format=i,value_format=S'
     nrecords = 1000                                  # records per table.
 
     def valuegen(self, i):
@@ -119,11 +115,10 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     def test_corrupt_meta(self):
         newdir = "RESTART"
         newdir2 = "RESTART2"
-        expect = list(range(1, self.nrecords + 1))
+        expect = list(range(0, self.nrecords))
         salvage_config = self.base_config + ',salvage=true'
 
-        create_params = 'key_format={},value_format=S'.format(self.key_format)
-        self.session.create(self.uri, create_params)
+        self.session.create(self.uri, self.create_params)
         self.inserts(expect)
 
         # Simulate a crash by copying the contents of the directory

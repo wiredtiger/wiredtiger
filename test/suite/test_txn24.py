@@ -33,17 +33,10 @@
 
 import wiredtiger, wttest
 import time
-from wtscenario import make_scenarios
 
 class test_txn24(wttest.WiredTigerTestCase):
 
     session_config = 'isolation=snapshot'
-
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
-    scenarios = make_scenarios(key_format_values)
 
     def conn_config(self):
         # We want to either eliminate or keep the application thread role in eviction to minimum.
@@ -56,14 +49,14 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         # Create and populate a table.
         uri = "table:test_txn24"
-        table_params = 'key_format={},value_format=S'.format(self.key_format)
+        table_params = 'key_format=i,value_format=S'
         default_val = 'ABCD' * 60
         new_val = 'YYYY' * 60
         n_rows = 480000
 
         self.session.create(uri, table_params)
         cursor = self.session.open_cursor(uri, None)
-        for i in range(1, n_rows + 1):
+        for i in range(0, n_rows):
             cursor[i] = default_val
         cursor.close()
 
@@ -73,7 +66,7 @@ class test_txn24(wttest.WiredTigerTestCase):
         # Start a transaction, make an update and keep it running.
         cursor = self.session.open_cursor(uri, None)
         self.session.begin_transaction('isolation=snapshot')
-        cursor[1] = new_val
+        cursor[0] = new_val
 
         # Start few sessions and transactions, make updates and try committing them.
         session2 = self.setUpSessionOpen(self.conn)
@@ -101,7 +94,7 @@ class test_txn24(wttest.WiredTigerTestCase):
 
         session4 = self.setUpSessionOpen(self.conn)
         cursor4 = session4.open_cursor(uri)
-        start_row = 2
+        start_row = 1
         for i in range(0, 120000):
             cursor4[start_row] = new_val
             start_row += 1
