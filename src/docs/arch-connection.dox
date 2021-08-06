@@ -1,0 +1,71 @@
+/*! @arch_page arch-connection Connection
+
+@section arch_conn_def Definition
+
+A connection is an interface between an application and WiredTiger. It is required to interact with
+a WiredTiger database and perform operations on it. Most applications will only open one connection
+to a database for each process. Subsequent connections will communicate with the first process over
+a socket connection to perform their operations. Internally, a connection is represented by \c
+WT_CONNECTION.
+
+@section arch_conn_lifecycle Life cycle
+
+@subsection arch_conn_init Initialization
+
+When a connection is created, it:
+- defines the behavior of most WiredTiger features during runtime,
+- performs different sanity checks,
+- starts worker threads that provide different global services while the connection is alive and,
+- makes sure the database is in a consistent state.
+
+A connection can be initialized using WT_CONNECTION::wiredtiger_open. During the connection
+initialization, WiredTiger settings are updated as defined by either the configuration string
+provided in WT_CONNECTION::wiredtiger_open, the configuration passed in by the application or by the
+environment variable settings. Those settings define which WiredTiger features are enabled and their
+behavior during runtime. Those features are for example related to @ref arch-eviction,
+@ref arch-logging, @ref arch-checkpoint, @ref arch-cache, statistics, etc. All the different
+settings are described in WT_CONNECTION::wiredtiger_open.
+
+WT_CONNECTION::wiredtiger_open also performs sanity checks to check whether an existing database is
+already present in the directory where WiredTiger is executed or if there is any other instance
+working in the same directory. As part of those tests, the turtle and metadata files are created if
+they do not exist yet.
+
+As part of the initialization, worker threads are started to provide global services used during
+runtime. Those services consist of different threads to handle statistics, logging, eviction,
+checkpoint and capacity. The sweeping server that takes care of the active and inactive dhandles is
+started too, see @ref arch-dhandle for more information.
+
+Finally, before the connection is completely initialized, a recovery (see @ref arch-rts to read more
+about it) is performed to make sure the database is in a consistent state before any operation is
+performed on it.
+
+@subsection arch_conn_runtime Runtime
+
+During runtime, a number of actions can be executed using the connection. For instance, it is
+possible to reconfigure WiredTiger features using WT_CONNECTION::reconfigure instead of closing the
+connection and go through WT_CONNECTION::open again. A connection can create sessions using the API
+WT_CONNECTION::open_session. The other available APIs are visible in the documentation related to
+WT_CONNECTION::.
+
+During runtime, the connection keeps track of useful information such as:
+- the number of active sessions, dhandles, B-Trees,
+- the number of files and cursors open,
+- the state of the different worker threads,
+- the cache size,
+- the value of the different checkpoints,
+- statistics,
+- the global transaction state,
+- ...
+
+The structure that keeps track all those parameters is \c WT_CONNECTION_IMPL defined in \c
+connection.h.
+
+@subsection arch_conn_closure Closure
+
+When a connection is no longer required, it can be closed using WT_CONNECTION::close. As a result,
+any resource held by the connection (i.e sessions) is freed unless configured differently. Finally,
+the database associated to the connection is left into a consistent state by performing recovery and
+a last checkpoint before being closed.
+
+*/
