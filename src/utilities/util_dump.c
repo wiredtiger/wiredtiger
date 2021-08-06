@@ -33,15 +33,15 @@ usage(void)
     static const char *options[] = {"-c checkpoint",
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
-      "dump in JSON format", "-p", "dump in human readable format (pretty-print)", "-r",
-      "dump in reverse order", "-t timestamp",
+      "dump in JSON format", "-p",
+      "dump in human readable format (pretty-print). Can be combined with -x In this case raw data "
+      "elements will be formatted like -x does that.",
+      "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
       "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
-      "encoded)",
-      "-px",
-      "similar to -p with the only exception in the raw byte array format. That data will be dumped"
-      " as if -x is specified",
+      "encoded). Can be combined with -p In this case it will format all data similar to -p except "
+      "raw data elements will be formatted like -x does that.",
       NULL, NULL};
 
     util_usage(
@@ -136,10 +136,11 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
     if (hex)
         ++format_specifiers;
 
-    /* Supported options are -j, -p, -x and -px */
+    /* Supported options are -j, -p, -x and a combination of -p and -x. */
     if (format_specifiers > 1 && !(pretty && hex)) {
         fprintf(stderr,
-          "%s: the only possible options are -j, -p, -x and -px. Other options are incompatible\n",
+          "%s: the only possible options are -j, -p, -x and a combination of -p and -x. Other "
+          "options are incompatible\n",
           progname);
         return (usage());
     }
@@ -272,7 +273,8 @@ time_pair_to_timestamp(WT_SESSION_IMPL *session_impl, char *ts_string, WT_ITEM *
  *     Dump the config for the uri.
  */
 static int
-dump_config(WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool pretty, bool hex, bool json)
+dump_config(
+  WT_SESSION *session, const char *uri, WT_CURSOR *cursor, bool pretty, bool hex, bool json)
 {
     WT_CURSOR *mcursor;
     WT_DECL_RET;
@@ -608,7 +610,7 @@ dump_prefix(WT_SESSION *session, bool pretty, bool hex, bool json)
 
     if (!json &&
       (fprintf(fp, "WiredTiger Dump (WiredTiger Version %d.%d.%d)\n", vmajor, vminor, vpatch) < 0 ||
-        fprintf(fp, "Format=%s\n", (pretty && hex) ? "print hex" : hex ? "hex" : "print") < 0 || 
+        fprintf(fp, "Format=%s\n", (pretty && hex) ? "print hex" : hex ? "hex" : "print") < 0 ||
         fprintf(fp, "Header\n") < 0))
         return (util_err(session, EIO, NULL));
 

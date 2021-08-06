@@ -45,7 +45,7 @@ class test_pretty_hex_dump(wttest.WiredTigerTestCase, suite_subprocess):
     pretty_dump_file = 'pretty_dump.out'
     pretty_hex_dump_file = 'pretty_hex_dump.out'
     hex_dump_file = 'hex.out'
-    
+
     pretty_hex_format = 'Format=print hex\n'
     data_header = 'Data\n'
 
@@ -86,11 +86,11 @@ class test_pretty_hex_dump(wttest.WiredTigerTestCase, suite_subprocess):
         hex = open(self.hex_dump_file).readlines()
         pretty = open(self.pretty_dump_file).readlines()
         pretty_hex = open(self.pretty_hex_dump_file).readlines()
-        
+
         # First validate number of lines the dumps
-        self.assertEqual(True, len(pretty) == len(pretty_hex), 
+        self.assertEqual(True, len(pretty) == len(pretty_hex),
             'Pretty and pretty_hex output must have the same numbler of lines.')
-        self.assertEqual(True, len(hex) == len(pretty_hex), 
+        self.assertEqual(True, len(hex) == len(pretty_hex),
             'Hex and pretty_hex output must have the same numbler of lines.')
 
         # Next analyse the pretty hex dump line by line
@@ -101,7 +101,7 @@ class test_pretty_hex_dump(wttest.WiredTigerTestCase, suite_subprocess):
                 # Data section started
                 if value_line:
                     # Test values
-                    self.assertEqual(True, h == px, 
+                    self.assertEqual(True, h == px,
                         'Hex and pretty_hex values must match!\n' + 'Hex: ' + h + 'Pretty_hex: ' + px)
                 else:
                     # Test keys
