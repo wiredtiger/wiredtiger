@@ -53,6 +53,17 @@ wtperf_config()
 	 echo 'q') | ed ../src/docs/wtperf.dox 1>/dev/null 2>/dev/null
 }
 
+glossarychk()
+{
+	(cd ../src/docs && grep '^<tr><td>' arch-glossary.dox | cut -d'>' -f3 | sed -e 's/<.*//') > $t
+	if ! diff $t <(sort --ignore-case $t); then
+		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+		echo "arch-glossary.dox entries out of order"
+		echo "=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-="
+		e=1
+	fi
+}
+
 structurechk()
 {
 	# @page names should match the source file name
@@ -116,7 +127,7 @@ spellchk()
 
 	(cd ../src/docs &&
 	# Separate quoted newlines "line\nline" so "nline" is not reported.
-        sed -e 's/\("[^"]*\)\\n\([^"]*"\)/\1 \2/' *.dox | \
+	sed -e 's/\("[^"]*\)\\n\([^"]*"\)/\1 \2/' -e 's/[@\\]sic  *\([^ ]*\) //g' *.dox | \
 	aspell --encoding=iso-8859-1 --lang=en_US --personal=./spell.ok list) |
 	sort -u > $t
 	test -s $t && {
@@ -176,6 +187,9 @@ EOF
 		cat $t
 		e=1
 	}
+
+	# Copy any needed javascript
+	cp ../src/docs/js/* ../docs/
 
 	# Fix up bad links doxygen generates in navtree.js
 	(cd ../docs &&
@@ -243,6 +257,7 @@ wtperf_config
 asciichk
 spellchk
 structurechk
+glossarychk
 
 # Check the docs data input file.
 check_docs_data
