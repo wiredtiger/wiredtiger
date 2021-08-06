@@ -40,7 +40,7 @@ usage() {
 }
 
 # Smoke-tests.
-smoke_base_1="data_source=table rows=100000 threads=6 timer=4"
+smoke_base_1="runs.source=table rows=100000 threads=6 timer=4"
 smoke_base_2="$smoke_base_1 leaf_page_max=9 internal_page_max=9"
 smoke_list=(
 	# Three access methods.
@@ -56,7 +56,7 @@ smoke_list=(
 
 	# LSM
     # Temporarily disabled
-	# "$smoke_base_1 file_type=row data_source=lsm"
+	# "$smoke_base_1 file_type=row runs.source=lsm"
 
 	# Force the statistics server.
 	"$smoke_base_1 file_type=row statistics_server=1"
@@ -394,7 +394,7 @@ resolve()
 
 			# Everything is a table unless explicitly a file.
 			uri="table:wt"
-			grep 'data_source=file' $dir/CONFIG > /dev/null && uri="file:wt"
+			grep 'runs.source=file' $dir/CONFIG > /dev/null && uri="file:wt"
 
 			# Use the wt utility to recover & verify the object.
 			if  $($wt_binary -m -R -h $dir verify $uri >> $log 2>&1); then
@@ -487,9 +487,8 @@ format()
 	else
 		args=$format_args
 
-		# If abort/recovery testing is configured, do it 5% of the time.
-		[[ $abort_test -ne 0 ]] &&
-		    [[ $(($count_jobs % 20)) -eq 0 ]] && args="$args format.abort=1"
+		# Configure abort/recovery testing is configured. */
+		[[ $abort_test -ne 0 ]] && args="$args format.abort=1"
 
 		echo "$name: starting job in $dir ($(date))"
 	fi
