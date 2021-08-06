@@ -18,6 +18,7 @@ static int dump_json_begin(WT_SESSION *);
 static int dump_json_end(WT_SESSION *);
 static int dump_json_separator(WT_SESSION *);
 static int dump_json_table_end(WT_SESSION *);
+static const char *get_dump_type(bool, bool, bool);
 static int dump_prefix(WT_SESSION *, bool, bool, bool);
 static int dump_record(WT_CURSOR *, bool, bool);
 static int dump_suffix(WT_SESSION *, bool);
@@ -47,30 +48,6 @@ usage(void)
     util_usage(
       "dump [-jprx] [-c checkpoint] [-f output-file] [-t timestamp] uri", "options:", options);
     return (1);
-}
-
-/*
- * Returns dump type string based on the passed format flags
- */
-static const char *
-__wt_get_dump_type(bool json, bool pretty, bool hex)
-{
-    const char *result;
-
-    result = NULL;
-
-    if (json)
-        result = "json";
-    else if (pretty && hex)
-        result = "pretty_hex";
-    else if (hex)
-        result = "hex";
-    else if (pretty)
-        result = "pretty";
-    else
-        result = "print";
-
-    return result;
 }
 
 static FILE *fp;
@@ -180,7 +157,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
         WT_ERR(
-          __wt_buf_catfmt(session_impl, tmp, "dump=%s", __wt_get_dump_type(json, pretty, hex)));
+          __wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
@@ -590,6 +567,30 @@ match:
     if (ret == 0 || ret == WT_NOTFOUND)
         return (0);
     return (util_cerr(cursor, "next", ret));
+}
+
+/*
+ * Returns dump type string based on the passed format flags
+ */
+static const char *
+get_dump_type(bool pretty, bool hex, bool json)
+{
+    const char *result;
+
+    result = NULL;
+
+    if (json)
+        result = "json";
+    else if (pretty && hex)
+        result = "pretty_hex";
+    else if (hex)
+        result = "hex";
+    else if (pretty)
+        result = "pretty";
+    else
+        result = "print";
+
+    return result;
 }
 
 /*
