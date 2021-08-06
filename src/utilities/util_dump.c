@@ -156,8 +156,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
         WT_ERR(__wt_buf_set(session_impl, tmp, "", 0));
         if (checkpoint != NULL)
             WT_ERR(__wt_buf_catfmt(session_impl, tmp, "checkpoint=%s,", checkpoint));
-        WT_ERR(
-          __wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
+        WT_ERR(__wt_buf_catfmt(session_impl, tmp, "dump=%s", get_dump_type(pretty, hex, json)));
         if ((ret = session->open_cursor(session, uri, NULL, (char *)tmp->data, &cursor)) != 0) {
             fprintf(stderr, "%s: cursor open(%s) failed: %s\n", progname, uri,
               session->strerror(session, ret));
