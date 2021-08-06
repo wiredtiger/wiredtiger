@@ -268,12 +268,12 @@ err:
         if (logged)
             __wt_txn_unmodify(session);
 
-	/* Free any allocated insert list object. */
+        /* Free any allocated insert list object. */
         __wt_free(session, ins);
 
         cbt->ins = NULL;
 
-	/* Discard any allocated update, unless we failed after linking it into page memory. */
+        /* Discard any allocated update, unless we failed after linking it into page memory. */
         if (upd_arg == NULL && !inserted_to_update_chain)
             __wt_free(session, upd);
 
