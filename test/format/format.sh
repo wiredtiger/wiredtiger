@@ -479,7 +479,6 @@ format()
 		args=${smoke_list[$smoke_next]}
 		smoke_next=$(($smoke_next + 1))
 	fi
-	args+=" $format_args"
 	if [[ $abort_test -ne 0 ]]; then
 		args+=" format.abort=1"
 	fi
@@ -488,6 +487,7 @@ format()
 			args+=" stress_split_$k=$(($RANDOM%2))"
 		done
 	fi
+	args+=" $format_args"
 	echo "$name: starting job in $dir ($(date))"
 
 	# If we're using UndoDB, append our default arguments.
