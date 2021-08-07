@@ -643,8 +643,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
+    WT_DECL_ITEM(tmp);
     WT_DECL_RET;
-    WT_ITEM buf;
     WT_PAGE *page;
     WT_UPDATE *upd;
     char ts_string[5][WT_TS_INT_STRING_SIZE];
@@ -652,7 +652,6 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
 
     page = ref->page;
     vpack = &_vpack;
-    WT_CLEAR(buf);
     upd = NULL;
 
     /*
@@ -712,12 +711,6 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
       (vpack->tw.durable_stop_ts > rollback_timestamp ||
         __rollback_check_if_txnid_non_committed(session, vpack->tw.stop_txn) || prepared)) {
         /*
-         * Clear the remove operation from the key by inserting the original on-disk value as a
-         * standard update.
-         */
-        WT_RET(__wt_page_cell_data_ref(session, page, vpack, &buf));
-
-        /*
          * For prepared transactions, it is possible that both the on-disk key start and stop time
          * windows can be the same. To abort these updates, check for any stable update from history
          * store or remove the key.
@@ -738,7 +731,16 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
                 WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
             }
         } else {
-            WT_ERR(__wt_upd_alloc(session, &buf, WT_UPDATE_STANDARD, &upd, NULL));
+            /*
+             * Clear the remove operation from the key by inserting the original on-disk value as a
+             * standard update.
+             */
+            WT_RET(__wt_scr_alloc(session, 0, &tmp));
+            if ((ret = __wt_page_cell_data_ref(session, page, vpack, tmp)) == 0)
+                ret = __wt_upd_alloc(session, tmp, WT_UPDATE_STANDARD, &upd, NULL);
+            __wt_scr_free(session, &tmp);
+            WT_RET(ret);
+
             /*
              * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because
              * the connections write generation will be initialized after rollback to stable and the
@@ -774,10 +776,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
         WT_ERR(__rollback_row_modify(session, page, rip, upd));
     else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
-    upd = NULL;
+    return (0);
 
 err:
-    __wt_buf_free(session, &buf);
     __wt_free(session, upd);
     return (ret);
 }
