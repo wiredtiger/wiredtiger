@@ -339,11 +339,11 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_CURSOR *hs_cursor;
+    WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(hs_key);
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
-    WT_ITEM full_value;
     WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
@@ -371,7 +371,6 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     tombstone = upd = NULL;
     hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
     hs_btree_id = S2BT(session)->id;
-    WT_CLEAR(full_value);
     valid_update_found = false;
 #ifdef HAVE_DIAGNOSTIC
     first_record = true;
@@ -402,8 +401,9 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         __wt_cell_unpack_kv(session, page->dsk, kcell, unpack);
     }
 
-    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, &full_value));
-    WT_ERR(__wt_buf_set(session, &full_value, full_value.data, full_value.size));
+    WT_ERR(__wt_scr_alloc(session, 0, &full_value));
+    WT_ERR(__wt_page_cell_data_ref(session, page, unpack, full_value));
+    WT_ERR(__wt_buf_set(session, full_value, full_value->data, full_value->size));
     newer_hs_durable_ts = unpack->tw.durable_start_ts;
 
     /* Open a history store table cursor. */
@@ -447,10 +447,10 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         if (hs_start_ts <= unpack->tw.start_ts || unpack->tw.prepare) {
             if (type == WT_UPDATE_MODIFY)
                 WT_ERR(__wt_modify_apply_item(
-                  session, S2BT(session)->value_format, &full_value, hs_value->data));
+                  session, S2BT(session)->value_format, full_value, hs_value->data));
             else {
                 WT_ASSERT(session, type == WT_UPDATE_STANDARD);
-                WT_ERR(__wt_buf_set(session, &full_value, hs_value->data, hs_value->size));
+                WT_ERR(__wt_buf_set(session, full_value, hs_value->data, hs_value->size));
             }
         } else
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
@@ -532,7 +532,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
         __wt_hs_upd_time_window(hs_cursor, &hs_tw);
         WT_ASSERT(session,
           hs_tw->start_ts < unpack->tw.start_ts || hs_tw->start_txn < unpack->tw.start_txn);
-        WT_ERR(__wt_upd_alloc(session, &full_value, WT_UPDATE_STANDARD, &upd, NULL));
+        WT_ERR(__wt_upd_alloc(session, full_value, WT_UPDATE_STANDARD, &upd, NULL));
 
         /*
          * Set the transaction id of updates to WT_TXN_NONE when called from recovery, because the
@@ -624,10 +624,10 @@ err:
         WT_ASSERT(session, tombstone == NULL || upd == tombstone);
         __wt_free_update_list(session, &upd);
     }
+    __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
     __wt_scr_free(session, &key);
-    __wt_buf_free(session, &full_value);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
