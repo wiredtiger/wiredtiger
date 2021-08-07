@@ -63,7 +63,7 @@ they are used in other settings.
 <tr><td>metadata<td>general<td>a set of data that is used to help manage files, tables, indices and column groups in WiredTiger.
 <tr><td>metadata tracking<td>general<td>a technique to track a set of changes to the metadata, so they can be "rolled back" when an error occurs.
 <tr><td>mutex<td>general<td>a locking algorithm that waits, allowing other threads to execute, when the lock cannot be immediately acquired, and is woken to retry when the lock is available.  Although more heavyweight than a spin lock, it consumes fewer resources while waiting.  Appropriate for resources that may be in contention and may be held for longer periods.
-<tr><td>btree<td>tiered storage<td>an integer that indicates an individual file that is a part of a Btree.
+<tr><td>object id<td>tiered storage<td>an integer that indicates an individual file that is a part of a Btree.
 <tr><td>oldest timestamp<td>transactions<td>a connection-wide value, specifies the oldest timestamp that must be tracked by the system. Values with stop timestamps older than this value do not have to be retained.
 <tr><td>on disk<td>general<td>a shorthand meaning "in the file system", and may or may not be stored on a physical disk.
 <tr><td>overflow page<td>btree<td>either in-memory or on disk, a page in a Btree that has a key or value that is too large to appear on a leaf or internal page.
