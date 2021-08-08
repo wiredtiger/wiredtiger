@@ -166,6 +166,7 @@ __wt_curstat_table_init(
     }
 
     /* Process the indices. */
+    if (false) {
     WT_ERR(__wt_schema_open_indices(session, table));
     for (i = 0; i < table->nindices; i++) {
         WT_ERR(__wt_buf_fmt(session, buf, "statistics:%s", table->indices[i]->name));
@@ -173,6 +174,7 @@ __wt_curstat_table_init(
         new = (WT_DSRC_STATS *)WT_CURSOR_STATS(stat_cursor);
         __wt_stat_dsrc_aggregate_single(new, stats);
         WT_ERR(stat_cursor->close(stat_cursor));
+    }
     }
 
     __wt_curstat_dsrc_final(cst);
