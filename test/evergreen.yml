@@ -2624,8 +2624,8 @@ tasks:
             source venv/bin/activate
             pip3 install lorem pymongo
             pip3 install "pymongo[srv]"
-            echo "num_collections=250000" >> config/many-collection-testing
-            echo "working_set_docs=125000000" >> config/many-collection-testing
+            echo "num_collections=5000" >> config/many-collection-testing
+            echo "working_set_docs=2500000" >> config/many-collection-testing
             echo "run_duration=3600" >> config/many-collection-testing
             ./run_many_coll.sh ../../mongo/build/opt/install/bin/mongod mongodb.log config/many-collection-testing many-collection clean-and-populate
             res_dir=`find ./ -type d -name "many-collection-[0-9]*" -print`
