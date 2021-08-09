@@ -438,5 +438,14 @@ class test_assert06(wttest.WiredTigerTestCase, suite_subprocess):
         c.close()
         '''
 
+        # Confirm that rolling back after preparing doesn't fire an assertion.
+        c = self.session.open_cursor(uri)
+        self.session.begin_transaction()
+        c[key_ts6] = 'value24'
+        self.session.prepare_transaction(
+            'prepare_timestamp=' + self.timestamp_str(24))
+        self.session.rollback_transaction()
+        c.close()
+
 if __name__ == '__main__':
     wttest.run()
