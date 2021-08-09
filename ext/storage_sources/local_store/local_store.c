@@ -130,6 +130,8 @@ static int local_file_copy(
   LOCAL_STORAGE *, WT_SESSION *, const char *, const char *, WT_FS_OPEN_FILE_TYPE);
 static int local_get_directory(const char *, ssize_t len, char **);
 static int local_path(WT_FILE_SYSTEM *, const char *, const char *, char **);
+static int local_stat(
+  WT_FILE_SYSTEM *, WT_SESSION *, const char *, const char *, bool, struct stat *);
 
 /*
  * Forward function declarations for storage source API implementation
@@ -370,6 +372,49 @@ local_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char 
 }
 
 /*
+ * local_stat --
+ *     Perform the stat system call for a name in the file system.
+ */
+static int
+local_stat(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, const char *caller,
+  bool must_exist, struct stat *statp)
+{
+    int ret;
+    char *path;
+
+    path = NULL;
+
+    /*
+     * We check to see if the file exists in the cache first, and if not the bucket directory. This
+     * maps what a real cloud implementation would do. This will allow us to instrument this code to
+     * try out and measure caching implementations.
+     */
+    if ((ret = local_cache_path(file_system, name, &path)) != 0)
+        goto err;
+
+    ret = stat(path, statp);
+    if (ret != 0 && errno == ENOENT) {
+        /* It's not in the cache, try the bucket directory. */
+        free(path);
+        if ((ret = local_bucket_path(file_system, name, &path)) != 0)
+            goto err;
+        ret = stat(path, statp);
+    }
+    if (ret != 0) {
+        /*
+         * If the file must exist, report the error no matter what.
+         */
+        if (must_exist || errno != ENOENT)
+            ret = local_err(WT_FS2LOCAL(file_system), session, errno, "%s: %s stat", path, caller);
+        else
+            ret = errno;
+    }
+err:
+    free(path);
+    return (ret);
+}
+
+/*
  * local_add_reference --
  *     Add a reference to the storage source so we can reference count to know when to really
  *     terminate.
@@ -499,39 +544,16 @@ local_exist(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, 
     struct stat sb;
     LOCAL_STORAGE *local;
     int ret;
-    char *path;
 
     local = WT_FS2LOCAL(file_system);
-    path = NULL;
-
     local->op_count++;
+    *existp = false;
 
-    /*
-     * We check to see if the file exists in the cache first, and if not the bucket directory. This
-     * maps what a real cloud implementation would do. This will allow us to instrument this code to
-     * try out and measure caching implementations.
-     */
-    if ((ret = local_cache_path(file_system, name, &path)) != 0)
-        goto err;
-
-    ret = stat(path, &sb);
-    if (ret == ENOENT) {
-        /* It's not in the cache, try the bucket directory. */
-        free(path);
-        if ((ret = local_bucket_path(file_system, name, &path)) != 0)
-            goto err;
-        ret = stat(name, &sb);
-    }
-    if (ret == 0)
+    if ((ret = local_stat(file_system, session, name, "ss_exist", false, &sb)) == 0)
         *existp = true;
-    else if (errno == ENOENT) {
+    else if (ret == ENOENT)
         ret = 0;
-        *existp = false;
-    } else
-        ret = local_err(local, session, errno, "%s: ss_exist stat", path);
 
-err:
-    free(path);
     return (ret);
 }
 
@@ -1012,36 +1034,17 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
     struct stat sb;
     LOCAL_STORAGE *local;
     int ret;
-    char *path;
 
     local = WT_FS2LOCAL(file_system);
-    path = NULL;
-
     local->op_count++;
+    *sizep = 0;
 
-    /*
-     * We check to see if the file exists in the cache first, and if not the bucket directory. This
-     * maps what a real cloud implementation would do. This will allow us to instrument this code to
-     * try out and measure caching implementations.
-     */
-    if ((ret = local_cache_path(file_system, name, &path)) != 0)
+    if ((ret = local_stat(file_system, session, name, "ss_size", true, &sb)) != 0)
         goto err;
 
-    ret = stat(path, &sb);
-    if (ret == ENOENT) {
-        /* It's not in the cache, try the bucket directory. */
-        free(path);
-        if ((ret = local_bucket_path(file_system, name, &path)) != 0)
-            goto err;
-        ret = stat(name, &sb);
-    }
     if (ret == 0)
         *sizep = sb.st_size;
-    else
-        ret = local_err(local, session, errno, "%s: ss_size stat", path);
-
 err:
-    free(path);
     return (ret);
 }
 
