@@ -729,7 +729,8 @@ __wt_txn_release(WT_SESSION_IMPL *session)
  */
 static int
 __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *page,
-  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended, bool prepare_on_disk)
+  WT_UPDATE *chain, bool commit, WT_UPDATE **fix_updp, bool *upd_appended,
+  bool first_committed_upd_in_hs)
 {
     WT_DECL_ITEM(hs_value);
     WT_DECL_RET;
@@ -773,7 +774,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
      * When the prepared update is getting committed or the history store update is still on the
      * update chain, no need to append it onto the update chain.
      */
-    if (commit || !prepare_on_disk)
+    if (commit || first_committed_upd_in_hs)
         goto done;
 
     /*
@@ -875,14 +876,24 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
 #ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
+    /*
+     * Exit abnormally as the key consistency mode dictates all updates must use timestamps once
+     * they have been used.
+     */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
-      !txn_has_ts)
+      !txn_has_ts) {
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "no timestamp provided for an update to a "
           "table configured to always use timestamps once they are first used"));
+        WT_ASSERT(session, false);
+    }
 
-    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts)
+    /*
+     * Exit abnormally as we don't allow out of order timestamps on a table configured for strict
+     * ordering.
+     */
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
@@ -890,18 +901,27 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
           "update (%s) on a table configured for strict ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        WT_ASSERT(session, false);
+    }
 
+    /*
+     * Exit abnormally as we don't allow an update without a timestamp if the previous update had an
+     * associated timestamp. This applies to both tables configured for strict and mixed mode
+     * orderings.
+     */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
-      !txn_has_ts)
+      !txn_has_ts) {
         WT_RET(
           __wt_msg(session,
             WT_COMMIT_TS_VERB_PREFIX "committing a transaction that updates a value without "
                                      "a timestamp while the previous update (%s) is timestamped "
                                      "on a table configured for strict ordering",
             __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        WT_ASSERT(session, false);
+    }
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-      op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts)
+      op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts) {
         WT_RET(__wt_msg(session,
           WT_COMMIT_TS_VERB_PREFIX
           "committing a transaction that updates a "
@@ -909,6 +929,8 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
           "update (%s) on a table configured for mixed mode ordering",
           __wt_timestamp_to_string(op_ts, ts_string[0]),
           __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        WT_ASSERT(session, false);
+    }
 #else
     WT_UNUSED(prev_op_durable_ts);
 #endif
@@ -1053,16 +1075,18 @@ __txn_search_prepared_op(
 static int
 __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, WT_CURSOR **cursorp)
 {
+    WT_BTREE *btree;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
+    WT_ITEM hs_recno_key;
     WT_TXN *txn;
     WT_UPDATE *first_committed_upd, *fix_upd, *tombstone, *upd;
 #ifdef HAVE_DIAGNOSTIC
     WT_UPDATE *head_upd;
 #endif
     size_t not_used;
-    uint32_t hs_btree_id;
+    uint8_t *p, hs_recno_key_buf[WT_INTPACK64_MAXSIZE];
     char ts_string[3][WT_TS_INT_STRING_SIZE];
     bool first_committed_upd_in_hs, prepare_on_disk, upd_appended;
 
@@ -1134,17 +1158,24 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
     if (prepare_on_disk || first_committed_upd_in_hs) {
+        btree = S2BT(session);
         cbt = (WT_CURSOR_BTREE *)(*cursorp);
-        hs_btree_id = S2BT(session)->id;
-        /* Open a history store table cursor. */
-        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
-        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
         /*
-         * Scan the history store for the given btree and key with maximum start timestamp to let
-         * the search point to the last version of the key.
+         * Open a history store table cursor and scan the history store for the given btree and key
+         * with maximum start timestamp to let the search point to the last version of the key.
          */
-        hs_cursor->set_key(hs_cursor, 4, hs_btree_id, &op->u.op_row.key, WT_TS_MAX, UINT64_MAX);
+        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        if (btree->type == BTREE_ROW)
+            hs_cursor->set_key(hs_cursor, 4, btree->id, &cbt->iface.key, WT_TS_MAX, UINT64_MAX);
+        else {
+            p = hs_recno_key_buf;
+            WT_ERR(__wt_vpack_uint(&p, 0, cbt->recno));
+            hs_recno_key.data = hs_recno_key_buf;
+            hs_recno_key.size = WT_PTRDIFF(p, hs_recno_key_buf);
+            hs_cursor->set_key(hs_cursor, 4, btree->id, &hs_recno_key, WT_TS_MAX, UINT64_MAX);
+        }
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, hs_cursor), true);
 
         /* We should only get not found if the prepared update is on disk. */
@@ -1158,18 +1189,21 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
             WT_ERR(__wt_upd_alloc_tombstone(session, &tombstone, &not_used));
 #ifdef HAVE_DIAGNOSTIC
             WT_WITH_BTREE(session, op->btree,
-              ret = __wt_row_modify(
-                cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false));
+              ret = btree->type == BTREE_ROW ?
+                __wt_row_modify(
+                  cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false, false) :
+                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false, false));
 #else
             WT_WITH_BTREE(session, op->btree,
-              ret =
-                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false));
+              ret = btree->type == BTREE_ROW ?
+                __wt_row_modify(cbt, &cbt->iface.key, NULL, tombstone, WT_UPDATE_INVALID, false) :
+                __wt_col_modify(cbt, cbt->recno, NULL, tombstone, WT_UPDATE_INVALID, false));
 #endif
             WT_ERR(ret);
             tombstone = NULL;
         } else if (ret == 0)
             WT_ERR(__txn_locate_hs_record(session, hs_cursor, cbt->ref->page, upd, commit, &fix_upd,
-              &upd_appended, prepare_on_disk));
+              &upd_appended, first_committed_upd));
         else
             ret = 0;
     }
