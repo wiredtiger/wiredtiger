@@ -1042,8 +1042,7 @@ local_size(WT_FILE_SYSTEM *file_system, WT_SESSION *session, const char *name, w
     if ((ret = local_stat(file_system, session, name, "ss_size", true, &sb)) != 0)
         goto err;
 
-    if (ret == 0)
-        *sizep = sb.st_size;
+    *sizep = sb.st_size;
 err:
     return (ret);
 }
