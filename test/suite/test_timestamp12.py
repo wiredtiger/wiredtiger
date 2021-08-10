@@ -39,8 +39,8 @@ class test_timestamp12(wttest.WiredTigerTestCase):
     coll_uri = 'table:collection12'
     oplog_uri = 'table:oplog12'
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     closecfg = [
         ('dfl', dict(close_cfg='', all_expected=False)),

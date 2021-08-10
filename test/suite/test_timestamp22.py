@@ -48,8 +48,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     FAILURE = 'failure'
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     scenarios = make_scenarios(key_format_values)
 

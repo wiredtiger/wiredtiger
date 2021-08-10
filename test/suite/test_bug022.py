@@ -38,7 +38,7 @@ class test_bug022(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        ('string', dict(key_format='S', usestrings=True)),
+        ('string-row', dict(key_format='S', usestrings=True)),
         ('column', dict(key_format='r', usestrings=False)),
     ]
     scenarios = make_scenarios(key_format_values)

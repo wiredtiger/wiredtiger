@@ -37,8 +37,8 @@ class test_timestamp19(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
     key_format_values = [
-        ('int', dict(key_format='i')),
-        ('col', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
     ]
     scenarios = make_scenarios(key_format_values)
 
