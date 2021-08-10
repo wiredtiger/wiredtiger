@@ -162,9 +162,7 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    /*
-     * Make sure that alternative threads operate on column-store table
-     */
+    /* Make alternate threads operate on the column-store table. */
     if (td->id % 2 != 0)
         columnar_table = true;
 
