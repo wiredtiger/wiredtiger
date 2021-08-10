@@ -28,6 +28,7 @@
 
 #include "test_harness/test.h"
 #include "test_harness/workload/random_generator.h"
+#include "test_harness/timestamp_manager.h"
 
 using namespace test_harness;
 
@@ -59,9 +60,8 @@ class burst_inserts : public test {
                 cursors.push_back(std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true")));
             }
             uint64_t counter = 0;
-            auto burst_start = std::chrono::system_clock::now();
-            while (tc->running() && std::chrono::system_clock::now() - burst_start < std::chrono::seconds(60)) {
-                tc->transaction.try_begin();
+            tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(tc->tsm->get_stable_ts()));
+            while (tc->transaction.active() && tc->running()) {
                 if (tc->next(cursors[counter]) != 0)
                     continue;
                 tc->transaction.try_commit();
@@ -90,12 +90,13 @@ class burst_inserts : public test {
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
-            collection_cursor(collection &coll, scoped_cursor &&cursor)
-                : coll(coll), cursor(std::move(cursor))
+            collection_cursor(collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
+                : coll(coll), write_cursor(std::move(write_cursor)), read_cursor(std::move(read_cursor))
             {
             }
             collection &coll;
-            scoped_cursor cursor;
+            scoped_cursor read_cursor;
+            scoped_cursor write_cursor;
         };
 
         /* Collection cursor vector. */
@@ -107,8 +108,7 @@ class burst_inserts : public test {
         for (int i = tc->id * collections_per_thread;
             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
-            ccv.push_back({coll, std::move(cursor)});
+            ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name.c_str())), std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true"))});
         }
 
 
@@ -119,9 +119,17 @@ class burst_inserts : public test {
             bool committed = true;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
-            while (tc->running() && std::chrono::system_clock::now() - burst_start < std::chrono::seconds(60)) {
+            while (tc->running() && std::chrono::system_clock::now() - burst_start < std::chrono::seconds(90)) {
                 tc->transaction.try_begin();
-                if (!tc->insert(cc.cursor, cc.coll.id, start_key + added_count)) {
+                cc.write_cursor->set_key(cc.write_cursor.get(), tc->key_to_string(start_key + added_count).c_str());
+                cc.write_cursor->search(cc.write_cursor.get());
+
+
+                if (!tc->insert(cc.write_cursor, cc.coll.id, start_key + added_count)) {
+                    added_count = 0;
+                    continue;
+                }
+                if (tc->next(cc.read_cursor) != 0) {
                     added_count = 0;
                     continue;
                 }
@@ -134,8 +142,17 @@ class burst_inserts : public test {
                     start_key = cc.coll.get_key_count();
                     added_count = 0;
                 }
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
-            testutil_check(cc.cursor->reset(cc.cursor.get()));
+            if (tc->transaction.active()) {
+                tc->transaction.commit();
+                cc.coll.increase_key_count(added_count);
+                start_key = cc.coll.get_key_count();
+                added_count = 0;
+            }
+
+            testutil_check(cc.write_cursor->reset(cc.write_cursor.get()));
+            testutil_check(cc.read_cursor->reset(cc.read_cursor.get()));
             counter++;
             if (counter == collections_per_thread)
                 counter = 0;

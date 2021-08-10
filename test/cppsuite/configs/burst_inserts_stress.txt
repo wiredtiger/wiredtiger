@@ -1,11 +1,11 @@
 # Used as a stress test for the framework.
-duration_seconds=21600,
-cache_size_mb=32000,
+duration_seconds=14400,
+cache_size_mb=2000,
 compression_enabled=false,
 checkpoint_manager=
 (
     enabled=true,
-    op_rate=90s
+    op_rate=60s
 ),
 runtime_monitor=
 (
@@ -31,16 +31,10 @@ workload_generator=
     insert_config=
     (
         key_size=200,
-        op_rate=60s,
-        ops_per_transaction=(max=10,min=0),
+        op_rate=10s,
+        ops_per_transaction=(max=3000,min=1500),
         thread_count=40,
         value_size=20000
-    ),
-    read_config=
-    (
-        op_rate=60s,
-        ops_per_transaction=(max=1000,min=0),
-        thread_count=20
     )
 ),
 workload_tracking=
