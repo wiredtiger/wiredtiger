@@ -94,7 +94,7 @@ timestamp_manager::do_work()
     wt_timestamp_t new_oldest_ts = _oldest_ts;
     testutil_assert(_stable_ts >= _oldest_ts);
     if ((_stable_ts - _oldest_ts) > _oldest_lag) {
-        if(log.empty())
+        if (log.empty())
             log = "Timestamp_manager: Oldest timestamp expired.";
         else
             log += " Oldest timestamp expired.";
@@ -104,7 +104,7 @@ timestamp_manager::do_work()
         config += std::string(OLDEST_TS) + "=" + decimal_to_hex(new_oldest_ts);
     }
 
-    if(!log.empty())
+    if (!log.empty())
         logger::log_msg(LOG_INFO, log);
 
     /*
