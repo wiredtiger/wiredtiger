@@ -2,11 +2,8 @@
 
 @section arch_conn_def Definition
 
-A connection is an interface between an application and WiredTiger. It is required to interact with
-a WiredTiger database and perform operations on it. Most applications will only open one connection
-to a database for each process. Subsequent connections will communicate with the first process over
-a socket connection to perform their operations. Internally, a connection is represented by \c
-WT_CONNECTION.
+A connection is a handle to a WiredTiger database instance and only one connection can be opened at
+a time. Internally, a connection is represented by \c WT_CONNECTION.
 
 @section arch_conn_lifecycle Life cycle
 
