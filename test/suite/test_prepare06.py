@@ -98,8 +98,8 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertEqual(self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10)), 0)
             self.session.rollback_transaction()
 
-            # It is illegal to set the prepare timestamp the same as an active read
-            # timestamp even with roundup_timestamps settings.
+            # It is OK to set the prepare timestamp the same as an active read
+            # timestamp with roundup_timestamps settings.
             self.session.begin_transaction('roundup_timestamps=(prepared=true)')
             self.assertEqual(self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40)), 0)
             self.session.rollback_transaction()
