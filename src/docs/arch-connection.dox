@@ -9,21 +9,21 @@ a time. Internally, a connection is represented by \c WT_CONNECTION.
 
 @subsection arch_conn_init Initialization
 
-A connection is initialized using WT_CONNECTION::wiredtiger_open. Given a set of configuration
-items (see @ref database_config), specific WiredTiger features can be enabled and their behavior
-tuned. Those features are for example related to @ref arch-eviction, @ref arch-logging, @ref
-arch-checkpoint, @ref arch-cache, statistics, etc. All the different available configuration
-settings are described in WT_CONNECTION::wiredtiger_open.
+A connection is initialized when WT_CONNECTION::wiredtiger_open is called by the user application.
+WT_CONNECTION::wiredtiger_open accepts a list of configuration items (see @ref database_config) that
+can be used to enable different WiredTiger features and tune their behavior. Those features are for
+example related to @ref arch-eviction, @ref arch-logging, @ref arch-checkpoint, @ref arch-cache,
+statistics, etc. All the different available configuration settings are described in the
+documentation for WT_CONNECTION::wiredtiger_open.
 
 WT_CONNECTION::wiredtiger_open also performs different sanity checks depending on the configuration
-item "create". When "create" is specified and a database does not exist already, a new database is
+item "create". When "create" is specified and a database does not already exist, a new database is
 created as well as specific WiredTiger files such as the turtle file and other metadata files. If a
 database already exists, WiredTiger will try to open it and check for the existence of the different
 required WiredTiger files. If "create" is not specified, WiredTiger expects a database where it is
 executed. In case of a failure during WT_CONNECTION::wiredtiger_open, the connection is not created
 and the returned error can be either \c WT_RUN_RECOVERY or \c WT_TRY_SALVAGE (see @ref
-error_handling) which means recovery might be required (see @ref command_line to learn more about
-it).
+error_handling) which means recovery might be required (see @ref command_line for more details).
 
 Once the database has been successfully opened, worker threads are started to provide global
 services used during runtime. Those services consist of different threads to handle statistics,
@@ -31,13 +31,13 @@ logging, eviction, checkpoint and cache management. The sweeping server that man
 inactive dhandles is started too, see @ref arch-dhandle for more information.
 
 Finally, before the connection is completely initialized, the database is set to a consistent state
-(see @ref arch-rts to read more about it).
+by running rollback to stable, see @ref arch-rts for more details.
 
 @subsection arch_conn_runtime Runtime
 
 During runtime, a number of actions can be executed using the connection. For instance, it is
 possible to reconfigure WiredTiger features and behavior using WT_CONNECTION::reconfigure instead of
-closing the connection and go through WT_CONNECTION::open again. Since any operation on the database
+closing the connection and calling WT_CONNECTION::open again. Since any operation on the database
 can only be performed through a session, a connection can create one using
 WT_CONNECTION::open_session. The other available APIs are visible in the documentation related to
 WT_CONNECTION::.
@@ -49,7 +49,7 @@ connection.h.
 
 When a connection is no longer required, it can be closed using WT_CONNECTION::close. As a result,
 any resource held by the connection (i.e sessions) is freed unless configured differently and the
-database is left into a consistent state. It is worth noting that this final step might take some
-time.
+database is restored to a consistent state if necessary. It is worth noting that this final step
+might take some time.
 
 */
