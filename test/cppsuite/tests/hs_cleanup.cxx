@@ -64,8 +64,10 @@ class hs_cleanup : public test {
 
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
-                if (ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND){
+                    cursor->reset(cursor.get());
                     continue;
+                }
                 if (ret == WT_ROLLBACK) {
                     /*
                      * As a result of the logic in this test its possible that the previous next
