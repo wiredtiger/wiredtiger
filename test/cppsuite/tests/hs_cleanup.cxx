@@ -68,10 +68,10 @@ class hs_cleanup : public test {
                     continue;
                 if (ret == WT_ROLLBACK) {
                     /*
-                    * As a result of the logic in this test its possible that the
-                    * previous next call can happen outside the context of a
-                    * transaction. Assert that we are in one if we got a rollback.
-                    */
+                     * As a result of the logic in this test its possible that the previous next
+                     * call can happen outside the context of a transaction. Assert that we are in
+                     * one if we got a rollback.
+                     */
                     testutil_check(tc->transaction.can_rollback());
                     tc->transaction.rollback();
                     continue;

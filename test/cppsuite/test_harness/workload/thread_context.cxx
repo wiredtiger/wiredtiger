@@ -92,11 +92,11 @@ transaction_context::commit(const std::string &config)
         logger::log_msg(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
         _needs_rollback = true;
-        return (true);
+    } else {
+        _op_count = 0;
+        _in_txn = false;
     }
-    _op_count = 0;
-    _in_txn = false;
-    return (false);
+    return (_needs_rollback);
 }
 
 void
