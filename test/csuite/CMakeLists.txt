@@ -28,7 +28,7 @@
 
 project(csuite)
 
-include(${CMAKE_SOURCE_DIR}/build_cmake/helpers.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 set(c_tests)
 
