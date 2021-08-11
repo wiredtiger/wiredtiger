@@ -611,14 +611,6 @@ main(int argc, char *argv[])
     verify_only = false;
     working_dir = "WT_TEST.tiered-abort";
 
-    /*
-     * Build the directory path needed for the extension before parsing the args.
-     */
-    opts = &_opts;
-    memset(opts, 0, sizeof(*opts));
-    testutil_check(testutil_parse_opts(argc, argv, opts));
-    testutil_build_dir(opts, buf, 512);
-
     while ((ch = __wt_getopt(progname, argc, argv, "Cf:h:mT:t:vz")) != EOF)
         switch (ch) {
         case 'C':
@@ -658,6 +650,16 @@ main(int argc, char *argv[])
     argc -= __wt_optind;
     if (argc != 0)
         usage();
+
+    /*
+     * Build the directory path needed for the extension after parsing the args. We are not using
+     * the opts variable other than for building the directory. We have already parsed the args
+     * we're interested in above.
+     */
+    opts = &_opts;
+    memset(opts, 0, sizeof(*opts));
+    testutil_check(testutil_parse_opts(argc, argv, opts));
+    testutil_build_dir(opts, buf, 512);
 
     testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
