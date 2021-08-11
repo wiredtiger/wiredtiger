@@ -2,8 +2,9 @@
 
 @section arch_conn_def Definition
 
-A connection is a handle to a WiredTiger database instance and only one connection can be opened at
-a time. Internally, a connection is represented by \c WT_CONNECTION.
+A connection is a handle to a WiredTiger database instance. The connection has exclusive access to
+the database through a file lock, hence only one connection can be opened at a time. Internally, a
+connection is represented by \c WT_CONNECTION.
 
 @section arch_conn_lifecycle Life cycle
 
