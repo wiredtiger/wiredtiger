@@ -136,14 +136,14 @@ class thread_context {
     /*
      * Generic update function, takes a collection_id and key, will generate the value.
      *
-     * Return true if a rollback is required.
+     * Returns true if a rollback is required.
      */
     bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
 
     /*
      * Generic insert function, takes a collection_id and key_id, will generate the value.
      *
-     * Return true if a rollback is required.
+     * Returns true if a rollback is required.
      */
     bool insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
 
