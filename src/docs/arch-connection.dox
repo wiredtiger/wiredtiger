@@ -35,12 +35,12 @@ by running rollback to stable, see @ref arch-rts for more details.
 
 @subsection arch_conn_runtime Runtime
 
-During runtime, a number of actions can be executed using the connection. For instance, it is
+During runtime, database-wide operations can be executed using the connection. For instance, it is
 possible to reconfigure WiredTiger features and behavior using WT_CONNECTION::reconfigure instead of
-closing the connection and calling WT_CONNECTION::open again. Since any operation on the database
-can only be performed through a session, a connection can create one using
-WT_CONNECTION::open_session. The other available APIs are visible in the documentation related to
-WT_CONNECTION::.
+closing the connection and calling WT_CONNECTION::open again. However, almost all CRUD operations on
+the database require to be within the context of a session (see @arch-session) which can be created
+using WT_CONNECTION::open_session. The other available APIs are visible in the documentation related
+to WT_CONNECTION::.
 
 A connection also keeps tracks of global information, see \c WT_CONNECTION_IMPL defined in \c
 connection.h.
