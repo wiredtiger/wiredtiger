@@ -218,14 +218,14 @@ database_operation::read_operation(thread_context *tc)
         while (tc->transaction.active() && tc->running()) {
             auto ret = cursor->next(cursor.get());
             if (ret != 0) {
-                if (ret == WT_NOTFOUND)
+                if (ret == WT_NOTFOUND) {
                     cursor->reset(cursor.get());
-                if (ret == WT_ROLLBACK) {
+                } else if (ret == WT_ROLLBACK) {
                     tc->transaction.rollback();
                     tc->sleep();
                     continue;
-                }
-                testutil_die(ret, "Unexpected error returned from cursor->next()");
+                } else
+                    testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
             tc->transaction.add_op();
             tc->transaction.try_rollback();
