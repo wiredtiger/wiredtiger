@@ -250,6 +250,8 @@ Configuring <code>roundup_timestamps=(read=true)</code> causes the read
 timestamp to be rounded up to the oldest timestamp, if the read timestamp is
 greater than the oldest timestamp no change will be made.
 
+It also allows to set prepared timestamps smaller or equal to the latest active read timestamps. Use this feature carefully as it may break repeated read. For example, if read timestamp is 30 and a key has value U@20. Before we put a prepared update at timestamp 30 on that key, we should be able to read that value at timestamp 20. However, after that, if we read again, we will get a prepared conflict.
+
 @subsection timestamp_connection Managing global timestamp state
 
 Applications that use timestamps need to manage some global state in order
