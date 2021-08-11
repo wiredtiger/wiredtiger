@@ -19,9 +19,9 @@ project(WiredTiger C ASM)
 
 # Import our available build types prior to initialing the
 # project.
-include(build_cmake/configs/modes.cmake)
+include(cmake/configs/modes.cmake)
 
-include(build_cmake/helpers.cmake)
+include(cmake/helpers.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host.
@@ -39,25 +39,25 @@ if(NOT WT_OS)
     set(WT_OS "${host_os}")
 endif()
 
-if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
-    message(FATAL_ERROR "build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake does not exist")
+if(NOT EXISTS "${CMAKE_CURRENT_LIST_DIR}/cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake")
+    message(FATAL_ERROR "cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake does not exist")
 endif()
 
 # Load any configuration variables special to our target.
-include(build_cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
+include(cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
 # Load auto-configure variables (e.g. environment-related configs).
-include(build_cmake/configs/auto.cmake)
+include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
-include(build_cmake/configs/base.cmake)
+include(cmake/configs/base.cmake)
 
 set(COMPILER_DIAGNOSTIC_FLAGS "" CACHE INTERNAL "" FORCE)
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
-        include(build_cmake/strict/gcc_strict.cmake)
+        include(cmake/strict/gcc_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
-        include(build_cmake/strict/clang_strict.cmake)
+        include(cmake/strict/clang_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
-        include(build_cmake/strict/cl_strict.cmake)
+        include(cmake/strict/cl_strict.cmake)
     endif()
 endif()
 
@@ -84,7 +84,7 @@ add_library(wiredtiger ${link_type} ${wt_sources})
 # Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
 # Generate our wiredtiger_config.h include file.
-configure_file(build_cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
+configure_file(cmake/configs/wiredtiger_config.h.in "config/wiredtiger_config.h" @ONLY)
 # Set our targets public and private includes.
 target_include_directories(
     wiredtiger
@@ -96,10 +96,12 @@ target_compile_options(
     PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
 )
 
-if(ENABLE_STATIC)
+if(ENABLE_STATIC AND NOT ENABLE_PYTHON)
     # Avoid compiling with fPIC for static builds, this can often lead to
     # GCC disabling many optimizations e.g. inlining, possibly introducing
-    # an overhead.
+    # an overhead. We additionally can't turn off fPIC if we are compiling
+    # with python support as the python API library depends on shared library
+    # support.
     set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE OFF)
 else()
     set_property(TARGET wiredtiger PROPERTY POSITION_INDEPENDENT_CODE ON)
@@ -142,7 +144,7 @@ endif()
 add_subdirectory(src/utilities)
 
 # Establish our install target configuration.
-include(build_cmake/install/install.cmake)
+include(cmake/install/install.cmake)
 
 if(ENABLE_PYTHON)
    add_subdirectory(lang/python)
