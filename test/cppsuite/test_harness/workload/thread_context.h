@@ -147,15 +147,6 @@ class thread_context {
      */
     bool insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
 
-    /*
-     * Generic next function.
-     *
-     * Handles WT_NOTFOUND internally by resetting the cursor.
-     *
-     * Return true if a rollback is required.
-     */
-    bool next(scoped_cursor &cursor);
-
     void sleep();
     bool running() const;
 

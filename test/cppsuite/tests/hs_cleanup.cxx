@@ -62,9 +62,21 @@ class hs_cleanup : public test {
         while (tc->running()) {
             tc->sleep();
 
-            if (tc->next(cursor)) {
-                tc->transaction.rollback();
-                continue;
+            auto ret = cursor->next(cursor.get());
+            if (ret != 0) {
+                if (ret == WT_NOTFOUND)
+                    continue;
+                if (ret == WT_ROLLBACK) {
+                    /*
+                    * As a result of the logic in this test its possible that the
+                    * previous next call can happen outside the context of a
+                    * transaction. Assert that we are in one if we got a rollback.
+                    */
+                    testutil_check(tc->transaction.can_rollback());
+                    tc->transaction.rollback();
+                    continue;
+                }
+                testutil_die(ret, "Unexpected error returned from cursor->next()");
             }
 
             testutil_check(cursor->get_key(cursor.get(), &key_tmp));

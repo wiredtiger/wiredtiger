@@ -260,27 +260,6 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
     return (false);
 }
 
-bool
-thread_context::next(scoped_cursor &cursor)
-{
-    WT_DECL_RET;
-
-    ret = cursor->next(cursor.get());
-
-    if (ret == WT_NOTFOUND) {
-        cursor->reset(cursor.get());
-        return (false);
-    }
-    if (ret == WT_ROLLBACK) {
-        transaction.set_needs_rollback();
-        return (true);
-    }
-    if (ret != 0)
-        testutil_die(ret, "cursor->next() failed with an unexpected error.");
-
-    return (false);
-}
-
 void
 thread_context::sleep()
 {
