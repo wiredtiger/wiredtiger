@@ -26,6 +26,13 @@ set(python_version)
 
 set(required_version)
 if(PYTHON3_REQUIRED_VERSION)
+    if(NOT PYTHON3_REQUIRED_VERSION MATCHES "^([0-9]+)(\\.[0-9]+(\\.[0-9]+)?)?$")
+        message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a valid version string \
+            Provide a version number following the format: major[.minor[.patch]]")
+    endif()
+    if ("${PYTHON3_REQUIRED_VERSION}" VERSION_LESS 3)
+        message(FATAL_ERROR "Invalid value for PYTHON3_REQUIRED_VERSION: Requires a Python version >= 3")
+    endif()
     set(required_version ${PYTHON3_REQUIRED_VERSION} EXACT)
 endif()
 
