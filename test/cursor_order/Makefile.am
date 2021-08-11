@@ -9,7 +9,7 @@ cursor_order_LDADD = $(top_builddir)/test/utility/libtest_util.la
 cursor_order_LDADD +=$(top_builddir)/libwiredtiger.la
 cursor_order_LDFLAGS = -static
 
-TESTS = smoke.sh
+TESTS = $(noinst_PROGRAMS)
 
 clean-local:
 	rm -rf WT_TEST core.* *.core
