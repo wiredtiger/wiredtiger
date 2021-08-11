@@ -72,7 +72,7 @@ class transaction_context {
     /* Begin a transaction if we are not currently in one. */
     void try_begin(const std::string &config = "");
     /*
-     * Commit a transaction, returns a boolean indicating if rollback is required.
+     * Commit a transaction and return true if a rollback is required.
      */
     bool commit(const std::string &config = "");
     /* Rollback a transaction, failure will abort the test. */
@@ -82,9 +82,17 @@ class transaction_context {
     /* Set a commit timestamp. */
     void set_commit_timestamp(wt_timestamp_t ts);
     /* Set that the transaction needs to be rolled back. */
-    void set_needs_rollback();
-    /* Returns true if a transaction can be committed. */
-    bool can_commit_rollback();
+    void set_needs_rollback(bool rollback);
+    /*
+     * Returns true if a transaction can be committed as determined by the op count and the state of
+     * the transaction.
+     */
+    bool can_commit();
+    /*
+     * Returns true if a transaction can be rolled back as determined by the op count and the state
+     * of the transaction.
+     */
+    bool can_rollback();
 
     private:
     /*
@@ -128,23 +136,23 @@ class thread_context {
     /*
      * Generic update function, takes a collection_id and key, will generate the value.
      *
-     * Returns a boolean indicating if a rollback is required.
+     * Return true if a rollback is required.
      */
     bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
 
     /*
      * Generic insert function, takes a collection_id and key_id, will generate the value.
      *
-     * Returns a boolean indicating if a rollback is required.
+     * Return true if a rollback is required.
      */
     bool insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id);
 
     /*
      * Generic next function.
      *
-     * Handles not found internally by resetting the cursor.
+     * Handles WT_NOTFOUND internally by resetting the cursor.
      *
-     * Returns a boolean indicating if a rollback is required.
+     * Return true if a rollback is required.
      */
     bool next(scoped_cursor &cursor);
 

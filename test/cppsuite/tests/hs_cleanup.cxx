@@ -80,7 +80,7 @@ class hs_cleanup : public test {
             bool rollback_required = tc->update(cursor, coll.id, key_value_t(key_tmp));
 
             /* Commit our transaction. */
-            if (tc->transaction.can_commit_rollback())
+            if (!rollback_required && tc->transaction.can_commit())
                 rollback_required = tc->transaction.commit();
 
             if (rollback_required)

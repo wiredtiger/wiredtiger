@@ -113,7 +113,7 @@ transaction_context::rollback(const std::string &config)
 void
 transaction_context::try_rollback(const std::string &config)
 {
-    if (can_commit_rollback())
+    if (can_rollback())
         rollback(config);
 }
 
@@ -128,15 +128,21 @@ transaction_context::set_commit_timestamp(wt_timestamp_t ts)
 }
 
 void
-transaction_context::set_needs_rollback()
+transaction_context::set_needs_rollback(bool rollback)
 {
-    _needs_rollback = true;
+    _needs_rollback = rollback;
 }
 
 bool
-transaction_context::can_commit_rollback()
+transaction_context::can_commit()
 {
-    return (!_needs_rollback && _in_txn && _op_count >= _target_op_count);
+    return (!_needs_rollback && can_rollback());
+}
+
+bool
+transaction_context::can_rollback()
+{
+    return (_in_txn && _op_count >= _target_op_count);
 }
 
 /* thread_context class implementation */
@@ -193,7 +199,7 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
     ret = cursor->update(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback();
+            transaction.set_needs_rollback(true);
             return (true);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
@@ -202,7 +208,7 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
       tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback();
+            transaction.set_needs_rollback(true);
             return (true);
         } else
             testutil_die(
@@ -235,7 +241,7 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
     ret = cursor->insert(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback();
+            transaction.set_needs_rollback(true);
             return (true);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
@@ -244,7 +250,7 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
       tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.set_needs_rollback();
+            transaction.set_needs_rollback(true);
             return (true);
         } else
             testutil_die(

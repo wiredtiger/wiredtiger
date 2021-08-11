@@ -164,18 +164,18 @@ database_operation::insert_operation(thread_context *tc)
         while (tc->transaction.active() && tc->running()) {
             /* Insert a key value pair. */
             bool rollback_required = tc->insert(cc.cursor, cc.coll.id, start_key + added_count);
-            if (!rollback_required)
+            if (!rollback_required) {
                 added_count++;
-
-            if (tc->transaction.can_commit_rollback()) {
-                rollback_required = tc->transaction.commit();
-                if (!rollback_required)
-                    /*
-                     * We need to inform the database model that we've added these keys as some
-                     * other thread may rely on the key_count data. Only do so if we successfully
-                     * committed.
-                     */
-                    cc.coll.increase_key_count(added_count);
+                if (tc->transaction.can_commit()) {
+                    rollback_required = tc->transaction.commit();
+                    if (!rollback_required)
+                        /*
+                         * We need to inform the database model that we've added these keys as some
+                         * other thread may rely on the key_count data. Only do so if we
+                         * successfully committed.
+                         */
+                        cc.coll.increase_key_count(added_count);
+                }
             }
 
             if (rollback_required) {
@@ -278,7 +278,7 @@ database_operation::update_operation(thread_context *tc)
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (tc->transaction.can_commit_rollback())
+        if (!rollback_required && tc->transaction.can_commit())
             rollback_required = tc->transaction.commit();
 
         if (rollback_required)
