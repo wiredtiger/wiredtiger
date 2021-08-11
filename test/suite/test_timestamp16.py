@@ -34,6 +34,7 @@
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
+from wtscenario import make_scenarios
 
 class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp16'

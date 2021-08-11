@@ -35,13 +35,7 @@ create_test_executable(test_cursor_order
         cursor_order.c
 )
 
-define_test_variants(test_cursor_order
-    VARIANTS
-        "test_cursor_order_row;-tr"
-        "test_cursor_order_var;-tv"
-        "test_cursor_order_fix;-tf"
-    LABELS
-        # Run this during a "ctest check" smoke test.
-        check
-        test_cursor_order
-)
+add_test(NAME test_cursor_order COMMAND test_cursor_order)
+
+# Run this during a "ctest check" smoke test.
+set_tests_properties(test_cursor_order PROPERTIES LABELS "check")

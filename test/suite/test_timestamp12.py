@@ -38,16 +38,12 @@ class test_timestamp12(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     coll_uri = 'table:collection12'
     oplog_uri = 'table:oplog12'
-    key_format_values = [
-        ('integer-row', dict(key_format='i')),
-        ('column', dict(key_format='r')),
-    ]
     closecfg = [
         ('dfl', dict(close_cfg='', all_expected=False)),
         ('use_stable', dict(close_cfg='use_timestamp=true', all_expected=False)),
         ('all_dirty', dict(close_cfg='use_timestamp=false', all_expected=True)),
-    ]
-    scenarios = make_scenarios(key_format_values, closecfg)
+   ]
+    scenarios = make_scenarios(closecfg)
 
     def verify_expected(self, op_exp, coll_exp):
         c_op = self.session.open_cursor(self.oplog_uri)
@@ -71,9 +67,8 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         # Add data to each of them separately and checkpoint so that each one
         # has a different stable timestamp.
         #
-        basecfg = 'key_format={},value_format=i'.format(self.key_format)
-        self.session.create(self.oplog_uri, basecfg)
-        self.session.create(self.coll_uri, basecfg + ',log=(enabled=false)')
+        self.session.create(self.oplog_uri, 'key_format=i,value_format=i')
+        self.session.create(self.coll_uri, 'key_format=i,value_format=i,log=(enabled=false)')
         c_op = self.session.open_cursor(self.oplog_uri)
         c_coll = self.session.open_cursor(self.coll_uri)
 
