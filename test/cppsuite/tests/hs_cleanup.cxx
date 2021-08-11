@@ -62,8 +62,10 @@ class hs_cleanup : public test {
         while (tc->running()) {
             tc->sleep();
 
-            if (tc->next(cursor) != 0)
+            if (tc->next(cursor)) {
+                tc->transaction.rollback();
                 continue;
+            }
 
             testutil_check(cursor->get_key(cursor.get(), &key_tmp));
 
@@ -75,14 +77,17 @@ class hs_cleanup : public test {
              * API doesn't guarantee our buffer will still be valid once it is called, as such we
              * copy the buffer and then pass it into the API.
              */
-            if (!tc->update(cursor, coll.id, key_value_t(key_tmp)))
-                continue;
+            bool rollback_required = tc->update(cursor, coll.id, key_value_t(key_tmp));
 
             /* Commit our transaction. */
-            tc->transaction.try_commit();
+            if (tc->transaction.can_commit_rollback())
+                rollback_required = tc->transaction.commit();
+
+            if (rollback_required)
+                tc->transaction.rollback();
         }
         /* Ensure our last transaction is resolved. */
         if (tc->transaction.active())
-            tc->transaction.commit();
+            tc->transaction.rollback();
     }
 };
