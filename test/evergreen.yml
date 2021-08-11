@@ -378,6 +378,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  "tiered abort test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_tiered_abort ${tiered_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
     params:
