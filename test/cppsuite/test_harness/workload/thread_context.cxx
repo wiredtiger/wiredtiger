@@ -72,6 +72,7 @@ transaction_context::begin(const std::string &config)
       random_generator::instance().generate_integer<int64_t>(_min_op_count, _max_op_count);
     _op_count = 0;
     _in_txn = true;
+    _needs_rollback = false;
 }
 
 void
@@ -81,21 +82,22 @@ transaction_context::try_begin(const std::string &config)
         begin(config);
 }
 
-void
+/* It's possible to receive rollback in commit which is handled internally. */
+bool
 transaction_context::commit(const std::string &config)
 {
+    WT_DECL_RET;
     testutil_assert(_in_txn);
-    testutil_check(
-      _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str()));
-    _op_count = 0;
-    _in_txn = false;
-}
-
-void
-transaction_context::try_commit(const std::string &config)
-{
-    if (can_commit_rollback())
-        commit(config);
+    if ((ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str())) !=
+      0) {
+        logger::log_msg(LOG_WARN,
+          "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
+        _needs_rollback = true;
+    } else {
+        _op_count = 0;
+        _in_txn = false;
+    }
+    return (_needs_rollback);
 }
 
 void
@@ -104,6 +106,7 @@ transaction_context::rollback(const std::string &config)
     testutil_assert(_in_txn);
     testutil_check(
       _session->rollback_transaction(_session, config.empty() ? nullptr : config.c_str()));
+    _needs_rollback = false;
     _op_count = 0;
     _in_txn = false;
 }
@@ -111,7 +114,7 @@ transaction_context::rollback(const std::string &config)
 void
 transaction_context::try_rollback(const std::string &config)
 {
-    if (can_commit_rollback())
+    if (can_rollback())
         rollback(config);
 }
 
@@ -125,8 +128,20 @@ transaction_context::set_commit_timestamp(wt_timestamp_t ts)
     testutil_check(_session->timestamp_transaction(_session, config.c_str()));
 }
 
+void
+transaction_context::set_needs_rollback(bool rollback)
+{
+    _needs_rollback = rollback;
+}
+
 bool
-transaction_context::can_commit_rollback()
+transaction_context::can_commit()
+{
+    return (!_needs_rollback && can_rollback());
+}
+
+bool
+transaction_context::can_rollback()
 {
     return (_in_txn && _op_count >= _target_op_count);
 }
@@ -185,8 +200,8 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
     ret = cursor->update(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.rollback();
-            return (false);
+            transaction.set_needs_rollback(true);
+            return (true);
         } else
             testutil_die(ret, "unhandled error while trying to update a key");
     }
@@ -194,14 +209,14 @@ thread_context::update(scoped_cursor &cursor, uint64_t collection_id, const std:
       tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.rollback();
-            return (false);
+            transaction.set_needs_rollback(true);
+            return (true);
         } else
             testutil_die(
               ret, "unhandled error while trying to save an update to the tracking table");
     }
     transaction.add_op();
-    return (true);
+    return (false);
 }
 
 bool
@@ -227,8 +242,8 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
     ret = cursor->insert(cursor.get());
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.rollback();
-            return (false);
+            transaction.set_needs_rollback(true);
+            return (true);
         } else
             testutil_die(ret, "unhandled error while trying to insert a key");
     }
@@ -236,38 +251,14 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, uint64_t k
       tracking_operation::INSERT, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
-            transaction.rollback();
-            return (false);
+            transaction.set_needs_rollback(true);
+            return (true);
         } else
             testutil_die(
               ret, "unhandled error while trying to save an insert to the tracking table");
     }
     transaction.add_op();
-    return (true);
-}
-
-int
-thread_context::next(scoped_cursor &cursor)
-{
-    WT_DECL_RET;
-
-    ret = cursor->next(cursor.get());
-
-    if (ret == WT_NOTFOUND) {
-        testutil_check(cursor->reset(cursor.get()));
-        return (ret);
-    }
-
-    if (ret == WT_ROLLBACK) {
-        transaction.rollback();
-        testutil_check(cursor->reset(cursor.get()));
-        return (ret);
-    }
-
-    if (ret != 0)
-        testutil_die(ret, "cursor->next() failed with an unexpected error.");
-
-    return (0);
+    return (false);
 }
 
 void
