@@ -49,11 +49,9 @@ static char home[1024]; /* Program working dir */
  * in timestamps to store the stable timestamp.  That way we can know what the
  * latest stable timestamp is on checkpoint.
  *
- * XXX
- * We also create several files that are not WiredTiger tables.  The checkpoint
- * thread creates a file indicating that a checkpoint has completed.  The parent
- * process uses this to know when at least one checkpoint is done and it can
- * start the timer to abort.
+ * We also create several files that are not WiredTiger tables.  The flush tier thread creates
+ * a file indicating that the specified number of flush_tier calls have completed. The parent
+ * process uses this to know when that threshold is met and it can start the timer to abort.
  *
  * Each worker thread creates its own records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
@@ -83,7 +81,7 @@ static const char *const sentinel_file = "sentinel_ready";
 
 static bool compat, inmem, use_ts;
 static volatile uint64_t global_ts = 1;
-static uint32_t flush_timer = 1;
+static uint32_t flush_calls = 1;
 
 /*
  * The configuration sets the eviction update and dirty targets at 20% so that on average, each
@@ -258,13 +256,11 @@ thread_flush_run(void *arg)
     for (i = 0;; ++i) {
         sleep_time = __wt_random(&rnd) % MAX_FLUSH_INVL;
         sleep(sleep_time);
-#if 1
-        /* Do we need to wait for the first checkpoint to complete? */
         testutil_check(td->conn->query_timestamp(td->conn, ts_string, "get=last_checkpoint"));
         testutil_assert(sscanf(ts_string, "%" SCNx64, &stable) == 1);
+        /* Effectively wait for the first checkpoint to complete. */
         if (use_ts && stable == WT_TS_NONE)
             continue;
-#endif
         /*
          * Currently not testing any of the flush tier configuration strings other than defaults. We
          * expect the defaults are what MongoDB wants for now.
@@ -275,13 +271,10 @@ thread_flush_run(void *arg)
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
         /*
-         * Create the sentinel file so that the parent process knows at least one checkpoint has
-         * finished and can start its timer. If running with timestamps, wait until the stable
-         * timestamp has moved past WT_TS_NONE to give writer threads a chance to add something to
-         * the database.
-        XXX
+         * Create the sentinel file so that the parent process knows at least one flush_tier has
+         * finished and can start its timer.
          */
-        if (i == flush_timer) {
+        if (i == flush_calls) {
             testutil_checksys((fp = fopen(sentinel_file, "w")) == NULL);
             testutil_checksys(fclose(fp) != 0);
         }
@@ -629,7 +622,7 @@ main(int argc, char *argv[])
             compat = true;
             break;
         case 'f':
-            flush_timer = (uint32_t)atoi(__wt_optarg);
+            flush_calls = (uint32_t)atoi(__wt_optarg);
             break;
         case 'h':
             working_dir = __wt_optarg;
