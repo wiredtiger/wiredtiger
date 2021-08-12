@@ -714,19 +714,20 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
         WT_RET_MSG(session, EINVAL,
           "commit timestamp should not have been set before the prepare timestamp");
 
-    /*
-     * Allow setting the prepared timestamp smaller or equal to the latest active read timestamp.
-     * This is required by MongoDB in recovery to reconstruct the prepared updates. It needs this
-     * feature to find the largest key in the table even it has been deleted. They use a trick to
-     * set the read timestamp at the prepared timestamp to force a conflict if there is anything
-     * committed (including tombstones) after the prepared timestamp. Set this flag cautiously as it
-     * breaks repeated reads.
-     */
+        /*
+         * Allow setting the prepared timestamp smaller or equal to the latest active read
+         * timestamp. This is required by MongoDB in recovery to reconstruct the prepared updates.
+         * It needs this feature to find the largest key in the table even it has been deleted. They
+         * use a trick to set the read timestamp at the prepared timestamp to force a conflict if
+         * there is anything committed (including tombstones) after the prepared timestamp. Set this
+         * flag cautiously as it breaks repeated reads.
+         */
+#ifdef HAVE_DIAGNOSTIC
     if (!F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
         WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
-#ifdef HAVE_DIAGNOSTIC
     else
-        printf("Skip checking prepare timestamp %s against the latest active read timestamp.\n",
+        __wt_msg(session,
+          "Skip checking prepare timestamp %s against the latest active read timestamp.\n",
           __wt_timestamp_to_string(prepare_ts, ts_string[0]));
 #endif
 
