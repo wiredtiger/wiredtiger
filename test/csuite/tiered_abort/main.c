@@ -129,6 +129,7 @@ typedef struct {
 } THREAD_DATA;
 
 /* Lock for transactional ops that set or query a timestamp. */
+static pthread_rwlock_t flush_lock;
 static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -268,7 +269,9 @@ thread_flush_run(void *arg)
          * Currently not testing any of the flush tier configuration strings other than defaults. We
          * expect the defaults are what MongoDB wants for now.
          */
+        testutil_check(pthread_rwlock_wrlock(&flush_lock));
         testutil_check(session->flush_tier(session, NULL));
+        testutil_check(pthread_rwlock_unlock(&flush_lock));
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
         /*
@@ -303,13 +306,14 @@ thread_run(void *arg)
     uint64_t i, active_ts;
     char cbuf[MAX_VAL], lbuf[MAX_VAL], obuf[MAX_VAL];
     char kname[64], tscfg[64], uri[128];
-    bool durable_ahead_commit;
+    bool durable_ahead_commit, locked;
 
     __wt_random_init(&rnd);
     memset(cbuf, 0, sizeof(cbuf));
     memset(lbuf, 0, sizeof(lbuf));
     memset(obuf, 0, sizeof(obuf));
     memset(kname, 0, sizeof(kname));
+    locked = false;
 
     td = (THREAD_DATA *)arg;
     /*
@@ -378,6 +382,8 @@ thread_run(void *arg)
         data.size = __wt_random(&rnd) % MAX_VAL;
         data.data = cbuf;
         cur_coll->set_value(cur_coll, &data);
+        testutil_check(pthread_rwlock_rdlock(&flush_lock));
+        locked = true;
         if ((ret = cur_coll->insert(cur_coll)) == WT_ROLLBACK)
             goto rollback;
         testutil_check(ret);
@@ -409,6 +415,8 @@ thread_run(void *arg)
         data.data = lbuf;
         cur_local->set_value(cur_local, &data);
         testutil_check(cur_local->insert(cur_local));
+        testutil_check(pthread_rwlock_unlock(&flush_lock));
+        locked = false;
 
         /* Save the timestamps and key separately for checking later. */
         if (fprintf(fp, "%" PRIu64 " %" PRIu64 " %" PRIu64 "\n", active_ts,
@@ -418,6 +426,10 @@ thread_run(void *arg)
         if (0) {
 rollback:
             testutil_check(session->rollback_transaction(session, NULL));
+            if (locked) {
+                testutil_check(pthread_rwlock_unlock(&ts_lock));
+                locked = false;
+            }
         }
     }
     /* NOTREACHED */
@@ -661,6 +673,7 @@ main(int argc, char *argv[])
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_build_dir(opts, buf, 512);
 
+    testutil_check(pthread_rwlock_init(&flush_lock, NULL));
     testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
     testutil_work_dir_from_path(home, sizeof(home), working_dir);
@@ -941,6 +954,7 @@ main(int argc, char *argv[])
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
+    testutil_check(pthread_rwlock_destroy(&flush_lock));
     testutil_check(pthread_rwlock_destroy(&ts_lock));
     if (fatal)
         return (EXIT_FAILURE);
