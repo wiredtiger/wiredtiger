@@ -106,5 +106,5 @@ performing eviction.  If a cache has higher pressure than average and is not yet
 size, WiredTiger grows that cache.  Conversely, if a cache has low pressure, WiredTiger shrinks
 it, subject to the minimum cache size.  To change the size of a cache, the cache pool server
 simply changes the cache size parameters in the corresponding \c WT_CACHE structure.  WiredTiger's
-eviction code will adjust the the amount of data in the cache accordingly.
+eviction code will adjust the amount of data in the cache accordingly.
 */
