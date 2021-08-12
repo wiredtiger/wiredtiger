@@ -637,16 +637,13 @@ err:
 }
 
 /*
- * __session_alter --
- *     Alter a table setting.
+ * __session_alter_internal --
+ *     Internal implementation of an alter a table setting.
  */
 static int
-__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
+__session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL(session, alter, config, cfg);
 
@@ -672,6 +669,32 @@ err:
     else
         WT_STAT_CONN_INCR(session, session_table_alter_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __session_alter --
+ *     Alter a table setting.
+ */
+static int
+__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    /*
+     * Alter table can return EBUSY error when the table is modified in parallel. Retry the command
+     * after performing a system wide checkpoint. Don't retry it in a loop as it may lead to wait
+     * forever.
+     */
+    ret = __session_alter_internal(session, uri, config);
+    if (ret == EBUSY) {
+        WT_RET(session->iface.checkpoint(&session->iface, NULL));
+        ret = __session_alter_internal(session, uri, config);
+    }
+
+    return (ret);
 }
 
 /*
