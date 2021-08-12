@@ -42,7 +42,6 @@ pointer to other file handle entries. Furthermore WiredTiger provides support fo
 and Windows file I/O operations, through the structures of WT_FILE_HANDLE_POSIX and
 WT_FILE_HANDLE_WIN respectively.
 
-(Direct I/O)
 @subsection file_customisation WiredTiger File System and Handle Customisation
 WiredTiger also provides an API which allows programs to register their own
 customised file system using the WT_CONNECTION::set_file_system function.
