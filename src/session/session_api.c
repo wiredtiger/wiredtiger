@@ -684,9 +684,9 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
     session = (WT_SESSION_IMPL *)wt_session;
 
     /*
-     * Alter table can return EBUSY error when the table is modified in parallel. Retry the command
-     * after performing a system wide checkpoint. Don't retry it in a loop as it may lead to wait
-     * forever.
+     * Alter table can return EBUSY error when the table is modified in parallel by eviction. Retry
+     * the command after performing a system wide checkpoint. Don't retry it in a loop as it may
+     * lead to wait forever.
      */
     ret = __session_alter_internal(session, uri, config);
     if (ret == EBUSY) {
