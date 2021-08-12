@@ -1,9 +1,9 @@
 /*! @arch_page arch-log-file Log File Format
 
 This page assumes familiarity with the logging subsystem. Please see
-@ref arch-logging for the subsystem description.
+@ref arch-logging for the logging subsystem architecture description.
 
-Each file begins with a fixed length header, followed by a set of
+Each log file begins with a fixed length header, followed by a set of
 variable length log records. The fixed length header contains information
 necessary for WiredTiger to determine that a file is a valid log file.
 The header contains a magic number in the first 32 bits, the log version
@@ -34,11 +34,11 @@ In all other cases it is 128 bytes.
 The reason that 128 bytes was chosen as the minimum record size was to eliminate any
 possibility of false sharing in memory and invalidating cache lines when multiple
 threads are writing their log records to the memory buffers in parallel. False sharing
-would be a performance impact.
+would potentially impact performance.
 
 From version 2 onward the first record in the log file, typically at offset 128 in the
 file, is a special system log
-record that contains the LSN of the ending of the previous log file. For the first
+record that contains the LSN of the end of the previous log file. For the first
 log file that value is an invalid LSN. For later log files the LSN indicates the end
 of the previous file so that recovery can detect missing log records and holes in
 log files that appear at the end of a file.
@@ -46,12 +46,12 @@ log files that appear at the end of a file.
 As described in @ref log_subsystem, multiple threads are writing records to the log
 in a lock free manner and multiple log buffer slots may be in flight at any given time.
 A hole can be generated in a log file if a buffer with a later LSN is written before
-a buffer with an earlier LSN. That can happen at a log file boundary too and that is why
+a buffer with an earlier LSN. That can also happen at a log file boundary and that is why
 knowing the LSN at the end of the previous log file is critical to recovery.
 
 The user can choose the maximum log file size via \c log=(file_max=size) configuration
 to the ::wiredtiger_open call. Records written in the log are varying length
-depending on the data written. In the typical usage, the system will choose to switch
+depending on the data written. In typical usage, the system will choose to switch
 log files before writing a log buffer that exceeds the configured file size. However it
 is possible that a single record itself could be larger than the configured file size.
 In that case the system must allow that record to exceed the maximum file size. But it
