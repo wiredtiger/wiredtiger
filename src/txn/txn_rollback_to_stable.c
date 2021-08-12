@@ -1195,18 +1195,14 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     bool txn_active;
 
-    /*
-     * Help the user comply with the requirement that there are no concurrent operations. Protect
-     * against spurious conflicts with the sweep server: we exclude it from running concurrent with
-     * rolling back the history store contents.
-     */
-    ret = __wt_txn_activity_check(session, &txn_active);
+    /* Help the user comply with the requirement that there are no concurrent user operations. */
+    txn_active = __wt_txn_user_active(session);
 #ifdef HAVE_DIAGNOSTIC
     if (txn_active)
         WT_TRET(__wt_verbose_dump_txn(session));
 #endif
 
-    if (ret == 0 && txn_active)
+    if (txn_active)
         WT_RET_MSG(session, EINVAL, "rollback_to_stable illegal with active transactions");
 
     return (ret);
