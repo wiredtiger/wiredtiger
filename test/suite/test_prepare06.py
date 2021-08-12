@@ -138,5 +138,7 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
 
         s_reader.commit_transaction()
 
+        self.ignoreStdoutPatternIfExists("Skip checking prepare timestamp")
+
 if __name__ == '__main__':
     wttest.run()
