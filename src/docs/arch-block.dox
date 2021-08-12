@@ -172,15 +172,48 @@ The block manager doesn't guarantee that calling \c bm->write will result in
 the data being flushed to disk. In the checkpoint scenario WiredTiger will also
 call \c bm->sync which will call the file system dependent flush function.
 
-As a checkpoint progresses it updates its three extent lists, these extent lists
-are written out to disk as part of the checkpoint in blocks. When a checkpoint
-is written the previous checkpoints will be cleaned up if possible, suppose
-the block manager has finished writing out a checkpoint. Which we will call
-checkpoint \c C, checkpoints \c A and \c B exist on disk. By default the block
-manager only retains two checkpoints so it can cleanup checkpoint \c A.
-Checkpoint \c A's extent lists get merged into checkpoint \c B's extent lists.
-If a block, \c N, is created in checkpoint \c A and removed in checkpoint \c B
-the space occupied by the block is considered free and can be utilized.
+* Checkpoint deletion and merging *
+
+As a checkpoint progresses it takes a snapshot of the three extent lists kept
+by the block manager, these extent lists are written out to disk as part of
+the checkpoint in blocks. Between checkpoints these extent lists are being
+updated via normal operation of WiredTiger.
+
+Suppose we have a checkpoint \c A, which has an alloc list which contains 3
+blocks \c I, \c J, \c K as such its extent lists are as follows:
+
+Alloc: \c I, \c J, \c K
+Avail: Empty
+Discard: Empty
+
+A second checkpoint \c B completes and has removed a page which corresponds with
+block \c J, it also has allocated an additional block \c L.
+
+Checkpoint \c B's extent lists are as follows:
+Alloc: \c I, \c K, \c L
+Avail: Empty
+Discard: \c J
+
+Finally we complete a 3rd checkpoint \c C which allocates an additional block
+\c M. Upon completion of this checkpoint we are able to remove checkpoint \c A,
+to do that, the block manager will merge checkpoint \c A's extent lists into
+checkpoint \c B's.
+
+What's important here is that if a block appears in both the alloc list and
+the discard list it can be freed which means it goes on the avail list.
+
+Which gives us the following lists for checkpoint \c C:
+Alloc: \c I, \c K, \c L, \c M
+Avail: \c J
+Discard: Empty
+
+These extent lists are written out with the checkpoint \c C. Anything on the
+avail list is considered free space and can be overwritten as of the completion
+of checkpoint \c C.
+
+We don't want to list each block individually in the extent lists, so instead of
+listing each block separately in the list, we use extents, which can describe a
+range in the file, that is, any number of contiguous blocks.
 
 @subsubsection Eviction
 
