@@ -614,6 +614,9 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
 
     /* Finally remove that update from history store. */
     if (valid_update_found) {
+        /* Avoid freeing the updates while still in use if hs_cursor->remove fails. */
+        upd = tombstone = NULL;
+
         WT_ERR(hs_cursor->remove(hs_cursor));
         WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_removed);
         WT_STAT_CONN_DATA_INCR(session, cache_hs_key_truncate_rts);
