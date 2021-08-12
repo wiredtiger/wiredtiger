@@ -152,7 +152,7 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
     bool txn_active;
 
     conn = S2C(session);
-    txn_global = &S2C(session)->txn_global;
+    txn_global = &conn->txn_global;
     txn_active = true;
 
     /* We're going to scan the table in exclusive mode: wait for the write lock. */
