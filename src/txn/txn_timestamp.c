@@ -726,7 +726,8 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
         WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
 #ifdef HAVE_DIAGNOSTIC
     else
-        printf("Skip checking preare timestamp %s against the latest active read timestamp.\n", __wt_timestamp_to_string(prepare_ts, ts_string[0]));
+        printf("Skip checking prepare timestamp %s against the latest active read timestamp.\n",
+          __wt_timestamp_to_string(prepare_ts, ts_string[0]));
 #endif
 
     /*
