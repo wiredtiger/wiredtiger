@@ -8,6 +8,7 @@ Adler's
 Atomicity
 BLOBs
 BLRrVv
+CAS
 CFLAGS
 CMake
 COV
@@ -109,9 +110,11 @@ PPC
 PRELOAD
 PROFDATA
 README
+RLE
 RedHat
 RepMgr
 Riak
+RLE
 RocksDB
 Roelofs
 RrVv
@@ -208,6 +211,7 @@ clickable
 cmake
 colgroup
 colgroups
+colspan
 combinatorial
 command's
 comparator
@@ -231,6 +235,7 @@ cryptographically
 csuite
 ctest
 curfile
+curhs
 cursortype
 curtable
 customerABC
@@ -271,6 +276,7 @@ dl
 dll
 dlp
 dontlock
+doxtable
 dp
 ds
 dsrc
@@ -320,6 +326,7 @@ fillfactor
 firstname
 flamegraph
 flamegraphs
+flcs
 fnv
 forw
 fprofile
@@ -366,6 +373,7 @@ insn
 intl
 intpack
 inuse
+invariants
 io
 ip
 je
@@ -519,6 +527,7 @@ putKey
 putKeyString
 putValue
 putValueString
+px
 py
 qnx
 qqq
@@ -569,6 +578,7 @@ sess
 sid
 skinparam
 skiplist
+sortable
 spinlock
 spinlocks
 sql
@@ -647,6 +657,7 @@ valuev
 vec
 versa
 viewable
+vlcs
 vm
 vpmsum
 warmup
