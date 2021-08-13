@@ -100,7 +100,7 @@ high-nibble and then the low-nibble).  For example, "0a" would be an
 ASCII newline character and "1b" would be an ASCII escape character.
 
 The printable hexadecimal format is the same as the printable except all raw
-byte array elements will be printed as in the hexadecimal.
+byte array elements will be printed in hexadecimal format.
 
 Because the definition of "printable" may depend on the application's
 locale, dump files in the printable output format may be less portable

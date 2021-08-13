@@ -35,14 +35,15 @@ usage(void)
       "dump as of the named checkpoint (the default is the most recent version of the data)",
       "-f output", "dump to the specified file (the default is stdout)", "-j",
       "dump in JSON format", "-p",
-      "dump in human readable format (pretty-print). Can be combined with -x In this case raw data "
-      "elements will be formatted like -x does that.",
+      "dump in human readable format (pretty-print). The -p flag can be combined with -x. In this "
+      "case, raw data elements will be formatted like -x with hexadecimal encoding.",
       "-r", "dump in reverse order", "-t timestamp",
       "dump as of the specified timestamp (the default is the most recent version of the data)",
       "-x",
       "dump all characters in a hexadecimal encoding (by default printable characters are not "
-      "encoded). Can be combined with -p In this case it will format all data similar to -p except "
-      "raw data elements will be formatted like -x does that.",
+      "encoded). The -x flag can be combined with -p. In this case, the dump will be formatted "
+      "similar to -p except for raw data elements, which will look like -x with hexadecimal "
+      "encoding.",
       NULL, NULL};
 
     util_usage(
@@ -580,7 +581,7 @@ get_dump_type(bool pretty, bool hex, bool json)
 
     if (json)
         result = "json";
-    else if (pretty && hex)
+    else if (hex && pretty)
         result = "pretty_hex";
     else if (hex)
         result = "hex";
