@@ -1963,7 +1963,7 @@ restart:
 
         /*
          * An adjustment to improve accuracy: assume the key takes up half of the range in the slot
-         * itself, on the first and last slots,. This also makes the case where the two cursors are
+         * itself, on the first and last slots. This also makes the case where the two cursors are
          * on the same leaf page work return something reasonable, a range that isn't insane. If we
          * want something even better, we could descend into the first/last slots to get a closer
          * adjustment value.

@@ -1751,7 +1751,6 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_PAGE *page;
     size_t addr_size, compressed_size, bm_addr_size;
     uint8_t *addrp, addr[WT_ADDR_COOKIE_MAX];
-    ;
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
