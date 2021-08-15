@@ -67,7 +67,7 @@ create_table(WT_SESSION *session, COOKIE *cookie)
  *     wait for them to finish.
  */
 int
-start_workers(table_type type)
+start_workers(void)
 {
     struct timeval start, stop;
     WT_SESSION *session;
@@ -85,16 +85,9 @@ start_workers(table_type type)
         (void)log_print_err("conn.open_session", ret, 1);
         goto err;
     }
-    /* Setup the cookies */
-    for (i = 0; i < g.ntables; ++i) {
-        g.cookies[i].id = i;
-        if (type == MIX)
-            g.cookies[i].type = (table_type)((i % MAX_TABLE_TYPE) + 1);
-        else
-            g.cookies[i].type = type;
-        testutil_check(__wt_snprintf(
-          g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
 
+    /* Create tables */
+    for (i = 0; i < g.ntables; ++i) {
         /* Should probably be atomic to avoid races. */
         if ((ret = create_table(session, &g.cookies[i])) != 0)
             goto err;

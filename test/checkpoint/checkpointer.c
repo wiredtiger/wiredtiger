@@ -33,7 +33,6 @@ static WT_THREAD_RET clock_thread(void *);
 static int compare_cursors(WT_CURSOR *, const char *, WT_CURSOR *, const char *);
 static int diagnose_key_error(WT_CURSOR *, int, WT_CURSOR *, int);
 static int real_checkpointer(void);
-static int verify_consistency(WT_SESSION *, char *);
 
 /*
  * start_checkpoints --
@@ -85,7 +84,11 @@ clock_thread(void *arg)
     while (g.running) {
         __wt_writelock(session, &g.clock_lock);
         ++g.ts_stable;
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.ts_stable));
+        if (g.race_timetamps)
+            testutil_check(__wt_snprintf(buf, sizeof(buf),
+              "stable_timestamp=%x,oldest_timestamp=%x", g.ts_stable, g.ts_stable));
+        else
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.ts_stable));
         testutil_check(g.conn->set_timestamp(g.conn, buf));
         if (g.ts_stable % 997 == 0) {
             /*
@@ -217,7 +220,7 @@ done:
  *     Open a cursor on each table at the last checkpoint and walk through the tables in parallel.
  *     The key/values should match across all tables.
  */
-static int
+int
 verify_consistency(WT_SESSION *session, char *stable_timestamp)
 {
     WT_CURSOR **cursors;
@@ -233,8 +236,8 @@ verify_consistency(WT_SESSION *session, char *stable_timestamp)
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
     if (stable_timestamp != NULL) {
-        testutil_check(__wt_snprintf(
-          cfg_buf, sizeof(cfg_buf), "isolation=snapshot,read_timestamp=%s", stable_timestamp));
+        testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
+          "isolation=snapshot,read_timestamp=%s,roundup_timestamps=read", stable_timestamp));
     } else {
         testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
     }
