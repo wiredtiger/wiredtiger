@@ -308,24 +308,6 @@ __debug_wrapup(WT_DBG *ds)
 }
 
 /*
- * __wt_debug_addr_print --
- *     Print out an address.
- */
-int
-__wt_debug_addr_print(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_DECL_ITEM(buf);
-    WT_DECL_RET;
-
-    WT_RET(__wt_scr_alloc(session, 128, &buf));
-    ret = __wt_fprintf(
-      session, WT_STDERR(session), "%s\n", __wt_addr_string(session, addr, addr_size, buf));
-    __wt_scr_free(session, &buf);
-
-    return (ret);
-}
-
-/*
  * __wt_debug_addr --
  *     Read and dump a disk page in debugging mode, using an addr/size pair.
  */
@@ -377,7 +359,7 @@ __wt_debug_offset(
     WT_BLOCK *block;
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
-    uint8_t addr[WT_BTREE_MAX_ADDR_COOKIE], *endp;
+    uint8_t addr[WT_ADDR_COOKIE_MAX], *endp;
 
     WT_ASSERT(session, S2BT_SAFE(session) != NULL);
 
@@ -385,7 +367,8 @@ __wt_debug_offset(
      * This routine depends on the default block manager's view of files, where an address consists
      * of a file ID, file offset, length, and checksum. This is only for debugging, other block
      * managers might not describe underlying objects the same way, that's why there's no block
-     * manager method.
+     * manager method. Further, this function doesn't support the enhanced btree address cookie that
+     * includes row- and byte-counts.
      *
      * Convert the triplet into an address structure.
      */
@@ -516,8 +499,7 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    uint64_t v;
-    const uint8_t *addrp;
+    uint64_t byte_count, row_count;
     char time_string[WT_TIME_STRING_SIZE];
 
     session = ds->session;
@@ -537,17 +519,14 @@ __debug_cell_int(WT_DBG *ds, const WT_PAGE_HEADER *dsk, WT_CELL_UNPACK_ADDR *unp
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
-        addrp = (uint8_t *)unpack->data + *(uint8_t *)unpack->data;
-        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-        WT_RET(ds->f(ds, ", #%" PRIu64, v));
-        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-        WT_RET(ds->f(ds, ", %" PRIu64 "B", v));
+        WT_RET(__wt_addr_cookie_btree_unpack(unpack->data, &row_count, &byte_count));
+        WT_RET(ds->f(ds, ", #%" PRIu64 ", %" PRIu64 "B", row_count, byte_count));
 
         if (!WT_TIME_AGGREGATE_IS_EMPTY(&unpack->ta))
             WT_RET(ds->f(ds, ", %s", __wt_time_aggregate_to_string(&unpack->ta, time_string)));
 
         WT_RET(__wt_scr_alloc(session, 128, &buf));
-        ret = ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, buf));
+        ret = ds->f(ds, ", %s", __wt_addr_string(session, buf, unpack->data, unpack->size, true));
         __wt_scr_free(session, &buf);
         WT_RET(ret);
         break;
@@ -636,7 +615,8 @@ __debug_cell_kv(
     switch (unpack->raw) {
     case WT_CELL_KEY_OVFL:
     case WT_CELL_VALUE_OVFL:
-        WT_RET(ds->f(ds, ", %s", __wt_addr_string(session, unpack->data, unpack->size, ds->t1)));
+        WT_RET(
+          ds->f(ds, ", %s", __wt_addr_string(session, ds->t1, unpack->data, unpack->size, false)));
         break;
     }
     WT_RET(ds->f(ds, "\n"));
@@ -1556,8 +1536,7 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
 {
     WT_ADDR_COPY addr;
     WT_SESSION_IMPL *session;
-    uint64_t v;
-    const uint8_t *addrp;
+    uint64_t byte_count, row_count;
     char time_string[WT_TIME_STRING_SIZE];
 
     session = ds->session;
@@ -1572,15 +1551,12 @@ __debug_ref(WT_DBG *ds, WT_REF *ref)
         WT_RET(ds->f(ds, ", %s", "reading"));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
-        addrp = (uint8_t *)addr.addr + *(uint8_t *)addr.addr;
-        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-        WT_RET(ds->f(ds, ", #%" PRIu64, v));
-        WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-        WT_RET(ds->f(ds, ", %" PRIu64 "B", v));
+        WT_RET(__wt_addr_cookie_btree_unpack(addr.addr, &row_count, &byte_count));
+        WT_RET(ds->f(ds, ", #%" PRIu64 ", %" PRIu64 "B", row_count, byte_count));
 
         if (!WT_TIME_AGGREGATE_IS_EMPTY(&addr.ta))
             WT_RET(ds->f(ds, ", %s, %s", __wt_time_aggregate_to_string(&addr.ta, time_string),
-              __wt_addr_string(session, addr.addr, addr.size, ds->t1)));
+              __wt_addr_string(session, ds->t1, addr.addr, addr.size, true)));
     }
 
     return (ds->f(ds, "\n"));

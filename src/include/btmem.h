@@ -124,6 +124,33 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
     ((void *)((uint8_t *)(dsk) + WT_PAGE_HEADER_BYTE_SIZE(btree)))
 
 /*
+ * A location in the block manager is a variable-length cookie, but it has a maximum size so it's
+ * easy to create temporary space in which to store them. (Locations couldn't be much larger than
+ * 255B anyway, they must fit onto the minimum size page because a reference to an overflow page is
+ * itself a location.) Regardless, the block manager can't create cookies larger than 255B.
+ *
+ * Additionally, the btree layer prepends a length byte plus a pair of packed 8B values to encode
+ * aggregated row- and byte-counts for the subtree at the location.
+ */
+#define WT_ADDR_COOKIE_MAX (255 + 1 + WT_INTPACK64_MAXSIZE * 2)
+
+/*
+ * The btree layer prepends a single length byte plus a pair of packed 8B values the block manager's
+ * address cookies to encode aggregated row- and byte-counts for the subtree at the location. These
+ * macros are used to convert from the btree combined address cookie to the block manager cookie.
+ *
+ * Btree-layer address cookie macros:
+ *	WT_ADDR_COOKIE_BTREE		btree layer cookie start
+ *	WT_ADDR_COOKIE_BTREE_LEN	btree layer cookie length
+ *	WT_ADDR_COOKIE_BLOCK		block manager cookie start
+ *	WT_ADDR_COOKIE_BLOCK_LEN	block manager cookie length
+ */
+#define WT_ADDR_COOKIE_BTREE(addr) ((uint8_t *)(addr) + 1)
+#define WT_ADDR_COOKIE_BTREE_LEN(addr) (*(uint8_t *)(addr))
+#define WT_ADDR_COOKIE_BLOCK(addr) ((uint8_t *)(addr) + WT_ADDR_COOKIE_BTREE_LEN(addr))
+#define WT_ADDR_COOKIE_BLOCK_LEN(addr, size) ((size)-WT_ADDR_COOKIE_BTREE_LEN(addr))
+
+/*
  * WT_ADDR --
  *	An in-memory structure to hold a block's location.
  */
@@ -158,7 +185,7 @@ struct __wt_addr_copy {
 
     uint8_t type;
 
-    uint8_t addr[274 /* WT_BTREE_MAX_ADDR_COOKIE */];
+    uint8_t addr[WT_ADDR_COOKIE_MAX];
     uint8_t size;
 };
 

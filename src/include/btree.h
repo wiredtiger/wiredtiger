@@ -48,15 +48,6 @@
  */
 #define WT_BTREE_MAX_OBJECT_SIZE ((uint32_t)(UINT32_MAX - 1024))
 
-/*
- * A location in a file is a variable-length cookie, but it has a maximum size so it's easy to
- * create temporary space in which to store them. (Locations couldn't be much larger than 255B
- * anyway, they must fit onto the minimum size page because a reference to an overflow page is
- * itself a location.) Regardless, the block manager can't create cookies larger than 255B, and we
- * append a pair of packed 8B values in the btree layer.
- */
-#define WT_BTREE_MAX_ADDR_COOKIE (255 + WT_INTPACK64_MAXSIZE * 2 + 1)
-
 /* Evict pages if we see this many consecutive deleted records. */
 #define WT_BTREE_DELETE_THRESHOLD 1000
 

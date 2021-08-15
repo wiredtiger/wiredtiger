@@ -7,6 +7,37 @@
  */
 
 /*
+ * __wt_addr_cookie_btree_pack --
+ *     Pack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_pack(void *addr, uint64_t row_count, uint64_t byte_count)
+{
+    uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vpack_uint(&p, 0, row_count));
+    WT_RET(__wt_vpack_uint(&p, 0, byte_count));
+    *(uint8_t *)addr = (uint8_t)WT_PTRDIFF(p, addr);
+    return (0);
+}
+
+/*
+ * __wt_addr_cookie_btree_unpack --
+ *     Unpack the btree part of the address cookie.
+ */
+static inline int
+__wt_addr_cookie_btree_unpack(const void *addr, uint64_t *row_countp, uint64_t *byte_countp)
+{
+    const uint8_t *p;
+
+    p = WT_ADDR_COOKIE_BTREE(addr);
+    WT_RET(__wt_vunpack_uint(&p, 0, row_countp));
+    WT_RET(__wt_vunpack_uint(&p, 0, byte_countp));
+    return (0);
+}
+
+/*
  * __wt_ref_is_root --
  *     Return if the page reference is for the root page.
  */
@@ -88,22 +119,6 @@ __wt_page_is_modified(WT_PAGE *page)
      * free these structures).
      */
     return (page->modify != NULL && page->modify->page_state != WT_PAGE_CLEAN);
-}
-
-/*
- * __wt_btree_block_free --
- *     Helper function to free a block from the current tree.
- */
-static inline int
-__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_BM *bm;
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-    bm = btree->bm;
-
-    return (bm->free(bm, session, addr, addr_size));
 }
 
 /*
@@ -1440,25 +1455,6 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     }
     memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
     return (true);
-}
-
-/*
- * __wt_ref_block_free --
- *     Free the on-disk block for a reference and clear the address.
- */
-static inline int
-__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
-{
-    WT_ADDR_COPY addr;
-
-    if (!__wt_ref_addr_copy(session, ref, &addr))
-        return (0);
-
-    WT_RET(__wt_btree_block_free(session, addr.addr, addr.size));
-
-    /* Clear the address (so we don't free it twice). */
-    __wt_ref_addr_free(session, ref);
-    return (0);
 }
 
 /*

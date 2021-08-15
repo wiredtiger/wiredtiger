@@ -63,6 +63,7 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
       r->first_free, cbulk->entry, btree->bitcnt, deleted ? 0 : ((uint8_t *)cursor->value.data)[0]);
     ++cbulk->entry;
     ++r->recno;
+    ++r->cur_ptr->addr_row_count;
 
     return (0);
 }
@@ -157,15 +158,12 @@ static int
 __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_ADDR *addr;
-    WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *val;
-    uint64_t v;
+    uint64_t byte_count, row_count;
     uint32_t i;
-    const uint8_t *addrp;
 
-    btree = S2BT(session);
     mod = page->modify;
 
     val = &r->v;
@@ -188,13 +186,9 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
-        if (btree->type == BTREE_COL_VAR) {
-            addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
-            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-            r->cur_ptr->addr_row_count += v;
-            WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-            r->cur_ptr->addr_byte_count += v;
-        }
+        WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &row_count, &byte_count));
+        r->cur_ptr->addr_row_count += row_count;
+        r->cur_ptr->addr_byte_count += byte_count;
     }
     return (0);
 }
@@ -216,7 +210,6 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_REF *ref;
     WT_TIME_AGGREGATE ta;
     uint64_t addr_row_count, addr_byte_count;
-    const uint8_t *addrp;
     bool hazard;
 
     btree = S2BT(session);
@@ -302,21 +295,13 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
-            if (btree->type == BTREE_COL_VAR) {
-                addrp = (uint8_t *)vpack->data + *(uint8_t *)vpack->data;
-                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
-                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
-            }
+            WT_ERR(__wt_addr_cookie_btree_unpack(vpack->data, &addr_row_count, &addr_byte_count));
         } else {
             __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
-            if (btree->type == BTREE_COL_VAR) {
-                addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
-                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_row_count));
-                WT_ERR(__wt_vunpack_uint(&addrp, 0, &addr_byte_count));
-            }
+            WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &addr_row_count, &addr_byte_count));
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 
@@ -329,12 +314,10 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
         /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
-        if (btree->type == BTREE_COL_VAR) {
-            WT_ASSERT(session, addr_row_count != 0);
-            r->cur_ptr->addr_row_count += addr_row_count;
-            WT_ASSERT(session, addr_byte_count != 0);
-            r->cur_ptr->addr_byte_count += addr_byte_count;
-        }
+        WT_ASSERT(session, addr_row_count != 0);
+        r->cur_ptr->addr_row_count += addr_row_count;
+        WT_ASSERT(session, addr_byte_count != 0);
+        r->cur_ptr->addr_byte_count += addr_byte_count;
     }
     WT_INTL_FOREACH_END;
 
@@ -384,25 +367,20 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     /* Calculate the number of entries per page remainder. */
     entry = page->entries;
     nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail) - page->entries;
-    r->recno += entry;
 
     /* Walk any append list. */
     for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
         if (ins == NULL) {
             /*
-             * If the page split, instantiate any missing records in
-             * the page's name space. (Imagine record 98 is
-             * transactionally visible, 99 wasn't created or is not
-             * yet visible, 100 is visible. Then the page splits and
-             * record 100 moves to another page. When we reconcile
-             * the original page, we write record 98, then we don't
-             * see record 99 for whatever reason. If we've moved
-             * record 100, we don't know to write a deleted record
-             * 99 on the page.)
+             * If the page split, instantiate any missing records in the page's name space. (Imagine
+             * record 98 is transactionally visible, 99 wasn't created or is not yet visible, 100 is
+             * visible. Then the page splits and record 100 moves to another page. When we reconcile
+             * the original page, we write record 98, then we don't see record 99 for whatever
+             * reason. If we've moved record 100, we don't know to write a deleted record 99 on the
+             * page.)
              *
-             * The record number recorded during the split is the
-             * first key on the split page, that is, one larger than
-             * the last key on this page, we have to decrement it.
+             * The record number recorded during the split is the first key on the split page, that
+             * is, one larger than the last key on this page, we have to decrement it.
              */
             if ((recno = page->modify->mod_col_split_recno) == WT_RECNO_OOB)
                 break;
@@ -443,6 +421,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
              * No need to have a minimum split size boundary, all pages are filled 100% except the
              * last, allowing it to grow in the future.
              */
+            r->cur_ptr->addr_row_count = entry;
             __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
             WT_RET(__wt_rec_split(session, r, 0, false));
 
@@ -459,10 +438,9 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             break;
     }
 
-    /* Update the counters. */
+    /* Update the counters and write the remnant page. */
+    r->cur_ptr->addr_row_count = entry;
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
-
-    /* Write the remnant page. */
     WT_RET(__wt_rec_split_finish(session, r));
 
     return (0);

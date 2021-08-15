@@ -66,7 +66,7 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     size_t root_addr_size;
-    uint8_t root_addr[WT_BTREE_MAX_ADDR_COOKIE];
+    uint8_t root_addr[WT_ADDR_COOKIE_MAX];
     const char *filename;
     bool creation, forced_salvage;
 
@@ -127,12 +127,11 @@ __wt_btree_open(WT_SESSION_IMPL *session, const char *op_cfg[])
 
     /*
      * As part of block-manager configuration, we need to return the maximum sized address cookie
-     * that a block manager will ever return. There's a limit of WT_BTREE_MAX_ADDR_COOKIE, but
-     * that's 255B plus some additional information, and it's too large for a Btree with 512B
-     * internal pages. The default block manager packs a wt_off_t and 2 uint32_t's into its cookie,
-     * so there's no problem now, but when we create a block manager extension API, we need some way
-     * to consider the block manager's maximum cookie size versus the minimum Btree internal node
-     * size.
+     * that a block manager will ever return. There's a limit of WT_ADDR_COOKIE_MAX, but that's 255B
+     * plus some additional information, and it's too large for a Btree with 512B internal pages.
+     * The default block manager packs a wt_off_t and 2 uint32_t's into its cookie, so there's no
+     * problem now, but when we create a block manager extension API, we need some way to consider
+     * the block manager's maximum cookie size versus the minimum Btree internal node size.
      */
     btree->block_header = bm->block_header(bm);
 
@@ -786,6 +785,20 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __btree_preload_bm_addr --
+ *     Btree level shim to switch to the btree address cookie start/length.
+ */
+static inline int
+__btree_preload_bm_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+    return (bm->preload(
+      bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
+}
+
+/*
  * __btree_preload --
  *     Pre-load internal pages.
  */
@@ -793,17 +806,15 @@ static int
 __btree_preload(WT_SESSION_IMPL *session)
 {
     WT_ADDR_COPY addr;
-    WT_BM *bm;
     WT_BTREE *btree;
     WT_REF *ref;
 
     btree = S2BT(session);
-    bm = btree->bm;
 
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr))
-            WT_RET(bm->preload(bm, session, addr.addr, addr.size));
+            WT_RET(__btree_preload_bm_addr(session, addr.addr, addr.size));
     WT_INTL_FOREACH_END;
     return (0);
 }

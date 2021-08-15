@@ -260,6 +260,21 @@ err:
 }
 
 /*
+ * __verify_dsk_addr_invalid_bm --
+ *     Btree level shim to switch to the btree address cookie start/length.
+ */
+static inline int
+__verify_dsk_addr_invalid_bm(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+
+    return (bm->addr_invalid(
+      bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
+}
+
+/*
  * __verify_dsk_row_int --
  *     Walk a WT_PAGE_ROW_INT disk page and verify it.
  */
@@ -365,17 +380,21 @@ __verify_dsk_row_int(
         }
 
         /* Check if any referenced item has an invalid address. */
+        ret = 0;
         switch (cell_type) {
         case WT_CELL_ADDR_DEL:
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
+            ret = __verify_dsk_addr_invalid_bm(session, unpack->data, unpack->size);
+            break;
         case WT_CELL_KEY_OVFL:
-            if ((ret = bm->addr_invalid(bm, session, unpack->data, unpack->size)) == EINVAL)
-                (void)__err_cell_corrupt_or_eof(session, ret, cell_num, tag);
-            WT_ERR(ret);
+            ret = bm->addr_invalid(bm, session, unpack->data, unpack->size);
             break;
         }
+        if (ret == EINVAL)
+            (void)__err_cell_corrupt_or_eof(session, ret, cell_num, tag);
+        WT_ERR(ret);
 
         /*
          * Remaining checks are for key order. If this cell isn't a key, we're done, move to the
@@ -441,28 +460,25 @@ err:
  */
 static int
 __verify_dsk_addr_count(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk,
-  uint32_t key_count, uint32_t byte_count, WT_ADDR *addr)
+  uint32_t row_count, uint32_t byte_count, WT_ADDR *addr)
 {
-    uint64_t v;
+    uint64_t addr_byte_count, addr_row_count;
     const uint8_t *addrp;
 
     if (addr == NULL || (addrp = addr->addr) == NULL)
         return (0);
 
-    /* Skip the address cookie. */
-    addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
-    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-    if (v != key_count)
+    WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &addr_row_count, &addr_byte_count));
+    if (addr_row_count != row_count)
         WT_RET_VRFY(session,
           "%s page at %s has an address key count of %" PRIu64
           ", the addressed page has a key count count of %" PRIu32,
-          __wt_page_type_string(dsk->type), tag, v, key_count);
-    WT_RET(__wt_vunpack_uint(&addrp, 0, &v));
-    if (v != byte_count)
+          __wt_page_type_string(dsk->type), tag, addr_row_count, row_count);
+    if (addr_byte_count != byte_count)
         WT_RET_VRFY(session,
           "%s page at %s has an address page byte count of %" PRIu64
           ", the addressed page has a page byte count of %" PRIu32,
-          __wt_page_type_string(dsk->type), tag, v, byte_count);
+          __wt_page_type_string(dsk->type), tag, addr_byte_count, byte_count);
 
     return (0);
 }
@@ -682,16 +698,12 @@ static int
 __verify_dsk_col_int(
   WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk, WT_ADDR *addr)
 {
-    WT_BM *bm;
-    WT_BTREE *btree;
     WT_CELL *cell;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
     WT_DECL_RET;
     uint32_t cell_num, i;
     uint8_t *end;
 
-    btree = S2BT(session);
-    bm = btree->bm;
     unpack = &_unpack;
     end = (uint8_t *)dsk + dsk->mem_size;
 
@@ -712,7 +724,7 @@ __verify_dsk_col_int(
         WT_RET(__verify_dsk_addr_validity(session, unpack, cell_num, addr, tag));
 
         /* Check if any referenced item is entirely in the file. */
-        ret = bm->addr_invalid(bm, session, unpack->data, unpack->size);
+        ret = __verify_dsk_addr_invalid_bm(session, unpack->data, unpack->size);
         WT_RET_ERROR_OK(ret, EINVAL);
         if (ret == EINVAL)
             return (__err_cell_corrupt_or_eof(session, ret, cell_num, tag));

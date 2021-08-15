@@ -81,6 +81,17 @@ __evict_force_check(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
+ * __page_read_bm --
+ *     Btree level shim to switch to the btree address cookie start/length.
+ */
+static inline int
+__page_read_bm(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+{
+    return (__wt_bt_read(
+      session, buf, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
+}
+
+/*
  * __page_read --
  *     Read a page from the file.
  */
@@ -138,7 +149,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     timer = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (timer)
         time_start = __wt_clock(session);
-    WT_ERR(__wt_bt_read(session, &tmp, addr.addr, addr.size));
+    WT_ERR(__page_read_bm(session, &tmp, addr.addr, addr.size));
     if (timer) {
         time_stop = __wt_clock(session);
         time_diff = WT_CLOCKDIFF_US(time_stop, time_start);

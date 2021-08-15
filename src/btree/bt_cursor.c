@@ -1891,7 +1891,6 @@ __cursor_range_stat(
     WT_SESSION_IMPL *session;
     uint64_t byte_count, row_count;
     uint32_t missing_addr, slot, startslot, stopslot;
-    const uint8_t *addrp;
 
     session = CUR2S(start);
     btree = S2BT(session);
@@ -1956,13 +1955,11 @@ restart:
             continue;
         }
         if (__wt_off_page(page, addr))
-            addrp = (uint8_t *)addr->addr + *(uint8_t *)addr->addr;
+            WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &row_count, &byte_count));
         else {
             __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, &vpack);
-            addrp = (uint8_t *)vpack.data + *(uint8_t *)vpack.data;
+            WT_ERR(__wt_addr_cookie_btree_unpack(vpack.data, &row_count, &byte_count));
         }
-        WT_ERR(__wt_vunpack_uint(&addrp, 0, &row_count));
-        WT_ERR(__wt_vunpack_uint(&addrp, 0, &byte_count));
 
         /*
          * An adjustment to improve accuracy: assume the key takes up half of the range in the slot

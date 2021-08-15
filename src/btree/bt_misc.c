@@ -9,24 +9,48 @@
 #include "wt_internal.h"
 
 /*
+ * __wt_addr_string_bm --
+ *     Btree level shim to switch to the btree address cookie start/length.
+ */
+static inline int
+__wt_addr_string_bm(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+
+    return (bm->addr_string(
+      bm, session, buf, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
+}
+
+/*
  * __wt_addr_string --
  *     Load a buffer with a printable, nul-terminated representation of an address.
  */
 const char *
-__wt_addr_string(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_ITEM *buf)
+__wt_addr_string(
+  WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t addr_size, bool btree_cookie)
 {
-    WT_BM *bm;
     WT_BTREE *btree;
+    WT_DECL_RET;
 
     btree = S2BT_SAFE(session);
 
-    WT_ASSERT(session, buf != NULL);
-
+    /*
+     * Be cautious, this is a debugging routine. Require the caller specify if passed a btree layer
+     * address cookie or a block-manager address cookie.
+     */
     if (addr == NULL || addr_size == 0) {
         buf->data = WT_NO_ADDR_STRING;
         buf->size = strlen(WT_NO_ADDR_STRING);
-    } else if (btree == NULL || (bm = btree->bm) == NULL ||
-      bm->addr_string(bm, session, buf, addr, addr_size) != 0) {
+        return (buf->data);
+    }
+
+    ret = EINVAL;
+    if (btree != NULL && btree->bm != NULL)
+        ret = btree_cookie ? __wt_addr_string_bm(session, buf, addr, addr_size) :
+                             btree->bm->addr_string(btree->bm, session, buf, addr, addr_size);
+    if (ret != 0) {
         buf->data = WT_ERR_STRING;
         buf->size = strlen(WT_ERR_STRING);
     }

@@ -425,3 +425,37 @@ __wt_rec_dict_replace(
     }
     return (0);
 }
+
+/*
+ * __wt_free_bm --
+ *     Btree level shim to switch to the btree address cookie start/length.
+ */
+static inline int
+__wt_free_bm(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+
+    return (
+      bm->free(bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
+}
+
+/*
+ * __wt_rec_ref_block_free --
+ *     Free the on-disk block for a reference and clear the address.
+ */
+static inline int
+__wt_rec_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (0);
+
+    WT_RET(__wt_free_bm(session, addr.addr, addr.size));
+
+    /* Clear the address (so we don't free it twice). */
+    __wt_ref_addr_free(session, ref);
+    return (0);
+}

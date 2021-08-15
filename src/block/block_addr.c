@@ -23,9 +23,6 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
     uint8_t flags;
     const uint8_t *begin;
 
-    begin = *pp;
-    ++*pp; /* Skip length */
-
     /*
      * Address cookies are a file offset, size and checksum triplet, with optional object ID: unpack
      * the trailing object ID if there are bytes following the triple. The checkpoint cookie is more
@@ -37,6 +34,7 @@ __block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t **p
      * size is not 0. We could alternatively have a "checkpoint cookie" boolean, or use a NULL
      * object ID address when never returning a object ID, but a cookie size of 0 seems equivalent.)
      */
+    begin = *pp;
     WT_RET(__wt_vunpack_uint(pp, 0, &o));
     WT_RET(__wt_vunpack_uint(pp, 0, &s));
     WT_RET(__wt_vunpack_uint(pp, 0, &c));
@@ -91,9 +89,6 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
   uint32_t size, uint32_t checksum)
 {
     uint64_t i, o, s, c;
-    uint8_t *begin;
-
-    begin = (*pp)++; /* Save a spot for the length. */
 
     /* See the comment above about storing large offsets: this is the reverse operation. */
     if (size == 0) {
@@ -123,9 +118,6 @@ __wt_block_addr_pack(WT_BLOCK *block, uint8_t **pp, uint32_t objectid, wt_off_t 
         ++(*pp);
         WT_RET(__wt_vpack_uint(pp, 0, i));
     }
-
-    WT_ASSERT(NULL, WT_PTRDIFF(*pp, begin) < 256); /* Store length as first byte */
-    *begin = (uint8_t)WT_PTRDIFF(*pp, begin);
     return (0);
 }
 
