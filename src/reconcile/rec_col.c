@@ -97,6 +97,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         memcpy(r->first_free + offset, data, page_size);
         cbulk->entry += page_entries;
         r->recno += page_entries;
+        r->cur_ptr->addr_row_count += page_entries;
     }
     return (0);
 }
@@ -367,6 +368,7 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     /* Calculate the number of entries per page remainder. */
     entry = page->entries;
     nrecs = WT_FIX_BYTES_TO_ENTRIES(btree, r->space_avail) - page->entries;
+    r->recno += entry;
 
     /* Walk any append list. */
     for (ins = WT_SKIP_FIRST(WT_COL_APPEND(page));; ins = WT_SKIP_NEXT(ins)) {
@@ -489,6 +491,7 @@ __wt_rec_col_fix_slvg(
           __bit_getv(page->pg_fix_bitf, (uint32_t)page_start, btree->bitcnt));
 
     r->recno += entry;
+    r->cur_ptr->addr_row_count = entry;
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
     /*
