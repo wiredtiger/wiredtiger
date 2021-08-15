@@ -1675,9 +1675,9 @@ struct __wt_session {
 	 * and the commit timestamp of this transaction can be rounded up.  If the prepare timestamp
 	 * is less than the oldest timestamp\, the prepare timestamp will be rounded to the oldest
 	 * timestamp.  If the commit timestamp is less than the prepare timestamp\, the commit
-	 * timestamp will be rounded up to the prepare timestamp.  It also allows to set prepared
-	 * timestamp smaller or equal to the latest active read timestamp., a boolean flag; default
-	 * \c false.}
+	 * timestamp will be rounded up to the prepare timestamp.  Allows to set prepared timestamp
+	 * smaller than or equal to the latest active read timestamp., a boolean flag; default \c
+	 * false.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;read, if the read timestamp is less than the
 	 * oldest timestamp\, the read timestamp will be rounded up to the oldest timestamp., a
 	 * boolean flag; default \c false.}
