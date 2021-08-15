@@ -603,6 +603,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         WT_TIME_AGGREGATE_INIT(&trk->trk_ta);
         trk->col_start = dsk->recno;
         trk->col_stop = dsk->recno + (dsk->u.entries - 1);
+        trk->addr_row_count = (trk->col_stop - trk->col_start) + 1;
 
         __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
           __slvg_trk_addr_string(session, ss->tmp1, trk), trk->col_start, trk->col_stop);
@@ -623,7 +624,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
         trk->col_start = dsk->recno;
         trk->col_stop = stop_recno - 1;
-        trk->addr_row_count = stop_recno - dsk->recno;
+        trk->addr_row_count = (trk->col_stop - trk->col_start) + 1;
 
         __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
           __slvg_trk_addr_string(session, ss->tmp1, trk), trk->col_start, trk->col_stop);
