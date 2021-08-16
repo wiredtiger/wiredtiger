@@ -28,10 +28,10 @@ application and the connection is not created. In this case, a recovery operatio
 to bring the database to a consistent state (see @ref command_line for more details) before a
 connection can be successfully established with the database.
 
-Once the database has been successfully opened, worker threads are started to provide global
-services used at runtime. Those services consist of different threads to handle statistics, logging,
-eviction, checkpoint and cache management. The sweeping server that manages the active and inactive
-dhandles is started too, see @ref arch-dhandle for more information.
+Once the database has been successfully opened, internal worker threads are started to provide
+global services used at runtime. Those services consist of different threads to handle statistics,
+logging, eviction, checkpoint and cache management. The sweeping server that manages the active and
+inactive dhandles is started too, see @ref arch-dhandle for more information.
 
 Finally, before the connection is completely initialized, the database is set to a consistent state
 by running rollback to stable, see @ref arch-rts for more details.
