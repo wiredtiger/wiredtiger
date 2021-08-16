@@ -1818,7 +1818,7 @@ err:
  */
 static int
 __cursor_range_stat_search_intl(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE_INDEX *pindex,
-  WT_ITEM *srch_key, uint32_t *slotp)
+  WT_ITEM *srch_key, uint64_t recno, uint32_t *slotp)
 {
     WT_BTREE *btree;
     WT_COLLATOR *collator;
@@ -1833,7 +1833,21 @@ __cursor_range_stat_search_intl(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE
     /* Binary search of an internal page. */
     base = 1;
     limit = pindex->entries - 1;
-    if (collator == NULL) {
+    if (btree->type == BTREE_COL_FIX || btree->type == BTREE_COL_VAR) {
+        for (; limit != 0; limit >>= 1) {
+            indx = base + (limit >> 1);
+            current = pindex->index[indx];
+
+            if (recno > current->ref_recno) {
+                base = indx + 1;
+                --limit;
+            }
+            if (recno == current->ref_recno) {
+                *slotp = indx;
+                return (0);
+            }
+        }
+    } else if (collator == NULL) {
         for (; limit != 0; limit >>= 1) {
             indx = base + (limit >> 1);
             current = pindex->index[indx];
@@ -1864,12 +1878,7 @@ __cursor_range_stat_search_intl(WT_SESSION_IMPL *session, WT_PAGE *page, WT_PAGE
             }
         }
     *slotp = base - 1;
-
-    /*
-     * If on the last slot (the key is larger than any key on the page), assume a page split race
-     * and retry.
-     */
-    return (pindex->entries == base && pindex->entries != 1 ? WT_RESTART : 0);
+    return (0);
 }
 
 /*
@@ -1886,47 +1895,56 @@ __cursor_range_stat(
     WT_DECL_RET;
     WT_ITEM kstart, kstop;
     WT_PAGE *page;
-    WT_PAGE_INDEX *pindex;
+    WT_PAGE_INDEX *parent_pindex, *pindex;
     WT_REF *current, *descent;
     WT_SESSION_IMPL *session;
-    uint64_t byte_count, row_count;
+    uint64_t byte_count, recno_start, recno_stop, row_count;
     uint32_t missing_addr, slot, startslot, stopslot;
 
     session = CUR2S(start);
     btree = S2BT(session);
 
     /* Get the key. */
-    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)start, &kstart));
-    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)stop, &kstop));
+    if (btree->type == BTREE_COL_FIX || btree->type == BTREE_COL_VAR) {
+        recno_start = start->recno;
+        recno_stop = stop->recno;
+    } else {
+        WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)start, &kstart));
+        WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)stop, &kstop));
+    }
 
 restart:
     /* Descend the tree, searching internal pages for the keys. */
     current = &btree->root;
     for (;;) {
+        parent_pindex = pindex;
         page = current->page;
 
+        /*
+         * Get the page index and search for the start/stop keys. We could tighten this up some (see
+         * the row- and column-search loop for ideas), but it doesn't seem worth the effort. We only
+         * need to check the stop key for a split race, as the start key must be either earlier in
+         * the page or on the same, last, slot of the page.
+         */
         WT_INTL_INDEX_GET(session, page, pindex);
-        ret = __cursor_range_stat_search_intl(session, page, pindex, &kstart, &startslot);
-        if (ret == WT_RESTART)
+        WT_ERR(
+          __cursor_range_stat_search_intl(session, page, pindex, &kstart, recno_start, &startslot));
+        WT_ERR(
+          __cursor_range_stat_search_intl(session, page, pindex, &kstop, recno_stop, &stopslot));
+        if (stopslot == pindex->entries - 1 &&
+          __wt_split_descent_race(session, current, parent_pindex))
             goto restart;
-        WT_ERR(ret);
-        ret = __cursor_range_stat_search_intl(session, page, pindex, &kstop, &stopslot);
-        if (ret == WT_RESTART)
-            goto restart;
-        WT_ERR(ret);
 
         /*
          * If the two slots are different, we've reached the first internal page where the keys
-         * diverge into different sub-trees. Don't descend further, we have what we want.
+         * diverge into different sub-trees. Don't descend further, we have what we want. Or, if the
+         * cursors point to the same leaf page we're done.
          */
         if (startslot != stopslot)
             break;
         descent = pindex->index[startslot];
-
-        /* If the cursors point to the same leaf page we're done. */
-        if (F_ISSET(descent, WT_REF_FLAG_LEAF)) {
+        if (F_ISSET(descent, WT_REF_FLAG_LEAF))
             break;
-        }
 
         /*
          * Swap the current page for the child page. If the page splits while we're retrieving it,

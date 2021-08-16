@@ -1478,11 +1478,11 @@ struct __wt_session {
 	 * @param byte_countp the returned byte count
 	 * @configempty{WT_SESSION.range_stat, see dist/api_data.py}
 	 * @errors
-	 * Row and byte counts are stored when writing a page to backing storage (for example, as
-	 * part of a checkpoint). When retrieving information based on a cursor position, if a
-	 * page necessary to query the range information has never been written to backing storage,
-	 * ::WT_NOTFOUND is returned. When retrieving information based on an object name, if the
-	 * object has never been checkpointed ::WT_NOTFOUND is returned.
+	 * Row and byte counts are calculated when writing a page to backing storage (for example,
+	 * as part of a checkpoint). When retrieving information based on a cursor position,
+	 * ::WT_NOTFOUND is returned if a page needed to answer the query has never been written to
+	 * backing storage. When retrieving information based on an object name, ::WT_NOTFOUND is
+	 * returned if the object has never been checkpointed.
 	 */
 	int __F(range_stat)(WT_SESSION *session,
 	    const char *name,

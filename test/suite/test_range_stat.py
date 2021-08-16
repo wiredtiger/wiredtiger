@@ -28,15 +28,15 @@
 #
 # test_range_stat.py
 
-import wiredtiger, wttest
+import random, wiredtiger, wttest
 from wtdataset import ComplexDataSet, SimpleIndexDataSet, SimpleDataSet
 from wtscenario import make_scenarios
 
 class test_range_stat(wttest.WiredTigerTestCase):
     keyfmt = [
-        ('integer', dict(keyfmt='i')),
-        ('recno', dict(keyfmt='r')),
-        ('string', dict(keyfmt='S')),
+        ('integer-row', dict(keyfmt='i')),
+        ('column', dict(keyfmt='r')),
+        ('string-row', dict(keyfmt='S')),
     ]
     types = [
         ('file', dict(uri='file', ds=SimpleDataSet)),
@@ -47,26 +47,42 @@ class test_range_stat(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(types, keyfmt)
 
     def populate(self, uri):
+        # Create lots of small pages.
         size = 'allocation_size=512,internal_page_max=512'
-        ds = self.ds(self, uri, 25678, config=size, key_format=self.keyfmt)
+        rows = random.randint(12345, 67890)
+        ds = self.ds(self, uri, rows, config=size, key_format=self.keyfmt)
         ds.populate()
-        self.session.checkpoint()
+
+        # Force to disk to guarantee all pages have counts; pages without the counts calculated
+        # during reconciliation can result in unavailable results.
+        self.reopen_conn()
+        return ds, rows
 
     def test_range_stat_uri(self):
         uri = self.uri + ':test_range_stat'
-        self.populate(uri)
+        ds, rows = self.populate(uri)
 
+        #self.tty(self.keyfmt + ': rows ' + str(rows))
         self.session.range_stat(uri, None, None)
+        #self.assertEquals(rows, XXX)
 
-    def Xtest_range_stat_cursor(self):
+    def test_range_stat_cursor(self):
         uri = self.uri + ':test_range_stat'
-        self.populate(uri)
+        ds, rows = self.populate(uri)
 
         cstart = self.session.open_cursor(uri, None, None)
-        cstart.set_key(ds.key(12000))
+        pct = int (rows / 5)
+        kstart = random.randint(1, pct)
+        cstart.set_key(ds.key(kstart))
+
         cstop = self.session.open_cursor(uri, None, None)
-        cstop.set_key(ds.key(13000))
+        kstop = random.randint(pct, rows - pct)
+        cstop.set_key(ds.key(kstop))
+
+        #self.tty(self.keyfmt +\
+        #    ': rows ' + str(rows) + ', start ' + str(kstart) + ', stop ' + str(kstop))
         self.session.range_stat(None, cstart, cstop)
+        #self.assertEquals(rows, XXX)
 
 if __name__ == '__main__':
     wttest.run()
