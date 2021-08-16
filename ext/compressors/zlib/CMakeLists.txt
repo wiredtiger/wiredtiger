@@ -45,11 +45,7 @@ endif()
 set(sources "zlib_compress.c")
 set(link_type)
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    if(ENABLE_STATIC)
-        set(link_type "STATIC")
-    else()
-        set(link_type "SHARED")
-    endif()
+    set(link_type "OBJECT")
 else()
     set(link_type "MODULE")
 endif()
@@ -71,10 +67,12 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
     )
 
+    set_property(TARGET wiredtiger_zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_ZLIB)
     install(TARGETS wiredtiger_zlib
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
-
-    set_property(TARGET wiredtiger_zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

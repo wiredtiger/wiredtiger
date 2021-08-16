@@ -66,7 +66,7 @@ if(ENABLE_STATIC)
     set(link_type "STATIC")
 else()
     set(link_type "SHARED")
-    SET_PROPERTY(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
+    set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
 endif()
 
 # Include the extensions to the build.
@@ -78,8 +78,30 @@ if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
 endif()
+
+set(builtin_objs)
+if(HAVE_BUILTIN_EXTENSION_LZ4)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_lz4>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_SNAPPY)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_snappy>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_ZLIB)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zlib>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_ZSTD)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
+endif()
+
++if(HAVE_BUILTIN_EXTENSION_SODIUM)
++    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
++endif()
+
 # Establish wiredtiger library target
-add_library(wiredtiger ${link_type} ${wt_sources})
+add_library(wiredtiger ${link_type} ${wt_sources} ${builtin_objs})
 
 # Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
@@ -124,6 +146,11 @@ if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
     target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
 endif()
 
+# When handling builtins, its still ideal to call 'target_link_libraries'
+# despite already having linked the individual objects in the builtin library.
+# We want to capture any transitive dependencies associated with the builtin library
+# target and ensure they propogate to which ever target links against wiredtiger e.g
+# installed 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
     target_link_libraries(wiredtiger wiredtiger_lz4)
 endif()
@@ -138,6 +165,10 @@ endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger wiredtiger_zstd)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    target_link_libraries(wiredtiger wiredtiger_sodium)
 endif()
 
 # Build the wt utility.

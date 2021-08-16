@@ -45,11 +45,7 @@ endif()
 set(sources "sodium_encrypt.c")
 set(link_type)
 if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    if(ENABLE_STATIC)
-        set(link_type "STATIC")
-    else()
-        set(link_type "SHARED")
-    endif()
+    set(link_type "OBJECT")
 else()
     set(link_type "MODULE")
 endif()
@@ -72,10 +68,12 @@ if(HAVE_BUILTIN_EXTENSION_SODIUM OR ENABLE_SODIUM)
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
     )
 
+    set_property(TARGET wiredtiger_sodium PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_SODIUM)
     install(TARGETS wiredtiger_sodium
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
-
-    set_property(TARGET wiredtiger_sodium PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

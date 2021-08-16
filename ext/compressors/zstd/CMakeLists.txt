@@ -45,11 +45,7 @@ endif()
 set(sources "zstd_compress.c")
 set(link_type)
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    if(ENABLE_STATIC)
-        set(link_type "STATIC")
-    else()
-        set(link_type "SHARED")
-    endif()
+    set(link_type "OBJECT")
 else()
     set(link_type "MODULE")
 endif()
@@ -71,10 +67,12 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
     )
 
+    set_property(TARGET wiredtiger_zstd PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_ZSTD)
     install(TARGETS wiredtiger_zstd
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
-
-    set_property(TARGET wiredtiger_zstd PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()

@@ -46,11 +46,7 @@ set(sources "lz4_compress.c")
 set(link_type)
 
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    if(ENABLE_STATIC)
-        set(link_type "STATIC")
-    else()
-        set(link_type "SHARED")
-    endif()
+    set(link_type "OBJECT")
 else()
     set(link_type "MODULE")
 endif()
@@ -72,10 +68,13 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
         PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
     )
 
+    set_property(TARGET wiredtiger_lz4 PROPERTY POSITION_INDEPENDENT_CODE ON)
+endif()
+
+if(ENABLE_LZ4)
     install(TARGETS wiredtiger_lz4
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )
 
-    set_property(TARGET wiredtiger_lz4 PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
