@@ -942,7 +942,13 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     cbt = cursor_arg;
     session = CUR2S(cursor_arg);
 
+    WT_RET(__wt_msg(session, "dumping the current cursor page"));
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile));
+    if (cbt->last_ref != NULL) {
+        WT_RET(__wt_msg(session, "dumping the last cursor page"));
+        WT_WITH_BTREE(
+          session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->last_ref, ofile));
+    }
     return (ret);
 }
 

@@ -623,6 +623,9 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     size_t pages_skipped_count, total_skipped, skipped;
     uint32_t flags;
     bool newpage, restart;
+#ifdef HAVE_DIAGNOSTIC
+    bool busy;
+#endif
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -740,6 +743,24 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 skip_page:
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
+
+#ifdef HAVE_DIAGNOSTIC
+        if (cbt->last_ref) {
+            WT_ERR(__wt_page_release(session, cbt->last_ref, 0));
+        }
+        cbt->last_ref = cbt->ref;
+        if (cbt->last_ref) {
+            WT_ERR(
+              __wt_hazard_set(session, cbt->last_ref, &busy));
+            // Loop until we get an hazard pointer.
+            while (busy)
+            {
+                __wt_yield();
+                WT_STAT_CONN_INCR(session, page_busy_blocked);
+                WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
+            }
+        }
+#endif
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
