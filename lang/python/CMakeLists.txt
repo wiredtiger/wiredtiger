@@ -70,7 +70,9 @@ list(APPEND swig_flags "-I${CMAKE_BINARY_DIR}/config")
 set(CMAKE_SWIG_FLAGS ${swig_flags})
 
 # Add dependencies to the swig module
-set(SWIG_MODULE__wiredtiger_EXTRA_DEPS ${CMAKE_SOURCE_DIR}/src/include/wiredtiger.in)
+set(SWIG_MODULE__wiredtiger_EXTRA_DEPS
+    ${CMAKE_SOURCE_DIR}/src/include/wiredtiger.in
+    ${CMAKE_SOURCE_DIR}/src/include/wt_internal.h)
 
 swig_add_library(_wiredtiger
   TYPE SHARED
