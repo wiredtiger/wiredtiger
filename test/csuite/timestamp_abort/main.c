@@ -149,7 +149,7 @@ thread_ts_run(void *arg)
     WT_SESSION *session;
     THREAD_DATA *td;
     int dbg;
-    char *old, prev_ts[WT_TS_HEX_STRING_SIZE], tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+    char prev_ts[WT_TS_HEX_STRING_SIZE], tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
 
     td = (THREAD_DATA *)arg;
