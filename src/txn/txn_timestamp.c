@@ -715,7 +715,7 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
           "commit timestamp should not have been set before the prepare timestamp");
 
         /*
-         * Allow setting the prepared timestamp smaller than or equal to the latest active read
+         * Allows to set the prepared timestamp smaller than or equal to the latest active read
          * timestamp. This feature is necessary to find the largest key in the table even if that
          * key has been deleted. Set this flag cautiously as it breaks repeated reads.
          */
