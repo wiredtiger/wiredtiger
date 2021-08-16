@@ -20,13 +20,14 @@ documentation for WT_CONNECTION::wiredtiger_open.
 WT_CONNECTION::wiredtiger_open also performs different sanity checks depending on the configuration
 item "create". When "create" is specified and a database does not already exist, a new database is
 created along with specific WiredTiger files such as the turtle file and other metadata files. If a
-database already exists, WiredTiger will try to open it and check for the existence of the different
-required WiredTiger files. If "create" is not specified, WiredTiger expects a previously created
-database where it is executed. If the existing database is corrupted and cannot be opened, either
-\c WT_RUN_RECOVERY or \c WT_TRY_SALVAGE error (see @ref error_handling) is returned to the user
-application and the connection is not created. In this case, a recovery operation will be required
-to bring the database to a consistent state (see @ref command_line for more details) before a
-connection can be successfully established with the database.
+database already exists, whether "create" is specified or not, WiredTiger will try to open it and
+check for the existence of the different required WiredTiger files. If "create" is not specified,
+WiredTiger expects a previously created database where it is executed. If the existing database is
+corrupted and cannot be opened, either \c WT_RUN_RECOVERY or \c WT_TRY_SALVAGE error (see @ref
+error_handling) is returned to the user application and the connection is not created. In this case,
+a recovery operation will be required to bring the database to a consistent state (see @ref
+command_line for more details) before a connection can be successfully established with the
+database.
 
 Once the database has been successfully opened, internal worker threads are started to provide
 global services used at runtime. Those services consist of different threads to handle statistics,
