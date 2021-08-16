@@ -1662,8 +1662,8 @@ methods = {
             timestamp, the prepare timestamp will be rounded to the oldest
             timestamp. If the commit timestamp is less than the prepare
             timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp. Allows to set prepared timestamp smaller than or equal to
-            the latest active read timestamp''', type='boolean'),
+            timestamp. Allows setting the prepared timestamp smaller than or equal
+            to the latest active read timestamp''', type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the
             read timestamp will be rounded up to the oldest timestamp''',
