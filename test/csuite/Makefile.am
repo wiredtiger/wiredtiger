@@ -37,7 +37,7 @@ all_TESTS += timestamp_abort/smoke.sh
 
 test_truncated_log_SOURCES = truncated_log/main.c
 noinst_PROGRAMS += test_truncated_log
-all_TESTS += test_truncated_log
+all_TESTS += truncated_log/smoke.sh
 
 test_wt1965_col_efficiency_SOURCES = wt1965_col_efficiency/main.c
 noinst_PROGRAMS += test_wt1965_col_efficiency

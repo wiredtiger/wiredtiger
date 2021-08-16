@@ -92,6 +92,7 @@ define_c_test(
     TARGET test_truncated_log
     SOURCES truncated_log/main.c
     DIR_NAME truncated_log
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
