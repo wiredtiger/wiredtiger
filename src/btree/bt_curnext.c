@@ -801,13 +801,10 @@ skip_page:
             WT_ERR(__wt_page_release(session, cbt->last_ref, 0));
 
         cbt->last_ref = cbt->ref;
-        if (cbt->last_ref)
-        {
-            WT_ERR(
-              __wt_hazard_set(session, cbt->last_ref, &busy));
+        if (cbt->last_ref) {
+            WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
             // Loop until we get an hazard pointer.
-            while (busy)
-            {
+            while (busy) {
                 __wt_yield();
                 WT_STAT_CONN_INCR(session, page_busy_blocked);
                 WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
