@@ -1905,18 +1905,15 @@ __cursor_range_stat(
     btree = S2BT(session);
 
     /* Get the key. */
-    if (btree->type == BTREE_COL_FIX || btree->type == BTREE_COL_VAR) {
-        recno_start = start->recno;
-        recno_stop = stop->recno;
-    } else {
-        WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)start, &kstart));
-        WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)stop, &kstop));
-    }
+    recno_start = start->recno;
+    recno_stop = stop->recno;
+    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)start, &kstart));
+    WT_RET(__wt_cursor_get_raw_key((WT_CURSOR *)stop, &kstop));
 
 restart:
     /* Descend the tree, searching internal pages for the keys. */
     current = &btree->root;
-    for (;;) {
+    for (pindex = NULL;;) {
         parent_pindex = pindex;
         page = current->page;
 
