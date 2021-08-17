@@ -305,7 +305,7 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
 
     /*
      * The order here is important: anything newer than or equal to the maximum ID we saw when
-     * taking the snapshot should be invisible, even if the snapshot is empty.
+     * taking the snapshot should be non committed, even if the snapshot is empty.
      *
      * Snapshot data:
      *  ids >= recovery_ckpt_snap_max are non committed,
