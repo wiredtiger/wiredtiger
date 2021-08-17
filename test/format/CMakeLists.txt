@@ -53,9 +53,9 @@ create_test_executable(test_format
     SOURCES ${format_sources}
     EXECUTABLE_NAME "t"
     ADDITIONAL_FILES
-        ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
-        ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
         ${CMAKE_CURRENT_SOURCE_DIR}/CONFIG.stress
+        ${CMAKE_CURRENT_SOURCE_DIR}/format.sh
+        ${CMAKE_CURRENT_SOURCE_DIR}/smoke.sh
 )
 
 if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
