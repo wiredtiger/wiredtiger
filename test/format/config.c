@@ -709,6 +709,10 @@ config_in_memory(void)
      * don't have to configure in-memory every time we configure something like LSM, that's too
      * painful.
      */
+    if (config_is_perm("format.abort")) {
+        config_single("runs.in_memory=0", false);
+        return;
+    }
     if (config_is_perm("backup"))
         return;
     if (config_is_perm("btree.compression"))
