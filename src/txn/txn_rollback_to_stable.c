@@ -306,12 +306,12 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
     /*
      * Snapshot data:
      *	ids < recovery_ckpt_snap_min are committed,
-     *	ids > recovery_ckpt_snap_max are non committed,
+     *	ids >= recovery_ckpt_snap_max are non committed,
      *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
      */
     if (txnid < conn->recovery_ckpt_snap_min)
         return (false);
-    else if (txnid > conn->recovery_ckpt_snap_max)
+    else if (txnid >= conn->recovery_ckpt_snap_max)
         return (true);
 
     /*
