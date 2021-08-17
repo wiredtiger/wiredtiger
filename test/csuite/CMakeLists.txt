@@ -281,6 +281,7 @@ define_c_test(
     TARGET test_wt6616_checkpoint_oldest_ts
     SOURCES wt6616_checkpoint_oldest_ts/main.c
     DIR_NAME wt6616_checkpoint_oldest_ts
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
