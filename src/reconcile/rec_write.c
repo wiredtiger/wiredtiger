@@ -1532,6 +1532,12 @@ __rec_set_page_write_gen(
      * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
      * anyway.
      *
+     * We use the same write generation number for a page when it is written again to disk after
+     * fixing a couple of keys as part of rollback to stable. This is to retain the transaction ids
+     * that are present on the page till the rollback to stable is finished and also to reset the
+     * transaction ids that exist on the page upon restart of successful rollback to stable
+     * operation.
+     *
      * Other than salvage, the write generation number is used to reset the stale transaction id's
      * present on the page upon server restart.
      */
