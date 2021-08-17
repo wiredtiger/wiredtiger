@@ -146,7 +146,7 @@ all_TESTS += test_wt4891_meta_ckptlist_get_alloc
 
 test_wt6185_modify_ts_SOURCES = wt6185_modify_ts/main.c
 noinst_PROGRAMS += test_wt6185_modify_ts
-all_TESTS += test_wt6185_modify_ts
+all_TESTS += wt6185_modify_ts/smoke.sh
 
 test_wt6616_checkpoint_oldest_ts_SOURCES = wt6616_checkpoint_oldest_ts/main.c
 noinst_PROGRAMS += test_wt6616_checkpoint_oldest_ts

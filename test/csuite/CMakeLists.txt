@@ -274,6 +274,7 @@ define_c_test(
     TARGET test_wt6185_modify_ts
     SOURCES wt6185_modify_ts/main.c
     DIR_NAME wt6185_modify_ts
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
