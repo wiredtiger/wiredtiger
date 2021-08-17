@@ -146,31 +146,34 @@ bool
 __wt_txn_user_active(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
-    WT_TXN_GLOBAL *txn_global;
-    WT_TXN_SHARED *s;
+    WT_SESSION_IMPL *session_in_list;
     uint32_t i, session_cnt;
     bool txn_active;
 
     conn = S2C(session);
-    txn_global = &conn->txn_global;
-    txn_active = true;
-
-    /* We're going to scan the table in exclusive mode: wait for the write lock. */
-    __wt_writelock(session, &txn_global->rwlock);
-
-    /* Walk the array of concurrent transactions. */
-    WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    WT_STAT_CONN_INCR(session, txn_walk_sessions);
-    for (i = 0, s = txn_global->txn_shared_list; i < session_cnt; i++, s++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
-        /* If session has a valid transaction id, there is at least one active transaction. */
-        if (s->id != WT_TXN_NONE && !F_ISSET(session, WT_SESSION_INTERNAL))
-            goto done;
-    }
-    /* We scanned the session table and didn't find any user session with active transaction. */
     txn_active = false;
-done:
-    __wt_writeunlock(session, &txn_global->rwlock);
+
+    /*
+     * No lock is required because the session array is fixed size, but it may contain inactive
+     * entries. We must review any active session, so insert a read barrier after reading the active
+     * session count. That way, no matter what sessions come or go, we'll check the slots for all of
+     * the user sessions for active transactions when we started our check.
+     *
+     * Note that a new transactions may start on session we have already examined. Therefore, the
+     * caller needs to be aware of limitations of this function.
+     */
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (i = 0; i < session_cnt; i++) {
+        WT_STAT_CONN_INCR(session, txn_sessions_walked);
+        session_in_list = &conn->sessions[i];
+        /* Check if a user session has a running transaction. */
+        if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING) &&
+          !F_ISSET(session_in_list, WT_SESSION_INTERNAL)) {
+            txn_active = true;
+            break;
+        }
+    }
+
     return (txn_active);
 }
 
