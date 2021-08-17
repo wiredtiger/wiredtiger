@@ -716,6 +716,11 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
      *
      * The order here is important: anything newer than or equal to the maximum ID we saw when
      * taking the snapshot should be invisible, even if the snapshot is empty.
+     *
+     * Snapshot data:
+     *  ids >= recovery_ckpt_snap_max are non committed,
+     *	ids < recovery_ckpt_snap_min are committed,
+     *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
      */
     if (WT_TXNID_LE(txn->snap_max, id))
         return (false);

@@ -304,21 +304,17 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
         return (false);
 
     /*
+     * The order here is important: anything newer than or equal to the maximum ID we saw when
+     * taking the snapshot should be invisible, even if the snapshot is empty.
+     *
      * Snapshot data:
+     *  ids >= recovery_ckpt_snap_max are non committed,
      *	ids < recovery_ckpt_snap_min are committed,
-     *	ids >= recovery_ckpt_snap_max are non committed,
      *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
      */
-    if (txnid < conn->recovery_ckpt_snap_min)
-        return (false);
-    else if (txnid >= conn->recovery_ckpt_snap_max)
+    if (txnid >= conn->recovery_ckpt_snap_max)
         return (true);
-
-    /*
-     * Return false when the recovery snapshot count is 0, which means there is no uncommitted
-     * transaction ids.
-     */
-    if (conn->recovery_ckpt_snapshot_count == 0)
+    if (conn->recovery_ckpt_snapshot_count == 0 || txnid < conn->recovery_ckpt_snap_min)
         return (false);
 
     WT_BINARY_SEARCH(
