@@ -47,7 +47,8 @@ created using WT_CONNECTION::open_session. The other available APIs are describe
 documentation related to WT_CONNECTION::.
 
 A connection also keeps tracks of global information, see \c WT_CONNECTION_IMPL defined in \c
-connection.h.
+connection.h. Finally, a \c WT_CONNECTION handle may be shared between threads, see @ref threads for
+more information.
 
 @subsection arch_conn_closure Closure
 
