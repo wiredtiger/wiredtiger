@@ -9,14 +9,15 @@ to on-disk format), and then written.
 Eviction is managed using \c WT_EVICT_QUEUE structures,
 each of which contains a list of \c WT_EVICT_ENTRY structures.
 
-Eviction is composed of one eviction server, several eviction worker threads and three shared
-eviction_queues (two ordinary queues and one urgent queue).  Pages which are being marked to
-evict forcibly due to cache pressure goes on a urgent queue and the pages in the urgent queue
-take precedence over two ordinary queues.
+Eviction is composed of one eviction server, 0 or more eviction worker threads and three shared
+eviction_queues (two ordinary queues and one urgent queue). It is possible to have just the eviction server
+and no worker threads and in such a case, eviction server both walks the tree to find pages to evict and
+evict these pages from the cache. Pages that are being marked for forced eviction go onto the urgent
+queue, and these pages take a precedence over the pages from the ordinary eviction queues.
 
-A user can pass the minimum and maximum number of eviction worker threads to be created in the
-configuration string, but however there is a mechanism to dynamically adjust right number of
-eviction worker that gave the best throughput depending on the current eviction load.
+A user can pass a minimum and a maximum number of eviction worker threads to be created through the connection
+configuration string. An internal mechanism dynamically adjusts the number of eviction worker threads active
+at any given time to suit to the instantaneous eviction workload.
 
 - Eviction server walks the pages in the btree to find the candidates to be evicted ,sorts the
   list of candidates and throws the 1/3 of the candidates to do an approximate LRU and pushes the
