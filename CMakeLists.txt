@@ -96,9 +96,9 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
 endif()
 
-+if(HAVE_BUILTIN_EXTENSION_SODIUM)
-+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
-+endif()
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
+endif()
 
 # Establish wiredtiger library target
 add_library(wiredtiger ${link_type} ${wt_sources} ${builtin_objs})
@@ -152,23 +152,23 @@ endif()
 # target and ensure they propogate to which ever target links against wiredtiger e.g
 # installed 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger wiredtiger_lz4)
+    target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger wiredtiger_snappy)
+    target_link_libraries(wiredtiger  ${HAVE_LIBSNAPPY})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger wiredtiger_zlib)
+    target_link_libraries(wiredtiger ${HAVE_LIBZ})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger wiredtiger_zstd)
+    target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger wiredtiger_sodium)
+    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
 endif()
 
 # Build the wt utility.
