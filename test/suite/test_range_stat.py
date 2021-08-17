@@ -62,9 +62,14 @@ class test_range_stat(wttest.WiredTigerTestCase):
         uri = self.uri + ':test_range_stat'
         ds, rows = self.populate(uri)
 
-        #self.tty(self.keyfmt + ': rows ' + str(rows))
-        self.session.range_stat(uri, None, None)
-        #self.assertEquals(rows, XXX)
+        (ret_rows, ret_bytes) = self.session.range_stat(uri, None, None)
+        self.verbose(3, "{}: rows {}, returned rows {}, bytes {}".
+            format(self.keyfmt, rows, ret_rows, ret_bytes))
+
+        # We know exactly the number of rows.
+        self.assertEquals(ret_rows, rows)
+        # There is some cost in bytes of storing each row, but it's hard to guess what it is.
+        self.assertGreater(ret_bytes, rows * 10)
 
     def test_range_stat_cursor(self):
         uri = self.uri + ':test_range_stat'
@@ -79,10 +84,10 @@ class test_range_stat(wttest.WiredTigerTestCase):
         kstop = random.randint(pct, rows - pct)
         cstop.set_key(ds.key(kstop))
 
-        #self.tty(self.keyfmt +\
-        #    ': rows ' + str(rows) + ', start ' + str(kstart) + ', stop ' + str(kstop))
-        self.session.range_stat(None, cstart, cstop)
-        #self.assertEquals(rows, XXX)
+        # The rows and bytes returned are estimates, we can't really check them.
+        (ret_rows, ret_bytes) = self.session.range_stat(None, cstart, cstop)
+        self.verbose(3, "{}: rows {}, start {}, stop {}, returned rows {}, bytes {}".
+            format(self.keyfmt, rows, kstart, kstop, ret_rows, ret_bytes))
 
 if __name__ == '__main__':
     wttest.run()

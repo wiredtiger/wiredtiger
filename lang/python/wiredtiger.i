@@ -76,16 +76,19 @@ from packing import pack, unpack
 }
 %typemap(in, numinputs=0) WT_FILE_HANDLE ** (WT_FILE_HANDLE *temp = NULL) {
     $1 = &temp;
- }
+}
 %typemap(in, numinputs=0) WT_FILE_SYSTEM ** (WT_FILE_SYSTEM *temp = NULL) {
     $1 = &temp;
- }
+}
 %typemap(in, numinputs=0) WT_STORAGE_SOURCE ** (WT_STORAGE_SOURCE *temp = NULL) {
 	$1 = &temp;
- }
+}
+%typemap(in, numinputs=0) uint64_pair_t * (uint64_pair_t temp = {0, 0}) {
+	$1 = &temp;
+}
 %typemap(in, numinputs=0) bool * (bool temp = false) {
 	$1 = &temp;
- }
+}
 %typemap(in, numinputs=0) wt_off_t * (wt_off_t temp = false) {
 	$1 = &temp;
 }
@@ -188,6 +191,12 @@ from packing import pack, unpack
 		SWIG_exception_fail(SWIG_AttributeError,
 		    "bad string value for WT_ITEM");
 	$1 = &val;
+}
+
+%typemap(argout) uint64_pair_t * {
+	$result = PyList_New(2);
+	PyList_SetItem($result, 0, PyInt_FromLong($1->a));
+	PyList_SetItem($result, 1, PyInt_FromLong($1->b));
 }
 
 %typemap(in,numinputs=0) (char ***dirlist, int *countp) (char **list, uint32_t nentries) {
@@ -309,6 +318,19 @@ from packing import pack, unpack
 
 %typemap(freearg) WT_MODIFY * {
 	freeModifyArray($1);
+}
+
+/* For range_stat return values. */
+%inline %{
+	typedef struct {
+		uint64_t a;
+		uint64_t b;
+	} uint64_pair_t;
+%}
+%typemap(out) uint64_pair_t {
+	$result = PyList_New(2);
+	PyList_SetItem($result, 0, PyInt_FromLong($1.a));
+	PyList_SetItem($result, 1, PyInt_FromLong($1.b));
 }
 
 /* 64 bit typemaps. */
@@ -955,16 +977,12 @@ typedef int int_void;
 
 %extend __wt_session {
 	int _log_printf(const char *msg) {
-		return self->log_printf(self, "%s", msg);
+		return (self->log_printf(self, "%s", msg));
 	}
 
 	/* range_info: special handling. */
-	int _range_stat(const char *uri, WT_CURSOR *start, WT_CURSOR *stop) {
-		uint64_t row_count, byte_count;
-		int ret = $self->range_stat($self, uri, start, stop, NULL, &row_count, &byte_count);
-		fprintf(stderr,
-		    "%d: row_count %" PRIu64 ", byte_count %" PRIu64 "\n", ret, row_count, byte_count);
-		return (ret);
+	int _range_stat(const char *uri, WT_CURSOR *start, WT_CURSOR *stop, uint64_pair_t *counts) {
+		return ($self->range_stat($self, uri, start, stop, NULL, &counts->a, &counts->b));
 	}
 
 	int _freecb() {
