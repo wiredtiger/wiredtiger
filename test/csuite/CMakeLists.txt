@@ -110,12 +110,11 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
-# Temporarily disabled (WT-5790).
-#define_c_test(
-#    TARGET test_wt2246_col_append
-#    SOURCES wt2246_col_append/main.c
-#    DIR_NAME wt2246_col_append
-#)
+define_c_test(
+    TARGET test_wt2246_col_append
+    SOURCES wt2246_col_append/main.c
+    DIR_NAME wt2246_col_append
+)
 
 define_c_test(
     TARGET test_wt2323_join_visibility
