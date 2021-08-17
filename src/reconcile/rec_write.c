@@ -1516,8 +1516,7 @@ err:
  *     Initialize the page write generation number.
  */
 static void
-__rec_set_page_write_gen(
-  WT_SESSION_IMPL *session, WT_BTREE *btree, WT_PAGE *page, WT_PAGE_HEADER *dsk)
+__rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
 {
     /*
      * We increment the block's write generation so it's easy to identify newer versions of blocks
@@ -1532,20 +1531,10 @@ __rec_set_page_write_gen(
      * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
      * anyway.
      *
-     * We use the same write generation number for a page when it is written again to disk after
-     * fixing a couple of keys as part of rollback to stable. This is to retain the transaction ids
-     * that are present on the page till the rollback to stable is finished and also to reset the
-     * transaction ids that exist on the page upon restart of successful rollback to stable
-     * operation.
-     *
      * Other than salvage, the write generation number is used to reset the stale transaction id's
      * present on the page upon server restart.
      */
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING) && page->dsk) {
-        WT_ASSERT(session, page->dsk->write_gen != 0);
-        dsk->write_gen = page->dsk->write_gen;
-    } else
-        dsk->write_gen = ++btree->write_gen;
+    dsk->write_gen = ++btree->write_gen;
 }
 
 /*
@@ -1564,7 +1553,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
 
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
 
-    __rec_set_page_write_gen(session, btree, page, dsk);
+    __rec_set_page_write_gen(btree, dsk);
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
@@ -2378,7 +2367,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
         dsk->type = WT_PAGE_OVFL;
-        __rec_set_page_write_gen(session, btree, page, dsk);
+        __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
         memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
         dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
