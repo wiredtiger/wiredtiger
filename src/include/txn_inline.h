@@ -714,8 +714,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
      * WT_ISO_SNAPSHOT, WT_ISO_READ_COMMITTED: the ID is visible if it is not the result of a
      * concurrent transaction, that is, if was committed before the snapshot was taken.
      *
-     * The order here is important: anything newer than the maximum ID we saw when taking the
-     * snapshot should be invisible, even if the snapshot is empty.
+     * The order here is important: anything newer than or equal to the maximum ID we saw when
+     * taking the snapshot should be invisible, even if the snapshot is empty.
      */
     if (WT_TXNID_LE(txn->snap_max, id))
         return (false);
