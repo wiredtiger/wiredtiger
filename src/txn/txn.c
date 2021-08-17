@@ -140,7 +140,8 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 
 /*
  * __wt_txn_user_active --
- *     Check whether there are any running user transactions.
+ *     Check whether there are any running user transactions. Note that a new transactions may start
+ *     on a session we have already examined and the caller needs to be aware of this limitations.
  */
 bool
 __wt_txn_user_active(WT_SESSION_IMPL *session)
@@ -158,9 +159,6 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
      * entries. We must review any active session, so insert a read barrier after reading the active
      * session count. That way, no matter what sessions come or go, we'll check the slots for all of
      * the user sessions for active transactions when we started our check.
-     *
-     * Note that a new transactions may start on session we have already examined. Therefore, the
-     * caller needs to be aware of limitations of this function.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     for (i = 0; i < session_cnt; i++) {
