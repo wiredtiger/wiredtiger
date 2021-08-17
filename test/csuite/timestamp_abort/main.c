@@ -149,7 +149,7 @@ thread_ts_run(void *arg)
     WT_SESSION *session;
     THREAD_DATA *td;
     int dbg;
-    char prev_ts[WT_TS_HEX_STRING_SIZE], tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
+    char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
 
     td = (THREAD_DATA *)arg;
@@ -170,14 +170,13 @@ thread_ts_run(void *arg)
         if (ret == 0) {
             /* Periodically let the oldest timestamp lag. */
             if (!first && __wt_random(&rnd) % 4 == 0)
-                testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "oldest_timestamp=%s,stable_timestamp=%s", prev_ts, ts_string));
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
             else
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
                   "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
             testutil_check(td->conn->set_timestamp(td->conn, tscfg));
             first = false;
-            memcpy(&prev_ts[0], &ts_string[0], WT_TS_HEX_STRING_SIZE);
             /*
              * Set and reset the checkpoint retention setting on a regular basis. We want to test
              * racing with the internal archive thread while we're here.
