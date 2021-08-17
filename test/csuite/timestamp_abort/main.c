@@ -168,9 +168,7 @@ thread_ts_run(void *arg)
         testutil_check(pthread_rwlock_unlock(&ts_lock));
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         if (ret == 0) {
-            /*
-             * Periodically let the oldest timestamp lag.
-             */
+            /* Periodically let the oldest timestamp lag. */
             if (!first && __wt_random(&rnd) % 4 == 0)
                 testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
                   "oldest_timestamp=%s,stable_timestamp=%s", prev_ts, ts_string));
