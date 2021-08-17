@@ -718,7 +718,7 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
      * taking the snapshot should be invisible, even if the snapshot is empty.
      *
      * Snapshot data:
-     *  ids >= snap_max not visible,
+     *	ids >= snap_max not visible,
      *	ids < snap_min are visible,
      *	everything else is visible unless it is found in the snapshot.
      */
