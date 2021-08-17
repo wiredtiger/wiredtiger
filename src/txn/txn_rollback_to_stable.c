@@ -285,7 +285,7 @@ err:
  *     Check if the transaction id is non committed.
  */
 static bool
-__rollback_check_id_visible(WT_SESSION_IMPL *session, uint64_t txnid)
+__rollback_check_if_txnid_visible(WT_SESSION_IMPL *session, uint64_t txnid)
 {
     WT_CONNECTION_IMPL *conn;
     bool found;
