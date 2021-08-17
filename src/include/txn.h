@@ -244,7 +244,7 @@ struct __wt_txn {
 
     /*
      * Snapshot data:
-     *  ids >= snap_max are invisible,
+     *	ids >= snap_max are invisible,
      *	ids < snap_min are visible,
      *	everything else is visible unless it is in the snapshot.
      */
