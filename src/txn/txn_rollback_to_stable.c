@@ -298,9 +298,9 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
 
     /*
      * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
-     * details are zero then return false i.e, updates are committed.
+     * details are none then return false i.e, updates are committed.
      */
-    if (conn->recovery_ckpt_snap_min == 0 && conn->recovery_ckpt_snap_max == 0)
+    if (conn->recovery_ckpt_snap_min == WT_TXN_NONE && conn->recovery_ckpt_snap_max == WT_TXN_NONE)
         return (false);
 
     /*
@@ -312,9 +312,9 @@ __rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid
      *	ids < recovery_ckpt_snap_min are committed,
      *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
      */
-    if (txnid >= conn->recovery_ckpt_snap_max)
+    if (WT_TXNID_LE(conn->recovery_ckpt_snap_max, txnid))
         return (true);
-    if (conn->recovery_ckpt_snapshot_count == 0 || txnid < conn->recovery_ckpt_snap_min)
+    if (conn->recovery_ckpt_snapshot_count == 0 || WT_TXNID_LT(txnid, conn->recovery_ckpt_snap_min))
         return (false);
 
     WT_BINARY_SEARCH(
