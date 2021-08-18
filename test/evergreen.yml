@@ -558,7 +558,7 @@ variables:
         vars:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
-  - &format-abort-stress-test
+  - &format-abort-recovery-stress-test
     exec_timeout_secs: 3600
     commands:
       - func: "get project"
@@ -2543,9 +2543,9 @@ tasks:
   - <<: *format-stress-test
     name: format-stress-test-4
     tags: ["stress-test-4"]
-  - <<: *format-abort-stress-test
-    name: format-abort-stress-test-1
-    tags: ["abort-stress-test-1"]
+  - <<: *format-abort-recovery-stress-test
+    name: format-abort-recovery-stress-test-1
+    tags: ["abort-recovery-stress-test-1"]
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-1
     tags: ["stress-test-1"]
@@ -2842,7 +2842,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
-    - name: ".abort-stress-test-1"
+    - name: ".abort-recovery-stress-test-1"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
