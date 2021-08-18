@@ -69,7 +69,7 @@ endif()
 
 if(ENABLE_ZLIB)
     # HAVE_LIBZ contains the full pathname to the lib, which is
-    # what the cmake docs recommend using
+    # what the cmake docs recommend using.
     target_link_libraries(wiredtiger_zlib ${HAVE_LIBZ})
     install(TARGETS wiredtiger_zlib
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

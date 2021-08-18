@@ -69,7 +69,7 @@ endif()
 
 if(ENABLE_SODIUM)
     # HAVE_LIBSODIUM contains the full pathname to the lib, which is
-    # what the cmake docs recommend using
+    # what the cmake docs recommend using.
     target_link_libraries(wiredtiger_sodium ${HAVE_LIBSODIUM})
     install(TARGETS wiredtiger_sodium
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
