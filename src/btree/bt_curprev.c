@@ -745,18 +745,15 @@ skip_page:
             LF_SET(WT_READ_WONT_NEED);
 
 #ifdef HAVE_DIAGNOSTIC
-        if (cbt->last_ref) {
+        if (cbt->last_ref)
             WT_ERR(__wt_page_release(session, cbt->last_ref, 0));
-        }
+
         cbt->last_ref = cbt->ref;
         if (cbt->last_ref) {
             WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
-            // Loop until we get an hazard pointer.
-            while (busy) {
-                __wt_yield();
-                WT_STAT_CONN_INCR(session, page_busy_blocked);
-                WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
-            }
+            // If we can't get a hazard pointer with a single try, clear the reference and move on.
+            if (busy)
+                cbt->last_ref = NULL;
         }
 #endif
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
