@@ -559,7 +559,7 @@ variables:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -t 360
 
   - &format-abort-recovery-stress-test
-    exec_timeout_secs: 3600
+    exec_timeout_secs: 2500
     commands:
       - func: "get project"
       - func: "compile wiredtiger with builtins"
