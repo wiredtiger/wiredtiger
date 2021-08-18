@@ -146,11 +146,8 @@ if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
     target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
 endif()
 
-# When handling builtins, its still ideal to call 'target_link_libraries'
-# despite already having linked the individual objects in the builtin library.
 # We want to capture any transitive dependencies associated with the builtin library
-# target and ensure they propogate to which ever target links against wiredtiger e.g
-# installed 3rd party libraries.
+# target and ensure we are explicitly linking the 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
     target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
 endif()
