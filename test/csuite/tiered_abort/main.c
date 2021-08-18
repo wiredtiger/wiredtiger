@@ -50,10 +50,9 @@ static char home[1024]; /* Program working dir */
  * latest stable timestamp is on checkpoint.
  *
  * We also create several files that are not WiredTiger tables.  The flush tier thread creates
- * a file indicating that the specified number of flush_tier calls have completed. The parent
+ * one such file indicating that the specified number of flush_tier calls have completed. The parent
  * process uses this to know when that threshold is met and it can start the timer to abort.
- *
- * Each worker thread creates its own records file that records the data it
+ * Also each worker thread creates its own textual records file that records the data it
  * inserted and it records the timestamp that was used for that insertion.
  */
 #define BUCKET "bucket"
@@ -79,7 +78,7 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const sentinel_file = "sentinel_ready";
 
-static bool compat, inmem, use_ts;
+static bool use_ts;
 static volatile uint64_t global_ts = 1;
 static uint32_t flush_calls = 1;
 
@@ -90,9 +89,6 @@ static uint32_t flush_calls = 1;
  * side, the eviction update and dirty triggers are 90%, so application threads aren't involved in
  * eviction until we're close to running out of cache.
  */
-#define ENV_CONFIG_ADD_COMPAT ",compatibility=(release=\"2.9\")"
-#define ENV_CONFIG_ADD_EVICT_DIRTY ",eviction_dirty_target=20,eviction_dirty_trigger=90"
-
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
     "M,create,"                                               \
@@ -101,8 +97,9 @@ static uint32_t flush_calls = 1;
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
     "tiered_storage=(bucket=%s,bucket_prefix=pfx,name=local_store)"
-#define ENV_CONFIG_TXNSYNC \
-    ENV_CONFIG_DEF         \
+#define ENV_CONFIG_TXNSYNC                                \
+    ENV_CONFIG_DEF                                        \
+    ",eviction_dirty_target=20,eviction_dirty_trigger=90" \
     ",transaction_sync=(enabled,method=none)"
 #define ENV_CONFIG_REC "log=(archive=false,recover=on)"
 
@@ -126,8 +123,12 @@ typedef struct {
     uint32_t info;
 } THREAD_DATA;
 
-/* Lock for transactional ops that set or query a timestamp. */
+/*
+ * TODO: WT-7833 Lock to coordinate inserts and flush_tier. This lock should be removed when that
+ * ticket is fixed. Flush_tier should be able to run with ongoing operations.
+ */
 static pthread_rwlock_t flush_lock;
+/* Lock for transactional ops that set or query a timestamp. */
 static pthread_rwlock_t ts_lock;
 
 static void handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
@@ -135,7 +136,7 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 usage(void)
 {
-    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-Cmvz]\n", progname);
+    fprintf(stderr, "usage: %s [-h dir] [-T threads] [-t time] [-vz]\n", progname);
     exit(EXIT_FAILURE);
 }
 
@@ -256,8 +257,8 @@ thread_flush_run(void *arg)
         printf("Flush tier %" PRIu32 " completed.\n", i);
         fflush(stdout);
         /*
-         * Create the sentinel file so that the parent process knows at least one flush_tier has
-         * finished and can start its timer.
+         * Create the sentinel file so that the parent process knows the desired number of
+         * flush_tier calls have finished and can start its timer.
          */
         if (i == flush_calls) {
             testutil_checksys((fp = fopen(sentinel_file, "w")) == NULL);
@@ -405,7 +406,7 @@ thread_run(void *arg)
 rollback:
             testutil_check(session->rollback_transaction(session, NULL));
             if (locked) {
-                testutil_check(pthread_rwlock_unlock(&ts_lock));
+                testutil_check(pthread_rwlock_unlock(&flush_lock));
                 locked = false;
             }
         }
@@ -442,21 +443,8 @@ run_workload(uint32_t nth, const char *buf)
 
     if (chdir(home) != 0)
         testutil_die(errno, "Child chdir: %s", home);
-    if (inmem)
-        testutil_check(
-          __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_DEF, cache_mb, SESSION_MAX, BUCKET));
-    else
-        testutil_check(__wt_snprintf(
-          envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, BUCKET));
-    if (compat)
-        strcat(envconf, ENV_CONFIG_ADD_COMPAT);
-
-    /*
-     * The eviction dirty target and trigger configurations are not compatible with certain other
-     * configurations.
-     */
-    if (!compat && !inmem)
-        strcat(envconf, ENV_CONFIG_ADD_EVICT_DIRTY);
+    testutil_check(
+      __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, BUCKET));
 
     testutil_check(__wt_snprintf(
       extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))", buf, WT_STORAGE_LIB));
@@ -485,7 +473,7 @@ run_workload(uint32_t nth, const char *buf)
     testutil_check(session->close(session, NULL));
 
     /*
-     * The checkpoint thread and the timestamp threads are added at the end.
+     * The checkpoint thread and the timestamp threads are added at the end of the array.
      */
     ckpt_id = nth;
     td[ckpt_id].conn = conn;
@@ -563,9 +551,7 @@ handler(int sig)
 
     WT_UNUSED(sig);
     pid = wait(NULL);
-    /*
-     * The core file will indicate why the child exited. Choose EINVAL here.
-     */
+    /* The core file will indicate why the child exited. Choose EINVAL here. */
     testutil_die(EINVAL, "Child process %" PRIu64 " abnormally exited", (uint64_t)pid);
 }
 
@@ -593,7 +579,6 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    compat = inmem = false;
     use_ts = true;
     nth = MIN_TH;
     rand_th = rand_time = true;
@@ -601,19 +586,13 @@ main(int argc, char *argv[])
     verify_only = false;
     working_dir = "WT_TEST.tiered-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "Cf:h:mT:t:vz")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "f:h:T:t:vz")) != EOF)
         switch (ch) {
-        case 'C':
-            compat = true;
-            break;
         case 'f':
             flush_calls = (uint32_t)atoi(__wt_optarg);
             break;
         case 'h':
             working_dir = __wt_optarg;
-            break;
-        case 'm':
-            inmem = true;
             break;
         case 'T':
             rand_th = false;
@@ -681,11 +660,10 @@ main(int argc, char *argv[])
                 nth = MIN_TH;
         }
 
-        printf("Parent: compatibility: %s, in-mem log sync: %s, timestamp in use: %s\n",
-          compat ? "true" : "false", inmem ? "true" : "false", use_ts ? "true" : "false");
+        printf("Parent: timestamp in use: %s\n", use_ts ? "true" : "false");
         printf("Parent: Create %" PRIu32 " threads; sleep %" PRIu32 " seconds\n", nth, timeout);
-        printf("CONFIG: %s%s%s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname,
-          compat ? " -C" : "", inmem ? " -m" : "", !use_ts ? " -z" : "", working_dir, nth, timeout);
+        printf("CONFIG: %s%s -h %s -T %" PRIu32 " -t %" PRIu32 "\n", progname, !use_ts ? " -z" : "",
+          working_dir, nth, timeout);
         /*
          * Fork a child to insert as many items. We will then randomly kill the child, run recovery
          * and make sure all items we wrote exist after recovery runs.
@@ -737,14 +715,10 @@ main(int argc, char *argv[])
 
     printf("Open database, run recovery and verify content\n");
 
-    /*
-     * Open the connection which forces recovery to be run.
-     */
+    /* Open the connection which forces recovery to be run. */
     testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /*
-     * Open a cursor on all the tables.
-     */
+    /* Open a cursor on all the tables. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_collection));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_coll));
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_shadow));
@@ -754,9 +728,7 @@ main(int argc, char *argv[])
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_oplog));
     testutil_check(session->open_cursor(session, buf, NULL, NULL, &cur_oplog));
 
-    /*
-     * Find the biggest stable timestamp value that was saved.
-     */
+    /* Find the biggest stable timestamp value that was saved. */
     stable_val = 0;
     if (use_ts) {
         testutil_check(conn->query_timestamp(conn, ts_string, "get=recovery"));
@@ -789,9 +761,7 @@ main(int argc, char *argv[])
                 o_rep[i].first_key = key;
             }
             if (ret != EOF && ret != 3) {
-                /*
-                 * If we find a partial line, consider it like an EOF.
-                 */
+                /* If we find a partial line, consider it like an EOF. */
                 if (ret == 2 || ret == 1 || ret == 0)
                     break;
                 testutil_die(errno, "fscanf");
@@ -827,7 +797,7 @@ main(int argc, char *argv[])
                  * If we don't find a record, the durable timestamp written to our file better be
                  * larger than the saved one.
                  */
-                if (!inmem && durable_fp != 0 && durable_fp <= stable_val) {
+                if (durable_fp != 0 && durable_fp <= stable_val) {
                     printf("%s: COLLECTION no record with key %" PRIu64
                            " record durable ts %" PRIu64 " <= stable ts %" PRIu64 "\n",
                       fname, key, durable_fp, stable_val);
@@ -855,7 +825,7 @@ main(int argc, char *argv[])
                  */
                 c_rep[i].exist_key = key;
                 fatal = true;
-            } else if (!inmem && commit_fp != 0 && commit_fp > stable_val) {
+            } else if (commit_fp != 0 && commit_fp > stable_val) {
                 /*
                  * If we found a record, the commit timestamp written to our file better be no
                  * larger than the checkpoint one.
@@ -868,41 +838,31 @@ main(int argc, char *argv[])
                 /* Collection and shadow both have the data. */
                 testutil_die(ret, "shadow search failure");
 
-            /*
-             * The local table should always have all data.
-             */
+            /* The local table should always have all data. */
             if ((ret = cur_local->search(cur_local)) != 0) {
                 if (ret != WT_NOTFOUND)
                     testutil_die(ret, "search");
-                if (!inmem)
-                    printf("%s: LOCAL no record with key %" PRIu64 "\n", fname, key);
+                printf("%s: LOCAL no record with key %" PRIu64 "\n", fname, key);
                 absent_local++;
                 if (l_rep[i].first_miss == INVALID_KEY)
                     l_rep[i].first_miss = key;
                 l_rep[i].absent_key = key;
             } else if (l_rep[i].absent_key != INVALID_KEY && l_rep[i].exist_key == INVALID_KEY) {
-                /*
-                 * We should never find an existing key after we have detected one missing.
-                 */
+                /* We should never find an existing key after we have detected one missing. */
                 l_rep[i].exist_key = key;
                 fatal = true;
             }
-            /*
-             * The oplog table should always have all data.
-             */
+            /* The oplog table should always have all data. */
             if ((ret = cur_oplog->search(cur_oplog)) != 0) {
                 if (ret != WT_NOTFOUND)
                     testutil_die(ret, "search");
-                if (!inmem)
-                    printf("%s: OPLOG no record with key %" PRIu64 "\n", fname, key);
+                printf("%s: OPLOG no record with key %" PRIu64 "\n", fname, key);
                 absent_oplog++;
                 if (o_rep[i].first_miss == INVALID_KEY)
                     o_rep[i].first_miss = key;
                 o_rep[i].absent_key = key;
             } else if (o_rep[i].absent_key != INVALID_KEY && o_rep[i].exist_key == INVALID_KEY) {
-                /*
-                 * We should never find an existing key after we have detected one missing.
-                 */
+                /* We should never find an existing key after we have detected one missing. */
                 o_rep[i].exist_key = key;
                 fatal = true;
             }
@@ -916,19 +876,19 @@ main(int argc, char *argv[])
         print_missing(&o_rep[i], fname, "OPLOG");
     }
     testutil_check(conn->close(conn, NULL));
-    if (!inmem && absent_coll) {
+    if (absent_coll) {
         printf("COLLECTION: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_coll, count);
         fatal = true;
     }
-    if (!inmem && absent_shadow) {
+    if (absent_shadow) {
         printf("SHADOW: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_shadow, count);
         fatal = true;
     }
-    if (!inmem && absent_local) {
+    if (absent_local) {
         printf("LOCAL: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_local, count);
         fatal = true;
     }
-    if (!inmem && absent_oplog) {
+    if (absent_oplog) {
         printf("OPLOG: %" PRIu64 " record(s) absent from %" PRIu64 "\n", absent_oplog, count);
         fatal = true;
     }
