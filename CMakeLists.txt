@@ -153,7 +153,7 @@ if(HAVE_BUILTIN_EXTENSION_LZ4)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger  ${HAVE_LIBSNAPPY})
+    target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)

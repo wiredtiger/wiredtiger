@@ -71,7 +71,7 @@ endif()
 if(ENABLE_LZ4)
     # HAVE_LIBLZ4 contains the full pathname to the lib, which is
     # what the cmake docs recommend using
-    target_link_libraries(wiredtiger_lz4 PUBLIC ${HAVE_LIBLZ4})
+    target_link_libraries(wiredtiger_lz4 ${HAVE_LIBLZ4})
     install(TARGETS wiredtiger_lz4
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
