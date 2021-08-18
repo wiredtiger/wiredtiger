@@ -81,6 +81,9 @@ run "./s_clang-format"
 run "python prototypes.py"
 run "sh ./s_typedef -b"
 run "python test_tag.py"
+if command -v evergreen > /dev/null; then
+	run "evergreen --level notice validate ../test/evergreen.yml"
+fi
 
 COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define
