@@ -1455,15 +1455,22 @@ struct __wt_session {
 	/*!
 	 * Return row and byte counts for a file or key range.
 	 *
-	 * When retrieving information based on a cursor position, the information is an estimate
-	 * base on assumptions about the distribution of information in the object. When retrieving
-	 * information based on a file, the information is correct as of the last checkpoint taken
-	 * on the object.
+	 * When retrieving information based on a file, the information is correct as of the last
+	 * checkpoint taken on the object. When retrieving information based on a cursor position,
+	 * the information is an estimate based on assumptions about the distribution of information
+	 * in the object. Both the file and key range calls return simple item counts, without
+	 * regard for visibility or other transactional information (for example, a prepared value
+	 * might be included in the row count). Therefore, the only definitive counts are those
+	 * retrieved after the database is opened and recovery and/or rollback-to-stable have
+	 * completed, and before any additional operations are performed.
 	 *
 	 * When retrieving information based on a cursor position, it is not required the cursor
 	 * reference a record in the object, only that the key be set. This allows applications to
 	 * query portions of the object name space without knowing exactly what records the object
-	 * contains.
+	 * contains. When retrieving information based on a cursor position in a complex object
+	 * (for example, a table with associated indexes), the row count is the number of elements
+	 * in a single object, while the byte count is aggregated across all of the associated
+	 * objects.
 	 *
 	 * Any specified cursors end with no position, and subsequent calls to the WT_CURSOR::next
 	 * (WT_CURSOR::prev) method will iterate from the beginning (end) of the table.
