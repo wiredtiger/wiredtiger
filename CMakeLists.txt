@@ -88,16 +88,16 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_snappy>)
 endif()
 
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
+endif()
+
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zlib>)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
 endif()
 
 # Establish wiredtiger library target.
@@ -156,16 +156,16 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY)
     target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
 endif()
 
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
+endif()
+
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
     target_link_libraries(wiredtiger ${HAVE_LIBZ})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
     target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
-endif()
-
-if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
 endif()
 
 # Build the wt utility.
