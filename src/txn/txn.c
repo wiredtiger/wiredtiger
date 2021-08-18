@@ -164,13 +164,13 @@ __wt_txn_user_active(WT_SESSION_IMPL *session, bool ignore_prepare)
     for (i = 0; i < session_cnt; i++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         session_in_list = &conn->sessions[i];
-        /* Check if a user session has a running transaction. */
+        /*
+         * Check if a user session has a running transaction. Ignore a prepared transaction if asked
+         * by the caller.
+         */
         if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING) &&
-          !F_ISSET(session_in_list, WT_SESSION_INTERNAL)) {
-
-            /* Ignore a prepared transaction if asked by the caller. */
-            if (F_ISSET(session_in_list->txn, WT_TXN_PREPARE) && ignore_prepare)
-                continue;
+          !F_ISSET(session_in_list, WT_SESSION_INTERNAL) &&
+          !(F_ISSET(session_in_list->txn, WT_TXN_PREPARE) && ignore_prepare)) {
 
             txn_active = true;
             break;
