@@ -803,9 +803,9 @@ skip_page:
         cbt->last_ref = cbt->ref;
         if (cbt->last_ref) {
             WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
-            // If we can't get a hazard pointer with a single try, clear the reference and move on.
-            if (busy)
-                cbt->last_ref = NULL;
+        // If we can't get a hazard pointer with a single try, clear the reference and move on.
+        if (busy)
+            cbt->last_ref = NULL;
         }
 #endif
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
