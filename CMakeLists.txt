@@ -100,7 +100,7 @@ if(HAVE_BUILTIN_EXTENSION_SODIUM)
     list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
 endif()
 
-# Establish wiredtiger library target
+# Establish wiredtiger library target.
 add_library(wiredtiger ${link_type} ${wt_sources} ${builtin_objs})
 
 # Generate wiredtiger.h include file.
