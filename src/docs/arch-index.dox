@@ -130,6 +130,9 @@ Hot backup uses a type of cursor to backup the database.
 
 The Block Manager manages the reading and writing of disk blocks.
 
+@subpage arch-btree
+A B-Tree is one type of underlying data source in a dhandle and is organized into pages.
+
 @subpage arch-cache
 
 Cache is represented by the various shared data structures that
