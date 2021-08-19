@@ -16,22 +16,22 @@ operations and transactions. You can read the complete description of each possi
 documentation related to WT_SESSION.
 
 @section arch_session_txn Transactions
-It is possible to group a number of operations within a session and get a single result, in other
-words, multiple operations can be treated as a single atomic operation. This can be done using @ref
-arch-transaction. When multiple operations are part of a transaction, they must either all be
-successful or fail; WiredTiger will cancel any successful operation before a failure within the same
-transaction. Finally, one session can hold a unique transaction at any given time and this
-transaction only belongs to that same session.
+It is possible to group a number of operations within a session, in other words, multiple operations
+can be treated as a single atomic operation. This can be done using @ref arch-transaction. When
+multiple operations are part of a transaction, they must either all be successful or fail;
+WiredTiger will abort any successful operation before a failure within the same transaction.
+Finally, one session can hold a unique transaction at any given time and this transaction only
+belongs to that same session.
 
 @section arch_session_cur Cursors
 Session can perform operations on multiple collections using cursors (see @ref arch-cursor for more
 details). Indeed, a session can have multiple cursors of any types and they all share the same
-transaction that is associated to the session. It is also possible to cache those cursors if
+transaction context that is associated to the session. It is also possible to cache those cursors if
 required through the configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
 
 @section arch_session_dhandles Data Handles
 During its lifetime, a session can accumulate a list of data handles (see @ref arch-dhandle). A
-session acquires a data handle every time is needs to perform an operation on a table and the data
+session acquires a data handle every time it needs to perform an operation on a table and the data
 handle is not already part of the list. Once a session no longer needs to operate on a table, it
 will mark the associated data handle as idle. This helps the sweep server to release data handles
 that are inactive, see @ref arch-dhandle-lifecycle for more details.
