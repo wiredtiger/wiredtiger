@@ -32,7 +32,7 @@ bound value which all concurrent transactions IDs are currently smaller than. We
 global current transaction ID/counter at the time of snapshot creation. Transactions with IDs greater than or equal to the maximum ID are
 considered invisible to the snapshot.
 - Concurrent transaction IDs: A list of transaction IDs that are concurrently running at the time of the snapshot (i.e. have not
-been committed). As these transactions have yet to be committed at the time of snapshot creation, transactions stored in this list are considered invisible when performing visibility checks.
+been committed). As these transactions are yet to be committed at the time of snapshot creation, transactions stored in this list are considered invisible when performing visibility checks.
 When building the list of concurrent transactions, WiredTiger walks a global array of running transactions, storing each walked transaction ID in a list managed by the snapshot.
 When walking the global set of running transactions, WiredTiger will ignore a transaction ID that is:
     -# Its own ID ie. the ID of the transaction creating the given snapshot. A transaction will always read its own updates.
