@@ -160,7 +160,7 @@ can be empty i.e. snapshot was taken at a time when no concurrent transactions w
 
 @section snapshot_checkpoint Snapshots \& Checkpoints
 
-Checkpoints require a snapshot to write a transactionally consistent view of the data. A checkpoint maintains it own special global
+Checkpoints require a snapshot to write a transactionally consistent view of the data. A checkpoint maintains its own special global
 transaction and snapshot state. This being independent from the application's running transactions.
 
 When checkpoints are running, application transactions using snapshots will also store the checkpoints transaction ID as a concurrent transaction.
