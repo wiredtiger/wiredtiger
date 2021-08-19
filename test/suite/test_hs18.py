@@ -481,7 +481,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a long running transaction which could see modify 1.
         self.start_txn(sessions, cursors, values, 2)
 
-        # Evict the update using debug cursor
+        # Evict the update using a debug cursor
         cursor.reset()
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
         evict_cursor.set_key(self.create_key(1))
@@ -509,7 +509,7 @@ class test_hs18(wttest.WiredTigerTestCase):
         for i in range(0, 5):
             self.check_value(cursors[i], values[i])
 
-        # Evict the update using debug cursor
+        # Evict the update using a debug cursor
         cursor.reset()
         evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
         evict_cursor.set_key(self.create_key(1))
