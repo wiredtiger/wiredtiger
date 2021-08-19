@@ -36,9 +36,9 @@ been committed). As these transactions are yet to be committed at the time of sn
 When building the list of concurrent transactions, WiredTiger walks a global array of running transactions, storing each walked transaction ID in a list managed by the snapshot.
 When walking the global set of running transactions, WiredTiger will ignore a transaction ID that is:
     -# Its own ID ie. the ID of the transaction creating the given snapshot. A transaction will always read its own updates.
-    -# An ID that is greater than or equal to the snapshots maximum transaction ID. As WiredTiger walks the global list,
-    it may find a transaction that has concurrently allocated a new transaction ID, exceeding the snapshots maximum ID bounds. The will
-    however be ignored as its not considered visible at the time of snapshot creation.
+    -# An ID that is greater than or equal to the snapshot's maximum transaction ID. As WiredTiger walks the global list,
+    it may find a transaction that has concurrently allocated a new transaction ID, exceeding the snapshots maximum ID bounds. This will
+    however be ignored as it is not considered visible at the time of snapshot creation.
 - Minimum transaction ID: The minimum global transaction ID value seen when creating the snapshot. This being the lower
 bound value which all concurrent transactions IDs are greater than or equal to. Transaction IDs strictly less than the minimum value
 are considered visible as these would've been allocated & committed before the snapshot was created. This value is usually taken to be the
