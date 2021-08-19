@@ -64,7 +64,7 @@ checkpoint(void *arg)
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
-    u_int secs;
+    u_int period;
     char config_buf[64];
     const char *ckpt_config;
     bool backup_locked;
@@ -73,12 +73,17 @@ checkpoint(void *arg)
     conn = g.wts_conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    for (secs = mmrand(NULL, 1, 10); !g.workers_finished;) {
-        if (secs > 0) {
+    /*
+     *
+     */
+    for (period = 20;; period = mmrand(NULL, 10, 100)) {
+        /* Sleep for short periods so we don't make the run wait. */
+        while (period > 0 && !g.workers_finished) {
+            --period;
             __wt_sleep(1, 0);
-            --secs;
-            continue;
         }
+        if (g.workers_finished)
+            break;
 
         /*
          * LSM and data-sources don't support named checkpoints. Also, don't attempt named
@@ -122,8 +127,6 @@ checkpoint(void *arg)
 
         if (backup_locked)
             lock_writeunlock(session, &g.backup_lock);
-
-        secs = mmrand(NULL, 5, 40);
     }
 
     testutil_check(session->close(session, NULL));

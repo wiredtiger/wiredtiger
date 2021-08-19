@@ -236,6 +236,7 @@ typedef struct {
     uint32_t c_prepare;
     uint32_t c_quiet;
     uint32_t c_random_cursor;
+    uint32_t c_range_stat;
     uint32_t c_read_pct;
     uint32_t c_repeat_data_pct;
     uint32_t c_reverse;
@@ -249,10 +250,10 @@ typedef struct {
     uint32_t c_timer;
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
+    uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_hs_checkpoint_delay;
     uint32_t c_timing_stress_hs_search;
     uint32_t c_timing_stress_hs_sweep;
-    uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_split_1;
     uint32_t c_timing_stress_split_2;
     uint32_t c_timing_stress_split_3;
@@ -416,6 +417,7 @@ WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
 WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
+WT_THREAD_RET range_stat(void *);
 WT_THREAD_RET timestamp(void *);
 
 void config_clear(void);

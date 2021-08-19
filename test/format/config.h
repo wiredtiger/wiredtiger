@@ -254,6 +254,9 @@ static CONFIG c[] = {
   {"ops.random_cursor", "configure random cursor reads", C_BOOL, 10, 0, 0, &g.c_random_cursor,
     NULL},
 
+  /* 90% */
+  {"ops.range_stat", "configure range-statistics", C_BOOL, 90, 0, 0, &g.c_range_stat, NULL},
+
   /* 100% */
   {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0, &g.c_salvage, NULL},
 
