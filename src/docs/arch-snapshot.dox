@@ -7,7 +7,7 @@ isolating concurrent transactions from reading each others updates.
 @section snapshot_transaction Transactions using Snapshots
 
 Within the context of a WiredTiger transaction, a snapshot ensures only versions of committed records
-are visible at the time of the snapshot was created. Transactions more specifically use
+are visible at the time the snapshot was created. Transactions more specifically use
 snapshots for the following isolation levels:
 
 - \c snapshot: A snapshot is created at the beginning of a snapshot-level isolated transaction and is sustained throughout
