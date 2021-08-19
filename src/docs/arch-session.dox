@@ -8,7 +8,8 @@ represented by WT_SESSION and plays an important role since almost all operation
 A session can only be created through an existing connection with the API
 WT_CONNECTION::open_session. It is possible to create multiple sessions through the same connection.
 In fact, one connection can have multiple sessions but one session can only be associated to one
-connection.
+connection. The maximum number of sessions is set through the configuration item \c session_max as
+part of the configuration string given in ::wiredtiger_open.
 
 @section arch_session_ops Operations
 The different operations a session can request to WiredTiger are related to cursors handles, table
@@ -43,6 +44,5 @@ to the session.
 
 @section arch_session_thread Multithreading
 A session is always executed as a single thread, see @ref threads for more details.
-
 
 */
