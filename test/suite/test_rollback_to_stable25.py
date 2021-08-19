@@ -180,7 +180,7 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
     def writes(self, uri, s, expected, ty, write, value, ts):
         if ty is None:
              # do nothing at all
-             return expected
+             return
         cursor = s.open_cursor(uri)
         s.begin_transaction()
         for k in keys_of_write(write):
@@ -194,7 +194,6 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
                 del expected[k]
         s.commit_transaction('commit_timestamp=' + self.timestamp_str(ts))
         cursor.close()
-        return expected
 
     def evict(self, uri, s):
         # Evict the page to force reconciliation.
@@ -264,23 +263,25 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
         cursor.close()
 
         # Do writes at time 10.
-        expected10 = self.writes(uri, s, {}, self.type_10, self.write_10, value_a, 10)
+        expected = {}
+        self.writes(uri, s, expected, self.type_10, self.write_10, value_a, 10)
+        expected10 = expected.copy()
 
         # Evict at time 10 if requested.
         if self.evict_time == 10:
             self.evict(uri, s)
 
         # Do more writes at time 20.
-        expected20 = expected10.copy()
-        expected20 = self.writes(uri, s, expected20, self.type_20, self.write_20, value_b, 20)
+        self.writes(uri, s, expected, self.type_20, self.write_20, value_b, 20)
+        expected20 = expected.copy()
 
         # Evict at time 20 if requested.
         if self.evict_time == 20:
             self.evict(uri, s)
 
         # Do still more writes at time 30.
-        expected30 = expected20.copy()
-        expected30 = self.writes(uri, s, expected30, self.type_30, self.write_30, value_c, 30)
+        self.writes(uri, s, expected, self.type_30, self.write_30, value_c, 30)
+        expected30 = expected.copy()
 
         # Evict at time 30 if requested.
         if self.evict_time == 30:
