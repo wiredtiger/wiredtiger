@@ -41,7 +41,7 @@ When walking the global set of running transactions, WiredTiger will ignore a tr
     however be ignored as it is not considered visible at the time of snapshot creation.
 - Minimum transaction ID: The minimum global transaction ID value seen when creating the snapshot. This being the lower
 bound value which all concurrent transactions IDs are greater than or equal to. Transaction IDs strictly less than the minimum value
-are considered visible as these would've been allocated & committed before the snapshot was created. This value is usually taken to be the
+are considered visible as these would've been allocated and committed before the snapshot was created. This value is usually taken to be the
 smallest transaction ID value found from the list of concurrent transactions.
 
 An example of building out the aforementioned components of a snapshot can be seen in the below figure. This figure illustrates constructing a snapshot for a transaction with
