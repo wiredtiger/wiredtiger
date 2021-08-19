@@ -156,7 +156,7 @@ time the snapshot was created.
 4. Otherwise the ID is visible.
 
 The early ordering of checking whether the transaction ID sits outside the maximum and minimum bounds is an important detail since the concurrent transaction list
-can be empty i.e. snapshot was taken a time when no concurrent transactions where running.
+can be empty i.e. snapshot was taken at a time when no concurrent transactions were running.
 
 @section snapshot_checkpoint Snapshots \& Checkpoints
 
