@@ -1199,7 +1199,7 @@ __rollback_to_stable_check(WT_SESSION_IMPL *session)
      * Help the user comply with the requirement that there are no concurrent user operations. It is
      * okay to have a transaction in prepared state.
      */
-    txn_active = __wt_txn_user_active(session, true);
+    txn_active = __wt_txn_user_active(session);
 #ifdef HAVE_DIAGNOSTIC
     if (txn_active)
         WT_TRET(__wt_verbose_dump_txn(session));

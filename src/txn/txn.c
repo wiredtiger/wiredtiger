@@ -142,9 +142,10 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
  * __wt_txn_user_active --
  *     Check whether there are any running user transactions. Note that a new transactions may start
  *     on a session we have already examined and the caller needs to be aware of this limitation.
+ *     Exclude prepared user transactions from this check.
  */
 bool
-__wt_txn_user_active(WT_SESSION_IMPL *session, bool ignore_prepare)
+__wt_txn_user_active(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_SESSION_IMPL *session_in_list;
@@ -164,13 +165,10 @@ __wt_txn_user_active(WT_SESSION_IMPL *session, bool ignore_prepare)
     for (i = 0; i < session_cnt; i++) {
         WT_STAT_CONN_INCR(session, txn_sessions_walked);
         session_in_list = &conn->sessions[i];
-        /*
-         * Check if a user session has a running transaction. Ignore a prepared transaction if asked
-         * by the caller.
-         */
+        /* Check if a user session has a running transaction. Ignore prepared transactions. */
         if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING) &&
           !F_ISSET(session_in_list, WT_SESSION_INTERNAL) &&
-          !(F_ISSET(session_in_list->txn, WT_TXN_PREPARE) && ignore_prepare)) {
+          !F_ISSET(session_in_list->txn, WT_TXN_PREPARE)) {
 
             txn_active = true;
             break;
