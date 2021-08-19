@@ -12,7 +12,7 @@ snapshots for the following isolation levels:
 
 - \c snapshot: A snapshot is created at the beginning of a snapshot-level isolated transaction and is sustained throughout
 the entire life cycle of the transaction. In effect, a transaction using \c snapshot isolation will only read versions of
-records before the transaction started. The default isolation level is \c snapshot, and all updates must done at a snapshot
+records before the transaction started. The default isolation level is \c snapshot, and all updates must be done at a snapshot
 isolation.
 - \c read-committed: Read-committed transactions ensure a transaction is able to see committed updates by other transactions
 at the time of reading. To achieve this, under a read-committed isolation, a snapshot is created when performing a search. The
