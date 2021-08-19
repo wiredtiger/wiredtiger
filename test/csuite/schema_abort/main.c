@@ -771,8 +771,7 @@ run_workload(uint32_t nth)
     THREAD_DATA *td;
     wt_thread_t *thr;
     uint32_t ckpt_id, i, ts_id;
-    char envconf[512];
-    char tableconf[128];
+    char envconf[512], tableconf[128];
 
     thr = dcalloc(nth + 2, sizeof(*thr));
     td = dcalloc(nth + 2, sizeof(THREAD_DATA));
@@ -926,6 +925,7 @@ main(int argc, char *argv[])
             compat = true;
             break;
         case 'c':
+            /* Variable-length columns only; fixed would require considerable changes */
             use_columns = true;
             break;
         case 'h':

@@ -276,6 +276,7 @@ main(int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "ch:t:")) != EOF)
         switch (ch) {
         case 'c':
+            /* Variable-length columns only (for now) */
             use_columns = true;
             break;
         case 'h':
@@ -374,9 +375,8 @@ main(int argc, char *argv[])
         testutil_check(__wt_snprintf(kname, sizeof(kname), ROW_KEY_FORMAT, ts));
         if (use_columns)
             cursor->set_key(cursor, ts);
-        else {
+        else
             cursor->set_key(cursor, kname);
-        }
         ret = cursor->search(cursor);
         if (ret == WT_NOTFOUND) {
             fatal = true;

@@ -315,7 +315,7 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     u_int i, j;
     int ch;
-    char path[1024], value[VALUE_SIZE], table_config[128];
+    char path[1024], table_config[128], value[VALUE_SIZE];
     const char *home, *v;
     bool no_checkpoint, no_eviction;
 
@@ -327,8 +327,12 @@ main(int argc, char *argv[])
 
     no_checkpoint = no_eviction = false;
     home = "WT_TEST.wt6185_modify_ts";
-    while ((ch = __wt_getopt(progname, argc, argv, "ceh:S:")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cceh:S:")) != EOF)
         switch (ch) {
+        case 'C':
+            /* Variable-length columns only (for now anyway) */
+            use_columns = true;
+            break;
         case 'c':
             no_checkpoint = true;
             break;

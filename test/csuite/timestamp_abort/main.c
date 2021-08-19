@@ -79,7 +79,7 @@ static const char *const uri_shadow = "shadow";
 
 static const char *const ckpt_file = "checkpoint_done";
 
-static bool compat, columns, inmem, stress, use_ts;
+static bool columns, compat, inmem, stress, use_ts;
 static volatile uint64_t global_ts = 1;
 
 /*
@@ -630,7 +630,7 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    compat = columns = inmem = stress = false;
+    columns = compat = inmem = stress = false;
     use_ts = true;
     nth = MIN_TH;
     rand_th = rand_time = true;
@@ -644,6 +644,7 @@ main(int argc, char *argv[])
             compat = true;
             break;
         case 'c':
+            /* Variable-length columns only (for now) */
             columns = true;
             break;
         case 'h':

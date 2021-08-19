@@ -174,11 +174,11 @@ fill_db(void)
         if (use_columns)
             cursor->set_key(cursor, i + 1);
         else {
-            testutil_check(__wt_snprintf(k, sizeof(k), "key%03d", (int)i));
+            testutil_check(__wt_snprintf(k, sizeof(k), "key%03" PRIu32, i));
             cursor->set_key(cursor, k);
         }
         testutil_check(
-          __wt_snprintf(v, sizeof(v), "value%0*d", (int)(V_SIZE - (strlen("value") + 1)), (int)i));
+          __wt_snprintf(v, sizeof(v), "value%0*" PRIu32, (int)(V_SIZE - (strlen("value") + 1)), i));
         cursor->set_value(cursor, v);
         testutil_check(cursor->insert(cursor));
 
@@ -244,6 +244,7 @@ main(int argc, char *argv[])
     while ((ch = __wt_getopt(progname, argc, argv, "ch:")) != EOF)
         switch (ch) {
         case 'c':
+            /* Variable-length columns only (for now) */
             use_columns = true;
             break;
         case 'h':
