@@ -197,7 +197,7 @@ run_workload(void)
     WT_SESSION *session;
     wt_thread_t *thr;
     uint32_t i;
-    char envconf[512], sessionconf[512];
+    char envconf[512], tableconf[512];
 
     thr = dcalloc(2, sizeof(*thr));
 
@@ -210,9 +210,9 @@ run_workload(void)
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
     /* Create the table. */
-    testutil_check(__wt_snprintf(sessionconf, sizeof(sessionconf),
+    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
       "key_format=%s,value_format=u,log=(enabled=false)", use_columns ? "r" : "S"));
-    testutil_check(session->create(session, uri, sessionconf));
+    testutil_check(session->create(session, uri, tableconf));
     testutil_check(session->close(session, NULL));
 
     /* The checkpoint thread is added at the end. */
