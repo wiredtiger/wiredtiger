@@ -94,10 +94,10 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
 
     write_30_values = [
         ('30u', dict(write_30='u')),
-        #('30h', dict(write_30='h')),
-        #('30f', dict(write_30='f')),
-        #('30m', dict(write_30='m')),
-        #('30l', dict(write_30='l')),
+        ('30h', dict(write_30='h')),
+        ('30f', dict(write_30='f')),
+        ('30m', dict(write_30='m')),
+        ('30l', dict(write_30='l')),
     ]
     type_30_values = [
         ('nil', dict(type_30=None)),
@@ -215,21 +215,12 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[1], self.value_z)
         self.assertEqual(cursor[2 + my_rle_size], self.value_z)
 
-        #self.assertEqual(cursor.reset(), 0)
-        #self.prout("at " + str(ts) + ": " + str(expected))
-        #for k, v in cursor:
-        #    self.prout("seen: " + str(k) + ": " + str(v))
-
         for k in range(2, 2 + my_rle_size):
             if k in expected:
                 self.assertEqual(cursor[k], expected[k])
             else:
                 cursor.set_key(k)
                 r = cursor.search()
-                if r != wiredtiger.WT_NOTFOUND:
-                    #self.prout("Oops: " + str(k));
-                    #self.prout("Oops2: " + cursor[k]);
-                    pass
                 self.assertEqual(r, wiredtiger.WT_NOTFOUND)
         s.rollback_transaction()
         cursor.close()
@@ -237,7 +228,6 @@ class test_rollback_to_stable25(wttest.WiredTigerTestCase):
     def test_rollback_to_stable25(self):
         # Create a table without logging.
         uri = "table:rollback_to_stable25"
-        #format = 'key_format=i,value_format=S'
         format = 'key_format=r,value_format=S'
         self.session.create(uri, format + ', log=(enabled=false)')
 
