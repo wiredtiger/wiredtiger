@@ -171,9 +171,9 @@ thread_ts_run(void *arg)
         if (ret == 0) {
             op = __wt_random(&rnd) % 4;
             /*
-	     * Periodically let the oldest timestamp lag. Other times set the stable and oldest
-	     * timestamps as separate API calls. The rest of the time set them both as one call.
-	     */
+             * Periodically let the oldest timestamp lag. Other times set the stable and oldest
+             * timestamps as separate API calls. The rest of the time set them both as one call.
+             */
             if (!first && op == 0)
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
