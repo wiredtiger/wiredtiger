@@ -41,4 +41,8 @@ When a connection is no longer needed, it can be closed using WT_SESSION::close.
 transaction and the cursors associated to the session and frees all the resources that are exclusive
 to the session.
 
+@section arch_session_thread Multithreading
+A session is always executed as a single thread, see @ref threads for more details.
+
+
 */
