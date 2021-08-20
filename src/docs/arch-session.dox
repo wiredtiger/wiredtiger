@@ -29,16 +29,16 @@ belongs to that session.
 
 @section arch_session_cur Cursors
 A session can perform multiple data operations on same/different collections using multiple cursors
-(see @ref arch-cursor for more details). All the cursors associated with a session will share that
+(see @ref arch-cursor for more details). All the cursors associated with a session share that
 session transaction context. It is also possible to cache those cursors if required through the
 configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
 
 @section arch_session_dhandles Data Handles
 During its lifetime, a session can accumulate a list of data handles (see @ref arch-dhandle).
 Indeed, when a session accesses a table for the first time, the data handle of that table is
-acquired and cached. Once a session no longer needs to operate on a table, it will mark the
-associated data handle as idle. This helps the sweep server to release data handles that are
-inactive, see @ref arch-dhandle-lifecycle for more details.
+acquired and cached. Once a session no longer needs to operate on a table, it marks the associated
+data handle as idle. This helps the sweep server to release data handles that are inactive, see @ref
+arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
 When a connection is no longer needed, it can be closed using WT_CONNECTION::close. This closes the
