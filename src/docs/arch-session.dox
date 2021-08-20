@@ -29,7 +29,7 @@ belongs to that session.
 
 @section arch_session_cur Cursors
 Session can perform operations on multiple collections using cursors (see @ref arch-cursor for more
-details). Indeed, a session can have multiple cursors of any types and they all share the same
+details). Indeed, a session can have multiple cursors of any type and they all share the same
 transaction context that is related to the session. It is also possible to cache those cursors if
 required through the configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
 
