@@ -92,7 +92,6 @@ define_c_test(
     TARGET test_truncated_log
     SOURCES truncated_log/main.c
     DIR_NAME truncated_log
-    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -110,11 +109,12 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
-define_c_test(
-    TARGET test_wt2246_col_append
-    SOURCES wt2246_col_append/main.c
-    DIR_NAME wt2246_col_append
-)
+# Temporarily disabled (WT-5790).
+#define_c_test(
+#    TARGET test_wt2246_col_append
+#    SOURCES wt2246_col_append/main.c
+#    DIR_NAME wt2246_col_append
+#)
 
 define_c_test(
     TARGET test_wt2323_join_visibility
@@ -273,7 +273,6 @@ define_c_test(
     TARGET test_wt6185_modify_ts
     SOURCES wt6185_modify_ts/main.c
     DIR_NAME wt6185_modify_ts
-    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -281,7 +280,6 @@ define_c_test(
     TARGET test_wt6616_checkpoint_oldest_ts
     SOURCES wt6616_checkpoint_oldest_ts/main.c
     DIR_NAME wt6616_checkpoint_oldest_ts
-    SMOKE
     DEPENDS "WT_POSIX"
 )
 
