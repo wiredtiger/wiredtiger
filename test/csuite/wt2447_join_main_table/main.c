@@ -88,13 +88,26 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     uint64_t maincount;
     int half, i, j;
-    char bloom_cfg[128], index1uri[256], index2uri[256], joinuri[256];
+    char bloom_cfg[128], index1uri[256], index2uri[256], joinuri[256], table_cfg[128];
     const char *tablename;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+    /* 0 isn't a valid table_type; use rows by default */
+    opts->table_type = TABLE_ROW;
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_make_work_dir(opts->home);
+
+    switch (opts->table_type) {
+    case TABLE_COL:
+        printf("Table type: columns\n");
+        break;
+    case TABLE_FIX:
+        testutil_die(ENOTSUP, "Fixed-length column store not supported");
+    case TABLE_ROW:
+        printf("Table type: rows\n");
+        break;
+    }
 
     tablename = strchr(opts->uri, ':');
     testutil_assert(tablename != NULL);
@@ -106,8 +119,10 @@ main(int argc, char *argv[])
     testutil_check(wiredtiger_open(opts->home, NULL, "statistics=(all),create", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
 
-    testutil_check(
-      session->create(session, opts->uri, "key_format=i,value_format=iiu,columns=(k,v1,v2,d)"));
+    testutil_check(__wt_snprintf(table_cfg, sizeof(table_cfg),
+      "key_format=%s,value_format=iiu,columns=(k,v1,v2,d)",
+      opts->table_type == TABLE_ROW ? "i" : "r"));
+    testutil_check(session->create(session, opts->uri, table_cfg));
     testutil_check(session->create(session, index1uri, "columns=(v1)"));
     testutil_check(session->create(session, index2uri, "columns=(v2)"));
 
@@ -117,7 +132,7 @@ main(int argc, char *argv[])
     d.data = dmalloc(d.size);
     memset((char *)d.data, 7, d.size);
 
-    for (i = 0; i < N_RECORDS; ++i) {
+    for (i = 1; i < N_RECORDS + 1; ++i) {
         cursor1->set_key(cursor1, i);
         cursor1->set_value(cursor1, i, i, &d);
         testutil_check(cursor1->insert(cursor1));

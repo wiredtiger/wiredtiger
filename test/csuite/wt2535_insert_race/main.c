@@ -46,8 +46,9 @@ main(int argc, char *argv[])
     WT_SESSION *session;
     clock_t ce, cs;
     pthread_t id[100];
-    uint64_t current_value;
+    uint64_t current_value, expected_value;
     int i;
+    char tableconf[128];
 
     /* Bypass this test for valgrind */
     if (testutil_is_flag_set("TESTUTIL_BYPASS_VALGRIND"))
@@ -64,8 +65,10 @@ main(int argc, char *argv[])
     testutil_check(wiredtiger_open(opts->home, NULL,
       "create,cache_size=2G,eviction=(threads_max=5),statistics=(fast)", &opts->conn));
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(
-      session->create(session, opts->uri, "key_format=Q,value_format=Q,leaf_page_max=32k,"));
+    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
+      "key_format=%s,value_format=%s,leaf_page_max=32k,", opts->table_type == TABLE_ROW ? "Q" : "r",
+      opts->table_type == TABLE_FIX ? "8t" : "Q"));
+    testutil_check(session->create(session, opts->uri, tableconf));
 
     /* Create the single record. */
     testutil_check(session->open_cursor(session, opts->uri, NULL, NULL, &c));
@@ -83,7 +86,10 @@ main(int argc, char *argv[])
     c->set_key(c, 1);
     testutil_check(c->search(c));
     testutil_check(c->get_value(c, &current_value));
-    if (current_value != opts->nthreads * opts->nrecords) {
+    expected_value = opts->nthreads * opts->nrecords;
+    if (opts->table_type == TABLE_FIX)
+        expected_value %= 256;
+    if (current_value != expected_value) {
         fprintf(stderr, "ERROR: didn't get expected number of changes\n");
         fprintf(stderr, "got: %" PRIu64 ", expected: %" PRIu64 "\n", current_value,
           opts->nthreads * opts->nrecords);

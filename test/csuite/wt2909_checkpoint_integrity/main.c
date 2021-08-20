@@ -102,7 +102,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
 {
     WT_CURSOR *maincur, *maincur2, *v0cur, *v1cur, *v2cur;
     WT_SESSION *session;
-    uint64_t count, idxcount, nrecords;
+    uint64_t count, idxcount, nrecords, key64;
     uint32_t rndint;
     int key, key_got, ret, v0, v1, v2;
     char *big, *bigref;
@@ -121,7 +121,12 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
     count = 0;
     while ((ret = maincur->next(maincur)) == 0) {
         testutil_check(maincur2->next(maincur2));
-        testutil_check(maincur2->get_key(maincur2, &key_got));
+        if (opts->table_type == TABLE_ROW)
+            testutil_check(maincur2->get_key(maincur2, &key_got));
+        else {
+            testutil_check(maincur2->get_key(maincur2, &key64));
+            key_got = key64;
+        }
         testutil_check(maincur2->get_value(maincur2, &rndint));
 
         generate_key(count, &key);
@@ -129,7 +134,12 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
         testutil_assert(key == key_got);
 
         /* Check the key/values in main table. */
-        testutil_check(maincur->get_key(maincur, &key_got));
+        if (opts->table_type == TABLE_ROW)
+            testutil_check(maincur->get_key(maincur, &key_got));
+        else {
+            testutil_check(maincur->get_key(maincur, &key64));
+            key_got = key64;
+        }
         testutil_assert(key == key_got);
         check_values(maincur, v0, v1, v2, big);
 
@@ -260,7 +270,7 @@ enable_failures(uint64_t allow_writes, uint64_t allow_reads)
 static void
 generate_key(uint64_t i, int *keyp)
 {
-    *keyp = (int)i;
+    *keyp = (int)i + 1;
 }
 
 /*
@@ -313,6 +323,8 @@ run_check_subtest(
     subtest_args[narg++] = (char *)"-n";
     testutil_check(__wt_snprintf(rarg, sizeof(rarg), "%" PRIu64, opts->nrecords));
     subtest_args[narg++] = rarg; /* number of records */
+    subtest_args[narg++] = (char *)"-t";
+    subtest_args[narg++] = (char *)(opts->table_type == TABLE_ROW ? "r" : "c");
     subtest_args[narg++] = NULL;
     testutil_assert(narg <= MAX_ARGS);
     if (opts->verbose)
@@ -485,10 +497,11 @@ subtest_main(int argc, char *argv[], bool close_test)
     struct rlimit rlim;
     TEST_OPTS *opts, _opts;
     WT_SESSION *session;
-    char config[1024], filename[1024], buf[1024];
+    char buf[1024], config[1024], filename[1024], tableconf[128];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+    opts->table_type = TABLE_ROW;
     memset(&rlim, 0, sizeof(rlim));
 
     /* No core files during fault injection tests. */
@@ -513,10 +526,14 @@ subtest_main(int argc, char *argv[], bool close_test)
     testutil_check(wiredtiger_open(opts->home, &event_handler, config, &opts->conn));
 
     testutil_check(opts->conn->open_session(opts->conn, NULL, NULL, &session));
-    testutil_check(session->create(
-      session, "table:subtest", "key_format=i,value_format=iiiS,columns=(id,v0,v1,v2,big)"));
+    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf),
+      "key_format=%s,value_format=iiiS,columns=(id,v0,v1,v2,big)",
+      opts->table_type == TABLE_ROW ? "i" : "r"));
+    testutil_check(session->create(session, "table:subtest", tableconf));
 
-    testutil_check(session->create(session, "table:subtest2", "key_format=i,value_format=i"));
+    testutil_check(__wt_snprintf(tableconf, sizeof(tableconf), "key_format=%s,value_format=i",
+      opts->table_type == TABLE_ROW ? "i" : "r"));
+    testutil_check(session->create(session, "table:subtest2", tableconf));
 
     testutil_check(session->create(session, "index:subtest:v0", "columns=(v0)"));
     testutil_check(session->create(session, "index:subtest:v1", "columns=(v1)"));
@@ -579,11 +596,17 @@ subtest_populate(TEST_OPTS *opts, bool close_test)
         generate_key(i, &key);
         generate_value(rndint, i, bigref, &v0, &v1, &v2, &big);
         CHECK(session->begin_transaction(session, NULL), false);
-        maincur->set_key(maincur, key);
+        if (opts->table_type == TABLE_ROW)
+            maincur->set_key(maincur, key);
+        else
+            maincur->set_key(maincur, (uint64_t)key);
         maincur->set_value(maincur, v0, v1, v2, big);
         CHECK(maincur->insert(maincur), false);
 
-        maincur2->set_key(maincur2, key);
+        if (opts->table_type == TABLE_ROW)
+            maincur2->set_key(maincur2, key);
+        else
+            maincur2->set_key(maincur2, (uint64_t)key);
         maincur2->set_value(maincur2, rndint);
         CHECK(maincur2->insert(maincur2), false);
         CHECK(session->commit_transaction(session, NULL), false);
@@ -641,6 +664,7 @@ main(int argc, char *argv[])
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
+    opts->table_type = TABLE_ROW;
     debugger = NULL;
 
     testutil_check(testutil_parse_opts(argc, argv, opts));
@@ -648,6 +672,8 @@ main(int argc, char *argv[])
     argv += __wt_optind;
     if (opts->nrecords == 0)
         opts->nrecords = 50000;
+    if (opts->table_type == TABLE_FIX)
+        testutil_die(ENOTSUP, "Fixed-length column store not supported");
 
     while (argc > 0) {
         if (strcmp(argv[0], "subtest") == 0) {
