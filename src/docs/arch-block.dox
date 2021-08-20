@@ -184,15 +184,15 @@ Suppose we have a checkpoint \c A, which has an alloc list which contains 3
 blocks \c I, \c J, \c K as such its extent lists are as follows:
 
 Alloc: \c I, \c J, \c K
-Avail: Empty
+Avail: \c L, \c M
 Discard: Empty
 
 A second checkpoint \c B completes and has removed a page which corresponds with
 block \c J, it also has allocated an additional block \c L.
 
 Checkpoint \c B's extent lists are as follows:
-Alloc: \c I, \c K, \c L
-Avail: Empty
+Alloc: \c L
+Avail: \c M
 Discard: \c J
 
 Finally we complete a 3rd checkpoint \c C which allocates an additional block
@@ -204,7 +204,12 @@ What's important here is that if a block appears in both the alloc list and
 the discard list it can be freed which means it goes on the avail list.
 
 Which gives us the following lists for checkpoint \c C:
-Alloc: \c I, \c K, \c L, \c M
+Alloc: \c M
+Avail: Empty
+Discard: Empty
+
+And the following lists for checkpoint \c B:
+Alloc: \c I, \c, K, \c L
 Avail: \c J
 Discard: Empty
 
