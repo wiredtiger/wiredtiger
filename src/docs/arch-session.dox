@@ -7,13 +7,13 @@ represented by WT_SESSION and plays an important role since almost all operation
 
 A session can only be created through an existing connection with the API
 WT_CONNECTION::open_session. It is possible to create multiple sessions through the same connection.
-In fact, one connection can have multiple sessions but one session can only be associated to one
+In fact, one connection can have multiple sessions but one session can only be associated with one
 connection. The maximum number of sessions is set through the configuration item \c session_max as
 part of the configuration string given in ::wiredtiger_open.
 
 Sessions that are created by the calling application are called "user session". It exists another
 type of session called "internal session". Internal sessions are created and managed by WiredTiger
-internally and they are associated to global services at runtime such as @ref arch-eviction, @ref
+internally and they are related to global services at runtime such as @ref arch-eviction, @ref
 arch-checkpoint, @ref arch-rts, ...
 
 @section arch_session_ops Operations
@@ -32,7 +32,7 @@ belongs to that same session.
 @section arch_session_cur Cursors
 Session can perform operations on multiple collections using cursors (see @ref arch-cursor for more
 details). Indeed, a session can have multiple cursors of any types and they all share the same
-transaction context that is associated to the session. It is also possible to cache those cursors if
+transaction context that is related to the session. It is also possible to cache those cursors if
 required through the configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
 
 @section arch_session_dhandles Data Handles
@@ -44,7 +44,7 @@ that are inactive, see @ref arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
 When a connection is no longer needed, it can be closed using WT_SESSION::close. This closes the
-transaction and the cursors associated to the session and frees all the resources that are exclusive
+transaction and the cursors associated with the session and frees all the resources that are exclusive
 to the session.
 
 @section arch_session_thread Multithreading
