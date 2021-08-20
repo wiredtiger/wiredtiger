@@ -162,7 +162,6 @@ restart:
     /* Aggregate the information between the two slots. */
     for (missing_addr = 0, slot = startslot; slot <= stopslot; ++slot) {
         ref = pindex->index[slot];
-        row_count = byte_count = 0;
 
         /*
          * If there's an address, crack it and use the information. Otherwise, walk the underlying
@@ -171,6 +170,7 @@ restart:
          * it's cheap and I'm not interested in debugging this in the future.
          */
         ++reviewed;
+        row_count = byte_count = 0;
         WT_REF_LOCK(session, ref, &previous_state);
         if (__wt_ref_addr_copy(session, ref, &copy))
             ret = __wt_addr_cookie_btree_unpack(copy.addr, &row_count, &byte_count);
@@ -180,6 +180,7 @@ restart:
             case WT_PAGE_ROW_INT:
                 WT_INTL_FOREACH_BEGIN (session, page, child) {
                     ++reviewed;
+                    child_row_count = child_byte_count = 0;
                     WT_REF_LOCK(session, child, &child_previous_state);
                     if (__wt_ref_addr_copy(session, child, &copy))
                         ret = __wt_addr_cookie_btree_unpack(
