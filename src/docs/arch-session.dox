@@ -41,7 +41,7 @@ associated data handle as idle. This helps the sweep server to release data hand
 inactive, see @ref arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
-When a connection is no longer needed, it can be closed using WT_SESSION::close. This closes the
+When a connection is no longer needed, it can be closed using WT_CONNECTION::close. This closes the
 transaction and the cursors associated with the session and frees all the resources that are exclusive
 to the session.
 
