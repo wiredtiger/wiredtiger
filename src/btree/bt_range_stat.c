@@ -99,6 +99,7 @@ __cursor_range_stat(
 
     session = CUR2S(start);
     btree = S2BT(session);
+    reviewed = 0;
 
     /* Get the key. */
     recno_start = start->recno;
