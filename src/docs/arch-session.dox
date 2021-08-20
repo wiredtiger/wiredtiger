@@ -11,10 +11,10 @@ In fact, one connection can have multiple sessions but one session can only be a
 connection. The maximum number of sessions is set through the configuration item \c session_max as
 part of the configuration string given in ::wiredtiger_open.
 
-Sessions that are created by the calling application are called "user session". It exists another
-type of session called "internal session". Internal sessions are created and managed by WiredTiger
-internally and they are related to global services at runtime such as @ref arch-eviction, @ref
-arch-checkpoint, @ref arch-rts, ...
+Sessions that are created by the calling application are called "user sessions". WiredTiger also
+performs some internal operations such as @ref arch-eviction through self-created sessions. These
+sessions are called "internal sessions". The usage rules and guidelines for both internal sessions
+and user sessions are the same and the only difference between them is their origin of creation.
 
 @section arch_session_ops Operations
 The different operations a session can request to WiredTiger are related to cursors handles, table
