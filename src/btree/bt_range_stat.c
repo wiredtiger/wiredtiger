@@ -91,11 +91,11 @@ __cursor_range_stat(
     WT_ITEM kstart, kstop;
     WT_PAGE *page;
     WT_PAGE_INDEX *parent_pindex, *pindex;
-    WT_REF *current, *descent, *ref;
+    WT_REF *child, *current, *descent, *ref;
     WT_SESSION_IMPL *session;
-    uint64_t byte_count, recno_start, recno_stop, row_count;
-    uint32_t missing_addr, slot, startslot, stopslot;
-    uint8_t previous_state;
+    uint64_t byte_count, child_byte_count, child_row_count, recno_start, recno_stop, row_count;
+    uint32_t missing_addr, reviewed, slot, startslot, stopslot;
+    uint8_t child_previous_state, previous_state;
 
     session = CUR2S(start);
     btree = S2BT(session);
@@ -161,13 +161,51 @@ restart:
     /* Aggregate the information between the two slots. */
     for (missing_addr = 0, slot = startslot; slot <= stopslot; ++slot) {
         ref = pindex->index[slot];
+        row_count = byte_count = 0;
+
+        /*
+         * If there's an address, crack it and use the information. Otherwise, walk the underlying
+         * page in a quick and dirty manner (we're not guaranteeing accuracy here). Do some basic
+         * sanity checks for the existence of the page: the checks are redundant at the moment, but
+         * it's cheap and I'm not interested in debugging this in the future.
+         */
+        ++reviewed;
         WT_REF_LOCK(session, ref, &previous_state);
         if (__wt_ref_addr_copy(session, ref, &copy))
             ret = __wt_addr_cookie_btree_unpack(copy.addr, &row_count, &byte_count);
-        else {
+        else if (previous_state == WT_REF_MEM && (page = ref->page) != NULL)
+            switch (page->type) {
+            case WT_PAGE_COL_INT:
+            case WT_PAGE_ROW_INT:
+                WT_INTL_FOREACH_BEGIN (session, page, child) {
+                    ++reviewed;
+                    WT_REF_LOCK(session, child, &child_previous_state);
+                    if (__wt_ref_addr_copy(session, child, &copy))
+                        ret = __wt_addr_cookie_btree_unpack(
+                          copy.addr, &child_row_count, &child_byte_count);
+                    else
+                        ++missing_addr;
+                    WT_REF_UNLOCK(child, child_previous_state);
+                    if (ret != 0)
+                        break;
+                    row_count += child_row_count;
+                    byte_count += child_byte_count;
+                }
+                WT_INTL_FOREACH_END;
+                break;
+            case WT_PAGE_COL_FIX:
+            case WT_PAGE_COL_VAR:
+                if (slot + 1 < pindex->entries)
+                    row_count = pindex->index[slot + 1]->ref_recno - pindex->index[slot]->ref_recno;
+                byte_count = page->memory_footprint;
+                break;
+            case WT_PAGE_ROW_LEAF:
+                row_count = page->entries / 2;
+                byte_count = page->memory_footprint;
+                break;
+            }
+        else
             ++missing_addr;
-            row_count = byte_count = 0;
-        }
         WT_REF_UNLOCK(ref, previous_state);
         WT_ERR(ret);
 
@@ -178,11 +216,11 @@ restart:
          * want something even better, we could descend into the first/last slots to get a closer
          * adjustment value.
          */
-        if (slot == startslot || slot == stopslot)
+        if (slot == startslot || slot == stopslot) {
             row_count /= 2;
-        *row_countp += row_count;
-        if (slot == startslot || slot == stopslot)
             byte_count /= 2;
+        }
+        *row_countp += row_count;
         *byte_countp += byte_count;
     }
 
@@ -190,7 +228,7 @@ restart:
      * If we don't find any pages with addresses, the default would return row and byte counts of
      * zero. There's no good rule here, for now I'm going with 50% failure means the call fails.
      */
-    if (missing_addr > (stopslot - startslot) / 2)
+    if (missing_addr > reviewed / 2)
         ret = WT_NOTFOUND;
 
 err:
