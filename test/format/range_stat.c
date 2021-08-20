@@ -40,7 +40,7 @@ range_stat(void *arg)
     WT_DECL_RET;
     WT_ITEM kstart, kstop;
     WT_SESSION *session;
-    uint64_t byte_count, keyno, row_count;
+    uint64_t byte_count, keyno_start, keyno_stop, row_count, v;
     u_int period;
 
     (void)(arg);
@@ -77,25 +77,30 @@ range_stat(void *arg)
             testutil_check(
               session->range_stat(session, g.uri, NULL, NULL, NULL, &row_count, &byte_count));
         } else {
-            keyno = mmrand(NULL, 1, (u_int)(g.rows - g.rows / 10));
+            keyno_start = mmrand(NULL, 1, (u_int)(g.rows - g.rows / 10));
+            keyno_stop = mmrand(NULL, (u_int)(keyno_start + 1), (u_int)g.rows);
+            if (g.c_reverse) {
+                v = keyno_start;
+                keyno_start = keyno_stop;
+                keyno_stop = v;
+            }
             switch (g.type) {
             case FIX:
             case VAR:
-                start->set_key(start, keyno);
+                start->set_key(start, keyno_start);
                 break;
             case ROW:
-                key_gen(&kstart, keyno);
+                key_gen(&kstart, keyno_start);
                 start->set_key(start, &kstart);
                 break;
             }
-            keyno = mmrand(NULL, (u_int)(keyno + 1), (u_int)g.rows);
             switch (g.type) {
             case FIX:
             case VAR:
-                stop->set_key(stop, keyno);
+                stop->set_key(stop, keyno_stop);
                 break;
             case ROW:
-                key_gen(&kstop, keyno);
+                key_gen(&kstop, keyno_stop);
                 stop->set_key(stop, &kstop);
                 break;
             }
@@ -105,6 +110,8 @@ range_stat(void *arg)
     }
 
     testutil_check(session->close(session, NULL));
+    key_gen_teardown(&kstart);
+    key_gen_teardown(&kstop);
 
     return (WT_THREAD_RET_VALUE);
 }
