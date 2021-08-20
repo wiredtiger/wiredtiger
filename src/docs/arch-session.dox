@@ -18,8 +18,8 @@ arch-checkpoint, @ref arch-rts, ...
 
 @section arch_session_ops Operations
 The different operations a session can request to WiredTiger are related to cursors handles, table
-operations and transactions. You can read the complete description of each possible operation in the
-documentation related to WT_SESSION.
+operations, and transactions. You can read the complete description of each possible operation in
+the documentation related to WT_SESSION.
 
 @section arch_session_txn Transactions
 It is possible to group a number of operations within a session, in other words, multiple operations
