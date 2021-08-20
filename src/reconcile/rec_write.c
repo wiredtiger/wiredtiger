@@ -1516,7 +1516,7 @@ err:
  *     Initialize the page write generation number.
  */
 static void
-__rec_set_page_write_gen(WT_PAGE_HEADER *dsk, WT_BTREE *btree)
+__rec_set_page_write_gen(WT_BTREE *btree, WT_PAGE_HEADER *dsk)
 {
     /*
      * We increment the block's write generation so it's easy to identify newer versions of blocks
@@ -1553,7 +1553,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
 
     dsk->recno = btree->type == BTREE_ROW ? WT_RECNO_OOB : multi->key.recno;
 
-    __rec_set_page_write_gen(dsk, btree);
+    __rec_set_page_write_gen(btree, dsk);
     dsk->mem_size = multi->size;
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
@@ -2058,7 +2058,7 @@ __rec_split_dump_keys(WT_SESSION_IMPL *session, WT_RECONCILE *r)
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
             __wt_verbose(session, WT_VERB_SPLIT, "starting key %s",
               __wt_buf_set_printable(
-                session, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size, tkey));
+                session, WT_IKEY_DATA(multi->key.ikey), multi->key.ikey->size, false, tkey));
         __wt_scr_free(session, &tkey);
     } else
         for (multi = r->multi, i = 0; i < r->multi_next; ++multi, ++i)
@@ -2367,7 +2367,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
         dsk = tmp->mem;
         memset(dsk, 0, WT_PAGE_HEADER_SIZE);
         dsk->type = WT_PAGE_OVFL;
-        __rec_set_page_write_gen(dsk, btree);
+        __rec_set_page_write_gen(btree, dsk);
         dsk->u.datalen = (uint32_t)kv->buf.size;
         memcpy(WT_PAGE_HEADER_BYTE(btree, dsk), kv->buf.data, kv->buf.size);
         dsk->mem_size = WT_PAGE_HEADER_BYTE_SIZE(btree) + (uint32_t)kv->buf.size;
