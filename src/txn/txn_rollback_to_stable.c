@@ -281,50 +281,30 @@ err:
 }
 
 /*
- * __rollback_check_if_txnid_non_committed --
- *     Check if the transaction id is non committed.
+ * __rollback_txn_visible_id --
+ *     Check if the transaction id is visible or not.
  */
 static bool
-__rollback_check_if_txnid_non_committed(WT_SESSION_IMPL *session, uint64_t txnid)
+__rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_CONNECTION_IMPL *conn;
-    bool found;
 
     conn = S2C(session);
 
-    /* If not recovery then assume all the data as committed. */
+    /* If not recovery then assume all the data as visible. */
     if (!F_ISSET(conn, WT_CONN_RECOVERING))
-        return (false);
-
-    /*
-     * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
-     * details are zero then return false i.e, updates are committed.
-     */
-    if (conn->recovery_ckpt_snap_min == 0 && conn->recovery_ckpt_snap_max == 0)
-        return (false);
-
-    /*
-     * Snapshot data:
-     *	ids < recovery_ckpt_snap_min are committed,
-     *	ids > recovery_ckpt_snap_max are non committed,
-     *	everything else is committed unless it is found in the recovery_ckpt_snapshot array.
-     */
-    if (txnid < conn->recovery_ckpt_snap_min)
-        return (false);
-    else if (txnid > conn->recovery_ckpt_snap_max)
         return (true);
 
     /*
-     * Return false when the recovery snapshot count is 0, which means there is no uncommitted
-     * transaction ids.
+     * Only full checkpoint writes the metadata with snapshot. If the recovered checkpoint snapshot
+     * details are none then return false i.e, updates are visible.
      */
-    if (conn->recovery_ckpt_snapshot_count == 0)
-        return (false);
+    if (conn->recovery_ckpt_snap_min == WT_TXN_NONE && conn->recovery_ckpt_snap_max == WT_TXN_NONE)
+        return (true);
 
-    WT_BINARY_SEARCH(
-      txnid, conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count, found);
-
-    return (found);
+    return (
+      __wt_txn_visible_id_snapshot(id, conn->recovery_ckpt_snap_min, conn->recovery_ckpt_snap_max,
+        conn->recovery_ckpt_snapshot, conn->recovery_ckpt_snapshot_count));
 }
 
 /*
@@ -484,7 +464,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
          * Stop processing when we find a stable update according to the given timestamp and
          * transaction id.
          */
-        if (!__rollback_check_if_txnid_non_committed(session, hs_tw->start_txn) &&
+        if (__rollback_txn_visible_id(session, hs_tw->start_txn) &&
           hs_durable_ts <= rollback_timestamp) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "history store update valid with start timestamp: %s, durable timestamp: %s, stop "
@@ -562,7 +542,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
          * We have a tombstone on the original update chain and it is stable according to the
          * timestamp and txnid, we need to restore that as well.
          */
-        if (!__rollback_check_if_txnid_non_committed(session, hs_tw->stop_txn) &&
+        if (__rollback_txn_visible_id(session, hs_tw->stop_txn) &&
           hs_stop_durable_ts <= rollback_timestamp) {
             /*
              * The restoring tombstone timestamp must be zero or less than previous update start
@@ -639,7 +619,7 @@ err:
  */
 static int
 __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_ROW *rip,
-  wt_timestamp_t rollback_timestamp, uint64_t recno)
+  wt_timestamp_t rollback_timestamp, uint64_t recno, bool *is_ondisk_stable)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV *vpack, _vpack;
@@ -653,6 +633,10 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
     page = ref->page;
     vpack = &_vpack;
     upd = NULL;
+
+    /* Initialize the on-disk stable version flag. */
+    if (is_ondisk_stable != NULL)
+        *is_ondisk_stable = false;
 
     /*
      * Assert an exclusive or for rip and cip such that either only a cip for a column store or a
@@ -688,7 +672,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
         } else
             return (0);
     } else if (vpack->tw.durable_start_ts > rollback_timestamp ||
-      __rollback_check_if_txnid_non_committed(session, vpack->tw.start_txn) ||
+      !__rollback_txn_visible_id(session, vpack->tw.start_txn) ||
       (!WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prepared)) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "on-disk update aborted with start durable timestamp: %s, commit timestamp: %s, "
@@ -709,7 +693,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
         }
     } else if (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
       (vpack->tw.durable_stop_ts > rollback_timestamp ||
-        __rollback_check_if_txnid_non_committed(session, vpack->tw.stop_txn) || prepared)) {
+        !__rollback_txn_visible_id(session, vpack->tw.stop_txn) || prepared)) {
         /*
          * For prepared transactions, it is possible that both the on-disk key start and stop time
          * windows can be the same. To abort these updates, check for any stable update from history
@@ -768,9 +752,12 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
               __wt_timestamp_to_string(vpack->tw.durable_stop_ts, ts_string[4]), vpack->tw.stop_txn,
               prepared ? "true" : "false");
         }
-    } else
+    } else {
         /* Stable version according to the timestamp. */
+        if (is_ondisk_stable != NULL)
+            *is_ondisk_stable = true;
         return (0);
+    }
 
     if (rip != NULL)
         WT_ERR(__rollback_row_modify(session, page, rip, upd));
@@ -821,9 +808,19 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
             kcell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, kcell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            for (j = 0; j < rle; j++)
-                WT_RET(__rollback_abort_ondisk_kv(
-                  session, ref, cip, NULL, rollback_timestamp, recno + j));
+            if (unpack.type != WT_CELL_DEL) {
+                for (j = 0; j < rle; j++) {
+                    WT_RET(__rollback_abort_ondisk_kv(session, ref, cip, NULL, rollback_timestamp,
+                      recno + j, &stable_update_found));
+                    /* Skip processing all RLE if the on-disk version is stable. */
+                    if (stable_update_found) {
+                        if (rle > 1)
+                            WT_STAT_CONN_DATA_INCR(session, txn_rts_stable_rle_skipped);
+                        break;
+                    }
+                }
+            } else
+                WT_STAT_CONN_DATA_INCR(session, txn_rts_delete_rle_skipped);
             recno += rle;
         } else {
             recno++;
@@ -910,7 +907,8 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
          * If there is no stable update found in the update list, abort any on-disk value.
          */
         if (!stable_update_found)
-            WT_ERR(__rollback_abort_ondisk_kv(session, ref, NULL, rip, rollback_timestamp, 0));
+            WT_ERR(
+              __rollback_abort_ondisk_kv(session, ref, NULL, rip, rollback_timestamp, 0, NULL));
     }
 
     /* Mark the page as dirty to reconcile the page. */
