@@ -25,7 +25,7 @@ documentation related to WT_SESSION.
 It is possible to group a number of operations within a session, in other words, multiple operations
 can be treated as a single atomic operation. This can be done using @ref arch-transaction.
 Furthermore, one session can hold a unique transaction at any given time and this transaction only
-belongs to that same session.
+belongs to that session.
 
 @section arch_session_cur Cursors
 Session can perform operations on multiple collections using cursors (see @ref arch-cursor for more
