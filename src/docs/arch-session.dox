@@ -6,10 +6,10 @@ application can start sending requests to WiredTiger using a session. A session 
 represented by WT_SESSION and plays an important role since almost all operations require one.
 
 A session can only be created through an existing connection with the API
-WT_CONNECTION::open_session. It is possible to create multiple sessions through the same connection.
-In fact, one connection can have multiple sessions but one session can only be associated with one
-connection. The maximum number of sessions is set through the configuration item \c session_max as
-part of the configuration string given in ::wiredtiger_open.
+WT_CONNECTION::open_session and it is possible to create multiple sessions through the same
+connection. In fact, one connection can have multiple sessions but one session can only be
+associated with one connection. The maximum number of sessions is set through the configuration item
+\c session_max as part of the configuration string in ::wiredtiger_open.
 
 Sessions that are created by the calling application are called "user sessions". WiredTiger also
 performs some internal operations such as @ref arch-eviction through self-created sessions. These
@@ -22,13 +22,13 @@ handles, table operations, and transactions. You can read the complete descripti
 operation in the documentation related to WT_SESSION.
 
 @section arch_session_txn Transactions
-It is possible to group a number of operations within a session, in other words, multiple operations
-can be treated as a single atomic operation. This can be done using @ref arch-transaction.
-Furthermore, one session can hold a unique transaction at any given time and this transaction only
-belongs to that session.
+It is possible to group several operations within a session, in other words, multiple operations can
+be treated as a single atomic operation. This can be done using @ref arch-transaction. Furthermore,
+one session can hold a unique transaction at any given time and this transaction only belongs to
+that session.
 
 @section arch_session_cur Cursors
-A session can perform multiple data operations on same/different collections using multiple cursors
+A session can perform multiple data operations on one or several collections using multiple cursors
 (see @ref arch-cursor for more details). All the cursors associated with a session share that
 session transaction context. It is also possible to cache those cursors if required through the
 configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
@@ -37,7 +37,7 @@ configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
 During its lifetime, a session can accumulate a list of data handles (see @ref arch-dhandle).
 Indeed, when a session accesses a table for the first time, the data handle of that table is
 acquired and cached. Once a session no longer needs to operate on a table, it marks the associated
-data handle as idle. This helps the sweep server to release data handles that are inactive, see @ref
+data handle as idle. This helps the sweep server release data handles that are inactive, see @ref
 arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
