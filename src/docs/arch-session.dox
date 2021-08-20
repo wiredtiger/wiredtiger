@@ -42,8 +42,9 @@ inactive, see @ref arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
 When a connection is no longer needed, it can be closed using WT_CONNECTION::close. This closes the
-transaction and the cursors associated with the session and frees all the resources that are exclusive
-to the session.
+transaction and the cursors associated with the session and frees all the resources that are
+exclusive to the session. Finally, all active sessions are also closed when the connection they
+belong to is closed.
 
 @section arch_session_thread Multithreading
 A session is always executed as a single thread, see @ref threads for more details.
