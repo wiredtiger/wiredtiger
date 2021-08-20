@@ -834,11 +834,17 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
             rle = __wt_cell_rle(&unpack);
 
             /*
-             * If we found a stable update on the insert list, the on-disk value must be older than
-             * that update, so it too is stable(*) and any keys in the cell that _don't_ have stable
-             * updates don't need further attention. Then also, if the cell is deleted it must be
+             * If we found a stable update on the insert list, this key needs no further attention.
+             * Any other keys in this cell with stable updates also do not require attention. But
+             * beyond that, the on-disk value must be older than
+             * the update we found. That means it too is stable(*), so any keys in the cell that
+             * _don't_ have stable updates on the update list don't need further attention either.
+             * (And any unstable updates were just handled above.) Thus we can skip iterating over
+             * the cell.
+             *
+             * Furthermore, if the cell is deleted it must be
              * itself stable, because cells only appear as deleted if there is no older value that
-             * might need to be restored. In both cases we can skip iterating over the cell.
+             * might need to be restored. We can skip iterating over the cell.
              *
              * (*) Either that, or the update is not timestamped, in which case the on-disk value
              * might not be stable but the non-timestamp update will hide it until the next
