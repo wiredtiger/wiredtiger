@@ -89,8 +89,8 @@ int
 main(int argc, char *argv[])
 {
     WT_SESSION *session;
-    clock_t ce, cs;
     wt_thread_t idlist[100];
+    clock_t ce, cs;
     uint64_t i, id;
     char buf[100];
 
