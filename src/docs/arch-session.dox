@@ -3,7 +3,8 @@
 @section arch_session_def Definition
 After a @ref arch-connection has been established between the application and WiredTiger, the
 application can start sending requests to WiredTiger using a session. A session is internally
-represented by WT_SESSION and plays an important role since almost all operations require one.
+represented by WT_SESSION and plays an important role since almost all operations are performed
+under the context of a session.
 
 A session can only be created through an existing connection with the API
 WT_CONNECTION::open_session and it is possible to create multiple sessions through the same
