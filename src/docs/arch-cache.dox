@@ -39,8 +39,8 @@ in-memory format to on-disk format) and then write it to storage.
 
 Internally, WiredTiger's cache state is represented by the \c WT_CACHE structure, which contains
 counters and parameter settings for tracking cache usage and controlling eviction policy.
-The \c WT_CACHE also includes state WiredTiger uses to track the progress of eviction.
-There is a single \c WT_CACHE for each connection, accessed via the \c WT_CONNECTION structure.
+The \c WT_CACHE also includes state WiredTiger uses to track the progress of eviction.  There
+is a single \c WT_CACHE for each connection, accessed via the \c WT_CONNECTION structure.
 
 Each page in the cache is accessed via a \c WT_REF structure.  When WiredTiger opens a Btree,
 it places a \c WT_REF for the cached root page in the corresponding \c WT_BTREE structure.
