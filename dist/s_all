@@ -48,8 +48,8 @@ errchk()
 	fi
 
 	# Return if evergreen validate runs sucessfully.
-	if echo "$1" | grep -q evergreen && [ "$(cat $2)" = "../test/evergreen.yml is valid" ] ; then
-		rm -f $2
+	if echo "$1" | grep -q evergreen && [ "$(cat "$2")" = "../test/evergreen.yml is valid" ] ; then
+		rm -f "$2"
 		return
 	fi
 
