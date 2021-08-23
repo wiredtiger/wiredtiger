@@ -44,8 +44,8 @@ set_stable(void)
     char buf[128];
 
     if (g.race_timetamps)
-        testutil_check(__wt_snprintf(buf, sizeof(buf),
-          "stable_timestamp=%x,oldest_timestamp=%x", g.ts_stable, g.ts_stable));
+        testutil_check(__wt_snprintf(
+          buf, sizeof(buf), "stable_timestamp=%x,oldest_timestamp=%x", g.ts_stable, g.ts_stable));
     else
         testutil_check(__wt_snprintf(buf, sizeof(buf), "stable_timestamp=%x", g.ts_stable));
     testutil_check(g.conn->set_timestamp(g.conn, buf));
