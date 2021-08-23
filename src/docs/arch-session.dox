@@ -18,9 +18,9 @@ are called "internal sessions". The usage rules and guidelines for both internal
 sessions are the same and the only difference between them is their origin of creation.
 
 @section arch_session_ops Operations
-The different operations that can be performed on a WiredTiger session are related to cursors
-creation, table operations, and transactions. You can read the complete description of each possible
-operation in the documentation related to WT_SESSION.
+The different operations that can be performed on a WiredTiger session are related to cursors,
+tables and transactions. You can read the complete description of each possible operation in the
+documentation related to WT_SESSION.
 
 @section arch_session_txn Transactions
 It is possible to group several operations within a session, in other words, multiple operations can
