@@ -185,9 +185,10 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     if (ret == 0)
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-    else
+    else {
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
+        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
+    }
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, checkpoint_running, &counter));
