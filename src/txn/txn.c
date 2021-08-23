@@ -163,7 +163,7 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
-        /* Skip checking inactive sessions. */
+        /* Skip inactive sessions. */
         if (!session_in_list->active)
             continue;
         /* Check if a user session has a running transaction. Ignore prepared transactions. */
