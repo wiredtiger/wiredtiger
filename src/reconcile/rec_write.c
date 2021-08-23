@@ -2088,6 +2088,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_TIME_AGGREGATE_INIT(&ta);
 
     /*
+     * If using the history store table eviction path and we found updates that weren't globally
+     * visible when reconciling this page, copy them into the database's history store. This can
+     * fail, so try before clearing the page's previous reconciliation state.
+     */
+    if (F_ISSET(r, WT_REC_HS))
+        WT_RET(__rec_hs_wrapup(session, r));
+
+    /*
+     * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
+     * entirely consistent at that point (the underlying block manager is presumably going to do
+     * some action to resolve the list of allocated/free/whatever blocks that are associated with
+     * the checkpoint).
+     */
+    WT_RET(__wt_ovfl_track_wrapup(session, page));
+
+    /*
      * This page may have previously been reconciled, and that information is now about to be
      * replaced. Make sure it's discarded at some point, and clear the underlying modification
      * information, we're creating a new reality.
@@ -2136,21 +2152,6 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
     /* Reset the reconciliation state. */
     mod->rec_result = 0;
-
-    /*
-     * If using the history store table eviction path and we found updates that weren't globally
-     * visible when reconciling this page, copy them into the database's history store.
-     */
-    if (F_ISSET(r, WT_REC_HS))
-        WT_RET(__rec_hs_wrapup(session, r));
-
-    /*
-     * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
-     * entirely consistent at that point (the underlying block manager is presumably going to do
-     * some action to resolve the list of allocated/free/whatever blocks that are associated with
-     * the checkpoint).
-     */
-    WT_RET(__wt_ovfl_track_wrapup(session, page));
 
     __wt_verbose(session, WT_VERB_RECONCILE, "%p reconciled into %" PRIu32 " pages", (void *)ref,
       r->multi_next);
