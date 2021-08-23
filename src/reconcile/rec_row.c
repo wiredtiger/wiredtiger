@@ -924,8 +924,15 @@ __wt_rec_row_leaf(
                     WT_ERR(__wt_row_leaf_key(session, page, rip, tmpkey, true));
 
                     /* Open a history store cursor if we don't yet have one. */
-                    if (hs_cursor == NULL)
+                    if (hs_cursor == NULL) {
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+                        /*
+                         * If we enter here from an application thread, we should not use
+                         * application thread's snapshot to check the visibility of records in the
+                         * history store.
+                         */
+                        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+                    }
 
                     /* From WT_TS_NONE to delete all the history store content of the key. */
                     WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, tmpkey,

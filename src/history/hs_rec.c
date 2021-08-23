@@ -764,6 +764,16 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     bool hs_read_all_flag;
 
     /*
+     * We might be entering this code from application thread's context. We should make sure that we
+     * are not using snapshot associated with application session to perform visibility checks on
+     * history store records. Note that the history store cursor performs visibility checks based on
+     * snapshot if none of WT_CURSTD_HS_READ_ALL or WT_CURSTD_HS_READ_COMMITTED flags are set.
+     */
+    WT_ASSERT(session,
+      F_ISSET(session, WT_SESSION_INTERNAL) ||
+        F_ISSET(cursor, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_COMMITTED));
+
+    /*
      * If we will delete all the updates of the key from the history store, we should not reinsert
      * any update.
      */
