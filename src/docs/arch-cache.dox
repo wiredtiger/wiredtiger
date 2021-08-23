@@ -1,7 +1,7 @@
 /*! @arch_page arch-cache Cache
 
 The WiredTiger cache is memory used to hold copies of recently accessed or modified data.
-WiredTiger reads btree pages into the cache on demand.  When the cache runs low on space, Eviction
+WiredTiger reads Btree pages into the cache on demand.  When the cache runs low on space, Eviction
 removes unneeded pages.  Updates modify data in the cache and
 are flushed to storage asynchronously, either by @ref arch-checkpoint "Checkpoint" or
 @ref arch-eviction "Eviction".
@@ -13,10 +13,10 @@ page whenever it reads or writes the page.
 
 @section arch_cache_basics Basic operation
 
-Cached btree pages point to each other, mirroring the structure of the on-disk btree.
-When WiredTiger opens a file, it loads the root page of the btree into memory along with the first
-level of internal pages.  To lookup an entry in a btree, WiredTiger starts from the root page
-and searches the btree until finds the entry.  If WiredTiger encounters a page that is not in
+Cached Btree pages point to each other, mirroring the structure of the on-disk Btree.
+When WiredTiger opens a file, it loads the root page of the Btree into memory along with the first
+level of internal pages.  To lookup an entry in a Btree, WiredTiger starts from the root page
+and searches the Btree until finds the entry.  If WiredTiger encounters a page that is not in
 memory, it loads that page from storage and continues the search.
 
 To load a page into the cache, WiredTiger passes the page's address cookie to the
@@ -42,7 +42,7 @@ counters and parameter settings for tracking cache usage and controlling evictio
 The \c WT_CACHE also includes state WiredTiger uses to track the progress of eviction.
 There is a single \c WT_CACHE for each connection, accessed via the \c WT_CONNECTION structure.
 
-Each page in the cache is accessed via a \c WT_REF structure.  When WiredTiger opens a btree,
+Each page in the cache is accessed via a \c WT_REF structure.  When WiredTiger opens a Btree,
 it places a \c WT_REF for the cached root page in the corresponding \c WT_BTREE structure.
 A \c WT_REF can represent either
 a page in the cache or one that has not been loaded yet.
@@ -52,7 +52,7 @@ structures that WiredTiger uses to access and update the page while it is cached
 
 When WiredTiger loads a page into the cache, it allocates an internal table with one entry
 for each entry on the page.  The type of these entries depends on the page type.  An internal
-btree page will have an array of \c WT_REF structures.  A btree leaf page will have an array
+Btree page will have an array of \c WT_REF structures.  A Btree leaf page will have an array
 of \c WT_ROW structures representing the KV pairs.  WiredTiger uses this table to find entries
 on a page via binary search.
 
@@ -79,11 +79,11 @@ the C memory allocator to acquire and free memory as needed.  Since the cache is
 allocated from the heap, evicting data from the cache simply returns the memory to the allocator;
 it does not reduce the application's memory footprint.
 
-The WiredTiger cache is only used for btree data, including associated in-memory structures such
+The WiredTiger cache is only used for Btree data, including associated in-memory structures such
 as indexes, insert lists, and update chains.  Other WiredTiger data structures, such as
 dhandles, cursors, and sessions, are not considered part of the cache and do not count against
 the cache size.  Similarly, memory used to read in and write out the on-disk representations of
-btree pages is not cached; it is only allocated temporarily during the I/O operation and
+Btree pages is not cached; it is only allocated temporarily during the I/O operation and
 while the data is converted to or from the on-disk format.
 
 @section arch_cache_shared Shared caches
