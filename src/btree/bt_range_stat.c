@@ -94,12 +94,11 @@ __cursor_range_stat(
     WT_REF *child, *current, *descent, *ref;
     WT_SESSION_IMPL *session;
     uint64_t byte_count, child_byte_count, child_row_count, recno_start, recno_stop, row_count;
-    uint32_t missing_addr, reviewed, slot, startslot, stopslot;
+    uint32_t child_missing_addr, child_reviewed, missing_addr, reviewed, slot, startslot, stopslot;
     uint8_t child_previous_state, previous_state;
 
     session = CUR2S(start);
     btree = S2BT(session);
-    reviewed = 0;
 
     /* Get the key. */
     recno_start = start->recno;
@@ -160,7 +159,7 @@ restart:
     }
 
     /* Aggregate the information between the two slots. */
-    for (missing_addr = 0, slot = startslot; slot <= stopslot; ++slot) {
+    for (missing_addr = reviewed = 0, slot = startslot; slot <= stopslot; ++slot) {
         ref = pindex->index[slot];
 
         /*
@@ -178,15 +177,16 @@ restart:
             switch (page->type) {
             case WT_PAGE_COL_INT:
             case WT_PAGE_ROW_INT:
+                child_missing_addr = child_reviewed = 0;
                 WT_INTL_FOREACH_BEGIN (session, page, child) {
-                    ++reviewed;
+                    ++child_reviewed;
                     child_row_count = child_byte_count = 0;
                     WT_REF_LOCK(session, child, &child_previous_state);
                     if (__wt_ref_addr_copy(session, child, &copy))
                         ret = __wt_addr_cookie_btree_unpack(
                           copy.addr, &child_row_count, &child_byte_count);
                     else
-                        ++missing_addr;
+                        ++child_missing_addr;
                     WT_REF_UNLOCK(child, child_previous_state);
                     if (ret != 0)
                         break;
@@ -194,11 +194,17 @@ restart:
                     byte_count += child_byte_count;
                 }
                 WT_INTL_FOREACH_END;
+
+                /*
+                 * If 50% of the child slots we check don't have the information we want, don't
+                 * count the overall slot as a success.
+                 */
+                if (child_missing_addr > child_reviewed / 2)
+                    ++missing_addr;
                 break;
             case WT_PAGE_COL_FIX:
             case WT_PAGE_COL_VAR:
-                if (slot + 1 < pindex->entries)
-                    row_count = pindex->index[slot + 1]->ref_recno - pindex->index[slot]->ref_recno;
+                /* No reason to set the row count, we can simply calculate it. */
                 byte_count = page->memory_footprint;
                 break;
             case WT_PAGE_ROW_LEAF:
@@ -227,8 +233,8 @@ restart:
     }
 
     /*
-     * If we don't find any pages with addresses, the default would return row and byte counts of
-     * zero. There's no good rule here, for now I'm going with 50% failure means the call fails.
+     * If 50% of the slots we check don't have the information we want, fail the call. (There isn't
+     * any evidence this is a good choice, we may want to tune it to better reflect real workloads.)
      */
     if (missing_addr > reviewed / 2)
         ret = WT_NOTFOUND;
@@ -246,17 +252,27 @@ int
 __wt_btcur_range_stat(
   WT_CURSOR *start, WT_CURSOR *stop, uint64_t *row_countp, uint64_t *byte_countp)
 {
+    WT_BTREE *btree;
     WT_CURSOR_BTREE *bt_start, *bt_stop;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(start);
-
+    btree = CUR2BT(start);
     bt_start = (WT_CURSOR_BTREE *)start;
     bt_stop = (WT_CURSOR_BTREE *)stop;
 
-    WT_WITH_BTREE(session, CUR2BT(bt_start),
+    WT_WITH_BTREE(session, btree,
       WT_WITH_PAGE_INDEX(
         session, ret = __cursor_range_stat(bt_start, bt_stop, row_countp, byte_countp)));
+
+    /*
+     * There are paths in the worker code that either do or don't calculate the row count because
+     * it's simpler that way. Once we're about to return, simply correct the row count to be exact.
+     * Note the row count is inclusive of the end points.
+     */
+    if (btree->type == BTREE_COL_FIX || btree->type == BTREE_COL_VAR)
+        *row_countp = (stop->recno - start->recno) + 1;
+
     return (ret);
 }
