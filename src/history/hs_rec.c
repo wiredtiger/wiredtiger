@@ -757,6 +757,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
+    WT_TIME_WINDOW *twp;
     wt_timestamp_t hs_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
@@ -779,6 +780,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         goto done;
     } else {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        /* If the record is obsolete, no need to do anything. */
+        __wt_hs_upd_time_window(hs_cursor, &twp);
+        if (__wt_txn_tw_stop_visible_all(session, twp))
+            goto done;
         ++hs_counter;
     }
 
