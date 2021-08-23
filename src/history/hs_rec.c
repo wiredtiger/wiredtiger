@@ -771,7 +771,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      */
     WT_ASSERT(session,
       F_ISSET(session, WT_SESSION_INTERNAL) ||
-        F_ISSET(cursor, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_COMMITTED));
+        F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL | WT_CURSTD_HS_READ_COMMITTED));
 
     /*
      * If we will delete all the updates of the key from the history store, we should not reinsert
@@ -782,7 +782,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
-    /* Use WT_CURSTD_HS_READ_ALL to improve the performance of the search. */
+    /*
+     * Setting the flag WT_CURSTD_HS_READ_ALL before searching the history store optimizes the
+     * search routine as we do not skip globally visible tombstones during the search.
+     */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     ret = __wt_curhs_search_near_after(session, hs_cursor);
     if (!hs_read_all_flag)
@@ -798,7 +801,7 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         __wt_hs_upd_time_window(hs_cursor, &twp);
         if (__wt_txn_tw_stop_visible_all(session, twp)) {
             WT_RET_NOTFOUND_OK(hs_cursor->next(hs_cursor));
-            if (ret = WT_NOTFOUND)
+            if (ret == WT_NOTFOUND)
                 return (0);
         }
         ++hs_counter;
@@ -853,8 +856,10 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_UNUSED(key);
 #endif
 
-    /* If we will delete all the updates of the key from the history store, we should not reinsert
-     * any update. */
+    /*
+     * If we will delete all the updates of the key from the history store, we should not reinsert
+     * any update.
+     */
     WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
