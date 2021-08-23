@@ -162,9 +162,10 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
      * the user sessions for active transactions when we started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (i = 0; i < session_cnt; i++) {
-        WT_STAT_CONN_INCR(session, txn_sessions_walked);
-        session_in_list = &conn->sessions[i];
+    for (i = 0, session_in_list = conn->sessions; i < session_cnt; i++, session_in_list++) {
+        /* Skip checking inactive sessions. */
+        if (!session_in_list->active)
+            continue;
         /* Check if a user session has a running transaction. Ignore prepared transactions. */
         if (F_ISSET(session_in_list->txn, WT_TXN_RUNNING) &&
           !F_ISSET(session_in_list, WT_SESSION_INTERNAL) &&
