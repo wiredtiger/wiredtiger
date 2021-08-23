@@ -772,6 +772,11 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
+    /*
+     * Use WT_CURSTD_HS_READ_ALL to land on the newest value in the history store no matter it's
+     * obsolete or not. Otherwise, we will unnecessarily traverse through the obsolete records only
+     * to return NOT_FOUND.
+     */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
     /* Empty history store is fine. */
@@ -780,7 +785,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         goto done;
     } else {
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
-        /* If the record is obsolete, no need to do anything. */
+        /*
+         * If the newest record in the history store is obsolete, no need to delete anything as
+         * everything else for that key in the history store should also be obsolete.
+         */
         __wt_hs_upd_time_window(hs_cursor, &twp);
         if (__wt_txn_tw_stop_visible_all(session, twp))
             goto done;
