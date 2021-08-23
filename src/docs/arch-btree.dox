@@ -46,7 +46,59 @@ inserted into row-store leaf pages (\c WT_INSERT).
 
 @section btree_btree_truncate B-Tree Truncate
 
-TODO The truncate operation allows for fast deletion of records, as it is possible
-to mark whole pages for deletion without having to inspect each record individually.
+The truncate operation allows for faster and more efficient deletion of records in
+a range. In WiredTiger, there are two notions of truncation; a fast-truncate which
+marks whole pages as deleted without having to first instantiate the page in memory
+or inspect records individually, and a slower truncate where keys are walked and
+tombstones are put onto each one individually. It is preferable to use fast-truncate
+wherever possible, but there are cases where the slower-truncate must be used instead.
+For example, in the case of a partial deletion of a page (at the ends of a range),
+the records must be traversed individually.
+
+In a row-store object, the truncate operation will explicitly read the first and last
+pages of the truncate range, then walks the tree with a flag so the tree walk code
+skips reading eligible pages within the range and instead just marks them as deleted.
+In addition to the pages which require only a partial deletion, other ineligible pages
+include pages already in the cache, pages with overflow items or pages with prepared
+updates. These pages will have their records deleted individually.
+
+@section btree_truncate_code_flow Truncate Code Flow
+
+Truncate begins in the \c __session_truncate function, which makes a call to the
+\c __wt_session_range_truncate function. Truncation is also possible for log files
+but the focus here will be on truncation for regular files (\c file: uri). To perform
+a truncate on a file, a start and stop cursor are positioned corresponding to the
+desired range. The desired start and stop keys do not actually need to exist since the
+cursors are positioned by doing a search-near rather than a search. Once positioned,
+we enter the \c __wt_schema_range_truncate function and then the
+\c __wt_btcur_range_truncate function before selecting either the \c __cursor_truncate
+(for row-store and variable-length column store) or __cursor_truncate_fix (for
+fixed-length column store) function (see \c bt_cursor.c).
+
+Inside the \c __cursor_truncate function, we do a page-by-page walk on the B-Tree,
+setting the \c WT_READ_TRUNCATE flag of each page to be truncated. For each of these
+pages, we call the \c __wt_delete_page, which tries to delete the page without
+instantiating it into memory. If no errors are encountered, we allocate and initialize
+the page-deleted structure \c WT_PAGE_DELETED, and set the timestamp, transaction id
+and state information associated with the truncate. Finally, the page is published as
+deleted using the \c WT_REF_DELETED flag.
+
+@section btree_truncate_interaction_with_other_operations Interaction With Other Operations
+
+Truncation differs to other operations in the sense that it does not have the same
+transactional semantics. If a range truncate is in progress and another transaction
+happens to insert a key into the same range, the behavior is not well-defined. A
+conflict may be detected, or both transaction may be permitted to commit. In the scenario
+that both commit, if the system crashes and recovery runs, the resulting state of the
+database may be different to what was in the cache had the crash not happened.
+
+@section btree_truncate_performing_reads_on_truncated_pages Performing Reads On Truncated Pages
+
+In some scenarios, a reader may want to read from some pages that have been marked as
+truncated. If the desired read timestamp is between the oldest timestamp and the
+truncate timestamp, the pages must first be re-instantiated into memory. The
+\c __wt_page_in_func (see \c bt_read.c) reads in a page from disk, and builds an
+in-memory version. Then as part of the page read process, we create a \c WT_UPDATE
+with a tombstone in the same transaction the truncate happened.
 
 */
