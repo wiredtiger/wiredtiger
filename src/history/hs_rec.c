@@ -772,26 +772,25 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
-    /*
-     * Use WT_CURSTD_HS_READ_ALL to land on the newest value in the history store no matter it's
-     * obsolete or not. Otherwise, we will unnecessarily traverse through the obsolete records only
-     * to return NOT_FOUND.
-     */
+    /* Use WT_CURSTD_HS_READ_ALL to improve the performance of the search. */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
-    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
+    ret = __wt_curhs_search_near_after(session, hs_cursor);
+    if (!hs_read_all_flag)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
+    WT_RET_NOTFOUND_OK(ret);
+
     /* Empty history store is fine. */
-    if (ret == WT_NOTFOUND) {
-        ret = 0;
-        goto done;
-    } else {
-        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
-        /*
-         * If the newest record in the history store is obsolete, no need to delete anything as
-         * everything else for that key in the history store should also be obsolete.
-         */
+    if (ret == WT_NOTFOUND)
+        return (0);
+    else {
+        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+        /* If we land on an obsolete record, continue until we find an non-obsolete one.*/
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (__wt_txn_tw_stop_visible_all(session, twp))
-            goto done;
+        if (__wt_txn_tw_stop_visible_all(session, twp)) {
+            WT_RET_NOTFOUND_OK(hs_cursor->next(hs_cursor));
+            if (ret = WT_NOTFOUND)
+                return (0);
+        }
         ++hs_counter;
     }
 
@@ -801,17 +800,13 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      * store checkpoint inconsistent.
      */
     if (checkpoint_running) {
-        ret = EBUSY;
         WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
-        goto err;
+        return (EBUSY);
     }
 
-    WT_ERR(
+    WT_RET(
       __hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, ts, reinsert, &hs_counter));
-done:
-err:
-    if (!hs_read_all_flag)
-        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
+
     return (ret);
 }
 
