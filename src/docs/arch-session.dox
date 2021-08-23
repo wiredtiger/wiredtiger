@@ -43,8 +43,8 @@ data handle as idle. This helps the sweep server release data handles that are i
 arch-dhandle-lifecycle for more details.
 
 @section arch_session_closure Closure
-A session can be closed using WT_CONNECTION::close. Closing the connection will also close all
-opened sessions. When a session is closed, it releases all the resources associated with the session
+A session can be closed using WT_SESSION::close. Closing the connection will also close all opened
+sessions. When a session is closed, it releases all the resources associated with the session
 including rolling back any active transaction and closing the cursors that are still open.
 
 @section arch_session_thread Multithreading
