@@ -138,10 +138,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
 
-    /* Only clear the flag if it wasn't set when we entered the function. */
-    if (!hs_read_all_flag)
-        F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
-
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -189,15 +185,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     if (ret == 0)
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-    else {
-        F_SET(cursor, WT_CURSTD_HS_READ_ALL);
-
+    else
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
-        WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
-
-        if (!hs_read_all_flag)
-            F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
-    }
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
     if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
           session, cursor, btree->id, key, tw->start_ts + 1, true, checkpoint_running, &counter));
@@ -766,22 +756,24 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
      * search routine as we do not skip globally visible tombstones during the search.
      */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
-    ret = __wt_curhs_search_near_after(session, hs_cursor);
-    if (!hs_read_all_flag)
-        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
-    WT_RET_NOTFOUND_OK(ret);
+    WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
     /* Empty history store is fine. */
-    if (ret == WT_NOTFOUND)
-        return (0);
-    else {
-        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
+    if (ret == WT_NOTFOUND) {
+        ret = 0;
+        goto done;
+    } else {
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
         ++hs_counter;
     }
 
-    WT_RET(__hs_delete_reinsert_from_pos(
+    WT_ERR(__hs_delete_reinsert_from_pos(
       session, hs_cursor, btree_id, key, ts, reinsert, checkpoint_running, &hs_counter));
 
-    return (0);
+done:
+err:
+    if (!hs_read_all_flag)
+        F_CLR(hs_cursor, WT_CURSTD_HS_READ_ALL);
+    return (ret);
 }
 
 /*
