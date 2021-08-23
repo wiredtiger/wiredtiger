@@ -32,7 +32,8 @@ that session.
 A session can perform multiple data operations on one or several collections using multiple cursors
 (see @ref arch-cursor for more details). All the cursors associated with a session share that
 session transaction context. It is also possible to cache those cursors if required through the
-configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open.
+configuration string given to WT_CONNECTION::open_session or ::wiredtiger_open. The configuration
+item for this purpose is \c cache_cursors.
 
 @section arch_session_dhandles Data Handles
 During its lifetime, a session can accumulate a list of data handles (see @ref arch-dhandle).
