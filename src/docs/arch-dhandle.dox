@@ -1,10 +1,13 @@
 /*! @arch_page arch-dhandle Data Handles
 
 The dhandle (\c WT_DATA_HANDLE) is a generic representation of any named data
-source. Dhandles are required to access any data source in the system; the 
-\c void *handle field points to the data source, which can be a B-Tree, table, 
-LSM or tiered storage type. It also contains a set of flags, some reference 
-counts, and individual data source statistics.
+source. Dhandles are required to access any data source in the system. For the
+dhandle of B-Tree type, the \c void *handle field can be used like so
+\c (WT_BTREE *)dhandle->handle to get the B-Tree. For other data sources such
+as the table, LSM or tiered storage types, a type cast can be used on the
+\c dhandle itself to gain access to the data source. The dhandle structure also
+contains a set of flags, some reference counts, and individual data source
+statistics.
 
 @section dhandle_data_handle_lifecycle Data Handle Lifecycle
 
@@ -17,12 +20,12 @@ the global dhandle list.
 
 @section dhandle_data_handle_creation Data Handle Creation
 
-Generally, dhandles are created when accessing tables and other data sources 
-that have not been accessed before. When a cursor in a session is opened on 
-a WiredTiger table, it first attempts to find the dhandle in the session 
-dhandle cache. If the dhandle is not found in the session dhandle cache, it 
-searches the global dhandle list while holding the read lock. In the case 
-that it doesn't find the dhandle there, it creates a dhandle for this table 
+Generally, dhandles are created when accessing tables and other data sources
+that have not been accessed before. When a cursor in a session is opened on
+a WiredTiger table, it first attempts to find the dhandle in the session
+dhandle cache. If the dhandle is not found in the session dhandle cache, it
+searches the global dhandle list while holding the read lock. In the case
+that it doesn't find the dhandle there, it creates a dhandle for this table
 and puts it in the global dhandle list while holding the write lock on the
 global dhandle list. Finally, the cursor operation puts a reference to
 the dhandle in the session's dhandle cache.
@@ -33,8 +36,8 @@ There are two relevant reference counters in the dhandle structure,
 \c session_ref and \c session_inuse. \c session_ref counts the number of
 session dhandle cache lists that contain this dhandle. \c session_inuse
 is a count of the number of cursors opened and operating on this dhandle.
-Both these counters are incremented by the session as the cursor is opened on 
-this dhandle. \c session_inuse is decremented when the operation completes 
+Both these counters are incremented by the session as the cursor is opened on
+this dhandle. \c session_inuse is decremented when the operation completes
 and the cursor is closed.
 
 @section dhandle_sweep_server_dhandle_sweep Sweep-Server Dhandle Sweep
@@ -65,7 +68,7 @@ remaining resources associated with it. The removal of the dhandle from
 the global list completes the lifecycle, and any future access of the
 associated table will require the dhandle to be created again.
 
-@section dhandle_dhandle_session_cache_sweep
+@section dhandle_dhandle_session_cache_sweep Dhandle Session Cache Sweep
 
 A session's dhandle cache list is periodically cleaned out through a
 dhandle cache sweep, which removes references to the dhandles that

@@ -37,12 +37,12 @@ generation of the last split.
 
 An in-memory row-store leaf page contains key/value pairs represented by the
 \c WT_ROW structure. These structures are created from on-page data. Each row may
-have some old values, or deleted values, which may be visible depending on the 
-timestamp used by a reader. Entries on leaf pages can be updated, either modified 
-or deleted. On a given page, a WT_UPDATE array will be allocated with enough slots 
-for every existing element in the page. A slot points to a \c WT_UPDATE structure, 
-and \c WT_UPDATE structures can be formed into a linked list when multiple updates 
-are done for an entry. New key/value pairs can also be inserted into row-store leaf 
+have some old values, or deleted values, which may be visible depending on the
+timestamp used by a reader. Entries on leaf pages can be updated, either modified
+or deleted. On a given page, a WT_UPDATE array will be allocated with enough slots
+for every existing element in the page. A slot points to a \c WT_UPDATE structure,
+and \c WT_UPDATE structures can be formed into a linked list when multiple updates
+are done for an entry. New key/value pairs can also be inserted into row-store leaf
 pages (\c WT_INSERT).
 
 @section btree_btree_truncate B-Tree Truncate
@@ -67,10 +67,10 @@ updates. These pages will have their records deleted individually.
 
 Truncate begins in the \c __session_truncate function, which makes a call to the
 \c __wt_session_range_truncate function. Truncation is also possible for log files
-but the focus here will be on truncation for B-Tree data files (\c file: uri). To 
-perform a truncate on a file, a start and stop cursor are positioned corresponding 
-to the desired range. The desired start and stop keys do not actually need to exist 
-since the cursors are positioned by doing a search-near rather than a search. Once 
+but the focus here will be on truncation for B-Tree data files (\c file: uri). To
+perform a truncate on a file, a start and stop cursor are positioned corresponding
+to the desired range. The desired start and stop keys do not actually need to exist
+since the cursors are positioned by doing a search-near rather than a search. Once
 positioned, we enter the \c __wt_schema_range_truncate function and then the
 \c __wt_btcur_range_truncate function before selecting either the \c __cursor_truncate
 (for row-store and variable-length column store) or __cursor_truncate_fix (for
