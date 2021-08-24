@@ -55,6 +55,8 @@
  * The data is stored in two tables, one having indices. Both tables have the same keys and are
  * updated with the same key in a single transaction.
  *
+ * The keys are int (key_format 'i'); for column-store these are converted on the fly to uint64_t.
+ *
  * Failure mode: If one table is out of step with the other, that is detected as a failure at the
  * top level. If an index is missing values (or has extra values), that is likewise a failure at the
  * top level. If the tables or the home directory cannot be opened, that is a top level error. The
@@ -125,7 +127,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
             testutil_check(maincur2->get_key(maincur2, &key_got));
         else {
             testutil_check(maincur2->get_key(maincur2, &key64));
-            key_got = key64;
+            key_got = (int)key64;
         }
         testutil_check(maincur2->get_value(maincur2, &rndint));
 
@@ -138,7 +140,7 @@ check_results(TEST_OPTS *opts, uint64_t *foundp)
             testutil_check(maincur->get_key(maincur, &key_got));
         else {
             testutil_check(maincur->get_key(maincur, &key64));
-            key_got = key64;
+            key_got = (int)key64;
         }
         testutil_assert(key == key_got);
         check_values(maincur, v0, v1, v2, big);
