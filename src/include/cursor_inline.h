@@ -237,12 +237,6 @@ __cursor_reset(WT_CURSOR_BTREE *cbt)
     if (session->ncursors == 0 && !F_ISSET(cbt, WT_CBT_NO_TXN))
         __wt_txn_read_last(session);
 
-#ifdef HAVE_DIAGNOSTIC
-    if (cbt->last_ref != NULL) {
-        WT_RET(__wt_page_release(session, cbt->last_ref, 0));
-        cbt->last_ref = NULL;
-    }
-#endif
     /* If we're not holding a cursor reference, we're done. */
     if (cbt->ref == NULL)
         return (0);

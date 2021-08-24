@@ -468,6 +468,7 @@ restart_read_page:
 static int
 __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
+    WT_DECL_RET;
     int cmp;
 
     cmp = 0; /* -Werror=maybe-uninitialized */
@@ -485,10 +486,11 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     }
 
     WT_RET(__wt_msg(session, "dumping the cursor page"));
-    WT_RET(__wt_debug_cursor_page(&cbt->iface, NULL));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_debug_dump_tree(&cbt->iface));
     WT_RET_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
+    return (ret);
 }
 
 /*
@@ -525,7 +527,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
           session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, a),
         __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, b)));
     WT_ERR(__wt_msg(session, "dumping the cursor page"));
-    WT_ERR(__wt_debug_cursor_page(&cbt->iface, NULL));
+    WT_WITH_PAGE_INDEX(session, ret = __wt_debug_dump_tree(&cbt->iface));
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
 err:
@@ -677,9 +679,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     size_t pages_skipped_count, total_skipped, skipped;
     uint32_t flags;
     bool newpage, restart;
-#ifdef HAVE_DIAGNOSTIC
-    bool busy;
-#endif
 
     cursor = &cbt->iface;
     session = CUR2S(cbt);
@@ -795,19 +794,6 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 skip_page:
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
-
-#ifdef HAVE_DIAGNOSTIC
-        if (cbt->last_ref != NULL)
-            WT_ERR(__wt_page_release(session, cbt->last_ref, 0));
-
-        cbt->last_ref = cbt->ref;
-        if (cbt->last_ref) {
-            WT_ERR(__wt_hazard_set(session, cbt->last_ref, &busy));
-        // If we can't get a hazard pointer with a single try, clear the reference and move on.
-        if (busy)
-            cbt->last_ref = NULL;
-        }
-#endif
         WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }

@@ -944,11 +944,40 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 
     WT_RET(__wt_msg(session, "dumping the current cursor page"));
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile));
-    if (cbt->last_ref != NULL) {
-        WT_RET(__wt_msg(session, "dumping the last cursor page"));
-        WT_WITH_BTREE(
-          session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->last_ref, ofile));
+    return (ret);
+}
+
+/*
+ * __wt_debug_dump_tree --
+ *     Lock all the refs and Dump the in-memory information.
+ */
+int
+__wt_debug_dump_tree(void *cursor_arg)
+{
+    WT_CURSOR_BTREE *cbt;
+    WT_DECL_RET;
+    WT_REF *ref;
+    WT_SESSION_IMPL *session;
+    uint8_t previous_state;
+
+    cbt = cursor_arg;
+    session = CUR2S(cursor_arg);
+
+    WT_INTL_FOREACH_BEGIN (session, cbt->ref->home, ref) {
+        previous_state = ref->state;
+        if (previous_state != WT_REF_MEM)
+            continue;
+        WT_REF_LOCK(session, ref, &previous_state);
     }
+    WT_INTL_FOREACH_END;
+
+    WT_INTL_FOREACH_BEGIN (session, cbt->ref->home, ref) {
+        if (ref->state != WT_REF_LOCKED)
+            continue;
+        WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, ref, NULL));
+    }
+    WT_INTL_FOREACH_END;
+
     return (ret);
 }
 

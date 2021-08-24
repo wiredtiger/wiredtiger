@@ -93,9 +93,6 @@ struct __wt_cursor_btree {
      * stack (the stack of skiplist entries leading to the insert point). The search functions also
      * return the relationship of the search key to the found key.
      */
-#ifdef HAVE_DIAGNOSTIC
-    WT_REF *last_ref; /* Previous page */
-#endif
     WT_REF *ref;   /* Current page */
     uint32_t slot; /* WT_COL/WT_ROW 0-based slot */
 
