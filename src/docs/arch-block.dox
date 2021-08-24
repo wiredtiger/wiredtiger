@@ -209,7 +209,7 @@ Avail: Empty
 Discard: Empty
 
 And the following lists for checkpoint \c B:
-Alloc: \c I, \c, K, \c L
+Alloc: \c I, \c K, \c L
 Avail: \c J
 Discard: Empty
 
