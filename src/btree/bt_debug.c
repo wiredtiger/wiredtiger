@@ -948,7 +948,7 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
 
 /*
  * __wt_debug_dump_tree --
- *     Lock all the refs and Dump the in-memory information.
+ *     Lock all the refs and dump the in-memory information.
  */
 int
 __wt_debug_dump_tree(void *cursor_arg)
