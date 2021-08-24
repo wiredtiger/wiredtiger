@@ -218,8 +218,11 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     /* Wrap up the page reconciliation. */
     if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
         __rec_write_page_status(session, r);
-    else
+    else {
+        /* Make sure that reconciliation doesn't free the page that has been written to disk. */
+        WT_ASSERT(session, page->dsk == NULL || ref->addr != NULL);
         WT_TRET(__rec_write_wrapup_err(session, r, page));
+    }
 
     /* Release the reconciliation lock. */
     *page_lockedp = false;
