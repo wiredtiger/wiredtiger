@@ -51,7 +51,7 @@ block manager will place the newly created block in the first available extent.
 First fit mode is used for all root pages.
 
 Additionally the block manager is a no-overwrite system. As such once a block is
-written it cannot be modified.  This is for crash recovery reasons, because if
+written it cannot be modified. This is for crash recovery reasons, because if
 the system were to crash during an overwrite the block state would be unknown.
 This doesn't mean that the associated page cannot be modified, once the
 associated page is modified a subsequent reconciliation will result in a new
