@@ -68,19 +68,23 @@ details. This means that if the application stops abnormally during schema manip
 metadata may be in an invalid state. WiredTiger may or may not be able to recover after this
 type of crash.
 
-@section schema_create Schema Create
+@section schema_api Schema Manipulation
+
+All schema manipulations are done in the context of WT_SESSION.
+
+@subsection schema_create Create
 
 The create schema operation is responsible for creating the underlying data
 object on the filesystem with the right parameters and then creating an entry
 for this new object into the metadata. See details here WT_SESSION::create.
 
-@section schema_drop Schema Drop
+@subsection schema_drop Drop
 
 WT_SESSION::drop operation drops the specified \c uri. It requires exclusive access to the \c uri,
 and if there's an open cursor the method will fail with \c EBUSY. It is possible to keep the
 underlying files by specifying \c "remove_files=false" in the config string.
 
-@section schema_rename Schema Rename
+@subsection schema_rename Rename
 
 The rename schema operation is responsible for renaming the underlying data object on the
 filesystem and updating the metadata accordingly. See details here WT_SESSION::rename.
