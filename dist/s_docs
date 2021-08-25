@@ -13,10 +13,10 @@ type doxygen > /dev/null 2>&1 || {
 	exit 0
 }
 v=`(echo "1.8.17" && doxygen --version) | sort -V | head -1`
-#test "$v" = "1.8.17" || {
-	#echo "$0 2: unsupported version of doxygen"
-	#exit 0
-#}
+test "$v" = "1.8.17" || {
+	echo "$0: unsupported version of doxygen"
+	exit 0
+}
 
 . ../RELEASE_INFO
 
