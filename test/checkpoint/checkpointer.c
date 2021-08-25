@@ -100,7 +100,14 @@ clock_thread(void *arg)
 
     while (g.running) {
         __wt_writelock(session, &g.clock_lock);
-        ++g.ts_stable;
+        if (g.prepare) {
+            /*
+             * Leave a gap between timestamps so prepared insert followed by remove don't overlap
+             * with stable timestamp.
+             */
+            g.ts_stable += 5;
+        } else
+            ++g.ts_stable;
         set_stable();
         if (g.ts_stable % 997 == 0) {
             /*
