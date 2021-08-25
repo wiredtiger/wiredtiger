@@ -56,6 +56,7 @@ Facebook's
 FlameGraph
 FlameGraphs
 FlexeLint
+FSTREAM
 FreeBSD
 FreeBSD's
 GCC
@@ -371,6 +372,7 @@ iflag
 incr
 indices
 init
+inmemory
 insn
 intl
 intpack
