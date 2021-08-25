@@ -32,7 +32,7 @@ Database schema defines how data files are organized in the database home folder
 
 @section schema_integrity Schema Integrity
 
-A user can create and manipulate database objects through the API described below. There are
+A user can create and manipulate database objects through the API listed on this page. There are
 several WiredTiger internal objects such as @ref arch-metadata, @ref arch-hs, etc. The schema of
 those objects is locked and cannot be altered from outside of WiredTiger.
 
@@ -52,7 +52,7 @@ stop
 @enduml
 @plantuml_end
 
-Apart from the schema API described on this page, a schema lock is necessary for many other
+Apart from the schema API, a schema lock is necessary for many other
 operations in WiredTiger including the following "heavy" database modifications:
  - A global schema lock wraps \c checkpoint \c prepare to avoid any tables being created or dropped
  during this phase. See @ref arch-checkpoint for details.
@@ -62,7 +62,7 @@ operations in WiredTiger including the following "heavy" database modifications:
  system. To achieve that it holds a schema lock. See @ref arch_cursor_backup for more
  information on backup cursors.
 
-All the schema operations listed below do multi-step metadata modifications. However, they are
+All the schema operations listed below perform multi-step metadata modifications. However, they are
 \c non-transactional and will not guarantee ACID properties, see @ref transactions for more
 details. This means that if the application stops abnormally during schema manipulations,
 metadata may be in an invalid state. WiredTiger may or may not be able to recover after this
