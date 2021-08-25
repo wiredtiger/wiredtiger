@@ -10,7 +10,7 @@ Keys and values format is configured through \c key_format and \c value_format e
 @ref config_strings. WiredTiger supports simple or composite data format for keys and values.
 See @ref schema_format_types for the full list of supported data types.
  - Simple format stores data in one type, for example \c "key_format=i,value_format=S".
- - Composite format can store multiple data types as a single blob. Data definition can be
+ - Composite format can store multiple data types as a single blob. Configuration string can be
  something like \c "key_format=Si,value_format=ul". Cursors support encoding and decoding of these
  types of keys and values. See @ref arch_cursor_raw and @ref schema_cursor_formats for more details.
 
@@ -52,15 +52,15 @@ stop
 @enduml
 @plantuml_end
 
-Apart from the schema API described on this page, schema lock is necessary for many other
+Apart from the schema API described on this page, a schema lock is necessary for many other
 operations in WiredTiger including the following "heavy" database modifications:
- - A global schema lock wraps checkpoint prepare to avoid any tables being created or dropped
+ - A global schema lock wraps \c checkpoint \c prepare to avoid any tables being created or dropped
  during this phase. See @ref arch-checkpoint for details.
- - Rollback to stable operation acquires a schema lock to make sure no schema changes are done
- during this complex process. @ref arch-rts has more information on the operation.
- - A backup cursor, when opened, ensures that it is the only backup cursor running in the system.
- To achieve that it has to hold schema lock. See @ref arch_cursor_backup for more information on
- backup cursors.
+ - \c Rollback \c to \c stable operation acquires a global schema lock to make sure no schema changes are
+ done during this complex process. @ref arch-rts has more information on the operation.
+ - A \c backup \c cursor, when opened, ensures that it is the only backup cursor running in the
+ system. To achieve that it holds a schema lock. See @ref arch_cursor_backup for more
+ information on backup cursors.
 
 All the schema operations listed below do multi-step metadata modifications. However, they are
 \c non-transactional and will not guarantee ACID properties, see @ref transactions for more
