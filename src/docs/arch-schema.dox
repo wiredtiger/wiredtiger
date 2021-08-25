@@ -6,13 +6,13 @@ patterns. See @ref schema for more information.
 
 @section schema_data_formats Data Formats
 
-Keys and values format are configured through \c key_format and \c value_format entries in
+Keys and values format is configured through \c key_format and \c value_format entries in
 @ref config_strings. WiredTiger supports simple or composite data format for keys and values.
 See @ref schema_format_types for the full list of supported data types.
- - Simple data format stores data in one data type, for example \c "key_format=i,value_format=S".
- - Composite data format can be something like \c "key_format=Si,value_format=ul". Cursors
- support encoding and decoding these types of keys and values. See @ref arch_cursor_raw and
- @ref schema_cursor_formats for more details.
+ - Simple format stores data in one type, for example \c "key_format=i,value_format=S".
+ - Composite format can store multiple data types as a single blob. Data definition can be
+ something like \c "key_format=Si,value_format=ul". Cursors support encoding and decoding of these
+ types of keys and values. See @ref arch_cursor_raw and @ref schema_cursor_formats for more details.
 
 Column store has a special requirement - key format must be of \c 'r' (record number) type.
 @ref schema has more information on key/value formats.
@@ -22,19 +22,19 @@ Column store has a special requirement - key format must be of \c 'r' (record nu
 Database schema defines how data files are organized in the database home folder:
  - Row-oriented table keeps all the data in one file called \c "<table name>.wt", where
  \c "<table name>" is the name that was passed as a part of \c name parameter to WT_SESSION::create.
- - Column-oriented table stores the data in multiple files. One for each column group. File name
+ - Column-oriented table stores the data in multiple files. One for each column group. Filename
  will be as follows \c "<table name>_<colgroup name>.wt". Where \c "<table name>" is the name that
  was specified as a part of \c name parameter to WT_SESSION::create. And \c "<colgroup name>" is the
- column group name defined in \c colgroups entry during definition of the table format.
+ column group name defined in \c colgroups entry during the definition of the table format.
  See this example of how column groups can be configured in WiredTiger @ex_ref{ex_col_store.c}.
 
-@ref arch-row-column describes in more details how row and column stores work.
+@ref arch-row-column describes in more detail how row and column stores work.
 
 @section schema_integrity Schema Integrity
 
 A user can create and manipulate database objects through the API described below. There are
-several WiredTiger internal objects such as @ref arch-metadata, @ref arch-hs, etc. Schema of those
-objects is locked and cannot be altered from outside of WiredTiger.
+several WiredTiger internal objects such as @ref arch-metadata, @ref arch-hs, etc. The schema of
+those objects is locked and cannot be altered from outside of WiredTiger.
 
 Schema operations cause an update to the metadata and are performed under a schema lock to avoid
 concurrent operations on the same object. The following sequence of steps define a generic schema
@@ -52,19 +52,21 @@ stop
 @enduml
 @plantuml_end
 
-Apart from the schema API described on this page, schema lock is necessary for the
-following operations:
+Apart from the schema API described on this page, schema lock is necessary for many other
+operations in WiredTiger including the following "heavy" database modifications:
  - A global schema lock wraps checkpoint prepare to avoid any tables being created or dropped
  during this phase. See @ref arch-checkpoint for details.
+ - Rollback to stable operation acquires a schema lock to make sure no schema changes are done
+ during this complex process. @ref arch-rts has more information on the operation.
  - A backup cursor, when opened, ensures that it is the only backup cursor running in the system.
  To achieve that it has to hold schema lock. See @ref arch_cursor_backup for more information on
  backup cursors.
 
-All the schema operations listed below do multi step metadata modifications. However, they are
+All the schema operations listed below do multi-step metadata modifications. However, they are
 \c non-transactional and will not guarantee ACID properties, see @ref transactions for more
 details. This means that if the application stops abnormally during schema manipulations,
 metadata may be in an invalid state. WiredTiger may or may not be able to recover after this
-type of crashes.
+type of crash.
 
 @section schema_create Schema Create
 
@@ -76,7 +78,7 @@ for this new object into the metadata. See details here WT_SESSION::create.
 
 WT_SESSION::drop operation drops the specified \c uri. It requires exclusive access to the \c uri,
 and if there's an open cursor the method will fail with \c EBUSY. It is possible to keep the
-underlying files by passing \c "remove_files=false" in config string.
+underlying files by specifying \c "remove_files=false" in the config string.
 
 @section schema_rename Schema Rename
 
