@@ -154,6 +154,8 @@ thread_ts_run(void *arg)
     char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
 
+    prev_all_dur_ts = WT_TS_NONE;
+
     td = (THREAD_DATA *)arg;
     __wt_random_init(&rnd);
 
