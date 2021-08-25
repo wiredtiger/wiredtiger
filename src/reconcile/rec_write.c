@@ -221,12 +221,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         WT_TRET(__rec_write_wrapup_err(session, r, page));
     }
 
-    /*
-     * If reconciliation completes successfully, save the stable timestamp.
-     */
-    if (ret == 0 && S2C(session)->txn_global.has_stable_timestamp)
-        mod->last_stable_timestamp = S2C(session)->txn_global.stable_timestamp;
-
     /* Release the reconciliation lock. */
     *page_lockedp = false;
     WT_PAGE_UNLOCK(session, page);
@@ -2197,6 +2191,22 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      */
     if (F_ISSET(r, WT_REC_LOOKASIDE))
         WT_RET(__rec_las_wrapup(session, r));
+
+    /*
+     * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
+     * entirely consistent at that point (the underlying block manager is presumably going to do
+     * some action to resolve the list of allocated/free/whatever blocks that are associated with
+     * the checkpoint).
+     */
+    WT_RET(__wt_ovfl_track_wrapup(session, page));
+
+    /*
+     * If using the history store table eviction path and we found updates that weren't globally
+     * visible when reconciling this page, copy them into the database's history store. This can
+     * fail, so try before clearing the page's previous reconciliation state.
+     */
+    if (F_ISSET(r, WT_REC_HS))
+        WT_RET(__rec_hs_wrapup(session, r));
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
