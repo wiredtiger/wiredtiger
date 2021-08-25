@@ -150,6 +150,7 @@ XRay
 Yann
 Za
 Zstd
+aarch
 aR
 abc
 abstime
@@ -441,6 +442,7 @@ memp
 metadata
 metatracking
 minkey
+mips
 mispredictions
 mixin
 mixins
@@ -509,6 +511,7 @@ pid
 plantuml
 png
 posix
+ppc
 pre
 prealloc
 prepended
@@ -581,6 +584,7 @@ skinparam
 skiplist
 skiplists
 sortable
+sparc
 spinlock
 spinlocks
 sql
