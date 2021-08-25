@@ -217,7 +217,7 @@ functions:
           set -o verbose
 
           # Clean checkout of the current branch.
-          echo "[Debug] Checking out branch ${branch_name} ..."
+          echo "Checking out branch ${branch_name} ..."
           git checkout "${branch_name}"
           git pull --ff-only
           git reset --hard origin/"${branch_name}"
@@ -254,7 +254,7 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          echo "[Debug] Copying over doc directory for branch ${branch_name} ..."
+          echo "Copying over doc directory for branch ${branch_name} ..."
           cp -pr ../docs-"${branch_name}"/* "${branch_name}"
 
           # Only update docs if outdated.
