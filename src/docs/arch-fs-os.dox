@@ -1,19 +1,19 @@
 /*! @arch_page arch-fs-os File System Interface and Operating System Support
 
 @section multiple_os Support for Multiple Operating Systems
-WiredTiger supports POSIX and Windows operating systems through 
-maintaining a seperate folder for each system. By checking the current machine's 
+WiredTiger supports POSIX and Windows operating systems through
+maintaining a seperate folder for each system. By checking the current machine's
 operating system WiredTiger chooses to compile code in the os_posix
 or os_win folder. Additionally, structures and definitions specific to the operating
 system are defined in the header files posix.h or os_windows.h.
 
 @section file_system_and_handle WiredTiger File System and File Handle Interface
-WiredTiger provides file system and file handle abstraction layers (interface) to 
+WiredTiger provides file system and file handle abstraction layers (interface) to
 support multiple filesystems to accommodate for specific features or behaviours.
 
 @subsection file_system File System Interface
-The file system layer provides an interface for handling directories system calls 
-e.g. creation, deletion, and gathering information for files within a directory. 
+The file system layer provides an interface for handling directories system calls
+e.g. creation, deletion, and gathering information for files within a directory.
 WiredTiger defines the file system interface through WT_FILE_SYSTEM and is usually
 initialised when a WiredTiger connection is opened. The interface has a set of
 function pointers that represent the file system functionalities that WiredTiger
@@ -21,17 +21,17 @@ supports for a directory. WiredTiger has already defined POSIX and Windows
 file system function implementations in os_fs.c.
 
 @subsection file_handle File Handle Structure
-WiredTiger has a file handle interface called WT_FILE_HANDLE which 
-defines a set of function pointers that represent I/O operations for a file. 
+WiredTiger has a file handle interface called WT_FILE_HANDLE which
+defines a set of function pointers that represent I/O operations for a file.
 We use this interface as a base class to create file handle implementations
-specific to the operating system e.g. WT_FILE_HANDLE_POSIX or WT_FILE_HANDLE_WINDOWS. 
-These WiredTiger file handle structures are initialised when 
-WT_FILE_SYSTEM::fs_open_file is called. 
+specific to the operating system e.g. WT_FILE_HANDLE_POSIX or WT_FILE_HANDLE_WINDOWS.
+These WiredTiger file handle structures are initialised when
+WT_FILE_SYSTEM::fs_open_file is called.
 
-In WiredTiger whenever a file is opened, a file handle must be 
+In WiredTiger whenever a file is opened, a file handle must be
 created to accomodate the state of the file in cache. Rather than having
 a different handle created for each file open, WiredTiger optimises this
-behaviour through using a hashtable. A structure called WT_FH 
+behaviour through using a hashtable. A structure called WT_FH
 is used for accessing each entry in the hashtable. Therefore whenever
 a file is opened, WiredTiger checks the existing open file handles,
 and would re-use the opened handle if it was already opened.
@@ -61,10 +61,10 @@ can be in os_fs_inmemory.c.
 
 @subsection file_stream File Stream
 WiredTiger contains an impelementation of file stream called WT_FSTREAM. This
-structure is used mainly for appending logging messages or writing to 
-WiredTiger statistic logs. 
+structure is used mainly for appending logging messages or writing to
+WiredTiger statistic logs.
 
 @section filesystem_usage Multiple System Architecture Support
-WiredTiger supports x86_64, i386, mips, ppc, aarch64, s390x, and sparc system 
+WiredTiger supports x86_64, i386, mips, ppc, aarch64, s390x, and sparc system
 architectures which are found in gcc.h.
 */
