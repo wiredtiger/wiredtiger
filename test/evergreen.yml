@@ -216,33 +216,29 @@ functions:
           set -o errexit
           set -o verbose
 
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
+          # Clean checkout of the current branch.
+          echo "[Debug] Checking out branch ${branch_name} ..."
+          git checkout "${branch_name}"
+          git pull --ff-only
+          git reset --hard origin/"${branch_name}"
+          git clean -fdqx
+
+          # Compile docs.
+          sh reconf
+
+          # Java API is removed in newer branches via WT-6675.
+          if [ "${branch_name}" == "mongodb-4.2" ] || [ "${branch_name}" == "mongodb-4.0" ]; then
+            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
+            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+            (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
+          else
+            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
+            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
           fi
 
-          # Go through each supported WiredTiger Github branch to build the docs.
-          #   Please note the "branch" variable used here is a normal shell variable to store the name of
-          #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
-          #   to store the name of the branch being tested by the Evergreen project.
-          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
-            echo "[Debug] Checking out branch $branch ..."
-            git checkout $branch && git pull --ff-only && git reset --hard origin/$branch && git clean -fdqx
-            sh reconf
-
-            # Java API is removed in newer branches via WT-6675.
-            if [ "$branch" = "mongodb-4.2" -o "$branch" = "mongodb-4.0" ]; then
-              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
-              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-              (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
-            else
-              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
-              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-            fi
-
-            (cd ../dist && sh s_docs)
-            (cd .. && rm -rf docs-$branch && mv docs docs-$branch)
-          done
+          # Generate docs.
+          cd ../dist
+          sh s_docs
   "update wiredtiger docs":
     - command: shell.exec
       params:
@@ -250,47 +246,25 @@ functions:
         shell: bash
         script: |
           set -o errexit
-          set -o verbose
 
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
-          fi
+          # Remove old docs and replace then with the generated ones.
+          rm -rf docs-"${branch_name}"
+          mv docs docs-"${branch_name}"
 
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          # Go through each supported WiredTiger Github branch to stage the doc changes.
-          #   Please note the "branch" variable used here is a normal shell variable to store the name of
-          #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
-          #   to store the name of the branch being tested by the Evergreen project.
-          for branch in mongodb-4.0 mongodb-4.2 mongodb-4.4 mongodb-5.0 develop ; do
-            echo "[Debug] Copying over doc directory for branch $branch ..."
-            rsync -avq ../docs-$branch/ $branch/
+          echo "[Debug] Copying over doc directory for branch ${branch_name} ..."
+          cp -pr ../docs-"${branch_name}"/* "${branch_name}"
 
-            # Commit and push the changes (if any).
-            git add $branch > /dev/null
-          done
-
-          git commit -m "Update auto-generated develop docs" \
-                     --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>" > /dev/null
-    # Use separate shell.exec with "silent" directive to avoid exposing credentail in task log.
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger"
-        shell: bash
-        silent: true
-        script: |
-          set -o errexit
-          set -o verbose
-
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
+          # Only update docs if outdated.
+          if [[ $(git status "${branch_name}" --porcelain) ]]; then
+            echo "need to push !"
+            git add "${branch_name}"
+            git commit -m "Update auto-generated develop docs" \
+                      --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
+            git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
           fi
-
-          cd wiredtiger.github.com
-          git push https://${doc-update-github-token}@github.com/wiredtiger/wiredtiger.github.com
   "make check directory":
     command: shell.exec
     params:
