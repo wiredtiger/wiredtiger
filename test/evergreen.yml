@@ -3018,6 +3018,7 @@ buildvariants:
     test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
     - name: compile
+    - name: "compile wiredtiger docs"
     - name: make-check-test
     - name: unit-test-with-compile
     - name: fops

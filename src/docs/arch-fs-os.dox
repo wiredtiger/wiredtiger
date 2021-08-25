@@ -5,7 +5,7 @@ WiredTiger supports POSIX and Windows operating systems through
 maintaining a seperate folder for each system. By checking the current machine's 
 operating system WiredTiger chooses to compile code in the os_posix
 or os_win folder. Additionally, structures and definitions specific to the operating
-system are defined in the the header files posix.h or os_windows.h.
+system are defined in the header files posix.h or os_windows.h.
 
 @section file_system_and_handle WiredTiger File System and File Handle Interface
 WiredTiger provides file system and file handle abstraction layers (interface) to 
@@ -13,7 +13,7 @@ support multiple filesystems to accommodate for specific features or behaviours.
 
 @subsection file_system File System Interface
 The file system layer provides an interface for handling directories system calls 
-e.g. creation, deletion, and the information for a file within a directory. 
+e.g. creation, deletion, and gathering information for files within a directory. 
 WiredTiger defines the file system interface through WT_FILE_SYSTEM and is usually
 initialised when a WiredTiger connection is opened. The interface has a set of
 function pointers that represent the file system functionalities that WiredTiger
