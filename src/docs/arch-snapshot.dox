@@ -152,7 +152,7 @@ WiredTiger applies the below checks in the following order:
 1. The transaction ID is greater than or equal to the snapshots recorded maximum transaction ID: If satisfied, the transaction ID is invisible, as the ID
 would've been allocated after the snapshot was created.
 2. The transaction ID is less than the snapshots recorded minimum transaction ID: If satisfied, the transaction ID is visible, as these would've been
-allocated & committed before the snapshot was created.
+allocated and committed before the snapshot was created.
 3. The transaction ID exists in the snapshots recorded concurrent transaction list: If found, the transaction ID is invisible, as this ID wasn't committed at the
 time the snapshot was created.
 4. Otherwise the ID is visible.
