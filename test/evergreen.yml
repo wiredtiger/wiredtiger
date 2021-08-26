@@ -219,9 +219,6 @@ functions:
           # Clean checkout of the current branch.
           echo "Checking out branch ${branch_name} ..."
           git checkout "${branch_name}"
-          git pull --ff-only
-          git reset --hard origin/"${branch_name}"
-          git clean -fdqx
 
           # Compile docs.
           sh reconf
