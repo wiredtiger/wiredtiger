@@ -216,33 +216,37 @@ functions:
           set -o errexit
           set -o verbose
 
-          echo "Checking out branch ${branch_name} ..."
-          git checkout "${branch_name}"
+          # Go through each supported WiredTiger Github branch to build the docs.
+          # Please note the "branch" variable used here is a normal shell variable to store the name
+          # of a WiredTiger Github branch, while the "branch_name" is an Evergreen built-in variable
+          # to store the name of the branch being tested by the Evergreen project.
+          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
-          # Compile and generate docs.
-          sh reconf
+            # Checkout, compile and generate the docs for each branch.
+            echo "Checking out $branch ..."
+            git checkout "$branch"
 
-          # Java API is removed in newer branches via WT-6675.
-          if [ "${branch_name}" == "mongodb-4.2" ] || [ "${branch_name}" == "mongodb-4.0" ]; then
-            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
-            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-            (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
-          else
-            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
-            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-          fi
+            sh reconf
 
-          cd ../dist
-          if ./s_docs; then
-              echo "The documentation was successfully generated"
-          else
-              echo "./s_docs failed with error $?"
-          fi
+            # Java API is removed in newer branches via WT-6675.
+            if [ "$branch" == "mongodb-4.2" ] || [ "$branch" == "mongodb-4.0" ]; then
+              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
+              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+              (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
+            else
+              ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
+              (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+            fi
+
+            (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
+            # Save the generated docs for later use.
+            (cd .. && mv docs docs-"$branch")
+
+          done
 
   "update wiredtiger docs":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
         shell: bash
         script: |
           set -o errexit
@@ -250,19 +254,24 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          echo "Copying over doc directory for branch ${branch_name} ..."
-          rsync -avq ../docs/ "${branch_name}"/ --delete
+          # Checks the docs from each WT branch, update remote if required.
+          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
-          # Only update docs if outdated.
-          if [[ $(git status "${branch_name}" --porcelain) ]]; then
-            git add "${branch_name}"
-            git commit -m "Update auto-generated develop docs" \
-                      --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
-            git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
-            echo "Successfully updated documentation for branch ${branch_name}."
-          else
-            echo "No documentation changes to update for branch ${branch_name}."
-          fi
+            echo "Copying over doc directory for $branch ..."
+            rsync -avq ../wiredtiger/docs-"$branch"/ "$branch"/ --delete
+
+            # Check if the docs need to be updated.
+            if [[ $(git status "$branch" --porcelain) ]]; then
+              git add "$branch"
+              git commit -m "Update auto-generated docs for $branch" \
+                        --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
+              git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
+              echo "Successfully updated documentation for branch "$branch"."
+            else
+              echo "No documentation changes for $branch."
+            fi
+
+          done
 
   "make check directory":
     command: shell.exec
@@ -2043,7 +2052,7 @@ tasks:
       - func: "compile wiredtiger docs"
 
   - name: doc-update
-    patchable: false
+    # patchable: false
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
