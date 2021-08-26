@@ -84,8 +84,8 @@ main(int argc, char *argv[])
     WT_CURSOR *maincur;
     WT_SESSION *session;
     pthread_t get_tid[N_GET_THREAD], insert_tid[N_INSERT_THREAD];
-    char tableconf[128];
     int i, key, nfail;
+    char tableconf[128];
     const char *tablename;
 
     /*

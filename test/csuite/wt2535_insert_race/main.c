@@ -73,10 +73,10 @@ get_value(TEST_OPTS *opts, WT_CURSOR *c)
 
     if (opts->table_type == TABLE_FIX) {
         testutil_check(c->get_value(c, &value8));
-        return value8;
+        return (value8);
     } else {
         testutil_check(c->get_value(c, &value64));
-        return value64;
+        return (value64);
     }
 }
 
