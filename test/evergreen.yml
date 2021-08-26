@@ -264,12 +264,15 @@ functions:
 
           # Only update docs if outdated.
           if [[ $(git status "${branch_name}" --porcelain) ]]; then
-            echo "need to push !"
             git add "${branch_name}"
             git commit -m "Update auto-generated develop docs" \
                       --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
             git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
+            echo "Successfully updated documentation for branch ${branch_name}."
+          else
+            echo "No documentation changes to update for branch ${branch_name}."
           fi
+
   "make check directory":
     command: shell.exec
     params:
