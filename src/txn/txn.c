@@ -1192,7 +1192,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      *
      * Fix the history store entry for the updates other than tombstone type or the tombstone
      * followed by the update is also from the same prepared transaction by either restoring the
-     * previous update from history store or remove the key.
+     * previous update from history store or removing the key.
      */
     prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
