@@ -468,9 +468,11 @@ restart_read_page:
 static int
 __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
+    WT_BTREE *btree;
     WT_DECL_RET;
     int cmp;
 
+    btree = S2BT(session);
     cmp = 0; /* -Werror=maybe-uninitialized */
 
     if (cbt->lastrecno != WT_RECNO_OOB) {
@@ -486,12 +488,10 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     }
 
     WT_RET(__wt_msg(session, "dumping the cursor page"));
-    WT_WITH_PAGE_INDEX(session, ret = __wt_debug_dump_tree(&cbt->iface));
-    WT_ERR_PANIC(session, EINVAL,
+    WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+    WT_RET_PANIC(session, ret,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
-err:
-    return (ret);
 }
 
 /*
@@ -528,7 +528,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
           session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
         __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b)));
     WT_ERR(__wt_msg(session, "dumping the cursor page"));
-    WT_WITH_PAGE_INDEX(session, ret = __wt_debug_dump_tree(&cbt->iface));
+    WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
 err:

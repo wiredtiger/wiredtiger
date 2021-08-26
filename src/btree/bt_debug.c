@@ -43,7 +43,7 @@ static const /* Output separator */
 static int __debug_col_skip(WT_DBG *, WT_INSERT_HEAD *, const char *, bool, WT_CURSOR *);
 static int __debug_config(WT_SESSION_IMPL *, WT_DBG *, const char *);
 static int __debug_modify(WT_DBG *, const uint8_t *);
-static int __debug_page(WT_DBG *, WT_REF *, uint32_t);
+static int __debug_page(WT_DBG *, WT_REF *, WT_CURSOR *, uint32_t);
 static int __debug_page_col_fix(WT_DBG *, WT_REF *);
 static int __debug_page_col_int(WT_DBG *, WT_PAGE *, uint32_t);
 static int __debug_page_col_var(WT_DBG *, WT_REF *, WT_CURSOR *);
@@ -906,10 +906,12 @@ __wt_debug_tree(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
 int
 __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofile)
 {
+    WT_CURSOR *hs_cursor;
     WT_DBG *ds, _ds;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
+    hs_cursor = NULL;
     /*
      * Allow an explicit btree as an argument, as one may not yet be set on the session.
      */
@@ -921,8 +923,22 @@ __wt_debug_page(void *session_arg, WT_BTREE *btree, WT_REF *ref, const char *ofi
     WT_WITH_BTREE(session, btree, ret = __debug_config(session, ds, ofile));
     WT_RET(ret);
 
-    WT_WITH_BTREE(session, btree, ret = __debug_page(ds, ref, WT_DEBUG_TREE_LEAF));
+    /*
+     * Set up history store support, opening a history store cursor on demand. Ignore errors if that
+     * doesn't work, we may be running in-memory.
+     */
+    if (!WT_IS_HS(session->dhandle)) {
+        WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
+        WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
+    }
 
+    WT_WITH_BTREE(session, btree, ret = __debug_page(ds, ref, hs_cursor, WT_DEBUG_TREE_LEAF));
+
+err:
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
     WT_TRET(__debug_wrapup(ds));
     return (ret);
 }
@@ -943,40 +959,6 @@ __wt_debug_cursor_page(void *cursor_arg, const char *ofile)
     session = CUR2S(cursor_arg);
 
     WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, cbt->ref, ofile));
-    return (ret);
-}
-
-/*
- * __wt_debug_dump_tree --
- *     Lock all the refs and dump the in-memory information.
- */
-int
-__wt_debug_dump_tree(void *cursor_arg)
-{
-    WT_CURSOR_BTREE *cbt;
-    WT_DECL_RET;
-    WT_REF *ref;
-    WT_SESSION_IMPL *session;
-    uint8_t previous_state;
-
-    cbt = cursor_arg;
-    session = CUR2S(cursor_arg);
-
-    WT_INTL_FOREACH_BEGIN (session, cbt->ref->home, ref) {
-        previous_state = ref->state;
-        if (previous_state != WT_REF_MEM)
-            continue;
-        WT_REF_LOCK(session, ref, &previous_state);
-    }
-    WT_INTL_FOREACH_END;
-
-    WT_INTL_FOREACH_BEGIN (session, cbt->ref->home, ref) {
-        if (ref->state != WT_REF_LOCKED)
-            continue;
-        WT_WITH_BTREE(session, CUR2BT(cbt), ret = __wt_debug_page(session, NULL, ref, NULL));
-    }
-    WT_INTL_FOREACH_END;
-
     return (ret);
 }
 
@@ -1009,37 +991,17 @@ __wt_debug_cursor_tree_hs(void *session_arg, const char *ofile)
 static int
 __debug_tree(WT_SESSION_IMPL *session, WT_REF *ref, const char *ofile, uint32_t flags)
 {
+    WT_CURSOR *hs_cursor;
     WT_DBG *ds, _ds;
     WT_DECL_RET;
 
+    hs_cursor = NULL;
     ds = &_ds;
     WT_RET(__debug_config(session, ds, ofile));
 
     /* A NULL page starts at the top of the tree -- it's a convenience. */
     if (ref == NULL)
         ref = &S2BT(session)->root;
-
-    ret = __debug_page(ds, ref, flags);
-
-    WT_TRET(__debug_wrapup(ds));
-    return (ret);
-}
-
-/*
- * __debug_page --
- *     Dump the in-memory information for an in-memory page.
- */
-static int
-__debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
-{
-    WT_CURSOR *hs_cursor;
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    hs_cursor = NULL;
-    session = ds->session;
-    WT_RET(__wt_scr_alloc(session, 100, &ds->key));
-
     /*
      * Set up history store support, opening a history store cursor on demand. Ignore errors if that
      * doesn't work, we may be running in-memory.
@@ -1049,8 +1011,29 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
         F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
         WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
         WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
-        F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
     }
+
+    ret = __debug_page(ds, ref, hs_cursor, flags);
+
+err:
+    WT_TRET(__debug_wrapup(ds));
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
+    return (ret);
+}
+
+/*
+ * __debug_page --
+ *     Dump the in-memory information for an in-memory page.
+ */
+static int
+__debug_page(WT_DBG *ds, WT_REF *ref, WT_CURSOR *hs_cursor, uint32_t flags)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = ds->session;
+    WT_RET(__wt_scr_alloc(session, 100, &ds->key));
 
     /* Dump the page metadata. */
     WT_WITH_PAGE_INDEX(session, ret = __debug_page_metadata(ds, ref));
@@ -1083,8 +1066,6 @@ __debug_page(WT_DBG *ds, WT_REF *ref, uint32_t flags)
     }
 
 err:
-    if (hs_cursor != NULL)
-        WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
 }
 
@@ -1246,9 +1227,12 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
 static int
 __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 {
+    WT_CURSOR *hs_cursor;
+    WT_DECL_RET;
     WT_REF *ref;
     WT_SESSION_IMPL *session;
 
+    hs_cursor = NULL;
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -1258,16 +1242,29 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
     WT_INTL_FOREACH_END;
 
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
+        /*
+         * Set up history store support, opening a history store cursor on demand. Ignore errors if
+         * that doesn't work, we may be running in-memory.
+         */
+        if (!WT_IS_HS(session->dhandle)) {
+            WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+            F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
+            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
+        }
+
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
             if (ref->state == WT_REF_MEM) {
-                WT_RET(ds->f(ds, "\n"));
-                WT_RET(__debug_page(ds, ref, flags));
+                WT_ERR(ds->f(ds, "\n"));
+                WT_ERR(__debug_page(ds, ref, hs_cursor, flags));
             }
         }
         WT_INTL_FOREACH_END;
     }
-
-    return (0);
+err:
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
+    return (ret);
 }
 
 /*
@@ -1327,11 +1324,14 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref, WT_CURSOR *hs_cursor)
 static int
 __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 {
+    WT_CURSOR *hs_cursor;
+    WT_DECL_RET;
     WT_REF *ref;
     WT_SESSION_IMPL *session;
     size_t len;
     void *p;
 
+    hs_cursor = NULL;
     session = ds->session;
 
     WT_INTL_FOREACH_BEGIN (session, page, ref) {
@@ -1342,15 +1342,28 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
     WT_INTL_FOREACH_END;
 
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
+        /*
+         * Set up history store support, opening a history store cursor on demand. Ignore errors if
+         * that doesn't work, we may be running in-memory.
+         */
+        if (!WT_IS_HS(session->dhandle)) {
+            WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
+            F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
+            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_key));
+            WT_ERR(__wt_scr_alloc(session, 0, &ds->hs_value));
+        }
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
             if (ref->state == WT_REF_MEM) {
-                WT_RET(ds->f(ds, "\n"));
-                WT_RET(__debug_page(ds, ref, flags));
+                WT_ERR(ds->f(ds, "\n"));
+                WT_ERR(__debug_page(ds, ref, hs_cursor, flags));
             }
         }
         WT_INTL_FOREACH_END;
     }
-    return (0);
+err:
+    if (hs_cursor != NULL)
+        WT_TRET(hs_cursor->close(hs_cursor));
+    return (ret);
 }
 
 /*
