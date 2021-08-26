@@ -41,9 +41,7 @@ class test_evict_race01(wttest.WiredTigerTestCase):
         # ('column', dict(key_format='r')),
         ('integer_row', dict(key_format='i')),
     ]
-
     scenarios = make_scenarios(key_format_values)
-
     value1 = 'aaaaa'
     value2 = 'bbbbb'
     value3 = 'ccccc'
@@ -72,38 +70,23 @@ class test_evict_race01(wttest.WiredTigerTestCase):
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
         cursor.close()
 
-        # Create two threads, one for eviciton and one for OOO timestamps.
-        ooo_thread = threading.Thread(target=self.out_of_order_ts_commits)
-        evict_thread = threading.Thread(target=self.evict_data)
-
-
+        # Create a thread.
+        ooo_thread = threading.Thread(target=self.out_of_order_update_and_evict)
         self.session.breakpoint()
 
-        # Start both threads.
+        # Start the thread
         ooo_thread.start()
         # Comment out to fix test.
-        #evict_thread.start()
         self.session.checkpoint()
         # Comment out to fix test.
-        #evict_thread.join()
         ooo_thread.join()
         simulate_crash_restart(self, '.', "RESTART")
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(4))
-        self.assertEquals(value1, cursor[1])
+        self.assertEquals(self.value1, cursor[1])
         self.session.rollback_transaction()
 
-    def evict_data(self):
-        sleep(2)
-        session = self.setUpSessionOpen(self.conn)
-        evict_cursor = session.open_cursor(self.uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(1)
-        self.assertEquals(evict_cursor.search(), 0)
-        evict_cursor.reset()
-        evict_cursor.close()
-        session.close()
-
-    def out_of_order_ts_commits(self):
+    def out_of_order_update_and_evict(self):
         sleep(0.5)
         session = self.setUpSessionOpen(self.conn)
         cursor = session.open_cursor(self.uri)
@@ -111,4 +94,10 @@ class test_evict_race01(wttest.WiredTigerTestCase):
         cursor[1] = self.value4
         session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
         cursor.close()
+        sleep(1.5)
+        evict_cursor = session.open_cursor(self.uri, None, "debug=(release_evict)")
+        evict_cursor.set_key(1)
+        self.assertEquals(evict_cursor.search(), 0)
+        evict_cursor.reset()
+        evict_cursor.close()
         session.close()
