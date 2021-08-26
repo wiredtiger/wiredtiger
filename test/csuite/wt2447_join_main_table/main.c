@@ -86,7 +86,7 @@ main(int argc, char *argv[])
     WT_CURSOR *cursor1, *cursor2, *jcursor;
     WT_ITEM d;
     WT_SESSION *session;
-    uint64_t maincount;
+    uint64_t maincount, i64;
     int half, i, j;
     char bloom_cfg[128], index1uri[256], index2uri[256], joinuri[256], table_cfg[128];
     const char *tablename;
@@ -165,13 +165,18 @@ main(int argc, char *argv[])
     /* Expect one value returned */
     testutil_assert(jcursor->next(jcursor) == 0);
     i = 0;
-    testutil_assert(jcursor->get_key(jcursor, &i) == 0);
-    testutil_assert(i == (int)half);
+    if (opts->table_type == TABLE_ROW)
+        testutil_assert(jcursor->get_key(jcursor, &i) == 0);
+    else {
+        testutil_assert(jcursor->get_key(jcursor, &i64) == 0);
+        i = (int)i64;
+    }
+    testutil_assert(i == half);
     i = j = 0;
     memset(&d, 0, sizeof(d));
     testutil_assert(jcursor->get_value(jcursor, &i, &j, &d) == 0);
-    testutil_assert(i == (int)half);
-    testutil_assert(j == (int)half);
+    testutil_assert(i == half);
+    testutil_assert(j == half);
     testutil_assert(d.size == 4100);
     for (i = 0; i < 4100; i++)
         testutil_assert(((char *)d.data)[i] == 7);
