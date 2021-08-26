@@ -216,11 +216,10 @@ functions:
           set -o errexit
           set -o verbose
 
-          # Clean checkout of the current branch.
           echo "Checking out branch ${branch_name} ..."
           git checkout "${branch_name}"
 
-          # Compile docs.
+          # Compile and generate docs.
           sh reconf
 
           # Java API is removed in newer branches via WT-6675.
@@ -233,7 +232,6 @@ functions:
             (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
           fi
 
-          # Generate docs.
           cd ../dist
           if ./s_docs; then
               echo "The documentation was successfully generated"
