@@ -212,7 +212,8 @@ class test_prepare15(wttest.WiredTigerTestCase):
         evict_cursor.close()
         self.session.commit_transaction()
 
-        # The history store update should not be visible when the prepared transaction commits.
+        # The history store update should not be visible when the prepared transaction commits
+        # due to global visibility of the stop timestamp.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(70))
         cursor2 = self.session.open_cursor(uri)
         cursor2.set_key(1)
