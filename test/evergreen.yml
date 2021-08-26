@@ -2052,7 +2052,7 @@ tasks:
       - func: "compile wiredtiger docs"
 
   - name: doc-update
-    # patchable: false
+    patchable: false
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
