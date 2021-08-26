@@ -251,7 +251,7 @@ functions:
           cd wiredtiger.github.com
 
           echo "Copying over doc directory for branch ${branch_name} ..."
-          cp -pr ../docs/* "${branch_name}"
+          rsync -avq ../docs/ "${branch_name}"/ --delete
 
           # Only update docs if outdated.
           if [[ $(git status "${branch_name}" --porcelain) ]]; then
