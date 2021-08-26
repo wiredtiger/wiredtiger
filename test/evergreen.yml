@@ -249,15 +249,11 @@ functions:
         script: |
           set -o errexit
 
-          # Remove old docs and replace then with the generated ones.
-          rm -rf docs-"${branch_name}"
-          mv docs docs-"${branch_name}"
-
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
           echo "Copying over doc directory for branch ${branch_name} ..."
-          cp -pr ../docs-"${branch_name}"/* "${branch_name}"
+          cp -pr ../docs/* "${branch_name}"
 
           # Only update docs if outdated.
           if [[ $(git status "${branch_name}" --porcelain) ]]; then
