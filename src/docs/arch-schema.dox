@@ -69,9 +69,10 @@ operations in WiredTiger including the following "heavy" database modifications:
  during this phase. See @ref arch-checkpoint for details.
  - \c Rollback \c to \c stable operation acquires the schema lock to make sure no schema changes are
  done during this complex process. @ref arch-rts has more information on the operation.
- - A \c backup \c cursor, when opened, ensures that it is the only backup cursor running in the
- system. To achieve that it holds the schema lock. See @ref arch_cursor_backup for more
- information on backup cursors.
+ - A \c backup \c cursor also holds the schema lock because it must guarantee a consistent view
+ of what files and tables exist while it is being used, so it prevents any tables or files being
+ created or dropped during that time. See @ref backup and @ref arch_cursor_backup for
+ more information.
 
 All the schema operations listed below perform multi-step metadata modifications. However, they are
 \c non-transactional and will not guarantee ACID properties, see @ref transactions for more
@@ -81,22 +82,36 @@ type of crash.
 
 @section schema_api Schema Manipulation
 
-All schema manipulations are done in the context of WT_SESSION.
+All schema manipulations are done in the context of WT_SESSION. All the methods below,
+except WT_SESSION::create and WT_SESSION::truncate, require exclusive access to the specified
+data source(s). If any cursors are open with the specified name(s) or a data source is otherwise
+in use, the call will fail and return EBUSY.
 
 @subsection schema_create Create
 
 The create schema operation is responsible for creating the underlying data
-object on the filesystem with the right parameters and then creating an entry
-for this new object into the metadata. See details here WT_SESSION::create.
+objects on the filesystem and then creating required entries in the metadata. The API for this
+operation is WT_SESSION::create.
 
 @subsection schema_drop Drop
 
-WT_SESSION::drop operation drops the specified \c uri. It requires exclusive access to the \c uri,
-and if there's an open cursor the method will fail with \c EBUSY. It is possible to keep the
-underlying files by specifying \c "remove_files=false" in the config string.
+WT_SESSION::drop operation drops the specified \c uri. The method will delete all related files
+and metadata entries. It is possible to keep the underlying files by specifying
+\c "remove_files=false" in the config string.
 
 @subsection schema_rename Rename
 
 The rename schema operation is responsible for renaming the underlying data object on the
 filesystem and updating the metadata accordingly. See details here WT_SESSION::rename.
+
+@subsection schema_alter Alter
+
+WT_SESSION::alter allows modification of some table settings after creation.
+
+@subsection schema_truncate Truncate
+
+WT_SESSION::truncate truncates a file, table, cursor range, or backup cursor. If \c start and
+\c stop cursors are not specified all the data stored in the \c uri will be wiped out. When a range
+truncate is in progress, and another transaction inserts a key into that range, the behavior
+is not well defined. It is best to avoid this type of situations.
 */
