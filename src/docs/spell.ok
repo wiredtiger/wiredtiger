@@ -671,6 +671,7 @@ workgen
 writelock
 writelocks
 wrlock
+wti
 wtperf
 wtstats
 xa
