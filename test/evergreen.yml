@@ -238,7 +238,12 @@ functions:
 
           # Generate docs.
           cd ../dist
-          sh s_docs
+          if ./s_docs; then
+              echo "The documentation was successfully generated"
+          else
+              echo "./s_docs failed with error $?"
+          fi
+
   "update wiredtiger docs":
     - command: shell.exec
       params:
