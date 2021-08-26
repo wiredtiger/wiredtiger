@@ -150,6 +150,7 @@ thread_ts_run(void *arg)
     WT_SESSION *session;
     THREAD_DATA *td;
     wt_timestamp_t all_dur_ts, prev_all_dur_ts;
+    uint32_t rand_op;
     int dbg;
     char tscfg[64], ts_string[WT_TS_HEX_STRING_SIZE];
     bool first;
@@ -181,14 +182,27 @@ thread_ts_run(void *arg)
             continue;
         }
         if (ret == 0) {
-            /* Periodically let the oldest timestamp lag. */
-            if (!first && __wt_random(&rnd) % 4 == 0)
+            rand_op = __wt_random(&rnd) % 4;
+            /*
+             * Periodically let the oldest timestamp lag. Other times set the stable and oldest
+             * timestamps as separate API calls. The rest of the time set them both as one call.
+             */
+            if (rand_op == 0) {
                 testutil_check(
                   __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
-            else
-                testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
-                  "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
-            testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+                testutil_check(
+                  __wt_snprintf(tscfg, sizeof(tscfg), "oldest_timestamp=%s", ts_string));
+                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+            } else {
+                if (!first && rand_op == 1)
+                    testutil_check(
+                      __wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%s", ts_string));
+                else
+                    testutil_check(__wt_snprintf(tscfg, sizeof(tscfg),
+                      "oldest_timestamp=%s,stable_timestamp=%s", ts_string, ts_string));
+                testutil_check(td->conn->set_timestamp(td->conn, tscfg));
+            }
             first = false;
             prev_all_dur_ts = all_dur_ts;
             /*
