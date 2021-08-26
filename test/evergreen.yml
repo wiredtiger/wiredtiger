@@ -222,7 +222,6 @@ functions:
           # to store the name of the branch being tested by the Evergreen project.
           for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
-            # Checkout, compile and generate the docs for each branch.
             echo "Checking out $branch ..."
             git checkout "$branch"
 
@@ -254,7 +253,7 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          # Checks the docs from each WT branch, update remote if required.
+          # Go through each supported WiredTiger Github branch to stage the doc changes.
           for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
             echo "Copying over doc directory for $branch ..."
