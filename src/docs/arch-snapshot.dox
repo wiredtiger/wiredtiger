@@ -1,8 +1,10 @@
 /*! @arch_page arch-snapshot Snapshot
 
-Snapshots are an important mechanism for providing strong isolation guarantees
-in WiredTiger. Snapshots are importantly leveraged by WiredTiger for
-isolating concurrent transactions from reading each others updates.
+Transaction snapshots are an important mechanism for providing strong isolation guarantees
+in WiredTiger. WiredTiger will often maintain multiple versions of the users data throughout
+its lifetime, with which snapshots provide the mechanisms to ensure particular versions of that data are
+made accessible. Snapshots are importantly leveraged by WiredTiger to define the visibility rules for data such
+as isolating concurrent transactions from reading each others updates.
 
 @section snapshot_transaction Transactions using Snapshots
 
