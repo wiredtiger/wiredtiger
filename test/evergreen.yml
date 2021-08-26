@@ -2877,7 +2877,6 @@ buildvariants:
 
 - name: documentation-update
   display_name: "~ Documentation update"
-  batchtime: 1440 # 1 day
   run_on:
   - ubuntu2004-test
   tasks:
