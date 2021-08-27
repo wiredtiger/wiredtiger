@@ -8,7 +8,7 @@ as isolating concurrent transactions from reading each others updates.
 
 @section snapshot_transaction Transactions using Snapshots
 
-Within the context of a WiredTiger transaction, a snapshot ensures specific versions of a record are accessible at the
+Within the context of a WiredTiger transaction, a snapshot ensures specific versions of a record are accessible based on the
 time the snapshot was created. In particular, these accessibility rules are defined by a transactions isolation level.
 Transactions more specifically use snapshots for the following isolation levels:
 
