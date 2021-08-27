@@ -66,7 +66,7 @@ if(ENABLE_STATIC)
     set(link_type "STATIC")
 else()
     set(link_type "SHARED")
-    SET_PROPERTY(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
+    set_property(GLOBAL PROPERTY TARGET_SUPPORTS_SHARED_LIBS TRUE)
 endif()
 
 # Include the extensions to the build.
@@ -78,8 +78,30 @@ if(WT_WIN)
     list(APPEND wt_source ${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def)
     set_source_files_properties(${CMAKE_SOURCE_DIR}/build_win/wiredtiger.def PROPERTIES HEADER_FILE_ONLY TRUE)
 endif()
-# Establish wiredtiger library target
-add_library(wiredtiger ${link_type} ${wt_sources})
+
+set(builtin_objs)
+if(HAVE_BUILTIN_EXTENSION_LZ4)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_lz4>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_SNAPPY)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_snappy>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_sodium>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_ZLIB)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zlib>)
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_ZSTD)
+    list(APPEND builtin_objs $<TARGET_OBJECTS:wiredtiger_zstd>)
+endif()
+
+# Establish wiredtiger library target.
+add_library(wiredtiger ${link_type} ${wt_sources} ${builtin_objs})
 
 # Generate wiredtiger.h include file.
 configure_file(src/include/wiredtiger.in "include/wiredtiger.h" @ONLY)
@@ -124,20 +146,26 @@ if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
     target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
 endif()
 
+# We want to capture any transitive dependencies associated with the builtin library
+# target and ensure we are explicitly linking the 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger wiredtiger_lz4)
+    target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger wiredtiger_snappy)
+    target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
+endif()
+
+if(HAVE_BUILTIN_EXTENSION_SODIUM)
+    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger wiredtiger_zlib)
+    target_link_libraries(wiredtiger ${HAVE_LIBZ})
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger wiredtiger_zstd)
+    target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
 endif()
 
 # Build the wt utility.
