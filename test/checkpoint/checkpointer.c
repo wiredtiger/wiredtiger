@@ -100,13 +100,13 @@ clock_thread(void *arg)
 
     while (g.running) {
         __wt_writelock(session, &g.clock_lock);
-        if (g.prepare) {
+        if (g.prepare)
             /*
              * Leave a gap between timestamps so prepared insert followed by remove don't overlap
              * with stable timestamp.
              */
             g.ts_stable += 5;
-        } else
+        else
             ++g.ts_stable;
         set_stable();
         if (g.ts_stable % 997 == 0) {
@@ -277,13 +277,19 @@ verify_consistency(WT_SESSION *session, char *stable_timestamp)
     }
 
     while (ret == 0) {
-        ret = cursors[0]->next(cursors[0]);
+        while ((ret = cursors[0]->next(cursors[0])) != 0) {
+            if (ret == WT_NOTFOUND)
+                break;
+            if (ret != WT_PREPARE_CONFLICT) {
+                (void)log_print_err("cursor->next", ret, 1);
+                goto err;
+            }
+            __wt_yield();
+        }
+
         if (ret == 0)
             ++key_count;
-        else if (ret != WT_NOTFOUND) {
-            (void)log_print_err("cursor->next", ret, 1);
-            goto err;
-        }
+
         /*
          * Check to see that all remaining cursors have the same key/value pair.
          */
@@ -293,10 +299,14 @@ verify_consistency(WT_SESSION *session, char *stable_timestamp)
              */
             if (g.cookies[i].type == LSM)
                 continue;
-            t_ret = cursors[i]->next(cursors[i]);
-            if (t_ret != 0 && t_ret != WT_NOTFOUND) {
-                (void)log_print_err("cursor->next", t_ret, 1);
-                goto err;
+            while ((t_ret = cursors[i]->next(cursors[i])) != 0) {
+                if (t_ret == WT_NOTFOUND)
+                    break;
+                if (t_ret != WT_PREPARE_CONFLICT) {
+                    (void)log_print_err("cursor->next", t_ret, 1);
+                    goto err;
+                }
+                __wt_yield();
             }
 
             if (ret == WT_NOTFOUND && t_ret == WT_NOTFOUND)

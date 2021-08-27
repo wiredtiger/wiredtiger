@@ -260,23 +260,39 @@ real_worker(void)
                 if (g.use_timestamps) {
                     if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
                         next_rnd = __wt_random(&rnd);
-                        if (g.prepare && next_rnd % 2 == 0) {
-                            testutil_check(__wt_snprintf(
-                              buf, sizeof(buf), "prepare_timestamp=%x", g.ts_stable + 1));
-                            if ((ret = session->prepare_transaction(session, buf)) != 0) {
-                                (void)log_print_err("real_worker:prepare_transaction", ret, 1);
-                                goto err;
-                            }
+                        // Commit 50% of time
+                        if (next_rnd % 2 == 0) {
                             testutil_check(__wt_snprintf(buf, sizeof(buf),
                               "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
                               g.ts_stable + 1));
-                        } else
+                            if ((ret = session->commit_transaction(session, buf)) != 0) {
+                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                                (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                                goto err;
+                            }
+                        } else {
+                            if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                                (void)log_print_err("real_worker:rollback_transaction", ret, 1);
+                                goto err;
+                            }
+                        }
+                    } else {
+                        // Commit majority of times
+                        if (next_rnd % 49 != 0) {
                             testutil_check(__wt_snprintf(
                               buf, sizeof(buf), "commit_timestamp=%x", g.ts_stable + 1));
-                        if ((ret = session->commit_transaction(session, buf)) != 0) {
-                            __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                            (void)log_print_err("real_worker:commit_transaction", ret, 1);
-                            goto err;
+                            if ((ret = session->commit_transaction(session, buf)) != 0) {
+                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                                (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                                goto err;
+                            }
+                        } else {
+                            if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                                (void)log_print_err("real_worker:rollback_transaction", ret, 1);
+                                goto err;
+                            }
                         }
                         __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                         start_txn = true;
@@ -286,16 +302,25 @@ real_worker(void)
                         }
                     }
                 } else {
-                    if ((ret = session->commit_transaction(session, NULL)) != 0) {
-                        (void)log_print_err("real_worker:commit_transaction", ret, 1);
-                        goto err;
+                    // Commit majority of times
+                    if (next_rnd % 49 != 0) {
+                        if ((ret = session->commit_transaction(session, NULL)) != 0) {
+                            __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                            (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                            goto err;
+                        }
+                    } else {
+                        if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                            __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                            (void)log_print_err("real_worker:rollback_transaction", ret, 1);
+                            goto err;
+                        }
                     }
                     start_txn = true;
                 }
-            } else if (next_rnd % 15 == 0) {
+            } else if (next_rnd % 15 == 0)
                 /* Occasionally reopen cursors during a running transaction. */
                 reopen_cursors = true;
-            }
         } else {
             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:rollback_transaction", ret, 1);
