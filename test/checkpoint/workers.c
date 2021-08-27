@@ -267,29 +267,15 @@ real_worker(void)
                                 (void)log_print_err("real_worker:prepare_transaction", ret, 1);
                                 goto err;
                             }
-                            // Commit 50% of time
-                            if (next_rnd % 4 == 0) {
-                                testutil_check(__wt_snprintf(buf, sizeof(buf),
-                                  "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
-                                  g.ts_stable + 1));
-                                if ((ret = session->commit_transaction(session, buf)) != 0) {
-                                    __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                                    (void)log_print_err("real_worker:commit_transaction", ret, 1);
-                                    goto err;
-                                }
-                            }
-                        } else {
-                            if ((ret = session->rollback_transaction(session, NULL)) != 0) {
-                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                                (void)log_print_err("real_worker:rollback_transaction", ret, 1);
-                                goto err;
-                            }
-                        }
-                    } else {
-                        // Commit majority of times
-                        if (next_rnd % 49 != 0) {
+                            testutil_check(__wt_snprintf(buf, sizeof(buf),
+                              "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
+                              g.ts_stable + 1));
+                        } else
                             testutil_check(__wt_snprintf(
                               buf, sizeof(buf), "commit_timestamp=%x", g.ts_stable + 1));
+
+                        // Commit majority of times
+                        if (next_rnd % 49 != 0) {
                             if ((ret = session->commit_transaction(session, buf)) != 0) {
                                 __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                                 (void)log_print_err("real_worker:commit_transaction", ret, 1);
@@ -304,7 +290,7 @@ real_worker(void)
                         }
                         __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                         start_txn = true;
-                        /* Occasionally reopen cursors after committing. */
+                        /* Occasionally reopen cursors after transaction finish. */
                         if (next_rnd % 13 == 0) {
                             reopen_cursors = true;
                         }
