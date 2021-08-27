@@ -676,7 +676,7 @@ err:
  *     Perform a checkpoint or wait if it is already running to resolve an EBUSY error.
  */
 int
-__wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, u_int seconds)
+__wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, uint64_t seconds)
 {
     WT_DECL_RET;
     WT_TXN_GLOBAL *txn_global;
