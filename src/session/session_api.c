@@ -638,7 +638,7 @@ err:
 
 /*
  * __session_alter_internal --
- *     Internal implementation of an alter a table setting.
+ *     Internal implementation of the WT_SESSION.alter method.
  */
 static int
 __session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *config)
@@ -672,6 +672,50 @@ err:
 }
 
 /*
+ * __wt_session_blocking_checkpoint --
+ *     Perform a checkpoint or wait if it is already running to resolve an EBUSY error.
+ */
+int
+__wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, u_int seconds)
+{
+    WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+    uint64_t txn_gen;
+    const char *cfg[3] = {NULL, NULL, NULL};
+
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
+    if (force)
+        cfg[1] = "force=1";
+
+    if ((ret = __wt_txn_checkpoint(session, cfg, false)) == 0)
+        return (0);
+    WT_RET_BUSY_OK(ret);
+
+    /*
+     * If there's a checkpoint running, wait for it to complete. If there's no checkpoint running or
+     * the checkpoint generation number changes, the checkpoint blocking us has completed.
+     */
+    txn_global = &S2C(session)->txn_global;
+    for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);; __wt_sleep(2, 0)) {
+        /*
+         * This loop only checks objects that are declared volatile, therefore no barriers are
+         * needed.
+         */
+        if (!txn_global->checkpoint_running || txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
+            break;
+
+        /* If there's a timeout, give up. */
+        if (seconds == 0)
+            continue;
+        seconds -= 2;
+        if (seconds <= 2)
+            return (EBUSY);
+    }
+
+    return (0);
+}
+
+/*
  * __session_alter --
  *     Alter a table setting.
  */
@@ -685,12 +729,13 @@ __session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
 
     /*
      * Alter table can return EBUSY error when the table is modified in parallel by eviction. Retry
-     * the command after performing a system wide checkpoint. Don't retry it in a loop as it may
-     * lead to wait forever.
+     * the command after performing a system wide checkpoint. Only retry once to avoid potentially
+     * waiting forever.
      */
     ret = __session_alter_internal(session, uri, config);
     if (ret == EBUSY) {
-        WT_RET(session->iface.checkpoint(&session->iface, NULL));
+        WT_RET(__wt_session_blocking_checkpoint(session, false, 0));
+        WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
         ret = __session_alter_internal(session, uri, config);
     }
 

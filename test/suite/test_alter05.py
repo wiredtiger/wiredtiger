@@ -27,12 +27,19 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-from wtscenario import make_scenarios
+from wiredtiger import stat
 
 # test_alter05.py
-#    Check the alter command even if the file is modified.
+#    Check the alter command succeeds even if the file is modified.
 class test_alter05(wttest.WiredTigerTestCase):
+    conn_config = "statistics=(all)"
     name = "alter05"
+
+    def get_stat(self, stat):
+        stat_cursor = self.session.open_cursor('statistics:')
+        val = stat_cursor[stat][2]
+        stat_cursor.close()
+        return val
 
     def verify_metadata(self, metastr):
         c = self.session.open_cursor('metadata:', None, None)
@@ -46,7 +53,7 @@ class test_alter05(wttest.WiredTigerTestCase):
 
         c.close()
 
-    # Alter file to change the metadata and verify
+    # Alter file to change the metadata and verify.
     def test_alter05(self):
         uri = "file:" + self.name
         entries = 100
@@ -54,18 +61,30 @@ class test_alter05(wttest.WiredTigerTestCase):
 
         self.session.create(uri, create_params + "log=(enabled=true)")
 
+        # Pin oldest and stable to timestamp 1.
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
+
+        # Verify the string in the metadata.
+        self.verify_metadata('log=(enabled=true)')
+
         # Put some data in table.
+        self.session.begin_transaction()
         c = self.session.open_cursor(uri, None)
         for k in range(entries):
             c[k+1] = 1
         c.close()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
-        # Verify the string in the metadata
-        self.verify_metadata('log=(enabled=true)')
+        prev_alter_chceckpoints = self.get_stat(stat.conn.session_table_alter_trigger_checkpoint)
 
-        # Alter app metadata and verify
+        # Alter the table and verify.
         self.session.alter(uri, 'log=(enabled=false)')
         self.verify_metadata('log=(enabled=false)')
+
+        alter_chceckpoints = self.get_stat(stat.conn.session_table_alter_trigger_checkpoint)
+        self.assertEqual(prev_alter_chceckpoints + 1, alter_chceckpoints)
+        prev_alter_chceckpoints = alter_chceckpoints
 
         # Open a cursor, insert some data and try to alter with cursor open.
         c2 = self.session.open_cursor(uri, None)
@@ -75,6 +94,9 @@ class test_alter05(wttest.WiredTigerTestCase):
         self.assertRaisesException(wiredtiger.WiredTigerError,
             lambda: self.session.alter(uri, 'log=(enabled=true)'))
         self.verify_metadata('log=(enabled=false)')
+
+        alter_chceckpoints = self.get_stat(stat.conn.session_table_alter_trigger_checkpoint)
+        self.assertEqual(prev_alter_chceckpoints + 1, alter_chceckpoints)
 
         c2.close()
 
