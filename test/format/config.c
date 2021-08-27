@@ -1331,10 +1331,12 @@ config_map_file_type(const char *s, u_int *vp)
     while (*s != '\0') {
         if (WT_PREFIX_SKIP(s, "fix") || WT_PREFIX_SKIP(s, "fixed-length column-store"))
             fix = true;
-        if (WT_PREFIX_SKIP(s, "row") || WT_PREFIX_SKIP(s, "row-store"))
+        else if (WT_PREFIX_SKIP(s, "row") || WT_PREFIX_SKIP(s, "row-store"))
             row = true;
-        if (WT_PREFIX_SKIP(s, "var") || WT_PREFIX_SKIP(s, "variable-length column-store"))
+        else if (WT_PREFIX_SKIP(s, "var") || WT_PREFIX_SKIP(s, "variable-length column-store"))
             var = true;
+        else
+            testutil_die(EINVAL, "illegal file type configuration: %s", arg);
 
         if (*s == ',') /* Allow, but don't require, comma-separators. */
             ++s;
