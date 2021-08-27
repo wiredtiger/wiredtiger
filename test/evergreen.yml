@@ -216,14 +216,47 @@ functions:
           set -o errexit
           set -o verbose
 
-          # Go through each supported WiredTiger Github branch to build the docs.
-          # Please note the "branch" variable used here is a normal shell variable to store the name
-          # of a WiredTiger Github branch, while the "branch_name" is an Evergreen built-in variable
-          # to store the name of the branch being tested by the Evergreen project.
+          sh reconf
+
+          # Java API is removed in newer branches via WT-6675.
+          if [ "${branch_name}" == "mongodb-4.2" ] || [ "${branch_name}" == "mongodb-4.0" ]; then
+            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
+            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+            (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
+          else
+            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
+            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+          fi
+
+          cd ../dist && sh s_docs && echo "The documentation for ${branch_name} was successfully generated."
+
+  "compile and update wiredtiger docs":
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          # Use a single function to generate and update the documentation of each supported
+          # WiredTiger branch. This is useful as not all branches have a dedicated Evergreen
+          # project. Furthermore, the documentation-update task is not triggered by every commit, we
+          # rely on the activity of the develop branch to update the documentation of all supported
+          # branches.
+          # The verbose option is not set on purpose to avoid showing credentials.
+          set -o errexit
+
+          if [[ "${branch_name}" != "develop" ]]; then
+            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
+            exit 0
+          fi
+
+          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
+          cd wiredtiger/build_posix
+
+          # Go through each supported WiredTiger Github branch to generate and stage the doc
+          # changes.
           for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
             echo "Checking out $branch ..."
-            git checkout "$branch"
+            git checkout $branch
 
             sh reconf
 
@@ -238,37 +271,22 @@ functions:
             fi
 
             (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
-            # Save the generated docs for later use.
-            (cd .. && mv docs docs-"$branch")
 
-          done
+            # Synchronize the generated documentation with the current one.
+            cd ../../wiredtiger.github.com
+            rsync -avq ../wiredtiger/docs/ $branch/ --delete
 
-  "update wiredtiger docs":
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-
-          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
-          cd wiredtiger.github.com
-
-          # Go through each supported WiredTiger Github branch to stage the doc changes.
-          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
-
-            echo "Copying over doc directory for $branch ..."
-            rsync -avq ../wiredtiger/docs-"$branch"/ "$branch"/ --delete
-
-            # Check if the docs need to be updated.
+            # Commit and push the changes if any.
             if [[ $(git status "$branch" --porcelain) ]]; then
-              git add "$branch"
+              git add $branch
               git commit -m "Update auto-generated docs for $branch" \
                         --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
               git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
-              echo "Successfully updated documentation for branch "$branch"."
             else
               echo "No documentation changes for $branch."
             fi
+
+            cd ../wiredtiger/build_posix
 
           done
 
@@ -2054,8 +2072,7 @@ tasks:
     patchable: false
     commands:
       - func: "get project"
-      - func: "compile wiredtiger docs"
-      - func: "update wiredtiger docs"
+      - func: "compile and update wiredtiger docs"
 
   - name: syscall-linux
     depends_on:
@@ -2880,10 +2897,10 @@ buildvariants:
   batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
-  tasks:
-    - name: doc-update
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+  tasks:
+    - name: doc-update
 
 - name: linux-no-ftruncate
   display_name: Linux no ftruncate
