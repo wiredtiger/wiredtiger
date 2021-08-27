@@ -1329,11 +1329,11 @@ config_map_file_type(const char *s, u_int *vp)
     /* Accumulate choices. */
     fix = row = var = false;
     while (*s != '\0') {
-        if (WT_PREFIX_SKIP(s, "fix") || WT_PREFIX_SKIP(s, "fixed-length column-store"))
+        if (WT_PREFIX_SKIP(s, "fixed-length column-store") || WT_PREFIX_SKIP(s, "fix"))
             fix = true;
-        else if (WT_PREFIX_SKIP(s, "row") || WT_PREFIX_SKIP(s, "row-store"))
+        else if (WT_PREFIX_SKIP(s, "row-store") || WT_PREFIX_SKIP(s, "row"))
             row = true;
-        else if (WT_PREFIX_SKIP(s, "var") || WT_PREFIX_SKIP(s, "variable-length column-store"))
+        else if (WT_PREFIX_SKIP(s, "variable-length column-store") || WT_PREFIX_SKIP(s, "var"))
             var = true;
         else
             testutil_die(EINVAL, "illegal file type configuration: %s", arg);
