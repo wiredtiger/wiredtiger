@@ -35,7 +35,7 @@ is called.
 In WiredTiger, whenever a file is opened a file handle is created to accommodate
 the state of the file in cache. To prevent multiple file handles being created for a
 file, WiredTiger uses a hash table to maintain an single file handle for each opened
-file. A structure called WT_FH is used for accessing each entry in the hashtable.
+file. A structure called \c WT_FH is used for accessing each entry in the hash table.
 Thus WiredTiger checks the hash table via \c WT_FH for an open file handle.
 
 @subsection file_customization File System and Handle Customization
