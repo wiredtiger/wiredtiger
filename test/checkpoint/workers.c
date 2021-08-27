@@ -260,15 +260,23 @@ real_worker(void)
                 if (g.use_timestamps) {
                     if (__wt_try_readlock((WT_SESSION_IMPL *)session, &g.clock_lock) == 0) {
                         next_rnd = __wt_random(&rnd);
-                        // Commit 50% of time
                         if (g.prepare && next_rnd % 2 == 0) {
-                            testutil_check(__wt_snprintf(buf, sizeof(buf),
-                              "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
-                              g.ts_stable + 1));
-                            if ((ret = session->commit_transaction(session, buf)) != 0) {
-                                __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                                (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                            testutil_check(__wt_snprintf(
+                              buf, sizeof(buf), "prepare_timestamp=%x", g.ts_stable + 1));
+                            if ((ret = session->prepare_transaction(session, buf)) != 0) {
+                                (void)log_print_err("real_worker:prepare_transaction", ret, 1);
                                 goto err;
+                            }
+                            // Commit 50% of time
+                            if (next_rnd % 4 == 0) {
+                                testutil_check(__wt_snprintf(buf, sizeof(buf),
+                                  "durable_timestamp=%x,commit_timestamp=%x", g.ts_stable + 3,
+                                  g.ts_stable + 1));
+                                if ((ret = session->commit_transaction(session, buf)) != 0) {
+                                    __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                                    (void)log_print_err("real_worker:commit_transaction", ret, 1);
+                                    goto err;
+                                }
                             }
                         } else {
                             if ((ret = session->rollback_transaction(session, NULL)) != 0) {
