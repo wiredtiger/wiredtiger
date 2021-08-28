@@ -548,7 +548,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
          * We have a tombstone on the original update chain and it is stable according to the
          * timestamp and txnid, we need to restore that as well.
          */
-        if (__rollback_txn_visible_id(session, hs_tw->stop_txn) &&
+        if (!hs_tw->prepare && __rollback_txn_visible_id(session, hs_tw->stop_txn) &&
           hs_stop_durable_ts <= rollback_timestamp) {
             /*
              * The restoring tombstone timestamp must be zero or less than previous update start
@@ -665,9 +665,10 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
         /*
          * Abort the history store update with stop durable timestamp greater than the stable
          * timestamp or the updates with max stop timestamp which implies that they are associated
-         * with prepared transactions.
+         * with prepared transactions or the prepare rollback updates.
          */
-        if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX) {
+        if (vpack->tw.durable_stop_ts > rollback_timestamp || vpack->tw.stop_ts == WT_TS_MAX ||
+          vpack->tw.prepare) {
             __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
               "hs update aborted with start durable/commit timestamp: %s, %s, stop durable/commit "
               "timestamp: %s, %s and stable timestamp: %s",

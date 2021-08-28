@@ -909,6 +909,8 @@ __curhs_insert(WT_CURSOR *cursor)
         hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
         hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
         hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
+        if (hs_cursor->time_window.prepare)
+            hs_tombstone->prepare_state = WT_PREPARE_INPROGRESS;
 
         hs_tombstone->next = hs_upd;
         hs_upd = hs_tombstone;
@@ -1041,6 +1043,8 @@ __curhs_update(WT_CURSOR *cursor)
     hs_tombstone->start_ts = hs_cursor->time_window.stop_ts;
     hs_tombstone->durable_ts = hs_cursor->time_window.durable_stop_ts;
     hs_tombstone->txnid = hs_cursor->time_window.stop_txn;
+    if (hs_cursor->time_window.prepare)
+        hs_tombstone->prepare_state = WT_PREPARE_INPROGRESS;
 
     WT_ERR(__wt_upd_alloc(session, &file_cursor->value, WT_UPDATE_STANDARD, &hs_upd, NULL));
     hs_upd->start_ts = hs_cursor->time_window.start_ts;

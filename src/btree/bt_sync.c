@@ -241,7 +241,10 @@ __sync_ref_obsolete_check(WT_SESSION_IMPL *session, WT_REF *ref, WT_REF_LIST *rl
             newest_stop_durable_ts =
               addr.ta.newest_stop_ts == WT_TS_MAX ? WT_TS_MAX : addr.ta.newest_stop_durable_ts;
             newest_stop_txn = addr.ta.newest_stop_txn;
-            obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
+
+            /* Don't free the pages with prepared updates. */
+            if (!addr.ta.prepare)
+                obsolete = __wt_txn_visible_all(session, newest_stop_txn, newest_stop_durable_ts);
         }
 
         if (obsolete) {

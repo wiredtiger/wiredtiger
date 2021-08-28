@@ -220,6 +220,10 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_ASSERT(session, !F_ISSET(S2C(session), WT_CONN_IN_MEMORY));
     WT_ASSERT(session, page->type == WT_PAGE_COL_VAR || page->type == WT_PAGE_ROW_LEAF);
 
+    /* History store don't have any prepared updates that needs to be restored. */
+    if (WT_IS_HS(session->dhandle))
+        return (0);
+
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 

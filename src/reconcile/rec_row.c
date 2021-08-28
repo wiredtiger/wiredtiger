@@ -808,9 +808,12 @@ __wt_rec_row_leaf(
         upd = upd_select.upd;
 
         /* Take the timestamp from the update or the cell. */
-        if (upd == NULL)
+        if (upd == NULL) {
             twp = &vpack->tw;
-        else
+            /* Clear out the prepare flag for all the history store cells. */
+            if (WT_IS_HS(session->dhandle))
+                twp->prepare = false;
+        } else
             twp = &upd_select.tw;
 
         /*
