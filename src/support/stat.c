@@ -1416,6 +1416,9 @@ static const char *const __stats_connection_desc[] = {
   "transaction: prepared transactions committed",
   "transaction: prepared transactions currently active",
   "transaction: prepared transactions rolled back",
+  "transaction: prepared transactions rolled back cleared the history store entry prepare flag",
+  "transaction: prepared transactions rolled back does not remove history store entry",
+  "transaction: prepared transactions rolled back fixed the history store entry with prepare flag",
   "transaction: query timestamp calls",
   "transaction: race to read prepared update retry",
   "transaction: rollback to stable calls",
@@ -1942,6 +1945,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->txn_prepare_commit = 0;
     stats->txn_prepare_active = 0;
     stats->txn_prepare_rollback = 0;
+    stats->txn_prepare_rollback_hs_update_cleared_prepare_flag = 0;
+    stats->txn_prepare_rollback_hs_update_not_removed = 0;
+    stats->txn_prepare_rollback_hs_update_fixed_with_prepare_flag = 0;
     stats->txn_query_ts = 0;
     stats->txn_read_race_prepare_update = 0;
     stats->txn_rts = 0;
@@ -2477,6 +2483,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->txn_prepare_commit += WT_STAT_READ(from, txn_prepare_commit);
     to->txn_prepare_active += WT_STAT_READ(from, txn_prepare_active);
     to->txn_prepare_rollback += WT_STAT_READ(from, txn_prepare_rollback);
+    to->txn_prepare_rollback_hs_update_cleared_prepare_flag +=
+      WT_STAT_READ(from, txn_prepare_rollback_hs_update_cleared_prepare_flag);
+    to->txn_prepare_rollback_hs_update_not_removed +=
+      WT_STAT_READ(from, txn_prepare_rollback_hs_update_not_removed);
+    to->txn_prepare_rollback_hs_update_fixed_with_prepare_flag +=
+      WT_STAT_READ(from, txn_prepare_rollback_hs_update_fixed_with_prepare_flag);
     to->txn_query_ts += WT_STAT_READ(from, txn_query_ts);
     to->txn_read_race_prepare_update += WT_STAT_READ(from, txn_read_race_prepare_update);
     to->txn_rts += WT_STAT_READ(from, txn_rts);

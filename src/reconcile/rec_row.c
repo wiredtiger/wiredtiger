@@ -811,8 +811,10 @@ __wt_rec_row_leaf(
         if (upd == NULL) {
             twp = &vpack->tw;
             /* Clear out the prepare flag for all the history store cells. */
-            if (WT_IS_HS(session->dhandle))
+            if (WT_IS_HS(session->dhandle)) {
                 twp->prepare = false;
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_cleared_prepare_flag);
+            }
         } else
             twp = &upd_select.tw;
 

@@ -198,7 +198,8 @@ static inline bool
 __rec_need_save_upd(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE_SELECT *upd_select, bool has_newer_updates)
 {
-    if (upd_select->tw.prepare)
+    /* History store prepared updates never be restored. */
+    if (upd_select->tw.prepare && !WT_IS_HS(session->dhandle))
         return (true);
 
     if (F_ISSET(r, WT_REC_EVICT) && has_newer_updates)

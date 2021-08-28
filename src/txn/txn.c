@@ -1076,10 +1076,13 @@ __txn_fixup_prepared_update(
                 hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
                   (uint64_t)WT_UPDATE_STANDARD, &hs_value);
                 ret = hs_cursor->update(hs_cursor);
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_fixed_with_prepare_flag);
             } else if (remove_entry) {
                 WT_ASSERT(session, fix_with_prepare == false);
                 ret = hs_cursor->remove(hs_cursor);
-            }
+            } else
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_not_removed);
+
             if (flush_lock)
                 __wt_spin_unlock(session, &S2BT(session)->flush_lock);
             WT_ERR(ret);

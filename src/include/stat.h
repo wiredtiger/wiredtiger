@@ -733,6 +733,9 @@ struct __wt_connection_stats {
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
+    int64_t txn_prepare_rollback_hs_update_cleared_prepare_flag;
+    int64_t txn_prepare_rollback_hs_update_not_removed;
+    int64_t txn_prepare_rollback_hs_update_fixed_with_prepare_flag;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts;
