@@ -1297,13 +1297,15 @@ static int
 __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t rollback_timestamp)
 {
     WT_CONFIG ckptconf;
-    WT_CONFIG_ITEM cval, durableval, key;
+    WT_CONFIG_ITEM cval, key, value;
     WT_DECL_RET;
     wt_timestamp_t max_durable_ts, newest_stop_durable_ts, newest_stop_ts;
     char *config;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
+    bool prepared_updates;
 
     config = NULL;
+    prepared_updates = false;
 
     WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
 
@@ -1318,13 +1320,19 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     WT_ERR(__wt_config_getones(session, config, "checkpoint", &cval));
     __wt_config_subinit(session, &ckptconf, &cval);
     for (; __wt_config_next(&ckptconf, &key, &cval) == 0;) {
-        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &durableval);
+        ret = __wt_config_subgets(session, &cval, "newest_stop_durable_ts", &value);
         if (ret == 0)
-            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)durableval.val);
+            newest_stop_durable_ts = WT_MAX(newest_stop_durable_ts, (wt_timestamp_t)value.val);
         WT_ERR_NOTFOUND_OK(ret, false);
-        ret = __wt_config_subgets(session, &cval, "newest_stop_ts", &durableval);
+        ret = __wt_config_subgets(session, &cval, "newest_stop_ts", &value);
         if (ret == 0)
-            newest_stop_ts = WT_MAX(newest_stop_ts, (wt_timestamp_t)durableval.val);
+            newest_stop_ts = WT_MAX(newest_stop_ts, (wt_timestamp_t)value.val);
+        WT_ERR_NOTFOUND_OK(ret, false);
+        ret = __wt_config_subgets(session, &cval, "prepare", &value);
+        if (ret == 0) {
+            if (value.val)
+                prepared_updates = true;
+        }
         WT_ERR_NOTFOUND_OK(ret, false);
     }
     max_durable_ts = WT_MAX(newest_stop_ts, newest_stop_durable_ts);
@@ -1334,10 +1342,11 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * The rollback operation should be performed on the history store file when the checkpoint
      * durable start/stop timestamp is greater than the rollback timestamp.
      */
-    if (max_durable_ts > rollback_timestamp) {
+    if (max_durable_ts > rollback_timestamp || prepared_updates) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
-          "tree rolled back with durable timestamp: %s",
-          __wt_timestamp_to_string(max_durable_ts, ts_string[0]));
+          "tree rolled back with durable timestamp: %s or prepared updates: %s",
+          __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
+          prepared_updates ? "true" : "false");
         WT_TRET(__rollback_to_stable_btree(session, rollback_timestamp));
     } else
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
@@ -1615,8 +1624,7 @@ __rollback_to_stable_btree_apply_all(WT_SESSION_IMPL *session, wt_timestamp_t ro
     }
     WT_ERR_NOTFOUND_OK(ret, false);
 
-    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
+    WT_ERR(__rollback_to_stable_hs_final_pass(session, rollback_timestamp));
 
 err:
     WT_TRET(__wt_metadata_cursor_release(session, &cursor));
