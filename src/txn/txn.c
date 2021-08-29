@@ -999,14 +999,10 @@ __txn_fixup_prepared_update(
     uint64_t hs_upd_type;
     wt_timestamp_t hs_durable_ts, hs_stop_durable_ts;
 #endif
-    bool fix_with_prepare, flush_lock, remove_entry;
 
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
     WT_TIME_WINDOW_INIT(&tw);
-    fix_with_prepare = false;
-    flush_lock = false;
-    remove_entry = false;
 
     /*
      * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
@@ -1044,29 +1040,13 @@ __txn_fixup_prepared_update(
         WT_ERR(hs_cursor->update(hs_cursor));
     } else {
         /*
-         * Remove the history store entry:
-         * 1. Checkpoint is not running.
-         * 2. Checkpoint is running and this btree is not yet checkpointed.
-         *
-         * Otherwise, fix the history store entry with a prepared tombstone when the
-         * history store entry doesn't have its own stop timestamp.
+         * Remove the history store entry if checkpoint is not running. Otherwise, fix the history
+         * store entry with a prepared tombstone when the history store entry doesn't have its own
+         * stop timestamp.
          */
         if (txn_global->checkpoint_running) {
-            if (__wt_spin_trylock(session, &S2BT(session)->flush_lock) == 0) {
-                flush_lock = true;
-                if (S2BT(session)->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
-                    remove_entry = true;
-                else if (fix_upd->type != WT_UPDATE_TOMBSTONE)
-                    /*
-                     * Don't update the history store entry if the entry already have a stop
-                     * timestamp.
-                     */
-                    fix_with_prepare = true;
-            } else if (fix_upd->type != WT_UPDATE_TOMBSTONE)
-                fix_with_prepare = true;
-
-            if (fix_with_prepare) {
-                WT_ASSERT(session, remove_entry == false);
+            /* Don't update the history store entry if the entry already have a stop timestamp. */
+            if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
                 tw.prepare = true;
                 WT_TIME_WINDOW_SET_STOP(&tw, fix_upd);
                 WT_TIME_WINDOW_SET_START(&tw, fix_upd);
@@ -1075,17 +1055,10 @@ __txn_fixup_prepared_update(
                 hs_value.size = fix_upd->size;
                 hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
                   (uint64_t)WT_UPDATE_STANDARD, &hs_value);
-                ret = hs_cursor->update(hs_cursor);
+                WT_ERR(hs_cursor->update(hs_cursor));
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_fixed_with_prepare_flag);
-            } else if (remove_entry) {
-                WT_ASSERT(session, fix_with_prepare == false);
-                ret = hs_cursor->remove(hs_cursor);
             } else
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_not_removed);
-
-            if (flush_lock)
-                __wt_spin_unlock(session, &S2BT(session)->flush_lock);
-            WT_ERR(ret);
         } else
             WT_ERR(hs_cursor->remove(hs_cursor));
     }

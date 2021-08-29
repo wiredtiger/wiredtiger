@@ -810,8 +810,12 @@ __wt_rec_row_leaf(
         /* Take the timestamp from the update or the cell. */
         if (upd == NULL) {
             twp = &vpack->tw;
-            /* Clear out the prepare flag for all the history store cells. */
-            if (WT_IS_HS(session->dhandle)) {
+            /*
+             * Clear out the prepare flag for all the history store cells when checkpoint is not
+             * running. When an eviction evicted the page and performing reconciliation again during
+             * the checkpoint is in progress can clear the flag.
+             */
+            if (WT_IS_HS(session->dhandle) && !S2C(session)->txn_global.checkpoint_running) {
                 twp->prepare = false;
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_cleared_prepare_flag);
             }

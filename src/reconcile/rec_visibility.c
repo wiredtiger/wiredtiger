@@ -351,9 +351,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
             continue;
         }
 
-        /* Ignore prepared updates if it is checkpoint. */
-        if (upd->prepare_state == WT_PREPARE_LOCKED ||
-          upd->prepare_state == WT_PREPARE_INPROGRESS) {
+        /* Ignore prepared updates except history store if it is checkpoint. */
+        if (!WT_IS_HS(session->dhandle) &&
+          (upd->prepare_state == WT_PREPARE_LOCKED ||
+            upd->prepare_state == WT_PREPARE_INPROGRESS)) {
             WT_ASSERT(session, upd_select->upd == NULL || upd_select->upd->txnid == upd->txnid);
             if (F_ISSET(r, WT_REC_CHECKPOINT)) {
                 has_newer_updates = true;
