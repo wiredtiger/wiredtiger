@@ -465,6 +465,7 @@ conn_stats = [
     ##########################################
     # Reconciliation statistics
     ##########################################
+    RecStat('rec_clear_hs_prepare_flag', 'page reconciliation clears the history store prepare flag'),
     RecStat('rec_maximum_seconds', 'maximum seconds spent in a reconciliation call', 'no_clear,no_scale,size'),
     RecStat('rec_overflow_key_internal', 'internal-page overflow keys'),
     RecStat('rec_overflow_key_leaf', 'leaf-page overflow keys'),
@@ -554,9 +555,8 @@ conn_stats = [
     TxnStat('txn_prepare_active', 'prepared transactions currently active'),
     TxnStat('txn_prepare_commit', 'prepared transactions committed'),
     TxnStat('txn_prepare_rollback', 'prepared transactions rolled back'),
-    TxnStat('txn_prepare_rollback_hs_update_not_removed', 'prepared transactions rolled back does not remove history store entry'),
-    TxnStat('txn_prepare_rollback_hs_update_fixed_with_prepare_flag', 'prepared transactions rolled back fixed the history store entry with prepare flag'),
-    TxnStat('txn_prepare_rollback_hs_update_cleared_prepare_flag', 'prepared transactions rolled back cleared the history store entry prepare flag'),
+    TxnStat('txn_prepare_rollback_left_hs_update', 'prepared transactions rolled back and left the history store entry'),
+    TxnStat('txn_prepare_rollback_left_hs_update_with_prepare_flag', 'prepared transactions rolled back and left the history store entry with prepare flag'),
     TxnStat('txn_prepared_updates_committed', 'Number of prepared updates committed'),
     TxnStat('txn_prepared_updates', 'Number of prepared updates'),
     TxnStat('txn_prepared_updates_key_repeated', 'Number of prepared updates repeated on the same key'),

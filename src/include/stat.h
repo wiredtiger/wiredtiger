@@ -659,6 +659,7 @@ struct __wt_connection_stats {
     int64_t rec_pages_with_prepare;
     int64_t rec_pages_with_ts;
     int64_t rec_pages_with_txn;
+    int64_t rec_clear_hs_prepare_flag;
     int64_t rec_page_delete;
     int64_t rec_time_aggr_newest_start_durable_ts;
     int64_t rec_time_aggr_newest_stop_durable_ts;
@@ -733,9 +734,8 @@ struct __wt_connection_stats {
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
-    int64_t txn_prepare_rollback_hs_update_cleared_prepare_flag;
-    int64_t txn_prepare_rollback_hs_update_not_removed;
-    int64_t txn_prepare_rollback_hs_update_fixed_with_prepare_flag;
+    int64_t txn_prepare_rollback_left_hs_update;
+    int64_t txn_prepare_rollback_left_hs_update_with_prepare_flag;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts;

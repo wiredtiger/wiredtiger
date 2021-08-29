@@ -1056,9 +1056,9 @@ __txn_fixup_prepared_update(
                 hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
                   (uint64_t)WT_UPDATE_STANDARD, &hs_value);
                 WT_ERR(hs_cursor->update(hs_cursor));
-                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_fixed_with_prepare_flag);
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_left_hs_update_with_prepare_flag);
             } else
-                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_not_removed);
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_left_hs_update);
         } else
             WT_ERR(hs_cursor->remove(hs_cursor));
     }

@@ -817,7 +817,7 @@ __wt_rec_row_leaf(
              */
             if (WT_IS_HS(session->dhandle) && !S2C(session)->txn_global.checkpoint_running) {
                 twp->prepare = false;
-                WT_STAT_CONN_INCR(session, txn_prepare_rollback_hs_update_cleared_prepare_flag);
+                WT_STAT_CONN_INCR(session, rec_clear_hs_prepare_flag);
             }
         } else
             twp = &upd_select.tw;

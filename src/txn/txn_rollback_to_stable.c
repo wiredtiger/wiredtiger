@@ -548,7 +548,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
          * We have a tombstone on the original update chain and it is stable according to the
          * timestamp and txnid, we need to restore that as well.
          */
-        if (!hs_tw->prepare && __rollback_txn_visible_id(session, hs_tw->stop_txn) &&
+        if (!(hs_tw->prepare && unpack->tw.prepare) &&
+          __rollback_txn_visible_id(session, hs_tw->stop_txn) &&
           hs_stop_durable_ts <= rollback_timestamp) {
             /*
              * The restoring tombstone timestamp must be zero or less than previous update start
@@ -1332,9 +1333,8 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
             newest_stop_ts = WT_MAX(newest_stop_ts, (wt_timestamp_t)value.val);
         WT_ERR_NOTFOUND_OK(ret, false);
         ret = __wt_config_subgets(session, &cval, "prepare", &value);
-        if (ret == 0) {
-            if (value.val)
-                prepared_updates = true;
+        if (ret == 0 && value.val) {
+            prepared_updates = true;
         }
         WT_ERR_NOTFOUND_OK(ret, false);
     }
@@ -1345,7 +1345,7 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
      * The rollback operation should be performed on the history store file when the checkpoint
      * durable start/stop timestamp is greater than the rollback timestamp.
      */
-    if (max_durable_ts > rollback_timestamp || prepared_updates) {
+    if (prepared_updates || max_durable_ts > rollback_timestamp) {
         __wt_verbose(session, WT_VERB_RECOVERY_RTS(session),
           "tree rolled back with durable timestamp: %s or prepared updates: %s",
           __wt_timestamp_to_string(max_durable_ts, ts_string[0]),
