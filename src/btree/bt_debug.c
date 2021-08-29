@@ -1214,7 +1214,6 @@ __debug_page_col_fix(WT_DBG *ds, WT_REF *ref)
 static int
 __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 {
-    WT_DECL_RET;
     WT_REF *ref;
     WT_SESSION_IMPL *session;
 
@@ -1229,14 +1228,13 @@ __debug_page_col_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
             if (ref->state == WT_REF_MEM) {
-                WT_ERR(ds->f(ds, "\n"));
-                WT_ERR(__debug_page(ds, ref, flags));
+                WT_RET(ds->f(ds, "\n"));
+                WT_RET(__debug_page(ds, ref, flags));
             }
         }
         WT_INTL_FOREACH_END;
     }
-err:
-    return (ret);
+    return (0);
 }
 
 /*
@@ -1296,7 +1294,6 @@ __debug_page_col_var(WT_DBG *ds, WT_REF *ref)
 static int
 __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
 {
-    WT_DECL_RET;
     WT_REF *ref;
     WT_SESSION_IMPL *session;
     size_t len;
@@ -1314,14 +1311,13 @@ __debug_page_row_int(WT_DBG *ds, WT_PAGE *page, uint32_t flags)
     if (LF_ISSET(WT_DEBUG_TREE_WALK)) {
         WT_INTL_FOREACH_BEGIN (session, page, ref) {
             if (ref->state == WT_REF_MEM) {
-                WT_ERR(ds->f(ds, "\n"));
-                WT_ERR(__debug_page(ds, ref, flags));
+                WT_RET(ds->f(ds, "\n"));
+                WT_RET(__debug_page(ds, ref, flags));
             }
         }
         WT_INTL_FOREACH_END;
     }
-err:
-    return (ret);
+    return (0);
 }
 
 /*
