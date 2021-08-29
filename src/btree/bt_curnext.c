@@ -487,7 +487,7 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         return (0);
     }
 
-    WT_RET(__wt_msg(session, "dumping the cursor page"));
+    WT_RET(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
     WT_ERR_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
@@ -530,7 +530,7 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         __wt_buf_set_printable_format(
           session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
         __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b)));
-    WT_ERR(__wt_msg(session, "dumping the cursor page"));
+    WT_ERR(__wt_msg(session, "dumping the tree"));
     WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
     WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
