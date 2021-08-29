@@ -1307,7 +1307,10 @@ __rollback_to_stable_hs_final_pass(WT_SESSION_IMPL *session, wt_timestamp_t roll
     config = NULL;
     prepared_updates = false;
 
-    WT_RET(__wt_metadata_search(session, WT_HS_URI, &config));
+    ret = __wt_metadata_search(session, WT_HS_URI, &config);
+    /* If the history store doesn't exist, we are done here. */
+    if (ret == WT_NOTFOUND)
+        return (0);
 
     /*
      * Find out the max durable timestamp of the history store from checkpoint. Most of the history
