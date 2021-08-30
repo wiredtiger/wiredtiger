@@ -682,7 +682,7 @@ __rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error) 
 
     update_cache = NULL;
 
-    while (!TAILQ_EMPTY(&r->datastore_updqh)) {
+    while ((update_cache = TAILQ_FIRST(&r->datastore_updqh)) != NULL) {
         TAILQ_REMOVE(&r->datastore_updqh, update_cache, q);
         if (error)
             F_CLR(update_cache->upd, WT_UPDATE_DS);
