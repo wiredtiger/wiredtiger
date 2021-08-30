@@ -143,8 +143,7 @@ class test_compact03(wttest.WiredTigerTestCase):
             self.assertEqual(c.update(),0)
         c.close()
 
-        # Perform checkpoint and compact.
-        self.session.checkpoint()
+        # Perform compact.
         self.session.compact(self.uri)
 
         # Test that the file size doesn't increase.
