@@ -1131,8 +1131,13 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+/*
+ * WT_UPDATE_DS indicates that an update is being written or has been written to the data store
+ * during a round of reconciliation. This update could be cleared if the reconciliation fails. It is
+ * not advisable to use this flag outside of reconciliation.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
+#define WT_UPDATE_DS 0x01u                       /* Update is to be written to the data store. */
 #define WT_UPDATE_FIXED_HS 0x02u                 /* Update that fixed the history store. */
 #define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
