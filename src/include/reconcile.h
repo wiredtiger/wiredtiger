@@ -217,6 +217,8 @@ struct __wt_reconcile {
     size_t supd_allocated;
     size_t supd_memsize; /* Size of saved update structures */
 
+    TAILQ_HEAD(__wt_update_qh, __wt_update_cache) datastore_updqh;
+
     /* List of pages we've written so far. */
     WT_MULTI *multi;
     uint32_t multi_next;

@@ -249,6 +249,29 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
 }
 
 /*
+ * __rec_add_datastore_update --
+ *     Add a handle to the session's cache.
+ */
+static int
+__rec_add_datastore_update(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
+{
+    WT_UPDATE_CACHE *update_cache;
+
+    WT_ASSERT(session, !F_ISSET(upd, WT_UPDATE_DS));
+
+    /* Allocate an update cache entry. */
+    WT_RET(__wt_calloc_one(session, &update_cache));
+
+    /* Flag the update as destined for the data store. */
+    F_SET(upd, WT_UPDATE_DS);
+    update_cache->upd = upd;
+
+    TAILQ_INSERT_HEAD(&r->datastore_updqh, update_cache, q);
+
+    return (0);
+}
+
+/*
  * __wt_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
@@ -582,10 +605,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * for the data store. Subsequent reconciliations should know that they can select this
          * update regardless of visibility.
          */
-        if (upd_select->upd != NULL)
-            F_SET(upd_select->upd, WT_UPDATE_DS);
-        if (tombstone != NULL)
-            F_SET(tombstone, WT_UPDATE_DS);
+        if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DS))
+            __rec_add_datastore_update(session, r, upd_select->upd);
+        if (tombstone != NULL && !F_ISSET(tombstone, WT_UPDATE_DS))
+            __rec_add_datastore_update(session, r, tombstone);
         upd_saved = upd_select->upd_saved = true;
     }
 

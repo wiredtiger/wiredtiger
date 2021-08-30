@@ -1149,6 +1149,11 @@ struct __wt_update {
     uint8_t data[]; /* start of the data */
 };
 
+struct __wt_update_cache {
+    WT_UPDATE *upd;
+    TAILQ_ENTRY(__wt_update_cache) q;
+};
+
 /*
  * WT_UPDATE_SIZE is the expected structure size excluding the payload data -- we verify the build
  * to ensure the compiler hasn't inserted padding.
