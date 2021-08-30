@@ -33,35 +33,40 @@
  *     algorithms.
  */
 void
-testutil_modify_apply(WT_ITEM *orig, WT_ITEM *modified, WT_MODIFY *entries, int nentries)
+testutil_modify_apply(WT_ITEM *value, WT_ITEM *workspace, WT_MODIFY *entries, int nentries)
 {
     WT_ITEM *ta, *tb, *tmp, _tmp;
     size_t len, size;
     int i;
 
-    /* Mess up anything not initialized in the original buffer. */
-    if ((orig->memsize - orig->size) > 0)
-        memset((uint8_t *)orig->mem + orig->size, 0xff, orig->memsize - orig->size);
-
-    /* Overwrite the modified buffer. */
-    if (modified->memsize > 0)
-        memset((uint8_t *)modified->mem, 0xff, modified->memsize);
-
-    ta = orig;
-    tb = modified;
-
     /*
-     * Process the entries to figure out how large a buffer we need. This is a bit pessimistic
+     * Passed a value and array of modifications, plus a temporary buffer for an additional work
+     * space.
+     *
+     * Process the entries to figure out the largest possible buffer we need. This is pessimistic
      * because we're ignoring replacement bytes, but it's a simpler calculation.
      */
-    for (size = ta->size, i = 0; i < nentries; ++i) {
+    for (size = value->size, i = 0; i < nentries; ++i) {
         if (entries[i].offset >= size)
             size = entries[i].offset;
         size += entries[i].data.size;
     }
 
-    testutil_check(__wt_buf_grow(NULL, ta, size));
-    testutil_check(__wt_buf_grow(NULL, tb, size));
+    /* Grow the buffers. */
+    testutil_check(__wt_buf_grow(NULL, value, size));
+    testutil_check(__wt_buf_grow(NULL, workspace, size));
+
+    /*
+     * Overwrite anything not initialized in the original buffer, and overwrite the entire workspace
+     * buffer.
+     */
+    if ((value->memsize - value->size) > 0)
+        memset((uint8_t *)value->mem + value->size, 0xff, value->memsize - value->size);
+    if (workspace->memsize > 0)
+        memset((uint8_t *)workspace->mem, 0xff, workspace->memsize);
+
+    ta = value;
+    tb = workspace;
 
     /*
      * From the starting buffer, create a new buffer b based on changes in the entries array. We're
@@ -102,7 +107,7 @@ testutil_modify_apply(WT_ITEM *orig, WT_ITEM *modified, WT_MODIFY *entries, int 
     /*
      * The final results may not be in the original buffer, in which case we swap them back around.
      */
-    if (ta != orig) {
+    if (ta != value) {
         _tmp = *ta;
         *ta = *tb;
         *tb = _tmp;
