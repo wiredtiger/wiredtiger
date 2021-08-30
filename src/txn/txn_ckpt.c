@@ -635,6 +635,9 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     __wt_txn_bump_snapshot(session);
 
+    /* Allocate next checkpoint transaction id.*/
+    txn_global->checkpoint_next_txn_id = __wt_txn_id_alloc(session, false);
+
     /* Assert that our snapshot min didn't somehow move backwards. */
     WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
     /* Flag as unused for non diagnostic builds. */

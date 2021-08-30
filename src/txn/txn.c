@@ -866,6 +866,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     WT_PUBLISH(chain->next, upd);
     *upd_appended = true;
 
+    *fix_updp = upd;
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
@@ -992,6 +993,7 @@ __txn_fixup_prepared_update(
     WT_ITEM hs_value;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     uint32_t txn_flags;
 #ifdef HAVE_DIAGNOSTIC
     uint64_t hs_upd_type;
@@ -999,6 +1001,7 @@ __txn_fixup_prepared_update(
 #endif
 
     txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
     WT_TIME_WINDOW_INIT(&tw);
 
     /*
@@ -1007,9 +1010,6 @@ __txn_fixup_prepared_update(
      */
     txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
     F_CLR(txn, txn_flags);
-
-    /* The value older than the prepared update in the history store must be a full value. */
-    WT_ASSERT(session, fix_upd->type == WT_UPDATE_STANDARD);
 
     /*
      * If the history update already has a stop time point and we are committing the prepared update
@@ -1038,8 +1038,38 @@ __txn_fixup_prepared_update(
         hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
           (uint64_t)WT_UPDATE_STANDARD, &hs_value);
         WT_ERR(hs_cursor->update(hs_cursor));
-    } else
-        WT_ERR(hs_cursor->remove(hs_cursor));
+    } else {
+        /*
+         * Remove the history store entry if checkpoint is not running. Otherwise, fix the history
+         * store entry with a prepared tombstone when the history store entry doesn't have its own
+         * stop timestamp.
+         */
+        if (txn_global->checkpoint_running) {
+            /* Don't update the history store entry if the entry already have a stop timestamp. */
+            if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
+                tw.durable_stop_ts = fix_upd->durable_ts;
+                tw.stop_ts = fix_upd->start_ts;
+
+                /*
+                 * Use checkpoint next transaction id, so that this tombstone is not visible to the
+                 * rollback to stable and also checkpoint garbage collection cannot clean it as it
+                 * is greater than the global visible transaction id.
+                 */
+                tw.stop_txn = txn_global->checkpoint_next_txn_id;
+                WT_TIME_WINDOW_SET_START(&tw, fix_upd);
+
+                hs_value.data = fix_upd->data;
+                hs_value.size = fix_upd->size;
+                hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
+                  (uint64_t)WT_UPDATE_STANDARD, &hs_value);
+                WT_ERR(hs_cursor->update(hs_cursor));
+                WT_STAT_CONN_INCR(
+                  session, txn_prepare_rollback_left_hs_update_with_ckpt_next_txnid);
+            } else
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_left_hs_update);
+        } else
+            WT_ERR(hs_cursor->remove(hs_cursor));
+    }
 
 err:
     F_SET(txn, txn_flags);

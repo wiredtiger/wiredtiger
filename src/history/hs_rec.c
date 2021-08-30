@@ -166,7 +166,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                      */
                     WT_ASSERT(session,
                       type != WT_UPDATE_MODIFY && (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
-                    WT_ASSERT(session, false && "Duplicate values inserted into history store");
+                    // WT_ASSERT(session, false && "Duplicate values inserted into history store");
                 }
             }
             counter = hs_counter + 1;
