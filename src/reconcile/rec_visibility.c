@@ -250,7 +250,7 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
 
 /*
  * __rec_add_datastore_update --
- *     Add a handle to the session's cache.
+ *     Add an update to the list of update destined for the data store.
  */
 static int
 __rec_add_datastore_update(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *upd)
