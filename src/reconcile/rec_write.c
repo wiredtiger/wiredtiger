@@ -673,11 +673,12 @@ err:
 
 /*
  * __rec_clear_update_cache --
- *     Clear the update cache stored on the reconcilation structure, if called from the error path
+ *     Clear the update cache stored on the reconciliation structure, if called from the error path
  *     then clear the update datastore flag.
  */
 static void
-__rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error) {
+__rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error)
+{
     WT_UPDATE_CACHE *update_cache;
 
     update_cache = NULL;
