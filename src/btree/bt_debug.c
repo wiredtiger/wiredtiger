@@ -239,21 +239,24 @@ static int
 __debug_config(WT_SESSION_IMPL *session, WT_DBG *ds, const char *ofile)
 {
     WT_BTREE *btree;
+    WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
 
     memset(ds, 0, sizeof(WT_DBG));
 
     ds->session = session;
+    ds->hs_cursor = NULL;
+    conn = S2C(session);
 
     WT_ERR(__wt_scr_alloc(session, 512, &ds->t1));
     WT_ERR(__wt_scr_alloc(session, 512, &ds->t2));
 
     /*
-     * Set up history store support, opening a history store cursor on demand. Ignore errors if that
-     * doesn't work, we may be running in-memory.
+     * Set up history store support, opening a history store cursor on demand. Return error if that
+     * doesn't work, except while running in-memory configuration.
      */
-    if (!WT_IS_HS(session->dhandle))
-        WT_IGNORE_RET(__wt_curhs_open(session, NULL, &ds->hs_cursor));
+    if (!F_ISSET(conn, WT_CONN_IN_MEMORY) && !WT_IS_HS(session->dhandle))
+        WT_ERR(__wt_curhs_open(session, NULL, &ds->hs_cursor));
 
     if (ds->hs_cursor != NULL) {
         F_SET(ds->hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
