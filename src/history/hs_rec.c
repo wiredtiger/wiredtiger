@@ -152,12 +152,14 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
              * visible)
              * 2. it came from a different transaction
              * 3. it came from the same transaction but with a different timestamp
+             * 4. the previous update is removed by prepared rollback with the same stop timestamp
+             * as the start timestamp.
              */
             if (cmp == 0) {
                 if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
                   tw->start_txn != WT_TXN_NONE &&
                   tw->start_txn == hs_cbt->upd_value->tw.start_txn &&
-                  tw->start_ts == hs_cbt->upd_value->tw.start_ts) {
+                  tw->start_ts == hs_cbt->upd_value->tw.start_ts && tw->start_ts != tw->stop_ts) {
                     /*
                      * If we have issues with duplicate history store records, we want to be able to
                      * distinguish between modifies and full updates. Since modifies are not
@@ -166,7 +168,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                      */
                     WT_ASSERT(session,
                       type != WT_UPDATE_MODIFY && (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
-                    // WT_ASSERT(session, false && "Duplicate values inserted into history store");
+                    WT_ASSERT(session, false && "Duplicate values inserted into history store");
                 }
             }
             counter = hs_counter + 1;
