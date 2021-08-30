@@ -31,10 +31,10 @@ import wttest, threading, wiredtiger
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
 
-class test_evict_race01(wttest.WiredTigerTestCase):
+class test_hs_evict_race01(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(checkpoint_slow)'
     session_config = 'isolation=snapshot'
-    uri = 'table:evict_race01'
+    uri = 'table:hs_evict_race01'
     numrows = 1
 
     key_format_values = [
@@ -55,19 +55,14 @@ class test_evict_race01(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         cursor[1] = self.value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
-
+        # Move the stable timestamp.
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
         # Insert a value at timetamp 5
         self.session.begin_transaction()
         cursor[1] = self.value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # Move the stable timestamp.
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(4))
 
-        # Insert a value at timetamp 6.
-        self.session.begin_transaction()
-        cursor[1] = self.value3
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(6))
         cursor.close()
 
         # Create a thread.
@@ -76,9 +71,9 @@ class test_evict_race01(wttest.WiredTigerTestCase):
 
         # Start the thread
         ooo_thread.start()
-        # Comment out to fix test.
+
+        # Call for a checkpoint, once finished we will be in the bad state.
         self.session.checkpoint()
-        # Comment out to fix test.
         ooo_thread.join()
         simulate_crash_restart(self, '.', "RESTART")
         cursor = self.session.open_cursor(self.uri)
