@@ -2,21 +2,39 @@
 
 @section eviction_overall Eviction
 
-The goal of eviction is to manage @ref arch-cache and keep the cache in margin set by the user. There is a upper limit for the total content and dirty content, whenever the cache goes above the target then eviction gets trigerred to bring it down under the limits.
+The goal of eviction is to manage @ref arch-cache and keep the cache in margin set by the
+user. There is a upper limit for the total content and dirty content, whenever the cache
+goes above the target then eviction gets trigerred to bring it down under the limits.
 
 Eviction is managed using \c WT_EVICT_QUEUE structures,
 each of which contains a list of \c WT_EVICT_ENTRY structures.
 
-Eviction is composed of one eviction server, 0 or more eviction worker threads and three shared
-eviction_queues (two ordinary queues and one urgent queue). Eviction server goal is to find the pages that can be evicted and to do so it walks the trees, moves from one file to the other and try to find evict-able candidates. It makes fair judgements between the trees ,remembers where it was in a tree and proceeds to the next tree from there. It extracts all the pages
-that can be evicted, sorts them and takes 1/3rd of the evictable candidates to do an approximate LRU and pushes them into the eviction_queues. The whole goal is to remove the content which is older to be evicted and put it in queue. A user can configure a minimum and a maximum number of eviction worker threads to be created through the connection
-configuration string. The goal of eviction worker threads is to pop the pages from the queues and evict. Eviction worker threads wait for queues to be populated, working with the Server through a CV signalling mechanism. They then get to work independent to the server, till the queues contain enough work for the candidates. There is a mechanism where the number of worker threads can be scaled dynamically between the range depending upon if we are getting more performance with more workers or getting still good performance and do context switching.
+Eviction is composed of one eviction server, 0 or more eviction worker threads and three
+shared eviction_queues (two ordinary queues and one urgent queue). Eviction server goal
+is to find the pages that can be evicted and to do so it walks the trees, moves from one
+file to the other and try to find evict-able candidates. It makes fair judgements between
+the trees ,remembers where it was in a tree and proceeds to the next tree from there. It
+extracts all the pages that can be evicted, sorts them and takes 1/3rd of the evictable
+candidates to do an approximate LRU and pushes them into the eviction_queues. The whole
+goal is to remove the content which is older to be evicted and put it in queue. A user can
+configure a minimum and a maximum number of eviction worker threads to be created through
+the connection configuration string. The goal of eviction worker threads is to pop the
+pages from the queues and evict. Eviction worker threads wait for queues to be populated,
+working with the Server through a CV signalling mechanism. They then get to work
+independent to the server, till the queues contain enough work for the candidates. There is
+a mechanism where the number of worker threads can be scaled dynamically between the range
+depending upon if we are getting more performance with more workers or getting still good
+performance and do context switching.
 
-It is possible to have just the eviction server
-and no worker threads. In such a case, eviction server both walks the tree to find pages to evict and evict these pages from the cache. Pages that are being marked for forced eviction go onto the urgent
+It is possible to have just the eviction server and no worker threads. In such a case,
+eviction server both walks the tree to find pages to evict and evict these pages from the
+cache. Pages that are being marked for forced eviction go onto the urgent
 queue, and these pages take a precedence over the pages from the ordinary eviction queues.
 
-If there are other threads reading the content, the page become un-evictable, and the Eviction server/worker threads check for that. Eviction has to lock and get an exclusive access to the page so that after having checked if the page is evictable, and starting to evict, a parallel reader doesn't start to access it.
+If there are other threads reading the content, the page become un-evictable, and the
+Eviction server/worker threads check for that. Eviction has to lock and get an exclusive
+access to the page so that after having checked if the page is evictable, and starting to
+evict, a parallel reader doesn't start to access it.
 
 @section clean_dirty_data Clean vs dirty data
 - Clean refers to data in the cache that is identical to the version stored on disk.
