@@ -672,12 +672,12 @@ err:
 }
 
 /*
- * __rec_clear_update_cache --
+ * __rec_clear_datastore_update_list --
  *     Clear the update cache stored on the reconciliation structure, if called from the error path
  *     then clear the update datastore flag.
  */
 static void
-__rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error)
+__rec_clear_datastore_update_list(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error)
 {
     WT_UPDATE_CACHE *update_cache;
 
@@ -714,7 +714,8 @@ __rec_cleanup(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     }
     __wt_free(session, r->multi);
 
-    __rec_clear_update_cache(session, r, false);
+    /* Clear the update list held on the reconciliation structure. */
+    __rec_clear_datastore_update_list(session, r, false);
     /* Reconciliation is not re-entrant, make sure that doesn't happen. */
     r->ref = NULL;
 }
@@ -2314,7 +2315,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                 WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
-    __rec_clear_update_cache(session, r, true);
+    __rec_clear_datastore_update_list(session, r, true);
 
     WT_TRET(__wt_ovfl_track_wrapup_err(session, page));
 

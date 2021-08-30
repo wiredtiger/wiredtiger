@@ -268,8 +268,8 @@ __rec_add_datastore_update(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE 
     F_SET(upd, WT_UPDATE_DS);
     update_cache->upd = upd;
 
+    /* Insert the update into our list. */
     TAILQ_INSERT_HEAD(&r->datastore_updqh, update_cache, q);
-
     return (0);
 }
 
@@ -564,6 +564,10 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
         }
     }
 
+    /*
+     * Fixup any out of order timestamps, if we're evicting and a checkpoint is running return EBUSY
+     * and fail the eviction as it could result in an inconsistent checkpoint.
+     */
     if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_EVICT) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (EBUSY);

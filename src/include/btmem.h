@@ -1149,6 +1149,10 @@ struct __wt_update {
     uint8_t data[]; /* start of the data */
 };
 
+/*
+ * WT_UPDATE_CACHE --
+ *  A support structure that allows updates to be stored in queues.
+ */
 struct __wt_update_cache {
     WT_UPDATE *upd;
     TAILQ_ENTRY(__wt_update_cache) q;
