@@ -237,6 +237,7 @@ modify_run(TEST_OPTS *opts)
     __wt_buf_free(session, localA);
     __wt_buf_free(session, localB);
     __wt_buf_free(session, &cursor->value);
+    __wt_buf_free(session, &modtmp);
 }
 
 int
