@@ -30,19 +30,19 @@ if test -f "$CONFIG"; then
 fi
 
 # Copy the default template.
-cp tests/example_test.cxx $FILE
+cp tests/example_test.cxx "$FILE"
 echo "Created $FILE."
-cp configs/example_test_default.txt $CONFIG
+cp configs/example_test_default.txt "$CONFIG"
 echo "Created $CONFIG."
 
 # Replace example_test with the new test name.
 SEARCH="example_test"
-sed -i "s/$SEARCH/$1/" $FILE
+sed -i "s/$SEARCH/$1/" "$FILE"
 echo "Updated $FILE."
 
 # Replace the first line of the configuration file.
 REPLACE="# Configuration for $1."
-sed -i "1s/.*/$REPLACE/" $CONFIG
+sed -i "1s/.*/$REPLACE/" "$CONFIG"
 echo "Updated $CONFIG."
 
 # Include the new test in run.cxx
@@ -53,8 +53,8 @@ sed -i "/$SEARCH/a $VALUE" $FILE
 
 # Add the new test to the run_test() method
 SEARCH="example_test(test_harness::test_args{config, test_name, wt_open_config}).run();"
-LINE_1="\    else if (test_name == \"$1\")\n"
-LINE_2="\        $1(test_harness::test_args{config, test_name, wt_open_config}).run();"
+LINE_1="\else if (test_name == \"$1\")\n"
+LINE_2="\\$1(test_harness::test_args{config, test_name, wt_open_config}).run();"
 sed -i "/$SEARCH/a $LINE_1$LINE_2" $FILE
 
 # Add the new test to all existing tests.
@@ -72,7 +72,7 @@ echo "Updated $FILE."
 
 # Trigger s_all
 echo "Running s_all.."
-cd ../../dist
+cd ../../dist || exit 1
 ./s_all
 
 # Last changes to be done manually
