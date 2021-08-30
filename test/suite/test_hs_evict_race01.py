@@ -62,7 +62,6 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
         cursor[1] = self.value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-
         cursor.close()
 
         # Create a thread.

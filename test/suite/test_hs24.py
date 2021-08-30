@@ -37,7 +37,7 @@ class test_hs24(wttest.WiredTigerTestCase):
         ('column', dict(key_format='r')),
         ('integer_row', dict(key_format='i')),
     ]
-    
+
     checkpoint_stress_scenarios = [
         ('checkpoint_slow_stress', dict(checkpoint_stress='checkpoint_slow')),
         ('history_store_checkpoint_delay_stress', dict(checkpoint_stress='history_store_checkpoint_delay')),
