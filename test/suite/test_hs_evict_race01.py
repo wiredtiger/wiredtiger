@@ -31,6 +31,19 @@ import wttest, threading, wiredtiger
 from helper import simulate_crash_restart
 from wtscenario import make_scenarios
 
+# Test a bug that can occur when an out of order update gets insert after a checkpoint begins
+# but before the checkpoint processes the btree. Evict that update before checkpoint but fail the
+# eviction due to out of order timestamps.
+#
+# Without the related change this test would fail as a result of an inconsistent checkpoint. Due to
+# a flag being set on an update incorrectly. Specific ordering is required to reproduce:
+# 1. Start a checkpoint, sleep the checkpoint after it takes it snapshot and before it
+#    processes our btree.
+# 2. Insert the out of order update.
+# 3. Evict the out of order update.
+# 4. Complete the checkpoint.
+# 5. Simulate a crash.
+# 6. Read the value and see if it matches the expected value.
 class test_hs_evict_race01(wttest.WiredTigerTestCase):
     conn_config = 'timing_stress_for_test=(checkpoint_slow)'
     session_config = 'isolation=snapshot'
