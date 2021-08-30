@@ -1133,7 +1133,7 @@ struct __wt_update {
 
 /*
  * WT_UPDATE_DS indicates that an update is being written or has been written to the data store
- * during a round of reconciliation. This update could be cleared if the reconciliation fails. It is
+ * during a round of reconciliation. This flag could be cleared if the reconciliation fails. It is
  * not advisable to use this flag outside of reconciliation.
  */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
