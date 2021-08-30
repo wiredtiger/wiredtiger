@@ -671,15 +671,20 @@ err:
     return (ret);
 }
 
+/*
+ * __rec_clear_update_cache --
+ *     Clear the update cache stored on the reconcilation structure, if called from the error path
+ *     then clear the update datastore flag.
+ */
 static void
-__rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool clear_flag) {
+__rec_clear_update_cache(WT_SESSION_IMPL *session, WT_RECONCILE *r, bool error) {
     WT_UPDATE_CACHE *update_cache;
 
     update_cache = NULL;
 
     while (!TAILQ_EMPTY(&r->datastore_updqh)) {
         TAILQ_REMOVE(&r->datastore_updqh, update_cache, q);
-        if (clear_flag)
+        if (error)
             F_CLR(update_cache->upd, WT_UPDATE_DS);
         __wt_free(session, update_cache);
     }
