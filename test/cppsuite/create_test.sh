@@ -78,4 +78,4 @@ cd ../../dist || exit 1
 # Last changes to be done manually
 echo "Follow the next steps to execute your new test:"
 echo "1. Start editing $1.cxx"
-echo "2. Compile your changes, go to build_posix/test/cppsuite and run your test with ./run -t $1"
+echo "2. Compile your changes, go to <build_dir>/test/cppsuite and run your test with ./run -t $1"
