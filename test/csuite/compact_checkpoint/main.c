@@ -87,6 +87,7 @@ run_test(const char *home, const char *uri)
     
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
+    /* Create and initialize conditional variable. */
     conn_impl = (WT_CONNECTION_IMPL *)conn;
     conn_impl->compact_session = (WT_SESSION_IMPL *)session;
     testutil_check(__wt_cond_alloc(conn_impl->compact_session, "compact operation", &conn_impl->compact_cond));

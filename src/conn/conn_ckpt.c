@@ -94,13 +94,6 @@ __ckpt_server(void *arg)
         if (!__ckpt_server_run_chk(session))
             break;
 
-        /* AAA test code */
-        /*if (conn->compact_session != NULL) {
-            printf("AAA: system checkpoint start.\n");
-            __wt_cond_signal(conn->compact_session, conn->compact_cond);
-        }*/
-        /*****************/
-
         checkpoint_gen = __wt_gen(session, WT_GEN_CHECKPOINT);
         WT_ERR(wt_session->checkpoint(wt_session, NULL));
 
