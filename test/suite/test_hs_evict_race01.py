@@ -79,7 +79,6 @@ class test_hs_evict_race01(wttest.WiredTigerTestCase):
 
         # Create a thread.
         ooo_thread = threading.Thread(target=self.out_of_order_update_and_evict)
-        self.session.breakpoint()
 
         # Start the thread
         ooo_thread.start()
