@@ -292,7 +292,7 @@ functions:
         silent: true
         script: |
           set -o errexit
-          git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
+          git push https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
 
   "make check directory":
     command: shell.exec
