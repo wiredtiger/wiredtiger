@@ -44,7 +44,12 @@ class test_compact03(wttest.WiredTigerTestCase):
         ('1KB', dict(fileConfig='allocation_size=1KB,leaf_page_max=1KB')),
         ('4KB', dict(fileConfig='allocation_size=4KB,leaf_page_max=4KB')),
     ]
-    scenarios = make_scenarios(fileConfig)
+
+    useTruncate = [
+        ('no_truncate', dict(truncate=False)),
+        ('truncate', dict(truncate=True))
+    ]
+    scenarios = make_scenarios(fileConfig, useTruncate)
 
     # Enable stats and use a cache size that can fit table in the memory.
     conn_config = 'statistics=(all),cache_size=100MB'
@@ -116,11 +121,20 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.assertGreater(sizeWithOverflow, sizeWithoutOverflow)
 
         # 5. Delete middle ~90% of the normal values in the table.
-        c = self.session.open_cursor(self.uri, None)
-        for i in range((self.nrecords // 100) * 5, (self.nrecords // 100) * 95):
-            c.set_key(i)
-            self.assertEqual(c.remove(),0)
-        c.close()
+        if self.truncate:
+            c1 = self.session.open_cursor(self.uri, None)
+            c2 = self.session.open_cursor(self.uri, None)
+            c1.set_key((self.nrecords // 100) * 5)
+            c2.set_key((self.nrecords // 100) * 95)
+            self.assertEqual(self.session.truncate(None, c1, c2, None), 0)
+            c1.close()
+            c2.close()
+        else:
+            c = self.session.open_cursor(self.uri, None)
+            for i in range((self.nrecords // 100) * 5, (self.nrecords // 100) * 95):
+                c.set_key(i)
+                self.assertEqual(c.remove(), 0)
+            c.close()
 
         # 6. Perform checkpoint to ensure we have blocks available in the middle of the file.
         self.session.checkpoint()
