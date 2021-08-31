@@ -7,6 +7,10 @@ AM_LDFLAGS = -static
 all_TESTS=
 noinst_PROGRAMS=
 
+test_compact_checkpoint_SOURCES = compact_checkpoint/main.c
+noinst_PROGRAMS += test_compact_checkpoint
+all_TESTS += test_compact_checkpoint
+
 test_incr_backup_SOURCES = incr_backup/main.c
 noinst_PROGRAMS += test_incr_backup
 all_TESTS += incr_backup/smoke.sh

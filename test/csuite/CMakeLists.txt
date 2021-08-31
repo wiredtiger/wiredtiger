@@ -196,6 +196,12 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_compact_checkpoint
+    SOURCES compact_checkpoint/main.c
+    DIR_NAME compact_checkpoint
+)
+
+define_c_test(
     TARGET test_wt3135_search_near_collator
     SOURCES wt3135_search_near_collator/main.c
     DIR_NAME wt3135_search_near_collator

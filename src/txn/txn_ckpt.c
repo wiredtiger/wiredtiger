@@ -764,6 +764,10 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
     u_int i;
     bool can_skip, failed, full, idle, logging, tracking, use_timestamp;
     void *saved_meta_next;
+    /* AAA test code */
+    struct timespec cur_time;
+    uint64_t time_diff;
+    /*****************/
 
     conn = S2C(session);
     cache = conn->cache;
@@ -1037,6 +1041,15 @@ __txn_checkpoint(WT_SESSION_IMPL *session, const char *cfg[])
         } else
             conn->txn_global.last_ckpt_timestamp = WT_TS_NONE;
     }
+
+    /* AAA test code */
+    __wt_epoch(session, &cur_time);
+    time_diff = WT_TIMEDIFF_MS(cur_time, conn->ckpt_timer_start);
+    printf("AAA: checkpoint start: %" PRIu64 ".%" PRIu64 ", checkpoint end: %" PRIu64 ".%" PRIu64
+           "; duration ms: %" PRIu64 "\n",
+      (uint64_t)conn->ckpt_timer_start.tv_sec, (uint64_t)conn->ckpt_timer_start.tv_nsec,
+      (uint64_t)cur_time.tv_sec, (uint64_t)cur_time.tv_nsec, (uint64_t)time_diff);
+    /*****************/
 
 err:
     /*
