@@ -614,9 +614,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, v
          * update regardless of visibility.
          */
         if (upd_select->upd != NULL && !F_ISSET(upd_select->upd, WT_UPDATE_DS))
-            __rec_add_datastore_update(session, r, upd_select->upd);
+            WT_ERR(__rec_add_datastore_update(session, r, upd_select->upd));
         if (tombstone != NULL && !F_ISSET(tombstone, WT_UPDATE_DS))
-            __rec_add_datastore_update(session, r, tombstone);
+            WT_ERR(__rec_add_datastore_update(session, r, tombstone));
         upd_saved = upd_select->upd_saved = true;
     }
 
