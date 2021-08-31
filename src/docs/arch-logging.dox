@@ -168,7 +168,7 @@ run recovery. If the system previously shutdown cleanly, then recovery determine
 the log does not need to be replayed. Otherwise, recovery replays all operations from
 the LSN of the most recent checkpoint. When timestamps are in use, recovery also
 performs a rollback-to-stable operation on tables that are not logged.
-This aspect of recovery is discussed in @ref arch-rts.
+This aspect of recovery is discussed in @ref arch-rts "Rollback to Stable".
 
 Users can access and view the records in the log using one of two methods. The most
 common method is via the \c wt printlog command. The command utility will print the
