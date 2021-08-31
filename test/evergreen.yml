@@ -257,7 +257,6 @@ functions:
           # This is useful as not all branches have a dedicated Evergreen project. Furthermore, the
           # documentation-update task is not triggered by every commit, we rely on the activity of
           # the develop branch to update the documentation of all supported branches.
-          # The verbose option is not set on purpose to avoid showing credentials.
           set -o errexit
 
           if [[ "${branch_name}" != "develop" ]]; then
