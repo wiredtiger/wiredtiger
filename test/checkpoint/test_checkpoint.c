@@ -68,7 +68,7 @@ main(int argc, char *argv[])
     runs = 1;
     verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "a:b:C:c:Dh:k:l:n:pr:sT:t:vW:xX")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "abC:c:Dh:k:l:n:pr:sT:t:vW:xX")) != EOF)
         switch (ch) {
         case 'a':
             g.hs_checkpoint_timing_stress = true;
@@ -392,6 +392,8 @@ usage(void)
       "[-r runs] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
+      "\t-a enable history store checkpoint delay timing stress\n"
+      "\t-b enable checkpoint allocating next transaction id delay timing stress\n"
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
       "\t-h set a database home directory\n"
