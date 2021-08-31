@@ -182,8 +182,8 @@ timestamp, which may cause excessive amounts of data to be pinned in memory. The
 is allowed to move beyond the prepared timestamp and at the commit time, the prepared transaction
 can then be committed after the current stable timestamp with a larger durable timestamp. The
 durable timestamp also marks the time the update is to be stable. If the stable timestamp is moved
-to or beyond the durable timestamp of an update, it will not be removed by rollback to stable from
-a checkpoint. See @ref arch-rts "Rollback to Stable" for more details.
+to or beyond the durable timestamp of an update, it will not be removed from a checkpoint by
+@ref arch-rts "rollback to stable".
 
 The visibility of the prepared transaction is also special when in the prepared state. Since in the
 prepared state, the transaction has released its snapshot, it should be visible to the transactions
