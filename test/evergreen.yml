@@ -266,8 +266,7 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          # Go through each supported WiredTiger Github branch to generate and stage the doc
-          # changes.
+          # Go through each supported WiredTiger Github branch to stage the doc changes.
           for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
             # Synchronize the generated documentation with the current one.
