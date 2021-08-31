@@ -258,6 +258,7 @@ functions:
           # documentation-update task is not triggered by every commit, we rely on the activity of
           # the develop branch to update the documentation of all supported branches.
           set -o errexit
+          set -o verbose
 
           if [[ "${branch_name}" != "develop" ]]; then
             echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
@@ -279,12 +280,19 @@ functions:
               git add $branch
               git commit -m "Update auto-generated docs for $branch" \
                         --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
-              git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
             else
               echo "No documentation changes for $branch."
             fi
 
           done
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger.github.com"
+        shell: bash
+        silent: true
+        script: |
+          set -o errexit
+          git push --dry-run https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
 
   "make check directory":
     command: shell.exec
