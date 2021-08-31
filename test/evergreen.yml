@@ -216,52 +216,23 @@ functions:
           set -o errexit
           set -o verbose
 
-          sh reconf
-
-          # Java API is removed in newer branches via WT-6675.
-          if [ "${branch_name}" == "mongodb-4.2" ] || [ "${branch_name}" == "mongodb-4.0" ]; then
-            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
-            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
-            (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
+          # Check whether specific branches have been provided to the function
+          if [ -z ${branches} ]; then
+            wt_branches=${branch_name}
           else
-            ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-python --enable-strict
-            (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
+            wt_branches=${branches}
           fi
 
-          cd ../dist && sh s_docs && echo "The documentation for ${branch_name} was successfully generated."
+          # Because of Evergreen's expansion syntax, this is used to process each branch separately.
+          IFS=,
+          for branch in $wt_branches; do
 
-  "compile and update wiredtiger docs":
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          # Use a single function to generate and update the documentation of each supported
-          # WiredTiger branch. This is useful as not all branches have a dedicated Evergreen
-          # project. Furthermore, the documentation-update task is not triggered by every commit, we
-          # rely on the activity of the develop branch to update the documentation of all supported
-          # branches.
-          # The verbose option is not set on purpose to avoid showing credentials.
-          set -o errexit
-
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
-          fi
-
-          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
-          cd wiredtiger/build_posix
-
-          # Go through each supported WiredTiger Github branch to generate and stage the doc
-          # changes.
-          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
-
-            echo "Checking out $branch ..."
+            echo "Checking out branch $branch ..."
             git checkout $branch
-
             sh reconf
 
             # Java API is removed in newer branches via WT-6675.
-            if [ "$branch" == "mongodb-4.2" ] || [ "$branch" == "mongodb-4.0" ]; then
+            if [ $branch == "mongodb-4.2" ] || [ $branch == "mongodb-4.0" ]; then
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
               (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
@@ -271,10 +242,37 @@ functions:
             fi
 
             (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
+            # Save generated documentation
+            (cd .. && mv docs docs-$branch)
+          done
+
+  "update wiredtiger docs":
+    - command: shell.exec
+      params:
+        shell: bash
+        script: |
+          # Use a single function to update the documentation of each supported WiredTiger branch.
+          # This is useful as not all branches have a dedicated Evergreen project. Furthermore, the
+          # documentation-update task is not triggered by every commit, we rely on the activity of
+          # the develop branch to update the documentation of all supported branches.
+          # The verbose option is not set on purpose to avoid showing credentials.
+          set -o errexit
+
+          if [[ "${branch_name}" != "develop" ]]; then
+            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
+            exit 0
+          fi
+
+          git clone git@github.com:wiredtiger/wiredtiger.github.com.git
+          cd wiredtiger.github.com
+
+          # Go through each supported WiredTiger Github branch to generate and stage the doc
+          # changes.
+          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
 
             # Synchronize the generated documentation with the current one.
-            cd ../../wiredtiger.github.com
-            rsync -avq ../wiredtiger/docs/ $branch/ --delete
+            echo "Synchronizing documentation for branch $branch ..."
+            rsync -avq ../wiredtiger/docs-$branch/ $branch/ --delete
 
             # Commit and push the changes if any.
             if [[ $(git status "$branch" --porcelain) ]]; then
@@ -285,8 +283,6 @@ functions:
             else
               echo "No documentation changes for $branch."
             fi
-
-            cd ../wiredtiger/build_posix
 
           done
 
@@ -2072,7 +2068,10 @@ tasks:
     patchable: false
     commands:
       - func: "get project"
-      - func: "compile and update wiredtiger docs"
+      - func: "compile wiredtiger docs"
+        vars:
+          branches: develop,mongodb-5.0,mongodb-4.4,mongodb-4.2,mongodb-4.0
+      - func: "update wiredtiger docs"
 
   - name: syscall-linux
     depends_on:
