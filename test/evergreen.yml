@@ -216,9 +216,9 @@ functions:
           set -o errexit
           set -o verbose
 
-          # Check if specific branches are provided to the function through the task variable
-          # defined in doc-update. If none are specified, use the built-in Evergreen expansion
-          # ${branch_name}.
+          # Check if specific branches are provided to the function through the expansion variable
+          # defined in the documentation-update build variant. If none are specified, use the
+          # built-in Evergreen expansion ${branch_name}.
           if [ -z ${doc_update_branches} ]; then
             branches=${branch_name}
           else
@@ -268,8 +268,12 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          # Go through each supported WiredTiger Github branch to stage the doc changes.
-          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
+          # Branches to update are defined through an expansion variable.
+          branches=${doc_update_branches}
+
+          # Go through each branch to stage the doc changes.
+          IFS=,
+          for branch in $branches; do
 
             # Synchronize the generated documentation with the current one.
             echo "Synchronizing documentation for branch $branch ..."
@@ -2077,8 +2081,6 @@ tasks:
     commands:
       - func: "get project"
       - func: "compile wiredtiger docs"
-        vars:
-          doc_update_branches: develop,mongodb-5.0,mongodb-4.4,mongodb-4.2,mongodb-4.0
       - func: "update wiredtiger docs"
 
   - name: syscall-linux
@@ -2906,6 +2908,7 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    doc_update_branches: develop,mongodb-5.0,mongodb-4.4,mongodb-4.2,mongodb-4.0
   tasks:
     - name: doc-update
 
