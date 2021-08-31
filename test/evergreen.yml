@@ -216,16 +216,18 @@ functions:
           set -o errexit
           set -o verbose
 
-          # Check whether specific branches have been provided to the function
+          # Check whether specific branches have been provided to the function through the task
+          # variable defined in doc-update. If none have been specified, the built-in Evergreen
+          # expansion ${branch_name} is used.
           if [ -z ${doc_update_branches} ]; then
-            wt_branches=${branch_name}
+            branches=${branch_name}
           else
-            wt_branches=${doc_update_branches}
+            branches=${doc_update_branches}
           fi
 
           # Because of Evergreen's expansion syntax, this is used to process each branch separately.
           IFS=,
-          for branch in $wt_branches; do
+          for branch in $branches; do
 
             echo "Checking out branch $branch ..."
             git checkout $branch
