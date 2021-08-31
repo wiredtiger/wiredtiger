@@ -139,8 +139,9 @@ class test_compact03(wttest.WiredTigerTestCase):
         # 6. Perform checkpoint to ensure we have blocks available in the middle of the file.
         self.session.checkpoint()
 
-        # 7 & 8. Call compact. We expect that overflow values at the end of the file are not
-        #       rewritten and therefore the file size to mostly remain. Give a leeway of 10%.
+        # 7 & 8. Call compact. We expect that the overflow values at the end of the file are not
+        #        rewritten and therefore the file size will mostly remain the same. Give a leeway
+        #        of 10%.
         self.session.compact(self.uri)
         sizeAfterCompact = self.getSize()
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
