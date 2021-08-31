@@ -1522,6 +1522,14 @@ retry:
             }
             __wt_spin_unlock(session, &cache->evict_walk_lock);
             WT_ERR(ret);
+            /*
+             * If there is a checkpoint thread gathering handles, which means it is holding the
+             * schema lock, then there is often contention on the evict walk lock with that thread.
+             * If eviction is not in aggressive mode, sleep a bit to give the checkpoint thread a
+             * chance to gather its handles.
+             */
+            if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_cache_aggressive(session))
+                __wt_sleep(0, 10);
         }
     }
 
