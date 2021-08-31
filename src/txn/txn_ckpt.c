@@ -635,6 +635,13 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     __wt_txn_bump_snapshot(session);
 
+    /*
+     * Add a one second wait to simulate allocating next transaction id race with prepared rollback.
+     */
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_ALLOCATE_NEXT_TXNID, &tsp);
+
     /* Allocate next checkpoint transaction id.*/
     txn_global->checkpoint_next_txn_id = __wt_txn_id_alloc(session, false);
 

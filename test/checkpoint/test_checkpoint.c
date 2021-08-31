@@ -64,11 +64,18 @@ main(int argc, char *argv[])
     g.ntables = 3;
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
+    g.hs_checkpoint_timing_stress = g.next_txnid_timing_stress = false;
     runs = 1;
     verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:pr:sT:t:vW:xX")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "a:b:C:c:Dh:k:l:n:pr:sT:t:vW:xX")) != EOF)
         switch (ch) {
+        case 'a':
+            g.hs_checkpoint_timing_stress = true;
+            break;
+        case 'b':
+            g.next_txnid_timing_stress = true;
+            break;
         case 'c':
             g.checkpoint_name = __wt_optarg;
             break;
@@ -231,6 +238,18 @@ wt_connect(const char *config_open)
     };
     int ret;
     char config[512];
+    char timing_stress_cofing[512];
+    bool timing_stress;
+
+    timing_stress = false;
+
+    if (g.sweep_stress || g.hs_checkpoint_timing_stress || g.next_txnid_timing_stress) {
+        timing_stress = true;
+        testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
+          ",timing_stress_for_test=[%s%s%s]", g.sweep_stress ? ",aggressive_sweep" : "",
+          g.hs_checkpoint_timing_stress ? ",history_store_checkpoint_delay" : "",
+          g.next_txnid_timing_stress ? ",checkpoint_allocate_next_txnid_delay" : ""));
+    }
 
     /*
      * If we want to stress sweep, we have a lot of additional configuration settings to set.
@@ -239,15 +258,15 @@ wt_connect(const char *config_open)
         testutil_check(__wt_snprintf(config, sizeof(config),
           "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
           "\"%s\",file_manager=(close_handle_minimum=1,close_idle_time=1,close_scan_interval=1),"
-          "log=(enabled),cache_size=1GB,timing_stress_for_test=(aggressive_sweep)%s%s%s",
-          progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
-          config_open == NULL ? "" : config_open));
+          "log=(enabled),cache_size=1GB%s%s%s%s",
+          progname, timing_stress_cofing, g.debug_mode ? DEBUG_MODE_CFG : "",
+          config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
     else
         testutil_check(__wt_snprintf(config, sizeof(config),
           "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
-          "\"%s\"%s%s%s",
+          "\"%s\"%s%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
-          config_open == NULL ? "" : config_open));
+          config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : ""));
 
     if ((ret = wiredtiger_open(g.home, &event_handler, config, &g.conn)) != 0)
         return (log_print_err("wiredtiger_open", ret, 1));
