@@ -148,12 +148,12 @@ struct __wt_txn_global {
      * We rely on the fact that (a) the only table a checkpoint updates is the metadata; and (b)
      * once checkpoint has finished reading a table, it won't revisit it.
      */
-    volatile bool checkpoint_running;    /* Checkpoint running */
-    volatile bool checkpoint_running_hs; /* Checkpoint running and processing history store file */
-    volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
-    wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
-    volatile uint64_t checkpoint_next_txn_id; /* Checkpoint's next transaction id */
+    volatile bool checkpoint_running;     /* Checkpoint running */
+    volatile bool checkpoint_running_hs;  /* Checkpoint running and processing history store file */
+    volatile uint32_t checkpoint_id;      /* Checkpoint's session ID */
+    WT_TXN_SHARED checkpoint_txn_shared;  /* Checkpoint's txn shared state */
+    wt_timestamp_t checkpoint_timestamp;  /* Checkpoint's timestamp */
+    uint64_t checkpoint_invisible_txn_id; /* Checkpoint invisible transaction id */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */

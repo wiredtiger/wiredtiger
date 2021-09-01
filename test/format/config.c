@@ -383,12 +383,12 @@ config_backward_compatible(void)
         config_single("disk.mmap_all=off", false);
     }
 
-    if (g.c_timing_stress_checkpoint_next_txnid_delay) {
-        if (config_is_perm("stress.checkpoint_allocate_next_txnid_delay"))
+    if (g.c_timing_stress_checkpoint_invisible_txnid_delay) {
+        if (config_is_perm("stress.checkpoint_invisible_txnid_delay"))
             testutil_die(EINVAL,
-              "stress.checkpoint_allocate_next_txnid_delay not supported in backward compatibility "
+              "stress.checkpoint_invisible_txnid_delay not supported in backward compatibility "
               "mode");
-        config_single("stress.checkpoint_allocate_next_txnid_delay=off", false);
+        config_single("stress.checkpoint_invisible_txnid_delay=off", false);
     }
 
     if (g.c_timing_stress_hs_sweep) {

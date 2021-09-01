@@ -89,6 +89,7 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
         value_b = "bbbbb" * 100
         value_c = "ccccc" * 100
         value_d = "ddddd" * 100
+        value_e = "eeeee" * 100
 
         self.large_updates(uri, value_a, ds, nrows, False, 20)
         self.large_updates(uri, value_b, ds, nrows, False, 30)
@@ -128,6 +129,13 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
             done.set()
             ckpt.join()
 
+        self.large_updates(uri, value_d, ds, nrows, False, 60)
+
+        # Check that the correct data.
+        self.check(value_a, uri, nrows, 20)
+        self.check(value_b, uri, nrows, 30)
+        self.check(value_d, uri, nrows, 60)
+
         # Simulate a server crash and restart.
         simulate_crash_restart(self, ".", "RESTART")
 
@@ -145,14 +153,14 @@ class test_rollback_to_stable26(test_rollback_to_stable_base):
         self.check(value_a, uri, nrows, 20)
         self.check(value_b, uri, nrows, 30)
 
-        self.large_updates(uri, value_d, ds, nrows, False, 60)
+        self.large_updates(uri, value_e, ds, nrows, False, 60)
 
         self.evict_cursor(uri, nrows)
 
         # Check that the correct data.
         self.check(value_a, uri, nrows, 20)
         self.check(value_b, uri, nrows, 30)
-        self.check(value_d, uri, nrows, 60)
+        self.check(value_e, uri, nrows, 60)
 
 if __name__ == '__main__':
     wttest.run()

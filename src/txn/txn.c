@@ -1051,11 +1051,11 @@ __txn_fixup_prepared_update(
                 tw.stop_ts = fix_upd->start_ts;
 
                 /*
-                 * Use checkpoint next transaction id, so that this tombstone is not visible to the
-                 * rollback to stable and also checkpoint garbage collection cannot clean it as it
-                 * is greater than the global visible transaction id.
+                 * Use checkpoint invisible transaction id, so that this tombstone is not visible to
+                 * the rollback to stable and also checkpoint garbage collection cannot clean it as
+                 * it is greater than the global visible transaction id.
                  */
-                tw.stop_txn = txn_global->checkpoint_next_txn_id;
+                tw.stop_txn = txn_global->checkpoint_invisible_txn_id;
                 WT_TIME_WINDOW_SET_START(&tw, fix_upd);
 
                 hs_value.data = fix_upd->data;

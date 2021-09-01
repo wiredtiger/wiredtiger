@@ -148,12 +148,11 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
             WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
             /*
              * The same value should not be inserted again unless:
-             * 1. the previous entry is already deleted (i.e. the stop timestamp is globally
+             * 1. The previous entry is already deleted (i.e. the stop timestamp is globally
              * visible)
-             * 2. it came from a different transaction
-             * 3. it came from the same transaction but with a different timestamp
-             * 4. the previous update is removed by prepared rollback with the same stop timestamp
-             * as the start timestamp.
+             * 2. It came from a different transaction
+             * 3. It came from the same transaction but with a different timestamp
+             * 4. The prepared rollback left the history store entry when checkpoint is in progress.
              */
             if (cmp == 0) {
                 if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
@@ -168,7 +167,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                      */
                     WT_ASSERT(session,
                       type != WT_UPDATE_MODIFY && (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
-                    WT_ASSERT(session, false && "Duplicate values inserted into history store");
                 }
             }
             counter = hs_counter + 1;

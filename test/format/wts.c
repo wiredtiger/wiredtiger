@@ -264,8 +264,8 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",checkpoint_slow");
     if (g.c_timing_stress_checkpoint_prepare)
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
-    if (g.c_timing_stress_checkpoint_next_txnid_delay)
-        CONFIG_APPEND(p, ",checkpoint_allocate_next_txnid_delay");
+    if (g.c_timing_stress_checkpoint_invisible_txnid_delay)
+        CONFIG_APPEND(p, ",checkpoint_invisible_txnid_delay");
     if (g.c_timing_stress_hs_checkpoint_delay)
         CONFIG_APPEND(p, ",history_store_checkpoint_delay");
     if (g.c_timing_stress_hs_search)

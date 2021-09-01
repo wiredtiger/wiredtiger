@@ -64,7 +64,7 @@ main(int argc, char *argv[])
     g.ntables = 3;
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
-    g.hs_checkpoint_timing_stress = g.next_txnid_timing_stress = false;
+    g.hs_checkpoint_timing_stress = g.invisible_txnid_timing_stress = false;
     runs = 1;
     verify_only = false;
 
@@ -74,7 +74,7 @@ main(int argc, char *argv[])
             g.hs_checkpoint_timing_stress = true;
             break;
         case 'b':
-            g.next_txnid_timing_stress = true;
+            g.invisible_txnid_timing_stress = true;
             break;
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -243,12 +243,12 @@ wt_connect(const char *config_open)
 
     timing_stress = false;
 
-    if (g.sweep_stress || g.hs_checkpoint_timing_stress || g.next_txnid_timing_stress) {
+    if (g.sweep_stress || g.hs_checkpoint_timing_stress || g.invisible_txnid_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
           ",timing_stress_for_test=[%s%s%s]", g.sweep_stress ? ",aggressive_sweep" : "",
           g.hs_checkpoint_timing_stress ? ",history_store_checkpoint_delay" : "",
-          g.next_txnid_timing_stress ? ",checkpoint_allocate_next_txnid_delay" : ""));
+          g.invisible_txnid_timing_stress ? ",checkpoint_invisible_txnid_delay" : ""));
     }
 
     /*
