@@ -252,13 +252,13 @@ in the history store for a key and read timestamp combination, each update would
 visibility based on transaction and timestamp based visibility rules. In case there are no records
 visible in the history store table, \c WT_NOTFOUND error is returned to the reader.
 
-@section arch_hs_rts History store and rollback-to-stable
-@ref arch-rts "Rollback-to-stable" searches the history store table for valid updates that are
+@section arch_hs_rts History store and rollback to stable
+@ref arch-rts "Rollback to stable" searches the history store table for valid updates that are
 stable according to
 the supplied stable timestamp and replaces the on-disk version with an update from the history store
-table that fulfills the criteria. Rollback-to-stable also removes updates from the
+table that fulfills the criteria. Rollback to stable also removes updates from the
 history store table that are not stable according to the stable timestamp and transaction snapshot
-being used for rollback-to-stable operation.
+being used for rollback to stable operation.
 
 @section arch_hs_prepared History store and prepared transactions
 When there is a prepared update for a key and the page is evicted, the prepared update is written
