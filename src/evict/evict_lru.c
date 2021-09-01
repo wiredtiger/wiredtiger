@@ -1528,8 +1528,10 @@ retry:
              * If eviction is not in aggressive mode, sleep a bit to give the checkpoint thread a
              * chance to gather its handles.
              */
-            if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_cache_aggressive(session))
+            if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_cache_aggressive(session)) {
                 __wt_sleep(0, 10);
+                WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_sleeps);
+            }
         }
     }
 
