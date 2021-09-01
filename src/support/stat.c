@@ -1039,7 +1039,7 @@ static const char *const __stats_connection_desc[] = {
   "cache: eviction server unable to reach eviction goal",
   "cache: eviction server waiting for a leaf page",
   "cache: eviction state",
-  "cache: eviction walk sleeps for checkpoint handle gathering",
+  "cache: eviction walk most recent sleeps for checkpoint handle gathering",
   "cache: eviction walk target pages histogram - 0-9",
   "cache: eviction walk target pages histogram - 10-31",
   "cache: eviction walk target pages histogram - 128 and higher",

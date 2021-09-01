@@ -5099,7 +5099,10 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_CONN_CACHE_EVICTION_WALK_LEAF_NOTFOUND	1050
 /*! cache: eviction state */
 #define	WT_STAT_CONN_CACHE_EVICTION_STATE		1051
-/*! cache: eviction walk sleeps for checkpoint handle gathering */
+/*!
+ * cache: eviction walk most recent sleeps for checkpoint handle
+ * gathering
+ */
 #define	WT_STAT_CONN_CACHE_EVICTION_WALK_SLEEPS		1052
 /*! cache: eviction walk target pages histogram - 0-9 */
 #define	WT_STAT_CONN_CACHE_EVICTION_TARGET_PAGE_LT10	1053
