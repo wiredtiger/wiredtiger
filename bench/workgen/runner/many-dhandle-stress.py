@@ -101,6 +101,8 @@ ops = Operation(Operation.OP_INSERT, tables[0], Key(Key.KEYGEN_PARETO, 0, Pareto
 # Revert it back after WT-7332.
 ops = op_multi_table(ops, tables, False)
 thread0 = Thread(ops)
+thread0.options.throttle=1000
+thread0.options.throttle_burst=1.0
 
 ops = Operation(Operation.OP_SEARCH, tables[0], Key(Key.KEYGEN_PARETO, 0, ParetoOptions(10)))
 ops = op_multi_table(ops, tables, False)
