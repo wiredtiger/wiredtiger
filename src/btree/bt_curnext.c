@@ -472,6 +472,7 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_DECL_RET;
     int cmp;
 
+    WT_UNUSED(ret);
     btree = S2BT(session);
     cmp = 0; /* -Werror=maybe-uninitialized */
 
