@@ -542,7 +542,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      */
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_INVISIBLE_TXNID, &tsp);
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_INVISIBLE_TXNID_DELAY, &tsp);
 
     /*
      * Open an internal session to allocate a transaction id that is used for removing the history
