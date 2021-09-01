@@ -161,11 +161,8 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
     WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
-    if (prepare) {
+    if (prepare)
         WT_ERR(__wt_page_inmem_prepare(session, ref));
-        /* Ensure this page is not skipped by checkpoint. */
-        ref->page->modify->first_dirty_txn = WT_TXN_FIRST;
-    }
 
 skip_read:
     switch (previous_state) {
