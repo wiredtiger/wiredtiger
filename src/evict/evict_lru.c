@@ -1377,7 +1377,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     WT_DATA_HANDLE *dhandle;
     WT_DECL_RET;
     WT_TRACK_OP_DECL;
-    u_int loop_count, max_entries, retries, sleep_count, slot, start_slot;
+    u_int loop_count, max_entries, retries, slot, start_slot;
     u_int total_candidates;
     bool dhandle_locked, incr;
 
@@ -1406,7 +1406,7 @@ __evict_walk(WT_SESSION_IMPL *session, WT_EVICT_QUEUE *queue)
     max_entries = WT_MIN(max_entries, 1 + total_candidates / 2);
 
 retry:
-    loop_count = sleep_count = 0;
+    loop_count = 0;
     while (slot < max_entries && loop_count++ < conn->dhandle_count) {
         /* We're done if shutting down or reconfiguring. */
         if (F_ISSET(conn, WT_CONN_CLOSING) || F_ISSET(conn, WT_CONN_RECONFIGURING))
@@ -1530,11 +1530,10 @@ retry:
              */
             if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_cache_aggressive(session)) {
                 __wt_sleep(0, 10);
-                ++sleep_count;
+                WT_STAT_CONN_INCR(session, cache_eviction_walk_sleeps);
             }
         }
     }
-    WT_STAT_CONN_SET(session, cache_eviction_walk_sleeps, sleep_count);
 
     if (incr) {
         WT_ASSERT(session, dhandle->session_inuse > 0);
