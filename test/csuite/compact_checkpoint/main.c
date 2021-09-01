@@ -27,7 +27,7 @@
  */
 #include "test_util.h"
 
-#define NUM_RECORDS 3000000
+#define NUM_RECORDS 1000000
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
