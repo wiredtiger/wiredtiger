@@ -549,8 +549,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * store entries due to a prepared rollback occurs in parallel to the checkpoint. Make sure that
      * this transaction id is published before the checkpoint acquires its snapshot.
      */
-    WT_RET(__wt_open_internal_session(
-      conn, "txn rollback_to_stable", true, 0, 0, &ckpt_internal_session));
+    WT_RET(__wt_open_internal_session(conn, "checkpoint internal", true, session->flags,
+      session->lock_flags, &ckpt_internal_session));
     WT_ERR(__wt_txn_begin(ckpt_internal_session, NULL));
     WT_ERR(__wt_txn_id_check(ckpt_internal_session));
     txn_global->checkpoint_invisible_txn_id = ckpt_internal_session->txn->id;
