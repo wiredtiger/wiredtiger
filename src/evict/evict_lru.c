@@ -1530,7 +1530,7 @@ retry:
              */
             if (F_ISSET(conn, WT_CONN_CKPT_GATHER) && !__wt_cache_aggressive(session)) {
                 __wt_sleep(0, 10);
-                WT_STAT_CONN_DATA_INCR(session, cache_eviction_walk_sleeps);
+                WT_STAT_CONN_INCR(session, cache_eviction_walk_sleeps);
             }
         }
     }
