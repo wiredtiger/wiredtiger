@@ -695,8 +695,9 @@ __wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, uint64_t 
      * If there's a checkpoint running, wait for it to complete. If there's no checkpoint running or
      * the checkpoint generation number changes, the checkpoint blocking us has completed.
      */
+#define WT_CKPT_WAIT 2
     txn_global = &S2C(session)->txn_global;
-    for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);; __wt_sleep(2, 0)) {
+    for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);; __wt_sleep(WT_CKPT_WAIT, 0)) {
         /*
          * This loop only checks objects that are declared volatile, therefore no barriers are
          * needed.
@@ -707,9 +708,9 @@ __wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, uint64_t 
         /* If there's a timeout, give up. */
         if (seconds == 0)
             continue;
-        seconds -= 2;
-        if (seconds <= 2)
+        if (seconds <= WT_CKPT_WAIT)
             return (EBUSY);
+        seconds -= WT_CKPT_WAIT;
     }
 
     return (0);
