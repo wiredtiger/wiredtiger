@@ -158,7 +158,7 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
     txn_global = &conn->txn_global;
 
     /* We're going to scan the table: wait for the lock. */
-    __wt_readlock(session, &txn_global->rwlock);
+    __wt_writelock(session, &txn_global->rwlock);
 
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
     WT_STAT_CONN_INCR(session, txn_walk_sessions);
@@ -176,7 +176,7 @@ __wt_txn_user_active(WT_SESSION_IMPL *session)
         }
     }
 
-    __wt_readunlock(session, &txn_global->rwlock);
+    __wt_writeunlock(session, &txn_global->rwlock);
     return (txn_active);
 }
 
