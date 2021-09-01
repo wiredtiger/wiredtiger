@@ -338,10 +338,6 @@ struct __wt_connection_impl {
     bool ckpt_tid_set;             /* Checkpoint thread set */
     WT_CONDVAR *ckpt_cond;         /* Checkpoint wait mutex */
     uint64_t ckpt_most_recent;     /* Clock value of most recent checkpoint */
-
-    WT_CONDVAR *compact_cond;         /* Compact wait mutex */
-    WT_SESSION_IMPL *compact_session; /* Compact thread session */
-
 #define WT_CKPT_LOGSIZE(conn) ((conn)->ckpt_logsize != 0)
     wt_off_t ckpt_logsize; /* Checkpoint log size period */
     bool ckpt_signalled;   /* Checkpoint signalled */

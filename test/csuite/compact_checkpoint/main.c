@@ -27,11 +27,11 @@
  */
 #include "test_util.h"
 
-#define NR_RECORDS 3000000
+#define NUM_RECORDS 3000000
 
 /* Constants and variables declaration. */
 static const char conn_config[] =
-  "create,cache_size=2GB,statistics=(all),verbose=[compact,compact_progress]";//,checkpoint=(wait=180)";
+  "create,cache_size=2GB,statistics=(all),verbose=[compact,compact_progress]";
 static const char table_config[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=i,value_format=QQQS";
 static char data_str[1024] = "";
@@ -40,16 +40,17 @@ static char data_str[1024] = "";
 struct thread_data {
     WT_CONNECTION *conn;
     const char *uri;
+    WT_CONDVAR *cond;
+    WT_SESSION_IMPL *session_cond;
 };
 
 /* Forward declarations. */
 static void run_test(const char *home, const char *uri);
+static void *thread_func_compact(void *arg);
+static void *thread_func_checkpoint(void *arg);
 static void populate(WT_SESSION *session, const char *uri);
 static void remove_records(WT_SESSION *session, const char *uri);
 static uint64_t get_file_size(WT_SESSION *session, const char *uri);
-static void *thread_func_compact(void *arg);
-static void *thread_func_checkpoint(void *arg);
-//static void set_timing_stress_checkpoint(WT_CONNECTION *conn);
 
 /* Methods implementation. */
 int
@@ -63,7 +64,6 @@ main(int argc, char *argv[])
 
     run_test(opts->home, opts->uri);
 
-    opts->conn = NULL;
     testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
@@ -74,41 +74,36 @@ run_test(const char *home, const char *uri)
 {
     struct thread_data td;
     WT_CONNECTION *conn;
-    WT_CONNECTION_IMPL *conn_impl;
     WT_SESSION *session;
-    pthread_t thread_compact, thread_checkpoint;
+    pthread_t thread_checkpoint, thread_compact;
     uint64_t file_sz_after, file_sz_before;
 
     testutil_make_work_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
-    /* Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each checkpoint.*/
-    //set_timing_stress_checkpoint(conn);
-    
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create and initialize conditional variable. */
-    conn_impl = (WT_CONNECTION_IMPL *)conn;
-    conn_impl->compact_session = (WT_SESSION_IMPL *)session;
-    testutil_check(__wt_cond_alloc(conn_impl->compact_session, "compact operation", &conn_impl->compact_cond));
-
-    /* 1. Create and populate dataset. Checkpoint the data after that. */
+    /* Create and populate dataset. Checkpoint the data after that. */
     testutil_check(session->create(session, uri, table_config));
 
     populate(session, uri);
     testutil_check(session->checkpoint(session, NULL));
 
     /*
-     * 2. Remove 1/3 of data from the middle of the key range. To let compact relocate blocks
-     * from the end of the file.
+     * Remove 1/3 of data from the middle of the key range. To let compact relocate blocks from the
+     * end of the file.
      */
     remove_records(session, uri);
 
     file_sz_before = get_file_size(session, uri);
 
-    /* 3. Run checkpoint and compact. */
+    /* Create and initialize conditional variable. */
     td.conn = conn;
     td.uri = uri;
+    td.session_cond = (WT_SESSION_IMPL *)session;
+    testutil_check(__wt_cond_alloc(td.session_cond, "compact operation", &td.cond));
+
+    /* Spawn checkpoint and compact threads. */
     testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
     testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
     (void)pthread_join(thread_checkpoint, NULL);
@@ -116,18 +111,63 @@ run_test(const char *home, const char *uri)
 
     file_sz_after = get_file_size(session, uri);
 
-    __wt_cond_destroy(conn_impl->compact_session, &conn_impl->compact_cond);
-    conn_impl->compact_session = NULL;
-    conn_impl->compact_cond = NULL;
+    /* Cleanup */
+    __wt_cond_destroy(td.session_cond, &td.cond);
+    td.session_cond = NULL;
+    td.cond = NULL;
 
     testutil_check(session->close(session, NULL));
-    testutil_check(conn->close(conn, NULL));
 
     printf("Compressed file size MB: %f\n", file_sz_after / (1024.0 * 1024));
     printf("Original file size MB: %f\n", file_sz_before / (1024.0 * 1024));
 
     /* Check if there's at least 10% compaction. */
     testutil_assert(file_sz_before * 0.9 > file_sz_after);
+}
+
+static void *
+thread_func_compact(void *arg)
+{
+    struct thread_data *td;
+    WT_SESSION *session;
+
+    td = (struct thread_data *)arg;
+
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+    /* Make sure checkpoint thread is initialized and waiting for the signal. */
+    __wt_sleep(1, 0);
+
+    /* Wake up the checkpoint thread. */
+    printf("Signal conditional variable.\n");
+    __wt_cond_signal(td->session_cond, td->cond);
+
+    /* Perform compact operation. */
+    testutil_check(session->compact(session, td->uri, NULL));
+    testutil_check(session->close(session, NULL));
+
+    return (NULL);
+}
+
+static void *
+thread_func_checkpoint(void *arg)
+{
+    struct thread_data *td;
+    WT_SESSION *session;
+    bool signalled;
+
+    td = (struct thread_data *)arg;
+
+    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+    printf("Wait for condition variable signal.\n");
+    __wt_cond_wait_signal(td->session_cond, td->cond, 0, NULL, &signalled);
+    printf("Received signal for condition variable. Starting checkpoint.\n");
+
+    testutil_check(session->checkpoint(session, NULL));
+    testutil_check(session->close(session, NULL));
+
+    return (NULL);
 }
 
 static void
@@ -147,7 +187,7 @@ populate(WT_SESSION *session, const char *uri)
     data_str[str_len - 1] = '\0';
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
-    for (i = 0; i < NR_RECORDS; i++) {
+    for (i = 0; i < NUM_RECORDS; i++) {
         cursor->set_key(cursor, i);
         val = (uint64_t)rand();
         cursor->set_value(cursor, val, val, val, data_str);
@@ -165,7 +205,7 @@ remove_records(WT_SESSION *session, const char *uri)
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
-    for (i = NR_RECORDS / 3; i < (NR_RECORDS * 2) / 3; i++) {
+    for (i = NUM_RECORDS / 3; i < (NUM_RECORDS * 2) / 3; i++) {
         cursor->set_key(cursor, i);
         testutil_check(cursor->remove(cursor));
     }
@@ -190,50 +230,3 @@ get_file_size(WT_SESSION *session, const char *uri)
 
     return val;
 }
-
-static void *
-thread_func_compact(void *arg)
-{
-    struct thread_data *td;
-    WT_SESSION *session;
-
-    td = (struct thread_data *)arg;
-
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-    testutil_check(session->compact(session, td->uri, NULL));
-    testutil_check(session->close(session, NULL));
-
-    return (NULL);
-}
-
-static void *
-thread_func_checkpoint(void *arg)
-{
-    struct thread_data *td;
-    WT_SESSION *session;
-    WT_CONNECTION_IMPL *conn_impl;
-    bool signalled;
-
-    td = (struct thread_data *)arg;
-    conn_impl = (WT_CONNECTION_IMPL *)td->conn;
-
-    testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
-
-    printf("AAA: wait for the signal.\n");
-    __wt_cond_wait_signal(conn_impl->compact_session, conn_impl->compact_cond, 0, NULL, &signalled);
-    printf("AAA: received the signal. Starting checkpoint.\n");
-
-    testutil_check(session->checkpoint(session, NULL));
-    testutil_check(session->close(session, NULL));
-
-    return (NULL);
-}
-
-/*static void
-set_timing_stress_checkpoint(WT_CONNECTION *conn)
-{
-    WT_CONNECTION_IMPL *conn_impl;
-
-    conn_impl = (WT_CONNECTION_IMPL *)conn;
-    conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
-}*/

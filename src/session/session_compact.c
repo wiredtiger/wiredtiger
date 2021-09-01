@@ -334,23 +334,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_SESSION_IMPL *session;
     u_int i;
     bool ignore_cache_size_set;
-    /* AAA test code */
-    struct timespec cur_time;
-    uint64_t time_diff;
-    WT_CONNECTION_IMPL *conn_impl;
-    /*****************/
 
     ignore_cache_size_set = false;
 
     session = (WT_SESSION_IMPL *)wt_session;
-    /* AAA test code */
-    conn_impl = S2C(session);
-    if (conn_impl->compact_session != NULL) {
-        printf("AAA: compact signal.\n");
-        __wt_cond_signal(conn_impl->compact_session, conn_impl->compact_cond);
-    }
-    /*****************/
-
     SESSION_API_CALL(session, compact, config, cfg);
 
     /*
@@ -397,14 +384,6 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
 
-    /* AAA test code FAIL */
-    /*conn_impl = S2C(session);
-    if (conn_impl->compact_session != NULL) {
-        printf("AAA: compact signal.\n");
-        __wt_cond_signal(conn_impl->compact_session, conn_impl->compact_cond);
-    }*/
-    /*****************/
-
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a
      * table, so acquire the table lock in write mode.
@@ -419,15 +398,6 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
         WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
     if (session->compact->file_count != 0)
         WT_ERR(__compact_worker(session));
-
-    /* AAA test code */
-    __wt_epoch(session, &cur_time);
-    time_diff = WT_TIMEDIFF_MS(cur_time, session->compact->begin);
-    printf("AAA: compact start: %" PRIu64 ".%" PRIu64 ", compact end: %" PRIu64 ".%" PRIu64
-           "; duration ms: %" PRIu64 "\n",
-      (uint64_t)session->compact->begin.tv_sec, (uint64_t)session->compact->begin.tv_nsec,
-      (uint64_t)cur_time.tv_sec, (uint64_t)cur_time.tv_nsec, (uint64_t)time_diff);
-    /*****************/
 
 err:
     session->compact = NULL;
