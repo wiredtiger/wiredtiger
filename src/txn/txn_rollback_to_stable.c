@@ -609,11 +609,10 @@ err:
  *     Fix the on-disk K/V version according to the given timestamp.
  */
 static int
-__rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_ROW *rip,
-  wt_timestamp_t rollback_timestamp, uint64_t recno, bool *is_ondisk_stable)
+__rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
+  WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp, uint64_t recno,
+  bool *is_ondisk_stable)
 {
-    WT_CELL *kcell;
-    WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
@@ -622,25 +621,11 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
     bool prepared;
 
     page = ref->page;
-    vpack = &_vpack;
     upd = NULL;
 
     /* Initialize the on-disk stable version flag. */
     if (is_ondisk_stable != NULL)
         *is_ondisk_stable = false;
-
-    /*
-     * Assert an exclusive or for rip and cip such that either only a cip for a column store or a
-     * rip for a row store are passed into the function.
-     */
-    WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
-
-    if (rip != NULL)
-        __wt_row_leaf_value_cell(session, page, rip, vpack);
-    else {
-        kcell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack_kv(session, page->dsk, kcell, vpack);
-    }
 
     prepared = vpack->tw.prepare;
     if (WT_IS_HS(session->dhandle)) {
@@ -823,8 +808,8 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
                 WT_STAT_CONN_DATA_INCR(session, txn_rts_delete_rle_skipped);
             else {
                 for (j = 0; j < rle; j++) {
-                    WT_RET(__rollback_abort_ondisk_kv(
-                      session, ref, cip, NULL, rollback_timestamp, recno + j, &is_ondisk_stable));
+                    WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, &unpack,
+                      rollback_timestamp, recno + j, &is_ondisk_stable));
                     /* We can stop right away if the on-disk version is stable. */
                     if (is_ondisk_stable) {
                         if (rle > 1)
@@ -879,6 +864,7 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, wt_timestamp_t
 static int
 __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t rollback_timestamp)
 {
+    WT_CELL_UNPACK_KV *vpack, _vpack;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_INSERT_HEAD *insert;
@@ -916,9 +902,12 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         /*
          * If there is no stable update found in the update list, abort any on-disk value.
          */
-        if (!stable_update_found)
+        if (!stable_update_found) {
+            vpack = &_vpack;
+            __wt_row_leaf_value_cell(session, page, rip, vpack);
             WT_ERR(
-              __rollback_abort_ondisk_kv(session, ref, NULL, rip, rollback_timestamp, 0, NULL));
+              __rollback_abort_ondisk_kv(session, ref, rip, vpack, rollback_timestamp, 0, NULL));
+        }
     }
 
     /* Mark the page as dirty to reconcile the page. */
