@@ -313,8 +313,8 @@ __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  *     satisfies the given timestamp.
  */
 static int
-__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page, WT_COL *cip,
-  WT_ROW *rip, wt_timestamp_t rollback_timestamp, uint64_t recno)
+__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_ROW *rip,
+  wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
     WT_CELL *kcell;
     WT_CELL_UNPACK_KV *unpack, _unpack;
@@ -324,6 +324,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
     WT_DECL_ITEM(hs_value);
     WT_DECL_ITEM(key);
     WT_DECL_RET;
+    WT_PAGE *page;
     WT_TIME_WINDOW *hs_tw;
     WT_UPDATE *tombstone, *upd;
     wt_timestamp_t hs_durable_ts, hs_start_ts, hs_stop_durable_ts, newer_hs_durable_ts;
@@ -343,10 +344,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *page
      */
     WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
 
-    if (page == NULL) {
-        WT_ASSERT(session, ref != NULL);
-        page = ref->page;
-    }
+    page = ref->page;
+
     hs_cursor = NULL;
     tombstone = upd = NULL;
     hs_durable_ts = hs_start_ts = hs_stop_durable_ts = WT_TS_NONE;
@@ -690,8 +689,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (
-              __rollback_ondisk_fixup_key(session, ref, NULL, cip, rip, rollback_timestamp, recno));
+            return (__rollback_ondisk_fixup_key(session, ref, cip, rip, rollback_timestamp, recno));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -713,8 +711,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           vpack->tw.start_txn == vpack->tw.stop_txn) {
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                return (__rollback_ondisk_fixup_key(
-                  session, ref, NULL, cip, rip, rollback_timestamp, recno));
+                return (
+                  __rollback_ondisk_fixup_key(session, ref, cip, rip, rollback_timestamp, recno));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
