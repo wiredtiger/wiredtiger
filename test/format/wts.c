@@ -484,7 +484,6 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     if (enc != NULL)
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
-
     /*
      * Timing stress options aren't persisted in the base config and need to be added to the
      * configuration for re-open.
