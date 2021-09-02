@@ -262,33 +262,6 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
 }
 
 /*
- * __hs_failpoint --
- *     A generic failpoint function, it will return EBUSY if the failpoint triggers. Takes a double
- *     representing the probability of the failpoint occurring. Supports percentages with two
- *     decimal places.
- */
-static inline int
-__hs_failpoint(WT_SESSION_IMPL *session, double probability)
-{
-    WT_CONNECTION_IMPL *conn;
-    uint32_t random;
-    uint32_t ratio;
-
-    conn = S2C(session);
-    ratio = probability * 100;
-    random = 0;
-
-    WT_ASSERT(session, probability >= 0 && probability <= 100);
-
-    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT)) {
-        random = __wt_random(&session->rnd) % 10000;
-        if (random < ratio)
-            return (EBUSY);
-    }
-    return (0);
-}
-
-/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table. Whether the function
  *     fails or succeeds, if there is a successful write to history, cache_write_hs is set to true.
@@ -654,7 +627,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             __wt_curhs_clear_insert_success(hs_cursor);
 
             /* Fail here 0.03% of the time. */
-            WT_ERR(__hs_failpoint(session, 0.03));
+            WT_ERR(
+              __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1, 0.03));
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
@@ -729,7 +703,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
     }
 
     /* Fail here 0.02% of the time. */
-    WT_ERR(__hs_failpoint(session, 0.02));
+    WT_ERR(__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2, 0.02));
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
@@ -803,6 +777,8 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     WT_ERR(__hs_delete_reinsert_from_pos(
       session, hs_cursor, btree_id, key, ts, reinsert, checkpoint_running, &hs_counter));
 
+    /* Fail 1% of the time. */
+    WT_ERR(__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS, 1));
 done:
 err:
     if (!hs_read_all_flag)
