@@ -1048,24 +1048,34 @@ __txn_fixup_prepared_update(
         if (txn_global->checkpoint_running) {
             /* Don't update the history store entry if the entry already have a stop timestamp. */
             if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
-                tw.durable_stop_ts = fix_upd->durable_ts;
-                tw.stop_ts = fix_upd->start_ts;
-
                 /*
-                 * Use checkpoint invisible transaction id, so that this tombstone is not visible to
-                 * the rollback to stable and also checkpoint garbage collection cannot clean it as
-                 * it is greater than the global visible transaction id.
+                 * When a history store update start transaction is greater than the checkpoint
+                 * invisible transaction id, the durable timestamp of this update also must be
+                 * greater than the checkpoint timestamp, so there is no point in saving this
+                 * unstable update in the history store.
                  */
-                tw.stop_txn = txn_global->checkpoint_invisible_txn_id;
-                WT_TIME_WINDOW_SET_START(&tw, fix_upd);
+                if (fix_upd->txnid > txn_global->checkpoint_invisible_txn_id)
+                    WT_ERR(hs_cursor->remove(hs_cursor));
+                else {
+                    tw.durable_stop_ts = fix_upd->durable_ts;
+                    tw.stop_ts = fix_upd->start_ts;
 
-                hs_value.data = fix_upd->data;
-                hs_value.size = fix_upd->size;
-                hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
-                  (uint64_t)WT_UPDATE_STANDARD, &hs_value);
-                WT_ERR(hs_cursor->update(hs_cursor));
-                WT_STAT_CONN_INCR(
-                  session, txn_prepare_rollback_left_hs_update_with_ckpt_next_txnid);
+                    /*
+                     * Use checkpoint invisible transaction id, so that this tombstone is not
+                     * visible to the rollback to stable and also checkpoint garbage collection
+                     * cannot clean it as it is greater than the global visible transaction id.
+                     */
+                    tw.stop_txn = txn_global->checkpoint_invisible_txn_id;
+                    WT_TIME_WINDOW_SET_START(&tw, fix_upd);
+
+                    hs_value.data = fix_upd->data;
+                    hs_value.size = fix_upd->size;
+                    hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
+                      (uint64_t)WT_UPDATE_STANDARD, &hs_value);
+                    WT_ERR(hs_cursor->update(hs_cursor));
+                    WT_STAT_CONN_INCR(
+                      session, txn_prepare_rollback_left_hs_update_with_ckpt_next_txnid);
+                }
             } else
                 WT_STAT_CONN_INCR(session, txn_prepare_rollback_left_hs_update);
         } else

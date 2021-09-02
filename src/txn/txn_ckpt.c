@@ -537,25 +537,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     use_timestamp = (cval.val != 0);
 
     /*
-     * Add a one second wait to simulate allocating invisible transaction id race with prepared
-     * rollback.
-     */
-    tsp.tv_sec = 1;
-    tsp.tv_nsec = 0;
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_INVISIBLE_TXNID_DELAY, &tsp);
-
-    /*
-     * Open an internal session to allocate a transaction id that is used for removing the history
-     * store entries due to a prepared rollback occurs in parallel to the checkpoint. Make sure that
-     * this transaction id is published before the checkpoint acquires its snapshot.
-     */
-    WT_RET(__wt_open_internal_session(conn, "checkpoint internal", true, session->flags,
-      session->lock_flags, &ckpt_internal_session));
-    WT_ERR(__wt_txn_begin(ckpt_internal_session, NULL));
-    WT_ERR(__wt_txn_id_check(ckpt_internal_session));
-    txn_global->checkpoint_invisible_txn_id = ckpt_internal_session->txn->id;
-
-    /*
      * Start a snapshot transaction for the checkpoint.
      *
      * Note: we don't go through the public API calls because they have side effects on cursors,
@@ -564,7 +545,7 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 1);
     __wt_epoch(session, &conn->ckpt_prep_start);
 
-    WT_ERR(__wt_txn_begin(session, txn_cfg));
+    WT_RET(__wt_txn_begin(session, txn_cfg));
     /* Wait 1000 microseconds to simulate slowdown in checkpoint prepare. */
     tsp.tv_sec = 0;
     tsp.tv_nsec = WT_MILLION;
@@ -574,10 +555,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_DIAGNOSTIC_YIELD;
 
     /* Ensure a transaction ID is allocated prior to sharing it globally */
-    WT_ERR(__wt_txn_id_check(session));
+    WT_RET(__wt_txn_id_check(session));
 
     /* Keep track of handles acquired for locking. */
-    WT_ERR(__wt_meta_track_on(session));
+    WT_RET(__wt_meta_track_on(session));
     *trackingp = true;
 
     /*
@@ -647,6 +628,22 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     }
 
     __wt_writeunlock(session, &txn_global->rwlock);
+
+    /*
+     * Open an internal session to allocate a transaction id that is used for removing the history
+     * store entries due to a prepared rollback occurs in parallel to the checkpoint. Make sure that
+     * this transaction id is published before the checkpoint acquires its snapshot.
+     */
+    WT_RET(__wt_open_internal_session(conn, "checkpoint internal", true, session->flags,
+      session->lock_flags, &ckpt_internal_session));
+    WT_ERR(__wt_txn_begin(ckpt_internal_session, NULL));
+    WT_ERR(__wt_txn_id_check(ckpt_internal_session));
+    txn_global->checkpoint_invisible_txn_id = ckpt_internal_session->txn->id;
+
+    /* Add a one second wait to simulate invisible transaction id race with prepared rollback. */
+    tsp.tv_sec = 1;
+    tsp.tv_nsec = 0;
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_INVISIBLE_TXNID_DELAY, &tsp);
 
     /*
      * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
