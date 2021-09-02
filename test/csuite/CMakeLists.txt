@@ -196,9 +196,9 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_compact_checkpoint
-    SOURCES compact_checkpoint/main.c
-    DIR_NAME compact_checkpoint
+    TARGET test_wt7989_compact_checkpoint
+    SOURCES wt7989_compact_checkpoint/main.c
+    DIR_NAME wt7989_compact_checkpoint
 )
 
 define_c_test(
