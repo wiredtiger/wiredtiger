@@ -28,9 +28,9 @@ variable-length records (\c WT_BTREE_COL_VAR) (see @ref arch-row-column for more
 B-Trees can grow to a very large size, and the space in memory is
 generally not large enough to hold all the pages of the B-Tree. To access a page in
 the B-Tree, we require a \c WT_REF which tracks whether the page has or has not been
-loaded from storage. Once the page is loaded, the \c WT_REF will have a valid \c WT_PAGE
-pointer which represents the in-memory page. The \c WT_BTREE structure contains a
-\c WT_REF or reference structure that points to the root page of the given tree. Other
+loaded from storage. Once the page is loaded, the \c WT_REF or reference structure will
+have a valid \c WT_PAGE pointer which represents the in-memory page. The \c WT_BTREE
+structure contains a \c WT_REF that points to the root page of the given tree. Other
 pages can be accessed as required by traversing through the child structures of the root
 page, and the child structures of those pages, and so on.
 
@@ -69,7 +69,7 @@ prepared updates. These pages will have their records deleted individually.
 
 @section btree_truncate_interaction_with_other_operations Interaction With Other Operations
 
-Truncation differs to other operations in the sense that it does not have the same
+Truncation differs from other operations in the sense that it does not have the same
 transactional semantics. If a range truncate is in progress and another transaction
 happens to insert a key into the same range, the behavior is not well-defined. A
 conflict may be detected, or both transaction may be permitted to commit. In the scenario
