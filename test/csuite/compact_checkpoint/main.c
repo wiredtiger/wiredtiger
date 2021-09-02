@@ -27,6 +27,14 @@
  */
 #include "test_util.h"
 
+/*
+ * This test executes to test cases: 
+ * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 secods sleep before each checkpoint.
+ * - Another test case synchronizes compact and checkpoint threads using a condition variable.
+ * The reason we have two test here is that they give different output when configured
+ * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
+ */
+
 #define NUM_RECORDS 1000000
 
 /* Constants and variables declaration. */
