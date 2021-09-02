@@ -450,7 +450,7 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
     uint32_t ratio;
 
     conn = S2C(session);
-    ratio = probability * 100;
+    ratio = (uint32_t)(probability * 100);
     random = 0;
 
     WT_ASSERT(session, probability >= 0 && probability <= 100);
