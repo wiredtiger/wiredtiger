@@ -313,11 +313,9 @@ __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  *     satisfies the given timestamp.
  */
 static int
-__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, WT_ROW *rip,
-  wt_timestamp_t rollback_timestamp, uint64_t recno)
+__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
+  WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp, uint64_t recno)
 {
-    WT_CELL *kcell;
-    WT_CELL_UNPACK_KV *unpack, _unpack;
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
     WT_DECL_ITEM(hs_key);
@@ -338,12 +336,6 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, 
     bool first_record;
 #endif
 
-    /*
-     * Assert an exclusive or for rip and cip such that either only a cip for a column store or a
-     * rip for a row store are passed into the function.
-     */
-    WT_ASSERT(session, (rip != NULL && cip == NULL) || (rip == NULL && cip != NULL));
-
     page = ref->page;
 
     hs_cursor = NULL;
@@ -360,24 +352,15 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, 
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     if (rip != NULL) {
-        /* Unpack a row cell. */
+        /* Unpack a row key. */
         WT_ERR(__wt_scr_alloc(session, 0, &key));
         WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
-
-        /* Get the full update value from the data store. */
-        unpack = &_unpack;
-        __wt_row_leaf_value_cell(session, page, rip, unpack);
     } else {
-        /* Unpack a column cell. */
+        /* Manufacture a column key. */
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
         memp = key->mem;
         WT_ERR(__wt_vpack_uint(&memp, 0, recno));
         key->size = WT_PTRDIFF(memp, key->data);
-
-        /* Get the full update value from the data store. */
-        unpack = &_unpack;
-        kcell = WT_COL_PTR(page, cip);
-        __wt_cell_unpack_kv(session, page->dsk, kcell, unpack);
     }
 
     WT_ERR(__wt_scr_alloc(session, 0, &full_value));
@@ -689,7 +672,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (__rollback_ondisk_fixup_key(session, ref, cip, rip, rollback_timestamp, recno));
+            return (
+              __rollback_ondisk_fixup_key(session, ref, rip, vpack, rollback_timestamp, recno));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -712,7 +696,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_COL *cip, W
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 return (
-                  __rollback_ondisk_fixup_key(session, ref, cip, rip, rollback_timestamp, recno));
+                  __rollback_ondisk_fixup_key(session, ref, rip, vpack, rollback_timestamp, recno));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
