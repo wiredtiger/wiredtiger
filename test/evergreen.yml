@@ -216,9 +216,6 @@ functions:
           set -o errexit
           set -o verbose
 
-          echo "Current branch is"
-          git branch
-
           # Check if specific branches are provided to the function through the expansion variable
           # defined in the documentation-update build variant. If none are specified, use the
           # current branch.
