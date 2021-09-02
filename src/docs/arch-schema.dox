@@ -113,5 +113,6 @@ WT_SESSION::alter allows modification of some table settings after creation.
 WT_SESSION::truncate truncates a file, table, cursor range, or backup cursor. If \c start and
 \c stop cursors are not specified all the data stored in the \c uri will be wiped out. When a range
 truncate is in progress, and another transaction inserts a key into that range, the behavior
-is not well defined. It is best to avoid this type of situations.
+is not well defined. It is best to avoid this type of situations. See @ref btree_truncate_operation
+for more details.
 */
