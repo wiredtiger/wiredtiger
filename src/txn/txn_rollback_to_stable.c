@@ -314,7 +314,7 @@ __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  */
 static int
 __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp, uint64_t recno)
+  WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp, uint64_t recno, WT_ITEM *row_key)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
@@ -352,9 +352,13 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
     WT_ERR(__wt_scr_alloc(session, 0, &hs_value));
 
     if (rip != NULL) {
-        /* Unpack a row key. */
-        WT_ERR(__wt_scr_alloc(session, 0, &key));
-        WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        if (row_key != NULL)
+            key = row_key;
+        else {
+            /* Unpack a row key. */
+            WT_ERR(__wt_scr_alloc(session, 0, &key));
+            WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        }
     } else {
         /* Manufacture a column key. */
         WT_ERR(__wt_scr_alloc(session, WT_INTPACK64_MAXSIZE, &key));
@@ -598,7 +602,8 @@ err:
     __wt_scr_free(session, &full_value);
     __wt_scr_free(session, &hs_key);
     __wt_scr_free(session, &hs_value);
-    __wt_scr_free(session, &key);
+    if (rip == NULL || row_key == NULL)
+        __wt_scr_free(session, &key);
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     return (ret);
@@ -610,7 +615,7 @@ err:
  */
 static int
 __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp, uint64_t recno,
+  WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp, uint64_t recno, WT_ITEM *row_key,
   bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(tmp);
@@ -657,8 +662,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
           __wt_timestamp_to_string(vpack->tw.start_ts, ts_string[1]), prepared ? "true" : "false",
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-            return (
-              __rollback_ondisk_fixup_key(session, ref, rip, vpack, rollback_timestamp, recno));
+            return (__rollback_ondisk_fixup_key(
+              session, ref, rip, vpack, rollback_timestamp, recno, row_key));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -680,8 +685,8 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
           vpack->tw.start_txn == vpack->tw.stop_txn) {
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-                return (
-                  __rollback_ondisk_fixup_key(session, ref, rip, vpack, rollback_timestamp, recno));
+                return (__rollback_ondisk_fixup_key(
+                  session, ref, rip, vpack, rollback_timestamp, recno, row_key));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
@@ -809,7 +814,7 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
             else {
                 for (j = 0; j < rle; j++) {
                     WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, &unpack,
-                      rollback_timestamp, recno + j, &is_ondisk_stable));
+                      rollback_timestamp, recno + j, NULL, &is_ondisk_stable));
                     /* We can stop right away if the on-disk version is stable. */
                     if (is_ondisk_stable) {
                         if (rle > 1)
@@ -872,7 +877,7 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
     WT_ROW *rip;
     WT_UPDATE *upd;
     uint32_t i;
-    bool stable_update_found;
+    bool have_key, stable_update_found;
 
     page = ref->page;
 
@@ -894,7 +899,9 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(
               __rollback_abort_update(session, key, upd, rollback_timestamp, &stable_update_found));
-        }
+            have_key = true;
+        } else
+            have_key = false;
 
         if ((insert = WT_ROW_INSERT(page, rip)) != NULL)
             WT_ERR(__rollback_abort_insert_list(session, page, insert, rollback_timestamp, NULL));
@@ -905,8 +912,8 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
         if (!stable_update_found) {
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
-            WT_ERR(
-              __rollback_abort_ondisk_kv(session, ref, rip, vpack, rollback_timestamp, 0, NULL));
+            WT_ERR(__rollback_abort_ondisk_kv(
+              session, ref, rip, vpack, rollback_timestamp, 0, have_key ? key : NULL, NULL));
         }
     }
 
