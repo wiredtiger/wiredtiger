@@ -76,11 +76,9 @@ operations in WiredTiger including the following "heavy" database modifications:
  created or dropped during that time. See @ref backup and @ref arch_cursor_backup for
  more information.
 
-All the schema operations listed below perform multi-step metadata modifications. However, they are
-\c non-transactional and will not guarantee ACID properties, see @ref transactions for more
-details. This means that if the application stops abnormally during schema manipulations,
-metadata may be in an invalid state. WiredTiger may or may not be able to recover after this
-type of crash.
+All the schema operations listed below perform multi-step metadata modifications. Although they
+are \c non-transactional, the schema code tracks the metadata changes and performs the file and
+metadata operations in a specific order to provide recovery in the case of a crash.
 
 @section schema_api Schema Manipulation
 
