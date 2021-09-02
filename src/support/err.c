@@ -446,18 +446,16 @@ int
 __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t random;
     uint32_t ratio;
 
     conn = S2C(session);
+    /* To support two decimal places we multiply the percent change of occurring by 100. */
     ratio = (uint32_t)(probability * 100);
-    random = 0;
 
     WT_ASSERT(session, probability >= 0 && probability <= 100);
 
     if (FLD_ISSET(conn->timing_stress_flags, conn_flag)) {
-        random = __wt_random(&session->rnd) % 10000;
-        if (random < ratio)
+        if (__wt_random(&session->rnd) % 10000 <= ratio)
             return (EBUSY);
     }
     return (0);

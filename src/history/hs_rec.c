@@ -626,10 +626,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             /* Clear out the insert success flag prior to our insert attempt. */
             __wt_curhs_clear_insert_success(hs_cursor);
 
-            /* Fail here 0.03% of the time if we an eviction thread. */
+            /* Fail here 0.05% of the time if we an eviction thread. */
             if (F_ISSET(r, WT_REC_EVICT))
                 WT_ERR(
-                  __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1, 0.03));
+                  __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1, 0.05));
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
@@ -703,9 +703,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         __wt_update_vector_clear(&updates);
     }
 
-    /* Fail here 0.02% of the time if we an eviction thread. */
+    /* Fail here 0.5% of the time if we an eviction thread. */
     if (F_ISSET(r, WT_REC_EVICT))
-        WT_ERR(__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2, 0.02));
+        WT_ERR(__wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2, 0.05));
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
