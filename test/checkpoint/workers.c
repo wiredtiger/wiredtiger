@@ -28,6 +28,9 @@
 
 #include "test_checkpoint.h"
 
+#define MAX_MODIFY_ENTRIES 5
+
+static char modify_repl[256];
 static int real_worker(void);
 static WT_THREAD_RET worker(void *);
 
@@ -62,6 +65,19 @@ create_table(WT_SESSION *session, COOKIE *cookie)
 }
 
 /*
+ * modify_repl_init --
+ *     Initialize the replacement information.
+ */
+static void
+modify_repl_init(void)
+{
+    size_t i;
+
+    for (i = 0; i < sizeof(modify_repl); ++i)
+        modify_repl[i] = "0123456789"[i % 10];
+}
+
+/*
  * start_workers --
  *     Setup the configuration for the tables being populated, then start the worker thread(s) and
  *     wait for them to finish.
@@ -76,6 +92,8 @@ start_workers(void)
     int i, ret;
 
     ret = 0;
+
+    modify_repl_init();
 
     /* Create statistics and thread structures. */
     if ((tids = calloc((size_t)(g.nworkers), sizeof(*tids))) == NULL)
@@ -116,13 +134,36 @@ err:
 }
 
 /*
+ * modify_build --
+ *     Generate a set of modify vectors.
+ */
+static void
+modify_build(WT_MODIFY *entries, int *nentriesp, u_int seed)
+{
+    int i, nentries;
+
+    /* Deterministically generate modifies based on the seed. */
+    nentries = (int)seed % MAX_MODIFY_ENTRIES + 1;
+    for (i = 0; i < nentries; ++i) {
+        entries[i].data.data = modify_repl + seed % 10;
+        entries[i].data.size = seed % 8 + 1;
+        entries[i].offset = seed % 40;
+        entries[i].size = seed % 10 + 1;
+    }
+
+    *nentriesp = (int)nentries;
+}
+
+/*
  * worker_op --
  *     Write operation.
  */
 static inline int
 worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
 {
+    WT_MODIFY entries[MAX_MODIFY_ENTRIES];
     int cmp, ret;
+    int nentries;
     char valuebuf[64];
 
     cursor->set_key(cursor, keyno);
@@ -169,6 +210,20 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
         if (g.sweep_stress)
             testutil_check(cursor->reset(cursor));
     } else {
+        if (new_val % 39 < 30) {
+            // Do modify
+            if ((ret = cursor->search(cursor)) == 0) {
+                modify_build(entries, &nentries, new_val);
+                if ((ret = cursor->modify(cursor, entries, nentries)) != 0) {
+                    if (ret == WT_ROLLBACK)
+                        return (WT_ROLLBACK);
+                    return (log_print_err("cursor.modify", ret, 1));
+                }
+            } else if (ret != WT_NOTFOUND)
+                return (log_print_err("cursor.search", ret, 1));
+        }
+
+        // If key doesn't exist, turn modify into a insert.
         testutil_check(__wt_snprintf(valuebuf, sizeof(valuebuf), "%052u", new_val));
         cursor->set_value(cursor, valuebuf);
         if ((ret = cursor->insert(cursor)) != 0) {
