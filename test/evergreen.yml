@@ -223,7 +223,7 @@ functions:
           # defined in the documentation-update build variant. If none are specified, use the
           # current branch.
           if [ -z ${doc_update_branches} ]; then
-            branches=$(git branch)
+            branches=$(git rev-parse --abbrev-ref HEAD)
           else
             branches=${doc_update_branches}
           fi
