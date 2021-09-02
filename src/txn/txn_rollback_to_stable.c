@@ -313,8 +313,8 @@ __rollback_txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
  *     satisfies the given timestamp.
  */
 static int
-__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp, uint64_t recno, WT_ITEM *row_key)
+__rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
+  WT_ITEM *row_key, WT_CELL_UNPACK_KV *unpack, wt_timestamp_t rollback_timestamp)
 {
     WT_CURSOR *hs_cursor;
     WT_DECL_ITEM(full_value);
@@ -614,8 +614,8 @@ err:
  *     Fix the on-disk K/V version according to the given timestamp.
  */
 static int
-__rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
-  WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp, uint64_t recno, WT_ITEM *row_key,
+__rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, uint64_t recno,
+  WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
   bool *is_ondisk_stable)
 {
     WT_DECL_ITEM(tmp);
@@ -663,7 +663,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
           __wt_timestamp_to_string(rollback_timestamp, ts_string[2]), vpack->tw.start_txn);
         if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
             return (__rollback_ondisk_fixup_key(
-              session, ref, rip, vpack, rollback_timestamp, recno, row_key));
+              session, ref, rip, recno, row_key, vpack, rollback_timestamp));
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
@@ -686,7 +686,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip,
             WT_ASSERT(session, prepared == true);
             if (!F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
                 return (__rollback_ondisk_fixup_key(
-                  session, ref, rip, vpack, rollback_timestamp, recno, row_key));
+                  session, ref, rip, recno, row_key, vpack, rollback_timestamp));
             else {
                 /*
                  * In-memory database don't have a history store to provide a stable update, so
@@ -813,8 +813,8 @@ __rollback_abort_col_var(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
                 WT_STAT_CONN_DATA_INCR(session, txn_rts_delete_rle_skipped);
             else {
                 for (j = 0; j < rle; j++) {
-                    WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, &unpack,
-                      rollback_timestamp, recno + j, NULL, &is_ondisk_stable));
+                    WT_RET(__rollback_abort_ondisk_kv(session, ref, NULL, recno + j, NULL, &unpack,
+                      rollback_timestamp, &is_ondisk_stable));
                     /* We can stop right away if the on-disk version is stable. */
                     if (is_ondisk_stable) {
                         if (rle > 1)
@@ -913,7 +913,7 @@ __rollback_abort_row_leaf(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t 
             vpack = &_vpack;
             __wt_row_leaf_value_cell(session, page, rip, vpack);
             WT_ERR(__rollback_abort_ondisk_kv(
-              session, ref, rip, vpack, rollback_timestamp, 0, have_key ? key : NULL, NULL));
+              session, ref, rip, 0, have_key ? key : NULL, vpack, rollback_timestamp, NULL));
         }
     }
 
