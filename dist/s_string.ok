@@ -152,6 +152,7 @@ FTRUNCATE
 FULLFSYNC
 FUNCSIG
 Facebook
+Failpoint
 FindClose
 FindFirstFile
 FindNextFileW
