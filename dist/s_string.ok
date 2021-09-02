@@ -784,6 +784,7 @@ extern
 extlist
 fadvise
 fahrenheit
+failpoint
 fallocate
 fallthrough
 fblocks

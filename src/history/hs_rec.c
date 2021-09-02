@@ -262,6 +262,33 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
 }
 
 /*
+ * __hs_failpoint --
+ *     A generic failpoint function, it will return EBUSY if the failpoint triggers. Takes a double
+ *     representing the probability of the failpoint occurring. Supports percentages with two
+ *     decimal places.
+ */
+static inline int
+__hs_failpoint(WT_SESSION_IMPL *session, double probability)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t random;
+    uint32_t ratio;
+
+    conn = S2C(session);
+    ratio = probability * 100;
+    random = 0;
+
+    WT_ASSERT(session, probability >= 0 && probability <= 100);
+
+    if (FLD_ISSET(conn->timing_stress_flags, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT)) {
+        random = __wt_random(&session->rnd) % 10000;
+        if (random < ratio)
+            return (EBUSY);
+    }
+    return (0);
+}
+
+/*
  * __wt_hs_insert_updates --
  *     Copy one set of saved updates into the database's history store table. Whether the function
  *     fails or succeeds, if there is a successful write to history, cache_write_hs is set to true.
@@ -626,6 +653,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             /* Clear out the insert success flag prior to our insert attempt. */
             __wt_curhs_clear_insert_success(hs_cursor);
 
+            /* Fail here 0.03% of the time. */
+            WT_ERR(__hs_failpoint(session, 0.03));
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
@@ -697,6 +727,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
         __wt_update_vector_clear(&out_of_order_ts_updates);
         __wt_update_vector_clear(&updates);
     }
+
+    /* Fail here 0.02% of the time. */
+    WT_ERR(__hs_failpoint(session, 0.02));
 
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
