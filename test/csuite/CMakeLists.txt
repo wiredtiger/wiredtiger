@@ -127,6 +127,7 @@ define_c_test(
     TARGET test_wt2535_insert_race
     SOURCES wt2535_insert_race/main.c
     DIR_NAME wt2535_insert_race
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -134,6 +135,7 @@ define_c_test(
     TARGET test_wt2447_join_main_table
     SOURCES wt2447_join_main_table/main.c
     DIR_NAME wt2447_join_main_table
+    SMOKE
 )
 
 define_c_test(
@@ -158,6 +160,7 @@ define_c_test(
     TARGET test_wt2853_perf
     SOURCES wt2853_perf/main.c
     DIR_NAME wt2853_perf
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -170,6 +173,7 @@ define_c_test(
     # produces in build_posix.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     ARGUMENTS -b ${CMAKE_BINARY_DIR}
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -227,6 +231,7 @@ define_c_test(
     TARGET test_wt4105_large_doc_small_upd
     SOURCES wt4105_large_doc_small_upd/main.c
     DIR_NAME wt4105_large_doc_small_upd
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 

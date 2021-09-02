@@ -103,6 +103,7 @@ DIRECTIO
 DNE
 DOI
 DONTNEED
+DS
 DSK
 DUPLICATEV
 DataSet
@@ -457,6 +458,7 @@ WTPERF
 WaitForSingleObject
 WakeAllConditionVariable
 Wconditional
+Wduplicated
 WeakHashLen
 Werror
 Wformat
