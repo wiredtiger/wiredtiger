@@ -51,12 +51,12 @@ ENOTSUP
 EXTLIST
 EmpId
 Encryptors
+FSTREAM
 Facebook
 Facebook's
 FlameGraph
 FlameGraphs
 FlexeLint
-FSTREAM
 FreeBSD
 FreeBSD's
 GCC
@@ -115,7 +115,6 @@ RLE
 RedHat
 RepMgr
 Riak
-RLE
 RocksDB
 Roelofs
 RrVv
@@ -126,8 +125,8 @@ Sanitizer
 Seward's
 SiH
 TSC
-TXT
 TXID
+TXT
 UBSAN
 UNC
 URIs
@@ -152,8 +151,8 @@ XRay
 Yann
 Za
 Zstd
-aarch
 aR
+aarch
 abc
 abstime
 ack'ed
@@ -180,17 +179,18 @@ benchmarking
 bigram
 bindir
 bitstring
+bm
 bokeh
 bool
 boolean
 booleans
-bm
 br
 bt
+btcur
 btmem
 btree
-btrees
 btree's
+btrees
 bufs
 builtin
 builtins
@@ -291,8 +291,8 @@ dup
 dups
 encrypt
 encryptor
-encryptors
 encryptor's
+encryptors
 endcode
 endcond
 endian
@@ -305,6 +305,7 @@ eof
 eq
 erlang
 errno
+evictable
 exe
 extensibility
 fadvise
@@ -341,6 +342,7 @@ fs
 fsanitize
 fsync
 ftruncate
+func
 fuzzer
 fuzzers
 fuzzutil
@@ -539,8 +541,8 @@ px
 py
 qnx
 qqq
-rankdir
 rVv
+rankdir
 rdbms
 rdlock
 readlock
@@ -680,6 +682,7 @@ workgen
 writelock
 writelocks
 wrlock
+wti
 wtperf
 wtstats
 xa
