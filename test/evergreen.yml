@@ -2426,6 +2426,7 @@ tasks:
             outf=./outfile.txt
             for i in $(seq 120); do
               echo "$d: Iteration $i" >> $outf
+              echo "$d: Iteration $i"
               for((t=0; t<$NPROCS; t++)); do
                 > nohup.out.$t ; eval nohup $CMD > nohup.out.$t 2>&1 &
               done
