@@ -438,11 +438,11 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
 
 /*
  * __wt_failpoint --
- *     A generic failpoint function, it will return EBUSY if the failpoint triggers. Takes a double
+ *     A generic failpoint function, it will return true if the failpoint triggers. Takes a double
  *     representing the probability of the failpoint occurring. Supports percentages with two
  *     decimal places.
  */
-int
+bool
 __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
 {
     WT_CONNECTION_IMPL *conn;
@@ -456,9 +456,9 @@ __wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
 
     if (FLD_ISSET(conn->timing_stress_flags, conn_flag)) {
         if (__wt_random(&session->rnd) % 10000 <= ratio)
-            return (EBUSY);
+            return (true);
     }
-    return (0);
+    return (false);
 }
 
 /*
