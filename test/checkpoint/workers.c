@@ -226,7 +226,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
             }
         }
 
-        // If key doesn't exist, turn modify into a insert.
+        // If key doesn't exist, turn modify into an insert.
         testutil_check(__wt_snprintf(valuebuf, sizeof(valuebuf), "%052u", new_val));
         cursor->set_value(cursor, valuebuf);
         if ((ret = cursor->insert(cursor)) != 0) {
