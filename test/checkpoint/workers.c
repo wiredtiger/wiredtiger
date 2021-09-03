@@ -219,8 +219,11 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
                         return (WT_ROLLBACK);
                     return (log_print_err("cursor.modify", ret, 1));
                 }
-            } else if (ret != WT_NOTFOUND)
+            } else if (ret != WT_NOTFOUND) {
+                if (ret == WT_ROLLBACK)
+                    return (WT_ROLLBACK);
                 return (log_print_err("cursor.search", ret, 1));
+            }
         }
 
         // If key doesn't exist, turn modify into a insert.
