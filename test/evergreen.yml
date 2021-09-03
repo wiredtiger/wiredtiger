@@ -2376,6 +2376,20 @@ tasks:
             cp ../../../bench/wtperf/split_heavy.wtperf .
             ./wtperf -O ./split_heavy.wtperf -o verbose=2
 
+  - name: data-validation-test-checkpoint
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -D -n 100000 -k 100000 -C cache_size=100MB" 100
+
   - name: format-failure-configs-test
     depends_on:
     - name: compile
@@ -2721,6 +2735,7 @@ buildvariants:
     - name: long-test
     - name: static-wt-build-test
     - name: format-failure-configs-test
+    - name: data-validation-test-checkpoint
 
 - name: ubuntu1804-cmake
   display_name: "* Ubuntu 18.04 CMake"
