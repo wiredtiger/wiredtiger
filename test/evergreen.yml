@@ -3051,7 +3051,7 @@ buildvariants:
   display_name: "~ Little-endian (x86)"
   run_on:
   - ubuntu1804-test
-  batchtime: 10080 # 7 days
+  batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -3068,7 +3068,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1804-zseries-build
-  batchtime: 10080 # 7 days
+  batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
