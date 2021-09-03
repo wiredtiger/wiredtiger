@@ -343,6 +343,7 @@ __cursor_row_next(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
+    WT_ITEM *test;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
@@ -435,9 +436,17 @@ restart_read_page:
          * If the cursor has prefix search configured we can early exit here if the key that we are
          * visiting is after our prefix.
          */
+
+        // if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL) {
+            
+        //     (void) test;
+        // }
         if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
           __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
             /* It is not okay for the user to have a custom collator. */
+            test = &cbt->iface.key;
+            WT_RET(__wt_msg(session, "testing... %s", (char*)test->data));
+        
             WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);

@@ -133,7 +133,7 @@ scoped_session::reinit(WT_CONNECTION *conn)
         _session = nullptr;
     }
     if (conn != nullptr)
-        testutil_check(conn->open_session(conn, nullptr, nullptr, &_session));
+        testutil_check(conn->open_session(conn, nullptr, "isolation=snapshot", &_session));
 }
 
 WT_SESSION &

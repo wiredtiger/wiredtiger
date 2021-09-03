@@ -74,7 +74,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix
         size_t remain;
         uint8x16_t res_eq, u, t;
         remain = len % WT_VECTOR_SIZE;
-        len -= remain;
+        len -= remain;x
         for (; len > 0; len -= WT_VECTOR_SIZE, userp += WT_VECTOR_SIZE, treep += WT_VECTOR_SIZE) {
             u = vld1q_u8(userp);
             t = vld1q_u8(treep);
