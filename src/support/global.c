@@ -123,7 +123,7 @@ __global_once(void)
     __wt_process.checksum = wiredtiger_crc32c_func();
 
 #ifdef WT_STANDALONE_BUILD
-    //__wt_process.write_rowbyte = true;
+    __wt_process.write_rowbyte = true;
 #endif
 
     __global_calibrate_ticks();

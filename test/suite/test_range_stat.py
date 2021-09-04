@@ -62,7 +62,7 @@ class test_range_stat(wttest.WiredTigerTestCase):
         uri = self.uri + ':test_range_stat'
         ds, rows = self.populate(uri)
 
-        with self.expectedStderrPattern(''): 
+        with self.expectedStderrPattern(''):
             try:
                 (ret_rows, ret_bytes) = self.session.range_stat(uri, None, None)
             except Exception as e:
@@ -91,7 +91,7 @@ class test_range_stat(wttest.WiredTigerTestCase):
         cstop.set_key(ds.key(kstop))
 
         # The rows and bytes returned are estimates, we can't really check them.
-        with self.expectedStderrPattern(''): 
+        with self.expectedStderrPattern(''):
             try:
                 (ret_rows, ret_bytes) = self.session.range_stat(None, cstart, cstop)
             except Exception as e:
