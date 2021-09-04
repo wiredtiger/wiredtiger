@@ -261,9 +261,6 @@ wt_connect(const char *config_open)
     char timing_stress_cofing[512];
     bool timing_stress;
 
-    const char *failpoint_config;
-
-    failpoint_config = "";
     timing_stress = false;
 
     if (g.sweep_stress || g.failpoint_hs_delete_key_from_ts || g.failpoint_hs_insert_1 ||
@@ -293,10 +290,9 @@ wt_connect(const char *config_open)
     else {
         testutil_check(__wt_snprintf(config, sizeof(config),
           "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
-          "\"%s\"%s%s%s%s%s",
+          "\"%s\"%s%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
-          config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : "",
-          failpoint_config));
+          config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : ""));
     }
     printf("WT open config: %s\n", config);
     if ((ret = wiredtiger_open(g.home, &event_handler, config, &g.conn)) != 0)
