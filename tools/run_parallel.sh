@@ -20,6 +20,7 @@ if [ "$#" -lt  2 ]; then
     exit 1
 fi
 
+# Calculate the number of CPU cores. This code is Linux specific at the moment.
 NCORES=$(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
 
 command=$1
