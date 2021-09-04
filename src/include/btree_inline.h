@@ -1433,6 +1433,8 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     /* If off-page, the pointer references a WT_ADDR structure. */
     if (__wt_off_page(page, addr)) {
         WT_TIME_AGGREGATE_COPY(&copy->ta, &addr->ta);
+        copy->row_count = addr->row_count;
+        copy->byte_count = addr->byte_count;
         copy->type = addr->type;
         memcpy(copy->addr, addr->addr, copy->size = addr->size);
         return (true);
@@ -1441,6 +1443,10 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     /* If on-page, the pointer references a cell. */
     __wt_cell_unpack_addr(session, page->dsk, (WT_CELL *)addr, unpack);
     WT_TIME_AGGREGATE_COPY(&copy->ta, &unpack->ta);
+    memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
+
+    copy->row_count = unpack->row_count;
+    copy->byte_count = unpack->byte_count;
     copy->type = 0; /* Avoid static analyzer uninitialized value complaints. */
     switch (unpack->raw) {
     case WT_CELL_ADDR_INT:
@@ -1455,6 +1461,39 @@ __wt_ref_addr_copy(WT_SESSION_IMPL *session, WT_REF *ref, WT_ADDR_COPY *copy)
     }
     memcpy(copy->addr, unpack->data, copy->size = (uint8_t)unpack->size);
     return (true);
+}
+
+/*
+ * __wt_btree_block_free --
+ *     Helper function to free a block from the current tree.
+ */
+static inline int
+__wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
+{
+    WT_BM *bm;
+
+    bm = S2BT(session)->bm;
+
+    return (bm->free(bm, session, addr, addr_size));
+}
+
+/*
+ * __wt_ref_block_free --
+ *     Free the on-disk block for a reference and clear the address.
+ */
+static inline int
+__wt_ref_block_free(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_ADDR_COPY addr;
+
+    if (!__wt_ref_addr_copy(session, ref, &addr))
+        return (0);
+
+    WT_RET(__wt_btree_block_free(session, addr.addr, addr.size));
+
+    /* Clear the address (so we don't free it twice). */
+    __wt_ref_addr_free(session, ref);
+    return (0);
 }
 
 /*

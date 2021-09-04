@@ -192,6 +192,9 @@ struct __wt_cell_unpack_common {
 struct __wt_cell_unpack_addr {
     WT_CELL_COMMON_FIELDS;
 
+    const void *cookie;
+    uint64_t byte_count, row_count; /* Byte and row count information */
+
     WT_TIME_AGGREGATE ta; /* Address validity window */
 };
 

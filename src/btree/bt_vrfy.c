@@ -47,21 +47,6 @@ static int __verify_row_leaf_key_order(WT_SESSION_IMPL *, WT_REF *, WT_VSTUFF *)
 static int __verify_tree(WT_SESSION_IMPL *, WT_REF *, WT_CELL_UNPACK_ADDR *, WT_VSTUFF *);
 
 /*
- * __verify_addr_bm --
- *     Btree level shim to switch to the btree address cookie start/length.
- */
-static inline int
-__verify_addr_bm(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-
-    return (bm->verify_addr(
-      bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
-}
-
-/*
  * __verify_config --
  *     Debugging: verification supports dumping pages in various formats.
  */
@@ -180,8 +165,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CKPT *ckptbase, *ckpt;
     WT_DECL_RET;
     WT_VSTUFF *vs, _vstuff;
-    size_t parent_addr_size, root_addr_size;
-    uint8_t *addrp, parent_addr[WT_ADDR_COOKIE_MAX], root_addr[WT_ADDR_COOKIE_MAX];
+    size_t root_addr_size;
+    uint8_t root_addr[WT_ADDR_COOKIE_MAX];
     const char *name;
     bool bm_start, quit;
 
@@ -264,22 +249,18 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
             if (WT_VRFY_DUMP(vs))
                 WT_ERR(__wt_msg(session, "Root: %s %s",
-                  __wt_addr_string(session, vs->tmp1, root_addr, root_addr_size, false),
+                  __wt_addr_string(session, root_addr, root_addr_size, vs->tmp1),
                   __wt_page_type_string(btree->root.page->type)));
 
             __wt_evict_file_exclusive_off(session);
 
             /* Create an unpacked parent cell for the tree based on the checkpoint information. */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
-            if ((ret = __wt_addr_cookie_btree_pack(
-                   parent_addr, ckpt->row_count, ckpt->byte_count)) != 0)
-                goto exclusive_on_error;
-            parent_addr_size = WT_ADDR_COOKIE_BTREE_LEN(parent_addr);
-            addrp = WT_ADDR_COOKIE_BLOCK(parent_addr);
-            memcpy(addrp, root_addr, root_addr_size);
-            addr_unpack.data = parent_addr;
-            addr_unpack.size = (uint8_t)(parent_addr_size + root_addr_size);
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
+            addr_unpack.row_count = ckpt->row_count;
+            addr_unpack.byte_count = ckpt->byte_count;
+            addr_unpack.data = root_addr;
+            addr_unpack.size = root_addr_size;
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
@@ -404,12 +385,11 @@ __verify_addr_string(WT_SESSION_IMPL *session, WT_REF *ref, WT_ITEM *buf)
     WT_ERR(__wt_scr_alloc(session, 0, &tmp));
 
     if (__wt_ref_addr_copy(session, ref, &addr)) {
-        WT_ERR(__wt_buf_fmt(session, buf, "%s %s",
-          __wt_addr_string(session, tmp, addr.addr, addr.size, true),
-          __wt_time_aggregate_to_string(&addr.ta, time_string)));
-    } else
         WT_ERR(
-          __wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, tmp, NULL, 0, false)));
+          __wt_buf_fmt(session, buf, "%s %s", __wt_addr_string(session, addr.addr, addr.size, tmp),
+            __wt_time_aggregate_to_string(&addr.ta, time_string)));
+    } else
+        WT_ERR(__wt_buf_fmt(session, buf, "%s -/-,-/-", __wt_addr_string(session, NULL, 0, tmp)));
 
 err:
     __wt_scr_free(session, &tmp);
@@ -442,12 +422,14 @@ static int
 __verify_tree(
   WT_SESSION_IMPL *session, WT_REF *ref, WT_CELL_UNPACK_ADDR *addr_unpack, WT_VSTUFF *vs)
 {
+    WT_BM *bm;
     WT_CELL_UNPACK_ADDR *unpack, _unpack;
     WT_DECL_RET;
     WT_PAGE *page;
     WT_REF *child_ref;
     uint32_t entry;
 
+    bm = S2BT(session)->bm;
     unpack = &_unpack;
     page = ref->page;
 
@@ -590,7 +572,7 @@ celltype_err:
             --vs->depth;
             WT_RET(ret);
 
-            WT_RET(__verify_addr_bm(session, unpack->data, unpack->size));
+            WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
         }
         WT_INTL_FOREACH_END;
         break;
@@ -620,7 +602,7 @@ celltype_err:
             --vs->depth;
             WT_RET(ret);
 
-            WT_RET(__verify_addr_bm(session, unpack->data, unpack->size));
+            WT_RET(bm->verify_addr(bm, session, unpack->data, unpack->size));
         }
         WT_INTL_FOREACH_END;
         break;
@@ -743,7 +725,7 @@ __verify_overflow(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_siz
     dsk = vs->tmp1->data;
     if (dsk->type != WT_PAGE_OVFL)
         WT_RET_MSG(session, WT_ERROR, "overflow referenced page at %s is not an overflow page",
-          __wt_addr_string(session, vs->tmp1, addr, addr_size, false));
+          __wt_addr_string(session, addr, addr_size, vs->tmp1));
 
     WT_RET(bm->verify_addr(bm, session, addr, addr_size));
     return (0);
@@ -877,7 +859,7 @@ __verify_page_content_int(
     WT_PAGE *page;
     const WT_PAGE_HEADER *dsk;
     WT_TIME_AGGREGATE *ta;
-    uint64_t addr_byte_count, addr_row_count, bytev, rowv;
+    uint64_t addr_byte_count, addr_row_count;
     uint32_t cell_num;
 
     page = ref->page;
@@ -910,7 +892,7 @@ __verify_page_content_int(
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-                  __wt_addr_string(session, vs->tmp2, unpack.data, unpack.size, false));
+                  __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
             break;
         }
 
@@ -919,9 +901,8 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
-            WT_RET(__wt_addr_cookie_btree_unpack(unpack.data, &rowv, &bytev));
-            addr_row_count += rowv;
-            addr_byte_count += bytev;
+            addr_row_count += unpack.row_count;
+            addr_byte_count += unpack.byte_count;
 
             if ((ret = __wt_time_aggregate_validate(session, ta, &parent->ta, false)) != 0)
                 WT_RET_MSG(session, ret,
@@ -938,17 +919,16 @@ __verify_page_content_int(
 
     /* Verify the page address cell's suffix of row count and page bytes. */
     if (parent->data != NULL) {
-        WT_RET(__wt_addr_cookie_btree_unpack(parent->data, &rowv, &bytev));
-        if (rowv != addr_row_count)
+        if (parent->row_count != addr_row_count)
             WT_RET_MSG(session, WT_ERROR,
-              "page at %s has an address key count of %" PRIu64
+              "page at %s has a stored key count of %" PRIu64
               ", the addressed tree has a key count of %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), rowv, addr_row_count);
-        if (bytev != addr_byte_count)
+              __verify_addr_string(session, ref, vs->tmp1), parent->row_count, addr_row_count);
+        if (parent->byte_count != addr_byte_count)
             WT_RET_MSG(session, WT_ERROR,
-              "page at %s has an address page byte count of %" PRIu64
+              "page at %s has a stored page byte count of %" PRIu64
               ", the addressed tree has a page byte count of %" PRIu64,
-              __verify_addr_string(session, ref, vs->tmp1), bytev, addr_byte_count);
+              __verify_addr_string(session, ref, vs->tmp1), parent->byte_count, addr_byte_count);
     }
 
     return (0);
@@ -968,7 +948,7 @@ __verify_page_content_leaf(
     const WT_PAGE_HEADER *dsk;
     WT_ROW *rip;
     WT_TIME_WINDOW *tw;
-    uint64_t bytev, recno, rle, row_count, rowv;
+    uint64_t recno, rle, row_count;
     uint32_t cell_num;
     uint8_t *p;
     bool found_ovfl;
@@ -1002,7 +982,6 @@ __verify_page_content_leaf(
         switch (unpack.type) {
         case WT_CELL_KEY:
         case WT_CELL_KEY_OVFL:
-        case WT_CELL_KEY_SHORT:
             ++row_count;
             break;
         }
@@ -1016,7 +995,7 @@ __verify_page_content_leaf(
                   "cell %" PRIu32
                   " on page at %s references an overflow item at %s that failed verification",
                   cell_num - 1, __verify_addr_string(session, ref, vs->tmp1),
-                  __wt_addr_string(session, vs->tmp2, unpack.data, unpack.size, false));
+                  __wt_addr_string(session, unpack.data, unpack.size, vs->tmp2));
             break;
         }
 
@@ -1077,17 +1056,16 @@ __verify_page_content_leaf(
           __wt_cell_type_string(parent->raw));
 
     /* Verify the leaf page address cell's suffix of row count and page bytes. */
-    WT_RET(__wt_addr_cookie_btree_unpack(parent->data, &rowv, &bytev));
-    if (rowv != row_count)
+    if (parent->row_count != row_count)
         WT_RET_MSG(session, WT_ERROR,
-          "page at %s has an address key count of %" PRIu64
+          "page at %s has a stored key count of %" PRIu64
           ", the addressed page has a key count of %" PRIu64,
-          __verify_addr_string(session, ref, vs->tmp1), rowv, row_count);
-    if (bytev != dsk->mem_size)
+          __verify_addr_string(session, ref, vs->tmp1), parent->row_count, row_count);
+    if (parent->byte_count != dsk->mem_size)
         WT_RET_MSG(session, WT_ERROR,
-          "page at %s has an address page byte count of %" PRIu64
+          "page at %s has a stored page byte count of %" PRIu64
           ", the addressed page has a page byte count of %" PRIu32,
-          __verify_addr_string(session, ref, vs->tmp1), bytev, dsk->mem_size);
+          __verify_addr_string(session, ref, vs->tmp1), parent->byte_count, dsk->mem_size);
 
     return (0);
 }

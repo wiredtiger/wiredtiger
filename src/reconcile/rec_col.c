@@ -162,7 +162,6 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *val;
-    uint64_t byte_count, row_count;
     uint32_t i;
 
     mod = page->modify;
@@ -176,7 +175,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Build the value cell. */
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, false, r->recno);
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, false, r->recno));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
@@ -187,9 +186,8 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
-        WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &row_count, &byte_count));
-        r->cur_ptr->addr_row_count += row_count;
-        r->cur_ptr->addr_byte_count += byte_count;
+        r->cur_ptr->addr_row_count += addr->row_count;
+        r->cur_ptr->addr_byte_count += addr->byte_count;
     }
     return (0);
 }
@@ -296,13 +294,15 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
-            WT_ERR(__wt_addr_cookie_btree_unpack(vpack->data, &addr_row_count, &addr_byte_count));
+            addr_row_count = vpack->row_count;
+            addr_byte_count = vpack->byte_count;
         } else {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno);
+            WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno));
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
-            WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &addr_row_count, &addr_byte_count));
+            addr_row_count = addr->row_count;
+            addr_byte_count = addr->byte_count;
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 

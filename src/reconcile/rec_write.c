@@ -1602,7 +1602,7 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
 
-    dsk->flags = 0;
+    dsk->flags = __wt_process.write_rowbyte ? WT_PAGE_ROWBYTE : 0;
 
     /* Set the zero-length value flag in the page header. */
     if (page->type == WT_PAGE_ROW_LEAF) {
@@ -1783,8 +1783,8 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_BTREE *btree;
     WT_MULTI *multi;
     WT_PAGE *page;
-    size_t addr_size, compressed_size, bm_addr_size;
-    uint8_t *addrp, addr[WT_ADDR_COOKIE_MAX];
+    size_t addr_size, compressed_size;
+    uint8_t addr[WT_ADDR_COOKIE_MAX];
 #ifdef HAVE_DIAGNOSTIC
     bool verify_image;
 #endif
@@ -1806,8 +1806,11 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
     WT_RET(__wt_realloc_def(session, &r->multi_allocated, r->multi_next + 1, &r->multi));
     multi = &r->multi[r->multi_next++];
 
-    /* Initialize the address (set the addr type for the parent). */
+    /* Initialize the address structure. */
     WT_TIME_AGGREGATE_COPY(&multi->addr.ta, &chunk->ta);
+
+    multi->addr.row_count = chunk->addr_row_count;
+    multi->addr.byte_count = WT_PAGE_IS_INTERNAL(page) ? chunk->addr_byte_count : chunk->image.size;
 
     switch (page->type) {
     case WT_PAGE_COL_FIX:
@@ -1860,6 +1863,7 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
             r->wrapup_checkpoint = compressed_image;
             r->wrapup_checkpoint_compressed = true;
         }
+
         r->wrapup_row_count = chunk->addr_row_count;
         r->wrapup_byte_count = chunk->addr_byte_count;
         return (0);
@@ -1897,22 +1901,15 @@ __rec_split_write(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *chunk
           compressed_image == NULL ? &chunk->image : compressed_image, last_block))
         goto copy_image;
 
-    /* Prepend the row and byte counts to the address cookie. */
-    WT_ASSERT(session, chunk->addr_row_count != 0);
-    WT_RET(__wt_addr_cookie_btree_pack(addr, chunk->addr_row_count,
-      WT_PAGE_IS_INTERNAL(page) ? chunk->addr_byte_count : chunk->image.size));
-    addrp = WT_ADDR_COOKIE_BLOCK(addr);
-    addr_size = WT_ADDR_COOKIE_BTREE_LEN(addr);
-
     /* Write the disk image and get an address. */
-    WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image,
-      addrp, &bm_addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
+    WT_RET(__wt_bt_write(session, compressed_image == NULL ? &chunk->image : compressed_image, addr,
+      &addr_size, &compressed_size, false, F_ISSET(r, WT_REC_CHECKPOINT),
       compressed_image != NULL));
 #ifdef HAVE_DIAGNOSTIC
     verify_image = false;
 #endif
-    multi->addr.size = (uint8_t)(addr_size + bm_addr_size);
-    WT_RET(__wt_memdup(session, addr, multi->addr.size, &multi->addr.addr));
+    WT_RET(__wt_memdup(session, addr, addr_size, &multi->addr.addr));
+    multi->addr.size = (uint8_t)addr_size;
 
     /* Adjust the pre-compression page size based on compression results. */
     if (WT_PAGE_IS_INTERNAL(page) && compressed_size != 0 && btree->intlpage_compadjust)
@@ -2068,7 +2065,7 @@ __rec_split_discard(WT_SESSION_IMPL *session, WT_PAGE *page)
          * about, and free any disk image/saved updates.
          */
         if (multi->addr.addr != NULL && !multi->addr.reuse) {
-            WT_RET(__wt_free_bm(session, multi->addr.addr, multi->addr.size));
+            WT_RET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
             __wt_free(session, multi->addr.addr);
         }
     }
@@ -2174,7 +2171,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         if (__wt_ref_is_root(ref))
             break;
 
-        WT_RET(__wt_rec_ref_block_free(session, ref));
+        WT_RET(__wt_ref_block_free(session, ref));
         break;
     case WT_PM_REC_EMPTY: /* Page deleted */
         break;
@@ -2192,7 +2189,7 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                              * checkpoints, and must be explicitly dropped.
                              */
         if (!__wt_ref_is_root(ref))
-            WT_RET(__wt_free_bm(session, mod->mod_replace.addr, mod->mod_replace.size));
+            WT_RET(__wt_btree_block_free(session, mod->mod_replace.addr, mod->mod_replace.size));
 
         /* Discard the replacement page's address and disk image. */
         __wt_free(session, mod->mod_replace.addr);
@@ -2332,7 +2329,7 @@ __rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             if (multi->addr.reuse)
                 multi->addr.addr = NULL;
             else
-                WT_TRET(__wt_free_bm(session, multi->addr.addr, multi->addr.size));
+                WT_TRET(__wt_btree_block_free(session, multi->addr.addr, multi->addr.size));
         }
 
     __rec_clear_datastore_update_list(session, r, true);

@@ -246,6 +246,8 @@ __split_ref_move(WT_SESSION_IMPL *session, WT_PAGE *from_home, WT_REF **from_ref
         __wt_cell_unpack_addr(session, from_home->dsk, (WT_CELL *)ref_addr, &unpack);
         WT_RET(__wt_calloc_one(session, &addr));
         WT_TIME_AGGREGATE_COPY(&addr->ta, &unpack.ta);
+        addr->row_count = unpack.row_count;
+        addr->byte_count = unpack.byte_count;
         WT_ERR(__wt_memdup(session, unpack.data, unpack.size, &addr->addr));
         addr->size = (uint8_t)unpack.size;
         switch (unpack.raw) {
@@ -610,7 +612,7 @@ __split_parent_discard_ref(WT_SESSION_IMPL *session, WT_REF *ref, WT_PAGE *paren
     __wt_free(session, ref->ft_info.del);
 
     /* Free the backing block and address. */
-    WT_TRET(__wt_rec_ref_block_free(session, ref));
+    WT_TRET(__wt_ref_block_free(session, ref));
 
     /*
      * Set the WT_REF state. It may be possible to immediately free the WT_REF, so this is our last
@@ -1690,6 +1692,8 @@ __wt_multi_to_ref(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi, WT_R
         WT_RET(__wt_calloc_one(session, &addr));
         ref->addr = addr;
         WT_TIME_AGGREGATE_COPY(&addr->ta, &multi->addr.ta);
+        addr->row_count = multi->addr.row_count;
+        addr->byte_count = multi->addr.byte_count;
         WT_RET(__wt_memdup(session, multi->addr.addr, multi->addr.size, &addr->addr));
         addr->size = multi->addr.size;
         addr->type = multi->addr.type;

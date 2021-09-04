@@ -41,7 +41,7 @@ __ovfl_discard_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_CELL *cell, c
 
     __wt_verbose(session, WT_VERB_OVERFLOW, "discard: %s%s%p %s", tag == NULL ? "" : tag,
       tag == NULL ? "" : ": ", (void *)page,
-      __wt_addr_string(session, tmp, unpack->data, unpack->size, false));
+      __wt_addr_string(session, unpack->data, unpack->size, tmp));
 
     __wt_scr_free(session, &tmp);
     return (0);
@@ -164,7 +164,7 @@ __ovfl_reuse_verbose(WT_SESSION_IMPL *session, WT_PAGE *page, WT_OVFL_REUSE *reu
 
     __wt_verbose(session, WT_VERB_OVERFLOW, "reuse: %s%s%p %s (%s%s%s) {%.*s}",
       tag == NULL ? "" : tag, tag == NULL ? "" : ": ", (void *)page,
-      __wt_addr_string(session, tmp, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, false),
+      __wt_addr_string(session, WT_OVFL_REUSE_ADDR(reuse), reuse->addr_size, tmp),
       F_ISSET(reuse, WT_OVFL_REUSE_INUSE) ? "inuse" : "",
       F_ISSET(reuse, WT_OVFL_REUSE_INUSE) && F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? ", " : "",
       F_ISSET(reuse, WT_OVFL_REUSE_JUST_ADDED) ? "just-added" : "",

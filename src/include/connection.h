@@ -27,6 +27,8 @@ struct __wt_process {
     double tsc_nsec_ratio; /* rdtsc ticks to nanoseconds */
     bool use_epochtime;    /* use expensive time */
 
+    bool write_rowbyte; /* include row/byte count information in addresses */
+
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 };
 extern WT_PROCESS __wt_process;

@@ -77,6 +77,7 @@ struct __wt_page_header {
 #define WT_PAGE_EMPTY_V_NONE 0x04u /* Page has no zero-length values */
 #define WT_PAGE_ENCRYPTED 0x08u    /* Page is encrypted on disk */
 #define WT_PAGE_UNUSED 0x10u       /* Historic lookaside store page updates, no longer used */
+#define WT_PAGE_ROWBYTE 0x20u      /* Addresses contain row/byte count information */
     uint8_t flags;                 /* 25: flags */
 
     /* A byte of padding, positioned to be added to the flags. */
@@ -157,6 +158,8 @@ __wt_page_header_byteswap(WT_PAGE_HEADER *dsk)
 struct __wt_addr {
     WT_TIME_AGGREGATE ta;
 
+    uint64_t byte_count, row_count; /* Byte and row count information */
+
     uint8_t *addr; /* Block-manager's cookie */
     uint8_t size;  /* Block-manager's cookie length */
 
@@ -182,6 +185,8 @@ struct __wt_addr {
  */
 struct __wt_addr_copy {
     WT_TIME_AGGREGATE ta;
+
+    uint64_t byte_count, row_count; /* Byte and row count information */
 
     uint8_t type;
 

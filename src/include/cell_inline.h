@@ -882,36 +882,55 @@ copy_cell_restart:
     case WT_CELL_KEY_OVFL_RM:
     case WT_CELL_VALUE_OVFL:
     case WT_CELL_VALUE_OVFL_RM:
-        /*
-         * Set overflow flag.
-         */
+        /* The cell is followed by a 4B data length and a chunk of data. */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
+
+        unpack->data = p;
+        unpack->size = (uint32_t)v;
+        unpack->__len = WT_PTRDIFF32(p, cell) + v;
+
+        /* Set overflow flag. */
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
-        /* FALLTHROUGH */
+        break;
 
     case WT_CELL_ADDR_DEL:
     case WT_CELL_ADDR_INT:
     case WT_CELL_ADDR_LEAF:
     case WT_CELL_ADDR_LEAF_NO:
+        /* The cell is followed by a 4B data length and a chunk of data. */
+        WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
+
+        /* The chunk of data optionally includes a btree row/byte count. */
+        if (F_ISSET(dsk, WT_PAGE_ROWBYTE)) {
+            unpack_addr->cookie = p;
+            WT_RET(
+              __wt_addr_cookie_btree_unpack(p, &unpack_addr->row_count, &unpack_addr->byte_count));
+            v = WT_ADDR_COOKIE_BLOCK_LEN(p, v);
+            p = WT_ADDR_COOKIE_BLOCK(p);
+        }
+
+        unpack->data = p;
+        unpack->size = (uint32_t)v;
+        unpack->__len = WT_PTRDIFF32(p, cell) + v;
+        break;
+
     case WT_CELL_KEY:
     case WT_CELL_KEY_PFX:
     case WT_CELL_VALUE:
-        /*
-         * The cell is followed by a 4B data length and a chunk of data.
-         */
+        /* The cell is followed by a 4B data length and a chunk of data. */
         WT_RET(__wt_vunpack_uint(&p, end == NULL ? 0 : WT_PTRDIFF(end, p), &v));
 
         /*
          * If the size was what prevented us from using a short cell, it's larger than the
          * adjustment size. Decrement/increment it when packing/unpacking so it takes up less room.
          */
-        if (unpack->raw == WT_CELL_KEY || unpack->raw == WT_CELL_KEY_PFX ||
-          (unpack->raw == WT_CELL_VALUE && unpack->v == 0 &&
-            (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
+        if (unpack->raw != WT_CELL_VALUE ||
+          (unpack->v == 0 && (cell->__chunk[0] & WT_CELL_SECOND_DESC) == 0))
             v += WT_CELL_SIZE_ADJUST;
 
         unpack->data = p;
         unpack->size = (uint32_t)v;
-        unpack->__len = WT_PTRDIFF32(p, cell) + unpack->size;
+        unpack->__len = WT_PTRDIFF32(p, cell) + v;
         break;
 
     case WT_CELL_DEL:

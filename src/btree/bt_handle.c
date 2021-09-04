@@ -785,20 +785,6 @@ __wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
 }
 
 /*
- * __btree_preload_bm_addr --
- *     Btree level shim to switch to the btree address cookie start/length.
- */
-static inline int
-__btree_preload_bm_addr(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-    return (bm->preload(
-      bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size)));
-}
-
-/*
  * __btree_preload --
  *     Pre-load internal pages.
  */
@@ -806,15 +792,17 @@ static int
 __btree_preload(WT_SESSION_IMPL *session)
 {
     WT_ADDR_COPY addr;
+    WT_BM *bm;
     WT_BTREE *btree;
     WT_REF *ref;
 
     btree = S2BT(session);
+    bm = btree->bm;
 
     /* Pre-load the second-level internal pages. */
     WT_INTL_FOREACH_BEGIN (session, btree->root.page, ref)
         if (__wt_ref_addr_copy(session, ref, &addr))
-            WT_RET(__btree_preload_bm_addr(session, addr.addr, addr.size));
+            WT_RET(bm->preload(bm, session, addr.addr, addr.size));
     WT_INTL_FOREACH_END;
     return (0);
 }

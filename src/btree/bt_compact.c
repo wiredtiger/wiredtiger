@@ -9,21 +9,6 @@
 #include "wt_internal.h"
 
 /*
- * __compact_page_skip_bm --
- *     Btree level shim to switch to the btree address cookie start/length.
- */
-static inline int
-__compact_page_skip_bm(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, bool *skipp)
-{
-    WT_BM *bm;
-
-    bm = S2BT(session)->bm;
-
-    return (bm->compact_page_skip(
-      bm, session, WT_ADDR_COOKIE_BLOCK(addr), WT_ADDR_COOKIE_BLOCK_LEN(addr, addr_size), skipp));
-}
-
-/*
  * __compact_rewrite --
  *     Return if a modified page needs to be re-written.
  */
@@ -31,16 +16,19 @@ static int
 __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    WT_BM *bm;
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     uint32_t i;
 
     *skipp = true; /* Default skip. */
 
+    bm = S2BT(session)->bm;
+
     /* If the page is clean, test the original addresses. */
     if (__wt_page_evict_clean(ref->page))
         return (__wt_ref_addr_copy(session, ref, &addr) ?
-            __compact_page_skip_bm(session, addr.addr, addr.size, skipp) :
+            bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp) :
             0);
 
     /*
@@ -50,13 +38,13 @@ __compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     mod = ref->page->modify;
     if (mod->rec_result == WT_PM_REC_REPLACE)
         return (
-          __compact_page_skip_bm(session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
+          bm->compact_page_skip(bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
 
     if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
         for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
             if (multi->addr.addr == NULL)
                 continue;
-            WT_RET(__compact_page_skip_bm(session, multi->addr.addr, multi->addr.size, skipp));
+            WT_RET(bm->compact_page_skip(bm, session, multi->addr.addr, multi->addr.size, skipp));
             if (!*skipp)
                 break;
         }
@@ -226,6 +214,7 @@ int
 __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
 {
     WT_ADDR_COPY addr;
+    WT_BM *bm;
     uint8_t previous_state;
     bool diskaddr;
 
@@ -265,5 +254,6 @@ __wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, boo
         return (0);
 
     /* Ask the block-manager if it's useful to rewrite the page. */
-    return (__compact_page_skip_bm(session, addr.addr, addr.size, skipp));
+    bm = S2BT(session)->bm;
+    return (bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp));
 }

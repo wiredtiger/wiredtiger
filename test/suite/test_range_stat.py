@@ -62,7 +62,13 @@ class test_range_stat(wttest.WiredTigerTestCase):
         uri = self.uri + ':test_range_stat'
         ds, rows = self.populate(uri)
 
-        (ret_rows, ret_bytes) = self.session.range_stat(uri, None, None)
+        with self.expectedStderrPattern(''): 
+            try:
+                (ret_rows, ret_bytes) = self.session.range_stat(uri, None, None)
+            except Exception as e:
+                self.assertEquals(str(e), 'Operation not supported')
+                return
+
         self.verbose(3, "{}: rows {}, returned rows {}, bytes {}".
             format(self.keyfmt, rows, ret_rows, ret_bytes))
 
@@ -85,7 +91,13 @@ class test_range_stat(wttest.WiredTigerTestCase):
         cstop.set_key(ds.key(kstop))
 
         # The rows and bytes returned are estimates, we can't really check them.
-        (ret_rows, ret_bytes) = self.session.range_stat(None, cstart, cstop)
+        with self.expectedStderrPattern(''): 
+            try:
+                (ret_rows, ret_bytes) = self.session.range_stat(None, cstart, cstop)
+            except Exception as e:
+                self.assertEquals(str(e), 'Operation not supported')
+                return
+
         self.verbose(3, "{}: rows {}, start {}, stop {}, returned rows {}, bytes {}".
             format(self.keyfmt, rows, kstart, kstop, ret_rows, ret_bytes))
 

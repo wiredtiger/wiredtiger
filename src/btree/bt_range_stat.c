@@ -155,7 +155,7 @@ restart:
         }
         if (ret == WT_RESTART)
             goto restart;
-        return (ret);
+        WT_ERR(ret);
     }
 
     /* Aggregate the information between the two slots. */
@@ -171,9 +171,10 @@ restart:
         ++reviewed;
         row_count = byte_count = 0;
         WT_REF_LOCK(session, ref, &previous_state);
-        if (__wt_ref_addr_copy(session, ref, &copy))
-            ret = __wt_addr_cookie_btree_unpack(copy.addr, &row_count, &byte_count);
-        else if (previous_state == WT_REF_MEM && (page = ref->page) != NULL)
+        if (__wt_ref_addr_copy(session, ref, &copy)) {
+            row_count = copy.row_count;
+            byte_count = copy.byte_count;
+        } else if (previous_state == WT_REF_MEM && (page = ref->page) != NULL)
             switch (page->type) {
             case WT_PAGE_COL_INT:
             case WT_PAGE_ROW_INT:
@@ -182,14 +183,12 @@ restart:
                     ++child_reviewed;
                     child_row_count = child_byte_count = 0;
                     WT_REF_LOCK(session, child, &child_previous_state);
-                    if (__wt_ref_addr_copy(session, child, &copy))
-                        ret = __wt_addr_cookie_btree_unpack(
-                          copy.addr, &child_row_count, &child_byte_count);
-                    else
+                    if (__wt_ref_addr_copy(session, child, &copy)) {
+                        child_row_count = copy.row_count;
+                        child_byte_count = copy.byte_count;
+                    } else
                         ++child_missing_addr;
                     WT_REF_UNLOCK(child, child_previous_state);
-                    if (ret != 0)
-                        break;
                     row_count += child_row_count;
                     byte_count += child_byte_count;
                 }
@@ -215,14 +214,12 @@ restart:
         else
             ++missing_addr;
         WT_REF_UNLOCK(ref, previous_state);
-        WT_ERR(ret);
 
         /*
          * An adjustment to improve accuracy: assume the key takes up half of the range in the slot
          * itself, on the first and last slots. This also makes the case where the two cursors are
          * on the same leaf page work return something reasonable, a range that isn't insane. If we
-         * want something even better, we could descend into the first/last slots to get a closer
-         * adjustment value.
+         * want something better, we should descend into the first/last slots to get a better value.
          */
         if (slot == startslot || slot == stopslot) {
             row_count /= 2;

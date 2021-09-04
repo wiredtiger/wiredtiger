@@ -257,7 +257,6 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     WT_MULTI *multi;
     WT_PAGE_MODIFY *mod;
     WT_REC_KV *key, *val;
-    uint64_t byte_count, row_count;
     uint32_t i;
     bool ovfl_key;
 
@@ -274,7 +273,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         r->cell_zero = false;
 
         addr = &multi->addr;
-        __wt_rec_cell_build_addr(session, r, addr, NULL, false, WT_RECNO_OOB);
+        WT_RET(__wt_rec_cell_build_addr(session, r, addr, NULL, false, WT_RECNO_OOB));
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, key->len + val->len))
@@ -286,9 +285,8 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
-        WT_RET(__wt_addr_cookie_btree_unpack(addr->addr, &row_count, &byte_count));
-        r->cur_ptr->addr_row_count += row_count;
-        r->cur_ptr->addr_byte_count += byte_count;
+        r->cur_ptr->addr_row_count += addr->row_count;
+        r->cur_ptr->addr_byte_count += addr->byte_count;
 
         /* Update compression state. */
         __rec_key_state_update(r, ovfl_key);
@@ -443,11 +441,13 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
          * requiring a proxy cell, otherwise use the information from the addr or original cell.
          */
         if (__wt_off_page(page, addr)) {
-            __wt_rec_cell_build_addr(session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB);
+            WT_ERR(__wt_rec_cell_build_addr(
+              session, r, addr, NULL, state == WT_CHILD_PROXY, WT_RECNO_OOB));
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
-            WT_ERR(__wt_addr_cookie_btree_unpack(addr->addr, &addr_row_count, &addr_byte_count));
+            addr_row_count = addr->row_count;
+            addr_byte_count = addr->byte_count;
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
             if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
@@ -455,8 +455,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
                  * The transaction ids are cleared after restart. Repack the cell with new validity
                  * to flush the cleared transaction ids.
                  */
-                __wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB);
+                WT_ERR(__wt_rec_cell_build_addr(
+                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB));
             } else if (state == WT_CHILD_PROXY) {
                 WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
                 __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
@@ -471,7 +471,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
-            WT_ERR(__wt_addr_cookie_btree_unpack(vpack->data, &addr_row_count, &addr_byte_count));
+            addr_row_count = vpack->row_count;
+            addr_byte_count = vpack->byte_count;
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 

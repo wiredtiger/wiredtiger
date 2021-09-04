@@ -1432,6 +1432,7 @@ __session_range_stat(WT_SESSION *wt_session, const char *uri, WT_CURSOR *start, 
     WT_UNUSED(cfg);
     WT_STAT_CONN_INCR(session, cursor_range_stat);
 
+#ifdef WT_STANDALONE_BUILD
     /*
      * If the URI is specified, we don't need a start/stop, if start/stop is specified, we don't
      * need a URI.
@@ -1455,6 +1456,9 @@ __session_range_stat(WT_SESSION *wt_session, const char *uri, WT_CURSOR *start, 
         WT_WITH_SCHEMA_LOCK(
           session, ret = __session_range_uri(session, uri, row_countp, byte_countp));
     }
+#else
+    WT_ERR_MSG(session, ENOTSUP, "Unsupported session method");
+#endif
 
 err:
     if (ret != 0)
