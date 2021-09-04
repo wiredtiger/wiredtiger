@@ -887,7 +887,7 @@ copy_cell_restart:
 
         unpack->data = p;
         unpack->size = (uint32_t)v;
-        unpack->__len = WT_PTRDIFF32(p, cell) + v;
+        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
 
         /* Set overflow flag. */
         F_SET(unpack, WT_CELL_UNPACK_OVERFLOW);
@@ -911,7 +911,7 @@ copy_cell_restart:
 
         unpack->data = p;
         unpack->size = (uint32_t)v;
-        unpack->__len = WT_PTRDIFF32(p, cell) + v;
+        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
         break;
 
     case WT_CELL_KEY:
@@ -930,7 +930,7 @@ copy_cell_restart:
 
         unpack->data = p;
         unpack->size = (uint32_t)v;
-        unpack->__len = WT_PTRDIFF32(p, cell) + v;
+        unpack->__len = (uint32_t)(WT_PTRDIFF32(p, cell) + v);
         break;
 
     case WT_CELL_DEL:
