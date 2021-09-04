@@ -1423,7 +1423,8 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
             continue;
 
         if (supd->ins == NULL) {
-            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
             upd = orig->modify->mod_row_update[slot];
         } else
             upd = supd->ins->upd;
@@ -1476,7 +1477,7 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
         case WT_PAGE_ROW_LEAF:
             /* Build a key. */
             if (supd->ins == NULL)
-                WT_ERR(__wt_row_leaf_key(session, orig, supd->ripcip, key, false));
+                WT_ERR(__wt_row_leaf_key(session, orig, supd->rip, key, false));
             else {
                 key->data = WT_INSERT_KEY(supd->ins);
                 key->size = WT_INSERT_KEY_SIZE(supd->ins);
@@ -1553,7 +1554,8 @@ __split_multi_inmem_final(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mul
             continue;
 
         if (supd->ins == NULL) {
-            slot = WT_ROW_SLOT(orig, supd->ripcip);
+            /* Note: supd->ins is never null for column-store. */
+            slot = WT_ROW_SLOT(orig, supd->rip);
             orig->modify->mod_row_update[slot] = NULL;
         } else
             supd->ins->upd = NULL;
@@ -1588,7 +1590,8 @@ __split_multi_inmem_fail(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *mult
                 continue;
 
             if (supd->ins == NULL) {
-                slot = WT_ROW_SLOT(orig, supd->ripcip);
+                /* Note: supd->ins is never null for column-store. */
+                slot = WT_ROW_SLOT(orig, supd->rip);
                 upd = orig->modify->mod_row_update[slot];
             } else
                 upd = supd->ins->upd;
