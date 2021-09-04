@@ -66,17 +66,12 @@ main(int argc, char *argv[])
     g.sweep_stress = g.use_timestamps = false;
     g.failpoint_hs_delete_key_from_ts = g.failpoint_hs_insert_1 = g.failpoint_hs_insert_2 = false;
     g.hs_checkpoint_timing_stress = g.invisible_txnid_timing_stress = false;
+    g.checkpoint_slow_timing_stress = false;
     runs = 1;
     verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "abC:c:Dh:k:l:n:pr:s:T:t:vW:xX")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:pr:s:T:t:vW:xX")) != EOF)
         switch (ch) {
-        case 'a':
-            g.hs_checkpoint_timing_stress = true;
-            break;
-        case 'b':
-            g.invisible_txnid_timing_stress = true;
-            break;
         case 'c':
             g.checkpoint_name = __wt_optarg;
             break;
@@ -120,6 +115,15 @@ main(int argc, char *argv[])
                 break;
             case '4':
                 g.failpoint_hs_insert_2 = true;
+                break;
+            case '5':
+                g.hs_checkpoint_timing_stress = true;
+                break;
+            case '6':
+                g.invisible_txnid_timing_stress = true;
+                break;
+            case '7':
+                g.checkpoint_slow_timing_stress = true;
                 break;
             default:
                 return (usage());
@@ -262,12 +266,18 @@ wt_connect(const char *config_open)
     failpoint_config = "";
     timing_stress = false;
 
-    if (g.sweep_stress || g.hs_checkpoint_timing_stress || g.invisible_txnid_timing_stress) {
+    if (g.sweep_stress || g.failpoint_hs_delete_key_from_ts || g.failpoint_hs_insert_1 ||
+      g.failpoint_hs_insert_2 || g.hs_checkpoint_timing_stress || g.invisible_txnid_timing_stress ||
+      g.checkpoint_slow_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
-          ",timing_stress_for_test=[%s%s%s]", g.sweep_stress ? ",aggressive_sweep" : "",
-          g.hs_checkpoint_timing_stress ? ",history_store_checkpoint_delay" : "",
-          g.invisible_txnid_timing_stress ? ",checkpoint_invisible_txnid_delay" : ""));
+          ",timing_stress_for_test=[%s%s%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
+          g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
+          g.failpoint_hs_insert_1 ? "failpoint_history_store_insert_1" : "",
+          g.failpoint_hs_insert_2 ? "failpoint_history_store_insert_2" : "",
+          g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
+          g.invisible_txnid_timing_stress ? "checkpoint_invisible_txnid_delay" : "",
+          g.checkpoint_slow_timing_stress ? "checkpoint_slow" : ""));
     }
 
     /*
@@ -281,14 +291,6 @@ wt_connect(const char *config_open)
           progname, timing_stress_cofing, g.debug_mode ? DEBUG_MODE_CFG : "",
           config_open == NULL ? "" : ",", config_open == NULL ? "" : config_open));
     else {
-        if (g.failpoint_hs_delete_key_from_ts)
-            failpoint_config =
-              ",timing_stress_for_test=(failpoint_history_store_delete_key_from_ts)";
-        if (g.failpoint_hs_insert_1)
-            failpoint_config = ",timing_stress_for_test=(failpoint_history_store_insert_1)";
-        if (g.failpoint_hs_insert_2)
-            failpoint_config = ",timing_stress_for_test=(failpoint_history_store_insert_2)";
-
         testutil_check(__wt_snprintf(config, sizeof(config),
           "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
           "\"%s\"%s%s%s%s%s",
@@ -296,6 +298,7 @@ wt_connect(const char *config_open)
           config_open == NULL ? "" : config_open, timing_stress ? timing_stress_cofing : "",
           failpoint_config));
     }
+    printf("WT open config: %s\n", config);
     if ((ret = wiredtiger_open(g.home, &event_handler, config, &g.conn)) != 0)
         return (log_print_err("wiredtiger_open", ret, 1));
     return (0);
@@ -430,7 +433,14 @@ usage(void)
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
-      "\t-s specify which timing stress configuration to use\n"
+      "\t-s specify which timing stress configuration to use ( 1 | 2 | 3 | 4 | 5 | 6 | 7 )\n"
+      "\t\t1: sweep_stress\n"
+      "\t\t2: failpoint_hs_delete_key_from_ts\n"
+      "\t\t3: failpoint_hs_insert_1\n"
+      "\t\t4: failpoint_hs_insert_2\n"
+      "\t\t5: hs_checkpoint_timing_stress\n"
+      "\t\t6: invisible_txnid_timing_stress\n"
+      "\t\t7: checkpoint_slow_timing_stress\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
       "\t-v verify only\n"

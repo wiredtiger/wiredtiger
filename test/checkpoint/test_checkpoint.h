@@ -70,6 +70,7 @@ typedef struct {
     bool failpoint_hs_insert_2;           /* Failpoint for hs insertion. */
     bool hs_checkpoint_timing_stress;     /* History store checkpoint timing stress */
     bool invisible_txnid_timing_stress;   /* Invisible transaction id timing stress */
+    bool checkpoint_slow_timing_stress;   /* Checkpoint slow timing stress */
     u_int ts_oldest;                      /* Current oldest timestamp */
     u_int ts_stable;                      /* Current stable timestamp */
     bool use_timestamps;                  /* Use txn timestamps */
