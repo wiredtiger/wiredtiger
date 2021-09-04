@@ -326,3 +326,59 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
 
     return (page->pg_var + start_indx + (uint32_t)(recno - start_recno));
 }
+
+/*
+ * __wt_col_fix_fetch_time_window --
+ *     Look for a time window on a fixed-length column page.
+ */
+static inline void
+__wt_col_fix_fetch_time_window(
+  WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw, bool *tw_foundp)
+{
+    WT_CELL *cell;
+    WT_CELL_UNPACK_KV unpack;
+    WT_PAGE *page;
+    uint64_t start_recno, this_recno;
+    u_int hi, lo, mid;
+
+    page = ref->page;
+    start_recno = ref->ref_recno;
+
+    *tw_foundp = false;
+    if (!WT_COL_FIX_TWS_SET(page))
+        return;
+
+    lo = 0;
+    hi = page->pg_fix_numtws;
+    /* There should always be at least one entry. */
+    WT_ASSERT(session, lo < hi);
+
+    /* Loop invariant: lo < hi. */
+    for (;;) {
+        /* If hi is lo+1, set mid to lo. Otherwise, hi is at least lo+2 and mid is between. */
+        mid = (lo + hi) / 2;
+
+        /* Check mid. */
+        this_recno = start_recno + page->pg_fix_tws[mid].recno_offset;
+        if (this_recno == recno) {
+            cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[mid]);
+            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+            WT_TIME_WINDOW_COPY(tw, &unpack.tw);
+            *tw_foundp = true;
+            break;
+        }
+
+        /* If we set mid to lo, we are done. */
+        if (lo == mid)
+            /* This was the last possible entry and we did not find it. */
+            break;
+
+        /* Otherwise, we either move lo up or hi down, but they cannot meet. */
+        if (this_recno > recno)
+            hi = mid;
+        else
+            lo = mid;
+
+        WT_ASSERT(session, lo < hi);
+    }
+}

@@ -254,17 +254,22 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     switch (btree->type) {
     case BTREE_COL_FIX:
         /*
-         * If search returned an insert object, there may or may not be a matching on-page object,
-         * we have to check. Fixed-length column-store pages don't have slots, but map one-to-one to
-         * keys, check for retrieval past the end of the page.
+         * If search returned an insert, we might be past the end of page in the append list, so
+         * there's no on-disk value.
          */
         if (cbt->recno >= cbt->ref->ref_recno + page->entries)
             return (0);
 
-        *valid = true;
         /*
-         * An update would have appeared as an "insert" object; no further checks to do.
+         * Check for an update ondisk or in the history store. For column store, an insert object
+         * can have the same key as an on-page or history store object.
          */
+        WT_RET(__wt_txn_read(session, cbt, key, recno, cbt->ins ? cbt->ins->upd : NULL));
+        if (cbt->upd_value->type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+                return (0);
+            *valid = true;
+        }
         break;
     case BTREE_COL_VAR:
         /* The search function doesn't check for empty pages. */
@@ -278,7 +283,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
 
         /*
          * Column-store updates are stored as "insert" objects. If search returned an insert object
-         * we can't return, the returned on-page object must be checked for a match.
+         * we can't return, the returned on-page object must be checked for a match. The flag tells
+         * us whether the insert was actually an append to allow skipping the on-disk check.
          */
         if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
             return (0);
@@ -711,7 +717,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
           __wt_prefix_match(&state.key, &cursor->key) != 0)
             __cursor_state_restore(cursor, &state);
         else {
-            WT_ERR(__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
             goto done;
         }
     }
@@ -825,6 +831,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false) &&
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
@@ -956,8 +963,6 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
     else if (btree->type == BTREE_ROW && page->modify != NULL &&
       page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
-    else if (btree->type != BTREE_COL_VAR)
-        return (0);
 
     return (__wt_txn_modify_check(session, cbt, upd, NULL));
 }
@@ -1056,6 +1061,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: again, it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
@@ -1233,6 +1239,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));

@@ -144,6 +144,7 @@ FALLOC
 FALLTHROUGH
 FH
 FIXME
+FLCS
 FLD
 FLSv
 FLv
@@ -446,6 +447,7 @@ Unordered
 Uryyb
 VALGRIND
 VARCHAR
+VLCS
 VLDB
 VMSG
 VPM
@@ -508,6 +510,7 @@ abcdefghijklmnopqrstuvwxyz
 addl
 addr
 addrs
+addtw
 agc
 alfred
 alloc
@@ -532,6 +535,9 @@ auth
 autocommit
 autoconf
 automake
+auxheader
+auximage
+auxincr
 bInheritHandle
 backoff
 backport
@@ -683,6 +689,7 @@ curlog
 curmetadata
 cursoring
 cursorp
+curstartrecno
 curstat
 curtable
 curtiered
@@ -1076,6 +1083,7 @@ memkind
 memmove
 memset
 memsize
+mergeable
 metaconf
 metadata
 metadata's
@@ -1133,6 +1141,7 @@ nocrypto
 nolock
 nonces
 nonliteral
+nontransactionally
 noop
 nop
 noraw
@@ -1141,6 +1150,7 @@ notsup
 notused
 novalue
 nowait
+nrecs
 ns
 nsec
 nset
@@ -1172,13 +1182,16 @@ optimizations
 optrack
 optype
 ori
+origstartrecno
 os
 osfhandle
 other's
+oversized
 ovfl
 ownp
 packv
 pagedump
+pageref
 pagesize
 parens
 pareto

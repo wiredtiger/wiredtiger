@@ -571,12 +571,16 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
   size_t addr_size, WT_STUFF *ss)
 {
     WT_CELL_UNPACK_KV unpack;
+    WT_COL_FIX_AUXILIARY_HEADER auxhdr;
     WT_DECL_RET;
     WT_PAGE *page;
+    WT_TIME_WINDOW stable_tw;
     WT_TRACK *trk;
     uint64_t stop_recno;
+    uint32_t cell_num;
 
     page = NULL;
+    WT_TIME_WINDOW_INIT(&stable_tw);
     trk = NULL;
 
     /* Re-allocate the array of pages, as necessary. */
@@ -591,13 +595,58 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * Column-store fixed-sized format: start and stop keys can be taken from the block's
          * header, and doesn't contain overflow items.
          */
-        WT_TIME_AGGREGATE_INIT(&trk->trk_ta);
+        WT_TIME_AGGREGATE_INIT_MERGE(&trk->trk_ta);
         trk->col_start = dsk->recno;
         trk->col_stop = dsk->recno + (dsk->u.entries - 1);
 
-        __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
-          __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1), trk->col_start,
-          trk->col_stop);
+        /*
+         * Read the auxiliary header. Because pages that fail verify are tossed before salvage, we
+         * shouldn't fail.
+         */
+        WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+        switch (auxhdr.version) {
+        case WT_COL_FIX_VERSION_NIL:
+            /* Nothing to do besides update the time aggregate with a stable timestamp. */
+            WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
+            __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
+              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+              trk->col_start, trk->col_stop);
+            break;
+        case WT_COL_FIX_VERSION_TS:
+            /* Visit the time windows. */
+            cell_num = 0;
+            WT_CELL_FOREACH_FIX (session, dsk, &auxhdr, unpack) {
+                if (cell_num % 2 == 1) {
+                    if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
+                        continue;
+                    WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                }
+                cell_num++;
+            }
+            WT_CELL_FOREACH_END;
+            WT_ASSERT(session, cell_num % 2 == 0);
+            if (cell_num == 0) {
+                /* If we saw no time windows, aggregate in a stable one. */
+                WT_TIME_WINDOW_INIT(&unpack.tw);
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+            }
+            __wt_verbose(session, WT_VERB_SALVAGE,
+              "%s records %" PRIu64 "-%" PRIu64 " and %" PRIu32 " time windows",
+              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+              trk->col_start, trk->col_stop, cell_num / 2);
+            break;
+        default:
+            /*
+             * Not reached: verify will reject pages with unknown versions, and pages that fail
+             * verify get tossed before they get here. Print something anyway just in case that
+             * premise breaks down by accident sometime.
+             */
+            __wt_verbose(session, WT_VERB_SALVAGE,
+              "%s records %" PRIu64 "-%" PRIu64 ", unknown page format version %" PRIu32,
+              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
+              trk->col_start, trk->col_stop, auxhdr.version);
+            break;
+        }
         break;
     case WT_PAGE_COL_VAR:
         /*
