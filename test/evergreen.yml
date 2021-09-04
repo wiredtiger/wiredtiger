@@ -2436,6 +2436,90 @@ tasks:
               done
             done
 
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 2 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 3 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 4 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 5 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 6 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
+    depends_on:
+    - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/test/checkpoint"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 7 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t' 120
+
 
   - name: format-failure-configs-test
     depends_on:
@@ -2784,6 +2868,12 @@ buildvariants:
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-1
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
 
 - name: ubuntu1804-cmake
   display_name: "* Ubuntu 18.04 CMake"
