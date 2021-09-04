@@ -260,7 +260,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
             addr_unpack.row_count = ckpt->row_count;
             addr_unpack.byte_count = ckpt->byte_count;
             addr_unpack.data = root_addr;
-            addr_unpack.size = root_addr_size;
+            addr_unpack.size = (uint32_t)root_addr_size;
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
