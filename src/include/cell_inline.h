@@ -691,6 +691,8 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
+        unpack_addr->cookie = NULL;
+        unpack_addr->row_count = unpack_addr->byte_count = 0;
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
         tw = NULL;

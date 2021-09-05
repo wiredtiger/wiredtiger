@@ -219,7 +219,6 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
     val = &r->v;
     vpack = &_vpack;
-    addr_row_count = addr_byte_count = 0;
 
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxintlpage_precomp));
 
