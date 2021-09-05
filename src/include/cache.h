@@ -277,7 +277,7 @@ struct __wt_cache_pool {
  * Optimize comparisons against the history store URI, flag handles that reference the history store
  * file.
  */
-#define WT_IS_HS(dh) F_ISSET(dh, WT_DHANDLE_HS)
+#define WT_IS_HS(dh) ((dh) != NULL && F_ISSET(dh, WT_DHANDLE_HS))
 
 /* Flags used with __wt_evict */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */

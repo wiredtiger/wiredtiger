@@ -1255,12 +1255,17 @@ __session_range_uri(
     table = NULL;
 
     if (WT_PREFIX_MATCH(uri, "file:")) {
-        WT_ERR(__wt_meta_checkpoint(session, uri, NULL, &ckpt));
+        /* If we didn't find a metadata entry, map that error to ENOENT. */
+        if ((ret = __wt_meta_checkpoint(session, uri, NULL, &ckpt)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
+
         *row_countp += ckpt.row_count;
         *byte_countp += ckpt.byte_count;
         __wt_meta_checkpoint_free(session, &ckpt);
     } else if (WT_PREFIX_SKIP(uri, "table:")) {
-        WT_ERR(__wt_schema_get_table(session, uri, strlen(uri), false, 0, &table));
+        /* If we didn't find a metadata entry, map that error to ENOENT. */
+        if ((ret = __wt_schema_get_table(session, uri, strlen(uri), false, 0, &table)) != 0)
+            WT_ERR(ret == WT_NOTFOUND ? ENOENT : ret);
 
         /* Set the number of rows from one column group, sum the column group byte counts. */
         row_count = 0; /* [-Wconditional-uninitialized] */
@@ -1277,8 +1282,7 @@ err:
     if (table != NULL)
         WT_TRET(__wt_schema_release_table(session, &table));
 
-    /* If we didn't find a metadata entry, map that error to ENOENT. */
-    return (ret == WT_NOTFOUND ? ENOENT : ret);
+    return (ret);
 }
 
 /*
@@ -1460,6 +1464,16 @@ __session_range_stat(WT_SESSION *wt_session, const char *uri, WT_CURSOR *start, 
     WT_ERR_MSG(session, ENOTSUP, "Unsupported session method");
 #endif
 
+    /*
+     * If returning success but the return values are 0, it means we took a path that did the
+     * evaluation, but none of the underlying information was available (for example, reviewing an
+     * object without row/byte count information. Map that into a WT_NOTFOUND failure.
+     */
+    if (*row_countp == 0 || *byte_countp == 0) {
+        *row_countp = *byte_countp = 0;
+        ret = WT_NOTFOUND;
+    }
+
 err:
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_range_fail);
@@ -1467,11 +1481,10 @@ err:
         WT_STAT_CONN_INCR(session, session_table_range_success);
 
     /*
-     * Only map WT_NOTFOUND to ENOENT if a URI was specified.
+     * Don't map a returned WT_NOTFOUND error here; it's only applicable if a URI was specified and
+     * is handled in the underlying URI-specific WT_SESSION.range_stat method, and note a few lines
+     * above where we're mapping unavailable information to WT_NOTFOUND.
      */
-    if (uri != NULL && ret == WT_NOTFOUND)
-        ret = ENOENT;
-
     API_END_RET(session, ret);
 }
 

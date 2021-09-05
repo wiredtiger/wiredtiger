@@ -529,9 +529,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Track accumulated time window, row count and memory usage. */
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
-        WT_ASSERT(session, addr_row_count != 0);
         r->cur_ptr->addr_row_count += addr_row_count;
-        WT_ASSERT(session, addr_byte_count != 0);
         r->cur_ptr->addr_byte_count += addr_byte_count;
 
         /* Update compression state. */

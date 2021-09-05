@@ -30,6 +30,12 @@ typedef struct {
     bool dump_layout;
     bool dump_pages;
 
+    /*
+     * Do row/byte-count checks unless we find pages in the tree without row/byte-count information
+     * (it just means that we have old-style pages in the tree).
+     */
+    bool rowbyte_checks;
+
     /* Page layout information. */
     uint64_t depth, depth_internal[100], depth_leaf[100];
 
@@ -69,6 +75,8 @@ __verify_config(WT_SESSION_IMPL *session, const char *cfg[], WT_VSTUFF *vs)
 
     WT_RET(__wt_config_gets(session, cfg, "dump_pages", &cval));
     vs->dump_pages = cval.val != 0;
+
+    vs->rowbyte_checks = true;
 
     WT_RET(__wt_config_gets(session, cfg, "stable_timestamp", &cval));
     vs->stable_timestamp = WT_TS_NONE; /* Ignored unless a value has been set */
@@ -272,7 +280,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
                 goto exclusive_on_error;
 
             /* Verify the checkpoint's row count. */
-            if (ckpt->row_count != vs->records_so_far) {
+            if (vs->rowbyte_checks && ckpt->row_count != vs->records_so_far) {
                 __wt_err(session, ret = WT_ERROR,
                   "checkpoint %s: checkpoint record count of %" PRIu64
                   " and the total tree record count is %" PRIu64,
@@ -901,6 +909,8 @@ __verify_page_content_int(
         case WT_CELL_ADDR_INT:
         case WT_CELL_ADDR_LEAF:
         case WT_CELL_ADDR_LEAF_NO:
+            if (unpack.row_count == 0 || unpack.byte_count == 0)
+                vs->rowbyte_checks = false;
             addr_row_count += unpack.row_count;
             addr_byte_count += unpack.byte_count;
 
@@ -918,7 +928,9 @@ __verify_page_content_int(
     WT_CELL_FOREACH_END;
 
     /* Verify the page address cell's suffix of row count and page bytes. */
-    if (parent->data != NULL) {
+    if (parent->data != NULL && (parent->row_count == 0 || parent->byte_count == 0))
+        vs->rowbyte_checks = false;
+    if (parent->data != NULL && vs->rowbyte_checks) {
         if (parent->row_count != addr_row_count)
             WT_RET_MSG(session, WT_ERROR,
               "page at %s has a stored key count of %" PRIu64
@@ -1056,12 +1068,12 @@ __verify_page_content_leaf(
           __wt_cell_type_string(parent->raw));
 
     /* Verify the leaf page address cell's suffix of row count and page bytes. */
-    if (parent->row_count != row_count)
+    if (parent->row_count != 0 && parent->row_count != row_count)
         WT_RET_MSG(session, WT_ERROR,
           "page at %s has a stored key count of %" PRIu64
           ", the addressed page has a key count of %" PRIu64,
           __verify_addr_string(session, ref, vs->tmp1), parent->row_count, row_count);
-    if (parent->byte_count != dsk->mem_size)
+    if (parent->byte_count != 0 && parent->byte_count != dsk->mem_size)
         WT_RET_MSG(session, WT_ERROR,
           "page at %s has a stored page byte count of %" PRIu64
           ", the addressed page has a page byte count of %" PRIu32,
