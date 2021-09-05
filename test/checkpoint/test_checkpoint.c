@@ -419,8 +419,6 @@ usage(void)
       "[-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
-      "\t-a enable history store checkpoint delay timing stress\n"
-      "\t-b enable checkpoint allocating next transaction id delay timing stress\n"
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
       "\t-h set a database home directory\n"
