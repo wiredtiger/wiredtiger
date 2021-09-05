@@ -45,6 +45,13 @@ range_stat(void *arg)
 
     (void)(arg);
 
+    /*
+     * We're not configuring transactions or read timestamps, if there's a diagnostic check, skip
+     * range-stat calls.
+     */
+    if (g.c_assert_read_timestamp)
+        return (WT_THREAD_RET_VALUE);
+
     /* Open a session and a pair of stop. */
     conn = g.wts_conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
