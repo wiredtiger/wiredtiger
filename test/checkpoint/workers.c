@@ -126,10 +126,12 @@ worker_mm_delete(WT_CURSOR *cursor, uint64_t keyno)
 
     cursor->set_key(cursor, keyno);
     ret = cursor->search(cursor);
-    if (ret != WT_NOTFOUND)
+    if (ret == 0)
         ret = cursor->remove(cursor);
+    else if (ret == WT_NOTFOUND)
+        ret = 0;
 
-    return ret;
+    return (ret);
 }
 
 /*
@@ -272,14 +274,9 @@ real_worker(void)
             new_txn = false;
             for (j = 0; ret == 0 && j < g.ntables; j++) {
                 ret = worker_mm_delete(cursors[j], keyno);
-                if (ret == WT_NOTFOUND)
-                    break;
+                if (ret != 0)
+                    goto err;
             }
-            if (ret == WT_NOTFOUND) {
-                ret = 0;
-                continue;
-            } else
-                goto err;
             if ((ret = session->commit_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:commit_mm_transaction", ret, 1);
                 goto err;
