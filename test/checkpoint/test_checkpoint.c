@@ -69,7 +69,7 @@ main(int argc, char *argv[])
     runs = 1;
     verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:m:n:pr:s:T:t:vW:xX")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:mn:pr:s:T:t:vW:xX")) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -400,9 +400,8 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-n ops] "
-      "[-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
-      progname);
+      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-m] "
+      "[-n ops] [-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n", progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
       "\t-c checkpoint name to used named checkpoints\n"
