@@ -69,7 +69,7 @@ main(int argc, char *argv[])
     runs = 1;
     verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:pr:s:T:t:vW:xX")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:m:n:pr:s:T:t:vW:xX")) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
