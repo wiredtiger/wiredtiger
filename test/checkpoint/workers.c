@@ -278,16 +278,17 @@ real_worker(void)
             if (ret == WT_NOTFOUND) {
                 ret = 0;
                 continue;
-            }
+            } else
+                goto err;
             if ((ret = session->commit_transaction(session, NULL)) != 0) {
                 (void)log_print_err("real_worker:commit_mm_transaction", ret, 1);
                 goto err;
             }
             start_txn = true;
             continue;
-        } else {
+        } else
             new_txn = false;
-        }
+
         for (j = 0; ret == 0 && j < g.ntables; j++)
             ret = worker_op(cursors[j], keyno, i);
         if (ret != 0 && ret != WT_ROLLBACK) {
