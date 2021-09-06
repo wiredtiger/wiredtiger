@@ -115,18 +115,19 @@ err:
     return (ret);
 }
 
-
+/*
+ * worker_mm_delete --
+ *     Delete a key with a mixed mode timestamp.
+ */
 static inline int
-worker_mm_remove(WT_CURSOR *cursor, uint64_t keyno)
+worker_mm_delete(WT_CURSOR *cursor, uint64_t keyno)
 {
     int ret;
 
     cursor->set_key(cursor, keyno);
     ret = cursor->search(cursor);
-    if (ret != WT_NOTFOUND) {
+    if (ret != WT_NOTFOUND)
         ret = cursor->remove(cursor);
-        //printf("Performing a mm remove\n");
-    }
 
     return ret;
 }
@@ -267,10 +268,10 @@ real_worker(void)
             start_txn = false;
         }
         keyno = __wt_random(&rnd) % g.nkeys + 1;
-        if (g.use_timestamps && new_txn && __wt_random(&rnd) % 72 == 0) {
+        if (g.use_timestamps && g.mixed_mode_deletes && new_txn && __wt_random(&rnd) % 72 == 0) {
             new_txn = false;
             for (j = 0; ret == 0 && j < g.ntables; j++) {
-                ret = worker_mm_remove(cursors[j], keyno);
+                ret = worker_mm_delete(cursors[j], keyno);
                 if (ret == WT_NOTFOUND)
                     break;
             }

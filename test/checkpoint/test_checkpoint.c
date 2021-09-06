@@ -65,6 +65,7 @@ main(int argc, char *argv[])
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
     g.failpoint_hs_delete_key_from_ts = g.failpoint_hs_insert_1 = g.failpoint_hs_insert_2 = false;
+    g.mixed_mode_deletes = false;
     runs = 1;
     verify_only = false;
 
@@ -90,6 +91,9 @@ main(int argc, char *argv[])
                 fprintf(stderr, "%s: %s\n", __wt_optarg, strerror(errno));
                 return (EXIT_FAILURE);
             }
+            break;
+        case 'm':
+            g.mixed_mode_deletes = true;
             break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
@@ -405,6 +409,7 @@ usage(void)
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"
+      "\t-m run with mixed mode delete operations\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
