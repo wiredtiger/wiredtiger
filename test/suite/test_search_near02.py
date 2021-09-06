@@ -57,7 +57,7 @@ class test_search_near02(wttest.WiredTigerTestCase):
             cursor[prefix + l[k]] = prefix + l[k]
         cursor[prefix] = prefix
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
-        
+
         # Insert key aaz timestamp 50.
         self.session.begin_transaction()
         cursor[prefix + "z"] = prefix + "z"
@@ -68,7 +68,7 @@ class test_search_near02(wttest.WiredTigerTestCase):
             cursor2.set_key(prefix + l[k])
             ret = cursor2.search()
             cursor2.reset()
-            
+
         # Start a transaction at timestamp 100, aaz should be the only key that is visibile.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(100))
         cursor3 = self.session.open_cursor(uri)
