@@ -3030,7 +3030,7 @@ buildvariants:
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu2004-test
+  - ubuntu1804-test
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3047,7 +3047,7 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - ubuntu2004-zseries-build
+  - ubuntu1804-zseries-build
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3059,10 +3059,10 @@ buildvariants:
   - name: verify-datafile-big-endian
   - name: verify-datafile-from-little-endian
 
-- name: ubuntu2004-ppc
-  display_name: "~ Ubuntu 20.04 PPC"
+- name: ubuntu1804-ppc
+  display_name: "~ Ubuntu 18.04 PPC"
   run_on:
-  - ubuntu2004-power8-test
+  - ubuntu1804-power8-test
   expansions:
     format_test_setting: ulimit -c unlimited
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -3081,10 +3081,10 @@ buildvariants:
   - name: ".stress-test-ppc-1"
   - name: ".stress-test-ppc-2"
 
-- name: ubuntu2004-ppc-cmake
-  display_name: "* Ubuntu 20.04 PPC CMake"
+- name: ubuntu1804-ppc-cmake
+  display_name: "* Ubuntu 18.04 PPC CMake"
   run_on:
-  - ubuntu2004-power8-test
+  - ubuntu1804-power8-test
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
@@ -3099,10 +3099,10 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
 
-- name: ubuntu2004-zseries
-  display_name: "~ Ubuntu 20.04 zSeries"
+- name: ubuntu1804-zseries
+  display_name: "~ Ubuntu 18.04 zSeries"
   run_on:
-  - ubuntu2004-zseries-test
+  - ubuntu1804-zseries-test
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -3120,10 +3120,10 @@ buildvariants:
   - name: ".stress-test-zseries-2"
   - name: ".stress-test-zseries-3"
 
-- name: ubuntu2004-zseries-cmake
-  display_name: "* Ubuntu 20.04 zSeries CMake"
+- name: ubuntu1804-zseries-cmake
+  display_name: "* Ubuntu 18.04 zSeries CMake"
   run_on:
-  - ubuntu2004-zseries-test
+  - ubuntu1804-zseries-test
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
