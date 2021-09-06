@@ -143,7 +143,7 @@ run_test(bool stress_test, const char *home, const char *uri)
     } else {
         /* Create and initialize conditional variable. */
         testutil_check(__wt_cond_alloc((WT_SESSION_IMPL *)session, "compact operation", &td.cond));
-        
+
         testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
         testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
     }
