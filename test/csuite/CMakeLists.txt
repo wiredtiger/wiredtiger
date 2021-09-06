@@ -196,12 +196,6 @@ define_c_test(
 )
 
 define_c_test(
-    TARGET test_wt7989_compact_checkpoint
-    SOURCES wt7989_compact_checkpoint/main.c
-    DIR_NAME wt7989_compact_checkpoint
-)
-
-define_c_test(
     TARGET test_wt3135_search_near_collator
     SOURCES wt3135_search_near_collator/main.c
     DIR_NAME wt3135_search_near_collator
@@ -294,6 +288,12 @@ define_c_test(
     DIR_NAME wt6616_checkpoint_oldest_ts
     SMOKE
     DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt7989_compact_checkpoint
+    SOURCES wt7989_compact_checkpoint/main.c
+    DIR_NAME wt7989_compact_checkpoint
 )
 
 # Run this during a "ctest check" or "ctest csuite" smoke test

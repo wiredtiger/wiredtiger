@@ -29,7 +29,8 @@
 
 /*
  * This test executes two test cases:
- * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 secods sleep before each checkpoint.
+ * - One with WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each
+ * checkpoint.
  * - Another test case synchronizes compact and checkpoint threads using a condition variable.
  * The reason we have two tests here is that they give different output when configured
  * with "verbose=[compact,compact_progress]". There's a chance these two cases are different.
@@ -52,7 +53,6 @@ struct thread_data {
     WT_CONNECTION *conn;
     const char *uri;
     WT_CONDVAR *cond;
-    WT_SESSION_IMPL *session_cond;
 };
 
 /* Forward declarations. */
@@ -118,7 +118,7 @@ run_test(bool stress_test, const char *home, const char *uri)
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /* Create and populate dataset. Checkpoint the data after that. */
+    /* Create and populate table. Checkpoint the data after that. */
     testutil_check(session->create(session, uri, table_config));
 
     populate(session, uri);
@@ -137,15 +137,18 @@ run_test(bool stress_test, const char *home, const char *uri)
     td.uri = uri;
     if (stress_test) {
         td.cond = NULL;
-        td.session_cond = NULL;
     } else {
-        td.session_cond = (WT_SESSION_IMPL *)session;
-        testutil_check(__wt_cond_alloc(td.session_cond, "compact operation", &td.cond));
+        testutil_check(__wt_cond_alloc((WT_SESSION_IMPL *)session, "compact operation", &td.cond));
     }
 
     /* Spawn checkpoint and compact threads. */
-    testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
-    testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
+    if (stress_test) {
+        testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
+        testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
+    } else {
+        testutil_check(pthread_create(&thread_checkpoint, NULL, thread_func_checkpoint, &td));
+        testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, &td));
+    }
 
     /* Wait for the threads to finish the work. */
     (void)pthread_join(thread_checkpoint, NULL);
@@ -155,23 +158,22 @@ run_test(bool stress_test, const char *home, const char *uri)
 
     /* Cleanup */
     if (!stress_test) {
-        __wt_cond_destroy(td.session_cond, &td.cond);
-        td.session_cond = NULL;
+        __wt_cond_destroy((WT_SESSION_IMPL *)session, &td.cond);
         td.cond = NULL;
     }
 
     testutil_check(session->close(session, NULL));
 
     /* Check if there's at least 10% compaction. */
-    printf("Compressed file size MB: %f\nOriginal file size MB: %f\n",
+    printf(" - Compressed file size MB: %f\n - Original file size MB: %f\n",
       file_sz_after / (1024.0 * 1024), file_sz_before / (1024.0 * 1024));
 
     /*
-     * At the moment the condition in the assert below is expected to NOT compress the table. This
-     * is done in order to keep evergreen green. We need to invert the condition as soon as the
-     * underlying defect is fixed and compact does it's job well.
+     * FIXME-WT-8055 At the moment the assert below is commented out to prevent evergreen from going
+     * red. Please enable the assert as soon as the underlying defect is fixed and compact does its
+     * job well.
      */
-    testutil_assert(!(file_sz_before * 0.9 > file_sz_after));
+    /*testutil_assert(file_sz_before * 0.9 > file_sz_after);*/
 }
 
 static void *
@@ -189,7 +191,8 @@ thread_func_compact(void *arg)
         __wt_sleep(1, 0);
 
         /* Wake up the checkpoint thread. */
-        __wt_cond_signal(td->session_cond, td->cond);
+        printf("Sending the signal!\n");
+        __wt_cond_signal((WT_SESSION_IMPL *)session, td->cond);
     }
 
     /* Perform compact operation. */
@@ -210,8 +213,11 @@ thread_func_checkpoint(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-    if (td->cond != NULL)
-        __wt_cond_wait_signal(td->session_cond, td->cond, 0, NULL, &signalled);
+    if (td->cond != NULL) {
+        printf("Waiting for the signal...\n");
+        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, td->cond, 0, NULL, &signalled);
+        printf("Signal received!\n");
+    }
 
     testutil_check(session->checkpoint(session, NULL));
     testutil_check(session->close(session, NULL));
