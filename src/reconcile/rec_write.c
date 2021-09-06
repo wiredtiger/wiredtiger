@@ -1576,7 +1576,9 @@ __rec_split_write_header(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK
     dsk->u.entries = chunk->entries;
     dsk->type = page->type;
 
-    dsk->flags = __wt_process.write_rowbyte ? WT_PAGE_ROWBYTE : 0;
+    dsk->flags = 0;
+    if (WT_PAGE_IS_INTERNAL(page) && __wt_process.write_rowbyte)
+        dsk->flags = WT_PAGE_ROWBYTE;
 
     /* Set the zero-length value flag in the page header. */
     if (page->type == WT_PAGE_ROW_LEAF) {
