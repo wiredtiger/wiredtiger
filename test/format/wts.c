@@ -558,8 +558,12 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
 #else
         WT_UNUSED(allow_verify);
 #endif
+        /*
+         * Re-configure row/byte counter behavior before calling wiredtiger_open so we catch
+         * recovery and rollback-to-stable.
+         */
+        rowbyte();
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
-	rowbyte();
     }
 
     testutil_check(conn->open_session(conn, NULL, NULL, sessionp));

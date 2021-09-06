@@ -232,7 +232,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
          * Deleted/split pages are merged into the parent and discarded.
          */
         WT_ERR(__wt_rec_child_modify(session, r, ref, &hazard, &state));
-        addr = NULL;
+        addr = ref->addr;
         child = ref->page;
 
         switch (state) {
@@ -240,11 +240,8 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             /* Ignored child. */
             WT_CHILD_RELEASE_ERR(session, hazard, ref);
             continue;
-
         case WT_CHILD_MODIFIED:
-            /*
-             * Modified child. Empty pages are merged into the parent and discarded.
-             */
+            /* Modified child. Empty pages are merged into the parent and discarded. */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
                 /*
@@ -269,39 +266,38 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             /* Original child. */
             break;
         case WT_CHILD_PROXY:
-            /*
-             * Deleted child where we write a proxy cell, not yet supported for column-store.
-             */
+            /* Deleted child where we write a proxy cell, not yet supported for column-store. */
             WT_ERR(__wt_illegal_value(session, state));
         }
 
         /*
-         * Build the value cell. The child page address is in one of 3 places: if the page was
-         * replaced, the page's modify structure references it and we built the value cell just
-         * above in the switch statement. Else, the WT_REF->addr reference points to an on-page cell
-         * or an off-page WT_ADDR structure: if it's an on-page cell and we copy it from the page,
-         * else build a new cell.
+         * Build the value cell holding the child page's address. The address is in one of a few
+         * places: If the page was replaced by multiple pages, the page modify structure references
+         * the blocks and we merged those blocks in the above switch statement, never reaching this
+         * code. If the page was replaced by a single page, the page modify structure references a
+         * single page and we set that address in the above switch statement. Else, the WT_REF.addr
+         * points to an on-page cell or an off-page WT_ADDR. Note we always build a new address cell
+         * even when using an existing, on-page cell. There are two reasons for that: first, we may
+         * be converting to/from an address with row/byte counter information, second, transaction
+         * IDs must be cleared after restart and we might have to repack the cell with new validity
+         * information to flush those cleared transaction ids. We don't check that case explicitly
+         * here because we always repack on-disk address cells.
          */
-        if (addr == NULL && __wt_off_page(page, ref->addr))
-            addr = ref->addr;
-        if (addr == NULL) {
-            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
-            val->buf.data = ref->addr;
-            val->buf.size = __wt_cell_total_len(vpack);
-            val->cell_len = 0;
-            val->len = val->buf.size;
-
-            /* Track accumulated time window, row count and memory usage. */
-            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
-            addr_row_count = vpack->row_count;
-            addr_byte_count = vpack->byte_count;
-        } else {
+        if (__wt_off_page(page, addr)) {
             WT_ERR(__wt_rec_cell_build_addr(session, r, addr, NULL, false, ref->ref_recno));
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &addr->ta);
             addr_row_count = addr->row_count;
             addr_byte_count = addr->byte_count;
+        } else {
+            __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
+            WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, false, ref->ref_recno));
+
+            /* Track accumulated time window, row count and memory usage. */
+            WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
+            addr_row_count = vpack->row_count;
+            addr_byte_count = vpack->byte_count;
         }
         WT_CHILD_RELEASE_ERR(session, hazard, ref);
 

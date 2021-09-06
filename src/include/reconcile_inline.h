@@ -329,9 +329,10 @@ __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_ADDR *add
         cell_type = proxy_cell ? WT_CELL_ADDR_DEL : vpack->type;
         ta = &vpack->ta;
         if (__wt_process.write_rowbyte) {
-            WT_ASSERT(session, vpack->cookie != NULL);
-            val->buf.data = vpack->cookie;
-            val->buf.size = WT_ADDR_COOKIE_BTREE_LEN(vpack->cookie) + vpack->size;
+            WT_RET(__wt_buf_init(session, &val->buf, WT_ADDR_COOKIE_MAX));
+            WT_RET(__wt_addr_cookie_btree_pack(val->buf.mem, vpack->row_count, vpack->byte_count));
+            memcpy(WT_ADDR_COOKIE_BLOCK(val->buf.mem), vpack->data, vpack->size);
+            val->buf.size = (uint8_t)(WT_ADDR_COOKIE_BTREE_LEN(val->buf.mem) + vpack->size);
         } else {
             val->buf.data = vpack->data;
             val->buf.size = vpack->size;

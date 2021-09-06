@@ -691,7 +691,6 @@ __wt_cell_unpack_safe(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_CE
         WT_ASSERT(session, unpack_value == NULL);
 
         unpack = (WT_CELL_UNPACK_COMMON *)unpack_addr;
-        unpack_addr->cookie = NULL;
         unpack_addr->row_count = unpack_addr->byte_count = 0;
         ta = &unpack_addr->ta;
         WT_TIME_AGGREGATE_INIT(ta);
@@ -904,7 +903,6 @@ copy_cell_restart:
 
         /* The chunk of data optionally includes a btree row/byte count. */
         if (F_ISSET(dsk, WT_PAGE_ROWBYTE)) {
-            unpack_addr->cookie = p;
             WT_RET(
               __wt_addr_cookie_btree_unpack(p, &unpack_addr->row_count, &unpack_addr->byte_count));
             v = WT_ADDR_COOKIE_BLOCK_LEN(p, v);

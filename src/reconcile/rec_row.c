@@ -373,54 +373,34 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         addr = ref->addr;
         child = ref->page;
 
+        /*
+         * Overflow keys for pages we're discarding are no longer useful, schedule them for discard.
+         * Don't worry about instantiation, internal page keys are always instantiated. Don't worry
+         * about reuse, reusing this key in this reconciliation is unlikely.
+         */
+        if (key_onpage_ovfl &&
+          (state == WT_CHILD_IGNORE ||
+            (state == WT_CHILD_MODIFIED &&
+              (child->modify->rec_result == WT_PM_REC_EMPTY ||
+                child->modify->rec_result == WT_PM_REC_MULTIBLOCK))))
+            WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
+
         switch (state) {
         case WT_CHILD_IGNORE:
-            /*
-             * Ignored child.
-             *
-             * Overflow keys referencing pages we're not writing are no longer useful, schedule them
-             * for discard. Don't worry about instantiation, internal page keys are always
-             * instantiated. Don't worry about reuse, reusing this key in this reconciliation is
-             * unlikely.
-             */
-            if (key_onpage_ovfl)
-                WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
+            /* Ignored child. */
             WT_CHILD_RELEASE_ERR(session, hazard, ref);
             continue;
-
         case WT_CHILD_MODIFIED:
-            /*
-             * Modified child. Empty pages are merged into the parent and discarded.
-             */
+            /* Modified child. Empty pages are merged into the parent and discarded. */
             switch (child->modify->rec_result) {
             case WT_PM_REC_EMPTY:
-                /*
-                 * Overflow keys referencing empty pages are no longer useful, schedule them for
-                 * discard. Don't worry about instantiation, internal page keys are always
-                 * instantiated. Don't worry about reuse, reusing this key in this reconciliation is
-                 * unlikely.
-                 */
-                if (key_onpage_ovfl)
-                    WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
                 WT_CHILD_RELEASE_ERR(session, hazard, ref);
                 continue;
             case WT_PM_REC_MULTIBLOCK:
-                /*
-                 * Overflow keys referencing split pages are no longer useful (the split page's key
-                 * is the interesting key); schedule them for discard. Don't worry about
-                 * instantiation, internal page keys are always instantiated. Don't worry about
-                 * reuse, reusing this key in this reconciliation is unlikely.
-                 */
-                if (key_onpage_ovfl)
-                    WT_ERR(__wt_ovfl_discard_add(session, page, kpack->cell));
-
                 WT_ERR(__rec_row_merge(session, r, child));
                 WT_CHILD_RELEASE_ERR(session, hazard, ref);
                 continue;
             case WT_PM_REC_REPLACE:
-                /*
-                 * If the page is replaced, the page's modify structure has the page's address.
-                 */
                 addr = &child->modify->mod_replace;
                 break;
             default:
@@ -436,9 +416,17 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         }
 
         /*
-         * Build the value cell, the child page's address. Addr points to an on-page cell or an
-         * off-page WT_ADDR structure. There's a special cell type in the case of page deletion
-         * requiring a proxy cell, otherwise use the information from the addr or original cell.
+         * Build the value cell holding the child page's address. The address is in one of a few
+         * places: If the page was replaced by multiple pages, the page modify structure references
+         * the blocks and we merged those blocks in the above switch statement, never reaching this
+         * code. If the page was replaced by a single page, the page modify structure references a
+         * single page and we set that address in the above switch statement. Else, the WT_REF.addr
+         * points to an on-page cell or an off-page WT_ADDR. Note we always build a new address cell
+         * even when using an existing, on-page cell. There are two reasons for that: first, we may
+         * be converting to/from an address with row/byte counter information, second, transaction
+         * IDs must be cleared after restart and we might have to repack the cell with new validity
+         * information to flush those cleared transaction ids. We don't check that case explicitly
+         * here because we always repack on-disk address cells.
          */
         if (__wt_off_page(page, addr)) {
             WT_ERR(__wt_rec_cell_build_addr(
@@ -450,24 +438,8 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             addr_byte_count = addr->byte_count;
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
-            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
-                /*
-                 * The transaction ids are cleared after restart. Repack the cell with new validity
-                 * to flush the cleared transaction ids.
-                 */
-                WT_ERR(__wt_rec_cell_build_addr(
-                  session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB));
-            } else if (state == WT_CHILD_PROXY) {
-                WT_ERR(__wt_buf_set(session, &val->buf, ref->addr, __wt_cell_total_len(vpack)));
-                __wt_cell_type_reset(session, val->buf.mem, 0, WT_CELL_ADDR_DEL);
-                val->cell_len = 0;
-                val->len = val->buf.size;
-            } else {
-                val->buf.data = ref->addr;
-                val->buf.size = __wt_cell_total_len(vpack);
-                val->cell_len = 0;
-                val->len = val->buf.size;
-            }
+            WT_ERR(__wt_rec_cell_build_addr(
+              session, r, NULL, vpack, state == WT_CHILD_PROXY, WT_RECNO_OOB));
 
             /* Track accumulated time window, row count and memory usage. */
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
