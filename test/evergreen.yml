@@ -696,18 +696,6 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-5 CXX=g++-5 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC" CPPFLAGS=-fvisibility=hidden
-      - func: "compile wiredtiger"
-        vars:
           configure_env_vars: CC=gcc-7 CXX=g++-7 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
@@ -720,15 +708,6 @@ tasks:
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-3.9 CXX=clang++-3.9 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 ADD_CFLAGS="-ggdb -fPIC"
@@ -2166,6 +2145,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            sudo python3 -m pip install gcovr
             mkdir -p ../coverage_report
             GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
       - command: s3.put
@@ -2692,10 +2672,10 @@ tasks:
 
 buildvariants:
 
-- name: ubuntu1804
-  display_name: "! Ubuntu 18.04"
+- name: ubuntu2004
+  display_name: "! Ubuntu 20.04"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -2705,13 +2685,13 @@ buildvariants:
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: linux-directio
-      distros: ubuntu1804-build
+      distros: ubuntu2004-build
     - name: syscall-linux
     - name: configure-combinations
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      distros: ubuntu1804-large
+      distros: ubuntu2004-large
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -2722,10 +2702,10 @@ buildvariants:
     - name: static-wt-build-test
     - name: format-failure-configs-test
 
-- name: ubuntu1804-cmake
-  display_name: "* Ubuntu 18.04 CMake"
+- name: ubuntu2004-cmake
+  display_name: "* Ubuntu 20.04 CMake"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
@@ -2739,10 +2719,10 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
 
-- name: ubuntu1804-asan
-  display_name: "! Ubuntu 18.04 ASAN"
+- name: ubuntu2004-asan
+  display_name: "! Ubuntu 20.04 ASAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       CC=/opt/mongodbtoolchain/v3/bin/clang
@@ -2762,10 +2742,10 @@ buildvariants:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
     - name: examples-c-test
 
-- name: ubuntu1804-msan
-  display_name: "! Ubuntu 18.04 MSAN"
+- name: ubuntu2004-msan
+  display_name: "! Ubuntu 20.04 MSAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       # We don't compile C++ for memory sanitized testing as it creates false positives.
@@ -2793,10 +2773,10 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
 
-- name: ubuntu1804-ubsan
-  display_name: "! Ubuntu 18.04 UBSAN"
+- name: ubuntu2004-ubsan
+  display_name: "! Ubuntu 20.04 UBSAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       CC=/opt/mongodbtoolchain/v3/bin/clang
@@ -2825,10 +2805,10 @@ buildvariants:
     - name: cppsuite-base-test-default
     - name: cppsuite-hs-cleanup-default
 
-- name: ubuntu1804-compilers
-  display_name: "! Ubuntu 18.04 Compilers"
+- name: ubuntu2004-compilers
+  display_name: "! Ubuntu 20.04 Compilers"
   run_on:
-  - ubuntu1804-wt-build
+  - ubuntu2004-wt-build
   expansions:
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -2837,10 +2817,10 @@ buildvariants:
   tasks:
     - name: ".pull_request_compilers"
 
-- name: ubuntu1804-stress-tests
-  display_name: Ubuntu 18.04 Stress tests
+- name: ubuntu2004-stress-tests
+  display_name: Ubuntu 20.04 Stress tests
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -2862,7 +2842,7 @@ buildvariants:
   display_name: "Large scale tests"
   batchtime: 480 # 3 times a day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
@@ -2881,7 +2861,7 @@ buildvariants:
   display_name: "Cppsuite Stress Tests"
   batchtime: 480 # 3 times a day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -2897,7 +2877,7 @@ buildvariants:
   display_name: "~ Package"
   batchtime: 1440 # 1 day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   tasks:
     - name: package
 
@@ -2916,7 +2896,7 @@ buildvariants:
   display_name: Linux no ftruncate
   batchtime: 1440 # 1 day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -2962,7 +2942,7 @@ buildvariants:
   display_name: "Code statistics"
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
@@ -2981,7 +2961,7 @@ buildvariants:
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   tasks:
     - name: compatibility-test-for-newer-releases
     - name: import-compatibility-test
@@ -3050,7 +3030,7 @@ buildvariants:
 - name: little-endian
   display_name: "~ Little-endian (x86)"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3067,7 +3047,7 @@ buildvariants:
   modules:
   - enterprise
   run_on:
-  - ubuntu1804-zseries-build
+  - ubuntu2004-zseries-build
   batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3079,10 +3059,10 @@ buildvariants:
   - name: verify-datafile-big-endian
   - name: verify-datafile-from-little-endian
 
-- name: ubuntu1804-ppc
-  display_name: "~ Ubuntu 18.04 PPC"
+- name: ubuntu2004-ppc
+  display_name: "~ Ubuntu 20.04 PPC"
   run_on:
-  - ubuntu1804-power8-test
+  - ubuntu2004-power8-test
   expansions:
     format_test_setting: ulimit -c unlimited
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -3101,10 +3081,10 @@ buildvariants:
   - name: ".stress-test-ppc-1"
   - name: ".stress-test-ppc-2"
 
-- name: ubuntu1804-ppc-cmake
-  display_name: "* Ubuntu 18.04 PPC CMake"
+- name: ubuntu2004-ppc-cmake
+  display_name: "* Ubuntu 20.04 PPC CMake"
   run_on:
-  - ubuntu1804-power8-test
+  - ubuntu2004-power8-test
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
@@ -3119,10 +3099,10 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
 
-- name: ubuntu1804-zseries
-  display_name: "~ Ubuntu 18.04 zSeries"
+- name: ubuntu2004-zseries
+  display_name: "~ Ubuntu 20.04 zSeries"
   run_on:
-  - ubuntu1804-zseries-test
+  - ubuntu2004-zseries-test
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -3140,10 +3120,10 @@ buildvariants:
   - name: ".stress-test-zseries-2"
   - name: ".stress-test-zseries-3"
 
-- name: ubuntu1804-zseries-cmake
-  display_name: "* Ubuntu 18.04 zSeries CMake"
+- name: ubuntu2004-zseries-cmake
+  display_name: "* Ubuntu 20.04 zSeries CMake"
   run_on:
-  - ubuntu1804-zseries-test
+  - ubuntu2004-zseries-test
   batchtime: 10080 # 7 days
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
