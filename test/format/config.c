@@ -51,9 +51,11 @@ static void config_map_checksum(const char *, u_int *);
 static void config_map_compression(const char *, u_int *);
 static void config_map_encryption(const char *, u_int *);
 static void config_map_file_type(const char *, u_int *);
+static void config_map_rowbyte(const char *, u_int *);
 static void config_pct(void);
 static void config_prefix(void);
 static void config_reset(void);
+static void config_rowbyte(void);
 static void config_transaction(void);
 
 /*
@@ -202,6 +204,7 @@ config_run(void)
     config_compression("logging.compression");
     config_encryption();
     config_prefix();
+    config_rowbyte();
 
     /* Configuration based on the configuration already chosen. */
     config_directio();
@@ -937,6 +940,49 @@ config_prefix(void)
 }
 
 /*
+ * config_rowbyte --
+ *     Rowbyte configuration.
+ */
+static void
+config_rowbyte(void)
+{
+#ifdef WT_STANDALONE_BUILD
+    if (config_is_perm("disk.rowbyte")) {
+        /* Backward compatibility requires row/byte counter information be turned off. */
+        if (g.backward_compatible && g.c_rowbyte_flag != ROWBYTE_OFF)
+            testutil_die(EINVAL, "rowbyte must be configured off in backward compatibility mode");
+        return;
+    }
+    if (g.backward_compatible) {
+        /* Backward compatibility requires row/byte counter information be turned off. */
+        config_single("disk.rowbyte=off", false);
+        return;
+    }
+    switch (mmrand(NULL, 1, 9)) {
+    case 1:
+    case 2:
+    case 3: /* 30% historic */
+        config_single("disk.rowbyte=off", false);
+        break;
+    case 4:
+    case 5:
+    case 6: /* 30% new */
+        config_single("disk.rowbyte=on", false);
+        break;
+    case 7:
+    case 8:
+    case 9: /* 30% mixed */
+        config_single("disk.rowbyte=mixed", false);
+        break;
+    }
+#else
+    /* Ignore row/byte counter information entirely if it's not a standalone build. */
+    if (config_is_perm("disk.rowbyte"))
+        testutil_die(EINVAL, "rowbyte is only compatible with standalone builds");
+#endif
+}
+
+/*
  * config_transaction --
  *     Transaction configuration.
  */
@@ -1237,6 +1283,9 @@ config_single(const char *s, bool perm)
         } else if (strncmp(s, "disk.encryption", strlen("disk.encryption")) == 0) {
             config_map_encryption(equalp, &g.c_encryption_flag);
             *cp->vstr = dstrdup(equalp);
+        } else if (strncmp(s, "disk.rowbyte", strlen("disk.rowbyte")) == 0) {
+            config_map_rowbyte(equalp, &g.c_rowbyte_flag);
+            *cp->vstr = dstrdup(equalp);
         } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
             config_map_file_type(equalp, &g.type);
             *cp->vstr = dstrdup(config_file_type(g.type));
@@ -1468,6 +1517,23 @@ config_map_encryption(const char *s, u_int *vp)
         *vp = ENCRYPT_SODIUM;
     else
         testutil_die(EINVAL, "illegal encryption configuration: %s", s);
+}
+
+/*
+ * config_map_rowbyte --
+ *     Map a rowbyte configuration to a flag.
+ */
+static void
+config_map_rowbyte(const char *s, u_int *vp)
+{
+    if (strcmp(s, "on") == 0)
+        *vp = ROWBYTE_ON;
+    else if (strcmp(s, "off") == 0)
+        *vp = ROWBYTE_OFF;
+    else if (strcmp(s, "mixed") == 0)
+        *vp = ROWBYTE_MIXED;
+    else
+        testutil_die(EINVAL, "illegal rowbyte configuration: %s", s);
 }
 
 /*

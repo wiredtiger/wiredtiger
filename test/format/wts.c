@@ -126,6 +126,28 @@ encryptor_at_open(uint32_t encrypt_flag)
     return (p);
 }
 
+/*
+ * rowbyte --
+ *     Configure row/byte counter behavior at open.
+ */
+static void
+rowbyte(void)
+{
+#ifdef WT_STANDALONE_BUILD
+    switch (g.c_rowbyte_flag) {
+    case ROWBYTE_ON:
+        __wt_process.write_rowbyte = true;
+        break;
+    case ROWBYTE_OFF:
+        __wt_process.write_rowbyte = false;
+        break;
+    case ROWBYTE_MIXED:
+        __wt_process.write_rowbyte = __wt_process.write_rowbyte ? false : true;
+        break;
+    }
+#endif
+}
+
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
@@ -315,6 +337,7 @@ create_database(const char *home, WT_CONNECTION **connp)
         testutil_die(ENOMEM, "wiredtiger_open configuration buffer too small");
 
     testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+    rowbyte();
 
     *connp = conn;
 }
@@ -536,6 +559,7 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         WT_UNUSED(allow_verify);
 #endif
         testutil_checkfmt(wiredtiger_open(home, &event_handler, config, &conn), "%s", home);
+	rowbyte();
     }
 
     testutil_check(conn->open_session(conn, NULL, NULL, sessionp));

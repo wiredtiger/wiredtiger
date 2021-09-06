@@ -240,6 +240,7 @@ typedef struct {
     uint32_t c_read_pct;
     uint32_t c_repeat_data_pct;
     uint32_t c_reverse;
+    char *c_rowbyte;
     uint32_t c_rows;
     uint32_t c_runs;
     uint32_t c_salvage;
@@ -308,6 +309,11 @@ typedef struct {
 #define ENCRYPT_ROTN_7 2
 #define ENCRYPT_SODIUM 3
     u_int c_encryption_flag; /* Encryption flag value */
+
+#define ROWBYTE_ON 1
+#define ROWBYTE_OFF 2
+#define ROWBYTE_MIXED 3
+    u_int c_rowbyte_flag; /* Row/byte-count configuration flag value */
 
 /* The page must be a multiple of the allocation size, and 512 always works. */
 #define BLOCK_ALLOCATION_SIZE 512

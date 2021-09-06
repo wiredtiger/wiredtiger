@@ -172,6 +172,9 @@ static CONFIG c[] = {
   {"disk.mmap_all", "configure mmap operations (read and write)", C_BOOL, 5, 0, 0, &g.c_mmap_all,
     NULL},
 
+  {"disk.rowbyte", "row/byte-count configuration (on | off | mixed)", C_IGNORE | C_STRING, 0, 0, 0,
+    NULL, &g.c_rowbyte},
+
   /* 0% */
   {"format.abort", "drop core during timed run", C_BOOL, 0, 0, 0, &g.c_abort, NULL},
 

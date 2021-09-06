@@ -81,8 +81,8 @@ range_stat(void *arg)
 
         /* 10% of the time stat the object, otherwise, stat a cursor range. */
         if (mmrand(NULL, 1, 10) == 1) {
-            testutil_check(
-              session->range_stat(session, g.uri, NULL, NULL, NULL, &row_count, &byte_count));
+            ret = session->range_stat(session, g.uri, NULL, NULL, NULL, &row_count, &byte_count);
+            testutil_assert(ret == 0 || ret == WT_NOTFOUND);
         } else {
             keyno_start = mmrand(NULL, 1, (u_int)(g.rows - g.rows / 10));
             keyno_stop = mmrand(NULL, (u_int)(keyno_start + 1), (u_int)g.rows);
