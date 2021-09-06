@@ -1,0 +1,11 @@
+# Configuration for prefix_search_validation.
+# need to be defined.
+duration_seconds=20,
+cache_size_mb=1000,
+workload_generator=
+(
+    read_config=
+    (
+        thread_count=1
+    )
+),
