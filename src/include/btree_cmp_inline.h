@@ -97,7 +97,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix
      * tree item and the prefix equal only if the tree item is bigger in size.
      */
     if (usz == tsz || (prefix && usz < tsz))
-        return 0;
+        return (0);
     return ((usz < tsz) ? -1 : 1);
 }
 
