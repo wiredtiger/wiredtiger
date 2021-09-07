@@ -165,6 +165,7 @@ real_checkpointer(void)
 
     checkpoint_config = "use_timestamp=false";
     g.ts_oldest = 0;
+    verify_ts = WT_TS_NONE;
 
     if (g.running == 0)
         return (log_print_err("Checkpoint thread started stopped\n", EINVAL, 1));
