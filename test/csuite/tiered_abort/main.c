@@ -574,6 +574,7 @@ main(int argc, char *argv[])
     int ch, status, ret;
     const char *working_dir;
     char buf[512], bucket[512], fname[64], kname[64];
+    char envconf[1024], extconf[512];
     char ts_string[WT_TS_HEX_STRING_SIZE];
     bool fatal, rand_th, rand_time, verify_only;
 
@@ -673,8 +674,9 @@ main(int argc, char *argv[])
         testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
         testutil_checksys((pid = fork()) < 0);
 
+	strcpy(bucket, buf);
         if (pid == 0) { /* child */
-            run_workload(nth, buf);
+            run_workload(nth, bucket);
             return (EXIT_SUCCESS);
         }
 
@@ -716,7 +718,13 @@ main(int argc, char *argv[])
     printf("Open database, run recovery and verify content\n");
 
     /* Open the connection which forces recovery to be run. */
-    testutil_check(wiredtiger_open(NULL, NULL, ENV_CONFIG_REC, &conn));
+    testutil_check(__wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_REC));
+
+    testutil_check(__wt_snprintf(
+      extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))", bucket, WT_STORAGE_LIB));
+
+    strcat(envconf, extconf);
+    testutil_check(wiredtiger_open(NULL, NULL, envconf, &conn));
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     /* Open a cursor on all the tables. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s:%s", table_pfx, uri_collection));
