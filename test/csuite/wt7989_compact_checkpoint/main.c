@@ -185,7 +185,9 @@ thread_func_compact(void *arg)
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (td->cond != NULL) {
-        /* Make sure checkpoint thread is initialized and waiting for the signal. Sleep for 1 sec.*/
+        /* Make sure checkpoint thread is initialized and waiting for the signal. Sleep for one
+         * second.
+         */
         __wt_sleep(1, 0);
 
         /* Wake up the checkpoint thread. */
@@ -198,6 +200,16 @@ thread_func_compact(void *arg)
     testutil_check(session->close(session, NULL));
 
     return (NULL);
+}
+
+static bool
+wait_run_check(WT_SESSION_IMPL *session)
+{
+    (void)session; /* Unused */
+
+    /* Always return true to make sure __wt_cond_wait_signal does wait. This callback is required
+     * with waits longer that one second. */
+    return true;
 }
 
 static void *
@@ -213,7 +225,11 @@ thread_func_checkpoint(void *arg)
 
     if (td->cond != NULL) {
         printf("Waiting for the signal...\n");
-        __wt_cond_wait_signal((WT_SESSION_IMPL *)session, td->cond, 0, NULL, &signalled);
+        /* Wait for the signal and time out after 20 second. wait_run_check is required because the
+         * time out is longer that one second. */
+        __wt_cond_wait_signal(
+          (WT_SESSION_IMPL *)session, td->cond, 20 * WT_MILLION, wait_run_check, &signalled);
+        testutil_assert(signalled);
         printf("Signal received!\n");
     }
 
