@@ -1561,21 +1561,6 @@ tasks:
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt6616_checkpoint_oldest_ts 2>&1
 
-  - name: csuite-wt7989-compact-checkpoint-test
-    tags: ["pull_request"]
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/test/csuite/test_wt7989_compact_checkpoint 2>&1
-
   # End of csuite test tasks
 
   # Start of Python unit test tasks
