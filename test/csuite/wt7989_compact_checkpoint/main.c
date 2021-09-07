@@ -209,7 +209,7 @@ wait_run_check(WT_SESSION_IMPL *session)
 
     /* Always return true to make sure __wt_cond_wait_signal does wait. This callback is required
      * with waits longer that one second. */
-    return true;
+    return (true);
 }
 
 static void *
@@ -225,7 +225,7 @@ thread_func_checkpoint(void *arg)
 
     if (td->cond != NULL) {
         printf("Waiting for the signal...\n");
-        /* Wait for the signal and time out after 20 second. wait_run_check is required because the
+        /* Wait for the signal and time out after 20 seconds. wait_run_check is required because the
          * time out is longer that one second. */
         __wt_cond_wait_signal(
           (WT_SESSION_IMPL *)session, td->cond, 20 * WT_MILLION, wait_run_check, &signalled);
