@@ -98,6 +98,37 @@ set_alarm(u_int seconds)
 }
 
 /*
+ * rowbyte_config --
+ *     Configure row/byte counter behavior at open.
+ */
+static void
+rowbyte_config(void)
+{
+#ifdef WT_STANDALONE_BUILD
+    switch (g.c_rowbyte_flag) {
+    case ROWBYTE_ON:
+        __wt_process.write_rowbyte = true;
+        break;
+    case ROWBYTE_OFF:
+        __wt_process.write_rowbyte = false;
+        break;
+    case ROWBYTE_MIXED:
+        /*
+         * TODO: This isn't great testing, format doesn't reopen the database during normal runs so
+         * while this does test swapping row/byte counter configurations, it's not a thorough test.
+         * A couple of possible fixes: we could change format to reopen the database between
+         * operation loops, or we could change the underlying library to randomly select row/byte
+         * counter configuration in per-page reconciliation configuration (reconciliation is the
+         * only place the library checks rowbyte configuration). I lean toward the latter, because
+         * it's easy and the former is kind of tricky.
+         */
+        __wt_process.write_rowbyte = mmrand(NULL, 0, 1) == 1 ? false : true;
+        break;
+    }
+#endif
+}
+
+/*
  * format_process_env --
  *     Set up the format process environment.
  */
@@ -265,12 +296,14 @@ main(int argc, char *argv[])
 
         if (g.reopen) {
             config_final();
+            rowbyte_config();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
             timestamp_init();
             set_oldest_timestamp();
         } else {
             wts_create(g.home);
             config_final();
+            rowbyte_config();
             wts_open(g.home, &g.wts_conn, &g.wts_session, true);
             timestamp_init();
 
