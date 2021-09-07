@@ -191,7 +191,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
         if ((ret = cursor->search_near(cursor, &cmp)) != 0) {
             if (ret == WT_NOTFOUND)
                 return (0);
-            if (ret == WT_ROLLBACK)
+            if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                 return (WT_ROLLBACK);
             return (log_print_err("cursor.search_near", ret, 1));
         }
@@ -334,6 +334,12 @@ real_worker(void)
             new_txn = false;
             for (j = 0; ret == 0 && j < g.ntables; j++) {
                 ret = worker_mm_delete(cursors[j], keyno);
+                if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
+                    if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                        __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                        (void)log_print_err("real_worker:rollback_transaction", ret, 1);
+                        goto err;
+                    }
                 if (ret != 0)
                     goto err;
             }
