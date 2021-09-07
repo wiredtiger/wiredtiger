@@ -73,8 +73,8 @@ class test_search_near02(wttest.WiredTigerTestCase):
         # Evict the whole range.
         for k in range (0, 26):
             cursor2.set_key(prefix + l[k])
-            ret = cursor2.search()
-            cursor2.reset()
+            self.assertEqual(cursor2.search(), 0)
+            self.assertEqual(cursor2.reset(), 0)
 
         # Start a transaction at timestamp 100, aaz should be the only key that is visible.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(100))
@@ -92,6 +92,10 @@ class test_search_near02(wttest.WiredTigerTestCase):
         self.assertEqual(cursor3.search_near(), 1)
         self.assertEqual(cursor3.get_key(), self.check_key("aaz"))
 
+        cursor3.set_key("aaz")
+        self.assertEqual(cursor3.search_near(), 0)
+        self.assertEqual(cursor3.get_key(), self.check_key("aaz"))
+    
         # FIXME-WT-8044 Prefix search near returns a valid key when expecting WT_NOTFOUND.
         # cursor3.set_key("az")
         # self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
@@ -106,6 +110,9 @@ class test_search_near02(wttest.WiredTigerTestCase):
 
         cursor3.reconfigure("prefix_key=true")
         cursor3.set_key("aa")
+        self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
+
+        cursor3.set_key("aaz")
         self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
         cursor3.close()
         self.session.commit_transaction()
@@ -125,6 +132,10 @@ class test_search_near02(wttest.WiredTigerTestCase):
         cursor3.set_key("aa")
         self.assertEqual(cursor3.search_near(), 1)
         self.assertEqual(cursor3.get_key(), self.check_key("aaa"))
+
+        cursor3.set_key("aaz")
+        self.assertEqual(cursor3.search_near(), 0)
+        self.assertEqual(cursor3.get_key(), self.check_key("aaz"))
 
         # FIXME-WT-8044 Prefix search near returns a valid key when expecting WT_NOTFOUND.
         # cursor3.set_key("az")
