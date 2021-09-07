@@ -138,7 +138,7 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	# conditional body.
 	w="$w -Wno-extra-semi-stmt"
 
-	# TODO: Figure out whether we want to disable these or change the code.
+	# WT-8052: Figure out whether we want to disable these or change the code.
 	w="$w -Wno-implicit-int-float-conversion"
 	w="$w -Wno-implicit-fallthrough"
 	w="$w -Wno-maybe-uninitialized"
