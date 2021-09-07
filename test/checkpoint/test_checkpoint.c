@@ -219,7 +219,7 @@ main(int argc, char *argv[])
                 break;
             }
 
-            verify_consistency(session, NULL);
+            verify_consistency(session, WT_TS_NONE);
             goto run_complete;
         }
 
