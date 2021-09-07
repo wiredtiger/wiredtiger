@@ -222,7 +222,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
             testutil_check(cursor->reset(cursor));
     } else if (new_val % 39 < 10) {
         if ((ret = cursor->search(cursor)) != 0 && ret != WT_NOTFOUND) {
-            if (ret == WT_ROLLBACK)
+            if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                 return (WT_ROLLBACK);
             return (log_print_err("cursor.search", ret, 1));
         }
@@ -231,7 +231,8 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
     } else {
         if (new_val % 39 < 30) {
             // Do modify
-            if ((ret = cursor->search(cursor)) == 0) {
+            ret = cursor->search(cursor);
+            if (ret == 0) {
                 modify_build(entries, &nentries, new_val);
                 if ((ret = cursor->modify(cursor, entries, nentries)) != 0) {
                     if (ret == WT_ROLLBACK)
@@ -239,7 +240,7 @@ worker_op(WT_CURSOR *cursor, uint64_t keyno, u_int new_val)
                     return (log_print_err("cursor.modify", ret, 1));
                 }
             } else if (ret != WT_NOTFOUND) {
-                if (ret == WT_ROLLBACK)
+                if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
                     return (WT_ROLLBACK);
                 return (log_print_err("cursor.search", ret, 1));
             }
