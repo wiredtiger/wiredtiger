@@ -92,8 +92,13 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix
         if (*userp != *treep)
             return (*userp < *treep ? -1 : 1);
 
-    /* Contents are equal up to the smallest length. */
-    return ((usz == tsz || prefix) ? 0 : (usz < tsz) ? -1 : 1);
+    /*
+     * Contents are equal up to the smallest length. In the case of a prefix match, we consider the
+     * tree item and the prefix equal only if the tree item is bigger in size.
+     */
+    if (usz == tsz || (prefix && usz < tsz))
+        return 0;
+    return ((usz < tsz) ? -1 : 1);
 }
 
 /*
