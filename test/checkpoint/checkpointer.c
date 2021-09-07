@@ -199,7 +199,7 @@ real_checkpointer(void)
             if (stable_ts <= oldest_ts)
                 verify_ts = g.ts_oldest;
             else
-                verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts) + oldest_ts;
+                verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             WT_ORDERED_READ(g.ts_oldest, g.ts_stable);
         }
 
