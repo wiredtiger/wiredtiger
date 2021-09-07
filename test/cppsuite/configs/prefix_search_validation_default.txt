@@ -2,6 +2,12 @@
 # need to be defined.
 duration_seconds=20,
 cache_size_mb=1000,
+timestamp_manager=
+(
+    enabled=true,
+    oldest_lag=30,
+    stable_lag=30,
+),
 workload_generator=
 (
     read_config=

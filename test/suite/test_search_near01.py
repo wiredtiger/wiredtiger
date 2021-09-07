@@ -34,7 +34,7 @@ from wiredtiger import stat
 # Test various prefix search near scenarios.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-    session_config = 'isolation=snapshot'
+    #session_config = 'isolation=snapshot'
 
     def get_stat(self, stat, local_session = None):
         if (local_session != None):
@@ -75,13 +75,9 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # Insert keys aaa -> zzz.
         self.session.begin_transaction()
         for k in range (0, 999):
-            cursor3["aa" + str(k)] = "aa" + str(k)
+            cursor["aa" + str(k)] = "aa" + str(k)
 
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
-
-        self.session.begin_transaction()
-        cursor3["aa" + str(999)] = "aa" + str(999)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50))
 
         # Evict the whole range.
         for i in range (0, 999):

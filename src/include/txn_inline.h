@@ -1044,6 +1044,7 @@ retry:
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
             }
+
             cbt->upd_value->tw.durable_start_ts = tw.durable_start_ts;
             cbt->upd_value->tw.start_ts = tw.start_ts;
             cbt->upd_value->tw.start_txn = tw.start_txn;

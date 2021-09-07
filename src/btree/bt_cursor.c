@@ -744,6 +744,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             if (exact <= 0)
                 goto done;
         }
+        WT_RET(__wt_msg(session, "testing... "));
     }
 
 done:
