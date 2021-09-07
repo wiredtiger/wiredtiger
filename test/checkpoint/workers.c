@@ -347,7 +347,6 @@ real_worker(void)
                 }
             } else {
                 if ((ret = session->rollback_transaction(session, NULL)) != 0) {
-                    __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
                     (void)log_print_err("real_worker:rollback_transaction", ret, 1);
                     goto err;
                 }
