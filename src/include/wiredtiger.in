@@ -5996,15 +5996,15 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! transaction: prepared transactions rolled back */
 #define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK		1421
 /*!
- * transaction: prepared transactions rolled back and left the history
- * store entry
+ * transaction: prepared transactions rolled back and do not remove the
+ * history store entry
  */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK_LEFT_HS_UPDATE	1422
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK_DO_NOT_REMOVE_HS_UPDATE	1422
 /*!
- * transaction: prepared transactions rolled back and left the history
- * store entry with checkpoint next transaction id
+ * transaction: prepared transactions rolled back and fix the history
+ * store entry with checkpoint reserved transaction id
  */
-#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK_LEFT_HS_UPDATE_WITH_CKPT_NEXT_TXNID	1423
+#define	WT_STAT_CONN_TXN_PREPARE_ROLLBACK_FIX_HS_UPDATE_WITH_CKPT_RESERVED_TXNID	1423
 /*! transaction: query timestamp calls */
 #define	WT_STAT_CONN_TXN_QUERY_TS			1424
 /*! transaction: race to read prepared update retry */

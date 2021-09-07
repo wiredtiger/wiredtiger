@@ -1041,31 +1041,31 @@ __txn_fixup_prepared_update(
         WT_ERR(hs_cursor->update(hs_cursor));
     } else {
         /*
-         * Remove the history store entry if checkpoint is not running. Otherwise, fix the history
-         * store entry with a prepared tombstone when the history store entry doesn't have its own
-         * stop timestamp.
+         * Remove the history store entry if a checkpoint is not running, otherwise place a
+         * tombstone in front of the history store entry if it doesn't have a stop timestamp.
          */
         if (txn_global->checkpoint_running) {
-            /* Don't update the history store entry if the entry already have a stop timestamp. */
+            /* Don't update the history store entry if the entry already has a stop timestamp. */
             if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
                 /*
-                 * When a history store update start transaction is greater than the checkpoint
-                 * invisible transaction id, the durable timestamp of this update also must be
-                 * greater than the checkpoint timestamp, so there is no point in saving this
-                 * unstable update in the history store.
+                 * When the history store's update start transaction id is greater than the
+                 * checkpoint's reserved transaction id, the durable timestamp of this update is
+                 * guaranteed to be greater than the checkpoint timestamp, as such there is no need
+                 * to save this unstable update in the history store.
                  */
-                if (fix_upd->txnid > txn_global->checkpoint_invisible_txn_id)
+                if (fix_upd->txnid > txn_global->checkpoint_reserved_txn_id)
                     WT_ERR(hs_cursor->remove(hs_cursor));
                 else {
                     tw.durable_stop_ts = fix_upd->durable_ts;
                     tw.stop_ts = fix_upd->start_ts;
 
                     /*
-                     * Use checkpoint invisible transaction id, so that this tombstone is not
-                     * visible to the rollback to stable and also checkpoint garbage collection
-                     * cannot clean it as it is greater than the global visible transaction id.
+                     * Set the stop transaction id of the time window to the checkpoint reserved
+                     * transaction id. As such the tombstone won't be visible to rollback to stable,
+                     * additionally checkpoint garbage collection cannot clean it up as it greater
+                     * than the globally visible transaction id.
                      */
-                    tw.stop_txn = txn_global->checkpoint_invisible_txn_id;
+                    tw.stop_txn = txn_global->checkpoint_reserved_txn_id;
                     WT_TIME_WINDOW_SET_START(&tw, fix_upd);
 
                     hs_value.data = fix_upd->data;
@@ -1074,10 +1074,10 @@ __txn_fixup_prepared_update(
                       (uint64_t)WT_UPDATE_STANDARD, &hs_value);
                     WT_ERR(hs_cursor->update(hs_cursor));
                     WT_STAT_CONN_INCR(
-                      session, txn_prepare_rollback_left_hs_update_with_ckpt_next_txnid);
+                      session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
                 }
             } else
-                WT_STAT_CONN_INCR(session, txn_prepare_rollback_left_hs_update);
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
         } else
             WT_ERR(hs_cursor->remove(hs_cursor));
     }
