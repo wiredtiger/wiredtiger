@@ -94,7 +94,6 @@ class test_search_near02(wttest.WiredTigerTestCase):
         cursor3.set_key("aa")
         self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
 
-
         cursor3.reconfigure("prefix_key=true")
         cursor3.set_key("aa")
         self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
