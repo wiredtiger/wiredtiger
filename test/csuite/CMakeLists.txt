@@ -294,6 +294,7 @@ define_c_test(
     TARGET test_wt7989_compact_checkpoint
     SOURCES wt7989_compact_checkpoint/main.c
     DIR_NAME wt7989_compact_checkpoint
+    DEPENDS "WT_POSIX"
 )
 
 # Run this during a "ctest check" or "ctest csuite" smoke test
