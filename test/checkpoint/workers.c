@@ -291,7 +291,7 @@ real_worker(void)
     int j, ret, t_ret;
     char buf[128];
     const char *begin_cfg;
-    bool reopen_cursors, start_txn, new_txn;
+    bool reopen_cursors, new_txn, start_txn;
 
     ret = t_ret = 0;
     reopen_cursors = false;
@@ -335,17 +335,22 @@ real_worker(void)
             for (j = 0; ret == 0 && j < g.ntables; j++) {
                 ret = worker_mm_delete(cursors[j], keyno);
                 if (ret == WT_ROLLBACK || ret == WT_PREPARE_CONFLICT)
-                    if ((ret = session->rollback_transaction(session, NULL)) != 0) {
-                        __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
-                        (void)log_print_err("real_worker:rollback_transaction", ret, 1);
-                        goto err;
-                    }
-                if (ret != 0)
+                    break;
+                else if (ret != 0)
                     goto err;
             }
-            if ((ret = session->commit_transaction(session, NULL)) != 0) {
-                (void)log_print_err("real_worker:commit_mm_transaction", ret, 1);
-                goto err;
+
+            if (ret == 0) {
+                if ((ret = session->commit_transaction(session, NULL)) != 0) {
+                    (void)log_print_err("real_worker:commit_mm_transaction", ret, 1);
+                    goto err;
+                }
+            } else {
+                if ((ret = session->rollback_transaction(session, NULL)) != 0) {
+                    __wt_readunlock((WT_SESSION_IMPL *)session, &g.clock_lock);
+                    (void)log_print_err("real_worker:rollback_transaction", ret, 1);
+                    goto err;
+                }
             }
             start_txn = true;
             continue;
