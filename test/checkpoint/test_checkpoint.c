@@ -65,7 +65,7 @@ main(int argc, char *argv[])
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
     g.failpoint_hs_delete_key_from_ts = g.failpoint_hs_insert_1 = g.failpoint_hs_insert_2 = false;
-    g.hs_checkpoint_timing_stress = g.invisible_txnid_timing_stress = false;
+    g.hs_checkpoint_timing_stress = g.reserved_txnid_timing_stress = false;
     g.checkpoint_slow_timing_stress = false;
     g.mixed_mode_deletes = false;
     runs = 1;
@@ -124,7 +124,7 @@ main(int argc, char *argv[])
                 g.hs_checkpoint_timing_stress = true;
                 break;
             case '6':
-                g.invisible_txnid_timing_stress = true;
+                g.reserved_txnid_timing_stress = true;
                 break;
             case '7':
                 g.checkpoint_slow_timing_stress = true;
@@ -268,7 +268,7 @@ wt_connect(const char *config_open)
     timing_stress = false;
 
     if (g.sweep_stress || g.failpoint_hs_delete_key_from_ts || g.failpoint_hs_insert_1 ||
-      g.failpoint_hs_insert_2 || g.hs_checkpoint_timing_stress || g.invisible_txnid_timing_stress ||
+      g.failpoint_hs_insert_2 || g.hs_checkpoint_timing_stress || g.reserved_txnid_timing_stress ||
       g.checkpoint_slow_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
@@ -277,7 +277,7 @@ wt_connect(const char *config_open)
           g.failpoint_hs_insert_1 ? "failpoint_history_store_insert_1" : "",
           g.failpoint_hs_insert_2 ? "failpoint_history_store_insert_2" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
-          g.invisible_txnid_timing_stress ? "checkpoint_invisible_txnid_delay" : "",
+          g.reserved_txnid_timing_stress ? "checkpoint_reserved_txnid_delay" : "",
           g.checkpoint_slow_timing_stress ? "checkpoint_slow" : ""));
     }
 
@@ -438,7 +438,7 @@ usage(void)
       "\t\t3: failpoint_hs_insert_1\n"
       "\t\t4: failpoint_hs_insert_2\n"
       "\t\t5: hs_checkpoint_timing_stress\n"
-      "\t\t6: invisible_txnid_timing_stress\n"
+      "\t\t6: reserved_txnid_timing_stress\n"
       "\t\t7: checkpoint_slow_timing_stress\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"

@@ -640,10 +640,10 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ERR(__wt_txn_id_check(ckpt_internal_session));
     txn_global->checkpoint_reserved_txn_id = ckpt_internal_session->txn->id;
 
-    /* Add a one second wait to simulate invisible transaction id race with prepared rollback. */
+    /* Add a one second wait to simulate reserved transaction id race with prepared rollback. */
     tsp.tv_sec = 1;
     tsp.tv_nsec = 0;
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_INVISIBLE_TXNID_DELAY, &tsp);
+    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY, &tsp);
 
     /*
      * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
