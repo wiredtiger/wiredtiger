@@ -216,22 +216,25 @@ functions:
           set -o errexit
           set -o verbose
 
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
+          # Check if specific branches are provided to the function through the expansion variable
+          # defined in the documentation-update build variant. If none are specified, use the
+          # current branch.
+          if [ -z ${doc_update_branches} ]; then
+            branches=$(git rev-parse --abbrev-ref HEAD)
+          else
+            branches=${doc_update_branches}
           fi
 
-          # Go through each supported WiredTiger Github branch to build the docs.
-          #   Please note the "branch" variable used here is a normal shell variable to store the name of
-          #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
-          #   to store the name of the branch being tested by the Evergreen project.
-          for branch in develop mongodb-5.0 mongodb-4.4 mongodb-4.2 mongodb-4.0 ; do
-            echo "[Debug] Checking out branch $branch ..."
-            git checkout $branch && git pull --ff-only && git reset --hard origin/$branch && git clean -fdqx
+          # Because of Evergreen's expansion syntax, this is used to process each branch separately.
+          IFS=,
+          for branch in $branches; do
+
+            echo "Checking out branch $branch ..."
+            git checkout $branch
             sh reconf
 
             # Java API is removed in newer branches via WT-6675.
-            if [ "$branch" = "mongodb-4.2" -o "$branch" = "mongodb-4.0" ]; then
+            if [ $branch == "mongodb-4.2" ] || [ $branch == "mongodb-4.0" ]; then
               ../configure CFLAGS="-DMIGHT_NOT_RUN -Wno-error" --enable-java --enable-python --enable-strict
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
               (cd lang/java && make ../../../lang/java/wiredtiger_wrap.c)
@@ -240,15 +243,20 @@ functions:
               (cd lang/python && make ../../../lang/python/wiredtiger_wrap.c)
             fi
 
-            (cd ../dist && sh s_docs)
-            (cd .. && rm -rf docs-$branch && mv docs docs-$branch)
+            (cd ../dist && sh s_docs && echo "The documentation for $branch was successfully generated.")
+            # Save generated documentation
+            (cd .. && mv docs docs-$branch)
           done
+
   "update wiredtiger docs":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
         shell: bash
         script: |
+          # Use a single function to update the documentation of each supported WiredTiger branch.
+          # This is useful as not all branches have a dedicated Evergreen project. Furthermore, the
+          # documentation-update task is not triggered by every commit. We rely on the activity of
+          # the develop branch to update the documentation of all supported branches.
           set -o errexit
           set -o verbose
 
@@ -260,37 +268,36 @@ functions:
           git clone git@github.com:wiredtiger/wiredtiger.github.com.git
           cd wiredtiger.github.com
 
-          # Go through each supported WiredTiger Github branch to stage the doc changes.
-          #   Please note the "branch" variable used here is a normal shell variable to store the name of
-          #   a WiredTiger Github branch, while the "branch_name" used above is an Evergreen built-in variable
-          #   to store the name of the branch being tested by the Evergreen project.
-          for branch in mongodb-4.0 mongodb-4.2 mongodb-4.4 mongodb-5.0 develop ; do
-            echo "[Debug] Copying over doc directory for branch $branch ..."
-            rsync -avq ../docs-$branch/ $branch/
+          # Branches to update are defined through an expansion variable.
+          branches=${doc_update_branches}
 
-            # Commit and push the changes (if any).
-            git add $branch > /dev/null
+          # Go through each branch to stage the doc changes.
+          IFS=,
+          for branch in $branches; do
+
+            # Synchronize the generated documentation with the current one.
+            echo "Synchronizing documentation for branch $branch ..."
+            rsync -avq ../wiredtiger/docs-$branch/ $branch/ --delete
+
+            # Commit and push the changes if any.
+            if [[ $(git status "$branch" --porcelain) ]]; then
+              git add $branch
+              git commit -m "Update auto-generated docs for $branch" \
+                        --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>"
+            else
+              echo "No documentation changes for $branch."
+            fi
+
           done
-
-          git commit -m "Update auto-generated develop docs" \
-                     --author="svc-bot-doc-build <svc-wiredtiger-doc-build@10gen.com>" > /dev/null
-    # Use separate shell.exec with "silent" directive to avoid exposing credentail in task log.
     - command: shell.exec
       params:
-        working_dir: "wiredtiger"
+        working_dir: "wiredtiger.github.com"
         shell: bash
         silent: true
         script: |
           set -o errexit
-          set -o verbose
+          git push https://"${doc-update-github-token}"@github.com/wiredtiger/wiredtiger.github.com
 
-          if [[ "${branch_name}" != "develop" ]]; then
-            echo "We only run the documentation update task on the WiredTiger (develop) Evergreen project."
-            exit 0
-          fi
-
-          cd wiredtiger.github.com
-          git push https://${doc-update-github-token}@github.com/wiredtiger/wiredtiger.github.com
   "make check directory":
     command: shell.exec
     params:
@@ -2084,6 +2091,14 @@ tasks:
             set -o verbose
             env CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:/opt/java/jdk11/bin:$PATH sh s_release `date +%Y%m%d`
 
+  - name: doc-compile
+    tags: ["pull_request"]
+    run_on:
+    - ubuntu2004-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger docs"
+
   - name: doc-update
     patchable: false
     commands:
@@ -2603,6 +2618,17 @@ tasks:
     name: recovery-stress-test-3
     tags: ["stress-test-3", "stress-test-zseries-3"]
 
+  - name: format-abort-recovery-stress-test
+    commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 2500
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -a -t 30
+
   - name: many-dhandle-stress-test
     commands:
       - func: "get project"
@@ -2853,6 +2879,7 @@ buildvariants:
     - name: ".stress-test-2"
     - name: ".stress-test-3"
     - name: ".stress-test-4"
+    - name: format-abort-recovery-stress-test
 
 - name: large-scale-tests
   display_name: "Large scale tests"
@@ -2879,13 +2906,11 @@ buildvariants:
   run_on:
   - ubuntu1804-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs
+    test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
       --enable-silent-rules --enable-python --enable-zlib --enable-snappy
       --enable-strict --enable-static
-    test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
   tasks:
     - name: compile
     - name: cppsuite-hs-cleanup-stress
@@ -2899,15 +2924,16 @@ buildvariants:
   tasks:
     - name: package
 
-- name: doc-update
+- name: documentation-update
   display_name: "~ Documentation update"
-  batchtime: 1440 # 1 day
+  batchtime: 10080 # 7 days
   run_on:
   - ubuntu2004-test
-  tasks:
-    - name: doc-update
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    doc_update_branches: develop,mongodb-5.0,mongodb-4.4,mongodb-4.2,mongodb-4.0
+  tasks:
+    - name: doc-update
 
 - name: linux-no-ftruncate
   display_name: Linux no ftruncate
@@ -3048,7 +3074,7 @@ buildvariants:
   display_name: "~ Little-endian (x86)"
   run_on:
   - ubuntu1804-test
-  batchtime: 10080 # 7 days
+  batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -3065,7 +3091,7 @@ buildvariants:
   - enterprise
   run_on:
   - ubuntu1804-zseries-build
-  batchtime: 10080 # 7 days
+  batchtime: 4320 # 3 days
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)

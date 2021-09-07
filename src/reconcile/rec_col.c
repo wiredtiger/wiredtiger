@@ -714,7 +714,7 @@ record_loop:
         for (n = 0; n < nrepeat; n += repeat_count, src_recno += repeat_count) {
             upd = NULL;
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
-                WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
+                WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -744,7 +744,6 @@ record_loop:
                     twp = &clear_tw;
                     goto compare;
                 }
-                __cell_pack_kv_window_cleanup(session, page->dsk, vpack);
                 twp = &vpack->tw;
 
                 /*
