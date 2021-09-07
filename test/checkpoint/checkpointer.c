@@ -194,10 +194,11 @@ real_checkpointer(void)
             return (log_print_err("verify_consistency (online)", ret, 1));
 
         if (g.use_timestamps) {
-            stable_ts = g.ts_stable;
+            testutil_check(g.conn->query_timestamp(g.conn, timestamp_buf, "get=stable"));
+            testutil_timestamp_parse(timestamp_buf, &stable_ts);
             oldest_ts = g.ts_oldest;
             if (stable_ts <= oldest_ts)
-                verify_ts = g.ts_oldest;
+                verify_ts = stable_ts;
             else
                 verify_ts = __wt_random(&rnd) % (stable_ts - oldest_ts + 1) + oldest_ts;
             WT_ORDERED_READ(g.ts_oldest, g.ts_stable);
@@ -260,12 +261,11 @@ verify_consistency(WT_SESSION *session, wt_timestamp_t verify_ts)
     if (cursors == NULL)
         return (log_print_err("verify_consistency", ENOMEM, 1));
 
-    if (verify_ts != WT_TS_NONE) {
+    if (verify_ts != WT_TS_NONE)
         testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf),
-          "isolation=snapshot,read_timestamp=%" PRIu64 ",roundup_timestamps=read", verify_ts));
-    } else {
+          "isolation=snapshot,read_timestamp=%" PRIx64 ",roundup_timestamps=read", verify_ts));
+    else
         testutil_check(__wt_snprintf(cfg_buf, sizeof(cfg_buf), "isolation=snapshot"));
-    }
     testutil_check(session->begin_transaction(session, cfg_buf));
 
     for (i = 0; i < g.ntables; i++) {
