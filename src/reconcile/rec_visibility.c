@@ -593,6 +593,14 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
                                                                                     upd_select->upd,
           tombstone, supd_restore, upd_memsize));
         upd_saved = upd_select->upd_saved = true;
+    } else {
+        /*
+         * Flag the update if it's the only update and no history store work is required, don't flag
+         * it if it's a tombstone as that will be flagged later in reconciliation.
+         */
+        if (upd_select->upd != NULL && upd_select->upd != tombstone &&
+          upd_select->upd->next == NULL)
+            F_SET(upd_select->upd, WT_UPDATE_DS);
     }
 
     /*
