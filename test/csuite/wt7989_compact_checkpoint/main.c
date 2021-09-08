@@ -185,7 +185,8 @@ thread_func_compact(void *arg)
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
     if (td->cond != NULL) {
-        /* Make sure checkpoint thread is initialized and waiting for the signal. Sleep for one
+        /*
+         * Make sure checkpoint thread is initialized and waiting for the signal. Sleep for one
          * second.
          */
         __wt_sleep(1, 0);
