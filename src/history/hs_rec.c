@@ -686,18 +686,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined
-         * for the data store. Subsequent reconciliations should know that they can select this
-         * update regardless of visibility.
-         *
-         * There are two other scenarios where we could've marked the updates as required to be
-         * written to the datastore, they are being listed here for completeness:
-         *  - When we select a tombstone to write to the data store, in this case no entries are
-         *    written to the history store as such it would need to be set in the rec_row path.
-         *    However because the tombstone is globally visible no other round of reconciliation
-         *    would choose an update before it.
-         *  - When we an update on a key that was just inserted. As such no updates are behind it
-         *    in this case no other round of reconciliation would chose an older version. Thus we
-         *    don't need to flag it.
+         * for the data store. For more detail see the comment above the definition of the flag in
+         * btmem.h.
          */
         F_SET(list->onpage_upd, WT_UPDATE_DS);
         if (list->tombstone != NULL)

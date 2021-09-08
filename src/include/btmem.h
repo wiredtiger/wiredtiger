@@ -1132,8 +1132,33 @@ struct __wt_update {
      */
     volatile uint8_t prepare_state; /* prepare state */
 
+/*
+ * WT_UPDATE_DS indicates that an update is intended to be wrote to the data store during a round
+ * of reconciliation. If the flag is set on an update it indicates that subsequent rounds of
+ * reconciliation can write that update even if they can't see it. This is done to prevent an older
+ * update in the update chain overwriting the newer on page update. Ideally this flag would only
+ * be set if we knew that the reconciliation would be successful, however we cannot know that.  As
+ * such he reconciliation can still fail after setting the flag so be extremely careful when adding
+ * logic to the code that uses this flag. Generally the reconciliation will only fail when a
+ * mixed-mode timestamp operation, or out of order timestamp is encountered by eviction and a
+ * checkpoint is running concurrently.
+ *
+ * It is only flagged on the on-page update if ALL older updates were successfully wrote to the
+ * history store in the history store insert path. It may also be flagged on the tombstone
+ * preceding the on-page update if one exists in the same code path.
+ *
+ * There are two other scenarios where we could have marked the on page update as required to be
+ * written to the datastore, they are being listed here for completeness:
+ *  - When we select a tombstone to write to the data store, in this case no entries are
+ *    written to the history store as such it would need to be set in the rec_row path.
+ *    However because the tombstone is globally visible no other round of reconciliation
+ *    would choose an update before it.
+ *  - When we an update on a key that was just inserted. As such no updates are behind it
+ *    in this case no other round of reconciliation would choose an older version. Thus we
+ *    don't need to flag it.
+ */
 /* AUTOMATIC FLAG VALUE GENERATION START 0 */
-#define WT_UPDATE_DS 0x01u                       /* Update has been written to the data store. */
+#define WT_UPDATE_DS 0x01u                       /* See above comment. */
 #define WT_UPDATE_FIXED_HS 0x02u                 /* Update that fixed the history store. */
 #define WT_UPDATE_HS 0x04u                       /* Update has been written to history store. */
 #define WT_UPDATE_PREPARE_RESTORED_FROM_DS 0x08u /* Prepared update restored from data store. */
