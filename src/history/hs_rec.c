@@ -685,9 +685,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
 
         /*
-         * Mark the selected update (and potentially the tombstone preceding it) as being destined
-         * for the data store. For more detail see the comment above the definition of the flag in
-         * btmem.h.
+         * We have succeeded at inserting all the history store updates for this key. Mark the
+         * on-page update (and potentially the tombstone preceding it) as being destined for the
+         * data store. For more detail see the comment above the definition of the flag in btmem.h.
          */
         F_SET(list->onpage_upd, WT_UPDATE_DS);
         if (list->tombstone != NULL)

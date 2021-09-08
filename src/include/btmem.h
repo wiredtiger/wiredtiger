@@ -1140,8 +1140,8 @@ struct __wt_update {
  * be set if we knew that the reconciliation would be successful, however we cannot know that.  As
  * such the reconciliation can still fail after setting the flag, this is okay. However be extremely
  * careful when adding logic to the code that uses this flag. Generally the reconciliation will only
- * fail when a mixed-mode timestamp operation, or out of order timestamp is encountered by eviction
- * and a checkpoint is running concurrently.
+ * fail when a mixed-mode or out-of-order timestamp update is encountered by eviction and a
+ * checkpoint is running concurrently.
  *
  * It is only flagged on the on-page update if ALL older updates were successfully wrote to the
  * history store in the history store insert path. It may also be flagged on the tombstone
