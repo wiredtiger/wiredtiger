@@ -940,6 +940,9 @@ __wt_rec_row_leaf(
                     WT_STAT_DATA_INCR(session, cache_hs_key_truncate_onpage_removal);
                 }
 
+                /* Flag the update as in the data store. */
+                F_SET(upd, WT_UPDATE_DS);
+
                 /*
                  * We aren't creating a key so we can't use bytes from this key to provide prefix
                  * information for a subsequent key.

@@ -672,16 +672,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 F_SET(upd, WT_UPDATE_HS);
                 if (tombstone != NULL)
                     F_SET(tombstone, WT_UPDATE_HS);
-                if (ret == 0) {
-                    /*
-                     * Mark the selected update (and potentially the tombstone preceding it) as
-                     * being destined for the data store. Subsequent reconciliations should know
-                     * that they can select this update regardless of visibility.
-                     */
-                    F_SET(list->onpage_upd, WT_UPDATE_DS);
-                    if (list->tombstone != NULL)
-                        F_SET(list->tombstone, WT_UPDATE_DS);
-                }
             }
 
             WT_ERR(ret);
@@ -693,6 +683,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 squashed = false;
             }
         }
+
+        /*
+         * Mark the selected update (and potentially the tombstone preceding it) as being destined
+         * for the data store. Subsequent reconciliations should know that they can select this
+         * update regardless of visibility.
+         */
+        F_SET(list->onpage_upd, WT_UPDATE_DS);
+        if (list->tombstone != NULL)
+            F_SET(list->tombstone, WT_UPDATE_DS);
 
         /* If we squash the onpage value, we increase the counter here. */
         if (squashed)
