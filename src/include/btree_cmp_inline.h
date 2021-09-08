@@ -124,8 +124,20 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
  *     Check if the prefix item is equal to the leading bytes of the tree item.
  */
 static inline int
-__wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
+__wt_prefix_match(WT_SESSION_IMPL *session, const WT_ITEM *prefix, const WT_ITEM *tree_item)
 {
+    WT_BTREE *btree;
+    size_t len;
+
+    btree = S2BT(session);
+    len = strlen(btree->key_format);
+    /*
+     * Assert that we only perform prefix comparisons when the key format of the table is either a
+     * string or raw byte array.
+     */
+    WT_ASSERT(session,
+      WT_STREQ(btree->key_format, "S") || WT_STREQ(btree->key_format, "u") ||
+        btree->key_format[len - 1] == 's');
     return (__wt_lex_compare(prefix, tree_item, true));
 }
 

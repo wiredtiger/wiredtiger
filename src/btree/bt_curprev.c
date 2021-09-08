@@ -585,7 +585,7 @@ restart_read_page:
          * visiting is before our prefix.
          */
         if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
-          __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
+          __wt_prefix_match(session, prefix, &cbt->iface.key) > 0) {
             /* It is not okay for the user to have a custom collator. */
             WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
