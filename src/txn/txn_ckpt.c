@@ -518,7 +518,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
-    WT_SESSION_IMPL *ckpt_internal_session;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_SHARED *txn_shared;
@@ -528,7 +527,6 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     bool use_timestamp;
 
     conn = S2C(session);
-    ckpt_internal_session = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
@@ -630,20 +628,29 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     __wt_writeunlock(session, &txn_global->rwlock);
 
     /*
-     * Open an internal session to allocate a transaction id that will be used for removing history
-     * entries. This is used when a prepare transaction rollback occurs in parallel to a checkpoint.
-     * Ensure that this transaction id is published before taking the checkpoint's snapshot.
+     * Allocate a reserved transaction id that will be used for removing history entries when a
+     * prepare transaction rollback occurs in parallel to a checkpoint. Ensure that this transaction
+     * id is published before taking the checkpoint's snapshot.
+     *
+     * Using a transaction id for prepared rollback that is allocated after the second checkpoint
+     * snapshot has issues when stale reserved transaction id used for the history store updates and
+     * the data store page is skipped in the checkpoint.
+     *
+     * The checkpoint snapshot max can also be used for this purpose, instead of allocating a new
+     * reserved transaction id. It is better to use a dedicated transaction id as the checkpoint
+     * snapshot max is allocated to a session and used for other operations can lead to confusion
+     * when an issue occurs.
      */
-    WT_RET(__wt_open_internal_session(conn, "checkpoint internal", true, session->flags,
-      session->lock_flags, &ckpt_internal_session));
-    WT_ERR(__wt_txn_begin(ckpt_internal_session, NULL));
-    WT_ERR(__wt_txn_id_check(ckpt_internal_session));
-    txn_global->checkpoint_reserved_txn_id = ckpt_internal_session->txn->id;
+    if (conn->ckpt_reserved_session != NULL) {
+        WT_RET(__wt_txn_begin(conn->ckpt_reserved_session, NULL));
+        WT_ERR(__wt_txn_id_check(conn->ckpt_reserved_session));
+        txn_global->checkpoint_reserved_txn_id = conn->ckpt_reserved_session->txn->id;
 
-    /* Add a one second wait to simulate reserved transaction id race with prepared rollback. */
-    tsp.tv_sec = 1;
-    tsp.tv_nsec = 0;
-    __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY, &tsp);
+        /* Add a one second wait to simulate reserved transaction id race with prepared rollback. */
+        tsp.tv_sec = 1;
+        tsp.tv_nsec = 0;
+        __checkpoint_timing_stress(session, WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY, &tsp);
+    }
 
     /*
      * Refresh our snapshot here without publishing our shared ids to the world, doing so prevents
@@ -657,10 +664,13 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_ASSERT(session, session->txn->snap_min >= original_snap_min);
     /* Flag as unused for non diagnostic builds. */
     WT_UNUSED(original_snap_min);
+
     /* Assert that the checkpoint reserved transaction id not visible in the checkpoint snapshot. */
     WT_ASSERT(session,
-      !__wt_txn_visible_id_snapshot(txn_global->checkpoint_reserved_txn_id, session->txn->snap_min,
-        session->txn->snap_max, session->txn->snapshot, session->txn->snapshot_count));
+      conn->ckpt_reserved_session == NULL ||
+        !__wt_txn_visible_id_snapshot(txn_global->checkpoint_reserved_txn_id,
+          session->txn->snap_min, session->txn->snap_max, session->txn->snapshot,
+          session->txn->snapshot_count));
 
     if (use_timestamp)
         __wt_verbose_timestamp(
@@ -681,7 +691,8 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
     WT_STAT_CONN_SET(session, txn_checkpoint_prep_running, 0);
 
 err:
-    WT_TRET(__wt_session_close_internal(ckpt_internal_session));
+    if (conn->ckpt_reserved_session != NULL)
+        __wt_txn_release(conn->ckpt_reserved_session);
     return (ret);
 }
 

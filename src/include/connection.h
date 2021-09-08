@@ -473,7 +473,8 @@ struct __wt_connection_impl {
     uint16_t log_req_min;                  /* Min required log version */
     uint32_t txn_logsync;                  /* Log sync configuration */
 
-    WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
+    WT_SESSION_IMPL *meta_ckpt_session;     /* Metadata checkpoint session */
+    WT_SESSION_IMPL *ckpt_reserved_session; /* Checkpoint reserved session */
 
     /*
      * Is there a data/schema change that needs to be the part of a checkpoint.
