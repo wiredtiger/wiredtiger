@@ -1138,10 +1138,10 @@ struct __wt_update {
  * reconciliation can write that update even if they can't see it. This is done to prevent an older
  * update in the update chain overwriting the newer on-page update. Ideally this flag would only
  * be set if we knew that the reconciliation would be successful, however we cannot know that.  As
- * such the reconciliation can still fail after setting the flag, so, be extremely careful when
- * adding logic to the code that uses this flag. Generally the reconciliation will only fail when a
- * mixed-mode timestamp operation, or out of order timestamp is encountered by eviction and a
- * checkpoint is running concurrently.
+ * such the reconciliation can still fail after setting the flag, this is okay. However be extremely
+ * careful when adding logic to the code that uses this flag. Generally the reconciliation will only
+ * fail when a mixed-mode timestamp operation, or out of order timestamp is encountered by eviction
+ * and a checkpoint is running concurrently.
  *
  * It is only flagged on the on-page update if ALL older updates were successfully wrote to the
  * history store in the history store insert path. It may also be flagged on the tombstone
