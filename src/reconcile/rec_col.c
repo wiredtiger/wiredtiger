@@ -327,7 +327,9 @@ __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
     WT_RET(__wt_rec_split_init(session, r, page, pageref->ref_recno, btree->maxleafpage));
 
     /* Copy the original, disk-image bytes into place. */
-    memcpy(r->first_free, page->pg_fix_bitf, __bitstr_size((size_t)page->entries * btree->bitcnt));
+    if (page->entries != 0)
+        memcpy(
+          r->first_free, page->pg_fix_bitf, __bitstr_size((size_t)page->entries * btree->bitcnt));
 
     /* Update any changes to the original on-page data items. */
     WT_SKIP_FOREACH (ins, WT_COL_UPDATE_SINGLE(page)) {
@@ -712,7 +714,7 @@ record_loop:
         for (n = 0; n < nrepeat; n += repeat_count, src_recno += repeat_count) {
             upd = NULL;
             if (ins != NULL && WT_INSERT_RECNO(ins) == src_recno) {
-                WT_ERR(__wt_rec_upd_select(session, r, ins, cip, vpack, &upd_select));
+                WT_ERR(__wt_rec_upd_select(session, r, ins, NULL, vpack, &upd_select));
                 upd = upd_select.upd;
                 ins = WT_SKIP_NEXT(ins);
             }
@@ -742,7 +744,6 @@ record_loop:
                     twp = &clear_tw;
                     goto compare;
                 }
-                __cell_pack_kv_window_cleanup(session, page->dsk, vpack);
                 twp = &vpack->tw;
 
                 /*

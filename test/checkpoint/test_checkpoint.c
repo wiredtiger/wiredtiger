@@ -45,9 +45,10 @@ int
 main(int argc, char *argv[])
 {
     table_type ttype;
-    int ch, cnt, ret, runs;
+    int ch, cnt, i, ret, runs;
     char *working_dir;
     const char *config_open;
+    bool verify_only;
 
     (void)testutil_set_progname(argv);
 
@@ -63,9 +64,12 @@ main(int argc, char *argv[])
     g.ntables = 3;
     g.nworkers = 1;
     g.sweep_stress = g.use_timestamps = false;
+    g.failpoint_hs_delete_key_from_ts = g.failpoint_hs_insert_1 = g.failpoint_hs_insert_2 = false;
+    g.mixed_mode_deletes = false;
     runs = 1;
+    verify_only = false;
 
-    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:n:pr:sT:t:W:x")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "C:c:Dh:k:l:mn:pr:s:T:t:vW:xX")) != EOF)
         switch (ch) {
         case 'c':
             g.checkpoint_name = __wt_optarg;
@@ -88,6 +92,9 @@ main(int argc, char *argv[])
                 return (EXIT_FAILURE);
             }
             break;
+        case 'm':
+            g.mixed_mode_deletes = true;
+            break;
         case 'n': /* operations */
             g.nops = (u_int)atoi(__wt_optarg);
             break;
@@ -98,7 +105,22 @@ main(int argc, char *argv[])
             runs = atoi(__wt_optarg);
             break;
         case 's':
-            g.sweep_stress = true;
+            switch (__wt_optarg[0]) {
+            case '1':
+                g.sweep_stress = true;
+                break;
+            case '2':
+                g.failpoint_hs_delete_key_from_ts = true;
+                break;
+            case '3':
+                g.failpoint_hs_insert_1 = true;
+                break;
+            case '4':
+                g.failpoint_hs_insert_2 = true;
+                break;
+            default:
+                return (usage());
+            }
             break;
         case 't':
             switch (__wt_optarg[0]) {
@@ -121,11 +143,17 @@ main(int argc, char *argv[])
         case 'T':
             g.ntables = atoi(__wt_optarg);
             break;
+        case 'v':
+            verify_only = true;
+            break;
         case 'W':
             g.nworkers = atoi(__wt_optarg);
             break;
         case 'x':
             g.use_timestamps = true;
+            break;
+        case 'X':
+            g.use_timestamps = g.race_timetamps = true;
             break;
         default:
             return (usage());
@@ -140,9 +168,12 @@ main(int argc, char *argv[])
 
     testutil_work_dir_from_path(g.home, 512, working_dir);
 
+    /* Start time at 1 since 0 is not a valid timestamp. */
+    g.ts_stable = 1;
+
     printf("%s: process %" PRIu64 "\n", progname, (uint64_t)getpid());
     for (cnt = 1; (runs == 0 || cnt <= runs) && g.status == 0; ++cnt) {
-        cleanup(cnt == 1); /* Clean up previous runs */
+        cleanup(cnt == 1 && !verify_only); /* Clean up previous runs */
 
         printf("    %d: %d workers, %d tables\n", cnt, g.nworkers, g.ntables);
 
@@ -152,6 +183,16 @@ main(int argc, char *argv[])
             break;
         }
 
+        for (i = 0; i < g.ntables; ++i) {
+            g.cookies[i].id = i;
+            if (ttype == MIX)
+                g.cookies[i].type = (table_type)((i % MAX_TABLE_TYPE) + 1);
+            else
+                g.cookies[i].type = ttype;
+            testutil_check(__wt_snprintf(
+              g.cookies[i].uri, sizeof(g.cookies[i].uri), "%s%04d", URI_BASE, g.cookies[i].id));
+        }
+
         g.running = 1;
 
         if ((ret = wt_connect(config_open)) != 0) {
@@ -159,8 +200,20 @@ main(int argc, char *argv[])
             break;
         }
 
+        if (verify_only) {
+            WT_SESSION *session;
+
+            if ((ret = g.conn->open_session(g.conn, NULL, NULL, &session)) != 0) {
+                (void)log_print_err("conn.open_session", ret, 1);
+                break;
+            }
+
+            verify_consistency(session, NULL);
+            goto run_complete;
+        }
+
         start_checkpoints();
-        if ((ret = start_workers(ttype)) != 0) {
+        if ((ret = start_workers()) != 0) {
             (void)log_print_err("Start workers failed", ret, 1);
             break;
         }
@@ -168,10 +221,11 @@ main(int argc, char *argv[])
         g.running = 0;
         end_checkpoints();
 
+run_complete:
         free(g.cookies);
         g.cookies = NULL;
         if ((ret = wt_shutdown()) != 0) {
-            (void)log_print_err("Start workers failed", ret, 1);
+            (void)log_print_err("Shutdown failed", ret, 1);
             break;
         }
     }
@@ -184,7 +238,7 @@ main(int argc, char *argv[])
     return (g.status);
 }
 
-#define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true)"
+#define DEBUG_MODE_CFG ",debug_mode=(eviction=true,table_logging=true),verbose=(recovery)"
 /*
  * wt_connect --
  *     Configure the WiredTiger connection.
@@ -197,6 +251,9 @@ wt_connect(const char *config_open)
     };
     int ret;
     char config[512];
+    const char *failpoint_config;
+
+    failpoint_config = "";
 
     /*
      * If we want to stress sweep, we have a lot of additional configuration settings to set.
@@ -208,13 +265,21 @@ wt_connect(const char *config_open)
           "log=(enabled),cache_size=1GB,timing_stress_for_test=(aggressive_sweep)%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
           config_open == NULL ? "" : config_open));
-    else
+    else {
+        if (g.failpoint_hs_delete_key_from_ts)
+            failpoint_config =
+              ",timing_stress_for_test=(failpoint_history_store_delete_key_from_ts)";
+        if (g.failpoint_hs_insert_1)
+            failpoint_config = ",timing_stress_for_test=(failpoint_history_store_insert_1)";
+        if (g.failpoint_hs_insert_2)
+            failpoint_config = ",timing_stress_for_test=(failpoint_history_store_insert_2)";
+
         testutil_check(__wt_snprintf(config, sizeof(config),
           "create,cache_cursors=false,statistics=(fast),statistics_log=(json,wait=1),error_prefix="
-          "\"%s\"%s%s%s",
+          "\"%s\"%s%s%s%s",
           progname, g.debug_mode ? DEBUG_MODE_CFG : "", config_open == NULL ? "" : ",",
-          config_open == NULL ? "" : config_open));
-
+          config_open == NULL ? "" : config_open, failpoint_config));
+    }
     if ((ret = wiredtiger_open(g.home, &event_handler, config, &g.conn)) != 0)
         return (log_print_err("wiredtiger_open", ret, 1));
     return (0);
@@ -250,7 +315,6 @@ cleanup(bool remove_dir)
     g.running = 0;
     g.ntables_created = 0;
     g.ts_oldest = 0;
-    g.ts_stable = 0;
 
     if (remove_dir)
         testutil_make_work_dir(g.home);
@@ -336,8 +400,8 @@ static int
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-n ops] "
-      "[-r runs] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
+      "usage: %s [-C wiredtiger-config] [-c checkpoint] [-h home] [-k keys]\n\t[-l log] [-m] "
+      "[-n ops] [-r runs] [-s 1|2|3|4] [-T table-config] [-t f|r|v]\n\t[-W workers]\n",
       progname);
     fprintf(stderr, "%s",
       "\t-C specify wiredtiger_open configuration arguments\n"
@@ -345,12 +409,16 @@ usage(void)
       "\t-h set a database home directory\n"
       "\t-k set number of keys to load\n"
       "\t-l specify a log file\n"
+      "\t-m run with mixed mode delete operations\n"
       "\t-n set number of operations each thread does\n"
       "\t-p use prepare\n"
       "\t-r set number of runs (0 for continuous)\n"
+      "\t-s specify which timing stress configuration to use\n"
       "\t-T specify a table configuration\n"
       "\t-t set a file type ( col | mix | row | lsm )\n"
+      "\t-v verify only\n"
       "\t-W set number of worker threads\n"
-      "\t-x use timestamps\n");
+      "\t-x use timestamps\n"
+      "\t-X race timestamp updates with checkpoints\n");
     return (EXIT_FAILURE);
 }

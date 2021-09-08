@@ -280,7 +280,7 @@ static CONFIG c[] = {
 
   {"runs.timer", "run time (minutes)", C_IGNORE, 0, 0, UINT_MAX, &g.c_timer, NULL},
 
-  {"runs.type", "object type (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
+  {"runs.type", "object type (fix | row | var)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_file_type},
 
   {"runs.verify_failure_dump", "configure page dump on repeatable read error", C_IGNORE | C_BOOL, 0,
@@ -303,6 +303,18 @@ static CONFIG c[] = {
   /* 2% */
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     &g.c_timing_stress_checkpoint_prepare, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
+    C_BOOL, 30, 0, 0, &g.c_timing_stress_failpoint_hs_delete_key_from_ts, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_insert_1", "stress failpoint history store insert (#1)", C_BOOL, 30, 0, 0,
+    &g.c_timing_stress_failpoint_hs_insert_1, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_insert_2", "stress failpoint history store insert (#2)", C_BOOL, 30, 0, 0,
+    &g.c_timing_stress_failpoint_hs_insert_2, NULL},
 
   /* 2% */
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,

@@ -252,6 +252,7 @@ conn_stats = [
     CacheStat('cache_eviction_walk', 'pages walked for eviction'),
     CacheStat('cache_eviction_walk_leaf_notfound', 'eviction server waiting for a leaf page'),
     CacheStat('cache_eviction_walk_passes', 'eviction passes of a file'),
+    CacheStat('cache_eviction_walk_sleeps', 'eviction walk most recent sleeps for checkpoint handle gathering'),
     CacheStat('cache_eviction_walks_active', 'files with active eviction walks', 'no_clear,no_scale'),
     CacheStat('cache_eviction_walks_started', 'files with new eviction walks started'),
     CacheStat('cache_eviction_worker_created', 'eviction worker thread created'),
@@ -485,6 +486,7 @@ conn_stats = [
     SessionOpStat('session_table_alter_fail', 'table alter failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_skip', 'table alter unchanged and skipped', 'no_clear,no_scale'),
     SessionOpStat('session_table_alter_success', 'table alter successful calls', 'no_clear,no_scale'),
+    SessionOpStat('session_table_alter_trigger_checkpoint', 'table alter triggering checkpoint calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_fail', 'table compact failed calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_compact_success', 'table compact successful calls', 'no_clear,no_scale'),
     SessionOpStat('session_table_create_fail', 'table create failed calls', 'no_clear,no_scale'),
@@ -876,6 +878,7 @@ conn_dsrc_stats = [
     ##########################################
     TxnStat('txn_checkpoint_obsolete_applied', 'transaction checkpoints due to obsolete pages'),
     TxnStat('txn_read_race_prepare_update', 'race to read prepared update retry'),
+    TxnStat('txn_rts_delete_rle_skipped', 'rollback to stable skipping delete rle'),
     TxnStat('txn_rts_hs_removed', 'rollback to stable updates removed from history store'),
     TxnStat('txn_rts_hs_restore_updates', 'rollback to stable restored updates from history store'),
     TxnStat('txn_rts_hs_restore_tombstones', 'rollback to stable restored tombstones from history store'),
@@ -883,6 +886,7 @@ conn_dsrc_stats = [
     TxnStat('txn_rts_inconsistent_ckpt', 'rollback to stable inconsistent checkpoint'),
     TxnStat('txn_rts_keys_removed', 'rollback to stable keys removed'),
     TxnStat('txn_rts_keys_restored', 'rollback to stable keys restored'),
+    TxnStat('txn_rts_stable_rle_skipped', 'rollback to stable skipping stable rle'),
     TxnStat('txn_rts_sweep_hs_keys', 'rollback to stable sweeping history store keys'),
     TxnStat('txn_update_conflict', 'update conflicts'),
 ]

@@ -139,6 +139,48 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_user_active --
+ *     Check whether there are any running user transactions. Note that a new transaction may start
+ *     after we return from this call and therefore caller should be aware of this limitation.
+ */
+bool
+__wt_txn_user_active(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session_in_list;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
+    uint32_t i, session_cnt;
+    bool txn_active;
+
+    conn = S2C(session);
+    txn_active = false;
+    txn_global = &conn->txn_global;
+
+    /* We're going to scan the table: wait for the lock. */
+    __wt_writelock(session, &txn_global->rwlock);
+
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    for (i = 0, session_in_list = conn->sessions, txn_shared = txn_global->txn_shared_list;
+         i < session_cnt; i++, session_in_list++, txn_shared++) {
+
+        /* Skip inactive or internal sessions. */
+        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
+            continue;
+
+        /* Check if a user session has a running transaction. */
+        if (txn_shared->id != WT_TXN_NONE || txn_shared->pinned_id != WT_TXN_NONE) {
+            txn_active = true;
+            break;
+        }
+    }
+
+    __wt_writeunlock(session, &txn_global->rwlock);
+    return (txn_active);
+}
+
+/*
  * __wt_txn_active --
  *     Check if a transaction is still active. If not, it is either committed, prepared, or rolled
  *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
@@ -1149,13 +1191,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * updates first, the history search logic may race with other sessions modifying the same key
      * and checkpoint moving the new updates to the history store.
      *
-     * For prepared delete commit, we don't need to fix the history store. Whereas for rollback, if
-     * the update is also from the same prepared transaction, restore the update from history store
-     * or remove the key.
+     * Fix the history store entry for the updates other than tombstone type or the tombstone
+     * followed by the update is also from the same prepared transaction by either restoring the
+     * previous update from history store or removing the key.
      */
     prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
-        (!commit && upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
+        (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);
