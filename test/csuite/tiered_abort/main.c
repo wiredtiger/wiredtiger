@@ -674,7 +674,7 @@ main(int argc, char *argv[])
         testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
         testutil_checksys((pid = fork()) < 0);
 
-	strcpy(bucket, buf);
+        strcpy(bucket, buf);
         if (pid == 0) { /* child */
             run_workload(nth, bucket);
             return (EXIT_SUCCESS);
