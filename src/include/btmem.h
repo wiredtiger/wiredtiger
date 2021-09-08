@@ -1133,13 +1133,13 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /*
- * WT_UPDATE_DS indicates that an update is intended to be wrote to the data store during a round
+ * WT_UPDATE_DS indicates that an update is intended to be written to the data store during a round
  * of reconciliation. If the flag is set on an update it indicates that subsequent rounds of
  * reconciliation can write that update even if they can't see it. This is done to prevent an older
- * update in the update chain overwriting the newer on page update. Ideally this flag would only
+ * update in the update chain overwriting the newer on-page update. Ideally this flag would only
  * be set if we knew that the reconciliation would be successful, however we cannot know that.  As
- * such he reconciliation can still fail after setting the flag so be extremely careful when adding
- * logic to the code that uses this flag. Generally the reconciliation will only fail when a
+ * such the reconciliation can still fail after setting the flag, so, be extremely careful when
+ * adding logic to the code that uses this flag. Generally the reconciliation will only fail when a
  * mixed-mode timestamp operation, or out of order timestamp is encountered by eviction and a
  * checkpoint is running concurrently.
  *
