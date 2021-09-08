@@ -66,24 +66,23 @@ struct module to describe the types of columns in a table:
   http://docs.python.org/library/struct
 
 <table>
-@hrow{Format, C Type, Java type, Python type, Notes}
-@row{\c x, N/A, N/A, N/A, pad byte\, no associated value}
-@row{\c b, \c int8_t, \c byte, \c int, signed byte}
-@row{\c B, \c uint8_t, \c byte, \c int, unsigned byte}
-@row{\c h, \c int16_t, \c short, \c int, signed 16-bit}
-@row{\c H, \c uint16_t, \c short, \c int, unsigned 16-bit}
-@row{\c i, \c int32_t, \c int, \c int, signed 32-bit}
-@row{\c I, \c uint32_t, \c int, \c int, unsigned 32-bit}
-@row{\c l, \c int32_t, \c int, \c int, signed 32-bit}
-@row{\c L, \c uint32_t, \c int, \c int, unsigned 32-bit}
-@row{\c q, \c int64_t, \c long, \c int, signed 64-bit}
-@row{\c Q, \c uint64_t, \c long, \c int, unsigned 64-bit}
-@row{\c r, \c uint64_t, \c long, \c int, record number}
-@row{\c s, \c char[], \c String, \c str, fixed-length string}
-@row{\c S, \c char[], \c String, \c str, NUL-terminated string}
-@row{\c t, \c uint8_t, \c byte, \c int, fixed-length bit field}
-@row{\c u, <code>WT_ITEM *</code>, <code>byte[]</code>, \c str,
-	raw byte array}
+@hrow{Format, C Type, Python type, Notes}
+@row{\c x, N/A, N/A, pad byte\, no associated value}
+@row{\c b, \c int8_t, \c int, signed byte}
+@row{\c B, \c uint8_t, \c int, unsigned byte}
+@row{\c h, \c int16_t, \c int, signed 16-bit}
+@row{\c H, \c uint16_t, \c int, unsigned 16-bit}
+@row{\c i, \c int32_t, \c int, signed 32-bit}
+@row{\c I, \c uint32_t, \c int, unsigned 32-bit}
+@row{\c l, \c int32_t, \c int, signed 32-bit}
+@row{\c L, \c uint32_t, \c int, unsigned 32-bit}
+@row{\c q, \c int64_t, \c int, signed 64-bit}
+@row{\c Q, \c uint64_t, \c int, unsigned 64-bit}
+@row{\c r, \c uint64_t, \c int, record number}
+@row{\c s, \c char[], \c str, fixed-length string}
+@row{\c S, \c char[], \c str, NUL-terminated string}
+@row{\c t, \c uint8_t, \c int, fixed-length bit field}
+@row{\c u, <code>WT_ITEM *</code>, \c bytes, raw byte array}
 </table>
 
 The \c 'r' type is used for record number keys in column stores.  It is
@@ -262,6 +261,21 @@ group.  Because column groups always have the same key as the table, key
 columns for column groups are retrieved using WT_CURSOR::get_key, not
 WT_CURSOR::get_value.
 
+Another example of using column groups is in @ex_ref{ex_col_store.c}:
+
+@snippet ex_col_store.c col-store decl
+@snippet ex_col_store.c col-store create columns
+
+In this example the hour and day columns are grouped together in one
+columns group and the temperature column stored in another. This allows
+a cursor to be opened on a either of these column groups instead of the
+entire table.
+
+@snippet ex_col_store.c col-store temperature
+
+An operation can then be completed on the values of this column without
+having to bring the other columns into memory.
+
 @section schema_indices Indices
 
 Columns are also used to create and configure indices on tables.
@@ -357,9 +371,29 @@ on a column-store where the index key is the record number).
 The code included above was taken from the complete example program
 @ex_ref{ex_schema.c}.
 
-Here is another example program, @ex_ref{ex_call_center.c}.
+Here are other example programs, @ex_ref{ex_call_center.c},
 
 @snippet ex_call_center.c call-center decl
 @snippet ex_call_center.c call-center work
+
+and @ex_ref{ex_col_store.c}.
+
+@snippet ex_col_store.c col-store decl
+@snippet ex_col_store.c col-store main
+
+@section logged_non_logged_tables Logged and Non-logged tables
+
+- WiredTiger writes records to the log for each transaction when logging is enabled
+  on the tables using the \c log=(enabled) configuration to \c wiredtiger_open.
+- WiredTiger supports checkpoint durability on non-logged tables and logging
+  is disabled by default. See @ref checkpoint for information on checkpoint durability.
+- WiredTiger supports commit-level durability on logged tables. See @ref durability for
+  information on commit-level durability.
+
+@section diff_logged_non_logged_tables Other differences between Logged and Non-logged tables
+
+- Rollback to stable does not operate on logged tables as the updates on these
+  tables are stable when the transaction gets committed.
+- Prepared updates can only be done on the non-logged tables.
 
  */

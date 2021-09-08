@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -259,7 +259,7 @@ timestamp_init(void)
  *     Update the timestamp once.
  */
 void
-timestamp_once(bool allow_lag, bool final)
+timestamp_once(WT_SESSION *session, bool allow_lag, bool final)
 {
     static const char *oldest_timestamp_str = "oldest_timestamp=";
     static const char *stable_timestamp_str = "stable_timestamp=";
@@ -270,6 +270,9 @@ timestamp_once(bool allow_lag, bool final)
 
     conn = g.wts_conn;
 
+    /* Lock out transaction timestamp operations. */
+    lock_writelock(session, &g.ts_lock);
+
     if (final)
         g.oldest_timestamp = g.stable_timestamp = ++g.timestamp;
     else {
@@ -277,12 +280,13 @@ timestamp_once(bool allow_lag, bool final)
             testutil_timestamp_parse(buf, &all_durable);
         else {
             testutil_assert(ret == WT_NOTFOUND);
+            lock_writeunlock(session, &g.ts_lock);
             return;
         }
 
         /*
          * If a lag is permitted, move the oldest timestamp half the way to the current
-         * "all_durable" timestamp.  Move the stable timestamp to "all_durable".
+         * "all_durable" timestamp. Move the stable timestamp to "all_durable".
          */
         if (allow_lag)
             g.oldest_timestamp = (all_durable + g.oldest_timestamp) / 2;
@@ -291,10 +295,14 @@ timestamp_once(bool allow_lag, bool final)
         g.stable_timestamp = all_durable;
     }
 
+    lock_writeunlock(session, &g.ts_lock);
+
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s%" PRIx64 ",%s%" PRIx64, oldest_timestamp_str,
       g.oldest_timestamp, stable_timestamp_str, g.stable_timestamp));
 
+    lock_writelock(session, &g.prepare_commit_lock);
     testutil_check(conn->set_timestamp(conn, buf));
+    lock_writeunlock(session, &g.prepare_commit_lock);
     trace_msg(
       "%-10s oldest=%" PRIu64 ", stable=%" PRIu64, "setts", g.oldest_timestamp, g.stable_timestamp);
 }
@@ -319,9 +327,7 @@ timestamp(void *arg)
     while (!g.workers_finished) {
         random_sleep(&g.rnd, 15);
 
-        lock_writelock(session, &g.ts_lock); /* Lock out transaction timestamp operations. */
-        timestamp_once(true, false);
-        lock_writeunlock(session, &g.ts_lock);
+        timestamp_once(session, true, false);
     }
 
     testutil_check(session->close(session, NULL));
@@ -333,13 +339,13 @@ timestamp(void *arg)
  *     Wrap up timestamp operations.
  */
 void
-timestamp_teardown(void)
+timestamp_teardown(WT_SESSION *session)
 {
     /*
      * Do a final bump of the oldest and stable timestamps, otherwise recent operations can prevent
      * verify from running.
      */
-    timestamp_once(false, true);
+    timestamp_once(session, false, true);
 }
 
 /*

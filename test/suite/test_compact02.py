@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -110,6 +110,12 @@ class test_compact02(wttest.WiredTigerTestCase):
 
     # Create a table, add keys with both big and small values.
     def test_compact02(self):
+        # FIXME-WT-7187
+        # This test is temporarily disabled for OS/X, it fails, but not consistently.
+        import platform
+        if platform.system() == 'Darwin':
+            self.skipTest('Compaction tests skipped, as they fail on OS/X')
+
         self.ConnectionOpen(self.cacheSize)
 
         mb = 1024 * 1024

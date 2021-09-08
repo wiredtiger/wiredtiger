@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -103,14 +103,10 @@ class test_import_base(wttest.WiredTigerTestCase):
             "Tmplog" not in file_name and "Preplog" not in file_name:
             shutil.copy(src_path, dest_dir)
 
-    # Convert a WiredTiger timestamp to a string.
-    def timestamp_str(self, t):
-        return '%x' % t
-
 # test_import01
 class test_import01(test_import_base):
 
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     original_db_file = 'original_db_file'

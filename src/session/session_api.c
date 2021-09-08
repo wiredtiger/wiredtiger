@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,6 +57,9 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     WT_CURSOR *cursor, *cursor_tmp;
     WT_CURSOR_LIST *cached_list;
     WT_DECL_RET;
+#ifdef HAVE_DIAGNOSTIC
+    WT_DATA_HANDLE *saved_dhandle;
+#endif
     uint64_t now;
     uint32_t position;
     int i, t_ret, nbuckets, nexamined, nclosed;
@@ -76,6 +79,9 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     position = session->cursor_sweep_position;
     productive = true;
     nbuckets = nexamined = nclosed = 0;
+#ifdef HAVE_DIAGNOSTIC
+    saved_dhandle = session->dhandle;
+#endif
 
     /* Turn off caching so that cursor close doesn't try to cache. */
     F_CLR(session, WT_SESSION_CACHE_CURSORS);
@@ -86,7 +92,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
         TAILQ_FOREACH_SAFE(cursor, cached_list, q, cursor_tmp)
         {
             /*
-             * First check to see if the cursor could be reopened.
+             * First check to see if the cursor could be reopened and should be swept.
              */
             ++nexamined;
             t_ret = cursor->reopen(cursor, true);
@@ -113,6 +119,7 @@ __wt_session_cursor_cache_sweep(WT_SESSION_IMPL *session)
     WT_STAT_CONN_INCRV(session, cursor_sweep_examined, nexamined);
     WT_STAT_CONN_INCRV(session, cursor_sweep_closed, nclosed);
 
+    WT_ASSERT(session, session->dhandle == saved_dhandle);
     return (ret);
 }
 
@@ -194,10 +201,7 @@ __session_clear(WT_SESSION_IMPL *session)
      *
      * For these reasons, be careful when clearing the session structure.
      */
-    __wt_txn_clear_timestamp_queues(session);
     memset(session, 0, WT_SESSION_CLEAR_SIZE);
-
-    WT_INIT_LSN(&session->bg_sync_lsn);
 
     session->hazard_inuse = 0;
     session->nhazard = 0;
@@ -423,7 +427,7 @@ err:
  */
 static int
 __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner,
-  WT_CURSOR *other, const char *cfg[], WT_CURSOR **cursorp)
+  WT_CURSOR *other, const char *cfg[], uint64_t hash_value, WT_CURSOR **cursorp)
 {
     WT_COLGROUP *colgroup;
     WT_DATA_SOURCE *dsrc;
@@ -445,6 +449,8 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
     case 't':
         if (WT_PREFIX_MATCH(uri, "table:"))
             WT_RET(__wt_curtable_open(session, uri, owner, cfg, cursorp));
+        if (WT_PREFIX_MATCH(uri, "tiered:"))
+            WT_RET(__wt_curfile_open(session, uri, owner, cfg, cursorp));
         break;
     case 'c':
         if (WT_PREFIX_MATCH(uri, "colgroup:")) {
@@ -520,6 +526,9 @@ __session_open_cursor_int(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *
         *cursorp = NULL;
     }
 
+    if (*cursorp != NULL)
+        (*cursorp)->uri_hash = hash_value;
+
     return (ret);
 }
 
@@ -532,15 +541,22 @@ __wt_open_cursor(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, co
   WT_CURSOR **cursorp)
 {
     WT_DECL_RET;
+    uint64_t hash_value;
+
+    hash_value = 0;
+
+    /* We should not open other cursors when there are open history store cursors in the session. */
+    WT_ASSERT(session, strcmp(uri, WT_HS_URI) == 0 || session->hs_cursor_counter == 0);
 
     /* We do not cache any subordinate tables/files cursors. */
     if (owner == NULL) {
-        if ((ret = __wt_cursor_cache_get(session, uri, NULL, cfg, cursorp)) == 0)
+        __wt_cursor_get_hash(session, uri, NULL, &hash_value);
+        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, NULL, cfg, cursorp)) == 0)
             return (0);
         WT_RET_NOTFOUND_OK(ret);
     }
 
-    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, cursorp));
+    return (__session_open_cursor_int(session, uri, owner, NULL, cfg, hash_value, cursorp));
 }
 
 /*
@@ -554,10 +570,11 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    uint64_t hash_value;
     bool dup_backup, statjoin;
 
     cursor = *cursorp = NULL;
-
+    hash_value = 0;
     dup_backup = false;
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, open_cursor, config, cfg);
@@ -568,7 +585,8 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
             WT_ERR_MSG(session, EINVAL,
               "should be passed either a URI or a cursor to duplicate, but not both");
 
-        if ((ret = __wt_cursor_cache_get(session, uri, to_dup, cfg, &cursor)) == 0)
+        __wt_cursor_get_hash(session, uri, to_dup, &hash_value);
+        if ((ret = __wt_cursor_cache_get(session, uri, hash_value, to_dup, cfg, &cursor)) == 0)
             goto done;
 
         /*
@@ -583,13 +601,17 @@ __session_open_cursor(WT_SESSION *wt_session, const char *uri, WT_CURSOR *to_dup
             if (!WT_PREFIX_MATCH(uri, "backup:") && !WT_PREFIX_MATCH(uri, "colgroup:") &&
               !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "file:") &&
               !WT_PREFIX_MATCH(uri, "lsm:") && !WT_PREFIX_MATCH(uri, WT_METADATA_URI) &&
-              !WT_PREFIX_MATCH(uri, "table:") && __wt_schema_get_source(session, uri) == NULL)
+              !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:") &&
+              __wt_schema_get_source(session, uri) == NULL)
                 WT_ERR(__wt_bad_object_type(session, uri));
         }
     }
 
+    if (config != NULL && (WT_PREFIX_MATCH(uri, "backup:") || to_dup != NULL))
+        __wt_verbose(session, WT_VERB_BACKUP, "Backup cursor config \"%s\"", config);
+
     WT_ERR(__session_open_cursor_int(
-      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, &cursor));
+      session, uri, NULL, statjoin || dup_backup ? to_dup : NULL, cfg, hash_value, &cursor));
 
 done:
     if (to_dup != NULL && !statjoin && !dup_backup)
@@ -615,16 +637,13 @@ err:
 }
 
 /*
- * __session_alter --
- *     Alter a table setting.
+ * __session_alter_internal --
+ *     Internal implementation of the WT_SESSION.alter method.
  */
 static int
-__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
+__session_alter_internal(WT_SESSION_IMPL *session, const char *uri, const char *config)
 {
     WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    session = (WT_SESSION_IMPL *)wt_session;
 
     SESSION_API_CALL(session, alter, config, cfg);
 
@@ -650,6 +669,78 @@ err:
     else
         WT_STAT_CONN_INCR(session, session_table_alter_success);
     API_END_RET_NOTFOUND_MAP(session, ret);
+}
+
+/*
+ * __wt_session_blocking_checkpoint --
+ *     Perform a checkpoint or wait if it is already running to resolve an EBUSY error.
+ */
+int
+__wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, uint64_t seconds)
+{
+    WT_DECL_RET;
+    WT_TXN_GLOBAL *txn_global;
+    uint64_t txn_gen;
+    const char *cfg[3] = {NULL, NULL, NULL};
+
+    cfg[0] = WT_CONFIG_BASE(session, WT_SESSION_checkpoint);
+    if (force)
+        cfg[1] = "force=1";
+
+    if ((ret = __wt_txn_checkpoint(session, cfg, false)) == 0)
+        return (0);
+    WT_RET_BUSY_OK(ret);
+
+    /*
+     * If there's a checkpoint running, wait for it to complete. If there's no checkpoint running or
+     * the checkpoint generation number changes, the checkpoint blocking us has completed.
+     */
+#define WT_CKPT_WAIT 2
+    txn_global = &S2C(session)->txn_global;
+    for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);; __wt_sleep(WT_CKPT_WAIT, 0)) {
+        /*
+         * This loop only checks objects that are declared volatile, therefore no barriers are
+         * needed.
+         */
+        if (!txn_global->checkpoint_running || txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
+            break;
+
+        /* If there's a timeout, give up. */
+        if (seconds == 0)
+            continue;
+        if (seconds <= WT_CKPT_WAIT)
+            return (EBUSY);
+        seconds -= WT_CKPT_WAIT;
+    }
+
+    return (0);
+}
+
+/*
+ * __session_alter --
+ *     Alter a table setting.
+ */
+static int
+__session_alter(WT_SESSION *wt_session, const char *uri, const char *config)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+
+    /*
+     * Alter table can return EBUSY error when the table is modified in parallel by eviction. Retry
+     * the command after performing a system wide checkpoint. Only retry once to avoid potentially
+     * waiting forever.
+     */
+    ret = __session_alter_internal(session, uri, config);
+    if (ret == EBUSY) {
+        WT_RET(__wt_session_blocking_checkpoint(session, false, 0));
+        WT_STAT_CONN_INCR(session, session_table_alter_trigger_checkpoint);
+        ret = __session_alter_internal(session, uri, config);
+    }
+
+    return (ret);
 }
 
 /*
@@ -784,9 +875,7 @@ __session_log_flush(WT_SESSION *wt_session, const char *config)
         WT_ERR_MSG(session, EINVAL, "logging not enabled");
 
     WT_ERR(__wt_config_gets_def(session, cfg, "sync", 0, &cval));
-    if (WT_STRING_MATCH("background", cval.str, cval.len))
-        flags = WT_LOG_BACKGROUND;
-    else if (WT_STRING_MATCH("off", cval.str, cval.len))
+    if (WT_STRING_MATCH("off", cval.str, cval.len))
         flags = WT_LOG_FLUSH;
     else if (WT_STRING_MATCH("on", cval.str, cval.len))
         flags = WT_LOG_FSYNC;
@@ -1150,6 +1239,19 @@ err:
 }
 
 /*
+ * __session_salvage_worker --
+ *     Wrapper function for salvage processing.
+ */
+static int
+__session_salvage_worker(WT_SESSION_IMPL *session, const char *uri, const char *cfg[])
+{
+    WT_RET(__wt_schema_worker(
+      session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE));
+    WT_RET(__wt_schema_worker(session, uri, NULL, __wt_rollback_to_stable_one, cfg, 0));
+    return (0);
+}
+
+/*
  * __session_salvage --
  *     WT_SESSION->salvage method.
  */
@@ -1165,11 +1267,17 @@ __session_salvage(WT_SESSION *wt_session, const char *uri, const char *config)
 
     WT_ERR(__wt_inmem_unsupported_op(session, NULL));
 
-    /* Block out checkpoints to avoid spurious EBUSY errors. */
-    WT_WITH_CHECKPOINT_LOCK(session,
-      WT_WITH_SCHEMA_LOCK(session,
-        ret = __wt_schema_worker(
-          session, uri, __wt_salvage, NULL, cfg, WT_DHANDLE_EXCLUSIVE | WT_BTREE_SALVAGE)));
+    /*
+     * Run salvage and then rollback-to-stable (to bring the object into compliance with database
+     * timestamps).
+     *
+     * Block out checkpoints to avoid spurious EBUSY errors.
+     *
+     * Hold the schema lock across both salvage and rollback-to-stable to avoid races where another
+     * thread opens the handle before rollback-to-stable completes.
+     */
+    WT_WITH_CHECKPOINT_LOCK(
+      session, WT_WITH_SCHEMA_LOCK(session, ret = __session_salvage_worker(session, uri, cfg)));
 
 err:
     if (ret != 0)
@@ -1373,7 +1481,7 @@ __session_truncate(
         WT_ERR(__wt_session_range_truncate(session, uri, start, stop));
 
 err:
-    TXN_API_END_RETRY(session, ret, 0);
+    TXN_API_END(session, ret, false);
 
     if (ret != 0)
         WT_STAT_CONN_INCR(session, session_table_truncate_fail);
@@ -1683,6 +1791,31 @@ err:
 }
 
 /*
+ * __session_reset_snapshot --
+ *     WT_SESSION->reset_snapshot method.
+ */
+static int
+__session_reset_snapshot(WT_SESSION *wt_session)
+{
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    /* Return error if the isolation mode is read committed. */
+    if (session->txn->isolation != WT_ISO_SNAPSHOT)
+        WT_RET_MSG(
+          session, ENOTSUP, "not supported in read-committed or read-uncommitted transactions.");
+
+    /* Return error if the session has performed any write operations. */
+    if (F_ISSET(session->txn, WT_TXN_HAS_ID))
+        WT_RET_MSG(session, ENOTSUP, "not supported in write transactions.");
+
+    __wt_txn_release_snapshot(session);
+    __wt_txn_get_snapshot(session);
+
+    return (0);
+}
+
+/*
  * __session_transaction_pinned_range --
  *     WT_SESSION->transaction_pinned_range method.
  */
@@ -1710,114 +1843,6 @@ __session_transaction_pinned_range(WT_SESSION *wt_session, uint64_t *prange)
     else
         *prange = S2C(session)->txn_global.current - pinned;
 
-err:
-    API_END_RET(session, ret);
-}
-
-/*
- * __transaction_sync_run_chk --
- *     Check to decide if the transaction sync call should continue running.
- */
-static bool
-__transaction_sync_run_chk(WT_SESSION_IMPL *session)
-{
-    WT_CONNECTION_IMPL *conn;
-
-    conn = S2C(session);
-
-    return (FLD_ISSET(conn->flags, WT_CONN_SERVER_LOG));
-}
-
-/*
- * __session_transaction_sync --
- *     WT_SESSION->transaction_sync method.
- */
-static int
-__session_transaction_sync(WT_SESSION *wt_session, const char *config)
-{
-    WT_CONFIG_ITEM cval;
-    WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
-    WT_LOG *log;
-    WT_SESSION_IMPL *session;
-    uint64_t remaining_usec, timeout_ms, waited_ms;
-    uint64_t time_start, time_stop;
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_PREPARE_NOT_ALLOWED(session, transaction_sync, config, cfg);
-    WT_STAT_CONN_INCR(session, txn_sync);
-
-    conn = S2C(session);
-    WT_ERR(__wt_txn_context_check(session, false));
-
-    /*
-     * If logging is not enabled there is nothing to do.
-     */
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED))
-        WT_ERR_MSG(session, EINVAL, "logging not enabled");
-
-    log = conn->log;
-
-    /*
-     * If there is no background sync LSN in this session, there is nothing to do.
-     */
-    if (WT_IS_INIT_LSN(&session->bg_sync_lsn))
-        goto err;
-
-    /*
-     * If our LSN is smaller than the current sync LSN then our transaction is stable. We're done.
-     */
-    if (__wt_log_cmp(&session->bg_sync_lsn, &log->sync_lsn) <= 0)
-        goto err;
-
-    /*
-     * Our LSN is not yet stable. Wait and check again depending on the timeout.
-     */
-    WT_ERR(__wt_config_gets_def(session, cfg, "timeout_ms", (int)WT_SESSION_BG_SYNC_MSEC, &cval));
-    timeout_ms = (uint64_t)cval.val;
-
-    if (timeout_ms == 0)
-        WT_ERR(ETIMEDOUT);
-
-    /*
-     * Keep checking the LSNs until we find it is stable or we reach our timeout, or there's some
-     * other reason to quit.
-     */
-    time_start = __wt_clock(session);
-    while (__wt_log_cmp(&session->bg_sync_lsn, &log->sync_lsn) > 0) {
-        if (!__transaction_sync_run_chk(session))
-            WT_ERR(ETIMEDOUT);
-
-        __wt_cond_signal(session, conn->log_file_cond);
-        time_stop = __wt_clock(session);
-        waited_ms = WT_CLOCKDIFF_MS(time_stop, time_start);
-        if (waited_ms < timeout_ms) {
-            remaining_usec = (timeout_ms - waited_ms) * WT_THOUSAND;
-            __wt_cond_wait(session, log->log_sync_cond, remaining_usec, __transaction_sync_run_chk);
-        } else
-            WT_ERR(ETIMEDOUT);
-    }
-
-err:
-    API_END_RET(session, ret);
-}
-
-/*
- * __session_transaction_sync_readonly --
- *     WT_SESSION->transaction_sync method; readonly version.
- */
-static int
-__session_transaction_sync_readonly(WT_SESSION *wt_session, const char *config)
-{
-    WT_DECL_RET;
-    WT_SESSION_IMPL *session;
-
-    WT_UNUSED(config);
-
-    session = (WT_SESSION_IMPL *)wt_session;
-    SESSION_API_CALL_NOCONF(session, transaction_sync);
-
-    ret = __wt_session_notsup(session);
 err:
     API_END_RET(session, ret);
 }
@@ -1897,6 +1922,23 @@ __wt_session_strerror(WT_SESSION *wt_session, int error)
 }
 
 /*
+ * __session_flush_tier --
+ *     Wrapper for the flush_tier method.
+ */
+static int
+__session_flush_tier(WT_SESSION *wt_session, const char *config)
+{
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)wt_session;
+    SESSION_API_CALL_NOCONF(session, flush_tier);
+    ret = __wt_flush_tier(session, config);
+err:
+    API_END_RET(session, ret);
+}
+
+/*
  * __wt_session_breakpoint --
  *     A place to put a breakpoint, if you need one, or call some check code.
  */
@@ -1917,24 +1959,24 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
   WT_SESSION_IMPL **sessionp)
 {
     static const WT_SESSION
-      stds = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
-        __session_open_cursor, __session_alter, __session_create, __wt_session_compact,
-        __session_drop, __session_join, __session_log_flush, __session_log_printf, __session_rename,
-        __session_reset, __session_salvage, __session_truncate, __session_upgrade, __session_verify,
-        __session_begin_transaction, __session_commit_transaction, __session_prepare_transaction,
+      stds = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
+        __wt_session_strerror, __session_open_cursor, __session_alter, __session_create,
+        __wt_session_compact, __session_drop, __session_join, __session_log_flush,
+        __session_log_printf, __session_rename, __session_reset, __session_salvage,
+        __session_truncate, __session_upgrade, __session_verify, __session_begin_transaction,
+        __session_commit_transaction, __session_prepare_transaction, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint, __session_transaction_pinned_range, __session_transaction_sync,
-        __wt_session_breakpoint},
-      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __wt_session_strerror,
-        __session_open_cursor, __session_alter_readonly, __session_create_readonly,
-        __wt_session_compact_readonly, __session_drop_readonly, __session_join,
-        __session_log_flush_readonly, __session_log_printf_readonly, __session_rename_readonly,
-        __session_reset, __session_salvage_readonly, __session_truncate_readonly,
-        __session_upgrade_readonly, __session_verify, __session_begin_transaction,
-        __session_commit_transaction, __session_prepare_transaction_readonly,
+        __session_checkpoint, __session_transaction_pinned_range, __wt_session_breakpoint},
+      stds_readonly = {NULL, NULL, __session_close, __session_reconfigure, __session_flush_tier,
+        __wt_session_strerror, __session_open_cursor, __session_alter_readonly,
+        __session_create_readonly, __wt_session_compact_readonly, __session_drop_readonly,
+        __session_join, __session_log_flush_readonly, __session_log_printf_readonly,
+        __session_rename_readonly, __session_reset, __session_salvage_readonly,
+        __session_truncate_readonly, __session_upgrade_readonly, __session_verify,
+        __session_begin_transaction, __session_commit_transaction,
+        __session_prepare_transaction_readonly, __session_reset_snapshot,
         __session_rollback_transaction, __session_timestamp_transaction, __session_query_timestamp,
-        __session_checkpoint_readonly, __session_transaction_pinned_range,
-        __session_transaction_sync_readonly, __wt_session_breakpoint};
+        __session_checkpoint_readonly, __session_transaction_pinned_range, __wt_session_breakpoint};
     WT_DECL_RET;
     WT_SESSION_IMPL *session, *session_ret;
     uint32_t i;
@@ -2002,8 +2044,8 @@ __open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const 
         TAILQ_INIT(&session_ret->cursor_cache[i]);
     session_ret->cursor_sweep_countdown = WT_SESSION_CURSOR_SWEEP_COUNTDOWN;
 
-    /* Initialize transaction support: default to read-committed. */
-    session_ret->isolation = WT_ISO_READ_COMMITTED;
+    /* Initialize transaction support: default to snapshot. */
+    session_ret->isolation = WT_ISO_SNAPSHOT;
     WT_ERR(__wt_txn_init(session, session_ret));
 
     /*
@@ -2086,7 +2128,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
      * caller decline this work.
      */
     if (open_metadata) {
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
             WT_TRET(__wt_session_close_internal(session));
             return (ret);
@@ -2103,7 +2145,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
  */
 int
 __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open_metadata,
-  uint32_t session_flags, WT_SESSION_IMPL **sessionp)
+  uint32_t session_flags, uint32_t session_lock_flags, WT_SESSION_IMPL **sessionp)
 {
     WT_SESSION_IMPL *session;
 
@@ -2119,6 +2161,7 @@ __wt_open_internal_session(WT_CONNECTION_IMPL *conn, const char *name, bool open
      * during close. Set a flag to avoid this: internal sessions are not closed automatically.
      */
     F_SET(session, session_flags | WT_SESSION_INTERNAL);
+    FLD_SET(session->lock_flags, session_lock_flags);
 
     *sessionp = session;
     return (0);

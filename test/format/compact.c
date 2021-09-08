@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -67,7 +67,8 @@ compact(void *arg)
          * We don't configure a timeout and occasionally exceed the default of 1200 seconds.
          */
         ret = session->compact(session, g.uri, NULL);
-        if (ret != 0 && ret != EBUSY && ret != ETIMEDOUT && ret != WT_ROLLBACK)
+        if (ret != 0 && ret != EBUSY && ret != ETIMEDOUT && ret != WT_ROLLBACK &&
+          ret != WT_CACHE_FULL)
             testutil_die(ret, "session.compact");
     }
 

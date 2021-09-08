@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -28,6 +28,13 @@ __wt_rdtsc(void)
 
         __asm__ volatile("rdtsc" : "=a"(a), "=d"(d));
         return ((d << 32) | a);
+    }
+#elif defined(__aarch64__)
+    {
+        uint64_t t;
+
+        __asm__ volatile("mrs %0,  cntvct_el0" : "=r"(t));
+        return (t);
     }
 #else
     return (0);
@@ -162,9 +169,6 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
 {
     uint64_t timeout_us;
 
-    if (session->hs_cursor != NULL)
-        return;
-
     /* Timer can be configured per-transaction, and defaults to per-connection. */
     if (session->txn == NULL || (timeout_us = session->txn->operation_timeout_us) == 0)
         timeout_us = S2C(session)->operation_timeout_us;
@@ -183,9 +187,6 @@ __wt_op_timer_start(WT_SESSION_IMPL *session)
 static inline void
 __wt_op_timer_stop(WT_SESSION_IMPL *session)
 {
-    if (session->hs_cursor != NULL)
-        return;
-
     session->operation_start_us = session->operation_timeout_us = 0;
 }
 
@@ -198,8 +199,6 @@ __wt_op_timer_fired(WT_SESSION_IMPL *session)
 {
     uint64_t diff, now;
 
-    if (session->hs_cursor != NULL)
-        return (false);
     if (session->operation_start_us == 0 || session->operation_timeout_us == 0)
         return (false);
 

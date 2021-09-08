@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -56,6 +56,10 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
             goto corrupt;
         }
 
+        /*
+         * If checksums were turned off because we're depending on decryption to fail on any
+         * corrupted data, we'll end up here on corrupted data.
+         */
         WT_ERR(__wt_scr_alloc(session, 0, &etmp));
         if ((ret = __wt_decrypt(session, encryptor, WT_BLOCK_ENCRYPT_SKIP, ip, etmp)) != 0) {
             fail_msg = "block decryption failed";
@@ -94,9 +98,8 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
           &result_len);
 
         /*
-         * If checksums were turned off because we're depending on the decompression to fail on any
-         * corrupted data, we'll end up here after corruption happens. If we're salvaging the file,
-         * it's OK, otherwise it's really, really bad.
+         * If checksums were turned off because we're depending on decompression to fail on any
+         * corrupted data, we'll end up here on corrupted data.
          */
         if (ret != 0 || result_len != dsk->mem_size - WT_BLOCK_COMPRESS_SKIP) {
             fail_msg = "block decompression failed";
@@ -120,12 +123,10 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
         WT_ERR(__wt_verify_dsk(session, tmp->data, buf));
     }
 
-    WT_STAT_CONN_INCR(session, cache_read);
-    WT_STAT_DATA_INCR(session, cache_read);
+    WT_STAT_CONN_DATA_INCR(session, cache_read);
     if (F_ISSET(dsk, WT_PAGE_COMPRESSED))
         WT_STAT_DATA_INCR(session, compress_read);
-    WT_STAT_CONN_INCRV(session, cache_bytes_read, dsk->mem_size);
-    WT_STAT_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
+    WT_STAT_CONN_DATA_INCRV(session, cache_bytes_read, dsk->mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_read, dsk->mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_read, dsk->mem_size);
 
@@ -306,23 +307,13 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         F_SET(dsk, WT_PAGE_ENCRYPTED);
 
     /*
-     * We increment the block's write generation so it's easy to identify newer versions of blocks
-     * during salvage. (It's common in WiredTiger, at least for the default block manager, for
-     * multiple blocks to be internally consistent with identical first and last keys, so we need a
-     * way to know the most recent state of the block. We could check which leaf is referenced by a
-     * valid internal page, but that implies salvaging internal pages, which I don't want to do, and
-     * it's not as good anyway, because the internal page may not have been written after the leaf
-     * page was updated. So, write generations it is.
-     *
-     * Nothing is locked at this point but two versions of a page with the same generation is pretty
-     * unlikely, and if we did, they're going to be roughly identical for the purposes of salvage,
-     * anyway.
+     * The page image must have a proper write generation number before writing it to disk. The page
+     * images that are created during recovery may have the write generation number less than the
+     * btree base write generation number, so don't verify it.
      */
-    dsk->write_gen = ++btree->write_gen;
+    WT_ASSERT(session, dsk->write_gen != 0);
 
-    /*
-     * Checksum the data if the buffer isn't compressed or checksums are configured.
-     */
+    /* Determine if the data requires a checksum. */
     WT_NOT_READ(data_checksum, true);
     switch (btree->checksum) {
     case CKSUM_ON:
@@ -333,6 +324,9 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         break;
     case CKSUM_UNCOMPRESSED:
         data_checksum = !compressed;
+        break;
+    case CKSUM_UNENCRYPTED:
+        data_checksum = !encrypted;
         break;
     }
     timer = !F_ISSET(session, WT_SESSION_INTERNAL);
@@ -352,10 +346,8 @@ __wt_bt_write(WT_SESSION_IMPL *session, WT_ITEM *buf, uint8_t *addr, size_t *add
         WT_STAT_SESSION_INCRV(session, write_time, time_diff);
     }
 
-    WT_STAT_CONN_INCR(session, cache_write);
-    WT_STAT_DATA_INCR(session, cache_write);
-    WT_STAT_CONN_INCRV(session, cache_bytes_write, dsk->mem_size);
-    WT_STAT_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
+    WT_STAT_CONN_DATA_INCR(session, cache_write);
+    WT_STAT_CONN_DATA_INCRV(session, cache_bytes_write, dsk->mem_size);
     WT_STAT_SESSION_INCRV(session, bytes_write, dsk->mem_size);
     (void)__wt_atomic_add64(&S2C(session)->cache->bytes_written, dsk->mem_size);
 

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -341,7 +341,8 @@ config_reorder(WT_SESSION *session, char **list)
          * information.
          */
         if ((list[0] == NULL || list[1] == NULL || list[2] != NULL) ||
-          (WT_PREFIX_MATCH(list[0], "file:") && WT_PREFIX_MATCH(list[0], "lsm:")))
+          (!WT_PREFIX_MATCH(list[0], "file:") && !WT_PREFIX_MATCH(list[0], "lsm:") &&
+            !WT_PREFIX_MATCH(list[0], "tiered:")))
             return (format(session));
 
         entry = list;
@@ -383,7 +384,7 @@ config_update(WT_SESSION *session, char **list)
         for (listp = list; *listp != NULL; listp += 2)
             if (WT_PREFIX_MATCH(*listp, "colgroup:") || WT_PREFIX_MATCH(*listp, "file:") ||
               WT_PREFIX_MATCH(*listp, "index:") || WT_PREFIX_MATCH(*listp, "lsm:") ||
-              WT_PREFIX_MATCH(*listp, "table:"))
+              WT_PREFIX_MATCH(*listp, "table:") || WT_PREFIX_MATCH(*listp, "tiered:"))
                 if (config_rename(session, listp, cmdname))
                     return (1);
 
@@ -439,12 +440,12 @@ config_update(WT_SESSION *session, char **list)
         return (util_err(session, errno, NULL));
 
     /*
-     * For each match, rewrite the dump configuration as described by any
-     * command-line configuration arguments.
+     * For each match, rewrite the dump configuration as described by any command-line configuration
+     * arguments.
      *
-     * New filenames will be chosen as part of the table load, remove all
-     * "filename=", "source=" and other configurations that foil loading
-     * from the values; we call an unpublished API to do the work.
+     * New filenames will be chosen as part of the table load, remove all "filename=", "source=" and
+     * other configurations that foil loading from the values; we call an unpublished API to do the
+     * work.
      */
     for (listp = list; *listp != NULL; listp += 2) {
         cnt = 0;

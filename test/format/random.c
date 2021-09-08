@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -75,6 +75,7 @@ random_kv(void *arg)
                 break;
             case WT_NOTFOUND:
             case WT_ROLLBACK:
+            case WT_CACHE_FULL:
             case WT_PREPARE_CONFLICT:
                 continue;
             default:

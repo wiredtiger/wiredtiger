@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -18,7 +18,7 @@
         (tw)->prepare = 0;                   \
     } while (0)
 
-/* Copy the values from one time window structure to another.  */
+/* Copy the values from one time window structure to another. */
 #define WT_TIME_WINDOW_COPY(dest, source) (*(dest) = *(source))
 
 /* Return true if the time window is equivalent to the default time window. */

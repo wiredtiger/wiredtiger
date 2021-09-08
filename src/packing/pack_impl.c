@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -29,13 +29,13 @@ __wt_struct_check(
 
     if (fixedp != NULL && fixed_lenp != NULL) {
         if (fields == 0) {
-            *fixedp = 1;
+            *fixedp = true;
             *fixed_lenp = 0;
         } else if (fields == 1 && pv.type == 't') {
-            *fixedp = 1;
+            *fixedp = true;
             *fixed_lenp = pv.size;
         } else
-            *fixedp = 0;
+            *fixedp = false;
     }
 
     return (0);

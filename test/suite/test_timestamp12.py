@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -33,20 +33,21 @@
 import shutil, os, wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 class test_timestamp12(wttest.WiredTigerTestCase):
     conn_config = 'config_base=false,create,log=(enabled)'
     session_config = 'isolation=snapshot'
     coll_uri = 'table:collection12'
     oplog_uri = 'table:oplog12'
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
     closecfg = [
         ('dfl', dict(close_cfg='', all_expected=False)),
         ('use_stable', dict(close_cfg='use_timestamp=true', all_expected=False)),
         ('all_dirty', dict(close_cfg='use_timestamp=false', all_expected=True)),
-   ]
-    scenarios = make_scenarios(closecfg)
+    ]
+    scenarios = make_scenarios(key_format_values, closecfg)
 
     def verify_expected(self, op_exp, coll_exp):
         c_op = self.session.open_cursor(self.oplog_uri)
@@ -70,8 +71,9 @@ class test_timestamp12(wttest.WiredTigerTestCase):
         # Add data to each of them separately and checkpoint so that each one
         # has a different stable timestamp.
         #
-        self.session.create(self.oplog_uri, 'key_format=i,value_format=i')
-        self.session.create(self.coll_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        basecfg = 'key_format={},value_format=i'.format(self.key_format)
+        self.session.create(self.oplog_uri, basecfg)
+        self.session.create(self.coll_uri, basecfg + ',log=(enabled=false)')
         c_op = self.session.open_cursor(self.oplog_uri)
         c_coll = self.session.open_cursor(self.coll_uri)
 
@@ -85,10 +87,10 @@ class test_timestamp12(wttest.WiredTigerTestCase):
             c_op[i] = 1
             c_coll[i] = 1
             self.session.commit_transaction(
-              'commit_timestamp=' + timestamp_str(i))
+              'commit_timestamp=' + self.timestamp_str(i))
         # Set the oldest and stable timestamp to the end.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(nentries-1) +
-        ',stable_timestamp=' + timestamp_str(nentries-1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(nentries-1) +
+        ',stable_timestamp=' + self.timestamp_str(nentries-1))
 
         # Add more data but don't advance the stable timestamp.
         for i in second_range:
@@ -97,7 +99,7 @@ class test_timestamp12(wttest.WiredTigerTestCase):
             c_coll[i] = 1
             self.pr("i: " + str(i))
             self.session.commit_transaction(
-              'commit_timestamp=' + timestamp_str(i))
+              'commit_timestamp=' + self.timestamp_str(i))
 
         # Close and reopen the connection. We cannot use reopen_conn because
         # we want to test the specific close configuration string.

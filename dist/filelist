@@ -12,6 +12,7 @@ src/block/block_open.c
 src/block/block_read.c
 src/block/block_session.c
 src/block/block_slvg.c
+src/block/block_tiered.c
 src/block/block_vrfy.c
 src/block/block_write.c
 src/bloom/bloom.c
@@ -59,6 +60,7 @@ src/config/config_check.c
 src/config/config_collapse.c
 src/config/config_def.c
 src/config/config_ext.c
+src/config/test_config.c
 src/conn/api_calc_modify.c
 src/conn/api_strerror.c
 src/conn/api_version.c
@@ -74,6 +76,7 @@ src/conn/conn_open.c
 src/conn/conn_reconfig.c
 src/conn/conn_stat.c
 src/conn/conn_sweep.c
+src/conn/conn_tiered.c
 src/cursor/cur_backup.c
 src/cursor/cur_backup_incr.c
 src/cursor/cur_bulk.c
@@ -198,6 +201,7 @@ src/support/hash_fnv.c
 src/support/hazard.c
 src/support/hex.c
 src/support/huffman.c
+src/support/lock_ext.c
 src/support/modify.c
 src/support/mtx_rw.c
 src/support/pow.c
@@ -206,6 +210,11 @@ src/support/scratch.c
 src/support/stat.c
 src/support/thread_group.c
 src/support/timestamp.c
+src/support/update_vector.c
+src/tiered/tiered_config.c
+src/tiered/tiered_handle.c
+src/tiered/tiered_opener.c
+src/tiered/tiered_work.c
 src/txn/txn.c
 src/txn/txn_ckpt.c
 src/txn/txn_ext.c

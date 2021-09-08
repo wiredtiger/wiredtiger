@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -63,7 +63,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 static bool
 __ckpt_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_CHECKPOINT));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT));
 }
 
 /*
@@ -134,7 +134,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
     if (conn->ckpt_session != NULL)
         return (0);
 
-    F_SET(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
 
     /*
      * The checkpoint server gets its own session.
@@ -144,7 +144,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
      */
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
-      conn, "checkpoint-server", true, session_flags, &conn->ckpt_session));
+      conn, "checkpoint-server", true, session_flags, 0, &conn->ckpt_session));
     session = conn->ckpt_session;
 
     WT_RET(__wt_cond_alloc(session, "checkpoint server", &conn->ckpt_cond));
@@ -201,7 +201,7 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
     if (conn->ckpt_tid_set) {
         __wt_cond_signal(session, conn->ckpt_cond);
         WT_TRET(__wt_thread_join(session, &conn->ckpt_tid));

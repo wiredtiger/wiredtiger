@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,8 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
-# test_bug008.py
-#       Regression tests.
+# [TEST_TAGS]
+# cursors:search_near
+# cursors:search
+# [END_TAGS]
+#
+#  test_bug008.py
+#       Regression tests for cursor search and cursor search near.
 
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet

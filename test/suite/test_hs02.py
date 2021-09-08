@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,9 +29,7 @@
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_hs02.py
 # Test that truncate with history store entries and timestamps gives expected results.
@@ -40,6 +38,12 @@ class test_hs02(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('string-row', dict(key_format='S')),
+        ('column', dict(key_format='r'))
+    ]
+    scenarios = make_scenarios(key_format_values)
+
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records, we'll hang if the history store table isn't working.
         session = self.session
@@ -47,12 +51,12 @@ class test_hs02(wttest.WiredTigerTestCase):
         for i in range(1, nrows + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
-        session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+        session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
@@ -68,16 +72,16 @@ class test_hs02(wttest.WiredTigerTestCase):
         # behavior.
         uri = "table:las02_main"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="S", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         uri2 = "table:las02_extra"
-        ds2 = SimpleDataSet(self, uri2, 0, key_format="S", value_format="S")
+        ds2 = SimpleDataSet(self, uri2, 0, key_format=self.key_format, value_format="S")
         ds2.populate()
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         bigvalue = "aaaaa" * 100
         self.large_updates(uri, bigvalue, ds, nrows // 3, 1)
@@ -102,7 +106,7 @@ class test_hs02(wttest.WiredTigerTestCase):
         end.set_key(ds.key(nrows // 2))
         self.session.truncate(None, None, end)
         end.close()
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(200))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
 
         # Check that the truncate is visible after commit
         self.check(bigvalue2, uri, nrows // 2, 200)

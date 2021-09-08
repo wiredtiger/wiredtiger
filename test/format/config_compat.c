@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -101,10 +101,6 @@ static const char *list[] = {
   "btree.internal_key_truncation",
   "internal_page_max=",
   "btree.internal_page_max",
-  "isolation=",
-  "transaction.isolation",
-  "key_gap=",
-  "btree.key_gap",
   "key_max=",
   "btree.key_max",
   "key_min=",

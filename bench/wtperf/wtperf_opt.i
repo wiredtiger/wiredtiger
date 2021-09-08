@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -81,6 +81,8 @@
  * options are appended to existing content, whereas STRING options overwrite.
  */
 DEF_OPT_AS_UINT32(
+  backup_interval, 0, "backup the database every interval seconds during the workload phase, 0 to disable")
+DEF_OPT_AS_UINT32(
   checkpoint_interval, 120, "checkpoint every interval seconds during the workload phase.")
 DEF_OPT_AS_UINT32(checkpoint_stress_rate, 0,
   "checkpoint every rate operations during the populate phase in the populate thread(s), 0 to "
@@ -105,9 +107,12 @@ DEF_OPT_AS_BOOL(in_memory, 0, "Whether to create the database in-memory.")
 DEF_OPT_AS_UINT32(icount, 5000,
   "number of records to initially populate. If multiple tables are configured the count is spread "
   "evenly across all tables.")
-DEF_OPT_AS_UINT32(idle_table_cycle, 0,
-  "Enable regular create and drop of idle tables, value is the maximum number of seconds a create "
-  "or drop is allowed before flagging an error. Default 0 which means disabled.")
+DEF_OPT_AS_UINT32(max_idle_table_cycle, 0,
+  "Enable regular create and drop of idle tables. Value is the maximum number of seconds a create "
+  "or drop is allowed before aborting or printing a warning based on max_idle_table_cycle_fatal "
+  "setting.")
+DEF_OPT_AS_BOOL(max_idle_table_cycle_fatal, 0,
+  "print warning (false) or abort (true) of max_idle_table_cycle failure.")
 DEF_OPT_AS_BOOL(index, 0, "Whether to create an index on the value field.")
 DEF_OPT_AS_BOOL(insert_rmw, 0, "execute a read prior to each insert in workload phase")
 DEF_OPT_AS_UINT32(key_sz, 20, "key size")
@@ -135,6 +140,11 @@ DEF_OPT_AS_UINT32(random_range, 0,
   "if non zero choose a value from within this range as the key for insert operations")
 DEF_OPT_AS_BOOL(random_value, 0, "generate random content for the value")
 DEF_OPT_AS_BOOL(range_partition, 0, "partition data by range (vs hash)")
+DEF_OPT_AS_UINT32(read_range, 0,
+  "read a sequential range of keys upon each read operation. This value tells us how many keys "
+  "to read each time, or an upper bound on the number of keys read if read_range_random is set.")
+DEF_OPT_AS_BOOL(read_range_random, 0, "if doing range reads, select the number of keys to read "
+   "in a range uniformly at random.")
 DEF_OPT_AS_BOOL(readonly, 0,
   "reopen the connection between populate and workload phases in readonly mode.  Requires "
   "reopen_connection turned on (default).  Requires that read be the only workload specified")
@@ -156,6 +166,8 @@ DEF_OPT_AS_UINT32(
 DEF_OPT_AS_UINT32(scan_table_count, 0,
   "number of separate tables to be used for scanning. Zero indicates that tables are shared with "
   "other operations")
+DEF_OPT_AS_BOOL(select_latest, 0, "in workloads that involve inserts and another type of operation,"
+		"select the recently inserted records with higher probability")
 DEF_OPT_AS_CONFIG_STRING(sess_config, "", "session configuration string")
 DEF_OPT_AS_UINT32(session_count_idle, 0, "number of idle sessions to create. Default 0.")
 /* The following table configuration is based on the configuration MongoDB uses for collections. */

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -208,12 +208,12 @@ __wt_lsm_manager_start(WT_SESSION_IMPL *session)
      * files. Use read-uncommitted isolation to avoid keeping updates in cache unnecessarily.
      */
     for (i = 0; i < WT_LSM_MAX_WORKERS; i++) {
-        WT_ERR(__wt_open_internal_session(conn, "lsm-worker", false, 0, &worker_session));
+        WT_ERR(__wt_open_internal_session(conn, "lsm-worker", false, 0, 0, &worker_session));
         worker_session->isolation = WT_ISO_READ_UNCOMMITTED;
         manager->lsm_worker_cookies[i].session = worker_session;
     }
 
-    F_SET(conn, WT_CONN_SERVER_LSM);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_LSM);
 
     /* Start the LSM manager thread. */
     WT_ERR(__wt_thread_create(session, &manager->lsm_worker_cookies[0].tid, __lsm_worker_manager,
@@ -269,7 +269,7 @@ __wt_lsm_manager_destroy(WT_SESSION_IMPL *session)
     removed = 0;
 
     /* Clear the LSM server flag. */
-    F_CLR(conn, WT_CONN_SERVER_LSM);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_LSM);
 
     WT_ASSERT(session, !F_ISSET(conn, WT_CONN_READONLY) || manager->lsm_workers == 0);
     if (manager->lsm_workers > 0) {
@@ -351,12 +351,12 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
     conn = S2C(session);
     dhandle_locked = false;
 
-    while (F_ISSET(conn, WT_CONN_SERVER_LSM)) {
+    while (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LSM)) {
         __wt_sleep(0, 10000);
         if (TAILQ_EMPTY(&conn->lsmqh))
             continue;
         __wt_readlock(session, &conn->dhandle_lock);
-        F_SET(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
+        FLD_SET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_READ);
         dhandle_locked = true;
         TAILQ_FOREACH (lsm_tree, &conn->lsmqh, q) {
             if (!lsm_tree->active)
@@ -403,14 +403,14 @@ __lsm_manager_run_server(WT_SESSION_IMPL *session)
             }
         }
         __wt_readunlock(session, &conn->dhandle_lock);
-        F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
+        FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_READ);
         dhandle_locked = false;
     }
 
 err:
     if (dhandle_locked) {
         __wt_readunlock(session, &conn->dhandle_lock);
-        F_CLR(session, WT_SESSION_LOCKED_HANDLE_LIST_READ);
+        FLD_CLR(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_READ);
     }
     return (ret);
 }

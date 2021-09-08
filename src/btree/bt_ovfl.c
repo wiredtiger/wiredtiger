@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -32,8 +32,7 @@ __ovfl_read(WT_SESSION_IMPL *session, const uint8_t *addr, size_t addr_size, WT_
     store->data = WT_PAGE_HEADER_BYTE(btree, dsk);
     store->size = dsk->u.datalen;
 
-    WT_STAT_CONN_INCR(session, cache_read_overflow);
-    WT_STAT_DATA_INCR(session, cache_read_overflow);
+    WT_STAT_CONN_DATA_INCR(session, cache_read_overflow);
 
     return (0);
 }

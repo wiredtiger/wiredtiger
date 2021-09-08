@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,6 +20,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
     WT_CONFIG_ITEM v;
     WT_DECL_ITEM(a);
     WT_DECL_ITEM(b);
+    WT_DECL_ITEM(buf);
     WT_DECL_ITEM(checkpoint);
     WT_DECL_RET;
     WT_KEYED_ENCRYPTOR *kencryptor;
@@ -33,6 +34,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
 
     WT_ERR(__wt_scr_alloc(session, 0, &a));
     WT_ERR(__wt_scr_alloc(session, 0, &b));
+    WT_ERR(__wt_scr_alloc(session, 1024, &buf));
     WT_ERR(__wt_scr_alloc(session, 0, &checkpoint));
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:"));
@@ -44,7 +46,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * size, but 512B allows us to read the descriptor block and that's all we care about.
      */
     F_SET(session, WT_SESSION_IMPORT_REPAIR);
-    WT_ERR(__wt_block_manager_open(session, filename, cfg, false, true, 512, &bm));
+    WT_ERR(__wt_block_manager_open(session, filename, NULL, cfg, false, true, 512, &bm));
     ret = bm->checkpoint_last(bm, session, &metadata, &checkpoint_list, checkpoint);
     WT_TRET(bm->close(bm, session));
     F_CLR(session, WT_SESSION_IMPORT_REPAIR);
@@ -92,13 +94,14 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * Build and flatten the metadata and the checkpoint list, then insert it into the metadata for
      * this file.
      *
-     * Strip out any incremental backup information, an imported file has not been part of a backup.
-     * Strip out the checkpoint LSN, an imported file isn't associated with any log files. Assign a
-     * unique file ID.
+     * Reconstruct the incremental backup information, to indicate copying the whole file as an
+     * imported file has not been part of backup. Strip out the checkpoint LSN, an imported file
+     * isn't associated with any log files. Assign a unique file ID.
      */
     cfg[1] = a->data;
     cfg[2] = checkpoint_list;
-    cfg[3] = "checkpoint_backup_info=";
+    WT_ERR(__wt_reset_blkmod(session, a->data, buf));
+    cfg[3] = buf->mem;
     cfg[4] = "checkpoint_lsn=";
     WT_WITH_SCHEMA_LOCK(session,
       ret = __wt_snprintf(fileid, sizeof(fileid), "id=%" PRIu32, ++S2C(session)->next_file_id));
@@ -115,7 +118,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * size. When we did this earlier, we were able to read the descriptor block properly but the
      * checkpoint's byte representation was wrong because it was using the wrong allocation size.
      */
-    WT_ERR(__wt_block_manager_open(session, filename, cfg, false, true, allocsize, &bm));
+    WT_ERR(__wt_block_manager_open(session, filename, NULL, cfg, false, true, allocsize, &bm));
     __wt_free(session, checkpoint_list);
     __wt_free(session, metadata);
     ret = bm->checkpoint_last(bm, session, &metadata, &checkpoint_list, checkpoint);
@@ -129,7 +132,7 @@ __wt_import_repair(WT_SESSION_IMPL *session, const char *uri, char **configp)
      * Update the last checkpoint with the corrected information. Update the file's metadata with
      * the new checkpoint information.
      */
-    WT_ERR(__wt_meta_ckptlist_get_from_config(session, false, &ckptbase, config_tmp));
+    WT_ERR(__wt_meta_ckptlist_get_from_config(session, false, &ckptbase, NULL, config_tmp));
     WT_CKPT_FOREACH (ckptbase, ckpt)
         if (ckpt->name == NULL || (ckpt + 1)->name == NULL)
             break;
@@ -154,6 +157,7 @@ err:
 
     __wt_scr_free(session, &a);
     __wt_scr_free(session, &b);
+    __wt_scr_free(session, &buf);
     __wt_scr_free(session, &checkpoint);
 
     return (ret);

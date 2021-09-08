@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -42,15 +42,15 @@ class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
     entries = 10
 
     conn_params = \
-        'create,statistics=(fast),' + \
+        'create,' + \
         'log=(enabled,file_max=100K,zero_fill=true),' + \
         'operation_tracking=(enabled=false),'
     conn_params_rd = \
-        'create,readonly=true,statistics=(fast),' + \
+        'create,readonly=true,' + \
         'log=(enabled,zero_fill=false),' + \
         'operation_tracking=(enabled=false),'
     conn_params_rdcfg = \
-        'create,readonly=true,statistics=(fast),log=(enabled),' + \
+        'create,readonly=true,log=(enabled),' + \
         'operation_tracking=(enabled=false),'
 
     #
@@ -86,7 +86,7 @@ class test_readonly02(wttest.WiredTigerTestCase, suite_subprocess):
 
     def check_unclean(self):
         backup = "WT_COPYDIR"
-        copy_wiredtiger_home(self.home, backup, True)
+        copy_wiredtiger_home(self, self.home, backup, True)
         msg = '/needs recovery/'
         #   2. an unclean shutdown and reopening readonly
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,

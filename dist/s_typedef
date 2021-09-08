@@ -21,7 +21,7 @@ build() {
 	l=`ls ../src/include/*.h ../src/include/*.in |
 	    sed -e '/wiredtiger.*/d' -e '/queue.h/d'`
 	egrep -h \
-	    '^\s*(((struct|union)\s.*__wt_.*{)|WT_PACKED_STRUCT_BEGIN)' \
+	    '^[[:space:]]*(((struct|union)[[:space:]].*__wt_.*{)|WT_PACKED_STRUCT_BEGIN)' \
 	    $l |
 	    sed -e 's/WT_PACKED_STRUCT_BEGIN(\(.*\))/struct \1 {/' \
 	        -e 's/WT_COMPILER_TYPE_ALIGN(.*)[ ]*//' \
@@ -51,7 +51,7 @@ check() {
 	# Complain about unused #typedefs.
 	# List of files to search.
 	l=`sed -e '/^[a-z]/!d' -e 's/[	 ].*$//' -e 's,^,../,' filelist`
-	l="$l `echo ../src/utilities/*.c`"
+	l="$l `echo ../src/utilities/*.c` `echo ../examples/c/*.c`"
 
 	(
 	# Get the list of typedefs

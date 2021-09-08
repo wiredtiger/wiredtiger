@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -34,13 +34,15 @@ from wiredtiger import stat
 from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_rollback_to_stable02.py
 # Test that rollback to stable brings back the history value to replace on-disk value.
 class test_rollback_to_stable02(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
+
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -52,7 +54,7 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values, prepare_values)
+    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=100MB,statistics=(all)'
@@ -68,38 +70,38 @@ class test_rollback_to_stable02(test_rollback_to_stable_base):
         # Create a table without logging.
         uri = "table:rollback_to_stable02"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         valuea = "aaaaa" * 100
         valueb = "bbbbb" * 100
         valuec = "ccccc" * 100
         valued = "ddddd" * 100
-        self.large_updates(uri, valuea, ds, nrows, 10)
+        self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
 
-        self.large_updates(uri, valueb, ds, nrows, 20)
+        self.large_updates(uri, valueb, ds, nrows, self.prepare, 20)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valueb, uri, nrows, 20)
 
-        self.large_updates(uri, valuec, ds, nrows, 30)
+        self.large_updates(uri, valuec, ds, nrows, self.prepare, 30)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valuec, uri, nrows, 30)
 
-        self.large_updates(uri, valued, ds, nrows, 40)
+        self.large_updates(uri, valued, ds, nrows, self.prepare, 40)
         # Check that the new updates are only seen after the update timestamp.
         self.check(valued, uri, nrows, 40)
 
         # Pin stable to timestamp 30 if prepare otherwise 20.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(30))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(30))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         # Checkpoint to ensure that all the data is flushed.
         if not self.in_memory:
             self.session.checkpoint()

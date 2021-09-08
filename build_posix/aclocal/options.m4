@@ -21,10 +21,12 @@ AH_TEMPLATE(HAVE_BUILTIN_EXTENSION_ZLIB,
 	    [Zlib support automatically loaded.])
 AH_TEMPLATE(HAVE_BUILTIN_EXTENSION_ZSTD,
 	    [ZSTD support automatically loaded.])
+AH_TEMPLATE(HAVE_BUILTIN_EXTENSION_SODIUM,
+	    [Sodium support automatically loaded.])
 AC_MSG_CHECKING(if --with-builtins option specified)
 AC_ARG_WITH(builtins,
 	[AS_HELP_STRING([--with-builtins],
-	    [builtin extension names (lz4, snappy, zlib, zstd).])],
+	    [builtin extension names (lz4, snappy, zlib, zstd, sodium).])],
 	    [with_builtins=$withval],
 	    [with_builtins=])
 
@@ -40,6 +42,8 @@ for builtin_i in $builtin_list; do
 		wt_cv_with_builtin_extension_zlib=yes;;
 	zstd)	AC_DEFINE(HAVE_BUILTIN_EXTENSION_ZSTD)
 		wt_cv_with_builtin_extension_zstd=yes;;
+	sodium)	AC_DEFINE(HAVE_BUILTIN_EXTENSION_SODIUM)
+		wt_cv_with_builtin_extension_sodium=yes;;
 	*)	AC_MSG_ERROR([Unknown builtin extension "$builtin_i"]);;
 	esac
 done
@@ -51,6 +55,8 @@ AM_CONDITIONAL([HAVE_BUILTIN_EXTENSION_ZLIB],
     [test "$wt_cv_with_builtin_extension_zlib" = "yes"])
 AM_CONDITIONAL([HAVE_BUILTIN_EXTENSION_ZSTD],
     [test "$wt_cv_with_builtin_extension_zstd" = "yes"])
+AM_CONDITIONAL([HAVE_BUILTIN_EXTENSION_SODIUM],
+    [test "$wt_cv_with_builtin_extension_sodium" = "yes"])
 AC_MSG_RESULT($with_builtins)
 
 AH_TEMPLATE(HAVE_DIAGNOSTIC, [Define to 1 for diagnostic tests.])
@@ -136,6 +142,32 @@ if test "$wt_cv_enable_lz4" = "yes"; then
 	    [AC_MSG_ERROR([--enable-lz4 requires lz4 library with LZ4_compress_destSize support])])
 fi
 AM_CONDITIONAL([LZ4], [test "$wt_cv_enable_lz4" = "yes"])
+
+AC_MSG_CHECKING(if --enable-sodium option specified)
+AC_ARG_ENABLE(sodium,
+	[AS_HELP_STRING([--enable-sodium],
+	    [Build the libsodium encryptor extension.])], r=$enableval, r=no)
+case "$r" in
+no)	if test "$wt_cv_with_builtin_extension_sodium" = "yes"; then
+		wt_cv_enable_sodium=yes
+	else
+		wt_cv_enable_sodium=no
+	fi
+	;;
+*)	if test "$wt_cv_with_builtin_extension_sodium" = "yes"; then
+		AC_MSG_ERROR(
+		   [Only one of --enable-sodium --with-builtins=sodium allowed])
+	fi
+	wt_cv_enable_sodium=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_sodium)
+if test "$wt_cv_enable_sodium" = "yes"; then
+	AC_CHECK_HEADER(sodium.h,,
+	    [AC_MSG_ERROR([--enable-sodium requires sodium.h])])
+	AC_CHECK_LIB(sodium, sodium_init,,
+	    [AC_MSG_ERROR([--enable-sodium requires sodium library])])
+fi
+AM_CONDITIONAL([SODIUM], [test "$wt_cv_enable_sodium" = "yes"])
 
 AC_MSG_CHECKING(if --enable-tcmalloc option specified)
 AC_ARG_ENABLE(tcmalloc,
@@ -247,6 +279,20 @@ no)	wt_cv_crc32_hardware=no
 	AC_MSG_RESULT(no);;
 esac
 
+AH_TEMPLATE(WT_STANDALONE_BUILD,
+    [Define to 1 to support standalone build.])
+AC_MSG_CHECKING(if --disable-standalone-build option specified)
+AC_ARG_ENABLE(standalone-build,
+       [AS_HELP_STRING([--disable-standalone-build],
+           [Disable standalone build support.])], r=$enableval, r=yes)
+case "$r" in
+no)    wt_cv_disable_standalone_build=no
+	   AC_MSG_RESULT(yes);;
+*)     wt_cv_disable_standalone_build=yes
+	   AC_DEFINE(WT_STANDALONE_BUILD)
+	   AC_MSG_RESULT(no);;
+esac
+
 AC_MSG_CHECKING(if --enable-llvm option specified)
 AC_ARG_ENABLE(llvm,
 	[AS_HELP_STRING([--enable-llvm],
@@ -266,4 +312,21 @@ if test "$wt_cv_enable_llvm" = "yes"; then
 	fi
 fi
 AM_CONDITIONAL([LLVM], [test x$wt_cv_enable_llvm = xyes])
+
+AC_MSG_CHECKING(if --enable-libfuzzer option specified)
+AC_ARG_ENABLE(libfuzzer,
+	[AS_HELP_STRING([--enable-libfuzzer],
+		[Configure with LibFuzzer.])], r=$enableval, r=no)
+case "$r" in
+no)	wt_cv_enable_libfuzzer=no;;
+*)	wt_cv_enable_libfuzzer=yes;;
+esac
+AC_MSG_RESULT($wt_cv_enable_libfuzzer)
+if test "$wt_cv_enable_libfuzzer" = "yes"; then
+	AX_CHECK_COMPILE_FLAG([-fsanitize=fuzzer-no-link], [wt_cv_libfuzzer_works=yes])
+        if test "$wt_cv_libfuzzer_works" != "yes"; then
+		AC_MSG_ERROR([--enable-libfuzzer requires a Clang version that supports -fsanitize=fuzzer-no-link])
+	fi
+fi
+AM_CONDITIONAL([LIBFUZZER], [test x$wt_cv_enable_libfuzzer = xyes])
 ])

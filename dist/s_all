@@ -22,11 +22,11 @@ while :
 	-A)	# Reconfigure the library build.
 		reconf=1
 		shift;;
-	-f)	# Force versions to be updated
-		force="-f"
-		shift;;
 	-E)	# Return an error code on failure
 		errmode=1
+		shift;;
+	-f)	# Force versions to be updated
+		force="-f"
 		shift;;
 	*)
 		break;;
@@ -47,20 +47,23 @@ errchk()
 		return
 	fi
 
+	# Return if evergreen validate runs sucessfully.
+	if echo "$1" | grep -q evergreen && [ "$(cat "$2")" = "../test/evergreen.yml is valid" ] ; then
+		rm -f "$2"
+		return
+	fi
+
 	echo "####################### MESSAGE ############################"
 	echo "s_all run of: \"$1\" resulted in:"
 	sed -e 's/^/    /' $2
 	echo "#######################"
 
-	rm -f $2
+	# If the test was skipped, ignore the failure.
+	if ! `grep "$1.*skipped" $2 > /dev/null`; then
+	    errfound=1;
+	fi
 
-	# Some tests shouldn't return an error, we exclude them here.
-	case "$1" in
-	*s_export|*s_tags)
-		;;
-	*)
-		errfound=1;;
-	esac
+	rm -f $2
 }
 
 run()
@@ -73,7 +76,7 @@ run()
 # already parallelize internally.
 run "sh ./s_readme $force"
 run "sh ./s_install $force"
-run "python api_config.py"
+run "python api_config_gen.py"
 run "python api_err.py"
 run "python flags.py"
 run "python log.py"
@@ -83,6 +86,10 @@ run "sh ./s_style"
 run "./s_clang-format"
 run "python prototypes.py"
 run "sh ./s_typedef -b"
+run "python test_tag.py"
+if command -v evergreen > /dev/null; then
+	run "evergreen validate ../test/evergreen.yml"
+fi
 
 COMMANDS="
 2>&1 ./s_define > ${t_pfx}s_define

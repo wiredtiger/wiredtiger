@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,17 +32,24 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('string-row', dict(key_format='S', usestrings=True)),
+        ('column', dict(key_format='r', usestrings=False)),
+    ]
+    scenarios = make_scenarios(key_format_values)
+
     def test_timestamp_range(self):
         base = 'timestamp11'
         uri = 'file:' + base
-        self.session.create(uri, 'key_format=S,value_format=S')
+        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+
+        key = 'key' if self.usestrings else 1
+        key2 = 'key2' if self.usestrings else 2
 
         # Test that mixed timestamp usage where some transactions use timestamps
         # and others don't behave in the expected way.
@@ -51,9 +58,9 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(2))
-        c['key'] = 'value2'
-        c['key2'] = 'value2'
+            'commit_timestamp=' + self.timestamp_str(2))
+        c[key] = 'value2'
+        c[key2] = 'value2'
         self.session.commit_transaction()
         c.close()
 
@@ -64,14 +71,14 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(5))
-        c['key'] = 'value5'
+            'commit_timestamp=' + self.timestamp_str(5))
+        c[key] = 'value5'
         self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        c['key2'] = 'valueNOTS'
+        c[key2] = 'valueNOTS'
         self.session.commit_transaction()
         c.close()
 
@@ -81,22 +88,22 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         # remain at the non-timestamped value. Also the non-timestamped value
         # stays regardless of rollbacks or reading at a timestamp.
         #
-        stable_ts = timestamp_str(2)
+        stable_ts = self.timestamp_str(2)
         self.conn.set_timestamp('stable_timestamp=' + stable_ts)
         self.session.checkpoint()
         self.conn.rollback_to_stable()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.assertEquals(c['key'], 'value2')
-        self.assertEquals(c['key2'], 'valueNOTS')
+        self.assertEquals(c[key], 'value2')
+        self.assertEquals(c[key2], 'valueNOTS')
         self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + stable_ts)
-        self.assertEquals(c['key'], 'value2')
-        self.assertEquals(c['key2'], 'valueNOTS')
+        self.assertEquals(c[key], 'value2')
+        self.assertEquals(c[key2], 'valueNOTS')
         self.session.commit_transaction()
         c.close()
 
@@ -106,14 +113,14 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
         self.session.timestamp_transaction(
-            'commit_timestamp=' + timestamp_str(5))
-        c['key2'] = 'value5'
+            'commit_timestamp=' + self.timestamp_str(5))
+        c[key2] = 'value5'
         self.session.commit_transaction()
         c.close()
 
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        c['key'] = 'valueNOTS'
+        c[key] = 'valueNOTS'
         self.session.commit_transaction()
         c.close()
 
@@ -122,8 +129,8 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         # Without a timestamp. We should see the latest value for each.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        self.assertEquals(c['key'], 'valueNOTS')
-        self.assertEquals(c['key2'], 'value5')
+        self.assertEquals(c[key], 'valueNOTS')
+        self.assertEquals(c[key2], 'value5')
         self.session.commit_transaction()
         c.close()
 
@@ -131,8 +138,8 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         # value at timestamp 2.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction('read_timestamp=' + stable_ts)
-        self.assertEquals(c['key'], 'valueNOTS')
-        self.assertEquals(c['key2'], 'valueNOTS')
+        self.assertEquals(c[key], 'valueNOTS')
+        self.assertEquals(c[key2], 'valueNOTS')
         self.session.commit_transaction()
         c.close()
 
@@ -140,9 +147,9 @@ class test_timestamp11(wttest.WiredTigerTestCase, suite_subprocess):
         # one at that timestamp and inserted without a timestamp. For the second
         # we inserted at timestamp 5 after the non-timestamped insert.
         c = self.session.open_cursor(uri)
-        self.session.begin_transaction('read_timestamp=' + timestamp_str(5))
-        self.assertEquals(c['key'], 'valueNOTS')
-        self.assertEquals(c['key2'], 'value5')
+        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
+        self.assertEquals(c[key], 'valueNOTS')
+        self.assertEquals(c[key2], 'value5')
         self.session.commit_transaction()
         c.close()
 

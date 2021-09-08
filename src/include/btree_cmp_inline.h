@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -23,11 +23,12 @@
  * __wt_lex_compare --
  *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item
  *     = 0 if user_item is lexicographically = tree_item > 0 if user_item is lexicographically >
- *     tree_item We use the names "user" and "tree" so it's clear in the btree code which the
- *     application is looking at when we call its comparison function.
+ *     tree_item. We use the names "user" and "tree" so it's clear in the btree code which the
+ *     application is looking at when we call its comparison function. If prefix is specified, 0 can
+ *     be returned when the user_item is equal to the tree_item for the minimum size.
  */
 static inline int
-__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
+__wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix)
 {
     size_t len, usz, tsz;
     const uint8_t *userp, *treep;
@@ -36,8 +37,8 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     tsz = tree_item->size;
     len = WT_MIN(usz, tsz);
 
-    userp = user_item->data;
-    treep = tree_item->data;
+    userp = (const uint8_t *)user_item->data;
+    treep = (const uint8_t *)tree_item->data;
 
 #ifdef HAVE_X86INTRIN_H
     /* Use vector instructions if we'll execute at least 2 of them. */
@@ -92,7 +93,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item)
             return (*userp < *treep ? -1 : 1);
 
     /* Contents are equal up to the smallest length. */
-    return ((usz == tsz) ? 0 : (usz < tsz) ? -1 : 1);
+    return ((usz == tsz || prefix) ? 0 : (usz < tsz) ? -1 : 1);
 }
 
 /*
@@ -104,10 +105,20 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
   const WT_ITEM *tree_item, int *cmpp)
 {
     if (collator == NULL) {
-        *cmpp = __wt_lex_compare(user_item, tree_item);
+        *cmpp = __wt_lex_compare(user_item, tree_item, false);
         return (0);
     }
     return (collator->compare(collator, &session->iface, user_item, tree_item, cmpp));
+}
+
+/*
+ * __wt_prefix_match --
+ *     Check if the prefix item is equal to the leading bytes of the tree item.
+ */
+static inline int
+__wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
+{
+    return (__wt_lex_compare(prefix, tree_item, true));
 }
 
 /*
@@ -221,8 +232,8 @@ __wt_lex_compare_short(const WT_ITEM *user_item, const WT_ITEM *tree_item)
     tsz = tree_item->size;
     len = WT_MIN(usz, tsz);
 
-    userp = user_item->data;
-    treep = tree_item->data;
+    userp = (const uint8_t *)user_item->data;
+    treep = (const uint8_t *)tree_item->data;
 
 /*
  * The maximum packed uint64_t is 9B, catch row-store objects using packed record numbers as keys.

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -249,8 +249,9 @@ __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t l
     ret = WT_ERROR;
     WT_ERR_VRFY(session,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
-      last_cell_num, cell_num, tag, __wt_buf_set_printable(session, last->data, last->size, tmp1),
-      __wt_buf_set_printable(session, current->data, current->size, tmp2));
+      last_cell_num, cell_num, tag,
+      __wt_buf_set_printable(session, last->data, last->size, false, tmp1),
+      __wt_buf_set_printable(session, current->data, current->size, false, tmp2));
 
 err:
     __wt_scr_free(session, &tmp1);
@@ -305,7 +306,7 @@ __verify_dsk_row_int(
         WT_ERR(__err_cell_type(session, cell_num, tag, unpack->type, dsk->type));
         cell_type = unpack->type;
 
-        /* Internal row-store cells should not have prefix compression or recno/rle fields.  */
+        /* Internal row-store cells should not have prefix compression or recno/rle fields. */
         if (unpack->prefix != 0)
             WT_ERR_VRFY(
               session, "the %" PRIu32 " cell on page at %s has a non-zero prefix", cell_num, tag);
@@ -383,7 +384,7 @@ __verify_dsk_row_int(
          */
         switch (cell_type) {
         case WT_CELL_KEY:
-            /* Get the cell's data/length and make sure we have enough buffer space.  */
+            /* Get the cell's data/length and make sure we have enough buffer space. */
             WT_ERR(__wt_buf_init(session, current, unpack->size));
 
             /* Copy the data into place. */
@@ -485,7 +486,7 @@ __verify_dsk_row_leaf(
         WT_ERR(__err_cell_type(session, cell_num, tag, unpack->type, dsk->type));
         cell_type = unpack->type;
 
-        /* Leaf row-store cells should not have recno/rle fields.  */
+        /* Leaf row-store cells should not have recno/rle fields. */
         if (unpack->v != 0)
             WT_ERR_VRFY(session,
               "the %" PRIu32 " cell on page at %s has a non-zero rle/recno field", cell_num, tag);

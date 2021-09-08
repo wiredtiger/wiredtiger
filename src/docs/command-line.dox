@@ -187,7 +187,8 @@ format.
 
 @par <code>-p</code>
 Dump in human-readable format (pretty-print). The \c -p flag is incompatible
-with the \c load command.
+with the \c load command. The \c -p flag can be combined with \c -x. In this case, raw data elements
+will be formatted like \c -x with hexadecimal encoding.
 
 @par <code>-r</code>
 Dump in reverse order, from largest key to smallest.
@@ -199,7 +200,10 @@ timestamp.
 
 @par <code>-x</code>
 Dump all characters in a hexadecimal encoding (the default is to leave
-printable characters unencoded).
+printable characters unencoded). The \c -x flag can be combined with \c -p. In this case, the dump
+will be formatted similar to \c -p except for raw data elements, which will look like \c -x with
+hexadecimal encoding. If the two options are combined the output is no longer compatible
+with \c load.
 
 <hr>
 @section util_list wt list
@@ -324,12 +328,13 @@ By default, the \c loadtext command reads from the standard input; the
 
 <hr>
 @section util_printlog wt printlog
-Display the database log.
+Display the database log. By default any operations in the log containing user
+data are redacted.
 
 The \c printlog command outputs the database log.
 
 @subsection util_printlog_synopsis Synopsis
-<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] printlog [-mx] [-f output]</code>
+<code>wt [-RrVv] [-C config] [-E secretkey ] [-h directory] printlog [-mux] [-f output]</code>
 
 @subsection util_printlog_options Options
 The following are command-specific options for the \c printlog command:
@@ -340,6 +345,9 @@ output; the \c -f option re-directs the output to the specified file.
 
 @par <code>-m</code>
 Print only message-type log records.
+
+@par <code>-u</code>
+Display user data.
 
 @par <code>-x</code>
 Keys and value items in the log are printed in hex format in addition

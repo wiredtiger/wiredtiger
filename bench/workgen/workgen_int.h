@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -179,6 +179,16 @@ struct Monitor {
     Monitor(WorkloadRunner &wrunner);
     ~Monitor();
     int run();
+
+private:
+    void _format_out_header();
+    void _format_out_entry(const Stats &interval, double interval_secs, const timespec &timespec,
+        bool checkpointing, const tm &tm);
+    void _format_json_prefix(const std::string &version);
+    void _format_json_entry(const tm &tm, const timespec &timespec, bool first_iteration,
+    const Stats &interval, bool checkpointing, double interval_secs);
+    void _format_json_suffix();
+    void _check_latency_threshold(const Stats &interval, uint64_t latency_max);
 };
 
 struct TableRuntime {
@@ -278,6 +288,8 @@ struct WorkloadRunner {
     ~WorkloadRunner();
     int run(WT_CONNECTION *conn);
     int increment_timestamp(WT_CONNECTION *conn);
+    int start_table_idle_cycle(WT_CONNECTION *conn);
+    int check_timing(const char *name, uint64_t last_interval);
 
 private:
     int close_all();

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -700,10 +700,6 @@ session_ops(WT_SESSION *session)
         error_check(session->truncate(session, "table:mytable", NULL, NULL, NULL));
         /*! [Truncate a table] */
 
-        /*! [Transaction sync] */
-        error_check(session->transaction_sync(session, NULL));
-        /*! [Transaction sync] */
-
         /*! [Reset the session] */
         error_check(session->reset(session));
         /*! [Reset the session] */
@@ -844,6 +840,22 @@ transaction_ops(WT_SESSION *session_arg)
         error_check(
           session->commit_transaction(session, "commit_timestamp=2b,durable_timestamp=2b"));
         /*! [transaction prepare] */
+    }
+
+    {
+        /*! [reset snapshot] */
+        /*
+         * Resets snapshots for snapshot isolation transactions to update their existing snapshot.
+         * It raises an error when this API is used for isolation other than snapshot isolation
+         * mode.
+         */
+        error_check(session->open_cursor(session, "table:mytable", NULL, NULL, &cursor));
+        error_check(session->begin_transaction(session, "isolation=snapshot"));
+        cursor->set_key(cursor, "some-key");
+        error_check(cursor->search(cursor));
+        error_check(session->reset_snapshot(session));
+        error_check(session->commit_transaction(session, NULL));
+        /*! [reset snapshot] */
     }
 
     /*! [session isolation configuration] */
@@ -996,9 +1008,9 @@ connection_ops(WT_CONNECTION *conn)
      *
      * Functions are specified by name (for example, "wiredtiger_open").
      *
-     * Methods are specified using a concatenation of the handle name, a
-     * period and the method name (for example, session create would be
-     * "WT_SESSION.create" and cursor close would be WT_CURSOR.close").
+     * Methods are specified using a concatenation of the handle name, a period and the method name
+     * (for example, session create would be "WT_SESSION.create" and cursor close would be
+     * "WT_CURSOR.close").
      */
     error_check(
       wiredtiger_config_validate(NULL, NULL, "WT_SESSION.create", "allocation_size=32KB"));
@@ -1177,6 +1189,18 @@ main(int argc, char *argv[])
       "create,extensions=[/usr/local/lib/libwiredtiger_zstd.so=[config=[compression_level=9]]]",
       &conn));
     /*! [Configure zstd extension with compression level] */
+    error_check(conn->close(conn, NULL));
+
+    /* this is outside the example snippet on purpose; don't encourage compiling in keys */
+    const char *secretkey = "abcdef";
+    /*! [Configure sodium extension] */
+    char conf[1024];
+    snprintf(conf, sizeof(conf),
+      "create,extensions=[/usr/local/lib/libwiredtiger_sodium.so],"
+      "encryption=(name=sodium,secretkey=%s)",
+      secretkey);
+    error_check(wiredtiger_open(home, NULL, conf, &conn));
+    /*! [Configure sodium extension] */
     error_check(conn->close(conn, NULL));
 
     /*

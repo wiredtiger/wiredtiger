@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# checkpoint:metadata
+# [END_TAGS]
 
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
@@ -38,7 +42,7 @@ from wiredtiger import stat
 #
 
 class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+    conn_config = 'cache_size=50MB'
 
     # Create a table.
     uri = "table:test_checkpoint_snapshot01"
@@ -73,7 +77,7 @@ class test_checkpoint_snapshot01(wttest.WiredTigerTestCase):
         session_p2.checkpoint()
 
         #Simulate a crash by copying to a new directory(RESTART).
-        copy_wiredtiger_home(".", "RESTART")
+        copy_wiredtiger_home(self, ".", "RESTART")
 
         # Open the new directory.
         self.conn = self.setUpConnectionOpen("RESTART")

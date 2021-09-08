@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -34,7 +34,7 @@ from test_import01 import test_import_base
 from wtscenario import make_scenarios
 
 class test_import08(test_import_base):
-    conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'
+    conn_config = 'cache_size=50MB,log=(enabled)'
     session_config = 'isolation=snapshot'
 
     original_db_file = 'original_db_file'

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -218,8 +218,6 @@ main(int argc, char *argv[])
      * file, used when running checks.
      */
     if (g.reopen) {
-        if (config != NULL)
-            testutil_die(EINVAL, "-c incompatible with -R");
         if (access(g.home_config, R_OK) != 0)
             testutil_die(ENOENT, "%s", g.home_config);
         config = g.home_config;
@@ -277,9 +275,15 @@ main(int argc, char *argv[])
             timestamp_init();
 
             trace_init();
-
-            TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
         }
+
+        /* Initialize locks to single-thread backups, failures, and timestamp updates. */
+        lock_init(g.wts_session, &g.backup_lock);
+        lock_init(g.wts_session, &g.ts_lock);
+        lock_init(g.wts_session, &g.prepare_commit_lock);
+
+        if (!g.reopen)
+            TIMED_MAJOR_OP(wts_load()); /* Load and verify initial records */
 
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, "verify"));
         TIMED_MAJOR_OP(wts_read_scan());
@@ -298,6 +302,10 @@ main(int argc, char *argv[])
          * them first.
          */
         TIMED_MAJOR_OP(wts_verify(g.wts_conn, "post-ops verify"));
+
+        lock_destroy(g.wts_session, &g.backup_lock);
+        lock_destroy(g.wts_session, &g.ts_lock);
+        lock_destroy(g.wts_session, &g.prepare_commit_lock);
 
         track("shutting down", 0ULL, NULL);
         wts_close(&g.wts_conn, &g.wts_session);
@@ -378,7 +386,7 @@ format_die(void)
         testutil_check(__wt_debug_cursor_page(g.page_dump_cursor, g.home_pagedump));
         fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
 #if WIREDTIGER_VERSION_MAJOR >= 10
-        testutil_check(__wt_debug_cursor_tree_hs(g.page_dump_cursor, g.home_hsdump));
+        testutil_check(__wt_debug_cursor_tree_hs(CUR2S(g.page_dump_cursor), g.home_hsdump));
 #endif
     }
 #endif

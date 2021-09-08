@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,6 +26,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# [TEST_TAGS]
+# ignored_file
+# [END_TAGS]
+#
 # WiredTigerTestCase
 #   parent class for all test cases
 #
@@ -39,7 +43,7 @@ except ImportError:
 
 from contextlib import contextmanager
 import errno, glob, os, re, shutil, sys, time, traceback
-import wiredtiger, wtscenario
+import wiredtiger, wtscenario, wthooks
 
 def shortenWithEllipsis(s, maxlen):
     if len(s) > maxlen:
@@ -179,6 +183,7 @@ class ExtensionList(list):
 class WiredTigerTestCase(unittest.TestCase):
     _globalSetup = False
     _printOnceSeen = {}
+    _ttyDescriptor = None   # set this early, to allow tty() to be called any time.
 
     # conn_config can be overridden to add to basic connection configuration.
     # Can be a string or a callable function or lambda expression.
@@ -196,14 +201,15 @@ class WiredTigerTestCase(unittest.TestCase):
     conn_extensions = ()
 
     @staticmethod
-    def globalSetup(preserveFiles = False, useTimestamp = False,
+    def globalSetup(preserveFiles = False, removeAtStart = True, useTimestamp = False,
                     gdbSub = False, lldbSub = False, verbose = 1, builddir = None, dirarg = None,
-                    longtest = False, ignoreStdout = False):
+                    longtest = False, zstdtest = False, ignoreStdout = False, seedw = 0, seedz = 0, hookmgr = None):
         WiredTigerTestCase._preserveFiles = preserveFiles
         d = 'WT_TEST' if dirarg == None else dirarg
         if useTimestamp:
             d += '.' + time.strftime('%Y%m%d-%H%M%S', time.localtime())
-        shutil.rmtree(d, ignore_errors=True)
+        if removeAtStart:
+            shutil.rmtree(d, ignore_errors=True)
         os.makedirs(d)
         wtscenario.set_long_run(longtest)
         WiredTigerTestCase._parentTestdir = d
@@ -213,6 +219,7 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._gdbSubprocess = gdbSub
         WiredTigerTestCase._lldbSubprocess = lldbSub
         WiredTigerTestCase._longtest = longtest
+        WiredTigerTestCase._zstdtest = zstdtest
         WiredTigerTestCase._verbose = verbose
         WiredTigerTestCase._ignoreStdout = ignoreStdout
         WiredTigerTestCase._dupout = os.dup(sys.stdout.fileno())
@@ -220,7 +227,14 @@ class WiredTigerTestCase(unittest.TestCase):
         WiredTigerTestCase._stderr = sys.stderr
         WiredTigerTestCase._concurrent = False
         WiredTigerTestCase._globalSetup = True
-        WiredTigerTestCase._ttyDescriptor = None
+        WiredTigerTestCase._seeds = [521288629, 362436069]
+        WiredTigerTestCase._randomseed = False
+        if hookmgr == None:
+            hookmgr = wthooks.WiredTigerHookManager()
+        WiredTigerTestCase._hookmgr = hookmgr
+        if seedw != 0 and seedz != 0:
+            WiredTigerTestCase._randomseed = True
+            WiredTigerTestCase._seeds = [seedw, seedz]
 
     def fdSetUp(self):
         self.captureout = CapturedFd('stdout.txt', 'standard output')
@@ -270,6 +284,27 @@ class WiredTigerTestCase(unittest.TestCase):
         self.skipped = True
         super(WiredTigerTestCase, self).skipTest(reason)
 
+    # Construct the expected filename for an extension library and return
+    # the name if the file exists.
+    @staticmethod
+    def findExtension(dirname, libname):
+        pat = ''
+        # When scanning for the extension library, we need to account for
+        # the binary paths produced by libtool and CMake. Libtool will export
+        # the library under '.libs'.
+        if os.path.exists(os.path.join(WiredTigerTestCase._builddir, 'ext',
+            dirname, libname, '.libs')):
+            pat = os.path.join(WiredTigerTestCase._builddir, 'ext',
+                dirname, libname, '.libs', 'libwiredtiger_*.so')
+        else:
+            pat = os.path.join(WiredTigerTestCase._builddir, 'ext',
+                dirname, libname, 'libwiredtiger_*.so')
+        filenames = glob.glob(pat)
+        if len(filenames) > 1:
+            raise Exception(self.shortid() + ": " + ext +
+                ": multiple extensions libraries found matching: " + pat)
+        return filenames
+
     # Return the wiredtiger_open extension argument for
     # any needed shared library.
     def extensionsConfig(self):
@@ -298,9 +333,7 @@ class WiredTigerTestCase(unittest.TestCase):
                     ": extension is not named <dir>/<name>")
             libname = splits[1]
             dirname = splits[0]
-            pat = os.path.join(WiredTigerTestCase._builddir, 'ext',
-                dirname, libname, '.libs', 'libwiredtiger_*.so')
-            filenames = glob.glob(pat)
+            filenames = self.findExtension(dirname, libname)
             if len(filenames) == 0:
                 if skipIfMissing:
                     self.skipTest('extension "' + ext + '" not built')
@@ -309,10 +342,6 @@ class WiredTigerTestCase(unittest.TestCase):
                     raise Exception(self.shortid() +
                         ": " + ext +
                         ": no extensions library found matching: " + pat)
-            elif len(filenames) > 1:
-                raise Exception(self.shortid() +
-                    ": " + ext +
-                    ": multiple extensions libraries found matching: " + pat)
             complete = '"' + filenames[0] + '"' + extconf
             if ext in extfiles:
                 if extfiles[ext] != complete:
@@ -337,14 +366,7 @@ class WiredTigerTestCase(unittest.TestCase):
         # avoid confusion.
         sys.stdout.flush()
         conn_param = 'create,error_prefix="%s",%s' % (self.shortid(), config)
-        try:
-            conn = self.wiredtiger_open(home, conn_param)
-        except wiredtiger.WiredTigerError as e:
-            print("Failed wiredtiger_open: dir '%s', config '%s'" % \
-                (home, conn_param))
-            raise e
-        self.pr(repr(conn))
-        return conn
+        return self.wiredtiger_open(home, conn_param)
 
     # Replacement for wiredtiger.wiredtiger_open that returns
     # a proxied connection that knows to close it itself at the
@@ -392,8 +414,19 @@ class WiredTigerTestCase(unittest.TestCase):
     def setUp(self):
         if not hasattr(self.__class__, 'wt_ntests'):
             self.__class__.wt_ntests = 0
+
+        # We want to have a unique execution directory name for each test.
+        # When a test fails, or with the -p option, we want to preserve the
+        # directory.  For the non concurrent case, this is easy, we use the
+        # class name (like test_base02) and append a class-specific counter.
+        # This is short, somewhat descriptive, and unique.
+        #
+        # Class-specific counters won't work for the concurrent case. To
+        # get uniqueness we use a sanitized "short" identifier.  Despite its name,
+        # this is not short (with scenarios at least), but it is descriptive
+        # and unique.
         if WiredTigerTestCase._concurrent:
-            self.testsubdir = self.shortid() + '.' + str(self.__class__.wt_ntests)
+            self.testsubdir = self.sanitized_shortid()
         else:
             self.testsubdir = self.className() + '.' + str(self.__class__.wt_ntests)
         self.testdir = os.path.join(WiredTigerTestCase._parentTestdir, self.testsubdir)
@@ -470,7 +503,6 @@ class WiredTigerTestCase(unittest.TestCase):
             except:
                 pass
         self._connections = []
-
         try:
             self.fdTearDown()
             self.captureout.check(self)
@@ -621,6 +653,9 @@ class WiredTigerTestCase(unittest.TestCase):
         """
         self.assertEqual(int(ts1, 16), int(ts2, 16))
 
+    def timestamp_str(self, t):
+        return '%x' % t
+
     def exceptionToStderr(self, expr):
         """
         Used by assertRaisesHavingMessage to convert an expression
@@ -738,8 +773,30 @@ class WiredTigerTestCase(unittest.TestCase):
     def shortid(self):
         return self.id().replace("__main__.","")
 
+    def sanitized_shortid(self):
+        """
+        Return a name that is suitable for creating file system names.
+        In particular, names with scenarios look like
+        'test_file.test_file.test_funcname(scen1.scen2.scen3)'.
+        So transform '(', but remove final ')'.
+        """
+        return self.shortid().translate(str.maketrans('($[]/ ','______', ')'))
+
     def className(self):
         return self.__class__.__name__
+
+def zstdtest(description):
+    """
+    Used as a function decorator, for example, @wttest.zstdtest("description").
+    The decorator indicates that this test function should only be included
+    when running the test suite with the --zstd option.
+    """
+    def runit_decorator(func):
+        return func
+    if not WiredTigerTestCase._zstdtest:
+        return unittest.skip(description + ' (enable with --zstd)')
+    else:
+        return runit_decorator
 
 def longtest(description):
     """
@@ -757,6 +814,9 @@ def longtest(description):
 def islongtest():
     return WiredTigerTestCase._longtest
 
+def getseed():
+    return WiredTigerTestCase._seeds
+
 def runsuite(suite, parallel):
     suite_to_run = suite
     if parallel > 1:
@@ -766,6 +826,9 @@ def runsuite(suite, parallel):
         WiredTigerTestCase._concurrent = True
         suite_to_run = ConcurrentTestSuite(suite, fork_for_tests(parallel))
     try:
+        if WiredTigerTestCase._randomseed:
+            WiredTigerTestCase.prout("Starting test suite with seedw={0} and seedz={1}. Rerun this test with -seed {0}.{1} to get the same randomness"
+                .format(str(WiredTigerTestCase._seeds[0]), str(WiredTigerTestCase._seeds[1])))
         return unittest.TextTestRunner(
             verbosity=WiredTigerTestCase._verbose).run(suite_to_run)
     except BaseException as e:

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,7 +16,12 @@ static int __col_insert_alloc(WT_SESSION_IMPL *, uint64_t, u_int, WT_INSERT **, 
  */
 int
 __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_UPDATE *upd_arg,
-  u_int modify_type, bool exclusive)
+  u_int modify_type, bool exclusive
+#ifdef HAVE_DIAGNOSTIC
+  ,
+  bool restore
+#endif
+)
 {
     static const WT_ITEM col_fix_remove = {"", 1, NULL, 0, 0};
     WT_BTREE *btree;
@@ -26,19 +31,20 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     WT_PAGE *page;
     WT_PAGE_MODIFY *mod;
     WT_SESSION_IMPL *session;
-    WT_UPDATE *old_upd, *upd;
+    WT_UPDATE *last_upd, *old_upd, *upd;
     wt_timestamp_t prev_upd_ts;
     size_t ins_size, upd_size;
     u_int i, skipdepth;
-    bool append, logged;
+    bool append, inserted_to_update_chain, logged;
 
     btree = CUR2BT(cbt);
     ins = NULL;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    last_upd = NULL;
     upd = upd_arg;
     prev_upd_ts = WT_TS_NONE;
-    append = logged = false;
+    append = inserted_to_update_chain = logged = false;
 
     /*
      * We should have one of the following:
@@ -115,19 +121,15 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
     }
 
     /*
-     * Delete, insert or update a column-store entry.
-     *
-     * If modifying a previously modified record, cursor.ins will be set to point to the correct
-     * update list. Create a new update entry and link it into the existing list.
-     *
-     * Else, allocate an insert array as necessary, build an insert/update structure pair, and link
-     * it into place.
+     * Modify a column-store entry. If modifying a previously modified record, cursor.ins will point
+     * to the correct update list; create a new update and link it into the already existing list.
+     * Otherwise, we have to insert a new insert/update pair into the column-store insert list.
      */
     if (cbt->compare == 0 && cbt->ins != NULL) {
         old_upd = cbt->ins->upd;
         if (upd_arg == NULL) {
-            /* Make sure the update can proceed. */
-            WT_ERR(__wt_txn_update_check(session, cbt, old_upd, &prev_upd_ts));
+            /* Make sure the modify can proceed. */
+            WT_ERR(__wt_txn_modify_check(session, cbt, old_upd, &prev_upd_ts));
 
             /* Allocate a WT_UPDATE structure and transaction ID. */
             WT_ERR(__wt_upd_alloc(session, value, modify_type, &upd, &upd_size));
@@ -136,13 +138,33 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 #endif
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
-        } else {
-            upd = upd_arg;
-            upd_size = WT_UPDATE_MEMSIZE(upd);
-        }
 
-        /* Avoid a data copy in WT_CURSOR.update. */
-        __wt_upd_value_assign(cbt->modify_update, upd);
+            /* Avoid WT_CURSOR.update data copy. */
+            __wt_upd_value_assign(cbt->modify_update, upd);
+        } else {
+            upd_size = __wt_update_list_memsize(upd);
+
+            /* If there are existing updates, append them after the new updates. */
+            for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
+                ;
+            last_upd->next = old_upd;
+
+            /*
+             * If we restore an update chain in update restore eviction, there should be no update
+             * on the existing update chain.
+             */
+            WT_ASSERT(session, !restore || old_upd == NULL);
+
+            /*
+             * We can either put multiple new updates or a single update on the update chain.
+             *
+             * Set the "old" entry to the second update in the list so that the serialization
+             * function succeeds in swapping the first update into place.
+             */
+            if (upd->next != NULL)
+                cbt->ins->upd = upd->next;
+            old_upd = cbt->ins->upd;
+        }
 
         /*
          * Point the new WT_UPDATE item to the next element in the list. If we get it right, the
@@ -153,6 +175,10 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
         /* Serialize the update. */
         WT_ERR(__wt_update_serial(session, cbt, page, &cbt->ins->upd, &upd, upd_size, false));
     } else {
+        /* Make sure the modify can proceed. */
+        if (cbt->compare == 0 && upd_arg == NULL)
+            WT_ERR(__wt_txn_modify_check(session, cbt, NULL, NULL));
+
         /* Allocate the append/update list reference as necessary. */
         if (append) {
             WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_col_append, ins_headp, 1);
@@ -193,7 +219,7 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
             WT_ERR(__wt_txn_modify(session, upd));
             logged = true;
 
-            /* Avoid a data copy in WT_CURSOR.update. */
+            /* Avoid WT_CURSOR.update data copy. */
             __wt_upd_value_assign(cbt->modify_update, upd);
         } else
             upd_size = __wt_update_list_memsize(upd);
@@ -229,12 +255,14 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
               session, page, cbt->ins_head, cbt->ins_stack, &ins, ins_size, skipdepth, exclusive));
     }
 
+    inserted_to_update_chain = true;
+
     /* If the update was successful, add it to the in-memory log. */
     if (logged && modify_type != WT_UPDATE_RESERVE) {
         WT_ERR(__wt_txn_log_op(session, cbt));
 
         /*
-         * In case of append, the recno (key) for the value is assigned now. Set the recno in the
+         * In case of append, the recno (key) for the value is assigned now. Set the key in the
          * transaction operation to be used in case this transaction is prepared to retrieve the
          * update corresponding to this operation.
          */
@@ -243,14 +271,25 @@ __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value, WT_U
 
     if (0) {
 err:
-        /*
-         * Remove the update from the current transaction, so we don't try to modify it on rollback.
-         */
+        /* Remove the update from the current transaction; don't try to modify it on rollback. */
         if (logged)
             __wt_txn_unmodify(session);
+
+        /* Free any allocated insert list object. */
         __wt_free(session, ins);
-        if (upd_arg == NULL)
+
+        cbt->ins = NULL;
+
+        /* Discard any allocated update, unless we failed after linking it into page memory. */
+        if (upd_arg == NULL && !inserted_to_update_chain)
             __wt_free(session, upd);
+
+        /*
+         * When prepending a list of updates to an update chain, we link them together; sever that
+         * link so our callers list doesn't point into page memory.
+         */
+        if (last_upd != NULL)
+            last_upd->next = NULL;
     }
 
     return (ret);

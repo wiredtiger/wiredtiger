@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -699,7 +699,7 @@ empty(int cnt)
 
     if (page_type == WT_PAGE_COL_FIX)
         for (i = 0; i < cnt; ++i)
-            testutil_assert(fputs("\\00\n", res_fp));
+            testutil_assert(fputs("\\00\n", res_fp) != EOF);
 }
 
 /*

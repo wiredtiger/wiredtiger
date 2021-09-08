@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -31,7 +31,7 @@ import wttest, wiredtiger
 # test_debug_mode07.py
 #   Test the debug mode settings. Test realloc_exact use (from WT-4919).
 class test_debug_mode07(wttest.WiredTigerTestCase):
-    conn_config = 'log=(enabled=true),debug_mode=(realloc_exact=true),statistics=(all)'
+    conn_config = 'log=(enabled=true),debug_mode=(realloc_exact=true)'
     uri = 'file:test_debug_mode07'
 
     # Insert some data to ensure setting/unsetting the flag does not

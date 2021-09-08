@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -25,6 +25,10 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# recovery:log_files
+# [END_TAGS]
 #
 # test_txn19.py
 #   Transactions: test recovery with corrupted log files
@@ -109,6 +113,11 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
     nrecords = [('nrecords=10', dict(nrecords=10)),
                 ('nrecords=11', dict(nrecords=11))]
 
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
+
     # This function prunes out unnecessary or problematic test cases
     # from the list of scenarios.
     def includeFunc(name, dictarg):
@@ -127,11 +136,10 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         return True
 
     scenarios = make_scenarios(
-        corruption_type, corruption_pos, nrecords,
+        key_format_values, corruption_type, corruption_pos, nrecords,
         include=includeFunc, prune=20, prunelong=1000)
 
     uri = 'table:test_txn19'
-    create_params = 'key_format=i,value_format=S'
 
     # Return the log file number that contains the given record
     # number.  In this test, two records fit into each log file, and
@@ -278,7 +286,8 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         # Then does a restart with recovery, then starts again with salvage,
         # and finally starts again with recovery (adding new records).
 
-        self.session.create(self.uri, self.create_params)
+        create_params = 'key_format=i,value_format=S'.format(self.key_format)
+        self.session.create(self.uri, create_params)
         self.inserts([x for x in range(0, self.nrecords)])
         newdir = "RESTART"
         copy_for_crash_restart(self.home, newdir)
@@ -290,14 +299,13 @@ class test_txn19(wttest.WiredTigerTestCase, suite_subprocess):
         expect_fail = self.expect_recovery_failure()
 
         if expect_fail:
-            with self.expectedStdoutPattern('Failed wiredtiger_open'):
-                errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
-                if self.kind == 'removal':
-                    errmsg = '/No such file or directory/'
-                if self.kind == 'truncate':
-                    errmsg = '/failed to read 128 bytes at offset 0/'
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(newdir, self.base_config), errmsg)
+            errmsg = '/WT_TRY_SALVAGE: database corruption detected/'
+            if self.kind == 'removal':
+                errmsg = '/No such file or directory/'
+            if self.kind == 'truncate':
+                errmsg = '/failed to read 128 bytes at offset 0/'
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.reopen_conn(newdir, self.base_config), errmsg)
         else:
             if self.expect_warning_corruption():
                 with self.expectedStdoutPattern('log file .* corrupted'):
@@ -382,6 +390,11 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         ('WiredTiger.wt', dict(filename='WiredTiger.wt')),
         ('WiredTigerHS.wt', dict(filename='WiredTigerHS.wt')),
     ]
+    # Configure the database type.
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
 
     # In many cases, wiredtiger_open without any salvage options will
     # just work.  We list those cases here.
@@ -430,10 +443,9 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
         "garbage-end:WiredTiger.basecfg",
     ]
 
-    scenarios = make_scenarios(corruption_scenarios, filename_scenarios)
+    scenarios = make_scenarios(key_format_values, corruption_scenarios, filename_scenarios)
     uri = 'table:test_txn19_meta_'
     ntables = 5
-    create_params = 'key_format=i,value_format=S'
     nrecords = 1000                                  # records per table.
     suffixes = [ str(x) for x in range(0, ntables)]  # [ '0', '1', ... ]
 
@@ -488,9 +500,8 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                     errmsg = '/is smaller than allocation size; file size=0, alloc size=4096/'
                 if self.kind == 'removal':
                     errmsg = '/No such file or directory/'
-            with self.expectedStdoutPattern('Failed wiredtiger_open'):
-                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                    lambda: self.reopen_conn(dir, self.conn_config), errmsg)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.reopen_conn(dir, self.conn_config), errmsg)
         else:
             # On non-windows platforms, we capture the renaming of WiredTiger.wt file.
             if os.name != 'nt' and self.filename == 'WiredTiger.turtle' and self.kind == 'removal':
@@ -505,11 +516,12 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
     def test_corrupt_meta(self):
         newdir = "RESTART"
         newdir2 = "RESTART2"
-        expect = list(range(0, self.nrecords))
+        expect = list(range(1, self.nrecords + 1))
         salvage_config = self.base_config + ',salvage=true'
 
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         for suffix in self.suffixes:
-            self.session.create(self.uri + suffix, self.create_params)
+            self.session.create(self.uri + suffix, create_params)
         self.inserts(expect)
 
         # Simulate a crash by copying the contents of the directory
@@ -548,10 +560,9 @@ class test_txn19_meta(wttest.WiredTigerTestCase, suite_subprocess):
                 # an error during the wiredtiger_open.  But the nature of the
                 # messages produced during the error is variable by which case
                 # it is, and even variable from system to system.
-                with self.expectedStdoutPattern('.'):
-                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                        lambda: self.reopen_conn(salvagedir, salvage_config),
-                        '/.*/')
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(salvagedir, salvage_config),
+                    '/.*/')
 
 if __name__ == '__main__':
     wttest.run()

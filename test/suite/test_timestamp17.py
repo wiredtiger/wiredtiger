@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -38,16 +38,19 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 class test_timestamp17(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp17'
     uri = 'table:' + tablename
     session_config = 'isolation=snapshot'
 
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
+    scenarios = make_scenarios(key_format_values)
+
     def test_inconsistent_timestamping(self):
-        self.session.create(self.uri, 'key_format=i,value_format=i')
+        self.session.create(self.uri, 'key_format={},value_format=i'.format(self.key_format))
         self.session.begin_transaction()
         cur1 = self.session.open_cursor(self.uri)
         cur1[1] = 1

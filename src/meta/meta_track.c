@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -276,14 +276,14 @@ __wt_meta_track_off(WT_SESSION_IMPL *session, bool need_sync, bool unroll)
         WT_WITH_DHANDLE(session, WT_SESSION_META_DHANDLE(session),
           ret = __wt_txn_checkpoint_log(session, false, WT_TXN_LOG_CKPT_SYNC, NULL));
     else {
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SCHEMA));
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SCHEMA));
         ckpt_session = S2C(session)->meta_ckpt_session;
         /*
          * If this operation is part of a running transaction, that should be included in the
          * checkpoint.
          */
         ckpt_session->txn->id = session->txn->id;
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_METADATA));
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_METADATA));
         WT_WITH_DHANDLE(ckpt_session, WT_SESSION_META_DHANDLE(session),
           WT_WITH_METADATA_LOCK(ckpt_session, ret = __wt_checkpoint(ckpt_session, NULL)));
         ckpt_session->txn->id = WT_TXN_NONE;
@@ -426,8 +426,8 @@ __wt_meta_track_update(WT_SESSION_IMPL *session, const char *key)
     WT_ERR(__wt_strdup(session, key, &trk->a));
 
     /*
-     * If there was a previous value, keep it around -- if not, then this
-     * "update" is really an insert.
+     * If there was a previous value, keep it around -- if not, then this "update" is really an
+     * insert.
      */
     if ((ret = __wt_metadata_search(session, key, &trk->b)) == WT_NOTFOUND) {
         trk->op = WT_ST_REMOVE;
@@ -515,13 +515,14 @@ __wt_meta_track_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED)) {
         WT_RET(__wt_open_internal_session(
-          conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, &conn->meta_ckpt_session));
+          conn, "metadata-ckpt", false, WT_SESSION_NO_DATA_HANDLES, 0, &conn->meta_ckpt_session));
 
         /*
-         * Sessions default to read-committed isolation, we rely on that for the correctness of
-         * metadata checkpoints.
+         * Set session transaction isolation to read-committed isolation, we rely on that for the
+         * correctness of metadata checkpoints.
          */
-        WT_ASSERT(session, conn->meta_ckpt_session->txn->isolation == WT_ISO_READ_COMMITTED);
+        conn->meta_ckpt_session->isolation = conn->meta_ckpt_session->txn->isolation =
+          WT_ISO_READ_COMMITTED;
     }
 
     return (0);

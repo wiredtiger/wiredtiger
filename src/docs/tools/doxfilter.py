@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -79,6 +79,7 @@ def process_arch(source):
             result += '@arch_page_table{' + \
                 data_structures_str + ',' + \
                 files_str + '}\n'
+            result += '@arch_page_caution\n'
         else:
             result += line + '\n'
     return result

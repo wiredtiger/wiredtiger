@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -113,7 +113,15 @@ __pack_name_next(WT_PACK_NAME *pn, WT_CONFIG_ITEM *name)
         WT_CLEAR(*name);
         name->str = pn->buf;
         name->len = strlen(pn->buf);
+        /*
+         * C++ treats nested structure definitions differently to C, as such we need to use scope
+         * resolution to fully define the type.
+         */
+#ifdef __cplusplus
+        name->type = WT_CONFIG_ITEM::WT_CONFIG_ITEM_STRING;
+#else
         name->type = WT_CONFIG_ITEM_STRING;
+#endif
         pn->count++;
     } else
         WT_RET(__wt_config_next(&pn->config, name, &ignore));
@@ -204,51 +212,55 @@ next:
     }
 }
 
-#define WT_PACK_GET(session, pv, ap)                               \
-    do {                                                           \
-        WT_ITEM *__item;                                           \
-        switch ((pv).type) {                                       \
-        case 'x':                                                  \
-            break;                                                 \
-        case 's':                                                  \
-        case 'S':                                                  \
-            (pv).u.s = va_arg(ap, const char *);                   \
-            break;                                                 \
-        case 'U':                                                  \
-        case 'u':                                                  \
-            __item = va_arg(ap, WT_ITEM *);                        \
-            (pv).u.item.data = __item->data;                       \
-            (pv).u.item.size = __item->size;                       \
-            break;                                                 \
-        case 'b':                                                  \
-        case 'h':                                                  \
-        case 'i':                                                  \
-            (pv).u.i = va_arg(ap, int);                            \
-            break;                                                 \
-        case 'B':                                                  \
-        case 'H':                                                  \
-        case 'I':                                                  \
-        case 't':                                                  \
-            (pv).u.u = va_arg(ap, unsigned int);                   \
-            break;                                                 \
-        case 'l':                                                  \
-            (pv).u.i = va_arg(ap, long);                           \
-            break;                                                 \
-        case 'L':                                                  \
-            (pv).u.u = va_arg(ap, unsigned long);                  \
-            break;                                                 \
-        case 'q':                                                  \
-            (pv).u.i = va_arg(ap, int64_t);                        \
-            break;                                                 \
-        case 'Q':                                                  \
-        case 'r':                                                  \
-        case 'R':                                                  \
-            (pv).u.u = va_arg(ap, uint64_t);                       \
-            break;                                                 \
-        default:                                                   \
-            /* User format strings have already been validated. */ \
-            return (__wt_illegal_value(session, (pv).type));       \
-        }                                                          \
+#define WT_PACK_GET(session, pv, ap)                                                   \
+    do {                                                                               \
+        WT_ITEM *__item;                                                               \
+        switch ((pv).type) {                                                           \
+        case 'x':                                                                      \
+            break;                                                                     \
+        case 's':                                                                      \
+        case 'S':                                                                      \
+            (pv).u.s = va_arg(ap, const char *);                                       \
+            break;                                                                     \
+        case 'U':                                                                      \
+        case 'u':                                                                      \
+            __item = va_arg(ap, WT_ITEM *);                                            \
+            (pv).u.item.data = __item->data;                                           \
+            (pv).u.item.size = __item->size;                                           \
+            break;                                                                     \
+        case 'b':                                                                      \
+        case 'h':                                                                      \
+        case 'i':                                                                      \
+        case 'l':                                                                      \
+            /* Use the int type as compilers promote smaller sizes to int for variadic \
+             * arguments.                                                              \
+             * Note: 'l' accommodates 4 bytes                                          \
+             */                                                                        \
+            (pv).u.i = va_arg(ap, int);                                                \
+            break;                                                                     \
+        case 'B':                                                                      \
+        case 'H':                                                                      \
+        case 'I':                                                                      \
+        case 'L':                                                                      \
+        case 't':                                                                      \
+            /* Use the int type as compilers promote smaller sizes to int for variadic \
+             * arguments.                                                              \
+             * Note: 'L' accommodates 4 bytes                                          \
+             */                                                                        \
+            (pv).u.u = va_arg(ap, unsigned int);                                       \
+            break;                                                                     \
+        case 'q':                                                                      \
+            (pv).u.i = va_arg(ap, int64_t);                                            \
+            break;                                                                     \
+        case 'Q':                                                                      \
+        case 'r':                                                                      \
+        case 'R':                                                                      \
+            (pv).u.u = va_arg(ap, uint64_t);                                           \
+            break;                                                                     \
+        default:                                                                       \
+            /* User format strings have already been validated. */                     \
+            return (__wt_illegal_value(session, (pv).type));                           \
+        }                                                                              \
     } while (0)
 
 /*
@@ -274,7 +286,7 @@ __pack_size(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, size_t *vp)
             ssize_t len;
 
             /* The string was previously validated. */
-            len = __wt_json_strlen(pv->u.item.data, pv->u.item.size);
+            len = __wt_json_strlen((const char *)pv->u.item.data, pv->u.item.size);
             WT_ASSERT(session, len >= 0);
             s = (size_t)len + (pv->type == 'K' ? 0 : 1);
         }
@@ -386,8 +398,8 @@ __pack_write(WT_SESSION_IMPL *session, WT_PACK_VALUE *pv, uint8_t **pp, size_t m
             pad = 1;
         if (s > 0) {
             oldp = *pp;
-            WT_RET(
-              __wt_json_strncpy((WT_SESSION *)session, (char **)pp, maxlen, pv->u.item.data, s));
+            WT_RET(__wt_json_strncpy(
+              (WT_SESSION *)session, (char **)pp, maxlen, (const char *)pv->u.item.data, s));
             maxlen -= (size_t)(*pp - oldp);
         }
         if (pad > 0) {
@@ -624,7 +636,7 @@ __wt_struct_packv(WT_SESSION_IMPL *session, void *buffer, size_t size, const cha
     WT_PACK pack;
     uint8_t *p, *end;
 
-    p = buffer;
+    p = (uint8_t *)buffer;
     end = p + size;
 
     if (fmt[0] != '\0' && fmt[1] == '\0') {
@@ -690,7 +702,7 @@ __wt_struct_unpackv(
     WT_PACK pack;
     const uint8_t *p, *end;
 
-    p = buffer;
+    p = (uint8_t *)buffer;
     end = p + size;
 
     if (fmt[0] != '\0' && fmt[1] == '\0') {

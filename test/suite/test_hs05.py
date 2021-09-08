@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,9 +30,7 @@ from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_hs05.py
 # Verify hs_score reflects cache pressure due to history
@@ -44,6 +42,12 @@ class test_hs05(wttest.WiredTigerTestCase):
     conn_config += 'eviction_updates_target=100,eviction_updates_trigger=100'
     session_config = 'isolation=snapshot'
     stable = 1
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -59,19 +63,19 @@ class test_hs05(wttest.WiredTigerTestCase):
         for i in range(nrows + 1, nrows + nops + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(self.stable + i))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.stable + i))
         cursor.close()
         score_end = self.get_stat(stat.conn.cache_hs_score)
         score_diff = score_end - score_start
         self.pr("After large updates score start: " + str(score_start))
         self.pr("After large updates score end: " + str(score_end))
-        self.pr("After large updates hs score diff: " + str(score_diff))
+        self.pr("After large updates history store score diff: " + str(score_diff))
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs05"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 
@@ -86,7 +90,7 @@ class test_hs05(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
         # Pin the oldest timestamp so that all history has to stay.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         # Loop a couple times, partly filling the cache but not
         # overfilling it to see the history store score value change
         # even if the history store is not yet in use.
@@ -96,7 +100,7 @@ class test_hs05(wttest.WiredTigerTestCase):
         loop_start = self.get_stat(stat.conn.cache_hs_score)
         for i in range(1, 9):
             bigvalue2 = valstr[i].encode() * 50
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable))
             entries_start = self.get_stat(stat.conn.cache_hs_insert)
             score_start = self.get_stat(stat.conn.cache_hs_score)
             self.pr("Update iteration: " + str(i) + " Value: " + str(bigvalue2))
@@ -120,14 +124,14 @@ class test_hs05(wttest.WiredTigerTestCase):
         # By moving the oldest after updating we should see the score drop
         # to zero.
         score_start = loop_end
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(self.stable))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.stable))
         for i in range(9, 11):
             bigvalue2 = valstr[i].encode() * 50
             self.pr("Update iteration with oldest: " + str(i) + " Value: " + str(bigvalue2))
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, nrows)
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(self.stable))
-            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(self.stable))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(self.stable))
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(self.stable))
             self.stable += nrows
         score_end = self.get_stat(stat.conn.cache_hs_score)
         self.assertLess(score_end, score_start)

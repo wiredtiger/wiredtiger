@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -214,10 +214,9 @@ __wt_struct_plan(WT_SESSION_IMPL *session, WT_TABLE *table, const char *columns,
                 WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_SKIP));
             }
             /*
-             * Now copy the value in / out.  In the common case,
-             * where each value is used in one column, we do a
-             * "next" operation.  If the value is used again, we do
-             * a "reuse" operation to avoid making another copy.
+             * Now copy the value in / out. In the common case, where each value is used in one
+             * column, we do a "next" operation. If the value is used again, we do a "reuse"
+             * operation to avoid making another copy.
              */
             if (!have_it) {
                 WT_RET(__wt_buf_catfmt(session, plan, "%c", WT_PROJ_NEXT));

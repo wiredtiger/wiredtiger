@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -34,10 +34,6 @@
 import random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 class test_timestamp16(wttest.WiredTigerTestCase, suite_subprocess):
     tablename = 'test_timestamp16'

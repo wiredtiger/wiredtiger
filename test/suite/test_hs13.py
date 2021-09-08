@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,18 +27,22 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import wiredtiger, wttest
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_hs13.py
 # Verify reverse modify traversal after eviction.
 class test_hs13(wttest.WiredTigerTestCase):
-    conn_config = 'cache_size=2MB,statistics=(all),eviction=(threads_max=1)'
+    conn_config = 'cache_size=2MB,eviction=(threads_max=1)'
     session_config = 'isolation=snapshot'
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def test_reverse_modifies_constructed_after_eviction(self):
         uri = "table:test_hs13"
-        create_params = 'value_format=S,key_format=i'
+        create_params = 'value_format=S,key_format={}'.format(self.key_format)
         value1 = 'a' * 10000
         value2 = 'b' * 10000
         value3 = 'e' * 10000
@@ -85,12 +89,12 @@ class test_hs13(wttest.WiredTigerTestCase):
         cursor[1] = value2
         self.session.commit_transaction()
 
-        # Insert a whole bunch of data into the table to force wiredtiger to evict data
-        # from the previous table.
-        self.session.begin_transaction()
-        for i in range(2, 10000):
-            cursor[i] = value3
-        self.session.commit_transaction()
+        # Configure debug behavior on a cursor to evict the positioned page on cursor reset
+        # and evict the page.
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        evict_cursor.set_key(1)
+        self.assertEquals(evict_cursor.search(), 0)
+        evict_cursor.reset()
 
         # Try to find the value we saw earlier.
         cursor2.set_key(1)

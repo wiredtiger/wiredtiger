@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -222,9 +222,8 @@ __config_merge_format_next(WT_SESSION_IMPL *session, const char *prefix, size_t 
                 continue;
 
             /*
-             * The test is complicated by matching empty entries
-             * "foo=" against nested structures "foo,bar=", where
-             * the latter is a replacement for the former.
+             * The test is complicated by matching empty entries "foo=" against nested structures
+             * "foo,bar=", where the latter is a replacement for the former.
              */
             if (len2 > len1 && (ep + 1)->k[len1] == SEPC && memcmp(ep->k, (ep + 1)->k, len1) == 0)
                 continue;

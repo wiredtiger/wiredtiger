@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -31,9 +31,7 @@
 import wiredtiger, wttest, re, suite_random
 from wtdataset import SimpleDataSet
 from contextlib import contextmanager
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 class test_timestamp22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
@@ -48,6 +46,12 @@ class test_timestamp22(wttest.WiredTigerTestCase):
     stable_ts = 0
     SUCCESS = 'success'
     FAILURE = 'failure'
+
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     # Control execution of an operation, looking for exceptions and error messages.
     # Usage:
@@ -124,7 +128,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
             this_commit_ts = -1
             if self.do_illegal():
                 # setting durable timestamp must be after prepare call
-                config += ',durable_timestamp=' + timestamp_str(self.gen_ts(commit_ts))
+                config += ',durable_timestamp=' + self.timestamp_str(self.gen_ts(commit_ts))
                 ok = False
 
             # ODDITY: if we set the durable timestamp (which is illegal at this point), and set a
@@ -143,7 +147,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 else:
                     # It's possible this will succeed, we'll check below.
                     this_commit_ts = self.gen_ts(commit_ts)
-                config += ',commit_timestamp=' + timestamp_str(this_commit_ts)
+                config += ',commit_timestamp=' + self.timestamp_str(this_commit_ts)
 
             if this_commit_ts >= 0:
                 if this_commit_ts < running_commit_ts:
@@ -161,7 +165,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         session = self.session
         needs_rollback = False
         prepare_config = None
-        commit_config = 'commit_timestamp=' + timestamp_str(commit_ts)
+        commit_config = 'commit_timestamp=' + self.timestamp_str(commit_ts)
         tstxn1_config = ''
         tstxn2_config = ''
 
@@ -173,11 +177,11 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # Occasionally put a durable timestamp on a commit without a prepare,
         # that will be an error.
         if do_prepare or not ok_commit:
-            commit_config += ',durable_timestamp=' + timestamp_str(durable_ts)
+            commit_config += ',durable_timestamp=' + self.timestamp_str(durable_ts)
         cursor = session.open_cursor(self.uri)
         prepare_ts = self.gen_ts(commit_ts)
-        prepare_config = 'prepare_timestamp=' + timestamp_str(prepare_ts)
-        begin_config = '' if read_ts < 0 else 'read_timestamp=' + timestamp_str(read_ts)
+        prepare_config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
+        begin_config = '' if read_ts < 0 else 'read_timestamp=' + self.timestamp_str(read_ts)
 
         # We might do timestamp_transaction calls either before/after inserting
         # values, or both.
@@ -243,7 +247,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         msg = 'inserts with commit config(' + commit_config + ')'
 
         try:
-            for i in range(0, self.nrows):
+            for i in range(1, self.nrows + 1):
                 needs_rollback = False
                 if self.do_illegal():
                     # Illegal outside of transaction
@@ -302,7 +306,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         for ts_name in ['oldest', 'stable', 'commit', 'durable']:
             val = eval(ts_name)
             if val >= 0:
-                configs.append(ts_name + '_timestamp=' + timestamp_str(val))
+                configs.append(ts_name + '_timestamp=' + self.timestamp_str(val))
         return ','.join(configs)
 
     # Determine whether we expect the set_timestamp to succeed.
@@ -357,8 +361,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                 self.pr('updating stable: ' + str(stable))
 
         # Make sure the state of global timestamps is what we think.
-        expect_query_oldest = timestamp_str(self.oldest_ts)
-        expect_query_stable = timestamp_str(self.stable_ts)
+        expect_query_oldest = self.timestamp_str(self.oldest_ts)
+        expect_query_stable = self.timestamp_str(self.stable_ts)
         query_oldest = self.conn.query_timestamp('get=oldest')
         query_stable = self.conn.query_timestamp('get=stable')
 
@@ -383,14 +387,14 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         else:
             iterations = 1000
 
-        create_params = 'value_format=S,key_format=i'
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
         self.session.create(self.uri, create_params)
 
         self.set_global_timestamps(1, 1, -1, -1)
 
         # Create tables with no entries
         ds = SimpleDataSet(
-            self, self.uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, self.uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
 
         # We do a bunch of iterations, doing transactions, prepare, and global timestamp calls
         # with timestamps that are sometimes valid, sometimes not. We use the iteration number
@@ -417,6 +421,8 @@ class test_timestamp22(wttest.WiredTigerTestCase):
                         commit_ts = self.oldest_ts
                     if durable_ts < commit_ts:
                         durable_ts = commit_ts
+                    if durable_ts <= self.stable_ts:
+                        durable_ts = self.stable_ts + 1
                 value = self.gen_value(iternum, commit_ts)
                 self.updates(value, ds, do_prepare, commit_ts, durable_ts, read_ts)
 
@@ -431,7 +437,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
 
         # Make sure the resulting rows are what we expect.
         cursor = self.session.open_cursor(self.uri)
-        expect_key = 0
+        expect_key = 1
         expect_value = self.commit_value
         for k,v in cursor:
             self.assertEquals(k, expect_key)
@@ -441,7 +447,7 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         # Although it's theoretically possible to never successfully update a single row,
         # with a large number of iterations that should never happen.  I'd rather catch
         # a test code error where we mistakenly don't update any rows.
-        self.assertGreater(expect_key, 0)
+        self.assertGreater(expect_key, 1)
         cursor.close()
 
 if __name__ == '__main__':
