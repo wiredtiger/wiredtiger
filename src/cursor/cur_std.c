@@ -1033,7 +1033,7 @@ __check_prefix_format(const char *format)
     if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
         return (0);
     /*
-     * Now check for fixed-length string format through looking at the characters before the NULL
+     * Now check for fixed-length string format through looking at the characters before the nul
      * character.
      */
     for (p = format, len = strlen(format); len > 1; --len, p++)
@@ -1091,8 +1091,8 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
                 WT_ERR_MSG(
                   session, EINVAL, "cannot use prefix key search near for column store formats");
             /*
-             * Prefix search near configuration can only be used for formats string or raw byte
-             * array.
+             * Prefix search near configuration can only be used for string or raw byte array
+             * formats.
              */
             if ((ret = __check_prefix_format(cursor->key_format)) != 0)
                 WT_ERR_MSG(session, ret,
