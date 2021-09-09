@@ -1028,7 +1028,7 @@ __check_prefix_format(const char *format)
     size_t len;
     const char *p;
 
-    /* Early exit if prefix format is S or u */
+    /* Early exit if prefix format is S or u. */
     if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
         return (0);
     /*
