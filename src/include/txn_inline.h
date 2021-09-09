@@ -449,13 +449,10 @@ err:
 static inline uint64_t
 __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 {
-    WT_BTREE *btree;
     WT_TXN_GLOBAL *txn_global;
     uint64_t checkpoint_pinned, oldest_id;
-    bool include_checkpoint_txn;
 
     txn_global = &S2C(session)->txn_global;
-    btree = S2BT_SAFE(session);
 
     /*
      * The metadata is tracked specially because of optimizations for checkpoints.
@@ -467,10 +464,6 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
      * Take a local copy of these IDs in case they are updated while we are checking visibility.
      */
     oldest_id = txn_global->oldest_id;
-    include_checkpoint_txn =
-      btree == NULL || (btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
-    if (!include_checkpoint_txn)
-        return (oldest_id);
 
     /*
      * The read of the transaction ID pinned by a checkpoint needs to be carefully ordered: if a
@@ -501,14 +494,11 @@ __wt_txn_oldest_id(WT_SESSION_IMPL *session)
 static inline void
 __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
 {
-    WT_BTREE *btree;
     WT_TXN_GLOBAL *txn_global;
     wt_timestamp_t checkpoint_ts, pinned_ts;
-    bool include_checkpoint_txn;
 
     *pinned_tsp = WT_TS_NONE;
 
-    btree = S2BT_SAFE(session);
     txn_global = &S2C(session)->txn_global;
 
     /*
@@ -518,19 +508,6 @@ __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp)
         return;
 
     *pinned_tsp = pinned_ts = txn_global->pinned_timestamp;
-
-    /*
-     * Checkpoint transactions often fall behind ordinary application threads. Take special effort
-     * to not keep changes pinned in cache if they are only required for the checkpoint and it has
-     * already seen them.
-     *
-     * If there is no active checkpoint or this handle is up to date with the active checkpoint then
-     * it's safe to ignore the checkpoint ID in the visibility check.
-     */
-    include_checkpoint_txn =
-      btree == NULL || (btree->checkpoint_gen != __wt_gen(session, WT_GEN_CHECKPOINT));
-    if (!include_checkpoint_txn)
-        return;
 
     /*
      * The read of checkpoint timestamp needs to be carefully ordered: it needs to be after we have
@@ -680,6 +657,37 @@ __wt_txn_tw_stop_visible_all(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw)
 }
 
 /*
+ * __wt_txn_visible_id_snapshot --
+ *     Is the id visible in terms of the given snapshot?
+ */
+static inline bool
+__wt_txn_visible_id_snapshot(
+  uint64_t id, uint64_t snap_min, uint64_t snap_max, uint64_t *snapshot, uint32_t snapshot_count)
+{
+    bool found;
+
+    /*
+     * WT_ISO_SNAPSHOT, WT_ISO_READ_COMMITTED: the ID is visible if it is not the result of a
+     * concurrent transaction, that is, if was committed before the snapshot was taken.
+     *
+     * The order here is important: anything newer than or equal to the maximum ID we saw when
+     * taking the snapshot should be invisible, even if the snapshot is empty.
+     *
+     * Snapshot data:
+     *	ids >= snap_max not visible,
+     *	ids < snap_min are visible,
+     *	everything else is visible unless it is found in the snapshot.
+     */
+    if (WT_TXNID_LE(snap_max, id))
+        return (false);
+    if (snapshot_count == 0 || WT_TXNID_LT(id, snap_min))
+        return (true);
+
+    WT_BINARY_SEARCH(id, snapshot, snapshot_count, found);
+    return (!found);
+}
+
+/*
  * __txn_visible_id --
  *     Can the current transaction see the given ID?
  */
@@ -687,7 +695,6 @@ static inline bool
 __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
 {
     WT_TXN *txn;
-    bool found;
 
     txn = session->txn;
 
@@ -710,20 +717,8 @@ __txn_visible_id(WT_SESSION_IMPL *session, uint64_t id)
     /* Otherwise, we should be called with a snapshot. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_HAS_SNAPSHOT) || session->dhandle->checkpoint != NULL);
 
-    /*
-     * WT_ISO_SNAPSHOT, WT_ISO_READ_COMMITTED: the ID is visible if it is not the result of a
-     * concurrent transaction, that is, if was committed before the snapshot was taken.
-     *
-     * The order here is important: anything newer than the maximum ID we saw when taking the
-     * snapshot should be invisible, even if the snapshot is empty.
-     */
-    if (WT_TXNID_LE(txn->snap_max, id))
-        return (false);
-    if (txn->snapshot_count == 0 || WT_TXNID_LT(id, txn->snap_min))
-        return (true);
-
-    WT_BINARY_SEARCH(id, txn->snapshot, txn->snapshot_count, found);
-    return (!found);
+    return (__wt_txn_visible_id_snapshot(
+      id, txn->snap_min, txn->snap_max, txn->snapshot, txn->snapshot_count));
 }
 
 /*
@@ -1304,25 +1299,25 @@ __wt_txn_search_check(WT_SESSION_IMPL *session)
 }
 
 /*
- * __wt_txn_update_check --
- *     Check if the current transaction can update an item.
+ * __wt_txn_modify_check --
+ *     Check if the current transaction can modify an item.
  */
 static inline int
-__wt_txn_update_check(
+__wt_txn_modify_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set, rollback;
+    bool ignore_prepare_set, rollback, tw_found;
 
     rollback = false;
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
     /* Don't check if transaction isolation is not snapshot or the table is metadata. */
-    if (txn->isolation != WT_ISO_SNAPSHOT || (cbt != NULL && WT_IS_METADATA(cbt->dhandle)))
+    if (txn->isolation != WT_ISO_SNAPSHOT || WT_IS_METADATA(cbt->dhandle))
         return (0);
 
     if (txn_global->debug_rollback != 0 &&
@@ -1344,17 +1339,18 @@ __wt_txn_update_check(
     WT_ASSERT(session, upd != NULL || !rollback);
 
     /*
-     * Check conflict against the on page value if there is no update on the update chain except
+     * Check conflict against any on-page value if there is no update on the update chain except
      * aborted updates. Otherwise, we would have either already detected a conflict if we saw an
      * uncommitted update or determined that it would be safe to write if we saw a committed update.
      */
-    if (!rollback && upd == NULL && cbt != NULL && CUR2BT(cbt)->type != BTREE_COL_FIX &&
-      cbt->ins == NULL) {
-        __wt_read_cell_time_window(cbt, cbt->ref, &tw);
-        if (WT_TIME_WINDOW_HAS_STOP(&tw))
-            rollback = !__wt_txn_tw_stop_visible(session, &tw);
-        else
-            rollback = !__wt_txn_tw_start_visible(session, &tw);
+    if (!rollback && upd == NULL) {
+        __wt_read_cell_time_window(cbt, &tw, &tw_found);
+        if (tw_found) {
+            if (WT_TIME_WINDOW_HAS_STOP(&tw))
+                rollback = !__wt_txn_tw_stop_visible(session, &tw);
+            else
+                rollback = !__wt_txn_tw_start_visible(session, &tw);
+        }
     }
 
     if (rollback) {

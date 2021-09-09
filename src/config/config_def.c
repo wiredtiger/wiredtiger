@@ -138,10 +138,14 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     confchk_WT_CONNECTION_reconfigure_tiered_storage_subconfigs, 2},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
-    "\"history_store_search\",\"history_store_sweep_race\","
-    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
-    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
+    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_history_store_insert_1\","
+    "\"failpoint_history_store_insert_2\","
+    "\"history_store_checkpoint_delay\",\"history_store_search\","
+    "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
+    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
+    "\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
@@ -360,7 +364,10 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"checkpoint", "string", NULL, NULL, NULL, 0},
   {"checkpoint_wait", "boolean", NULL, NULL, NULL, 0},
   {"debug", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_debug_subconfigs, 1},
-  {"dump", "string", NULL, "choices=[\"hex\",\"json\",\"pretty\",\"print\"]", NULL, 0},
+  {"dump", "string", NULL,
+    "choices=[\"hex\",\"json\",\"pretty\",\"pretty_hex\","
+    "\"print\"]",
+    NULL, 0},
   {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 7},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
@@ -863,10 +870,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
-    "\"history_store_search\",\"history_store_sweep_race\","
-    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
-    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
+    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_history_store_insert_1\","
+    "\"failpoint_history_store_insert_2\","
+    "\"history_store_checkpoint_delay\",\"history_store_search\","
+    "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
+    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
+    "\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -941,10 +952,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
-    "\"history_store_search\",\"history_store_sweep_race\","
-    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
-    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
+    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_history_store_insert_1\","
+    "\"failpoint_history_store_insert_2\","
+    "\"history_store_checkpoint_delay\",\"history_store_search\","
+    "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
+    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
+    "\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1016,10 +1031,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
-    "\"history_store_search\",\"history_store_sweep_race\","
-    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
-    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
+    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_history_store_insert_1\","
+    "\"failpoint_history_store_insert_2\","
+    "\"history_store_checkpoint_delay\",\"history_store_search\","
+    "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
+    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
+    "\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1089,10 +1108,14 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
   {"tiered_storage", "category", NULL, NULL, confchk_tiered_storage_subconfigs, 7},
   {"timing_stress_for_test", "list", NULL,
     "choices=[\"aggressive_sweep\",\"backup_rename\","
-    "\"checkpoint_slow\",\"history_store_checkpoint_delay\","
-    "\"history_store_search\",\"history_store_sweep_race\","
-    "\"prepare_checkpoint_delay\",\"split_1\",\"split_2\",\"split_3\""
-    ",\"split_4\",\"split_5\",\"split_6\",\"split_7\",\"split_8\"]",
+    "\"checkpoint_reserved_txnid_delay\",\"checkpoint_slow\","
+    "\"failpoint_history_store_delete_key_from_ts\","
+    "\"failpoint_history_store_insert_1\","
+    "\"failpoint_history_store_insert_2\","
+    "\"history_store_checkpoint_delay\",\"history_store_search\","
+    "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
+    "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
+    "\"split_6\",\"split_7\",\"split_8\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},

@@ -48,8 +48,10 @@ ECMA
 EINVAL
 ENCRYPTOR
 ENOTSUP
+EXTLIST
 EmpId
 Encryptors
+FSTREAM
 Facebook
 Facebook's
 FlameGraph
@@ -113,7 +115,6 @@ RLE
 RedHat
 RepMgr
 Riak
-RLE
 RocksDB
 Roelofs
 RrVv
@@ -124,6 +125,7 @@ Sanitizer
 Seward's
 SiH
 TSC
+TXID
 TXT
 UBSAN
 UNC
@@ -150,6 +152,7 @@ Yann
 Za
 Zstd
 aR
+aarch
 abc
 abstime
 ack'ed
@@ -176,15 +179,18 @@ benchmarking
 bigram
 bindir
 bitstring
+bm
 bokeh
 bool
 boolean
 booleans
 br
+bt
+btcur
 btmem
 btree
-btrees
 btree's
+btrees
 bufs
 builtin
 builtins
@@ -236,6 +242,7 @@ curhs
 cursortype
 curtable
 customerABC
+customizability
 cv
 cyclomatic
 dN
@@ -257,6 +264,7 @@ decrement
 decrementing
 decrypt
 decrypted
+decrypts
 del
 desc
 destructor
@@ -283,8 +291,8 @@ dup
 dups
 encrypt
 encryptor
-encryptors
 encryptor's
+encryptors
 endcode
 endcond
 endian
@@ -297,6 +305,7 @@ eof
 eq
 erlang
 errno
+evictable
 exe
 extensibility
 fadvise
@@ -324,6 +333,7 @@ flamegraph
 flamegraphs
 flcs
 fnv
+fontsize
 forw
 fprofile
 fput
@@ -332,6 +342,7 @@ fs
 fsanitize
 fsync
 ftruncate
+func
 fuzzer
 fuzzers
 fuzzutil
@@ -365,6 +376,7 @@ iflag
 incr
 indices
 init
+inmemory
 insn
 intl
 intpack
@@ -436,6 +448,7 @@ memp
 metadata
 metatracking
 minkey
+mips
 mispredictions
 mixin
 mixins
@@ -504,6 +517,7 @@ pid
 plantuml
 png
 posix
+ppc
 pre
 prealloc
 prepended
@@ -528,6 +542,7 @@ py
 qnx
 qqq
 rVv
+rankdir
 rdbms
 rdlock
 readlock
@@ -574,7 +589,9 @@ sess
 sid
 skinparam
 skiplist
+skiplists
 sortable
+sparc
 spinlock
 spinlocks
 sql
@@ -596,6 +613,7 @@ subdatabases
 subdirectory
 subpage
 substring
+subsubsection
 sudo
 superset
 svg
@@ -664,6 +682,7 @@ workgen
 writelock
 writelocks
 wrlock
+wti
 wtperf
 wtstats
 xa

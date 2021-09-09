@@ -365,6 +365,7 @@ struct __wt_connection_stats {
     int64_t cache_eviction_slow;
     int64_t cache_eviction_walk_leaf_notfound;
     int64_t cache_eviction_state;
+    int64_t cache_eviction_walk_sleeps;
     int64_t cache_eviction_target_page_lt10;
     int64_t cache_eviction_target_page_lt32;
     int64_t cache_eviction_target_page_ge128;
@@ -689,6 +690,7 @@ struct __wt_connection_stats {
     int64_t session_query_ts;
     int64_t session_table_alter_fail;
     int64_t session_table_alter_success;
+    int64_t session_table_alter_trigger_checkpoint;
     int64_t session_table_alter_skip;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_success;
@@ -733,6 +735,8 @@ struct __wt_connection_stats {
     int64_t txn_prepare_commit;
     int64_t txn_prepare_active;
     int64_t txn_prepare_rollback;
+    int64_t txn_prepare_rollback_do_not_remove_hs_update;
+    int64_t txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid;
     int64_t txn_query_ts;
     int64_t txn_read_race_prepare_update;
     int64_t txn_rts;
@@ -743,6 +747,8 @@ struct __wt_connection_stats {
     int64_t txn_rts_pages_visited;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_delete_rle_skipped;
+    int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_tree_walk_skip_pages;
     int64_t txn_rts_upd_aborted;
@@ -1014,6 +1020,8 @@ struct __wt_dsrc_stats {
     int64_t txn_rts_keys_restored;
     int64_t txn_rts_hs_restore_tombstones;
     int64_t txn_rts_hs_restore_updates;
+    int64_t txn_rts_delete_rle_skipped;
+    int64_t txn_rts_stable_rle_skipped;
     int64_t txn_rts_sweep_hs_keys;
     int64_t txn_rts_hs_removed;
     int64_t txn_checkpoint_obsolete_applied;

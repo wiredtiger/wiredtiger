@@ -113,7 +113,7 @@ Decrement
 Decrypt
 DeleteFileW
 Destructor
-Dh
+Deterministically
 EACCES
 EAGAIN
 EB
@@ -152,11 +152,11 @@ FTRUNCATE
 FULLFSYNC
 FUNCSIG
 Facebook
+Failpoint
 FindClose
 FindFirstFile
 FindNextFileW
 Fixup
-Fk
 FlushFileBuffers
 Fprintf
 FreeBSD
@@ -244,7 +244,6 @@ LevelDB
 Levyx
 LibFuzzer
 LmRrSVv
-LmsT
 LoadLoad
 LockFile
 Lookaside
@@ -333,6 +332,7 @@ Pre
 Preload
 Prepend
 Prev
+QQQS
 Qsort
 RCS
 RDNOLOCK
@@ -460,6 +460,7 @@ WTPERF
 WaitForSingleObject
 WakeAllConditionVariable
 Wconditional
+Wduplicated
 WeakHashLen
 Werror
 Wformat
@@ -498,7 +499,6 @@ abcdef
 abcdefghijklmnopqrstuvwxyz
 addl
 addr
-af
 agc
 alfred
 alloc
@@ -587,7 +587,6 @@ ccc
 ccr
 cd
 ce
-ceh
 celsius
 centric
 cfg
@@ -788,6 +787,7 @@ extern
 extlist
 fadvise
 fahrenheit
+failpoint
 fallocate
 fallthrough
 fblocks
@@ -962,7 +962,6 @@ iter
 iteratively
 iters
 jjj
-jnr
 jprx
 json
 kb
@@ -1036,7 +1035,6 @@ lwsync
 lx
 lz
 lzo
-mT
 madvise
 majmin
 majorp
@@ -1159,8 +1157,6 @@ osfhandle
 other's
 ovfl
 ownp
-pR
-pS
 packv
 pagedump
 pagesize
@@ -1218,7 +1214,6 @@ pv
 pvA
 pwrite
 py
-qRrT
 qdown
 qqq
 qrrSS
@@ -1279,7 +1274,6 @@ runtime
 rwlock
 sH
 sHQ
-sT
 sanitizer
 sanitizers
 scalability
@@ -1472,7 +1466,6 @@ util
 utils
 uu
 vN
-vW
 va
 valgrind
 valuep
@@ -1493,9 +1486,7 @@ vsize
 vsnprintf
 vtype
 vunpack
-vw
 vxr
-vxz
 vz
 waitpid
 waker
