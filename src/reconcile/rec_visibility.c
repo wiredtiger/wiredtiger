@@ -259,7 +259,7 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
  *     time.
  */
 static int
-__rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_TIME_WINDOW *onpage_tw)
+__rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *upd;
     wt_timestamp_t current_ts;
@@ -283,7 +283,7 @@ __rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_TIME_WINDO
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (current_ts < onpage_tw->start_ts)
+    if (vpack != NULL && current_ts < vpack->tw.start_ts)
         return (EBUSY);
     return (0);
 }
@@ -621,7 +621,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           upd_select->upd;
 
         if (onpage_upd != NULL)
-            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, &vpack->tw));
+            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, vpack));
 
         WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
         /*
