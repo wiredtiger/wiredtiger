@@ -139,6 +139,12 @@ struct __wt_reconcile {
     bool all_empty_value, any_empty_value;
 
     /*
+     * After we've built the page image in reconciliation and we are intending to insert updates
+     * into the history store, any error will result in a panic.
+     */
+    bool panic_on_error;
+
+    /*
      * Reconciliation gets tricky if we have to split a page, which happens when the disk image we
      * create exceeds the page type's maximum disk image size.
      *

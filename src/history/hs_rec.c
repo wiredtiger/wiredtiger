@@ -418,6 +418,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                  * Fail the eviction if we detect out of order timestamp when checkpoint is running.
                  * We cannot modify the history store to fix the out of order timestamp updates as
                  * it may make the history store checkpoint inconsistent.
+                 *
+                 * This will result in a panic further in reconciliation.
                  */
                 if (checkpoint_running) {
                     ret = EBUSY;
