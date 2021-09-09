@@ -437,9 +437,7 @@ static int
 __verify_dsk_addr_count(WT_SESSION_IMPL *session, const char *tag, const WT_PAGE_HEADER *dsk,
   uint32_t row_count, uint32_t byte_count, WT_ADDR *addr)
 {
-    const uint8_t *addrp;
-
-    if (addr == NULL || (addrp = addr->addr) == NULL)
+    if (addr == NULL || addr->addr == NULL)
         return (0);
 
     if (addr->row_count != row_count)
