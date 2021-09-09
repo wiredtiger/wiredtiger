@@ -113,6 +113,7 @@ Decrement
 Decrypt
 DeleteFileW
 Destructor
+Deterministically
 EACCES
 EAGAIN
 EB
@@ -331,6 +332,7 @@ Pre
 Preload
 Prepend
 Prev
+QQQS
 Qsort
 RCS
 RDNOLOCK
@@ -1485,6 +1487,7 @@ vsnprintf
 vtype
 vunpack
 vxr
+vz
 waitpid
 waker
 wakeup
