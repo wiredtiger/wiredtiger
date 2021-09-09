@@ -1133,21 +1133,26 @@ struct __wt_update {
     volatile uint8_t prepare_state; /* prepare state */
 
 /*
- * WT_UPDATE_DS indicates that an update is intended to be written to the data store during a round
- * of reconciliation. If the flag is set on an update it indicates that subsequent rounds of
- * reconciliation can write that update even if they can't see it. This is done to prevent an older
- * update in the update chain overwriting the newer on-page update. Ideally this flag would only
- * be set if we knew that the reconciliation would be successful, however we cannot know that.  As
- * such the reconciliation can still fail after setting the flag, this is okay. However be extremely
- * careful when adding logic to the code that uses this flag. Generally the reconciliation will only
- * fail when a mixed-mode or out-of-order timestamp update is encountered by eviction and a
- * checkpoint is running concurrently.
+ * WT_UPDATE_DS:
+ * This flag indicates that an update is intended to be written to the data store during a round of
+ * reconciliation. If the flag is set on an update it indicates to subsequent rounds of
+ * reconciliation that they can write that update even if they can't see it. This is done to prevent
+ * an older update in the update chain overwriting the newer on-page update. Ideally this flag would
+ * only be set if we knew that the reconciliation would be successful, or after the reconciliation
+ * has completed successfully. Neither of these solutions work as the reconciliation could fail for
+ * several reasons, such as detecting out or order timestamps which cannot be done efficiently at
+ * the start of the reconciliation. Furthermore, as result of inserting history updates during the
+ * reconciliation in a non reversible way we cannot rollback the full work performed by
+ * reconciliation in the event of a failure, so we must flag the updates during the reconciliation
+ * with WT_UPDATE_DS as further updates in the chain have been inserted into the history store and
+ * have been flagged with WT_UPDATE_HS. When updating or adding logic to the code that uses this
+ * care must be taken to validate the scenarios that could impact it's use.
  *
- * It is only flagged on the on-page update if ALL older updates were successfully wrote to the
- * history store in the history store insert path. It may also be flagged on the tombstone
- * preceding the on-page update if one exists in the same code path.
+ * WT_UPDATE_DS is set during in the history store insert path in reconciliation only after ALL
+ * older updates were successfully wrote to the history store. It may also be flagged on the
+ * tombstone preceding the on-page update if one exists in the same code path.
  *
- * There are two other scenarios where we could have marked the on page update as required to be
+ * There are two other scenarios where we could have marked the on-page update as required to be
  * written to the datastore, they are being listed here for completeness:
  *  - When we select a tombstone to write to the data store, in this case no entries are
  *    written to the history store as such it would need to be set in the rec_row path.
