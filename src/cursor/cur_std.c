@@ -7,6 +7,7 @@
  */
 
 #include "wt_internal.h"
+
 /*
  * __wt_cursor_noop --
  *     Cursor noop.
