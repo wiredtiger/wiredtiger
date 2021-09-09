@@ -218,8 +218,8 @@ restart:
         /*
          * An adjustment to improve accuracy: assume the key takes up half of the range in the slot
          * itself, on the first and last slots. This also makes the case where the two cursors are
-         * on the same leaf page work return something reasonable, a range that isn't insane. If we
-         * want something better, we should descend into the first/last slots to get a better value.
+         * on the same leaf page return something reasonable, a range that isn't insane. If we want
+         * something better, we should descend into the first/last slots to get a better value.
          */
         if (slot == startslot || slot == stopslot) {
             row_count /= 2;

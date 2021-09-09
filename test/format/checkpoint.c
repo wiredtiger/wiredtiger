@@ -73,9 +73,7 @@ checkpoint(void *arg)
     conn = g.wts_conn;
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
 
-    /*
-     *
-     */
+    /* Do a checkpoint at 20 seconds (that way there's at least one), then at random intervals. */
     for (period = 20;; period = mmrand(NULL, 10, 100)) {
         /* Sleep for short periods so we don't make the run wait. */
         while (period > 0 && !g.workers_finished) {
