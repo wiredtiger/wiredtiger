@@ -1020,7 +1020,7 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
 
 /*
  * __check_prefix_format --
- *     Check if the schema format is a fixed length string, variable string or byte array.
+ *     Check if the schema format is a fixed-length string, variable string or byte array.
  */
 static int
 __check_prefix_format(const char *format)
@@ -1032,7 +1032,7 @@ __check_prefix_format(const char *format)
     if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
         return (0);
     /*
-     * Now check for fixed length string format through looking at the characters before the NULL
+     * Now check for fixed-length string format through looking at the characters before the NULL
      * character.
      */
     for (p = format, len = strlen(format); len > 1; --len, p++)

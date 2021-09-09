@@ -31,7 +31,7 @@ import wiredtiger, re, wttest
 from wtscenario import make_scenarios
 
 # test_search_near03.py
-# Test prefix search near format rules, only format fixed length strings (s), variable strings (S)
+# Test prefix search near format rules, only format fixed-length strings (s), variable strings (S)
 # and raw bytes array (u) is allowed.
 class test_search_near03(wttest.WiredTigerTestCase):
     key_format_values = [
