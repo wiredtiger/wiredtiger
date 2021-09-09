@@ -80,6 +80,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_tiered_abort
+    SOURCES tiered_abort/main.c
+    DIR_NAME tiered_abort
+    SMOKE
+    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_timestamp_abort
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
