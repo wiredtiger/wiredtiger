@@ -1092,7 +1092,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
              * array.
              */
             if (!(WT_STREQ(cursor->key_format, "S") || WT_STREQ(cursor->key_format, "u") ||
-              __check_format_fixed_string(cursor->key_format) == 0))
+                  __check_format_fixed_string(cursor->key_format) == 0))
                 WT_ERR_MSG(session, EINVAL,
                   "prefix key search near can only be used for format string or raw byte array");
             if (CUR2BT(cursor)->collator != NULL)
