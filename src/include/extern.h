@@ -2088,8 +2088,8 @@ static inline int __wt_page_swap_func(
   const char *func, int line
 #endif
   ) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline int __wt_prefix_match(WT_SESSION_IMPL *session, const WT_ITEM *prefix,
-  const WT_ITEM *tree_item) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_read(WT_SESSION_IMPL *session, WT_FH *fh, wt_off_t offset, size_t len,
   void *buf) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_rec_cell_build_val(WT_SESSION_IMPL *session, WT_RECONCILE *r,

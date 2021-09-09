@@ -19,7 +19,6 @@
 #define WT_ALIGNED_16(p) (((uintptr_t)(p)&0x0f) == 0)
 #define WT_VECTOR_SIZE 16 /* chunk size */
 
-static inline int __check_fixed_string(const char *);
 /*
  * __wt_lex_compare --
  *     Lexicographic comparison routine. Returns: < 0 if user_item is lexicographically < tree_item
@@ -121,42 +120,12 @@ __wt_compare(WT_SESSION_IMPL *session, WT_COLLATOR *collator, const WT_ITEM *use
 }
 
 /*
- * __check_fixed_string --
- *     Check if the schema format is a fixed string.
- */
-static inline int
-__check_fixed_string(const char *format)
-{
-    size_t len;
-    const char *p;
-
-    p = format;
-    /* Only check characters before the NULL character at the end */
-    len = strlen(format) - 1;
-    for (; len > 0; --len, p++) {
-        if (!isdigit(*p) || *p == 's')
-            break;
-    }
-    return len == 0 ? 0 : -1;
-}
-
-/*
  * __wt_prefix_match --
  *     Check if the prefix item is equal to the leading bytes of the tree item.
  */
 static inline int
-__wt_prefix_match(WT_SESSION_IMPL *session, const WT_ITEM *prefix, const WT_ITEM *tree_item)
+__wt_prefix_match(const WT_ITEM *prefix, const WT_ITEM *tree_item)
 {
-    WT_BTREE *btree;
-
-    btree = S2BT(session);
-    /*
-     * Assert that we only perform prefix comparisons when the key format of the table is either a
-     * string or raw byte array.
-     */
-    WT_ASSERT(session,
-      WT_STREQ(btree->key_format, "S") || WT_STREQ(btree->key_format, "u") ||
-        __check_fixed_string(btree->key_format) == 0);
     return (__wt_lex_compare(prefix, tree_item, true));
 }
 
