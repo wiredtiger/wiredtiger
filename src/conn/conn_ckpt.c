@@ -252,6 +252,8 @@ __wt_checkpoint_reserved_session_init(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
+    WT_ASSERT(session, conn->ckpt_reserved_session == NULL);
+
     return (__wt_open_internal_session(
       conn, "ckpt-reserved", false, WT_SESSION_NO_RECONCILE, 0, &conn->ckpt_reserved_session));
 }
