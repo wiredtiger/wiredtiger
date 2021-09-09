@@ -7,7 +7,6 @@
  */
 
 #include "wt_internal.h"
-static int __check_format_fixed_string(const char *);
 /*
  * __wt_cursor_noop --
  *     Cursor noop.
@@ -1020,23 +1019,26 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
 }
 
 /*
- * __check_format_fixed_string --
- *     Check if the schema format is a fixed string.
+ * __check_prefix_format --
+ *     Check if the schema format is a fixed length string, variable string or byte array.
  */
 static int
-__check_format_fixed_string(const char *format)
+__check_prefix_format(const char *format)
 {
     size_t len;
     const char *p;
 
-    p = format;
-    len = strlen(format);
-    /* Only check characters before the NULL character at the end. */
-    for (; len > 1; --len, p++) {
+    /* Early exit if prefix format is S or u */
+    if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
+        return (0);
+    /*
+     * Now check for fixed length string format through looking at the characters before the NULL
+     * character.
+     */
+    for (p = format, len = strlen(format); len > 1; --len, p++)
         if (!__wt_isdigit((u_char)*p))
             break;
-    }
-    return (len == 1 && *p == 's') ? 0 : -1;
+    return ((len > 1 || *p != 's') ? EINVAL : 0);
 }
 
 /*
@@ -1091,10 +1093,10 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
              * Prefix search near configuration can only be used for formats string or raw byte
              * array.
              */
-            if (!(WT_STREQ(cursor->key_format, "S") || WT_STREQ(cursor->key_format, "u") ||
-                  __check_format_fixed_string(cursor->key_format) == 0))
-                WT_ERR_MSG(session, EINVAL,
-                  "prefix key search near can only be used for format string or raw byte array");
+            if ((ret = __check_prefix_format(cursor->key_format)) != 0)
+                WT_ERR_MSG(session, ret,
+                  "prefix key search near can only be used with string, fixed-length string or raw "
+                  "byte array format types");
             if (CUR2BT(cursor)->collator != NULL)
                 WT_ERR_MSG(
                   session, EINVAL, "cannot use prefix key search near with a custom collator");
