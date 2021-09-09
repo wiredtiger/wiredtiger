@@ -632,16 +632,17 @@ __checkpoint_prepare(WT_SESSION_IMPL *session, bool *trackingp, const char *cfg[
      * prepare transaction rollback occurs in parallel to a checkpoint. Ensure that this transaction
      * id is published before taking the checkpoint's snapshot.
      *
-     * Using a transaction id for prepared rollback that is allocated after the second checkpoint
-     * snapshot has issues when stale reserved transaction id used for the history store updates and
-     * the data store page is skipped in the checkpoint until all the pages that have restored
-     * prepared updates are forced to be checkpointed in the current checkpoint.
+     * Other alternatives to solve the issue is by using a transaction id that is allocated after
+     * the second checkpoint snapshot. This approach has issues of using a stale reserved
+     * transaction id for the history store updates and the data store page is skipped in the
+     * checkpoint. To address the use of stale reserved transaction id, all the data store pages
+     * that have restored prepared updates need to get checkpointed forcefully.
      *
      * The checkpoint snapshot max can also be used for this purpose, instead of allocating a new
-     * reserved transaction id. It has the same problem of forcing all the pages with restored
-     * prepared updates to be part of the current checkpoint. Also, it is better to use a dedicated
-     * transaction id as the checkpoint snapshot max is allocated to a session and used for other
-     * operations can lead to confusion when an issue occurs.
+     * reserved transaction id. This solution also have to force all the pages with restored
+     * prepared updates to be part of the current checkpoint. Therefore, we think it is better to
+     * use a dedicated transaction id as the checkpoint snapshot max is allocated to a session and
+     * used for other operations can lead to confusion when an issue occurs.
      */
     if (conn->ckpt_reserved_session != NULL) {
         WT_RET(__wt_txn_begin(conn->ckpt_reserved_session, NULL));
