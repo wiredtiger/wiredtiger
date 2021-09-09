@@ -253,6 +253,42 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
 }
 
 /*
+ * __rec_validate_upd_chain --
+ *     Check the update chain for conditions that would prevent it's insertion into the history
+ *     store. Return EBUSY if the update chain cannot be inserted into the history store at this
+ *     time.
+ */
+static int
+__rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_TIME_WINDOW *onpage_tw)
+{
+    WT_UPDATE *upd;
+    wt_timestamp_t current_ts;
+
+    current_ts = selected_upd->start_ts;
+    upd = selected_upd->next;
+
+    /*
+     * If we're not in eviction any history store insertion is fine, if we are in eviction and a
+     * checkpoint isn't running then history store insertions are also fine.
+     */
+    if (!F_ISSET(r, WT_REC_EVICT) || !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
+        return (0);
+
+    /* Loop forward from update after the selected on-page update. */
+    for (; upd != NULL; upd = upd->next) {
+        /* Validate that the updates older than us have older timestamps. */
+        if (current_ts < upd->start_ts)
+            return (EBUSY);
+        current_ts = upd->start_ts;
+    }
+
+    /* Check that the on-page time window isn't out-of-order. */
+    if (current_ts < onpage_tw->start_ts)
+        return (EBUSY);
+    return (0);
+}
+
+/*
  * __wt_rec_upd_select --
  *     Return the update in a list that should be written (or NULL if none can be written).
  */
@@ -264,7 +300,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_DECL_RET;
     WT_PAGE *page;
     WT_TIME_WINDOW *select_tw;
-    WT_UPDATE *first_txn_upd, *first_upd, *upd, *last_upd, *tombstone;
+    WT_UPDATE *first_txn_upd, *first_upd, *onpage_upd, *upd, *last_upd, *tombstone;
     wt_timestamp_t max_ts;
     size_t upd_memsize;
     uint64_t max_txn, session_txnid, txnid;
@@ -280,7 +316,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_TIME_WINDOW_INIT(select_tw);
 
     page = r->page;
-    first_txn_upd = upd = last_upd = tombstone = NULL;
+    first_txn_upd = onpage_upd = upd = last_upd = tombstone = NULL;
     upd_memsize = 0;
     max_ts = WT_TS_NONE;
     max_txn = WT_TXN_NONE;
@@ -548,14 +584,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     }
 
     /*
-     * Fixup any out of order timestamps, if we're evicting and a checkpoint is running return EBUSY
-     * and fail the eviction as it could result in an inconsistent checkpoint.
-     */
-    if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_EVICT) &&
-      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
-        return (EBUSY);
-
-    /*
      * Track the most recent transaction in the page. We store this in the tree at the end of
      * reconciliation in the service of checkpoints, it is used to avoid discarding trees from
      * memory when they have changes required to satisfy a snapshot read.
@@ -587,10 +615,15 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         supd_restore = F_ISSET(r, WT_REC_EVICT) &&
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
             page->type == WT_PAGE_COL_FIX);
-        WT_ERR(__rec_update_save(session, r, ins, rip,
-          upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ? NULL :
-                                                                                    upd_select->upd,
-          supd_restore, upd_memsize));
+
+        onpage_upd = upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ?
+          NULL :
+          upd_select->upd;
+
+        if (onpage_upd != NULL)
+            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, &vpack->tw));
+
+        WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined
          * for the data store. Subsequent reconciliations should know that they can select this
@@ -602,6 +635,12 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             F_SET(tombstone, WT_UPDATE_DS);
         upd_saved = upd_select->upd_saved = true;
     }
+
+    /*
+     * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
+     */
+    if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_EVICT))
+        WT_ASSERT(session, !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING));
 
     /*
      * Set statistics for update restore evictions. Update restore eviction debug mode forces update
