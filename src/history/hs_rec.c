@@ -286,7 +286,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_UPDATE_VECTOR out_of_order_ts_updates;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *fix_ts_upd, *min_ts_upd, *out_of_order_ts_upd;
-    WT_UPDATE *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -368,7 +368,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             WT_ERR(__wt_illegal_value(session, r->page->type));
         }
 
-        first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
+        newest_hs = first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
 
         /*
          * Reverse deltas are only supported on 'S' and 'u' value formats.
@@ -453,6 +453,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (prev_upd != NULL && prev_upd->txnid == upd->txnid &&
               prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
+
+            if (newest_hs == NULL &&
+              (upd->txnid != list->onpage_upd->txnid ||
+                upd->start_ts != list->onpage_upd->start_ts))
+                newest_hs = upd;
 
             /*
              * No need to continue if we see the first self contained value after the first globally
@@ -633,9 +638,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
-             * inserting the first update. Always write on-disk data store updates to the history
-             * store as a full update because the on-disk update will be the base update for all the
-             * updates that are older than the on-disk update. Limit the number of consecutive
+             * inserting the first update. Always write the newest update in the history store as a
+             * full update. We don't want to handle the edge cases that the reverse modifies be
+             * applied to the wrong on-disk base value. This also limits the number of consecutive
              * reverse modifies for standard updates. We want to ensure we do not store a large
              * chain of reverse modifies as to impact read performance.
              *
@@ -645,8 +650,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
              * the RTS.
              */
             nentries = MAX_REVERSE_MODIFY_NUM;
-            if (!F_ISSET(upd, WT_UPDATE_DS) && !F_ISSET(prev_upd, WT_UPDATE_DS) &&
-              enable_reverse_modify && modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
+            if (upd != newest_hs && enable_reverse_modify &&
+              modify_cnt < WT_MAX_CONSECUTIVE_REVERSE_MODIFY &&
               __wt_calc_modify(session, prev_full_value, full_value, prev_full_value->size / 10,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
