@@ -227,8 +227,6 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
     else {
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
-        if (r->panic_on_error)
-            WT_RET_PANIC(session, ret, "Reconciliation failed illegally.");
         WT_TRET(__rec_write_wrapup_err(session, r, page));
     }
 
@@ -586,9 +584,6 @@ __rec_init(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags, WT_SALVAGE_COO
     /* Track empty values. */
     r->all_empty_value = true;
     r->any_empty_value = false;
-
-    /* Panic on an error. */
-    r->panic_on_error = false;
 
     /* The list of saved updates is reused. */
     r->supd_next = 0;
@@ -2105,10 +2100,8 @@ __rec_write_wrapup(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
      * visible when reconciling this page, copy them into the database's history store. This can
      * fail, so try before clearing the page's previous reconciliation state.
      */
-    if (F_ISSET(r, WT_REC_HS)) {
-        r->panic_on_error = true;
+    if (F_ISSET(r, WT_REC_HS))
         WT_RET(__rec_hs_wrapup(session, r));
-    }
 
     /*
      * Wrap up overflow tracking. If we are about to create a checkpoint, the system must be
