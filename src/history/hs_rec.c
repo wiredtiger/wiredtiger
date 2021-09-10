@@ -457,7 +457,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
               prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
 
-            if (newest_hs == NULL && upd->type !-WT_UPDATE_TOMBSTONE &&
+            if (newest_hs == NULL && upd->type != WT_UPDATE_TOMBSTONE &&
               (upd->txnid != list->onpage_upd->txnid ||
                 upd->start_ts != list->onpage_upd->start_ts))
                 newest_hs = upd;
