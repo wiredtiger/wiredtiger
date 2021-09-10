@@ -504,8 +504,9 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     }
 
     /*
-     * The home directory owned by the connection is valid for as long as the connection is open,
-     * which is longer than this file system will be open.
+     * The home directory owned by the connection will not change, and will be valid memory, for as
+     * long as the connection is open. That is longer than this file system will be open, so we can
+     * use the string without copying.
      */
     fs->home_dir = session->connection->get_home(session->connection);
 

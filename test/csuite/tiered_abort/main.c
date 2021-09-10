@@ -446,8 +446,8 @@ run_workload(uint32_t nth, const char *build_dir)
     testutil_check(
       __wt_snprintf(envconf, sizeof(envconf), ENV_CONFIG_TXNSYNC, cache_mb, SESSION_MAX, BUCKET));
 
-    testutil_check(__wt_snprintf(
-      extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))", build_dir, WT_STORAGE_LIB));
+    testutil_check(__wt_snprintf(extconf, sizeof(extconf), ",extensions=(%s/%s=(early_load=true))",
+      build_dir, WT_STORAGE_LIB));
 
     strcat(envconf, extconf);
     printf("wiredtiger_open configuration: %s\n", envconf);
