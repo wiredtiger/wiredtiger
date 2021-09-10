@@ -477,7 +477,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 break;
         }
 
-        if (newest_hs == NULL)
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS))
             continue;
 
         prev_upd = upd = NULL;
