@@ -88,7 +88,15 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix
     /*
      * Use the non-vectorized version for the remaining bytes and for the small key sizes.
      */
-    for (; len > 0; --len, ++userp, ++treep)
+    for (; len > 0; --len, ++userp, ++treep) {
+        /*
+         * When prefix is enabled and we are performing lexicographic comparison on schema formats s
+         * or S, we only want to compare the characters before either of them reach a NULL
+         * character. For format S, a NULL character is always at the end of the string, while
+         * format s NULL characters are set for the remaining unused bytes.
+         */
+        if (prefix && (*userp == '\0' || *treep == '\0'))
+            break;
         if (*userp != *treep)
             return (*userp < *treep ? -1 : 1);
 
