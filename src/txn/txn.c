@@ -2175,7 +2175,6 @@ int
 __wt_txn_rollback_required(WT_SESSION_IMPL *session, const char *reason)
 {
     session->txn->rollback_reason = reason;
-    WT_IGNORE_RET(__wt_msg(session, "rollback_reason: %s\n", session->txn->rollback_reason));
     return (WT_ROLLBACK);
 }
 
