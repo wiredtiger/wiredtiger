@@ -96,9 +96,8 @@ class test_search_near02(wttest.WiredTigerTestCase):
 
         # Search near for az, should return back WT_NOTFOUND, since there are no keys
         # visible with prefix az.
-        # FIXME-WT-8044 Prefix search near returns a valid key when expecting WT_NOTFOUND.
-        # cursor3.set_key("az")
-        # self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
+        cursor3.set_key("az")
+        self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
         cursor3.close()
         self.session.commit_transaction()
 
@@ -135,8 +134,7 @@ class test_search_near02(wttest.WiredTigerTestCase):
 
         # Search near for az, should return back WT_NOTFOUND, since there are no keys
         # visible with prefix az.
-        # FIXME-WT-8044 Prefix search near returns a valid key when expecting WT_NOTFOUND.
-        # cursor3.set_key("az")
-        # self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
+        cursor3.set_key("az")
+        self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
         cursor3.close()
         self.session.commit_transaction()
