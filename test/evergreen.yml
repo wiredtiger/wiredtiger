@@ -2721,6 +2721,54 @@ tasks:
             set -o errexit
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95
 
+  - name: perf-test-small-lsm
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/wtperf/wtperf_run_py"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            pip3 install psutil
+            python3 wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/small-lsm.wtperf -v -ho WT_TEST -m 3 -o out.json
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger/bench/wtperf/wtperf_run_py/out.json
+          bucket: build_external
+          permissions: public-read
+          content_type: text/html
+          display_name: "Test results (JSON)"
+          remote_file: wiredtiger/${build_variant}/${revision}/perf-test-${build_id}-${execution}/test-results.json
+
+  - name: perf-test-small-btree
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/bench/wtperf/wtperf_run_py"
+          shell: bash
+          script: |
+            set -o errexit
+            set -o verbose
+            pip3 install psutil
+            python3 wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/small-btree.wtperf -v -ho WT_TEST -m 3 -o out.json
+      - command: s3.put
+        params:
+          aws_secret: ${aws_secret}
+          aws_key: ${aws_key}
+          local_file: wiredtiger/bench/wtperf/wtperf_run_py/out.json
+          bucket: build_external
+          permissions: public-read
+          content_type: text/html
+          display_name: "Test results (JSON)"
+          remote_file: wiredtiger/${build_variant}/${revision}/perf-test-${build_id}-${execution}/test-results.json
+
 buildvariants:
 
 - name: ubuntu2004
@@ -2888,6 +2936,22 @@ buildvariants:
     - name: ".stress-test-3"
     - name: ".stress-test-4"
     - name: format-abort-recovery-stress-test
+
+- name: ubuntu2004-perf-tests
+  display_name: Ubuntu 20.04 Performance tests
+  run_on:
+    - ubuntu2004-test
+  expansions:
+    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
+    cmake_generator: Ninja
+    make_command: ninja
+    is_cmake_build: true
+  tasks:
+    - name: perf-test-small-btree
+    - name: perf-test-small-lsm
 
 - name: large-scale-tests
   display_name: "Large scale tests"
