@@ -297,8 +297,9 @@ __rec_validate_upd_chain(
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (vpack != NULL && current_ts < vpack->tw.start_ts &&
-      (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts < current_ts))
+    if (vpack != NULL &&
+      (current_ts < vpack->tw.start_ts ||
+        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts > current_ts)))
         return (EBUSY);
     return (0);
 }
