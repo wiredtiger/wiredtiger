@@ -239,8 +239,13 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
 {
     char time_string[WT_TIME_STRING_SIZE];
 
-    if (select_tw->stop_ts < select_tw->start_ts ||
-      (select_tw->stop_ts == select_tw->start_ts && select_tw->stop_txn < select_tw->start_txn)) {
+    /*
+     * When supporting read-uncommitted it was possible for the stop_txn to be less than the
+     * start_txn, this is no longer true so assert that we don't encounter it.
+     */
+    WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
+
+    if (select_tw->stop_ts < select_tw->start_ts) {
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
@@ -259,13 +264,14 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
  *     time.
  */
 static int
-__rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_CELL_UNPACK_KV *vpack)
+__rec_validate_upd_chain(
+  WT_RECONCILE *r, WT_UPDATE *select_upd, WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_UPDATE *upd;
     wt_timestamp_t current_ts;
 
-    current_ts = selected_upd->start_ts;
-    upd = selected_upd->next;
+    current_ts = select_upd->start_ts;
+    upd = select_upd->next;
 
     /*
      * If we're not in eviction any history store insertion is fine, if we are in eviction and a
@@ -273,6 +279,14 @@ __rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_CELL_UNPAC
      */
     if (!F_ISSET(r, WT_REC_EVICT) || !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
+
+    /*
+     * The selected time window may contain information that isn't visible given the selected
+     * updated, as such we have to check it separately. This is true when there is a tombstone ahead
+     * of the selected update.
+     */
+    if (select_tw->stop_ts < select_tw->start_ts)
+        return (EBUSY);
 
     /* Loop forward from update after the selected on-page update. */
     for (; upd != NULL; upd = upd->next) {
@@ -283,7 +297,8 @@ __rec_validate_upd_chain(WT_RECONCILE *r, WT_UPDATE *selected_upd, WT_CELL_UNPAC
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (vpack != NULL && current_ts < vpack->tw.start_ts)
+    if (vpack != NULL && current_ts < vpack->tw.start_ts &&
+      (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts < current_ts))
         return (EBUSY);
     return (0);
 }
@@ -621,7 +636,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           upd_select->upd;
 
         if (onpage_upd != NULL)
-            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, vpack));
+            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, select_tw, vpack));
 
         WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
         /*
