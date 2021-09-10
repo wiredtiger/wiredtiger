@@ -509,16 +509,17 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         hs_inserted = squashed = false;
 
         /*
-         * Flush the updates on stack. Stopping once we run out or we reach the onpage update or we
-         * encounter a prepared update.
+         * Flush the updates on stack. Stopping once we finish inserting the newest history store
+         * value.
          */
         modify_cnt = 0;
-        for (; updates.size > 0 && upd->prepare_state != WT_PREPARE_INPROGRESS;
-             tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
-             upd = prev_upd) {
+        for (; updates.size > 0; tmp = full_value, full_value = prev_full_value,
+                                 prev_full_value = tmp, upd = prev_upd) {
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
+            /* We should never insert prepared updates to the history store. */
+            WT_ASSERT(session, upd->prepare_state != WT_PREPARE_INPROGRESS);
 
             tombstone = NULL;
             __wt_update_vector_peek(&updates, &prev_upd);
@@ -686,6 +687,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
                 squashed = false;
             }
+
+            if (upd == newest_hs)
+                break;
         }
 
         /* If we squash the onpage value, we increase the counter here. */
