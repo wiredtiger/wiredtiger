@@ -286,7 +286,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     WT_UPDATE_VECTOR out_of_order_ts_updates;
     WT_SAVE_UPD *list;
     WT_UPDATE *first_globally_visible_upd, *fix_ts_upd, *min_ts_upd, *out_of_order_ts_upd;
-    WT_UPDATE *newest_hs, *non_aborted_upd, *oldest_upd, *prev_upd, *tombstone, *upd;
+    WT_UPDATE *newest_hs, *non_aborted_upd, *oldest_upd, *prev_upd, *ref_upd, *tombstone, *upd;
     WT_TIME_WINDOW tw;
     wt_off_t hs_size;
     uint64_t insert_cnt, max_hs_size, modify_cnt;
@@ -369,6 +369,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
 
         newest_hs = first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
+        ref_upd = list->onpage_upd;
 
         __wt_update_vector_clear(&out_of_order_ts_updates);
         __wt_update_vector_clear(&updates);
@@ -407,6 +408,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * tombstone.
          * 4) We have a single tombstone on the chain, it is simply ignored.
          */
+        squashed = false;
         for (upd = list->onpage_upd, non_aborted_upd = prev_upd = NULL; upd != NULL;
              prev_upd = non_aborted_upd, upd = upd->next) {
             if (upd->txnid == WT_TXN_ABORTED)
@@ -457,10 +459,22 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
               prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
 
-            if (newest_hs == NULL && upd->type != WT_UPDATE_TOMBSTONE &&
-              (upd->txnid != list->onpage_upd->txnid ||
-                upd->start_ts != list->onpage_upd->start_ts))
-                newest_hs = upd;
+            if (newest_hs == NULL) {
+                if (upd->type == WT_UPDATE_TOMBSTONE) {
+                    ref_upd = upd;
+                    if (squashed) {
+                        WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
+                        squashed = false;
+                    }
+                } else if (upd->txnid != ref_upd->txnid || upd->start_ts != ref_upd->start_ts) {
+                    newest_hs = upd;
+                    if (squashed) {
+                        WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
+                        squashed = false;
+                    }
+                } else if (upd != ref_upd)
+                    squashed = true;
+            }
 
             /*
              * No need to continue if we see the first self contained value after the first globally
@@ -477,8 +491,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 break;
         }
 
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS))
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
+            if (newest_hs == NULL && squashed)
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
             continue;
+        }
 
         prev_upd = upd = NULL;
 
@@ -512,7 +529,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         WT_ERR(__hs_next_upd_full_value(session, &updates, NULL, full_value, &upd));
 
-        hs_inserted = squashed = false;
+        hs_inserted = false;
 
         /*
          * Flush the updates on stack. Stopping once we finish inserting the newest history store
@@ -697,10 +714,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             if (upd == newest_hs)
                 break;
         }
-
-        /* If we squash the onpage value, we increase the counter here. */
-        if (squashed)
-            WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
 
         /*
          * In the case that the onpage value is an out of order timestamp update and the update
