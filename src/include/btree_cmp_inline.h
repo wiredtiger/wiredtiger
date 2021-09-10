@@ -99,6 +99,7 @@ __wt_lex_compare(const WT_ITEM *user_item, const WT_ITEM *tree_item, bool prefix
             break;
         if (*userp != *treep)
             return (*userp < *treep ? -1 : 1);
+    }
 
     /*
      * Contents are equal up to the smallest length. In the case of a prefix match, we consider the
