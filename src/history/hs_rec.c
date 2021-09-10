@@ -370,6 +370,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         newest_hs = first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
 
+        __wt_update_vector_clear(&out_of_order_ts_updates);
+        __wt_update_vector_clear(&updates);
+
         /*
          * Reverse deltas are only supported on 'S' and 'u' value formats.
          */
@@ -474,6 +477,9 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 break;
         }
 
+        if (newest_hs == NULL)
+            continue;
+
         prev_upd = upd = NULL;
 
         /* Construct the oldest full update. */
@@ -513,9 +519,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
          * value.
          */
         modify_cnt = 0;
-        for (; updates.size > 0 && newest_hs != NULL; tmp = full_value,
-                                                      full_value = prev_full_value,
-                                                      prev_full_value = tmp, upd = prev_upd) {
+        for (;; tmp = full_value, full_value = prev_full_value, prev_full_value = tmp,
+                upd = prev_upd) {
             /* We should never insert the onpage value to the history store. */
             WT_ASSERT(session, upd != list->onpage_upd);
             WT_ASSERT(session, upd->type == WT_UPDATE_STANDARD || upd->type == WT_UPDATE_MODIFY);
@@ -709,8 +714,6 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
               upd->txnid == list->onpage_upd->txnid && upd->start_ts == list->onpage_upd->start_ts);
         }
 #endif
-        __wt_update_vector_clear(&out_of_order_ts_updates);
-        __wt_update_vector_clear(&updates);
     }
 
     /* Fail here 0.5% of the time if we are an eviction thread. */
