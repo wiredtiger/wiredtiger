@@ -266,7 +266,7 @@ ALIASES                = "arch_page_table{2}=<div class= arch_head><table><tr><t
                          "hrow{9}=<tr><th>\1</th><th>\2</th><th>\3</th><th>\4</th><th>\5</th><th>\6</th><th>\7</th><th>\8</th><th>\9</th></tr>" \
                          "notyet{1}=Note: <b> \1</b> not yet supported in WiredTiger.\n@todo fix when \1 supported\n\n" \
                          "plantuml_end=PlantUML template end -->" \
-                         "plantuml_start{1}=\image html \1^^\image latex \1^^<!-- PlantUML template begins" \
+                         "plantuml_start{1}=\image html \1@_linebr \image latex \1@_linebr <!-- PlantUML template begins" \
                          "requires_notransaction=This method must not be called on a session with an active transaction.\n\n" \
                          "requires_transaction=This method must be called on a session with an active transaction.\n\n" \
                          "ref_single=@ref" \
