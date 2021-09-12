@@ -688,7 +688,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
      * key only if it is a prefix match.
      */
     if (valid && F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) &&
-      __wt_prefix_match(&cbt->iface.key, cbt->tmp) != 0)
+      __wt_prefix_match(&state.key, cbt->tmp) != 0)
         valid = false;
 
     /*
