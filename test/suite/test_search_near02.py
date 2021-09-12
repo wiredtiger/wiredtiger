@@ -132,11 +132,9 @@ class test_search_near02(wttest.WiredTigerTestCase):
 
         cursor3.set_key("az")
         self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(cursor3.get_key(), self.check_key("az"))
 
         cursor3.set_key("b")
         self.assertEqual(cursor3.search_near(), wiredtiger.WT_NOTFOUND)
-        self.assertEqual(cursor3.get_key(), self.check_key("b"))
 
         cursor3.close()
         self.session.commit_transaction()
