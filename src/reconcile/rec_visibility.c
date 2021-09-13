@@ -270,8 +270,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     WT_DECL_RET;
     WT_UPDATE *upd;
     wt_timestamp_t current_ts;
+    bool seen_ondisk_value;
 
     current_ts = select_upd->start_ts;
+    seen_ondisk_value = false;
     upd = select_upd->next;
 
     /*
@@ -294,13 +296,22 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         /* Validate that the updates older than us have older timestamps. */
         if (current_ts < upd->start_ts)
             WT_ERR(EBUSY);
+
+        /*
+         * If we see transactions id's that belong to the on disk value we don't need to check it
+         * later.
+         */
+        if (vpack != NULL &&
+          (upd->txnid == vpack->tw.stop_txn || upd->txnid == vpack->tw.start_txn))
+            seen_ondisk_value = true;
         current_ts = upd->start_ts;
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (vpack != NULL &&
+    if (!seen_ondisk_value && vpack != NULL &&
       (current_ts < vpack->tw.start_ts ||
-        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts != WT_TS_MAX && vpack->tw.stop_ts > current_ts)))
+        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts != WT_TS_MAX &&
+          vpack->tw.stop_ts > current_ts)))
         WT_ERR(EBUSY);
 
 err:
