@@ -455,6 +455,11 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          * records newer than or equal to the onpage value if eviction runs concurrently with
          * checkpoint. In that case, don't verify the first record.
          *
+         * It is possible during a prepared transaction rollback, the history store update that have
+         * its own stop timestamp doesn't get removed leads to duplicate records in history store
+         * after further operations on that same key. Rollback to stable should ignore such records
+         * for timestamp ordering verification.
+         *
          * If we have fixed the out-of-order timestamps, then the newer update reinserted with an
          * older timestamp may have a durable timestamp that is smaller than the current stop
          * durable timestamp.
@@ -467,7 +472,8 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
          */
         WT_ASSERT(session,
           hs_stop_durable_ts <= newer_hs_durable_ts || hs_start_ts == hs_stop_durable_ts ||
-            hs_start_ts == newer_hs_durable_ts || first_record || hs_stop_durable_ts == WT_TS_MAX);
+            hs_start_ts == newer_hs_durable_ts || newer_hs_durable_ts == hs_durable_ts ||
+            first_record || hs_stop_durable_ts == WT_TS_MAX);
 
         if (hs_stop_durable_ts < newer_hs_durable_ts)
             WT_STAT_CONN_DATA_INCR(session, txn_rts_hs_stop_older_than_newer_start);
@@ -1394,9 +1400,8 @@ __rollback_to_stable_btree_apply(
     bool dhandle_allocated, durable_ts_found, has_txn_updates_gt_than_ckpt_snap, perform_rts;
     bool prepared_updates;
 
-    /* Ignore non-file objects as well as the metadata and history store files. */
-    if (!WT_PREFIX_MATCH(uri, "file:") || strcmp(uri, WT_HS_URI) == 0 ||
-      strcmp(uri, WT_METAFILE_URI) == 0)
+    /* Ignore non-btree objects as well as the metadata and history store files. */
+    if (!WT_BTREE_PREFIX(uri) || strcmp(uri, WT_HS_URI) == 0 || strcmp(uri, WT_METAFILE_URI) == 0)
         return (0);
 
     txn_global = &S2C(session)->txn_global;
@@ -1548,7 +1553,7 @@ __wt_rollback_to_stable_one(WT_SESSION_IMPL *session, const char *uri, bool *ski
      * may contain, so set the caller's skip argument to true on all file objects, else set the
      * caller's skip argument to false so our caller continues down the tree of objects.
      */
-    *skipp = WT_PREFIX_MATCH(uri, "file:");
+    *skipp = WT_BTREE_PREFIX(uri);
     if (!*skipp)
         return (0);
 
