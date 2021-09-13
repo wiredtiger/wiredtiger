@@ -279,7 +279,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * checkpoint isn't running then history store insertions are also fine.
      */
     if (!F_ISSET(r, WT_REC_EVICT) || !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
-        WT_RET(0);
+        return (0);
 
     /*
      * The selected time window may contain information that isn't visible given the selected
@@ -300,7 +300,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     /* Check that the on-page time window isn't out-of-order. */
     if (vpack != NULL &&
       (current_ts < vpack->tw.start_ts ||
-        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts > current_ts)))
+        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts != WT_TS_MAX && vpack->tw.stop_ts > current_ts)))
         WT_ERR(EBUSY);
 
 err:
