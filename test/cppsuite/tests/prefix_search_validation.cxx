@@ -51,7 +51,6 @@ class prefix_search_validation : public test_harness::test {
         std::string prefix_key;
         int cmpp;
         uint64_t collections_per_thread = tc->collection_count;
-
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             collection &coll = tc->db.get_collection(i);
             /*
@@ -59,14 +58,12 @@ class prefix_search_validation : public test_harness::test {
             * is closed, WiredTiger APIs close the cursors too.
             */
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
-            scoped_cursor evict_cursor =
-            tc->session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
             /* Start a txn. */
             tc->transaction.begin();
             for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
                 for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
-                        prefix_key = {alphabet.at(tc->id), alphabet.at(i), alphabet.at(j)};
+                        prefix_key = {alphabet.at(tc->id), alphabet.at(j), alphabet.at(k)};
                         prefix_key += random_generator::instance().generate_string(tc->key_size);
                         if (tc->insert(cursor, coll.id, prefix_key)) {
                             /* We failed to insert, rollback our transaction and retry. */
@@ -77,16 +74,7 @@ class prefix_search_validation : public test_harness::test {
                     }
                 }
             }
-            tc->transaction.commit("commit_timestamp=" + timestamp_str(100));
-
-            for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
-                for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
-                    std::string key = {alphabet.at(tc->id), alphabet.at(i), alphabet.at(j)};
-                    evict_cursor->set_key(evict_cursor.get(), key.c_str());
-                    evict_cursor->search_near(evict_cursor.get(), &cmpp);
-                    testutil_check(evict_cursor->reset(evict_cursor.get()));
-                }
-            }
+            tc->transaction.commit("commit_timestamp=" + tc->tsm->decimal_to_hex(100));
         }
     }
 
@@ -117,7 +105,7 @@ class prefix_search_validation : public test_harness::test {
         testutil_assert(key_count <= pow(10, key_size));
 
 
-        std::cout << key_size << " " << key_count << " " << collection_count << std::endl;
+            std::cout << key_size << " " << key_count << " " << collection_count << std::endl;
         
         /* Create n collections as per the configuration. */
         for (int64_t i = 0; i < collection_count; ++i)
@@ -149,6 +137,23 @@ class prefix_search_validation : public test_harness::test {
             delete it;
             it = nullptr;
         }
+        int cmpp;
+        scoped_session s = connection_manager::instance().create_session();
+        for (int64_t count = 0; count < collection_count; ++count) {
+            collection &coll = database.get_collection(count);
+            scoped_cursor evict_cursor = s.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
+            
+            for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
+                for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
+                    for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
+                        std::string key = {alphabet.at(i), alphabet.at(j), alphabet.at(k)};
+                        evict_cursor->set_key(evict_cursor.get(), key.c_str());
+                        evict_cursor->search_near(evict_cursor.get(), &cmpp);
+                        testutil_check(evict_cursor->reset(evict_cursor.get()));
+                    }
+                }
+            }
+        }
         logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
@@ -164,12 +169,10 @@ class prefix_search_validation : public test_harness::test {
         int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat;
 
         cmpp = 0;
-        entries_stat = prev_entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);;
-        prefix_stat = prev_prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
 
         std::map<uint64_t, scoped_cursor> cursors;
         while (tc->running()) {
-            tc->transaction.begin("read_timestamp=" + timestamp_str(10));
+            tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
 
             /* Get a collection and find a cached cursor. */
             collection  &coll = tc->db.get_random_collection();
@@ -187,22 +190,26 @@ class prefix_search_validation : public test_harness::test {
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
 
-                cursor->set_key(cursor.get(), "aa");
+                prev_entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);;
+                prev_prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
+                cursor->set_key(cursor.get(), srch_key.c_str());
                 auto ret = cursor->search_near(cursor.get(), &cmpp);
                 testutil_assert(ret == WT_NOTFOUND);
+
+                
+                tc->transaction.add_op();
+                tc->sleep();
+
                 entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);
                 prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
-
                 logger::log_msg(LOG_ERROR,
                   "Read working: skipped entries " + std::to_string(entries_stat) +
-                    " prefix fash path  " + std::to_string(prefix_stat));
-                testutil_assert(keys_per_prefix * ALPHABET_SIZE * 2 >= entries_stat - prev_entries_stat);
+                    " prefix fash path  " + std::to_string(prev_entries_stat) + " " + std::to_string(keys_per_prefix * ALPHABET_SIZE * 2));
+
+                testutil_assert(tc->thread_count * ((keys_per_prefix * ALPHABET_SIZE * 2) + 10) >= entries_stat - prev_entries_stat);
                 testutil_assert(prefix_stat > prev_prefix_stat);
                 prev_entries_stat = entries_stat;
                 prev_prefix_stat = prefix_stat;
-                tc->transaction.add_op();
-                // tc->transaction.try_rollback();
-                tc->sleep();
             }
             tc->transaction.commit();
             /* Reset our cursor to avoid pinning content. */
@@ -227,13 +234,5 @@ class prefix_search_validation : public test_harness::test {
         testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, &valuep));
         testutil_check(cursor->reset(cursor.get()));
         return valuep;
-    }
-
-    std::string
-    timestamp_str(wt_timestamp_t ts)
-    {
-        std::stringstream stream;
-        stream << std::hex << ts;
-        return stream.str();
     }
 };

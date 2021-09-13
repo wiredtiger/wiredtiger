@@ -228,14 +228,7 @@ thread_context::insert(
 }
 
 bool
-thread_context::insert(
-  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
-{
-    return insert(cursor, collection_id, key_to_string(key_id));
-}
-
-bool
-thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key)
+thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
     std::string value;

@@ -12,7 +12,7 @@ workload_generator=
     (
         collection_count=1,
         key_count_per_collection=1,
-        key_size=5,
+        key_size=10,
     ),
     read_config=
     (
