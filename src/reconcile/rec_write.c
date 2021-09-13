@@ -221,13 +221,16 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 #ifdef HAVE_DIAGNOSTIC
     addr = ref->addr;
 #endif
-    /* Wrap up the page reconciliation. */
-    if (ret == 0 && (ret = __rec_write_wrapup(session, r, page)) == 0)
-        __rec_write_page_status(session, r);
-    else {
+    if (ret != 0) {
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
         WT_TRET(__rec_write_wrapup_err(session, r, page));
+    } else {
+        /* Wrap up the page reconciliation. */
+        ret = __rec_write_wrapup(session, r, page);
+        if (ret != 0)
+            WT_RET_PANIC(session, ret, "failed to wrapup reconciliation");
+        __rec_write_page_status(session, r);
     }
 
     /* Release the reconciliation lock. */
