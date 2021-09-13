@@ -262,9 +262,11 @@ struct __wt_cursor_bulk {
     uint32_t entry; /* Entry count */
     uint32_t nrecs; /* Max records per chunk */
 
-    void *reconcile; /* Reconciliation support */
-    WT_REF *ref;     /* The leaf page */
-    WT_PAGE *leaf;
+    void *reconcile;  /* Reconciliation support */
+    bool key_set;     /* First pages key has been set */
+    WT_REF ref;       /* Fake WT_REF/WT_PAGE pair */
+    uint32_t fid;     /* Current backing file ID */
+    uint64_t written; /* Pages written in the current cycle */
 };
 
 struct __wt_cursor_config {

@@ -130,7 +130,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     if (!__wt_ref_addr_copy(session, ref, &addr)) {
         WT_ASSERT(session, previous_state == WT_REF_DELETED);
 
-        WT_ERR(__wt_btree_new_leaf_page(session, ref));
+        WT_ERR(__wt_btree_new_page(session, true, ref));
         goto skip_read;
     }
 

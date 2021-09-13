@@ -71,7 +71,10 @@ __wt_page_alloc(
         break;
     case WT_PAGE_COL_INT:
     case WT_PAGE_ROW_INT:
-        WT_ASSERT(session, alloc_entries != 0);
+        /* This is not a normal path, it happens when we need to fake up an internal page. */
+        if (alloc_entries == 0)
+            break;
+
         /*
          * Internal pages have an array of references to objects so they can split. Allocate the
          * array of references and optionally, the objects to which they point.

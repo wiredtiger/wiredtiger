@@ -819,7 +819,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
 
     /* Bulk handles require exclusive access. */
     if (bulk)
-        LF_SET(WT_BTREE_BULK | WT_DHANDLE_EXCLUSIVE);
+        LF_SET(WT_BTREE_BULK);
 
     WT_ASSERT(session, WT_PREFIX_MATCH(uri, "file:") || WT_PREFIX_MATCH(uri, "tiered:"));
 
@@ -828,7 +828,7 @@ __wt_curfile_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, c
      * If we are opening exclusive and don't want a bulk cursor open to fail with EBUSY due to a
      * database-wide checkpoint, get the handle while holding the checkpoint lock.
      */
-    if (LF_ISSET(WT_DHANDLE_EXCLUSIVE) && checkpoint_wait)
+    if (bulk && checkpoint_wait)
         WT_WITH_CHECKPOINT_LOCK(
           session, ret = __wt_session_get_btree_ckpt(session, uri, cfg, flags));
     else

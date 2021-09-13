@@ -169,6 +169,7 @@ src/os_win/os_yield.c			WINDOWS_HOST
 src/packing/pack_api.c
 src/packing/pack_impl.c
 src/packing/pack_stream.c
+src/reconcile/rec_bulk.c
 src/reconcile/rec_child.c
 src/reconcile/rec_col.c
 src/reconcile/rec_dictionary.c

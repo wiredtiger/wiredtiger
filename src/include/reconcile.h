@@ -261,7 +261,10 @@ struct __wt_reconcile {
     bool key_sfx_compress;      /* If can suffix-compress next key */
     bool key_sfx_compress_conf; /* If suffix compression configured */
 
-    bool is_bulk_load; /* If it's a bulk load */
+    bool is_bulk_load;      /* If it's a bulk load */
+    WT_FSTREAM *bulk_fs;    /* Bulk-load key/address tracking file */
+    uint64_t bulk_fs_pages; /* Bulk-load key/address tracking count */
+    WT_ITEM bulk_tmp;       /* Bulk-load working space */
 
     WT_SALVAGE_COOKIE *salvage; /* If it's a salvage operation */
 

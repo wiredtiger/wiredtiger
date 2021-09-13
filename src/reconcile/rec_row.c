@@ -9,11 +9,11 @@
 #include "wt_internal.h"
 
 /*
- * __rec_key_state_update --
+ * __wt_rec_key_state_update --
  *     Update prefix and suffix compression based on the last key.
  */
-static inline void
-__rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
+void
+__wt_rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
 {
     WT_ITEM *a;
 
@@ -50,12 +50,12 @@ __rec_key_state_update(WT_RECONCILE *r, bool ovfl_key)
 }
 
 /*
- * __rec_cell_build_int_key --
+ * __wt_rec_cell_build_int_key --
  *     Process a key and return a WT_CELL structure and byte string to be stored on a row-store
  *     internal page.
  */
-static int
-__rec_cell_build_int_key(
+int
+__wt_rec_cell_build_int_key(
   WT_SESSION_IMPL *session, WT_RECONCILE *r, const void *data, size_t size, bool *is_ovflp)
 {
     WT_BTREE *btree;
@@ -191,6 +191,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_BTREE *btree;
     WT_CURSOR *cursor;
     WT_RECONCILE *r;
+    WT_REC_CHUNK *chunk;
     WT_REC_KV *key, *val;
     WT_TIME_WINDOW tw;
     bool ovfl_key;
@@ -199,6 +200,16 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     btree = S2BT(session);
     cursor = &cbulk->cbt.iface;
     WT_TIME_WINDOW_INIT(&tw);
+
+    /*
+     * KEITH: this is wrong. The underlying split-init routine normally sets the key, but sets it
+     * from the page that we're reconciling. We don't have a page we're reconciling here...
+     */
+    if (!cbulk->key_set) {
+        chunk = r->cur_ptr;
+        WT_RET(__wt_buf_set(session, &chunk->key, cursor->key.data, cursor->key.size));
+        cbulk->key_set = true;
+    }
 
     key = &r->k;
     val = &r->v;
@@ -238,7 +249,7 @@ __wt_bulk_insert_row(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
     /* Update compression state. */
-    __rec_key_state_update(r, ovfl_key);
+    __wt_rec_key_state_update(r, ovfl_key);
 
     return (0);
 }
@@ -265,7 +276,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
     /* For each entry in the split array... */
     for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
         /* Build the key and value cells. */
-        WT_RET(__rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
+        WT_RET(__wt_rec_cell_build_int_key(session, r, WT_IKEY_DATA(multi->key.ikey),
           r->cell_zero ? 1 : multi->key.ikey->size, &ovfl_key));
         r->cell_zero = false;
 
@@ -282,7 +293,7 @@ __rec_row_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &addr->ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wt_rec_key_state_update(r, ovfl_key);
     }
     return (0);
 }
@@ -473,7 +484,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
             __wt_ref_key(page, ref, &p, &size);
             if (r->cell_zero)
                 size = 1;
-            WT_ERR(__rec_cell_build_int_key(session, r, p, size, &ovfl_key));
+            WT_ERR(__wt_rec_cell_build_int_key(session, r, p, size, &ovfl_key));
             if (ovfl_key)
                 key_overflow_size += size;
         }
@@ -512,7 +523,7 @@ __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
         WT_TIME_AGGREGATE_MERGE(session, &r->cur_ptr->ta, &ta);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wt_rec_key_state_update(r, ovfl_key);
     }
     WT_INTL_FOREACH_END;
 
@@ -660,7 +671,7 @@ __rec_row_leaf_insert(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins)
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wt_rec_key_state_update(r, ovfl_key);
     }
 
     return (0);
@@ -1057,7 +1068,7 @@ build:
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, twp);
 
         /* Update compression state. */
-        __rec_key_state_update(r, ovfl_key);
+        __wt_rec_key_state_update(r, ovfl_key);
 
 leaf_insert:
         /* Write any K/V pairs inserted into the page after this key. */

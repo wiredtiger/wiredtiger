@@ -41,6 +41,7 @@ __btree_clear(WT_SESSION_IMPL *session)
 
     /* Destroy locks. */
     __wt_rwlock_destroy(session, &btree->ovfl_lock);
+    __wt_spin_destroy(session, &btree->bulk_load_lock);
     __wt_spin_destroy(session, &btree->flush_lock);
 
     /* Free allocated memory. */
@@ -504,6 +505,7 @@ __btree_conf(WT_SESSION_IMPL *session, WT_CKPT *ckpt)
 
     /* Initialize locks. */
     WT_RET(__wt_rwlock_init(session, &btree->ovfl_lock));
+    WT_RET(__wt_spin_init(session, &btree->bulk_load_lock, "btree bulk load lock"));
     WT_RET(__wt_spin_init(session, &btree->flush_lock, "btree flush"));
 
     btree->modified = false; /* Clean */
@@ -731,15 +733,6 @@ __btree_tree_open_empty(WT_SESSION_IMPL *session, bool creation)
         break;
     }
 
-    /* Bulk loads require a leaf page for reconciliation: create it now. */
-    if (F_ISSET(btree, WT_BTREE_BULK)) {
-        WT_ERR(__wt_btree_new_leaf_page(session, ref));
-        F_SET(ref, WT_REF_FLAG_LEAF);
-        WT_REF_SET_STATE(ref, WT_REF_MEM);
-        WT_ERR(__wt_page_modify_init(session, ref->page));
-        __wt_page_only_modify_set(session, ref->page);
-    }
-
     /* Finish initializing the root, root reference links. */
     __wt_root_ref_init(session, &btree->root, root, btree->type != BTREE_ROW);
 
@@ -754,35 +747,42 @@ err:
 }
 
 /*
- * __wt_btree_new_leaf_page --
- *     Create an empty leaf page.
+ * __wt_btree_new_page --
+ *     Create an empty page.
  */
 int
-__wt_btree_new_leaf_page(WT_SESSION_IMPL *session, WT_REF *ref)
+__wt_btree_new_page(WT_SESSION_IMPL *session, bool leafpage, WT_REF *ref)
 {
     WT_BTREE *btree;
+    uint8_t type;
 
     btree = S2BT(session);
 
     switch (btree->type) {
     case BTREE_COL_FIX:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_FIX, 0, false, &ref->page));
+        type = leafpage ? WT_PAGE_COL_FIX : WT_PAGE_COL_INT;
         break;
     case BTREE_COL_VAR:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_COL_VAR, 0, false, &ref->page));
+        type = leafpage ? WT_PAGE_COL_VAR : WT_PAGE_COL_INT;
         break;
     case BTREE_ROW:
-        WT_RET(__wt_page_alloc(session, WT_PAGE_ROW_LEAF, 0, false, &ref->page));
+        type = leafpage ? WT_PAGE_ROW_LEAF : WT_PAGE_ROW_INT;
         break;
     }
+    WT_RET(__wt_page_alloc(session, type, 0, false, &ref->page));
 
     /*
      * When deleting a chunk of the name-space, we can delete internal pages. However, if we are
      * ever forced to re-instantiate that piece of the namespace, it comes back as a leaf page.
      * Reset the WT_REF type as it's possible that it has changed.
      */
-    F_CLR(ref, WT_REF_FLAG_INTERNAL);
-    F_SET(ref, WT_REF_FLAG_LEAF);
+    if (leafpage) {
+        F_CLR(ref, WT_REF_FLAG_INTERNAL);
+        F_SET(ref, WT_REF_FLAG_LEAF);
+    } else {
+        F_CLR(ref, WT_REF_FLAG_LEAF);
+        F_SET(ref, WT_REF_FLAG_INTERNAL);
+    }
 
     return (0);
 }
