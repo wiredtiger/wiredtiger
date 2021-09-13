@@ -229,7 +229,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
         /* Wrap up the page reconciliation. */
         ret = __rec_write_wrapup(session, r, page);
         if (ret != 0)
-            WT_RET_PANIC(session, ret, "failed to wrapup reconciliation");
+            WT_RET_PANIC(session, ret, "failed to wrap up reconciliation");
         __rec_write_page_status(session, r);
     }
 
