@@ -35,7 +35,11 @@
 
 #include "base_test.cxx"
 #include "example_test.cxx"
+<<<<<<< HEAD
 #include "burst_inserts.cxx"
+=======
+#include "search_near_02.cxx"
+>>>>>>> Create search_near test
 #include "hs_cleanup.cxx"
 
 std::string
@@ -113,6 +117,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         base_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "example_test")
         example_test(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "search_near_02")
+        search_near_02(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "burst_inserts")
