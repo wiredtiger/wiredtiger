@@ -264,9 +264,10 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
  *     time.
  */
 static int
-__rec_validate_upd_chain(
-  WT_RECONCILE *r, WT_UPDATE *select_upd, WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
+__rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *select_upd,
+  WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
+    WT_DECL_RET;
     WT_UPDATE *upd;
     wt_timestamp_t current_ts;
 
@@ -278,7 +279,7 @@ __rec_validate_upd_chain(
      * checkpoint isn't running then history store insertions are also fine.
      */
     if (!F_ISSET(r, WT_REC_EVICT) || !F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
-        return (0);
+        WT_RET(0);
 
     /*
      * The selected time window may contain information that isn't visible given the selected
@@ -286,13 +287,13 @@ __rec_validate_upd_chain(
      * of the selected update.
      */
     if (select_tw->stop_ts < select_tw->start_ts)
-        return (EBUSY);
+        WT_ERR(EBUSY);
 
     /* Loop forward from update after the selected on-page update. */
     for (; upd != NULL; upd = upd->next) {
         /* Validate that the updates older than us have older timestamps. */
         if (current_ts < upd->start_ts)
-            return (EBUSY);
+            WT_ERR(EBUSY);
         current_ts = upd->start_ts;
     }
 
@@ -300,8 +301,13 @@ __rec_validate_upd_chain(
     if (vpack != NULL &&
       (current_ts < vpack->tw.start_ts ||
         (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts > current_ts)))
-        return (EBUSY);
-    return (0);
+        WT_ERR(EBUSY);
+
+err:
+    if (ret != 0)
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race);
+
+    return (ret);
 }
 
 /*
@@ -637,7 +643,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           upd_select->upd;
 
         if (onpage_upd != NULL)
-            WT_ERR(__rec_validate_upd_chain(r, onpage_upd, select_tw, vpack));
+            WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
 
         WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
         /*
