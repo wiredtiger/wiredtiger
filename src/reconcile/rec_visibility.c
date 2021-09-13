@@ -272,9 +272,9 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     wt_timestamp_t current_ts;
     bool seen_ondisk_value;
 
-    current_ts = select_upd->start_ts;
+    upd = NULL;
+    current_ts = WT_TS_NONE;
     seen_ondisk_value = false;
-    upd = select_upd->next;
 
     /*
      * If we're not in eviction any history store insertion is fine, if we are in eviction and a
@@ -290,6 +290,17 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (select_tw->stop_ts < select_tw->start_ts)
         WT_ERR(EBUSY);
+
+    /*
+     * There is no selected update to go to disk as such we don't need to check the updates
+     * following it.
+     */
+    if (select_upd == NULL)
+        return (0);
+
+    /* Set our variables correctly now that we are sure there's an update. */
+    upd = select_upd->next;
+    current_ts = select_upd->start_ts;
 
     /* Loop forward from update after the selected on-page update. */
     for (; upd != NULL; upd = upd->next) {
@@ -653,10 +664,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           NULL :
           upd_select->upd;
 
-        if (onpage_upd != NULL)
-            WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
+        /* Check the update chain for conditions that could prevent it's eviction. */
+        WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
 
         WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
+
         /*
          * Mark the selected update (and potentially the tombstone preceding it) as being destined
          * for the data store. Subsequent reconciliations should know that they can select this
