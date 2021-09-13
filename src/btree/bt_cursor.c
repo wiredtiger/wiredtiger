@@ -732,6 +732,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
             if (exact >= 0)
                 goto done;
         }
+
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */

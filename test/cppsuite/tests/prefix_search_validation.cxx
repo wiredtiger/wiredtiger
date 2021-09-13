@@ -54,9 +54,9 @@ class prefix_search_validation : public test_harness::test {
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             collection &coll = tc->db.get_collection(i);
             /*
-            * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
-            * is closed, WiredTiger APIs close the cursors too.
-            */
+             * WiredTiger lets you open a cursor on a collection using the same pointer. When a
+             * session is closed, WiredTiger APIs close the cursors too.
+             */
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
             /* Start a txn. */
             tc->transaction.begin();
@@ -78,7 +78,9 @@ class prefix_search_validation : public test_harness::test {
         }
     }
 
-    std::string generate_random_search_key() {
+    std::string
+    generate_random_search_key()
+    {
         char a = alphabet.at(random_generator::instance().generate_integer(0, ALPHABET_SIZE - 1));
         char b = alphabet.at(random_generator::instance().generate_integer(0, ALPHABET_SIZE - 1));
 
@@ -104,15 +106,14 @@ class prefix_search_validation : public test_harness::test {
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
+        std::cout << key_size << " " << key_count << " " << collection_count << std::endl;
 
-            std::cout << key_size << " " << key_count << " " << collection_count << std::endl;
-        
         /* Create n collections as per the configuration. */
         for (int64_t i = 0; i < collection_count; ++i)
             /*
-            * The database model will call into the API and create the collection, with its own
-            * session.
-            */
+             * The database model will call into the API and create the collection, with its own
+             * session.
+             */
             database.add_collection();
 
         /*
@@ -141,8 +142,9 @@ class prefix_search_validation : public test_harness::test {
         scoped_session s = connection_manager::instance().create_session();
         for (int64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
-            scoped_cursor evict_cursor = s.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
-            
+            scoped_cursor evict_cursor =
+              s.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
+
             for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
                 for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
                     for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
@@ -175,28 +177,27 @@ class prefix_search_validation : public test_harness::test {
             tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
 
             /* Get a collection and find a cached cursor. */
-            collection  &coll = tc->db.get_random_collection();
+            collection &coll = tc->db.get_random_collection();
             if (cursors.find(coll.id) == cursors.end()) {
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
                 cursor->reconfigure(cursor.get(), "prefix_key=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
 
-            std::string srch_key = generate_random_search_key();  
-
+            std::string srch_key = generate_random_search_key();
 
             logger::log_msg(LOG_ERROR, srch_key);
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
 
-                prev_entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);;
+                prev_entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);
+                ;
                 prev_prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 auto ret = cursor->search_near(cursor.get(), &cmpp);
                 testutil_assert(ret == WT_NOTFOUND);
 
-                
                 tc->transaction.add_op();
                 tc->sleep();
 
@@ -204,9 +205,11 @@ class prefix_search_validation : public test_harness::test {
                 prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
                 logger::log_msg(LOG_ERROR,
                   "Read working: skipped entries " + std::to_string(entries_stat) +
-                    " prefix fash path  " + std::to_string(prev_entries_stat) + " " + std::to_string(keys_per_prefix * ALPHABET_SIZE * 2));
+                    " prefix fash path  " + std::to_string(prev_entries_stat) + " " +
+                    std::to_string(keys_per_prefix * ALPHABET_SIZE * 2));
 
-                testutil_assert(tc->thread_count * ((keys_per_prefix * ALPHABET_SIZE * 2) + 10) >= entries_stat - prev_entries_stat);
+                testutil_assert(tc->thread_count * ((keys_per_prefix * ALPHABET_SIZE * 2) + 10) >=
+                  entries_stat - prev_entries_stat);
                 testutil_assert(prefix_stat > prev_prefix_stat);
                 prev_entries_stat = entries_stat;
                 prev_prefix_stat = prefix_stat;
@@ -225,8 +228,7 @@ class prefix_search_validation : public test_harness::test {
     {
         int64_t valuep;
         /* Open our statistic cursor. */
-        scoped_cursor cursor =
-          tc->session.open_scoped_cursor(STATISTICS_URI);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
 
         const char *desc, *pvalue;
         cursor->set_key(cursor.get(), stat_field);

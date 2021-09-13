@@ -69,8 +69,6 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # Basic character array.
         l = "abcdefghijklmnopqrstuvwxyz"
 
-
-
         key_count = 26*26*26
         # Insert keys aaa -> zzz.
         self.session.begin_transaction()
@@ -91,7 +89,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # range forward, and then the whole range backwards.
         # self.assertGreater(skip_count, key_count/2 * 2)
         cursor2 = self.session.open_cursor(uri)
-        
+
         # Evict the whole range.
         # while True:
         #     nextret = cursor.next()

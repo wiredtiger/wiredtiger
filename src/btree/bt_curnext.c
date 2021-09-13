@@ -406,14 +406,12 @@ restart_read_insert:
                 ++*skippedp;
                 continue;
             }
-
             return (__wt_value_return(cbt, cbt->upd_value));
         }
 
         /* Check for the end of the page. */
-        if (cbt->row_iteration_slot >= page->entries * 2 + 1) {
+        if (cbt->row_iteration_slot >= page->entries * 2 + 1)
             return (WT_NOTFOUND);
-        }
         ++cbt->row_iteration_slot;
 
         /*
@@ -441,7 +439,6 @@ restart_read_page:
           __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
             /* It is not okay for the user to have a custom collator. */
             WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
-            WT_RET(__wt_msg(session, "testing"));
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
@@ -763,7 +760,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                  * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
                  * positioned when traversing keys for prefix search near.
                  */
-                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) &&  __wt_prefix_match(prefix, &cbt->iface.key) != 0)
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
                     return (WT_NOTFOUND);
                 break;
             default:

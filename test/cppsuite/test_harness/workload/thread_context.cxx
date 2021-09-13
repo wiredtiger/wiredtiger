@@ -228,7 +228,8 @@ thread_context::insert(
 }
 
 bool
-thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
+thread_context::insert(
+  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
     std::string value;
@@ -245,7 +246,7 @@ thread_context::insert(scoped_cursor &cursor, uint64_t collection_id, const std:
 
     value = random_generator::instance().generate_pseudo_random_string(value_size);
 
-    //std::cout << key.c_str() << std::endl;
+    // std::cout << key.c_str() << std::endl;
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
     ret = cursor->insert(cursor.get());
