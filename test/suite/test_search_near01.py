@@ -34,7 +34,7 @@ from wiredtiger import stat
 # Test various prefix search near scenarios.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
-    #session_config = 'isolation=snapshot'
+    session_config = 'isolation=snapshot'
 
     def get_stat(self, stat, local_session = None):
         if (local_session != None):
@@ -61,7 +61,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
 
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
-        self.session.create(uri, 'key_format=S,value_format=S')
+        self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
         session2 = self.conn.open_session()
         cursor3 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
@@ -69,44 +69,42 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # Basic character array.
         l = "abcdefghijklmnopqrstuvwxyz"
 
+        # Start our older reader.
+        session2.begin_transaction()
+
         key_count = 26*26*26
         # Insert keys aaa -> zzz.
         self.session.begin_transaction()
-        for k in range (0, 999):
-            cursor["aa" + str(k)] = "aa" + str(k)
-
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(200))
+        for i in range (0, 26):
+            for j in range (0, 26):
+                for k in range (0, 26):
+                    cursor[l[i] + l[j] + l[k]] = l[i] + l[j] + l[k]
+        self.session.commit_transaction()
 
         # Evict the whole range.
-        for i in range (0, 999):
-            cursor3.set_key("aa" + str(i))
-            cursor3.search()
-            cursor3.reset()
-        # Start our older reader.
-        self.session.begin_transaction('read_timestamp=' + self.timestamp_str(100))
+        for i in range (0, 26):
+            for j in range(0, 26):
+                cursor3.set_key(l[i] + l[j] + 'a')
+                cursor3.search()
+                cursor3.reset()
+
         # Search near for the "aa" part of the range.
+        cursor2 = session2.open_cursor(uri)
+        cursor2.set_key('aa')
+        cursor2.search_near()
+
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         # This should be equal to roughly key_count * 2 as we're going to traverse the whole
         # range forward, and then the whole range backwards.
-        # self.assertGreater(skip_count, key_count/2 * 2)
-        cursor2 = self.session.open_cursor(uri)
+        self.assertGreater(skip_count, key_count * 2)
 
-        # Evict the whole range.
-        # while True:
-        #     nextret = cursor.next()
-        #     if nextret != 0:
-        #         break
-        #     key = cursor.get_key()
-        #     value = cursor.get_value()
-            #print(key)
         cursor2.reconfigure("prefix_key=true")
         cursor2.set_key('aa')
-        ret = cursor2.search_near()
+        cursor2.search_near()
 
-        val = cursor2.get_key()
-        print(ret)
         prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         # We should've skipped ~26*2 here as we're only looking at the "aa" range * 2.
-        self.assertGreaterEqual(prefix_skip_count, 26*2)
+        self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2)
         skip_count = prefix_skip_count
 
         # The prefix code will have come into play at once as we walked to "aba". The prev
@@ -141,7 +139,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(prefix_skip_count - skip_count, key_count)
 
     # This test aims to simulate a unique index insertion.
-    def unique_index_case(self):
+    def test_unique_index_case(self):
         uri = 'table:test_unique_index_case'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
@@ -210,7 +208,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
 
     # In order for prefix key fast pathing to work we rely on some guarantees provided by row
     # search. Test some of the guarantees.
-    def row(self):
+    def test_row_search(self):
         uri = 'table:test_row_search'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
@@ -262,7 +260,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertEqual(skip_count, expect_count)
 
     # Test a basic prepared scenario.
-    def tt_prepared(self):
+    def test_prepared(self):
         uri = 'table:test_base_scenario'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
