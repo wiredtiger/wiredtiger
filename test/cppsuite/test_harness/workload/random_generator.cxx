@@ -42,12 +42,14 @@ random_generator::instance()
 }
 
 std::string
-random_generator::generate_random_string(std::size_t length, characters_type type)
+random_generator::generate_string(std::size_t length, characters_type type)
 {
-    std::string str;
+    std::string random_string;
+    std::uniform_int_distribution<> &distribution = get_distribution(type);
+    const std::string &characters = get_characters(type);
 
-    while (str.size() < length)
-        str += get_characters(type);
+    for (std::size_t i = 0; i < length; ++i)
+        random_string += characters[distribution(_generator)];
 
     std::shuffle(str.begin(), str.end(), _generator);
     return (str.substr(0, length));
@@ -81,33 +83,19 @@ random_generator::random_generator()
 std::uniform_int_distribution<> &
 random_generator::get_distribution(characters_type type)
 {
-    switch (type) {
-    case characters_type::ALPHABET:
+    if (type == characters_type::ALPHABET)
         return (_alpha_distrib);
-        break;
-    case characters_type::PSEUDO_ALPHANUMERIC:
+    else
         return (_alphanum_distrib);
-        break;
-    default:
-        testutil_die(type, "Unexpected characters_type");
-        break;
-    }
 }
 
 const std::string &
 random_generator::get_characters(characters_type type)
 {
-    switch (type) {
-    case characters_type::ALPHABET:
+    if (type == characters_type::ALPHABET)
         return (_alphabet);
-        break;
-    case characters_type::PSEUDO_ALPHANUMERIC:
+    else
         return (_pseudo_alphanum);
-        break;
-    default:
-        testutil_die(type, "Unexpected characters_type");
-        break;
-    }
 }
 
 } // namespace test_harness

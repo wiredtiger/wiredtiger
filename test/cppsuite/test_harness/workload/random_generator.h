@@ -50,13 +50,9 @@ class random_generator {
     random_generator &operator=(random_generator const &) = delete;
 
     /* Generate a random string of a given length. */
-    std::string generate_random_string(
-      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+    std::string generate_string(std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
-    /*
-     * Generate a pseudo random string which compresses better. It should not be used to generate
-     * keys due to the limited randomness.
-     */
+    /* Generate a pseudo random string which compresses better. */
     std::string generate_pseudo_random_string(
       std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
@@ -76,9 +72,11 @@ class random_generator {
 
     std::mt19937 _generator;
     std::uniform_int_distribution<> _alphanum_distrib, _alpha_distrib;
-    const std::string _alphabet = "abcdefghijklmnopqrstuvwxyz";
+    /* Alphanumeric characters without the special ones. */
     const std::string _pseudo_alphanum =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+    /* Alphabet characters. */
+    const std::string _alphabet = "abcdefghijklmnopqrstuvwxyz";
 };
 } // namespace test_harness
 
