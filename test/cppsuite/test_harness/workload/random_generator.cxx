@@ -52,6 +52,7 @@ random_generator::generate_string(std::size_t length, characters_type type)
         break;
     case characters_type::PSEUDO_ALPHANUMERIC:
         str = _pseudo_alphanum;
+        break;
     default:
         testutil_die(type, "Unexpected characters_type");
         break;
@@ -95,6 +96,7 @@ random_generator::get_distribution(characters_type type)
         break;
     case characters_type::PSEUDO_ALPHANUMERIC:
         return (_alphanum_distrib);
+        break;
     default:
         testutil_die(type, "Unexpected characters_type");
         break;
@@ -110,6 +112,7 @@ random_generator::get_characters(characters_type type)
         break;
     case characters_type::PSEUDO_ALPHANUMERIC:
         return (_pseudo_alphanum);
+        break;
     default:
         testutil_die(type, "Unexpected characters_type");
         break;
