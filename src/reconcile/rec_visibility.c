@@ -207,10 +207,10 @@ __rec_need_save_upd(
         return (true);
 
     /*
-     * Save updates for any reconciliation that doesn't involve history store (in-memory database,
-     * fixed length column store, metadata, and history store reconciliation itself), except when
-     * the selected stop time point or the selected start time point is not globally visible for in
-     * memory database and fixed length column store.
+     * Don't save updates for any reconciliation that doesn't involve history store (in-memory
+     * database, fixed length column store, metadata, and history store reconciliation itself),
+     * except when the selected stop time point or the selected start time point is not globally
+     * visible for in memory database and fixed length column store.
      */
     if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
         return (false);
