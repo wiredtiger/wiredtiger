@@ -45,6 +45,12 @@ class example_test : public test_harness::test {
     }
 
     void
+    insert_operation(test_harness::thread_context *context) override final
+    {
+        std::cout << "insert_operation: nothing done." << std::endl;
+    }
+
+    void
     read_operation(test_harness::thread_context *context) override final
     {
         std::cout << "read_operation: nothing done." << std::endl;
