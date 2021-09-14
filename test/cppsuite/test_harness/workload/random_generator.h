@@ -34,6 +34,9 @@
 
 namespace test_harness {
 /* Helper class to generate random values using uniform distributions. */
+
+enum characters_type { PSEUDO_ALPHANUMERIC, ALPHABET };
+
 class random_generator {
     public:
     static random_generator &instance();
@@ -44,10 +47,11 @@ class random_generator {
     random_generator &operator=(random_generator const &) = delete;
 
     /* Generate a random string of a given length. */
-    std::string generate_string(std::size_t length);
+    std::string generate_string(std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
     /* Generate a pseudo random string which compresses better. */
-    std::string generate_pseudo_random_string(std::size_t length);
+    std::string generate_pseudo_random_string(
+      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
     /* Generate a random integer between min and max. */
     template <typename T>
@@ -60,9 +64,12 @@ class random_generator {
 
     private:
     random_generator();
+    std::uniform_int_distribution<> &get_distribution(characters_type type);
+    const std::string &get_characters(characters_type type);
 
     std::mt19937 _generator;
-    std::uniform_int_distribution<> _distribution;
+    std::uniform_int_distribution<> _alphanum_distrib, _alpha_distrib;
+    const std::string _alphabet = "abcdefghijklmnopqrstuvwxyz";
     const std::string _pseudo_alphanum =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 };
