@@ -40,7 +40,7 @@ random_generator::instance()
 std::string
 random_generator::generate_string(std::size_t length)
 {
-    std::string str = _characters;
+    std::string str = _pseudo_alphanum;
     std::shuffle(str.begin(), str.end(), _generator);
     return (str.substr(0, length));
 }
@@ -52,8 +52,8 @@ random_generator::generate_pseudo_random_string(std::size_t length)
     std::size_t start_location = _distribution(_generator);
 
     for (std::size_t i = 0; i < length; ++i) {
-        random_string += _characters[start_location];
-        if (start_location == _characters.size() - 1)
+        random_string += _pseudo_alphanum[start_location];
+        if (start_location == _pseudo_alphanum.size() - 1)
             start_location = 0;
         else
             start_location++;
@@ -64,6 +64,6 @@ random_generator::generate_pseudo_random_string(std::size_t length)
 random_generator::random_generator()
 {
     _generator = std::mt19937(std::random_device{}());
-    _distribution = std::uniform_int_distribution<>(0, _characters.size() - 1);
+    _distribution = std::uniform_int_distribution<>(0, _pseudo_alphanum.size() - 1);
 }
 } // namespace test_harness

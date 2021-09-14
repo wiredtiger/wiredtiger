@@ -63,7 +63,7 @@ class random_generator {
 
     std::mt19937 _generator;
     std::uniform_int_distribution<> _distribution;
-    const std::string _characters =
+    const std::string _pseudo_alphanum =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 };
 } // namespace test_harness
