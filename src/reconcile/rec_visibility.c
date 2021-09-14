@@ -297,7 +297,9 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         return (0);
 
     /* The selected update is restored from the data store or history store. */
-    if (F_ISSET(select_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+    if (F_ISSET(select_upd,
+          WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
+            WT_UPDATE_PREPARE_RESTORED_FROM_DS))
         return (0);
 
     /* Loop forward from update after the selected on-page update. */
@@ -315,7 +317,9 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             WT_ERR(EBUSY);
 
         /* The update is restored from the data store or history store. */
-        if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
+        if (F_ISSET(upd,
+              WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
+                WT_UPDATE_PREPARE_RESTORED_FROM_DS))
             return (0);
 
         /*
