@@ -165,6 +165,7 @@ main(int argc, char *argv[])
     /* Clean-up. */
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
+    testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
 }
