@@ -263,6 +263,13 @@ check_docs_data
 if [ $e != 0 ]; then
     exit $e
 fi
+
+v=$(doxygen --version)
+[[ "$v" = "1.8.17" || "$v" = "1.8.13" ]] || {
+    echo "$0 skipped: unsupported version of doxygen"
+    exit 0
+}
+
 # Build the documentation.
 build $clean
 
