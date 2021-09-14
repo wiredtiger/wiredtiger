@@ -126,13 +126,10 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         example_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
-<<<<<<< HEAD
     else if (test_name == "burst_inserts")
         burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
-=======
-    else if (test_name == "prefix_search_validation")
-        prefix_search_validation(test_harness::test_args{config, test_name, wt_open_config}).run();
->>>>>>> Initial prefix test addition
+    else if (test_name == "search_near_01")
+        search_near_01(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
