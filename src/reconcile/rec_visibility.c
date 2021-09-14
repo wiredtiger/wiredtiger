@@ -268,12 +268,9 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
     WT_DECL_RET;
-    WT_UPDATE *upd;
-    wt_timestamp_t current_ts;
-    bool seen_ondisk_value;
+    WT_UPDATE *prev_upd, *upd;
 
     upd = NULL;
-    seen_ondisk_value = false;
 
     /*
      * If we're not in eviction any history store insertion is fine, if we are in eviction and a
@@ -297,14 +294,16 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (select_upd == NULL)
         return (0);
 
-    /* Set our variables correctly now that we are sure there's an update. */
-    upd = select_upd->next;
-    current_ts = select_upd->start_ts;
-
     /* Loop forward from update after the selected on-page update. */
-    for (; upd != NULL; upd = upd->next) {
+    for (prev_upd = select_upd, upd = select_upd->next; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+
+        /* If we have a prepared update, durable timestamp cannot be out of order. */
+        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
+
         /* Validate that the updates older than us have older timestamps. */
-        if (current_ts < upd->start_ts)
+        if (prev_upd->start_ts < upd->start_ts)
             WT_ERR(EBUSY);
 
         /*
@@ -313,16 +312,21 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
          */
         if (vpack != NULL &&
           (upd->txnid == vpack->tw.stop_txn || upd->txnid == vpack->tw.start_txn))
-            seen_ondisk_value = true;
-        current_ts = upd->start_ts;
+            break;
+
+        prev_upd = upd;
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (!seen_ondisk_value && vpack != NULL &&
-      (current_ts < vpack->tw.start_ts ||
-        (vpack->tw.stop_ts != WT_TS_NONE && vpack->tw.stop_ts != WT_TS_MAX &&
-          vpack->tw.stop_ts > current_ts)))
-        WT_ERR(EBUSY);
+    if (upd != NULL && vpack != NULL) {
+        /* If we have a prepared update, durable timestamp cannot be out of order. */
+        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= vpack->tw.durable_start_ts);
+        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) || prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
+        if (prev_upd->start_ts < vpack->tw.start_ts ||
+          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
+            prev_upd->start_ts < vpack->tw.stop_ts))
+            WT_ERR(EBUSY);
+    }
 
 err:
     if (ret != 0)
