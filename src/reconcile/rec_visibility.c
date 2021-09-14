@@ -333,8 +333,11 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         prev_upd = upd;
     }
 
-    /* Check that the on-page time window isn't out-of-order. */
-    if (upd == NULL && vpack != NULL) {
+    /*
+     * Check that the on-page time window isn't out-of-order. Don't check against ondisk prepared
+     * update. It is either committed or rolled back if we are here.
+     */
+    if (upd == NULL && vpack != NULL && !vpack->tw.prepare) {
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
