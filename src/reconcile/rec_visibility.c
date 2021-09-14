@@ -303,7 +303,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
-          prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
+          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
 
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->start_ts < upd->start_ts)
@@ -324,10 +325,12 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (upd == NULL && vpack != NULL) {
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
-          prev_upd->start_ts == prev_upd->durable_ts ||
+          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->start_ts == prev_upd->durable_ts ||
             prev_upd->durable_ts >= vpack->tw.durable_start_ts);
         WT_ASSERT(session,
-          prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+          prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
+            prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
           (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts))
