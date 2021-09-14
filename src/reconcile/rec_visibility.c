@@ -207,9 +207,10 @@ __rec_need_save_upd(
         return (true);
 
     /*
-     * Save updates for any reconciliation that doesn't involve history store (in-memory database
-     * and fixed length column store), except when the selected stop time point or the selected
-     * start time point is globally visible.
+     * Save updates for any reconciliation that doesn't involve history store (in-memory database,
+     * fixed length column store, metadata, and history store reconciliation itself), except when
+     * the selected stop time point or the selected start time point is not globally visible for in
+     * memory database and fixed length column store.
      */
     if (!F_ISSET(r, WT_REC_HS) && !F_ISSET(r, WT_REC_IN_MEMORY) && r->page->type != WT_PAGE_COL_FIX)
         return (false);
@@ -279,13 +280,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
     /*
      * No need to check out of order timestamps for any reconciliation that doesn't involve history
-     * store (in-memory database and fixed length column store).
+     * store (in-memory database, fixed length column store, metadata, and history store
+     * reconciliation itself).
      */
     if (!F_ISSET(r, WT_REC_HS))
-        return (0);
-
-    /* History store out of order update is allowed. */
-    if (WT_IS_HS(session->dhandle))
         return (0);
 
     /*
