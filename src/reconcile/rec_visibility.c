@@ -663,6 +663,20 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (has_newer_updates)
         r->leave_dirty = true;
 
+    onpage_upd = upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ?
+      NULL :
+      upd_select->upd;
+
+    /* Check the update chain for conditions that could prevent it's eviction. */
+    WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
+
+    /*
+     * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
+     */
+    if (__timestamp_out_of_order_fix(session, select_tw) &&
+      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
+        WT_ERR_PANIC(session, WT_ERROR, "Attempted to fix out of order timestamps illegally.");
+
     /*
      * The update doesn't have any further updates that need to be written to the history store,
      * skip saving the update as saving the update will cause reconciliation to think there is work
@@ -680,13 +694,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
           (has_newer_updates || F_ISSET(S2C(session), WT_CONN_IN_MEMORY) ||
             page->type == WT_PAGE_COL_FIX);
 
-        onpage_upd = upd_select->upd != NULL && upd_select->upd->type == WT_UPDATE_TOMBSTONE ?
-          NULL :
-          upd_select->upd;
-
-        /* Check the update chain for conditions that could prevent it's eviction. */
-        WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
-
         WT_ERR(__rec_update_save(session, r, ins, rip, onpage_upd, supd_restore, upd_memsize));
 
         /*
@@ -700,13 +707,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             F_SET(tombstone, WT_UPDATE_DS);
         upd_saved = upd_select->upd_saved = true;
     }
-
-    /*
-     * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
-     */
-    if (__timestamp_out_of_order_fix(session, select_tw) &&
-      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
-        WT_ERR_PANIC(session, WT_ERROR, "Attempted to fix out of order timestamps illegally.");
 
     /*
      * Set statistics for update restore evictions. Update restore eviction debug mode forces update
