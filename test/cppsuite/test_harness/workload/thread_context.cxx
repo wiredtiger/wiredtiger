@@ -222,8 +222,15 @@ bool
 thread_context::insert(
   scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id, wt_timestamp_t ts)
 {
+    return insert(cursor, collection_id, key_to_string(key_id), ts);
+}
+
+bool
+thread_context::insert(
+  scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
+{
     WT_DECL_RET;
-    std::string key, value;
+    std::string value;
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
@@ -231,11 +238,10 @@ thread_context::insert(
      * When no timestamp is specified, get one to apply to the update. We still do this even
      * if the timestamp manager is not enabled as it will return a value for the tracking table.
      */
-    if(ts == 0)
+    if (ts == 0)
         ts = tsm->get_next_ts();
     transaction.set_commit_timestamp(ts);
 
-    key = key_to_string(key_id);
     value = random_generator::instance().generate_pseudo_random_string(value_size);
 
     cursor->set_key(cursor.get(), key.c_str());

@@ -148,6 +148,8 @@ class thread_context {
      */
     bool insert(
       scoped_cursor &cursor, uint64_t collection_id, uint64_t key_id, wt_timestamp_t ts = 0);
+    bool insert(
+      scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts = 0);
 
     void sleep();
     bool running() const;
