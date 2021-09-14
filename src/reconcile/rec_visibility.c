@@ -259,7 +259,7 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
 
 /*
  * __rec_validate_upd_chain --
- *     Check the update chain for conditions that would prevent it's insertion into the history
+ *     Check the update chain for conditions that would prevent its insertion into the history
  *     store. Return EBUSY if the update chain cannot be inserted into the history store at this
  *     time.
  */
@@ -285,7 +285,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
 
     /*
      * The selected time window may contain information that isn't visible given the selected
-     * updated, as such we have to check it separately. This is true when there is a tombstone ahead
+     * update, as such we have to check it separately. This is true when there is a tombstone ahead
      * of the selected update.
      */
     if (select_tw->stop_ts < select_tw->start_ts)
