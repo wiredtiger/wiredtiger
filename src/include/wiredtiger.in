@@ -5081,8 +5081,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: eviction empty score */
 #define	WT_STAT_CONN_CACHE_EVICTION_EMPTY_SCORE		1043
 /*!
- * cache: eviction gave up due detecting ooo timestamps on a page while a
- * checkpoint was running
+ * cache: eviction gave up due detecting out of order timestamps on a
+ * page while a checkpoint was running
  */
 #define	WT_STAT_CONN_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE	1044
 /*! cache: eviction passes of a file */
@@ -6313,8 +6313,8 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 /*! cache: data source pages selected for eviction unable to be evicted */
 #define	WT_STAT_DSRC_CACHE_EVICTION_FAIL		2048
 /*!
- * cache: eviction gave up due detecting ooo timestamps on a page while a
- * checkpoint was running
+ * cache: eviction gave up due detecting out of order timestamps on a
+ * page while a checkpoint was running
  */
 #define	WT_STAT_DSRC_CACHE_EVICTION_BLOCKED_OOO_CHECKPOINT_RACE	2049
 /*! cache: eviction walk passes of a file */

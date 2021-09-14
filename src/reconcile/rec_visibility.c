@@ -277,8 +277,11 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (select_upd == NULL)
         return (0);
 
-    /* There is no history store so it is safe to reconcile out of order updates. */
-    if (!F_ISSET(S2C(session), WT_CONN_HS_OPEN))
+    /*
+     * No need to check out of order timestamps for any reconciliation that doesn't involve history
+     * store (in-memory database and fixed length column store).
+     */
+    if (!F_ISSET(r, WT_REC_HS))
         return (0);
 
     /* History store out of order update is allowed. */
