@@ -295,7 +295,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (select_upd == NULL)
         return (0);
-    
+
     /* The selected update is restored from the data store or history store. */
     if (F_ISSET(select_upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
         return (0);
@@ -313,10 +313,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->start_ts < upd->start_ts)
             WT_ERR(EBUSY);
-        
+
         /* The update is restored from the data store or history store. */
         if (F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS))
-            break;
+            return (0);
 
         /*
          * If we see transactions id's that belong to the on disk value we don't need to check it
