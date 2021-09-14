@@ -83,6 +83,7 @@ static void run_test(const char *home);
 static void populate(WT_SESSION *session, int start, int end);
 static void remove_records(WT_SESSION *session, const char *uri, int start, int end);
 static void verify_tables(WT_SESSION *session);
+static int verify_tables_helper(WT_SESSION *session, const char *table1, const char *table2);
 static uint64_t get_file_size(WT_SESSION *session, const char *uri);
 
 /*
@@ -290,16 +291,15 @@ remove_records(WT_SESSION *session, const char *uri, int start, int end)
     testutil_check(cursor->close(cursor));
 }
 
-static void
-verify_tables(WT_SESSION *session)
+static int
+verify_tables_helper(WT_SESSION *session, const char *table1, const char *table2)
 {
     WT_CURSOR *cursor_1;
     WT_CURSOR *cursor_2;
 
     int ret;
     int key;
-    int total_keys_1;
-    int total_keys_2;
+    int total_keys;
 
     char *val_1;
     char *val_2;
@@ -307,15 +307,11 @@ verify_tables(WT_SESSION *session)
     size_t val_1_size;
     size_t val_2_size;
 
-    testutil_check(session->open_cursor(session, uri1, NULL, NULL, &cursor_1));
-    testutil_check(session->open_cursor(session, uri2, NULL, NULL, &cursor_2));
+    testutil_check(session->open_cursor(session, table1, NULL, NULL, &cursor_1));
+    testutil_check(session->open_cursor(session, table2, NULL, NULL, &cursor_2));
 
-    /*
-     * Run over all keys in first table and verify they are present in the second table. Repeat with
-     * all keys from the second table and verify that they are present in the first table;
-     */
-
-    total_keys_1 = 0;
+    /* Run over all keys in first table and verify they are present in the second table. */
+    total_keys = 0;
     while ((ret = cursor_1->next(cursor_1)) == 0) {
         cursor_1->get_key(cursor_1, &key);
         cursor_2->set_key(cursor_2, key);
@@ -329,37 +325,33 @@ verify_tables(WT_SESSION *session)
         testutil_assert(val_1_size == val_2_size);
         testutil_assert(memcmp(val_1, val_2, val_1_size) == 0);
 
-        ++total_keys_1;
+        ++total_keys;
     }
     testutil_assert(ret == WT_NOTFOUND);
-    printf("Total keys verified from first table: %i\n", total_keys_1);
-
-    testutil_check(cursor_1->reset(cursor_1));
-    testutil_check(cursor_2->reset(cursor_2));
-
-    total_keys_2 = 0;
-    while ((ret = cursor_2->next(cursor_2)) == 0) {
-        cursor_2->get_key(cursor_2, &key);
-        cursor_1->set_key(cursor_1, key);
-        testutil_check(cursor_1->search(cursor_1));
-        testutil_check(cursor_1->get_value(cursor_1, &val_1));
-        testutil_check(cursor_2->get_value(cursor_2, &val_2));
-
-        val_1_size = strlen(val_1);
-        val_2_size = strlen(val_2);
-
-        testutil_assert(val_1_size == val_2_size);
-        testutil_assert(memcmp(val_1, val_2, val_1_size) == 0);
-
-        ++total_keys_2;
-    }
-    testutil_assert(ret == WT_NOTFOUND);
-    printf("Total keys verified from second table: %i\n", total_keys_2);
-
-    testutil_assert(total_keys_2 == total_keys_1);
 
     testutil_check(cursor_1->close(cursor_1));
     testutil_check(cursor_2->close(cursor_2));
+
+    /* Return the number of keys verified. */
+    return (total_keys);
+}
+
+static void
+verify_tables(WT_SESSION *session)
+{
+    int total_keys_1;
+    int total_keys_2;
+
+    /*
+     * Run over all keys in first table and verify they are present in the second table. Repeat with
+     * all keys from the second table and verify that they are present in the first table;
+     */
+
+    total_keys_1 = verify_tables_helper(session, uri1, uri2);
+    total_keys_2 = verify_tables_helper(session, uri2, uri1);
+
+    testutil_assert(total_keys_2 == total_keys_1);
+    printf("%i Keys verified from the two tables. \n", total_keys_1);
 }
 
 static uint64_t
