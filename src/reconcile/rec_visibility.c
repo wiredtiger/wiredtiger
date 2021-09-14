@@ -287,7 +287,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         return (0);
 
     /*
-     * If eviction reconciliation starts before checkpoint, it is fine to evict out of order timestamp updates.
+     * If eviction reconciliation starts before checkpoint, it is fine to evict out of order
+     * timestamp updates.
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
@@ -300,7 +301,14 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (select_tw->stop_ts < select_tw->start_ts)
         WT_ERR(EBUSY);
 
-    /* The selected update is restored from the data store or history store. */
+    /*
+     * Rollback to stable may restore older updates from the data store or history store. In this
+     * case, the restored update has older update than the onpage value, which is expected.
+     * Reconciliation may restore the onpage value to the update chain. In this case, no need to
+     * check further as the value is the same as the onpage value. If we have a prepared update
+     * restored from the onpage value, no need to check as well because the update chain should only
+     * contain prepared updates from the same transaction.
+     */
     if (F_ISSET(select_upd,
           WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
             WT_UPDATE_PREPARE_RESTORED_FROM_DS))
@@ -320,7 +328,15 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
         if (prev_upd->start_ts < upd->start_ts)
             WT_ERR(EBUSY);
 
-        /* The update is restored from the data store or history store. */
+        /*
+         * Rollback to stable may restore older updates from the data store or history store. In
+         * this case, the restored update has older update than the onpage value, which is expected.
+         * Reconciliation may restore the onpage value to the update chain. In this case, no need to
+         * check further as the value is the same as the onpage value. If we have a committed
+         * prepared update restored from the onpage value, no need to check further as well because
+         * the update chain after it should only contain committed prepared updates from the same
+         * transaction.
+         */
         if (F_ISSET(upd,
               WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
                 WT_UPDATE_PREPARE_RESTORED_FROM_DS))
