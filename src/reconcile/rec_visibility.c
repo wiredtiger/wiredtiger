@@ -274,6 +274,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     if (!F_ISSET(S2C(session), WT_CONN_HS_OPEN))
         return (0);
 
+    /* History store out of order update is allowed. */
+    if (WT_IS_HS(session->dhandle))
+        return (0);
+
     /*
      * If we're not in eviction any history store insertion is fine, if we are in eviction and a
      * checkpoint isn't running then history store insertions are also fine.
