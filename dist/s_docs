@@ -266,7 +266,7 @@ fi
 
 # Do noy build if not the compatible Doxygen version.
 v=$(doxygen --version)
-if [ "$v" != "1.8.17" ] && [ "$v" != "1.8.13" ]; then
+if [ "$v" != "1.8.17" ]; then
     echo "$0 skipped: unsupported version of doxygen"
     exit 0
 fi
