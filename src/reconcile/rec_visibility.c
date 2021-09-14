@@ -273,7 +273,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     bool seen_ondisk_value;
 
     upd = NULL;
-    current_ts = WT_TS_NONE;
     seen_ondisk_value = false;
 
     /*
