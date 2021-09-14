@@ -302,7 +302,8 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             continue;
 
         /* If we have a prepared update, durable timestamp cannot be out of order. */
-        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
+        WT_ASSERT(session,
+          prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
 
         /* Validate that the updates older than us have older timestamps. */
         if (prev_upd->start_ts < upd->start_ts)
@@ -322,11 +323,14 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     /* Check that the on-page time window isn't out-of-order. */
     if (upd != NULL && vpack != NULL) {
         /* If we have a prepared update, durable timestamp cannot be out of order. */
-        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= vpack->tw.durable_start_ts);
-        WT_ASSERT(session, prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) || prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
+        WT_ASSERT(session,
+          prev_upd->start_ts == prev_upd->durable_ts ||
+            prev_upd->durable_ts >= vpack->tw.durable_start_ts);
+        WT_ASSERT(session,
+          prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
+            prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
-          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) &&
-            prev_upd->start_ts < vpack->tw.stop_ts))
+          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts))
             WT_ERR(EBUSY);
     }
 
@@ -689,8 +693,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     /*
      * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
      */
-    if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_EVICT) &&
-      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
+    if (__timestamp_out_of_order_fix(session, select_tw) &&
+      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         WT_ERR_PANIC(session, WT_ERROR, "Attempted to fix out of order timestamps illegally.");
 
     /*
