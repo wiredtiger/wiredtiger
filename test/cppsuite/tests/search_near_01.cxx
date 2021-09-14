@@ -47,6 +47,21 @@ class search_near_01 : public test_harness::test {
     const uint32_t ALPHABET_SIZE = 26;
     const uint32_t PREFIX_KEY_LEN = 3;
 
+    int64_t
+    get_stat(test_harness::thread_context *tc, int stat_field)
+    {
+        int64_t valuep;
+        /* Open our statistic cursor. */
+        scoped_cursor cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
+
+        const char *desc, *pvalue;
+        cursor->set_key(cursor.get(), stat_field);
+        testutil_check(cursor->search(cursor.get()));
+        testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, &valuep));
+        testutil_check(cursor->reset(cursor.get()));
+        return valuep;
+    }
+
     void
     populate_worker(thread_context *tc)
     {
@@ -60,7 +75,6 @@ class search_near_01 : public test_harness::test {
             for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
                 for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
-
                         tc->transaction.begin();
                         /*
                          * Generate prefix key of aaa -> zzz, and append a random generated key
@@ -231,20 +245,5 @@ class search_near_01 : public test_harness::test {
         /* Make sure the last transaction is rolled back now the work is finished. */
         if (tc->transaction.active())
             tc->transaction.rollback();
-    }
-
-    int64_t
-    get_stat(test_harness::thread_context *tc, int stat_field)
-    {
-        int64_t valuep;
-        /* Open our statistic cursor. */
-        scoped_cursor cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
-
-        const char *desc, *pvalue;
-        cursor->set_key(cursor.get(), stat_field);
-        testutil_check(cursor->search(cursor.get()));
-        testutil_check(cursor->get_value(cursor.get(), &desc, &pvalue, &valuep));
-        testutil_check(cursor->reset(cursor.get()));
-        return valuep;
     }
 };

@@ -156,7 +156,6 @@ database_operation::insert_operation(thread_context *tc)
     while (tc->running()) {
         uint64_t start_key = ccv[counter].coll.get_key_count();
         uint64_t added_count = 0;
-        bool committed = true;
         tc->transaction.begin();
 
         /* Collection cursor. */
