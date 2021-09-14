@@ -270,7 +270,9 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
 
-    upd = NULL;
+    /* There is no history store so it is safe to reconcile out of order updates. */
+    if (!F_ISSET(S2C(session), WT_CONN_HS_OPEN))
+        return (0);
 
     /*
      * If we're not in eviction any history store insertion is fine, if we are in eviction and a
