@@ -270,6 +270,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
 
+    /*
+     * There is no selected update to go to disk as such we don't need to check the updates
+     * following it.
+     */
+    if (select_upd == NULL)
+        return (0);
+
     /* There is no history store so it is safe to reconcile out of order updates. */
     if (!F_ISSET(S2C(session), WT_CONN_HS_OPEN))
         return (0);
@@ -292,13 +299,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (select_tw->stop_ts < select_tw->start_ts)
         WT_ERR(EBUSY);
-
-    /*
-     * There is no selected update to go to disk as such we don't need to check the updates
-     * following it.
-     */
-    if (select_upd == NULL)
-        return (0);
 
     /* The selected update is restored from the data store or history store. */
     if (F_ISSET(select_upd,
