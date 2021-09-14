@@ -291,6 +291,12 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (!F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
         return (0);
+    
+    /* The selected update is restored from the data store or history store. */
+    if (F_ISSET(select_upd,
+          WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
+            WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+        return (0);
 
     /*
      * The selected time window may contain information that isn't visible given the selected
@@ -299,12 +305,6 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      */
     if (select_tw->stop_ts < select_tw->start_ts)
         WT_ERR(EBUSY);
-
-    /* The selected update is restored from the data store or history store. */
-    if (F_ISSET(select_upd,
-          WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
-            WT_UPDATE_PREPARE_RESTORED_FROM_DS))
-        return (0);
 
     /* Loop forward from update after the selected on-page update. */
     for (prev_upd = select_upd, upd = select_upd->next; upd != NULL; upd = upd->next) {
