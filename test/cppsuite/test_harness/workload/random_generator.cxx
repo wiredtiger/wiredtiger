@@ -29,10 +29,6 @@
 #include "random_generator.h"
 #include <algorithm>
 
-extern "C" {
-#include "test_util.h"
-}
-
 namespace test_harness {
 random_generator &
 random_generator::instance()
@@ -44,13 +40,11 @@ random_generator::instance()
 std::string
 random_generator::generate_string(std::size_t length, characters_type type)
 {
-    std::string random_string;
-    std::uniform_int_distribution<> &distribution = get_distribution(type);
-    const std::string &characters = get_characters(type);
-
-    for (std::size_t i = 0; i < length; ++i)
-        random_string += characters[distribution(_generator)];
-
+    std::string str;
+    if (type == characters_type::ALPHABET)
+        str = _alphabet;
+    else
+        str = _pseudo_alphanum;
     std::shuffle(str.begin(), str.end(), _generator);
     return (str.substr(0, length));
 }
