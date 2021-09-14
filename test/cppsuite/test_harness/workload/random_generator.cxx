@@ -27,6 +27,7 @@
  */
 
 #include "random_generator.h"
+#include <algorithm>
 
 namespace test_harness {
 random_generator &
@@ -39,12 +40,9 @@ random_generator::instance()
 std::string
 random_generator::generate_string(std::size_t length)
 {
-    std::string random_string;
-
-    for (std::size_t i = 0; i < length; ++i)
-        random_string += _characters[_distribution(_generator)];
-
-    return (random_string);
+    std::string str = _characters;
+    std::shuffle(str.begin(), str.end(), _generator);
+    return (str.substr(0, length));
 }
 
 std::string
