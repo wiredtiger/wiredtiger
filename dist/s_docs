@@ -264,11 +264,12 @@ if [ $e != 0 ]; then
     exit $e
 fi
 
+# Do noy build if not the compatible Doxygen version.
 v=$(doxygen --version)
-[[ "$v" = "1.8.17" || "$v" = "1.8.13" ]] || {
+if [ "$v" != "1.8.17" ] && [ "$v" != "1.8.13" ]; then
     echo "$0 skipped: unsupported version of doxygen"
     exit 0
-}
+fi
 
 # Build the documentation.
 build $clean
