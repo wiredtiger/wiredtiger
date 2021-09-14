@@ -321,7 +321,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
     }
 
     /* Check that the on-page time window isn't out-of-order. */
-    if (upd != NULL && vpack != NULL) {
+    if (upd == NULL && vpack != NULL) {
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
           prev_upd->start_ts == prev_upd->durable_ts ||
