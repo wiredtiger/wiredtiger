@@ -37,13 +37,10 @@
  */
 using namespace test_harness;
 class prefix_search_validation : public test_harness::test {
-
-    wt_timestamp_t start_ts = UINT64_MAX;
-    wt_timestamp_t end_ts = 0;
     uint64_t keys_per_prefix = 0;
-
     std::string alphabet{"abcdefghijklmnopqrstuvwxyz"};
     const int ALPHABET_SIZE = 26;
+
     void
     populate_worker(thread_context *tc)
     {
@@ -190,16 +187,9 @@ class prefix_search_validation : public test_harness::test {
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
-
-                prev_entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);
-                ;
-                prev_prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 auto ret = cursor->search_near(cursor.get(), &cmpp);
                 testutil_assert(ret == WT_NOTFOUND);
-
-                tc->transaction.add_op();
-                tc->sleep();
 
                 entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);
                 prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
@@ -213,6 +203,9 @@ class prefix_search_validation : public test_harness::test {
                 testutil_assert(prefix_stat > prev_prefix_stat);
                 prev_entries_stat = entries_stat;
                 prev_prefix_stat = prefix_stat;
+
+                tc->transaction.add_op();
+                tc->sleep();
             }
             tc->transaction.commit();
             /* Reset our cursor to avoid pinning content. */
