@@ -2746,6 +2746,10 @@ tasks:
             set -o errexit
             python "../metrixplusplus/metrix++.py" limit --max-limit=std.code.complexity:cyclomatic:95
 
+    #############################
+    # Performance Tests for lsm #
+    #############################
+
   - name: perf-test-small-lsm
     commands:
       - func: "get project"
@@ -2758,6 +2762,46 @@ tasks:
         vars:
           perf-test-name: small-lsm
 
+  - name: perf-test-medium-lsm
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: medium-lsm
+          maxruns: 1
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: medium-lsm
+
+  - name: perf-test-medium-lsm-compact
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: medium-lsm-compact
+          maxruns: 1
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: medium-lsm-compact
+
+  - name: perf-test-medium-multi-lsm
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: medium-multi-lsm
+          maxruns: 1
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: medium-multi-lsm
+
+    ###############################
+    # Performance Tests for btree #
+    ###############################
+
   - name: perf-test-small-btree
     commands:
       - func: "get project"
@@ -2765,10 +2809,47 @@ tasks:
       - func: "generic-perf-test"
         vars:
           perf-test-name: small-btree
-          maxruns: 3
+          maxruns: 1
       - func: "generic-perf-test-push-results"
         vars:
           perf-test-name: small-btree
+
+  - name: perf-test-small-btree-backup
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: small-btree-backup
+          maxruns: 1
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: small-btree-backup
+
+  - name: perf-test-medium-btree
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: medium-btree
+          maxruns: 3
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: medium-btree
+
+  - name: perf-test-medium-btree-backup
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+      - func: "generic-perf-test"
+        vars:
+          perf-test-name: medium-btree-backup
+          maxruns: 3
+      - func: "generic-perf-test-push-results"
+        vars:
+          perf-test-name: medium-btree-backup
+
 
 buildvariants:
 
@@ -2952,7 +3033,15 @@ buildvariants:
     is_cmake_build: true
   tasks:
     - name: perf-test-small-btree
+    - name: perf-test-small-btree
+    - name: perf-test-small-btree-backup
+    - name: perf-test-medium-btree
+    - name: perf-test-medium-btree-backup
     - name: perf-test-small-lsm
+    - name: perf-test-medium-lsm
+    - name: perf-test-medium-lsm-compact
+    - name: perf-test-medium-multi-lsm
+
 
 - name: large-scale-tests
   display_name: "Large scale tests"
