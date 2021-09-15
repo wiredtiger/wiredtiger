@@ -188,7 +188,7 @@ database_operation::insert_operation(thread_context *tc)
         /* Reset our cursor to avoid pinning content. */
         testutil_check(cc.cursor->reset(cc.cursor.get()));
         counter++;
-        if (counter == collections_per_thread)
+        if (counter >= collections_per_thread)
             counter = 0;
     }
     /* Make sure the last transaction is rolled back now the work is finished. */
