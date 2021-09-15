@@ -96,15 +96,13 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_PAGE *page;
     uint64_t time_start, time_stop;
     uint32_t i;
-    bool clean_page, closing, force_evict_hs, inmem_split, local_gen;
-    bool page_has_prepared_updates, tree_dead;
+    bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     force_evict_hs = false;
     local_gen = false;
-    page_has_prepared_updates = false;
     time_start = time_stop = 0; /* [-Werror=maybe-uninitialized] */
 
     __wt_verbose(
@@ -225,6 +223,12 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     if (0) {
 err:
+        /*
+         * Mark the page dirty again if it has any prepared updates that are yet to be resolved
+         * after a successful reconciliation and the page is failed to evict. Otherwise, the
+         * resolved prepared updates are lost as the eviction don't reconcile page again and uses
+         * the older reconciled image blocks to proceed with the eviction.
+         */
         if (ref->page != NULL && ref->page->modify != NULL &&
           ref->page->modify->page_state == WT_PAGE_CLEAN) {
             if (ref->page->modify->rec_result == WT_PM_REC_REPLACE &&
@@ -233,10 +237,8 @@ err:
             else if (ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK) {
                 for (i = 0; i < ref->page->modify->u1.m.multi_entries; i++) {
                     if (ref->page->modify->u1.m.multi[i].addr.ta.prepare)
-                        page_has_prepared_updates = true;
+                        __wt_page_modify_set(session, ref->page);
                 }
-                if (page_has_prepared_updates)
-                    __wt_page_modify_set(session, ref->page);
             }
         }
 
