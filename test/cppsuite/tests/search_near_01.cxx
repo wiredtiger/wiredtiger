@@ -47,10 +47,10 @@ class search_near_01 : public test_harness::test {
     const uint64_t ALPHABET_SIZE = 26;
     const uint64_t PREFIX_KEY_LEN = 3;
 
-    int64_t
+    uint64_t
     get_stat(test_harness::thread_context *tc, int stat_field)
     {
-        int64_t valuep;
+        uint64_t valuep;
         /* Open our statistic cursor. */
         scoped_cursor cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
 
@@ -104,7 +104,7 @@ class search_near_01 : public test_harness::test {
     populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
       test_harness::configuration *config, test_harness::workload_tracking *tracking) override final
     {
-        int64_t collection_count, key_count, key_size;
+        uint64_t collection_count, key_count, key_size;
         std::vector<thread_context *> workers;
         thread_manager tm;
 
@@ -122,7 +122,7 @@ class search_near_01 : public test_harness::test {
             " number of collections: " + std::to_string(collection_count));
 
         /* Create n collections as per the configuration. */
-        for (int64_t i = 0; i < collection_count; ++i)
+        for (uint64_t i = 0; i < collection_count; ++i)
             /*
              * The database model will call into the API and create the collection, with its own
              * session.
@@ -133,7 +133,7 @@ class search_near_01 : public test_harness::test {
          * Spawn thread_count threads to populate the database, theoretically we should be IO bound
          * here.
          */
-        for (int64_t i = 0; i < ALPHABET_SIZE; ++i) {
+        for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
             thread_context *tc = new thread_context(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, tracking, database);
             workers.push_back(tc);
@@ -154,7 +154,7 @@ class search_near_01 : public test_harness::test {
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
         scoped_session session = connection_manager::instance().create_session();
-        for (int64_t count = 0; count < collection_count; ++count) {
+        for (uint64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
             scoped_cursor evict_cursor =
               session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
