@@ -41,7 +41,6 @@ class random_generator {
     public:
     static random_generator &instance();
 
-    public:
     /* No copies of the singleton allowed. */
     random_generator(random_generator const &) = delete;
     random_generator &operator=(random_generator const &) = delete;
