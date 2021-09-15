@@ -95,13 +95,16 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
-    bool clean_page, closing, force_evict_hs, inmem_split, local_gen, tree_dead;
+    int i;
+    bool clean_page, closing, force_evict_hs, inmem_split, local_gen;
+    bool page_has_prepared_updates, tree_dead;
 
     conn = S2C(session);
     page = ref->page;
     closing = LF_ISSET(WT_EVICT_CALL_CLOSING);
     force_evict_hs = false;
     local_gen = false;
+    page_has_prepared_updates = false;
     time_start = time_stop = 0; /* [-Werror=maybe-uninitialized] */
 
     __wt_verbose(
@@ -222,6 +225,21 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
 
     if (0) {
 err:
+        if (ref->page != NULL && ref->page->modify != NULL &&
+          ref->page->modify->page_state == WT_PAGE_CLEAN) {
+            if (ref->page->modify->rec_result == WT_PM_REC_REPLACE &&
+              ref->page->modify->u1.r.replace.ta.prepare)
+                __wt_page_modify_set(session, ref->page);
+            else if (ref->page->modify->rec_result == WT_PM_REC_MULTIBLOCK) {
+                for (i = 0; i < ref->page->modify->u1.m.multi_entries; i++) {
+                    if (ref->page->modify->u1.m.multi[i].addr.ta.prepare)
+                        page_has_prepared_updates = true;
+                }
+                if (page_has_prepared_updates)
+                    __wt_page_modify_set(session, ref->page);
+            }
+        }
+
         if (!closing)
             __evict_exclusive_clear(session, ref, previous_state);
 
