@@ -697,10 +697,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     WT_ERR(__rec_validate_upd_chain(session, r, onpage_upd, select_tw, vpack));
 
     /*
-     * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
+     * Fixup any out of order timestamps, assert that checkpoint wasn't running when this round of
+     * reconciliation started.
      */
-    if (__timestamp_out_of_order_fix(session, select_tw) &&
-      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
+    if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_HS) &&
+      F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
         WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_3);
         WT_ASSERT(session, false);
