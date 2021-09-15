@@ -268,7 +268,6 @@ static int
 __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *select_upd,
   WT_TIME_WINDOW *select_tw, WT_CELL_UNPACK_KV *vpack)
 {
-    WT_DECL_RET;
     WT_UPDATE *prev_upd, *upd;
 
     /*
@@ -298,8 +297,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * update, as such we have to check it separately. This is true when there is a tombstone ahead
      * of the selected update.
      */
-    if (select_tw->stop_ts < select_tw->start_ts)
-        WT_ERR(EBUSY);
+    if (select_tw->stop_ts < select_tw->start_ts) {
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_2);
+        return (EBUSY);
+    }
 
     /*
      * Rollback to stable may restore older updates from the data store or history store. In this
@@ -326,8 +327,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             prev_upd->start_ts == prev_upd->durable_ts || prev_upd->durable_ts >= upd->durable_ts);
 
         /* Validate that the updates older than us have older timestamps. */
-        if (prev_upd->start_ts < upd->start_ts)
-            WT_ERR(EBUSY);
+        if (prev_upd->start_ts < upd->start_ts) {
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_4);
+            return (EBUSY);
+        }
 
         /*
          * Rollback to stable may restore older updates from the data store or history store. In
@@ -366,15 +369,13 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
             prev_upd->start_ts == prev_upd->durable_ts || !WT_TIME_WINDOW_HAS_STOP(&vpack->tw) ||
             prev_upd->durable_ts >= vpack->tw.durable_stop_ts);
         if (prev_upd->start_ts < vpack->tw.start_ts ||
-          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts))
-            WT_ERR(EBUSY);
+          (WT_TIME_WINDOW_HAS_STOP(&vpack->tw) && prev_upd->start_ts < vpack->tw.stop_ts)) {
+            WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_1);
+            return (EBUSY);
+        }
     }
 
-err:
-    if (ret != 0)
-        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race);
-
-    return (ret);
+    return (0);
 }
 
 /*
@@ -701,6 +702,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     if (__timestamp_out_of_order_fix(session, select_tw) &&
       F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
         /* Catch this case in diagnostic builds. */
+        WT_STAT_CONN_DATA_INCR(session, cache_eviction_blocked_ooo_checkpoint_race_3);
         WT_ASSERT(session, false);
         WT_ERR(EBUSY);
     }
