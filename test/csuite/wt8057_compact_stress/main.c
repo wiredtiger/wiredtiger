@@ -106,16 +106,15 @@ sig_handler(int sig)
 int
 main(int argc, char *argv[])
 {
+    TEST_OPTS *opts, _opts;
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
-    struct sigaction sa;
-    struct stat sb;
-    TEST_OPTS *opts, _opts;
     char home[1024];
     int status;
-
     pid_t pid;
+    struct sigaction sa;
+    struct stat sb;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -180,11 +179,12 @@ run_test(const char *home)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     FILE *fp;
-    uint64_t file_sz_after, file_sz_before;
+
     bool first_ckpt;
     int i;
     int key_range_start;
     time_t t;
+    uint64_t file_sz_after, file_sz_before;
 
     first_ckpt = false;
     srand((u_int)time(&t));
@@ -302,12 +302,12 @@ verify_tables_helper(WT_SESSION *session, const char *table1, const char *table2
     WT_CURSOR *cursor_1;
     WT_CURSOR *cursor_2;
 
-    int ret;
-    int key;
-    int total_keys;
-
     char *val_1;
     char *val_2;
+
+    int key;
+    int ret;
+    int total_keys;
 
     size_t val_1_size;
     size_t val_2_size;
