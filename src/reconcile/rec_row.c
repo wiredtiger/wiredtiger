@@ -937,7 +937,7 @@ __wt_rec_row_leaf(
                       session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false, false));
 
                     /* Fail 1% of the time. */
-                    if (F_ISSET(r, WT_REC_EVICT) &&
+                    if (false && F_ISSET(r, WT_REC_EVICT) &&
                       __wt_failpoint(
                         session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS, 1))
                         WT_ERR(EBUSY);

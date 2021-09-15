@@ -627,7 +627,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             __wt_curhs_clear_insert_success(hs_cursor);
 
             /* Fail here 0.05% of the time if we are in the eviction path. */
-            if (F_ISSET(r, WT_REC_EVICT) &&
+            if (false && F_ISSET(r, WT_REC_EVICT) &&
               __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1, 0.05))
                 WT_ERR(EBUSY);
 
@@ -704,7 +704,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
     }
 
     /* Fail here 0.5% of the time if we are an eviction thread. */
-    if (F_ISSET(r, WT_REC_EVICT) &&
+    if (false && F_ISSET(r, WT_REC_EVICT) &&
       __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2, 0.05))
         WT_ERR(EBUSY);
 
