@@ -35,19 +35,9 @@
 
 #include "base_test.cxx"
 #include "example_test.cxx"
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
 #include "burst_inserts.cxx"
-=======
-#include "search_near_02.cxx"
->>>>>>> Create search_near test
-=======
->>>>>>> Revert "Create search_near test"
-=======
-#include "search_near_01.cxx"
->>>>>>> Initial prefix test addition
 #include "hs_cleanup.cxx"
+#include "search_near_01.cxx"
 
 std::string
 parse_configuration_from_file(const std::string &filename)

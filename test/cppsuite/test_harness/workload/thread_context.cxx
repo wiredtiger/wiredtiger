@@ -246,7 +246,6 @@ thread_context::insert(
 
     value = random_generator::instance().generate_pseudo_random_string(value_size);
 
-    // std::cout << key.c_str() << std::endl;
     cursor->set_key(cursor.get(), key.c_str());
     cursor->set_value(cursor.get(), value.c_str());
     ret = cursor->insert(cursor.get());

@@ -26,26 +26,26 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/test.h"
-#include "test_harness/workload/thread_context.h"
-#include "test_harness/thread_manager.h"
-#include "test_harness/workload/random_generator.h"
 #include "test_harness/util/api_const.h"
+#include "test_harness/workload/random_generator.h"
+#include "test_harness/workload/thread_context.h"
+#include "test_harness/test.h"
+#include "test_harness/thread_manager.h"
 
 using namespace test_harness;
 /*
  * In this test, we want to verify that search_near with prefix enabled only traverses the portion
  * of the tree that follows the prefix portion of the search key. The test is composed of a populate
  * phase followed by a read phase. The populate phase will insert a set of random generated keys
- * with a prefix of aaa -> zzz. The read phase will continously perform prefix search near calls,
+ * with a prefix of aaa -> zzz. The read phase will continuously perform prefix search near calls,
  * and validate that the number of entries traversed is within bounds of the search key.
  */
 class search_near_01 : public test_harness::test {
     uint64_t keys_per_prefix = 0;
-    uint32_t srchkey_len = 0;
+    uint64_t srchkey_len = 0;
     std::string alphabet{"abcdefghijklmnopqrstuvwxyz"};
-    const uint32_t ALPHABET_SIZE = 26;
-    const uint32_t PREFIX_KEY_LEN = 3;
+    const uint64_t ALPHABET_SIZE = 26;
+    const uint64_t PREFIX_KEY_LEN = 3;
 
     int64_t
     get_stat(test_harness::thread_context *tc, int stat_field)
@@ -81,7 +81,8 @@ class search_near_01 : public test_harness::test {
                          * string based on the key size configuration.
                          */
                         prefix_key = {alphabet.at(tc->id), alphabet.at(j), alphabet.at(k)};
-                        prefix_key += random_generator::instance().generate_string(tc->key_size);
+                        prefix_key += random_generator::instance().generate_string(
+                          tc->key_size - PREFIX_KEY_LEN);
                         if (tc->insert(cursor, coll.id, prefix_key)) {
                             /* We failed to insert, rollback our transaction and retry. */
                             tc->transaction.rollback();
@@ -111,7 +112,7 @@ class search_near_01 : public test_harness::test {
         collection_count = config->get_int(COLLECTION_COUNT);
         key_count = keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
         key_size = config->get_int(KEY_SIZE);
-        testutil_assert(key_size > 0);
+        testutil_assert(key_size >= PREFIX_KEY_LEN);
         /* Keys must be unique. */
         testutil_assert(key_count <= pow(10, key_size));
 
@@ -152,11 +153,11 @@ class search_near_01 : public test_harness::test {
 
         /* Force evict all the populated keys in all of the collections. */
         int cmpp;
-        scoped_session s = connection_manager::instance().create_session();
+        scoped_session session = connection_manager::instance().create_session();
         for (int64_t count = 0; count < collection_count; ++count) {
             collection &coll = database.get_collection(count);
             scoped_cursor evict_cursor =
-              s.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
+              session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
 
             for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
                 for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
@@ -169,7 +170,7 @@ class search_near_01 : public test_harness::test {
                 }
             }
         }
-        srchkey_len = random_generator::instance().generate_integer(1U, PREFIX_KEY_LEN);
+        srchkey_len = random_generator::instance().generate_integer(1UL, PREFIX_KEY_LEN);
         logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
@@ -190,6 +191,11 @@ class search_near_01 : public test_harness::test {
         prev_prefix_stat = 0;
         expected_entries = tc->thread_count * keys_per_prefix * 2 * pow(ALPHABET_SIZE, srchkey_len);
 
+        /* 
+         * Read at timestamp 10, so that no keys are visible to this transaction. This allows 
+         * prefix search near to early exit out of it's prefix range when it's trying to search
+        * for a visible key in the tree.
+         */ 
         tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
         while (tc->running()) {
 
@@ -203,7 +209,7 @@ class search_near_01 : public test_harness::test {
 
             /* Generate search prefix key of random length between a -> zzz. */
             srch_key =
-              random_generator::instance().generate_pseudo_random_string(srchkey_len, ALPHABET);
+              random_generator::instance().generate_string(srchkey_len, ALPHABET);
             logger::log_msg(LOG_INFO,
               "Read thread {" + std::to_string(tc->id) +
                 "} performing prefix search near with key: " + srch_key);
@@ -215,8 +221,7 @@ class search_near_01 : public test_harness::test {
                 prev_prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
 
                 cursor->set_key(cursor.get(), srch_key.c_str());
-                auto ret = cursor->search_near(cursor.get(), &cmpp);
-                testutil_assert(ret == WT_NOTFOUND);
+                testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
                 entries_stat = get_stat(tc, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100);
                 prefix_stat = get_stat(tc, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS);
