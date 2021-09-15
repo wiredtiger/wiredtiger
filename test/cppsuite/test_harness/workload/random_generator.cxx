@@ -44,20 +44,7 @@ random_generator::instance()
 std::string
 random_generator::generate_string(std::size_t length, characters_type type)
 {
-    std::string str;
-
-    switch (type) {
-    case characters_type::ALPHABET:
-        str = _alphabet;
-        break;
-    case characters_type::PSEUDO_ALPHANUMERIC:
-        str = _pseudo_alphanum;
-        break;
-    default:
-        testutil_die(type, "Unexpected characters_type");
-        break;
-    }
-
+    std::string str(get_characters(type));
     std::shuffle(str.begin(), str.end(), _generator);
     return (str.substr(0, length));
 }
