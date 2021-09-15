@@ -385,6 +385,14 @@ functions:
         set -o errexit
         set -o verbose
         ${test_env_vars|} ./test_random_abort ${random_abort_args|} 2>&1
+  "tiered abort test":
+    command: shell.exec
+    params:
+      working_dir: "wiredtiger/build_posix/test/csuite"
+      script: |
+        set -o errexit
+        set -o verbose
+        ${test_env_vars|} ./test_tiered_abort ${tiered_abort_args|} 2>&1
   "timestamp abort test":
     command: shell.exec
     params:
@@ -696,18 +704,6 @@ tasks:
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
-          configure_env_vars: CC=gcc-4.8 CXX=g++-4.8 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-5 CXX=g++-5 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=gcc-6 CXX=g++-6 ADD_CFLAGS="-ggdb -fPIC" CPPFLAGS=-fvisibility=hidden
-      - func: "compile wiredtiger"
-        vars:
           configure_env_vars: CC=gcc-7 CXX=g++-7 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
@@ -720,15 +716,6 @@ tasks:
     tags: ["pull_request", "pull_request_compilers"]
     commands:
       - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-3.9 CXX=clang++-3.9 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-4.0 CXX=clang++-4.0 ADD_CFLAGS="-ggdb -fPIC"
-      - func: "compile wiredtiger"
-        vars:
-          configure_env_vars: CC=clang-5.0 CXX=clang++-5.0 ADD_CFLAGS="-ggdb -fPIC"
       - func: "compile wiredtiger"
         vars:
           configure_env_vars: CC=clang-6.0 CXX=clang++-6.0 ADD_CFLAGS="-ggdb -fPIC"
@@ -1071,6 +1058,21 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/../test/csuite/schema_abort/smoke.sh 2>&1
+
+  - name: csuite-tiered-abort-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/../test/csuite/tiered_abort/smoke.sh 2>&1
 
   - name: csuite-timestamp-abort-test
     tags: ["pull_request"]
@@ -1560,6 +1562,21 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/test/csuite/test_wt6616_checkpoint_oldest_ts 2>&1
+
+  - name: csuite-wt7989-compact-checkpoint-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt7989_compact_checkpoint 2>&1
 
   # End of csuite test tasks
 
@@ -2104,20 +2121,22 @@ tasks:
         vars:
           # Don't use diagnostic - this test looks for timing problems that are more likely to occur without it
           posix_configure_flags: --enable-strict
-      # Temporarily disable mix and column file type
-      # FIXME after WT-6608
-      #- func: "checkpoint test"
-      #  vars:
-      #    checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
-      #- func: "checkpoint test"
-      #  vars:
-      #    checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
+      - func: "checkpoint test"
+        vars:
+          checkpoint_args: -t m -n 1000000 -k 5000000 -C cache_size=100MB
+      - func: "checkpoint test"
+        vars:
+          checkpoint_args: -t c -n 1000000 -k 5000000 -C cache_size=100MB
       - func: "checkpoint test"
         vars:
           checkpoint_args: -t r -n 1000000 -k 5000000 -C cache_size=100MB
 
   - name: coverage-report
     commands:
+      - command: timeout.update
+        params:
+          exec_timeout_secs: 36000 # 10 hrs
+          timeout_secs: 1800 # 30 mins
       - func: "get project"
       - func: "compile wiredtiger"
         vars:
@@ -2129,43 +2148,55 @@ tasks:
           unit_test_args: -v 2 --long
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row compression=snappy logging=1 logging_compression=snappy logging_prealloc=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 salvage=1 statistics=1 statistics_server=1 verify=1
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row alter=1 backups=1 compaction=1 data_extend=1 prepare=1 salvage=1 statistics=1 statistics_server=1 verify=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row firstfit=1 internal_key_truncation=1
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row firstfit=1 internal_key_truncation=1
       - func: "format test"
         vars:
-          extra_args: leak_memory=0 mmap=1 file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row checkpoints=0 in_memory=1 reverse=1 truncate=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=zlib huffman_value=1
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row compression=zlib huffman_value=1
       - func: "format test"
         vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row data_source=lsm bloom=1
-      # FIXME-WT-6669: temporarily disable column store test
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row data_source=lsm bloom=1
+      - func: "format test"
+        vars:
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=row compression=lz4 prefix_compression=1 leaf_page_max=9 internal_page_max=9 key_min=256 value_min=256
+      - func: "format test"
+        vars:
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=var compression=snappy checksum=uncompressed dictionary=1 repeat_data_pct=10
+      - func: "format test"
+        vars:
+          config: ../../../test/format/CONFIG.coverage
+          extra_args: file_type=var leaf_page_max=9 internal_page_max=9 value_min=256
+      # FIXME-WT-8016: temporarily disable FLCS
       # - func: "format test"
       #   vars:
-      #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=var compression=snappy checksum=uncompressed dictionary=1 repeat_data_pct=10
-      - func: "format test"
-        vars:
-          extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=row compression=lz4 prefix_compression=1 leaf_page_max=9 internal_page_max=9 key_min=256 value_min=256
-      # FIXME-WT-6669: temporarily disable column store test
-      # - func: "format test"
-      #   vars:
-      #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=var leaf_page_max=9 internal_page_max=9 value_min=256
-      # FIXME-WT-6669: temporarily disable column store test
-      # - func: "format test"
-      #   vars:
-      #     extra_args: checkpoints=1 leak_memory=0 mmap=1 file_type=fix
+      #     config: ../../../test/format/CONFIG.coverage
+      #     extra_args: file_type=fix
       - command: shell.exec
         params:
+          shell: bash
           working_dir: "wiredtiger/build_posix"
           script: |
             set -o errexit
             set -o verbose
+            virtualenv -p python3 venv
+            source venv/bin/activate
+            pip3 install gcovr
             mkdir -p ../coverage_report
             GCOV=/opt/mongodbtoolchain/v3/bin/gcov gcovr -r .. -f ../src -e '.*/bt_(debug|dump|misc|salvage|vrfy).*' -e '.*/(log|progress|verify_build|strerror|env_msg|err_file|cur_config|os_abort)\..*' -e '.*_stat\..*' -e 'bench' -e 'examples' -e 'test' -e 'ext' -e 'dist' -e 'tools' -j 4 --html-details --html-self-contained -o ../coverage_report/2_coverage_report.html
       - command: s3.put
@@ -2753,10 +2784,10 @@ tasks:
 
 buildvariants:
 
-- name: ubuntu1804
-  display_name: "! Ubuntu 18.04"
+- name: ubuntu2004
+  display_name: "! Ubuntu 20.04"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
@@ -2766,13 +2797,13 @@ buildvariants:
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: linux-directio
-      distros: ubuntu1804-build
+      distros: ubuntu2004-build
     - name: syscall-linux
     - name: configure-combinations
     - name: checkpoint-filetypes-test
     - name: unit-test-zstd
     - name: unit-test-long
-      distros: ubuntu1804-large
+      distros: ubuntu2004-large
     - name: unit-test-random-seed
     - name: spinlock-gcc-test
     - name: spinlock-pthread-adaptive-test
@@ -2785,10 +2816,10 @@ buildvariants:
     - name: data-validation-stress-test-checkpoint
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-1
 
-- name: ubuntu1804-cmake
-  display_name: "* Ubuntu 18.04 CMake"
+- name: ubuntu2004-cmake
+  display_name: "* Ubuntu 20.04 CMake"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
@@ -2802,10 +2833,10 @@ buildvariants:
     - name: make-check-test
     - name: unit-test
 
-- name: ubuntu1804-asan
-  display_name: "! Ubuntu 18.04 ASAN"
+- name: ubuntu2004-asan
+  display_name: "! Ubuntu 20.04 ASAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       CC=/opt/mongodbtoolchain/v3/bin/clang
@@ -2825,10 +2856,10 @@ buildvariants:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
     - name: examples-c-test
 
-- name: ubuntu1804-msan
-  display_name: "! Ubuntu 18.04 MSAN"
+- name: ubuntu2004-msan
+  display_name: "! Ubuntu 20.04 MSAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       # We don't compile C++ for memory sanitized testing as it creates false positives.
@@ -2856,10 +2887,10 @@ buildvariants:
     - name: format-stress-pull-request-test
     - name: make-check-test
 
-- name: ubuntu1804-ubsan
-  display_name: "! Ubuntu 18.04 UBSAN"
+- name: ubuntu2004-ubsan
+  display_name: "! Ubuntu 20.04 UBSAN"
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     configure_env_vars:
       CC=/opt/mongodbtoolchain/v3/bin/clang
@@ -2888,10 +2919,10 @@ buildvariants:
     - name: cppsuite-base-test-default
     - name: cppsuite-hs-cleanup-default
 
-- name: ubuntu1804-compilers
-  display_name: "! Ubuntu 18.04 Compilers"
+- name: ubuntu2004-compilers
+  display_name: "! Ubuntu 20.04 Compilers"
   run_on:
-  - ubuntu1804-wt-build
+  - ubuntu2004-wt-build
   expansions:
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -2900,10 +2931,10 @@ buildvariants:
   tasks:
     - name: ".pull_request_compilers"
 
-- name: ubuntu1804-stress-tests
-  display_name: Ubuntu 18.04 Stress tests
+- name: ubuntu2004-stress-tests
+  display_name: Ubuntu 20.04 Stress tests
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -2925,7 +2956,7 @@ buildvariants:
   display_name: "Large scale tests"
   batchtime: 480 # 3 times a day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
@@ -2938,13 +2969,13 @@ buildvariants:
   tasks:
     - name: many-dhandle-stress-test
     - name: many-collection-test
-      distros: ubuntu1804-wt-large
+      distros: ubuntu2004-wt-large
 
 - name: cppsuite-stress-tests
   display_name: "Cppsuite Stress Tests"
   batchtime: 480 # 3 times a day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -2960,7 +2991,7 @@ buildvariants:
   display_name: "~ Package"
   batchtime: 1440 # 1 day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   tasks:
     - name: package
 
@@ -2979,7 +3010,7 @@ buildvariants:
   display_name: Linux no ftruncate
   batchtime: 1440 # 1 day
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
@@ -3025,7 +3056,7 @@ buildvariants:
   display_name: "Code statistics"
   batchtime: 10080 # 7 days
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   expansions:
     test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
   tasks:
@@ -3044,7 +3075,7 @@ buildvariants:
 - name: compatibility-tests
   display_name: Compatibility tests
   run_on:
-  - ubuntu1804-test
+  - ubuntu2004-test
   tasks:
     - name: compatibility-test-for-newer-releases
     - name: import-compatibility-test

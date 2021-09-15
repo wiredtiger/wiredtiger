@@ -31,6 +31,10 @@ test_scope_SOURCES = scope/main.c
 noinst_PROGRAMS += test_scope
 all_TESTS += test_scope
 
+test_tiered_abort_SOURCES = tiered_abort/main.c
+noinst_PROGRAMS += test_tiered_abort
+all_TESTS += tiered_abort/smoke.sh
+
 test_timestamp_abort_SOURCES = timestamp_abort/main.c
 noinst_PROGRAMS += test_timestamp_abort
 all_TESTS += timestamp_abort/smoke.sh
@@ -150,6 +154,10 @@ all_TESTS += wt6185_modify_ts/smoke.sh
 test_wt6616_checkpoint_oldest_ts_SOURCES = wt6616_checkpoint_oldest_ts/main.c
 noinst_PROGRAMS += test_wt6616_checkpoint_oldest_ts
 all_TESTS += wt6616_checkpoint_oldest_ts/smoke.sh
+
+test_wt7989_compact_checkpoint_SOURCES = wt7989_compact_checkpoint/main.c
+noinst_PROGRAMS += test_wt7989_compact_checkpoint
+all_TESTS += test_wt7989_compact_checkpoint
 
 # Run this during a "make check" smoke test.
 TESTS = $(all_TESTS)

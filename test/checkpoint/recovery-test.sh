@@ -27,7 +27,7 @@ pid=$!
 trap "kill -9 $pid" 0 1 2 3 13 15
 
 # Wait for the test to start running
-while ! grep -q "Finished a checkpoint" $home.out ; do
+while ! grep -q "Finished a checkpoint" $home.out && kill -0 $pid ; do
 	sleep 1
 done
 
