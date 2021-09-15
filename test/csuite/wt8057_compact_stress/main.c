@@ -134,8 +134,12 @@ main(int argc, char *argv[])
     if (pid == 0) { /* child */
 
         run_test(home);
+        /*
+         * We do not expect test to reach here. The child process should have been killed by the
+         * parent process.
+         */
         printf("Child finished processing...\n");
-        return (EXIT_SUCCESS);
+        return (EXIT_FAILURE);
     }
 
     /* parent */
@@ -244,9 +248,6 @@ run_test(const char *home)
     /* Clean-up. */
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
-
-    /* We do not expect test to reach here. */
-    testutil_assert(false);
 }
 
 static void
