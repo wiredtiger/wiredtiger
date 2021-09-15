@@ -48,7 +48,10 @@ class random_generator {
     /* Generate a random string of a given length. */
     std::string generate_string(std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
-    /* Generate a pseudo random string which compresses better. */
+    /*
+     * Generate a pseudo random string which compresses better. It should not be used to generate
+     * keys due to the limited randomness.
+     */
     std::string generate_pseudo_random_string(
       std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
