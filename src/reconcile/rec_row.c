@@ -927,7 +927,11 @@ __wt_rec_row_leaf(
                     if (hs_cursor == NULL)
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
 
-                    /* From WT_TS_NONE delete all the history store content of the key. */
+                    /*
+                     * From WT_TS_NONE delete all the history store content of the key. It's okay to
+                     * detect out of order timestamps in this path as we're applying globally
+                     * visible tombstones in front of all updates due to removing a key.
+                     */
                     WT_ERR(__wt_hs_delete_key_from_ts(
                       session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false, false));
 
