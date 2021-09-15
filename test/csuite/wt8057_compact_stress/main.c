@@ -240,9 +240,12 @@ run_test(const char *home)
         sleep(1);
     }
 
-    /* Clean-up. We do not expect test to reach here. */
+    /* Clean-up. */
     testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
+
+    /* We do not expect test to reach here. */
+    testutil_assert(false);
 }
 
 static void
