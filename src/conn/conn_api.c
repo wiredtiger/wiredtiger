@@ -761,6 +761,9 @@ __wt_conn_remove_storage_source(WT_SESSION_IMPL *session)
             __wt_free(session, bstorage->bucket);
             __wt_free(session, bstorage->bucket_prefix);
             __wt_free(session, bstorage->cache_directory);
+            if (bstorage->file_system != NULL && bstorage->file_system->terminate != NULL)
+                WT_TRET(
+                  bstorage->file_system->terminate(bstorage->file_system, (WT_SESSION *)session));
             __wt_free(session, bstorage);
         }
 
