@@ -95,7 +95,7 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     WT_DECL_RET;
     WT_PAGE *page;
     uint64_t time_start, time_stop;
-    int i;
+    uint32_t i;
     bool clean_page, closing, force_evict_hs, inmem_split, local_gen;
     bool page_has_prepared_updates, tree_dead;
 
