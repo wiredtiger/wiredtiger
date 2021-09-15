@@ -305,9 +305,10 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * Rollback to stable may restore older updates from the data store or history store. In this
      * case, the restored update has older update than the onpage value, which is expected.
      * Reconciliation may restore the onpage value to the update chain. In this case, no need to
-     * check further as the value is the same as the onpage value. If we have a prepared update
-     * restored from the onpage value, no need to check as well because the update chain should only
-     * contain prepared updates from the same transaction.
+     * check further as the value is the same as the onpage value which means we processed this
+     * update chain in a previous round of reconciliation. If we have a prepared update restored
+     * from the onpage value, no need to check as well because the update chain should only contain
+     * prepared updates from the same transaction.
      */
     if (F_ISSET(select_upd,
           WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
@@ -342,22 +343,19 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
                 WT_UPDATE_PREPARE_RESTORED_FROM_DS))
             return (0);
 
-        /*
-         * If we see transactions id's that belong to the on disk value we don't need to check it
-         * later.
-         */
-        if (vpack != NULL &&
-          (upd->txnid == vpack->tw.stop_txn || upd->txnid == vpack->tw.start_txn))
-            break;
-
         prev_upd = upd;
     }
 
     /*
      * Check that the on-page time window isn't out-of-order. Don't check against ondisk prepared
-     * update. It is either committed or rolled back if we are here.
+     * update. It is either committed or rolled back if we are here. If we haven't seen an update
+     * with the flag WT_UPDATE_RESTORED_FROM_DS we check against the ondisk value.
+     *
+     * In the case of checkpoint reconciliation the ondisk value could be an update in the middle of
+     * the update chain but checkpoint won't replace the page image as such it will be the previous
+     * reconciliations ondisk value that we will be comparing against.
      */
-    if (upd == NULL && vpack != NULL && !vpack->tw.prepare) {
+    if (vpack != NULL && !vpack->tw.prepare) {
         /* If we have a prepared update, durable timestamp cannot be out of order. */
         WT_ASSERT(session,
           prev_upd->prepare_state == WT_PREPARE_INPROGRESS ||
@@ -701,8 +699,11 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
      * Fixup any out of order timestamps, assert that checkpoint isn't running if we're in eviction.
      */
     if (__timestamp_out_of_order_fix(session, select_tw) &&
-      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING))
-        WT_ERR_PANIC(session, WT_ERROR, "Attempted to fix out of order timestamps illegally.");
+      F_ISSET(S2C(session), WT_CONN_HS_OPEN) && F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
+        /* Catch this case in diagnostic builds. */
+        WT_ASSERT(session, false);
+        WT_ERR(EBUSY);
+    }
 
     /*
      * The update doesn't have any further updates that need to be written to the history store,
