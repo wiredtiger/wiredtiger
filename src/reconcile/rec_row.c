@@ -928,9 +928,10 @@ __wt_rec_row_leaf(
                         WT_ERR(__wt_curhs_open(session, NULL, &hs_cursor));
 
                     /*
-                     * From WT_TS_NONE delete all the history store content of the key. It's okay to
-                     * detect out of order timestamps in this path as we're applying globally
-                     * visible tombstones in front of all updates due to removing a key.
+                     * From WT_TS_NONE delete all the history store content of the key. This path
+                     * will never be taken for a mixed-mode deletion being evicted and with a
+                     * checkpoint that started prior to the eviction starting its reconciliation as
+                     * previous checks done while selecting an update will detect that.
                      */
                     WT_ERR(__wt_hs_delete_key_from_ts(
                       session, hs_cursor, btree->id, tmpkey, WT_TS_NONE, false, false));

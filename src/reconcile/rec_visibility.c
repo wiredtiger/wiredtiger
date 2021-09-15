@@ -699,6 +699,9 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
     /*
      * Fixup any out of order timestamps, assert that checkpoint wasn't running when this round of
      * reconciliation started.
+     *
+     * Returning EBUSY here is okay as the previous call to validate the update chain wouldn't have
+     * caught the situation where only a tombstone is selected.
      */
     if (__timestamp_out_of_order_fix(session, select_tw) && F_ISSET(r, WT_REC_HS) &&
       F_ISSET(r, WT_REC_CHECKPOINT_RUNNING)) {
