@@ -33,7 +33,7 @@
 /*
  * This test verifies that there are no data inconsistencies if compact operation is interrupted by
  * an unclean shutdown. To achieve this, the main process spawns a child process. The child process
- * perform certain operations on two identical tables. The parent process randomly kills child
+ * performs certain operations on two identical tables. The parent process randomly kills the child
  * process and verifies that the data across two tables match after restart.
  */
 
@@ -224,6 +224,7 @@ run_test(const char *home)
         remove_records(session, uri1, key_range_start, key_range_start + NUM_RECORDS / 3);
         remove_records(session, uri2, key_range_start, key_range_start + NUM_RECORDS / 3);
 
+        /* Only perform compaction on the first table. */
         file_sz_before = get_file_size(session, uri1);
 
         testutil_check(session->compact(session, uri1, NULL));
