@@ -772,6 +772,7 @@ err:
 #endif
         break;
     case WT_PREPARE_CONFLICT:
+        printf("Got prepare conflict in btcur_prev_prefix\n");
         /*
          * If prepare conflict occurs, cursor should not be reset, as current cursor position will
          * be reused in case of a retry from user.

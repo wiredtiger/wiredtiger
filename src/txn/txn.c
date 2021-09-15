@@ -1116,10 +1116,16 @@ __txn_search_prepared_op(
     }
 
     /*
-     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
-     * after an error or a prepared transaction.
+     * Transaction error is cleared temporarily as cursor functions are not allowed after an error.
      */
-    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
+
+    /*
+     * The WT_TXN_PREPARE flag should not be cleared as it may cause issues where a prepared
+     * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
+     * after a prepared transaction.
+     */
+    F_SET(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
 
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
@@ -1143,6 +1149,7 @@ __txn_search_prepared_op(
     F_CLR(txn, txn_flags);
     WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
+    F_CLR(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
     WT_RET(ret);
     WT_RET_ASSERT(session, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
@@ -2447,6 +2454,11 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
+
+    if (F_ISSET(txn, WT_TXN_PREPARE))
+        printf("WT_TXN_PREPARE is set\n");
+    else
+        printf("WT_TXN_PREPARE is not set\n");
 
     /* We can't roll back prepared transactions. */
     if (F_ISSET(txn, WT_TXN_PREPARE))

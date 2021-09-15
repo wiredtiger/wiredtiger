@@ -13,6 +13,8 @@
 static inline int
 __wt_txn_context_prepare_check(WT_SESSION_IMPL *session)
 {
+    if (F_ISSET(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS))
+        return (0);
     if (F_ISSET(session->txn, WT_TXN_PREPARE))
         WT_RET_MSG(session, EINVAL, "not permitted in a prepared transaction");
     return (0);
@@ -924,6 +926,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         }
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
+            printf("Got prepare confict in __wt_txn_read_upd_list_internal\n");
             /* Ignore the prepared update, if transaction configuration says so. */
             if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 continue;
