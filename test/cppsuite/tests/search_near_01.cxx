@@ -191,11 +191,11 @@ class search_near_01 : public test_harness::test {
         prev_prefix_stat = 0;
         expected_entries = tc->thread_count * keys_per_prefix * 2 * pow(ALPHABET_SIZE, srchkey_len);
 
-        /* 
-         * Read at timestamp 10, so that no keys are visible to this transaction. This allows 
-         * prefix search near to early exit out of it's prefix range when it's trying to search
-        * for a visible key in the tree.
-         */ 
+        /*
+         * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
+         * search near to early exit out of it's prefix range when it's trying to search for a
+         * visible key in the tree.
+         */
         tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(10));
         while (tc->running()) {
 
@@ -208,8 +208,7 @@ class search_near_01 : public test_harness::test {
             }
 
             /* Generate search prefix key of random length between a -> zzz. */
-            srch_key =
-              random_generator::instance().generate_string(srchkey_len, ALPHABET);
+            srch_key = random_generator::instance().generate_string(srchkey_len, ALPHABET);
             logger::log_msg(LOG_INFO,
               "Read thread {" + std::to_string(tc->id) +
                 "} performing prefix search near with key: " + srch_key);
