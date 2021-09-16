@@ -460,14 +460,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 enable_reverse_modify = false;
 
             if (newest_hs == NULL) {
-                if (upd->type == WT_UPDATE_TOMBSTONE) {
-                    ref_upd = upd;
-                    if (squashed) {
-                        WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
-                        squashed = false;
-                    }
-                } else if (upd->txnid != ref_upd->txnid || upd->start_ts != ref_upd->start_ts) {
-                    newest_hs = upd;
+                if (upd->txnid != ref_upd->txnid || upd->start_ts != ref_upd->start_ts) {
+                    if (upd->type == WT_UPDATE_TOMBSTONE)
+                        ref_upd = upd;
+                    else
+                        newest_hs = upd;
                     if (squashed) {
                         WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
                         squashed = false;
