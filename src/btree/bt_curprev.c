@@ -717,13 +717,16 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
+                 * us, this way we don't leave the cursor positioned after returning WT_NOTFOUND.
+                 */
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                    return (WT_NOTFOUND);
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
             }
-            /* Break when WT_NOTFOUND is found when performing prefix search near. */
-            if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
-                break;
             if (ret != WT_NOTFOUND)
                 break;
         }

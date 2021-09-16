@@ -705,7 +705,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         if (!F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) ||
           __wt_prefix_match(&state.key, &cbt->iface.key) == 0)
             goto done;
-        else 
+        else
             valid = false;
     }
 

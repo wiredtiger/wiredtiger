@@ -768,13 +768,16 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_next(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
+                 * positioned when traversing keys for prefix search near.
+                 */
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                    return (WT_NOTFOUND);
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
             }
-            /* Break when WT_NOTFOUND is found when performing prefix search near. */
-            if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
-                break;
             if (ret != WT_NOTFOUND)
                 break;
 
@@ -814,6 +817,7 @@ skip_page:
 
 err:
     WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_page_count, pages_skipped_count);
+
     if (total_skipped < 100)
         WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
     else
@@ -844,13 +848,6 @@ err:
          * be reused in case of a retry from user.
          */
         F_SET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
-        break;
-    case WT_NOTFOUND:
-        /*
-         * This case can only occur when performing prefix search near. Prevent from resetting the
-         * cursor as the caller expects the cursor to be positioned when traversing keys for prefix
-         * search near.
-         */
         break;
     default:
         WT_TRET(__cursor_reset(cbt));
