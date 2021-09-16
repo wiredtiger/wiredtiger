@@ -29,20 +29,12 @@
 
 import time, wiredtiger, wttest, unittest
 from wiredtiger import stat
-from wtscenario import make_scenarios
 
 # test_search_near01.py
 # Test various prefix search near scenarios.
 class test_search_near01(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all)'
     session_config = 'isolation=snapshot'
-
-    eviction = [
-        ('eviction', dict(eviction=True)),
-        #('no eviction', dict(eviction=False)),
-    ]
-
-    scenarios = make_scenarios(eviction)
 
     def get_stat(self, stat, local_session = None):
         if (local_session != None):
@@ -69,7 +61,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
 
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
-        self.session.create(uri, 'key_format=S,value_format=S')
+        self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
         session2 = self.conn.open_session()
         cursor3 = self.session.open_cursor(uri, None, "debug=(release_evict=true)")
@@ -89,30 +81,30 @@ class test_search_near01(wttest.WiredTigerTestCase):
                     cursor[l[i] + l[j] + l[k]] = l[i] + l[j] + l[k]
         self.session.commit_transaction()
 
-        if self.eviction:
-            # Evict the whole range.
-            for i in range (0, 26):
-                for j in range(0, 26):
-                    cursor3.set_key(l[i] + l[j] + 'a')
-                    cursor3.search()
-                    cursor3.reset()
+        # Evict the whole range.
+        for i in range (0, 26):
+            for j in range(0, 26):
+                cursor3.set_key(l[i] + l[j] + 'a')
+                cursor3.search()
+                cursor3.reset()
 
         # Search near for the "aa" part of the range.
         cursor2 = session2.open_cursor(uri)
         cursor2.set_key('aa')
-        ret = cursor2.search_near()
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        cursor2.search_near()
+
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         # This should be equal to roughly key_count * 2 as we're going to traverse the whole
         # range forward, and then the whole range backwards.
-        self.assertGreaterEqual(skip_count, key_count * 2 - 1)
+        self.assertGreater(skip_count, key_count * 2)
 
         cursor2.reconfigure("prefix_key=true")
         cursor2.set_key('aa')
         cursor2.search_near()
 
-        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         # We should've skipped ~26*2 here as we're only looking at the "aa" range * 2.
-        self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2 - 1)
+        self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2)
         skip_count = prefix_skip_count
 
         # The prefix code will have come into play at once as we walked to "aba". The prev
@@ -125,9 +117,10 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
 
         # Assert it to have only incremented the skipped statistic ~26*2 times.
-        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
-        #self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2)
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
+        self.assertGreaterEqual(prefix_skip_count - skip_count, 26*2)
         skip_count = prefix_skip_count
+
         # Here we should've hit the prefix fast path code twice. Plus the time we already did.
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 2+1)
 
@@ -142,7 +135,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         # fail.
         #
         # It should be closer to key_count * 2 but this an approximation.
-        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         self.assertGreaterEqual(prefix_skip_count - skip_count, key_count)
 
     # This test aims to simulate a unique index insertion.
@@ -186,12 +179,11 @@ class test_search_near01(wttest.WiredTigerTestCase):
                 id = id + 1
                 self.session.commit_transaction()
 
-        if self.eviction:
-            # Evict the whole range.
-            for i in keys:
-                cursor3.set_key(i)
-                cursor3.search()
-                cursor3.reset()
+        # Evict the whole range.
+        for i in keys:
+            cursor3.set_key(i)
+            cursor3.search()
+            cursor3.reset()
 
         # Using our older reader attempt to find a value.
         # Search near for the "cc" prefix.
@@ -199,7 +191,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.set_key('cc')
         cursor2.search_near()
 
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         # This should be equal to roughly key_count * 2 as we're going to traverse most of the
         # range forward, and then the whole range backwards.
         self.assertGreater(skip_count, key_count * 2)
@@ -220,7 +212,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         uri = 'table:test_row_search'
         self.session.create(uri, 'key_format=u,value_format=u')
         cursor = self.session.open_cursor(uri)
-        expect_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        expect_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         session2 = self.conn.open_session()
         l = "abcdefghijklmnopqrstuvwxyz"
         # Insert keys a -> z, except c
@@ -244,8 +236,8 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.set_key('c')
         cursor2.search_near()
 
-        expect_count += 2
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        expect_count += 1
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         self.assertEqual(skip_count, expect_count)
         session2.commit_transaction()
 
@@ -263,7 +255,8 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor.set_key('dd')
         cursor.search_near()
         self.session.commit_transaction()
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_total) + self.get_stat(stat.conn.cursor_prev_skip_total)
+        expect_count += 1
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
         self.assertEqual(skip_count, expect_count)
 
     # Test a basic prepared scenario.
@@ -294,20 +287,19 @@ class test_search_near01(wttest.WiredTigerTestCase):
 
         self.session.prepare_transaction('prepare_timestamp=2')
 
-        if self.eviction:
-            # Evict the whole range.
-            for i in range (0, 26):
-                for j in range(0, 26):
-                    cursor3.set_key(l[i] + l[j])
-                    cursor3.search()
-                    cursor3.reset()
+        # Evict the whole range.
+        for i in range (0, 26):
+            for j in range(0, 26):
+                cursor3.set_key(l[i] + l[j])
+                cursor3.search()
+                cursor3.reset()
 
         # Search near for the "aa" part of the range.
         cursor2 = session2.open_cursor(uri)
         cursor2.set_key('c')
         cursor2.search_near()
 
-        skip_count = self.get_stat(stat.conn.cursor_next_skip_total, session2) + self.get_stat(stat.conn.cursor_prev_skip_total, session2)
+        skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100, session2)
         # This should be equal to roughly key_count * 2 as we're going to traverse the whole
         # range forward, and then the whole range backwards.
         self.assertGreater(skip_count, key_count)
@@ -316,8 +308,8 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.set_key('c')
         cursor2.search_near()
 
-        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total, session2) + self.get_stat(stat.conn.cursor_prev_skip_total, session2)
-        self.assertEqual(prefix_skip_count - skip_count, 2)
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100, session2)
+        self.assertEqual(prefix_skip_count - skip_count, 3)
         skip_count = prefix_skip_count
 
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths, session2), 2)
@@ -328,11 +320,11 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor4.reconfigure("prefix_key=true")
         cursor4.set_key('c')
         cursor4.search_near()
-        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_total, session2) + self.get_stat(stat.conn.cursor_prev_skip_total, session2)
-        self.assertEqual(prefix_skip_count - skip_count, 0)
+        prefix_skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100, session2)
+        self.assertEqual(prefix_skip_count - skip_count, 2)
         skip_count = prefix_skip_count
 
         cursor4.reconfigure("prefix_key=false")
         cursor4.set_key('c')
         cursor4.search_near()
-        self.assertEqual(self.get_stat(stat.conn.cursor_next_skip_total, session2) + self.get_stat(stat.conn.cursor_prev_skip_total, session2) - skip_count, 0)
+        self.assertEqual(self.get_stat(stat.conn.cursor_next_skip_lt_100, session2) - skip_count, 2)
