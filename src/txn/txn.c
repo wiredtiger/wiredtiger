@@ -1013,9 +1013,11 @@ __txn_fixup_prepared_update(
     F_CLR(txn, txn_flags);
 
     /*
-     * The WT_TXN_PREPARE flag should not be cleared as it may cause issues where a prepared
-     * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
-     * after a prepared transaction.
+     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before 
+     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a 
+     * function in the eviction flow may attempt to forcibly rollback the transaction if it is 
+     * not marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so 
+     * that cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
@@ -1129,9 +1131,11 @@ __txn_search_prepared_op(
     txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
 
     /*
-     * The WT_TXN_PREPARE flag should not be cleared as it may cause issues where a prepared
-     * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
-     * after a prepared transaction.
+     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before 
+     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a 
+     * function in the eviction flow may attempt to forcibly rollback the transaction if it is 
+     * not marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so 
+     * that cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
      */
     F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
