@@ -308,8 +308,8 @@ define_c_test(
 
 define_c_test(
     TARGET test_wt8057_compact_stress
-    SOURCES test_wt8057_compact_stress/main.c
-    DIR_NAME test_wt8057_compact_stress
+    SOURCES wt8057_compact_stress/main.c
+    DIR_NAME wt8057_compact_stress
     DEPENDS "WT_POSIX"
 )
 
