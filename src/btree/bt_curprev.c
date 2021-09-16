@@ -484,9 +484,11 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
+    bool prefix_used;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
+    prefix_used = F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL;
     key = &cbt->iface.key;
     *skippedp = 0;
 
@@ -553,6 +555,16 @@ restart_read_insert:
                 ++*skippedp;
                 continue;
             }
+            /*
+             * If the cursor has prefix search configured we can early exit here if the key we are
+             * visiting is before our prefix.
+             */
+            if (prefix_used && __wt_prefix_match(prefix, key) > 0) {
+                /* It is not okay for the user to have a custom collator. */
+                WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
+                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
+                return (WT_NOTFOUND);
+            }
             return (__wt_value_return(cbt, cbt->upd_value));
         }
 
@@ -584,8 +596,7 @@ restart_read_page:
          * If the cursor has prefix search configured we can early exit here if the key we are
          * visiting is before our prefix.
          */
-        if (F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL &&
-          __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
+        if (prefix_used && __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
             /* It is not okay for the user to have a custom collator. */
             WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
@@ -706,16 +717,13 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             case WT_PAGE_ROW_LEAF:
                 ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
-                /*
-                 * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
-                 * us, this way we don't leave the cursor positioned after returning WT_NOTFOUND.
-                 */
-                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
-                    return (WT_NOTFOUND);
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
             }
+            /* Break when WT_NOTFOUND is found when performing prefix search near. */
+            if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                break;
             if (ret != WT_NOTFOUND)
                 break;
         }
