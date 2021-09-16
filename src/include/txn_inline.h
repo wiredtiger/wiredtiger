@@ -926,7 +926,6 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
         }
 
         if (upd_visible == WT_VISIBLE_PREPARE) {
-            printf("Got prepare confict in __wt_txn_read_upd_list_internal\n");
             /* Ignore the prepared update, if transaction configuration says so. */
             if (F_ISSET(session->txn, WT_TXN_IGNORE_PREPARE))
                 continue;

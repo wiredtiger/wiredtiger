@@ -1009,8 +1009,15 @@ __txn_fixup_prepared_update(
      * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
      * after an error or a prepared transaction.
      */
-    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
     F_CLR(txn, txn_flags);
+
+    /*
+     * The WT_TXN_PREPARE flag should not be cleared as it may cause issues where a prepared
+     * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
+     * after a prepared transaction.
+     */
+    F_SET(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
 
     /*
      * If the history update already has a stop time point and we are committing the prepared update
@@ -1084,6 +1091,7 @@ __txn_fixup_prepared_update(
 
 err:
     F_SET(txn, txn_flags);
+    F_CLR(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
 
     return (ret);
 }
@@ -2454,11 +2462,6 @@ __wt_txn_is_blocking(WT_SESSION_IMPL *session)
     txn = session->txn;
     txn_shared = WT_SESSION_TXN_SHARED(session);
     global_oldest = S2C(session)->txn_global.oldest_id;
-
-    if (F_ISSET(txn, WT_TXN_PREPARE))
-        printf("WT_TXN_PREPARE is set\n");
-    else
-        printf("WT_TXN_PREPARE is not set\n");
 
     /* We can't roll back prepared transactions. */
     if (F_ISSET(txn, WT_TXN_PREPARE))
