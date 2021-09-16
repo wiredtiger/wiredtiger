@@ -1017,7 +1017,7 @@ __txn_fixup_prepared_update(
      * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
      * after a prepared transaction.
      */
-    F_SET(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
+    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     /*
      * If the history update already has a stop time point and we are committing the prepared update
@@ -1091,7 +1091,7 @@ __txn_fixup_prepared_update(
 
 err:
     F_SET(txn, txn_flags);
-    F_CLR(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
+    F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     return (ret);
 }
@@ -1133,7 +1133,7 @@ __txn_search_prepared_op(
      * transaction gets forcibly rolled back. A new flag is set instead, to allow cursor functions
      * after a prepared transaction.
      */
-    F_SET(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
+    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
@@ -1157,7 +1157,7 @@ __txn_search_prepared_op(
     F_CLR(txn, txn_flags);
     WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
-    F_CLR(session, WT_SESSION_PREPARE_TXN_IN_PROGRESS);
+    F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
     WT_RET_ASSERT(session, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
