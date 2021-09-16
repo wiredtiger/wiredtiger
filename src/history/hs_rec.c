@@ -492,6 +492,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
         }
 
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
+            /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
                 WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
             continue;
@@ -681,12 +682,16 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ooo_ts);
+                WT_STAT_CONN_INCR(session, cache_hs_insert_reverse_modify);
+                WT_STAT_DATA_INCR(session, cache_hs_insert_reverse_modify);
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
                   full_value, &tw, error_on_ooo_ts);
+                WT_STAT_CONN_INCR(session, cache_hs_insert_full_update);
+                WT_STAT_DATA_INCR(session, cache_hs_insert_full_update);
             }
 
             /*
@@ -717,7 +722,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
 
         /*
          * In the case that the onpage value is an out of order timestamp update and the update
-         * older than it is a tombstone, it remains in the stack. Clean it up.
+         * older than it is a tombstone, it remains in the stack.
          */
         WT_ASSERT(session, out_of_order_ts_updates.size <= 1);
 #ifdef HAVE_DIAGNOSTIC
