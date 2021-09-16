@@ -80,6 +80,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_tiered_abort
+    SOURCES tiered_abort/main.c
+    DIR_NAME tiered_abort
+    SMOKE
+    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_timestamp_abort
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
@@ -287,6 +296,20 @@ define_c_test(
     SOURCES wt6616_checkpoint_oldest_ts/main.c
     DIR_NAME wt6616_checkpoint_oldest_ts
     SMOKE
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt7989_compact_checkpoint
+    SOURCES wt7989_compact_checkpoint/main.c
+    DIR_NAME wt7989_compact_checkpoint
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8057_compact_stress
+    SOURCES wt8057_compact_stress/main.c
+    DIR_NAME wt8057_compact_stress
     DEPENDS "WT_POSIX"
 )
 
