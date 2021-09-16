@@ -266,7 +266,7 @@ wt_connect(const char *config_open)
       g.checkpoint_slow_timing_stress) {
         timing_stress = true;
         testutil_check(__wt_snprintf(timing_stress_cofing, sizeof(timing_stress_cofing),
-          ",timing_stress_for_test=[%s%s%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
+          ",timing_stress_for_test=[%s%s%s%s%s]", g.sweep_stress ? "aggressive_sweep" : "",
           g.failpoint_hs_delete_key_from_ts ? "failpoint_history_store_delete_key_from_ts" : "",
           g.hs_checkpoint_timing_stress ? "history_store_checkpoint_delay" : "",
           g.reserved_txnid_timing_stress ? "checkpoint_reserved_txnid_delay" : "",
