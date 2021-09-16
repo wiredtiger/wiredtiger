@@ -46,7 +46,8 @@ class random_generator {
     random_generator &operator=(random_generator const &) = delete;
 
     /* Generate a random string of a given length. */
-    std::string generate_string(std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
+    std::string generate_random_string(
+      std::size_t length, characters_type type = PSEUDO_ALPHANUMERIC);
 
     /*
      * Generate a pseudo random string which compresses better. It should not be used to generate

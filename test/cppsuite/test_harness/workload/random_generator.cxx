@@ -42,7 +42,7 @@ random_generator::instance()
 }
 
 std::string
-random_generator::generate_string(std::size_t length, characters_type type)
+random_generator::generate_random_string(std::size_t length, characters_type type)
 {
     std::string str;
 
