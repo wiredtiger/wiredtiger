@@ -29,6 +29,10 @@
 #include "random_generator.h"
 #include <algorithm>
 
+extern "C" {
+#include "test_util.h"
+}
+
 namespace test_harness {
 random_generator &
 random_generator::instance()
@@ -38,13 +42,13 @@ random_generator::instance()
 }
 
 std::string
-random_generator::generate_string(std::size_t length, characters_type type)
+random_generator::generate_random_string(std::size_t length, characters_type type)
 {
     std::string str;
-    if (type == characters_type::ALPHABET)
-        str = _alphabet;
-    else
-        str = _pseudo_alphanum;
+
+    while (str.size() < length)
+        str += get_characters(type);
+
     std::shuffle(str.begin(), str.end(), _generator);
     return (str.substr(0, length));
 }
@@ -77,19 +81,33 @@ random_generator::random_generator()
 std::uniform_int_distribution<> &
 random_generator::get_distribution(characters_type type)
 {
-    if (type == characters_type::ALPHABET)
+    switch (type) {
+    case characters_type::ALPHABET:
         return (_alpha_distrib);
-    else
+        break;
+    case characters_type::PSEUDO_ALPHANUMERIC:
         return (_alphanum_distrib);
+        break;
+    default:
+        testutil_die(type, "Unexpected characters_type");
+        break;
+    }
 }
 
 const std::string &
 random_generator::get_characters(characters_type type)
 {
-    if (type == characters_type::ALPHABET)
+    switch (type) {
+    case characters_type::ALPHABET:
         return (_alphabet);
-    else
+        break;
+    case characters_type::PSEUDO_ALPHANUMERIC:
         return (_pseudo_alphanum);
+        break;
+    default:
+        testutil_die(type, "Unexpected characters_type");
+        break;
+    }
 }
 
 } // namespace test_harness
