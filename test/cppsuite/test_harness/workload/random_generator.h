@@ -29,6 +29,10 @@
 #ifndef RANDOM_GENERATOR_H
 #define RANDOM_GENERATOR_H
 
+/* Following definitions are required in order to use printing format specifiers in C++. */
+#define __STDC_LIMIT_MACROS
+#define __STDC_FORMAT_MACROS
+
 #include <random>
 #include <string>
 
