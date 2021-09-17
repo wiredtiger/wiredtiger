@@ -1,15 +1,12 @@
 #!/usr/bin/env bash
 
-# Uncommenting the next line may be useful when debugging this script.
-#set -x
-
 usage () {
     cat << EOF
 Usage: run_parallel.sh {command} {num_iter} {num_parallel}
 Where:
   {command} is a string containing the command, including parameters, to run
   {num_iter} is an positive integer indicating how many iterations to execute
-  {num_parallel} is an (optional) positive integer indicating how many parallel commands should be executed
+  [num_parallel] is an (optional) positive integer indicating how many parallel commands should be executed
      in each iteration. If not provided, the default is half the number of available CPU cores.
 EOF
 }
@@ -20,8 +17,8 @@ if [ "$#" -lt  2 ]; then
     exit 1
 fi
 
-# Calculate the number of CPU cores. This code is Linux specific at the moment.
-NCORES=$(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
+# Determine the number of CPU cores. This code is Linux specific at the moment.
+NCORES=$(grep -c ^processor /proc/cpuinfo)
 
 command=$1
 num_iter=$2
@@ -29,7 +26,8 @@ num_iter=$2
 if [ "$#" -eq  3 ]; then
   num_parallel=$3
 else
-  num_parallel=$NCORES
+  # Use half the number of processor cores
+  num_parallel="$(($NCORES / 2))"
 fi
 
 echo "run_parallel:"
@@ -40,7 +38,7 @@ echo "  num_iter:        $num_iter"
 
 outf=./outfile.txt
 
-for i in $(seq 1 $num_iter); do
+for i in $(seq $num_iter); do
   echo "Starting iteration $i" >> $outf
   echo "Starting iteration $i"
 
