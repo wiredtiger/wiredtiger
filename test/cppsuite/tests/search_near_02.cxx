@@ -107,14 +107,13 @@ class search_near_02 : public test_harness::test {
                 key = random_generator::instance().generate_random_string(tc->key_size);
 
                 /* Insert a key value pair. */
-                bool rollback_required = tc->insert(cc.cursor, cc.coll.id, key);
-                if (!rollback_required) {
+                if (tc->insert(cc.cursor, cc.coll.id, key)) {
                     if (tc->transaction.can_commit())
-                        rollback_required = tc->transaction.commit();
-                }
-
-                if (rollback_required)
+                        /* We are not checking the result of commit as it is not necessary. */
+                        tc->transaction.commit();
+                } else {
                     tc->transaction.rollback();
+                }
 
                 /* Sleep the duration defined by the configuration. */
                 tc->sleep();
