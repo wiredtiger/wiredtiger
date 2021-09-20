@@ -207,8 +207,8 @@ class search_near_02 : public test_harness::test {
 
     private:
     /*
-     * Perform search_near calls using a cursor with prefix key enabled and a cursor
-     * without it. Validate the output of the former with the latter.
+     * Perform search_near calls using a cursor with prefix key enabled and a cursor without it.
+     * Validate the output of the former with the latter.
      */
     void
     search_near(
@@ -223,15 +223,14 @@ class search_near_02 : public test_harness::test {
         int ret_prefix = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
 
         /*
-         * It is not possible to have a prefix search near call successful and the default
-         * search near call unsuccessful.
+         * It is not possible to have a prefix search near call successful and the default search
+         * near call unsuccessful.
          */
         testutil_assert(
           ret_default == ret_prefix || (ret_default == 0 && ret_prefix == WT_NOTFOUND));
 
         /*
-         * We only have to perform validation when the default search near call is
-         * successful.
+         * We only have to perform validation when the default search near call is successful.
          */
         if (ret_default == 0) {
             /* Both calls are successful. */
@@ -250,8 +249,8 @@ class search_near_02 : public test_harness::test {
       const std::string &prefix, int exact_default, int exact_prefix)
     {
         /*
-         * The prefix search near call cannot retrieve a key with a smaller value
-         * than the prefix we searched.
+         * The prefix search near call cannot retrieve a key with a smaller value than the prefix we
+         * searched.
          */
         testutil_assert(exact_prefix == 0 || exact_prefix == 1);
 
@@ -273,8 +272,8 @@ class search_near_02 : public test_harness::test {
         testutil_assert(key_prefix_str.substr(0, prefix.size()) == prefix);
 
         /*
-         * If the exact value from the default search near call is -1, the key found
-         * by the prefix search near has to be the next key.
+         * If the exact value from the default search near call is -1, the key found by the prefix
+         * search near has to be the next key.
          */
         if (exact_default == -1) {
             testutil_check(cursor_default->next(cursor_default.get()));
@@ -283,14 +282,14 @@ class search_near_02 : public test_harness::test {
             testutil_assert(std::string(k) == key_prefix_str);
         }
         /*
-         * If the exact value from the default search near call is set to 0, we
-         * expect both search near calls to return the same output.
+         * If the exact value from the default search near call is set to 0, we expect both search
+         * near calls to return the same output.
          */
         else if (exact_default == 0)
             testutil_assert(exact_prefix == exact_default && key_default_str == key_prefix_str);
         /*
-         * If the exact value from the default search near call is 1, the validation
-         * depends on the exact value set by the prefix search near.
+         * If the exact value from the default search near call is 1, the validation depends on the
+         * exact value set by the prefix search near.
          */
         else {
             /* Both search near calls should have returned the same key. */
@@ -325,8 +324,8 @@ class search_near_02 : public test_harness::test {
       const std::string &prefix, int exact_default, int exact_prefix)
     {
         /*
-         * The exact value from the default search near call cannot be 0, otherwise
-         * the prefix search near should be successful too.
+         * The exact value from the default search near call cannot be 0, otherwise the prefix
+         * search near should be successful too.
          */
         testutil_assert(exact_default == -1 || exact_default == 1);
 
@@ -337,8 +336,8 @@ class search_near_02 : public test_harness::test {
         testutil_assert(key_default_str.substr(0, prefix.size()) != prefix);
 
         /*
-         * If the default search near call sets exact to -1, make sure no following
-         * keys in the table contains the prefix.
+         * If the default search near call sets exact to -1, make sure no following keys in the
+         * table contains the prefix.
          */
         if (exact_default == -1) {
             // TODO - Is checking the next key (if it exists) enough ?
@@ -347,8 +346,7 @@ class search_near_02 : public test_harness::test {
                 testutil_check(cursor_default->get_key(cursor_default.get(), &k));
                 std::string k_str = k;
                 /*
-                 * We can stop searching if the current key is greater than the
-                 * prefix.
+                 * We can stop searching if the current key is greater than the prefix.
                  */
                 if (!std::lexicographical_compare(
                       k_str.begin(), k_str.end(), prefix.begin(), prefix.end()))
@@ -359,8 +357,8 @@ class search_near_02 : public test_harness::test {
             /* We have reached the end of the table or we did an early exit. */
         }
         /*
-         * If the default search near call sets exact to 1, make sure the previous
-         * key is lexicographically smaller than prefix.
+         * If the default search near call sets exact to 1, make sure the previous key is
+         * lexicographically smaller than prefix.
          */
         else {
             int ret = cursor_default->prev(cursor_default.get());
