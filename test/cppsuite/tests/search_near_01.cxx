@@ -108,6 +108,7 @@ class search_near_01 : public test_harness::test {
         collection_count = config->get_int(COLLECTION_COUNT);
         key_count = keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
         key_size = config->get_int(KEY_SIZE);
+        /* Check the prefix length is not greater than the key size. */
         testutil_assert(key_size >= PREFIX_KEY_LEN);
 
         logger::log_msg(LOG_INFO,
@@ -215,15 +216,17 @@ class search_near_01 : public test_harness::test {
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
-                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS,
-                  &prev_prefix_stat);
+                runtime_monitor::get_stat(
+                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
+                runtime_monitor::get_stat(tc->stat_cursor,
+                  WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
-                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-                get_stat(
+                runtime_monitor::get_stat(
+                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
+                runtime_monitor::get_stat(
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
