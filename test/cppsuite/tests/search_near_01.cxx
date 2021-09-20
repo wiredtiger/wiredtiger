@@ -57,7 +57,6 @@ class search_near_01 : public test_harness::test {
         uint32_t rollback_retries = 0;
         int cmpp;
 
-
         /*
          * Generate a table of data with prefix keys aaa -> zzz. We have 26 threads from ids
          * starting from 0 to 26. Each populate thread will insert seperate prefix keys based on the
@@ -192,8 +191,8 @@ class search_near_01 : public test_harness::test {
          * per search near function call. The key we search near can be different in length, which
          * will increase the number of entries search by a factor of 26.
          */
-        expected_entries =
-          tc->thread_count * keys_per_prefix * 2 * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
+        expected_entries = tc->thread_count * keys_per_prefix * 2 *
+          pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
 
         /*
          * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
@@ -212,7 +211,8 @@ class search_near_01 : public test_harness::test {
             }
 
             /* Generate search prefix key of random length between a -> zzz. */
-            srch_key = random_generator::instance().generate_random_string(srchkey_len, characters_type::ALPHABET);
+            srch_key = random_generator::instance().generate_random_string(
+              srchkey_len, characters_type::ALPHABET);
             logger::log_msg(LOG_INFO,
               "Read thread {" + std::to_string(tc->id) +
                 "} performing prefix search near with key: " + srch_key);
