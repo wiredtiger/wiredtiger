@@ -43,21 +43,20 @@ using namespace test_harness;
 class search_near_01 : public test_harness::test {
     uint64_t keys_per_prefix = 0;
     uint64_t srchkey_len = 0;
-    const std::string alphabet{"abcdefghijklmnopqrstuvwxyz"};
-    const uint64_t ALPHABET_SIZE = 26;
+    const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t PREFIX_KEY_LEN = 3;
-    const uint64_t MAX_ROLLBACKS = 100;
 
-    void
-    populate_worker(thread_context *tc)
+    static void
+    populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
     {
         logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
-        std::string prefix_key;
-        int cmpp;
-        uint32_t rollback_retries;
 
-        rollback_retries = 0;
+        std::string prefix_key;
         uint64_t collections_per_thread = tc->collection_count;
+        const uint64_t MAX_ROLLBACKS = 100;
+        uint32_t rollback_retries = 0;
+        int cmpp;
+
 
         /*
          * Generate a table of data with prefix keys aaa -> zzz. We have 26 threads from ids
@@ -67,22 +66,22 @@ class search_near_01 : public test_harness::test {
         for (int64_t i = 0; i < collections_per_thread; ++i) {
             collection &coll = tc->db.get_collection(i);
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
-            for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
-                for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
+            for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
+                for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
                     for (uint64_t count = 0; count < tc->key_count; ++count) {
                         tc->transaction.begin();
                         /*
                          * Generate the prefix key, and append a random generated key string based
                          * on the key size configuration.
                          */
-                        prefix_key = {alphabet.at(tc->id), alphabet.at(j), alphabet.at(k)};
+                        prefix_key = {ALPHABET.at(tc->id), ALPHABET.at(j), ALPHABET.at(k)};
                         prefix_key += random_generator::instance().generate_random_string(
                           tc->key_size - PREFIX_KEY_LEN);
                         if (tc->insert(cursor, coll.id, prefix_key)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
                             tc->transaction.rollback();
-                            rollback_retries++;
+                            ++rollback_retries;
                             --count;
                             continue;
                         }
@@ -131,12 +130,11 @@ class search_near_01 : public test_harness::test {
          * Spawn thread_count threads to populate the database, theoretically we should be IO bound
          * here.
          */
-        for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
+        for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
             thread_context *tc = new thread_context(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, tracking, database);
             workers.push_back(tc);
-            tm.add_thread(
-              std::bind(&search_near_01::populate_worker, this, std::placeholders::_1), tc);
+            tm.add_thread(populate_worker, tc, ALPHABET, PREFIX_KEY_LEN);
         }
 
         /* Wait for our populate threads to finish and then join them. */
@@ -157,10 +155,10 @@ class search_near_01 : public test_harness::test {
             scoped_cursor evict_cursor =
               session.open_scoped_cursor(coll.name.c_str(), "debug=(release_evict=true)");
 
-            for (uint64_t i = 0; i < ALPHABET_SIZE; ++i) {
-                for (uint64_t j = 0; j < ALPHABET_SIZE; ++j) {
-                    for (uint64_t k = 0; k < ALPHABET_SIZE; ++k) {
-                        std::string key = {alphabet.at(i), alphabet.at(j), alphabet.at(k)};
+            for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
+                for (uint64_t j = 0; j < ALPHABET.size(); ++j) {
+                    for (uint64_t k = 0; k < ALPHABET.size(); ++k) {
+                        std::string key = {ALPHABET.at(i), ALPHABET.at(j), ALPHABET.at(k)};
                         evict_cursor->set_key(evict_cursor.get(), key.c_str());
                         evict_cursor->search_near(evict_cursor.get(), &cmpp);
                         testutil_check(evict_cursor->reset(evict_cursor.get()));
@@ -188,7 +186,14 @@ class search_near_01 : public test_harness::test {
         cmpp = 0;
         prev_entries_stat = 0;
         prev_prefix_stat = 0;
-        expected_entries = tc->thread_count * keys_per_prefix * 2 * pow(ALPHABET_SIZE, srchkey_len);
+
+        /*
+         * The numer of expected entries is calculated to account for the maximum allowed entries
+         * per search near function call. The key we search near can be different in length, which
+         * will increase the number of entries search by a factor of 26.
+         */
+        expected_entries =
+          tc->thread_count * keys_per_prefix * 2 * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
 
         /*
          * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
@@ -207,7 +212,7 @@ class search_near_01 : public test_harness::test {
             }
 
             /* Generate search prefix key of random length between a -> zzz. */
-            srch_key = random_generator::instance().generate_random_string(srchkey_len, ALPHABET);
+            srch_key = random_generator::instance().generate_random_string(srchkey_len, characters_type::ALPHABET);
             logger::log_msg(LOG_INFO,
               "Read thread {" + std::to_string(tc->id) +
                 "} performing prefix search near with key: " + srch_key);
@@ -215,22 +220,20 @@ class search_near_01 : public test_harness::test {
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
-                runtime_monitor::get_stat(
-                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-                runtime_monitor::get_stat(tc->stat_cursor,
-                  WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
+                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
+                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS,
+                  &prev_prefix_stat);
 
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
-                runtime_monitor::get_stat(
-                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-                runtime_monitor::get_stat(
+                get_stat(tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
+                get_stat(
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
                     "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                    " prefix fash path  " + std::to_string(prefix_stat - prev_prefix_stat));
+                    " prefix fash path  " + std::to_string(expected_entries));
 
                 /*
                  * It is possible that WiredTiger increments the entries skipped stat while we

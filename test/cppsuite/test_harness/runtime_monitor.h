@@ -42,8 +42,9 @@ extern "C" {
 
 /* Forward declarations for classes to reduce compilation time and modules coupling. */
 class configuration;
-
 namespace test_harness {
+
+void get_stat(scoped_cursor &, int, int64_t *);
 
 class runtime_statistic {
     public:
@@ -115,9 +116,6 @@ class postrun_statistic_check {
  * relevant to the given workload.
  */
 class runtime_monitor : public component {
-    public:
-    static void get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep);
-
     public:
     runtime_monitor(configuration *config, database &database);
     ~runtime_monitor();
