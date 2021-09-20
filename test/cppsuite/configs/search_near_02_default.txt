@@ -1,4 +1,11 @@
 # Configuration for search_near_02.
 # need to be defined.
 duration_seconds=5,
-cache_size_mb=250
+cache_size_mb=250,
+workload_generator=
+(
+    populate_config=
+    (
+        collection_count=1,
+    ),
+)

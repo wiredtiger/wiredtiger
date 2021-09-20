@@ -27,6 +27,9 @@
  */
 
 #include "test_harness/test.h"
+#include "test_harness/util/api_const.h"
+
+using namespace test_harness;
 
 /*
  * In this test, we want to verify search_near with prefix enabled returns the correct key.
@@ -40,10 +43,22 @@ class search_near_02 : public test_harness::test {
     search_near_02(const test_harness::test_args &args) : test(args) {}
 
     void
-    populate(test_harness::database &, test_harness::timestamp_manager *,
-      test_harness::configuration *, test_harness::workload_tracking *) override final
+    populate(test_harness::database &database, test_harness::timestamp_manager *,
+      test_harness::configuration *config, test_harness::workload_tracking *) override final
     {
-        std::cout << "populate: nothing done." << std::endl;
+        /*
+         * The populate phase only creates empty collections. The number of collections is defined
+         * in the configuration.
+         */
+        int64_t collection_count = config->get_int(COLLECTION_COUNT);
+
+        logger::log_msg(
+          LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
+
+        for (int64_t i = 0; i < collection_count; ++i)
+            database.add_collection();
+
+        logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
     void
