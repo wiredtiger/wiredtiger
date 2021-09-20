@@ -59,7 +59,7 @@ class search_near_01 : public test_harness::test {
 
         /*
          * Generate a table of data with prefix keys aaa -> zzz. We have 26 threads from ids
-         * starting from 0 to 26. Each populate thread will insert seperate prefix keys based on the
+         * starting from 0 to 26. Each populate thread will insert separate prefix keys based on the
          * id.
          */
         for (int64_t i = 0; i < collections_per_thread; ++i) {
@@ -109,8 +109,6 @@ class search_near_01 : public test_harness::test {
         key_count = keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
         key_size = config->get_int(KEY_SIZE);
         testutil_assert(key_size >= PREFIX_KEY_LEN);
-        /* Keys must be unique. */
-        testutil_assert(key_count <= pow(10, key_size));
 
         logger::log_msg(LOG_INFO,
           "Populate configuration with key size: " + std::to_string(key_size) +
@@ -125,10 +123,7 @@ class search_near_01 : public test_harness::test {
              */
             database.add_collection();
 
-        /*
-         * Spawn thread_count threads to populate the database, theoretically we should be IO bound
-         * here.
-         */
+        /* Spawn 26 threads to populate the database. */
         for (uint64_t i = 0; i < ALPHABET.size(); ++i) {
             thread_context *tc = new thread_context(i, thread_type::INSERT, config,
               connection_manager::instance().create_session(), tsm, tracking, database);
