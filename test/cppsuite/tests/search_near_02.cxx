@@ -220,5 +220,46 @@ class search_near_02 : public test_harness::test {
     search_near(
       scoped_cursor &cursor_default, scoped_cursor &cursor_prefix, const std::string &prefix)
     {
+        /* Call search near with both cursors using the given prefix. */
+        cursor_default->set_key(cursor_default.get(), prefix.c_str());
+        cursor_prefix->set_key(cursor_prefix.get(), prefix.c_str());
+
+        int exact_default, exact_prefix;
+        int ret_default = cursor_default->search_near(cursor_default.get(), &exact_default);
+        int ret_prefix = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
+
+        /*
+         * It is not possible to have a prefix search near call successful and the default
+         * search near call unsuccessful.
+         */
+        testutil_assert(
+          ret_default == ret_prefix || (ret_default == 0 && ret_prefix == WT_NOTFOUND));
+
+        /*
+         * We only have to perform validation when the default search near call is
+         * successful.
+         */
+        if (ret_default == 0) {
+            /* Both calls are successful. */
+            if (ret_prefix == 0)
+                validate_successful_calls(
+                  cursor_default, cursor_prefix, prefix, exact_default, exact_prefix);
+            /* The prefix search near call failed.*/
+            else
+                validate_unsuccessful_prefix_call(
+                  cursor_default, cursor_prefix, prefix, exact_default, exact_prefix);
+        }
+    }
+
+    void
+    validate_successful_calls(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
+      const std::string &prefix, int exact_default, int exact_prefix)
+    {
+    }
+
+    void
+    validate_unsuccessful_prefix_call(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
+      const std::string &prefix, int exact_default, int exact_prefix)
+    {
     }
 };
