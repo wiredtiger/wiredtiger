@@ -214,8 +214,8 @@ test_config = [
 ]
 
 methods = {
-    'example_test' : Method(test_config),
-    'burst_inserts' : Method(test_config),
-    'hs_cleanup' : Method(test_config),
     'base_test' : Method(test_config),
+    'burst_inserts' : Method(test_config),
+    'example_test' : Method(test_config),
+    'hs_cleanup' : Method(test_config),
 }

@@ -982,20 +982,6 @@ tasks:
 
             ${test_env_vars|} $(pwd)/run -t base_test -f configs/base_test_stress.txt -l 2
 
-  - name: cppsuite-burst-inserts-stress
-    depends_on:
-      - name: compile
-    commands:
-      - func: "fetch artifacts"
-      - command: shell.exec
-        params:
-          working_dir: "wiredtiger/build_posix/test/cppsuite"
-          script: |
-            set -o errexit
-            set -o verbose
-
-            ${test_env_vars|} $(pwd)/run -t burst_inserts -f configs/burst_inserts_stress.txt -l 2
-
   - name: cppsuite-hs-cleanup-stress
     depends_on:
       - name: compile
@@ -2951,7 +2937,6 @@ buildvariants:
     - name: compile
     - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-base-test-stress
-    - name: cppsuite-burst-inserts-stress
 
 - name: package
   display_name: "~ Package"
