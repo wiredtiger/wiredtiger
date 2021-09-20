@@ -40,44 +40,6 @@ class burst_inserts : public test {
     public:
     burst_inserts(const test_args &args) : test(args) {}
 
-
-    void
-    read_operation(thread_context *tc) override final
-    {
-        logger::log_msg(
-            LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-        uint64_t collection_count = tc->db.get_collection_count();
-        uint64_t coll_num = 10;
-        while (tc->running()) {
-            /* Collection cursor vector. */
-            std::vector<scoped_cursor> cursors;
-            /*
-            * Algo:1 open 10 cursors for 10 collections. Read random documents for each of them for a
-            * period then close the cursors.
-            */
-            for (uint64_t i = 0; i < coll_num; ++i) {
-                auto& coll = tc->db.get_random_collection();
-                cursors.push_back(std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true")));
-            }
-            uint64_t counter = 0;
-            tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(tc->tsm->get_stable_ts()));
-            while (tc->transaction.active() && tc->running()) {
-                if (tc->next(cursors[counter]) != 0)
-                    continue;
-                tc->transaction.try_commit();
-                counter++;
-                if (counter == cursors.size())
-                    counter = 0;
-                std::this_thread::sleep_for(std::chrono::milliseconds(random_generator::instance().generate_integer<uint64_t>(5,15)));
-            }
-            tc->sleep();
-        }
-        /* Make sure the last transaction is rolled back now the work is finished. */
-        if (tc->transaction.active())
-            tc->transaction.rollback();
-    }
-
-
     /*
      * Insert operation that inserts continuously for insert_duration with no throttling.
      * It then sleeps for op_rate.
@@ -125,29 +87,44 @@ class burst_inserts : public test {
                 cc.write_cursor->search(cc.write_cursor.get());
 
 
+                /* A return value of true implies the insert was successful. */
                 if (!tc->insert(cc.write_cursor, cc.coll.id, start_key + added_count)) {
-                    added_count = 0;
-                    continue;
-                }
-                if (tc->next(cc.read_cursor) != 0) {
+                    tc->transaction.rollback();
                     added_count = 0;
                     continue;
                 }
                 added_count++;
 
-                tc->transaction.try_commit();
+                /* Walk our random reader intended to generate cache pressure. */
+                int ret = 0;
+                if ((ret = cc.read_cursor->next(cc.read_cursor.get())) != 0) {
+                    if (ret == WT_NOTFOUND) {
+                        cc.read_cursor->reset(cc.read_cursor.get());
+                    } else if (ret == WT_ROLLBACK) {
+                        tc->transaction.rollback();
+                        added_count = 0;
+                        continue;
+                    } else {
+                        testutil_die(ret, "Unhandled error in cursor->next()");
+                    }
+                }
 
-                if (!tc->transaction.active()) {
-                    cc.coll.increase_key_count(added_count);
-                    start_key = cc.coll.get_key_count();
+                if (tc->transaction.can_commit()) {
+                    if (tc->transaction.commit()) {
+                        cc.coll.increase_key_count(added_count);
+                        start_key = cc.coll.get_key_count();
+                    }
                     added_count = 0;
                 }
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
+            /* Close out our current txn. */
             if (tc->transaction.active()) {
-                tc->transaction.commit();
-                cc.coll.increase_key_count(added_count);
-                start_key = cc.coll.get_key_count();
+                if (tc->transaction.commit()) {
+                    logger::log_msg(LOG_INFO, "Committed an insertion of " + std::to_string(added_count) + " keys.");
+                    cc.coll.increase_key_count(added_count);
+                    start_key = cc.coll.get_key_count();
+                }
                 added_count = 0;
             }
 

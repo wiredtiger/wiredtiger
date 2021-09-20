@@ -62,6 +62,8 @@ class timestamp_manager : public component {
 
     wt_timestamp_t get_oldest_ts() const;
 
+    wt_timestamp_t get_stable_ts() const;
+
     private:
     /* Get the current time in seconds, bit shifted to the expected location. */
     uint64_t get_time_now_s() const;

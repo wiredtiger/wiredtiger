@@ -32,7 +32,7 @@ workload_generator=
     (
         key_size=200,
         op_rate=10s,
-        ops_per_transaction=(max=3000,min=1500),
+        ops_per_transaction=(max=2000,min=1000),
         thread_count=40,
         value_size=20000
     )
