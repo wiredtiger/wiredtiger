@@ -4,7 +4,6 @@ cache_size_mb=2000,
 compression_enabled=false,
 checkpoint_manager=
 (
-    enabled=true,
     op_rate=60s
 ),
 runtime_monitor=
@@ -13,9 +12,7 @@ runtime_monitor=
 ),
 timestamp_manager=
 (
-    enabled=true,
     oldest_lag=10,
-    op_rate=1s,
     stable_lag=10
 ),
 workload_generator=
