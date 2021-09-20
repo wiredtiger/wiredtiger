@@ -255,6 +255,65 @@ class search_near_02 : public test_harness::test {
     validate_successful_calls(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
       const std::string &prefix, int exact_default, int exact_prefix)
     {
+        /*
+         * The prefix search near call cannot retrieve a key with a smaller value
+         * than the prefix we searched.
+         */
+        testutil_assert(exact_prefix == 0 || exact_prefix == 1);
+
+        /* Retrieve the keys each cursor is pointing at. */
+        const char *key_default;
+        testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
+        std::string key_default_str = key_default;
+
+        const char *key_prefix;
+        testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
+        std::string key_prefix_str = key_prefix;
+
+        logger::log_msg(LOG_TRACE,
+          "search_near (normal) exact " + std::to_string(exact_default) + " key " + key_default);
+        logger::log_msg(LOG_TRACE,
+          "search_near (prefix) exact " + std::to_string(exact_prefix) + " key " + key_prefix);
+
+        /* They key from the prefix search near needs to contain the prefix. */
+        testutil_assert(key_prefix_str.substr(0, prefix.size()) == prefix);
+
+        /*
+         * If the exact value from the default search near call is -1, the key found
+         * by the prefix search near has to be the next key.
+         */
+        if (exact_default == -1) {
+            testutil_check(cursor_default->next(cursor_default.get()));
+            const char *k;
+            testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+            testutil_assert(std::string(k) == key_prefix_str);
+        }
+        /*
+         * If the exact value from the default search near call is set to 0, we
+         * expect both search near calls to return the same output.
+         */
+        else if (exact_default == 0)
+            testutil_assert(exact_prefix == exact_default && key_default_str == key_prefix_str);
+        /*
+         * If the exact value from the default search near call is 1, the validation
+         * depends on the exact value set by the prefix search near.
+         */
+        else {
+            /* Both search near calls should have returned the same key. */
+            if (exact_prefix == 1)
+                testutil_assert(key_default_str == key_prefix_str);
+            /*
+             * The exact value from the default search near is 1 and the exact value from the prefix
+             * enabled search near call is 0. This means the latter has found the exact same key. We
+             * only need to check the previous key using the default cursor.
+             */
+            else {
+                testutil_check(cursor_default->prev(cursor_default.get()));
+                const char *k;
+                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                testutil_assert(std::string(k) == key_prefix_str);
+            }
+        }
     }
 
     void
