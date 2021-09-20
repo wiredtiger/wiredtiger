@@ -107,7 +107,7 @@ component_config =  throttle_config
 transaction_config = [
     Config('ops_per_transaction', '', r'''
         Defines how many operations a transaction can perform, the range is defined with a minimum
-        and a maximum and a random number is chosen between the two using a linear distrubtion.''',
+        and a maximum and a random number is chosen between the two using a linear distribution.''',
         type='category',subconfig=range_config),
 ]
 

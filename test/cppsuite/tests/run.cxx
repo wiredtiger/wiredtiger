@@ -73,7 +73,7 @@ print_help()
     std::cout << "\trun -C [WIREDTIGER_OPEN_CONFIGURATION]" << std::endl;
     std::cout << "\trun -c [TEST_FRAMEWORK_CONFIGURATION]" << std::endl;
     std::cout << "\trun -f [FILE]" << std::endl;
-    std::cout << "\trun -l [TRACEL_LEVEL]" << std::endl;
+    std::cout << "\trun -l [TRACE_LEVEL]" << std::endl;
     std::cout << "\trun -t [TEST_NAME]" << std::endl;
     std::cout << std::endl;
     std::cout << "DESCRIPTION" << std::endl;
