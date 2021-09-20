@@ -56,6 +56,8 @@ populate_worker(thread_context *tc)
                 if (tc->transaction.commit()) {
                     ++j;
                 }
+            } else {
+                tc->transaction.rollback();
             }
         }
     }

@@ -86,6 +86,7 @@ static const WT_CONFIG_CHECK confchk_base_test[] = {
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_burst_inserts[] = {
+  {"burst_duration", "string", NULL, NULL, NULL, 0},
   {"cache_size_mb", "int", NULL, "min=0,max=100000000000", NULL, 0},
   {"checkpoint_manager", "category", NULL, NULL, confchk_checkpoint_manager_subconfigs, 2},
   {"compression_enabled", "boolean", NULL, NULL, NULL, 0},
@@ -144,7 +145,8 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_base_test, 10},
   {"burst_inserts",
-    "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
+    "burst_duration=90,cache_size_mb=0,"
+    "checkpoint_manager=(enabled=false,op_rate=1s),"
     "compression_enabled=false,duration_seconds=0,"
     "enable_logging=false,runtime_monitor=(enabled=true,op_rate=1s,"
     "postrun_statistics=[],stat_cache_size=(enabled=false,limit=0),"
@@ -160,7 +162,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
-    confchk_burst_inserts, 10},
+    confchk_burst_inserts, 11},
   {"example_test",
     "cache_size_mb=0,checkpoint_manager=(enabled=false,op_rate=1s),"
     "compression_enabled=false,duration_seconds=0,"

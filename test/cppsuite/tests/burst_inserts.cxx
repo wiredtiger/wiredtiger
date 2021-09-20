@@ -33,12 +33,16 @@
 using namespace test_harness;
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overriden and customized.
+ * This test inserts and reads a large quantity of data in bursts, this is intended to simulate a
+ * mongod instance loading a large amount of data over a long period of time.
  */
 class burst_inserts : public test {
     public:
-    burst_inserts(const test_args &args) : test(args) {}
+    burst_inserts(const test_args &args) : test(args)
+    {
+        _burst_duration = _config->get_int("burst_duration");
+        logger::log_msg(LOG_INFO, "Burst duration set to: " + std::to_string(_burst_duration));
+    }
 
     /*
      * Insert operation that inserts continuously for insert_duration with no throttling. It then
@@ -72,6 +76,10 @@ class burst_inserts : public test {
         for (int i = tc->id * collections_per_thread;
              i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(i);
+            /*
+             * Create a reading cursor that will read random documents for every next call. This
+             * will help generate cache pressure.
+             */
             ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name.c_str())),
               std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true"))});
         }
@@ -84,7 +92,8 @@ class burst_inserts : public test {
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
             while (tc->running() &&
-              std::chrono::system_clock::now() - burst_start < std::chrono::seconds(90)) {
+              std::chrono::system_clock::now() - burst_start <
+                std::chrono::seconds(_burst_duration)) {
                 tc->transaction.try_begin();
                 cc.write_cursor->set_key(
                   cc.write_cursor.get(), tc->key_to_string(start_key + added_count).c_str());
@@ -119,6 +128,8 @@ class burst_inserts : public test {
                     }
                     added_count = 0;
                 }
+
+                /* Sleep as currently this loop is too fast. */
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             /* Close out our current txn. */
@@ -144,4 +155,7 @@ class burst_inserts : public test {
         if (tc->transaction.active())
             tc->transaction.rollback();
     }
+
+    private:
+    int _burst_duration = 0;
 };
