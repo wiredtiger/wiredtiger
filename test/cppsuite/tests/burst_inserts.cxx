@@ -148,7 +148,7 @@ class burst_inserts : public test {
             counter++;
             if (counter == collections_per_thread)
                 counter = 0;
-
+            testutil_assert(counter < collections_per_thread);
             tc->sleep();
         }
         /* Make sure the last transaction is rolled back now the work is finished. */
