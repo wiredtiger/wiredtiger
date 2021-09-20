@@ -43,7 +43,7 @@ using namespace test_harness;
 class search_near_01 : public test_harness::test {
     uint64_t keys_per_prefix = 0;
     uint64_t srchkey_len = 0;
-    std::string alphabet{"abcdefghijklmnopqrstuvwxyz"};
+    const std::string alphabet{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t ALPHABET_SIZE = 26;
     const uint64_t PREFIX_KEY_LEN = 3;
     const uint64_t MAX_ROLLBACKS = 100;
