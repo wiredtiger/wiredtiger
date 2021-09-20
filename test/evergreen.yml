@@ -2419,25 +2419,9 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params}" WT_TEST.$t' 120
 
-            CMD='nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t'
-
-            NPROCS=$(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
-
-            outf=./outfile.txt
-            for i in $(seq 120); do
-              echo "$d: Iteration $i" >> $outf
-              echo "$d: Iteration $i"
-              for((t=0; t<$NPROCS; t++)); do
-                > nohup.out.$t ; eval nohup $CMD > nohup.out.$t 2>&1 &
-              done
-
-              for((t=0; t<$NPROCS; t++)); do
-                wait -n || exit $?
-              done
-            done
-
-  - name: data-validation-stress-test-checkpoint-fp-hs-insert-1
+  - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     depends_on:
     - name: compile
     commands:
@@ -2449,23 +2433,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-
-            CMD='nice ../../../test/checkpoint/recovery-test.sh "-t r -W 3 -s 5 -D -n 100000 -k 100000 -C cache_size=100MB" WT_TEST.$t'
-
-            NPROCS=$(echo "`grep -c ^processor /proc/cpuinfo` / 2" | bc)
-
-            outf=./outfile.txt
-            for i in $(seq 120); do
-              echo "$d: Iteration $i" >> $outf
-              echo "$d: Iteration $i"
-              for((t=0; t<$NPROCS; t++)); do
-                > nohup.out.$t ; eval nohup $CMD > nohup.out.$t 2>&1 &
-              done
-
-              for((t=0; t<$NPROCS; t++)); do
-                wait -n || exit $?
-              done
-            done
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 1" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     depends_on:
@@ -2899,7 +2867,7 @@ buildvariants:
     - name: static-wt-build-test
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
-    - name: data-validation-stress-test-checkpoint-fp-hs-insert-1
+    - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4

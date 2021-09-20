@@ -11,7 +11,6 @@ EOF
 if [ "$#" -ne 2 ]; then
     echo "Illegal number of parameters."
     usage
-    echo FAILED
     exit 1
 fi
 
