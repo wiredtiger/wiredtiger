@@ -182,7 +182,7 @@ class search_near_01 : public test_harness::test {
         prev_prefix_stat = 0;
 
         /*
-         * The numer of expected entries is calculated to account for the maximum allowed entries
+         * The number of expected entries is calculated to account for the maximum allowed entries
          * per search near function call. The key we search near can be different in length, which
          * will increase the number of entries search by a factor of 26.
          */
