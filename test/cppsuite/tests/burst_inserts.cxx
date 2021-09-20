@@ -41,19 +41,21 @@ class burst_inserts : public test {
     burst_inserts(const test_args &args) : test(args) {}
 
     /*
-     * Insert operation that inserts continuously for insert_duration with no throttling.
-     * It then sleeps for op_rate.
+     * Insert operation that inserts continuously for insert_duration with no throttling. It then
+     * sleeps for op_rate.
      */
     void
     insert_operation(thread_context *tc) override final
     {
         logger::log_msg(
-            LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
         struct collection_cursor {
-            collection_cursor(collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
-                : coll(coll), write_cursor(std::move(write_cursor)), read_cursor(std::move(read_cursor))
+            collection_cursor(
+              collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
+                : coll(coll), write_cursor(std::move(write_cursor)),
+                  read_cursor(std::move(read_cursor))
             {
             }
             collection &coll;
@@ -68,11 +70,11 @@ class burst_inserts : public test {
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
         for (int i = tc->id * collections_per_thread;
-            i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(i);
-            ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name.c_str())), std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true"))});
+            ccv.push_back({coll, std::move(tc->session.open_scoped_cursor(coll.name.c_str())),
+              std::move(tc->session.open_scoped_cursor(coll.name.c_str(), "next_random=true"))});
         }
-
 
         uint64_t counter = 0;
         while (tc->running()) {
@@ -81,11 +83,12 @@ class burst_inserts : public test {
             bool committed = true;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
-            while (tc->running() && std::chrono::system_clock::now() - burst_start < std::chrono::seconds(90)) {
+            while (tc->running() &&
+              std::chrono::system_clock::now() - burst_start < std::chrono::seconds(90)) {
                 tc->transaction.try_begin();
-                cc.write_cursor->set_key(cc.write_cursor.get(), tc->key_to_string(start_key + added_count).c_str());
+                cc.write_cursor->set_key(
+                  cc.write_cursor.get(), tc->key_to_string(start_key + added_count).c_str());
                 cc.write_cursor->search(cc.write_cursor.get());
-
 
                 /* A return value of true implies the insert was successful. */
                 if (!tc->insert(cc.write_cursor, cc.coll.id, start_key + added_count)) {
@@ -121,7 +124,8 @@ class burst_inserts : public test {
             /* Close out our current txn. */
             if (tc->transaction.active()) {
                 if (tc->transaction.commit()) {
-                    logger::log_msg(LOG_INFO, "Committed an insertion of " + std::to_string(added_count) + " keys.");
+                    logger::log_msg(LOG_INFO,
+                      "Committed an insertion of " + std::to_string(added_count) + " keys.");
                     cc.coll.increase_key_count(added_count);
                     start_key = cc.coll.get_key_count();
                 }

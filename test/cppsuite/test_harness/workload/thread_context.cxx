@@ -83,8 +83,8 @@ transaction_context::try_begin(const std::string &config)
 }
 
 /*
- * It's possible to receive rollback in commit, when this happens the API
- * will rollback the transaction internally.
+ * It's possible to receive rollback in commit, when this happens the API will rollback the
+ * transaction internally.
  */
 bool
 transaction_context::commit(const std::string &config)
