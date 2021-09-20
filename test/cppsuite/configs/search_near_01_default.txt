@@ -1,5 +1,6 @@
 # Configuration for search_near_01.
-# 1 minute duration, with 3 tables of 50 entries for each prefix from aaa -> zzz.
+# The test will generate key_count_per_collection number of keys for each prefix in aaa -> zzz.
+# This config will have 1 minute duration, with 3 tables of 50 entries for each prefix.
 duration_seconds=60,
 cache_size_mb=1000,
 timestamp_manager=
