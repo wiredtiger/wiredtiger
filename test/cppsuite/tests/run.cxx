@@ -34,10 +34,10 @@
 #include "test_harness/test.h"
 
 #include "base_test.cxx"
-#include "example_test.cxx"
-#include "search_near_02.cxx"
 #include "burst_inserts.cxx"
+#include "example_test.cxx"
 #include "hs_cleanup.cxx"
+#include "search_near_02.cxx"
 
 std::string
 parse_configuration_from_file(const std::string &filename)
