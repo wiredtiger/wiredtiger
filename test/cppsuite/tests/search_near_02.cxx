@@ -132,14 +132,93 @@ class search_near_02 : public test_harness::test {
     }
 
     void
-    read_operation(test_harness::thread_context *) override final
+    read_operation(test_harness::thread_context *tc) override final
     {
-        std::cout << "read_operation: nothing done." << std::endl;
+        /*
+         * Each read operation performs search_near calls with and without prefix enabled on random
+         * collections. Each prefix is randomly generated. The result of the seach_near call with
+         * prefix enabled is then validated using the search_near call without prefix enabled.
+         */
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+        std::map<uint64_t, scoped_cursor> cursors;
+        // TODO - Should this be a fixed value ? Should it be from the configuration ?
+        const uint64_t prefix_size = 3;
+        const char *key_prefix, *key_default;
+        int exact_prefix, exact_default;
+        int ret;
+
+        while (tc->running()) {
+            /* Get a random collection to work on. */
+            collection &coll = tc->db.get_random_collection();
+
+            /* Find a cached cursor or create one if none exists. */
+            if (cursors.find(coll.id) == cursors.end()) {
+                cursors.emplace(
+                  coll.id, std::move(tc->session.open_scoped_cursor(coll.name.c_str())));
+                auto &cursor_prefix = cursors[coll.id];
+                /* The cached cursors have the prefix configuration enabled. */
+                testutil_check(
+                  cursor_prefix.get()->reconfigure(cursor_prefix.get(), "prefix_key=true"));
+            }
+
+            auto &cursor_prefix = cursors[coll.id];
+
+            /*
+             * Select a random timestamp between the oldest and now and start the transaction at
+             * that time.
+             */
+            wt_timestamp_t ts = random_generator::instance().generate_integer(
+              tc->tsm->get_oldest_ts(), tc->tsm->get_next_ts());
+            tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+
+            /*
+             * The oldest timestamp might move ahead and the reading timestamp might become invalid.
+             * If this happens, we can exit the current loop.
+             */
+            while (tc->transaction.active() && tc->running() && ts >= tc->tsm->get_oldest_ts()) {
+
+                /*
+                 * Generate a random prefix. For this, we start by generating a random size and then
+                 * its value.
+                 */
+                const uint64_t prefix_size_tmp =
+                  random_generator::instance().generate_integer(1UL, prefix_size);
+                const std::string prefix = random_generator::instance().generate_random_string(
+                  prefix_size_tmp, characters_type::ALPHABET);
+
+                /* Open a cursor with the default configuration on the selected collection. */
+                scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name.c_str()));
+
+                /* Call the search_near api using the two cursors. */
+                search_near(cursor_default, cursor_prefix, prefix);
+
+                tc->transaction.add_op();
+                tc->transaction.try_rollback();
+                tc->sleep();
+            }
+            testutil_check(cursor_prefix->reset(cursor_prefix.get()));
+        }
+        /* Roll back the last transaction if still active now the work is finished. */
+        if (tc->transaction.active())
+            tc->transaction.rollback();
     }
 
     void
     update_operation(test_harness::thread_context *) override final
     {
         std::cout << "update_operation: nothing done." << std::endl;
+    }
+
+    private:
+    /*
+     * Perform search_near calls using a cursor with prefix key enabled and a cursor
+     * without it. Validate the output of the former with the latter.
+     */
+    void
+    search_near(
+      scoped_cursor &cursor_default, scoped_cursor &cursor_prefix, const std::string &prefix)
+    {
     }
 };

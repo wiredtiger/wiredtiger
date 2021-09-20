@@ -12,4 +12,8 @@ workload_generator=
     (
         thread_count=1,
     ),
+    read_config=
+    (
+        thread_count=1
+    ),
 )
