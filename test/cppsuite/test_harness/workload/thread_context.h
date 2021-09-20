@@ -136,7 +136,7 @@ class thread_context {
     /*
      * Generic update function, takes a collection_id and key, will generate the value.
      *
-     * Returns true if the operation was successful, a return value of false implies the transaction
+     * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
     bool update(scoped_cursor &cursor, uint64_t collection_id, const std::string &key);
@@ -145,7 +145,7 @@ class thread_context {
      * Generic insert function, takes a collection_id and key_id, will generate the value. If a
      * timestamp is not specified, the timestamp manager will generate one.
      *
-     * Returns true if the operation was successful, a return value of false implies the transaction
+     * Return true if the operation was successful, a return value of false implies the transaction
      * needs to be rolled back.
      */
     bool insert(

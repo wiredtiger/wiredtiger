@@ -89,18 +89,16 @@ transaction_context::try_begin(const std::string &config)
 bool
 transaction_context::commit(const std::string &config)
 {
-    bool success = true;
     WT_DECL_RET;
     testutil_assert(_in_txn && !_needs_rollback);
     if ((ret = _session->commit_transaction(_session, config.empty() ? nullptr : config.c_str())) !=
       0) {
-        success = false;
         logger::log_msg(LOG_WARN,
           "Failed to commit transaction in commit, received error code: " + std::to_string(ret));
     }
     _op_count = 0;
     _in_txn = false;
-    return (success);
+    return (ret == 0);
 }
 
 void

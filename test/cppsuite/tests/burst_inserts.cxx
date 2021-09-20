@@ -124,7 +124,7 @@ class burst_inserts : public test {
             /* Close out our current txn. */
             if (tc->transaction.active()) {
                 if (tc->transaction.commit()) {
-                    logger::log_msg(LOG_INFO,
+                    logger::log_msg(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(added_count) + " keys.");
                     cc.coll.increase_key_count(added_count);
                     start_key = cc.coll.get_key_count();
