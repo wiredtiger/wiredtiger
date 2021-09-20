@@ -73,8 +73,9 @@ class burst_inserts : public test {
         uint64_t collections_per_thread = collection_count / tc->thread_count;
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
-        for (int i = tc->id * collections_per_thread;
-             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+        int thread_offset = tc->id * collections_per_thread;
+        for (int i = thread_offset; i < thread_offset + collections_per_thread && tc->running();
+             ++i) {
             collection &coll = tc->db.get_collection(i);
             /*
              * Create a reading cursor that will read random documents for every next call. This
