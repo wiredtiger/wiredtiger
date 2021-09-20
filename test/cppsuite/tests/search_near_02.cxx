@@ -28,6 +28,7 @@
 
 #include "test_harness/test.h"
 #include "test_harness/util/api_const.h"
+#include "test_harness/workload/random_generator.h"
 
 using namespace test_harness;
 
@@ -62,9 +63,72 @@ class search_near_02 : public test_harness::test {
     }
 
     void
-    insert_operation(test_harness::thread_context *) override final
+    insert_operation(test_harness::thread_context *tc) override final
     {
-        std::cout << "insert_operation: nothing done." << std::endl;
+        /* Each insert operation will insert new keys in the collections. */
+        logger::log_msg(
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+
+        /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
+        struct collection_cursor {
+            collection_cursor(collection &coll, scoped_cursor &&cursor)
+                : coll(coll), cursor(std::move(cursor))
+            {
+            }
+            collection &coll;
+            scoped_cursor cursor;
+        };
+
+        /* Collection cursor vector. */
+        std::vector<collection_cursor> ccv;
+        uint64_t collection_count = tc->db.get_collection_count();
+        uint64_t collections_per_thread = collection_count / tc->thread_count;
+
+        /* Must have unique collections for each thread. */
+        testutil_assert(collection_count % tc->thread_count == 0);
+        for (int i = tc->id * collections_per_thread;
+             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+            collection &coll = tc->db.get_collection(i);
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+            ccv.push_back({coll, std::move(cursor)});
+        }
+
+        std::string key;
+        uint64_t counter = 0;
+
+        while (tc->running()) {
+
+            auto &cc = ccv[counter];
+            tc->transaction.begin();
+
+            while (tc->transaction.active() && tc->running()) {
+
+                /* Generate a random key. */
+                key = random_generator::instance().generate_random_string(tc->key_size);
+
+                /* Insert a key value pair. */
+                bool rollback_required = tc->insert(cc.cursor, cc.coll.id, key);
+                if (!rollback_required) {
+                    if (tc->transaction.can_commit())
+                        rollback_required = tc->transaction.commit();
+                }
+
+                if (rollback_required)
+                    tc->transaction.rollback();
+
+                /* Sleep the duration defined by the configuration. */
+                tc->sleep();
+            }
+
+            /* Rollback any transaction that could not commit before the end of the test. */
+            if (tc->transaction.active())
+                tc->transaction.rollback();
+
+            /* Reset our cursor to avoid pinning content. */
+            testutil_check(cc.cursor->reset(cc.cursor.get()));
+            if (++counter >= collections_per_thread)
+                counter = 0;
+        }
     }
 
     void

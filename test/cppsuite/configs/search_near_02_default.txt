@@ -8,4 +8,8 @@ workload_generator=
     (
         collection_count=1,
     ),
+    insert_config=
+    (
+        thread_count=1,
+    ),
 )
