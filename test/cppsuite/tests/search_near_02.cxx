@@ -29,8 +29,11 @@
 #include "test_harness/test.h"
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overriden and customized.
+ * In this test, we want to verify search_near with prefix enabled returns the correct key.
+ * During the test duration:
+ *  - N threads will keep inserting new random keys
+ *  - M threads will execute search_near calls with prefix enabled using random prefixes as well.
+ * Each search_near call with prefix enabled is verified using the default search_near.
  */
 class search_near_02 : public test_harness::test {
     public:
