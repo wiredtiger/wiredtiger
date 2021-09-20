@@ -2419,7 +2419,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params}" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args}" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     depends_on:
@@ -2433,7 +2433,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 1" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 1" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     depends_on:
@@ -2447,7 +2447,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 2" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 2" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     depends_on:
@@ -2461,7 +2461,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 3" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 3" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
     depends_on:
@@ -2475,7 +2475,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 4" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 4" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     depends_on:
@@ -2489,7 +2489,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 5" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 5" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
     depends_on:
@@ -2503,7 +2503,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 6" WT_TEST.$t' 120
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 6" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     depends_on:
@@ -2517,8 +2517,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data-validation-stress-test-checkpoint-fp-hs-insert-common-params} -s 7" WT_TEST.$t' 120
-
+            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 7" WT_TEST.$t' 120
 
   - name: format-failure-configs-test
     depends_on:
@@ -2846,7 +2845,7 @@ buildvariants:
     posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
-    data-validation-stress-test-checkpoint-fp-hs-insert-common-params: -t r -W 3 -D -n 100000 -k 100000 -C cache_size=100MB
+    data_validation_stress_test_args: -t r -m -W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers"
     - name: linux-directio
