@@ -215,14 +215,18 @@ class search_near_01 : public test_harness::test {
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
-                runtime_monitor::get_stat(stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-                runtime_monitor::get_stat(stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
+                runtime_monitor::get_stat(
+                  stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
+                runtime_monitor::get_stat(stat_cursor,
+                  WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
-                runtime_monitor::get_stat(stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
-                runtime_monitor::get_stat(stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
+                runtime_monitor::get_stat(
+                  stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
+                runtime_monitor::get_stat(
+                  stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
                     "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
