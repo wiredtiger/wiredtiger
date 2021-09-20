@@ -36,6 +36,7 @@
 #include "base_test.cxx"
 #include "example_test.cxx"
 #include "search_near_02.cxx"
+#include "burst_inserts.cxx"
 #include "hs_cleanup.cxx"
 
 std::string
@@ -117,6 +118,8 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         search_near_02(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "burst_inserts")
+        burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;
@@ -140,7 +143,7 @@ main(int argc, char *argv[])
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
     const std::vector<std::string> all_tests = {
-      "search_near_02", "example_test", "hs_cleanup", "base_test"};
+      "search_near_02", "example_test", "burst_inserts", "hs_cleanup", "base_test"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
