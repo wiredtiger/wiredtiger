@@ -180,7 +180,7 @@ class search_near_01 : public test_harness::test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;
-        scoped_cursor stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
+        tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         std::string srch_key;
         int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries;
         int cmpp;
@@ -216,17 +216,17 @@ class search_near_01 : public test_harness::test {
             auto &cursor = cursors[coll.id];
             if (tc->transaction.active()) {
                 runtime_monitor::get_stat(
-                  stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
-                runtime_monitor::get_stat(stat_cursor,
+                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
+                runtime_monitor::get_stat(tc->stat_cursor,
                   WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
 
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
                 runtime_monitor::get_stat(
-                  stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
+                  tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
                 runtime_monitor::get_stat(
-                  stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
+                  tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
                     "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
