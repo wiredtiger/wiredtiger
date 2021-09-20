@@ -28,7 +28,7 @@
 
 project(csuite)
 
-include(${CMAKE_SOURCE_DIR}/build_cmake/helpers.cmake)
+include(${CMAKE_SOURCE_DIR}/cmake/helpers.cmake)
 
 set(c_tests)
 
@@ -80,6 +80,15 @@ define_c_test(
 )
 
 define_c_test(
+    TARGET test_tiered_abort
+    SOURCES tiered_abort/main.c
+    DIR_NAME tiered_abort
+    SMOKE
+    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
     TARGET test_timestamp_abort
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
@@ -92,6 +101,7 @@ define_c_test(
     TARGET test_truncated_log
     SOURCES truncated_log/main.c
     DIR_NAME truncated_log
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -109,12 +119,11 @@ define_c_test(
     DEPENDS "WT_POSIX"
 )
 
-# Temporarily disabled (WT-5790).
-#define_c_test(
-#    TARGET test_wt2246_col_append
-#    SOURCES wt2246_col_append/main.c
-#    DIR_NAME wt2246_col_append
-#)
+define_c_test(
+    TARGET test_wt2246_col_append
+    SOURCES wt2246_col_append/main.c
+    DIR_NAME wt2246_col_append
+)
 
 define_c_test(
     TARGET test_wt2323_join_visibility
@@ -127,6 +136,7 @@ define_c_test(
     TARGET test_wt2535_insert_race
     SOURCES wt2535_insert_race/main.c
     DIR_NAME wt2535_insert_race
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -134,6 +144,7 @@ define_c_test(
     TARGET test_wt2447_join_main_table
     SOURCES wt2447_join_main_table/main.c
     DIR_NAME wt2447_join_main_table
+    SMOKE
 )
 
 define_c_test(
@@ -158,6 +169,7 @@ define_c_test(
     TARGET test_wt2853_perf
     SOURCES wt2853_perf/main.c
     DIR_NAME wt2853_perf
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -170,6 +182,7 @@ define_c_test(
     # produces in build_posix.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
     ARGUMENTS -b ${CMAKE_BINARY_DIR}
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -227,6 +240,7 @@ define_c_test(
     TARGET test_wt4105_large_doc_small_upd
     SOURCES wt4105_large_doc_small_upd/main.c
     DIR_NAME wt4105_large_doc_small_upd
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -273,6 +287,7 @@ define_c_test(
     TARGET test_wt6185_modify_ts
     SOURCES wt6185_modify_ts/main.c
     DIR_NAME wt6185_modify_ts
+    SMOKE
     DEPENDS "WT_POSIX"
 )
 
@@ -280,6 +295,21 @@ define_c_test(
     TARGET test_wt6616_checkpoint_oldest_ts
     SOURCES wt6616_checkpoint_oldest_ts/main.c
     DIR_NAME wt6616_checkpoint_oldest_ts
+    SMOKE
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt7989_compact_checkpoint
+    SOURCES wt7989_compact_checkpoint/main.c
+    DIR_NAME wt7989_compact_checkpoint
+    DEPENDS "WT_POSIX"
+)
+
+define_c_test(
+    TARGET test_wt8057_compact_stress
+    SOURCES wt8057_compact_stress/main.c
+    DIR_NAME wt8057_compact_stress
     DEPENDS "WT_POSIX"
 )
 

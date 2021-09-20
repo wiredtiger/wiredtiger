@@ -139,6 +139,48 @@ __wt_txn_release_snapshot(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __wt_txn_user_active --
+ *     Check whether there are any running user transactions. Note that a new transaction may start
+ *     after we return from this call and therefore caller should be aware of this limitation.
+ */
+bool
+__wt_txn_user_active(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_SESSION_IMPL *session_in_list;
+    WT_TXN_GLOBAL *txn_global;
+    WT_TXN_SHARED *txn_shared;
+    uint32_t i, session_cnt;
+    bool txn_active;
+
+    conn = S2C(session);
+    txn_active = false;
+    txn_global = &conn->txn_global;
+
+    /* We're going to scan the table: wait for the lock. */
+    __wt_writelock(session, &txn_global->rwlock);
+
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    WT_STAT_CONN_INCR(session, txn_walk_sessions);
+    for (i = 0, session_in_list = conn->sessions, txn_shared = txn_global->txn_shared_list;
+         i < session_cnt; i++, session_in_list++, txn_shared++) {
+
+        /* Skip inactive or internal sessions. */
+        if (!session_in_list->active || F_ISSET(session_in_list, WT_SESSION_INTERNAL))
+            continue;
+
+        /* Check if a user session has a running transaction. */
+        if (txn_shared->id != WT_TXN_NONE || txn_shared->pinned_id != WT_TXN_NONE) {
+            txn_active = true;
+            break;
+        }
+    }
+
+    __wt_writeunlock(session, &txn_global->rwlock);
+    return (txn_active);
+}
+
+/*
  * __wt_txn_active --
  *     Check if a transaction is still active. If not, it is either committed, prepared, or rolled
  *     back. It is possible that we race with commit, prepare or rollback and a transaction is still
@@ -825,6 +867,7 @@ __txn_locate_hs_record(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, WT_PAGE *
     WT_PUBLISH(chain->next, upd);
     *upd_appended = true;
 
+    *fix_updp = upd;
     __wt_cache_page_inmem_incr(session, page, total_size);
 
     if (0) {
@@ -951,6 +994,7 @@ __txn_fixup_prepared_update(
     WT_ITEM hs_value;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
+    WT_TXN_GLOBAL *txn_global;
     uint32_t txn_flags;
 #ifdef HAVE_DIAGNOSTIC
     uint64_t hs_upd_type;
@@ -958,17 +1002,24 @@ __txn_fixup_prepared_update(
 #endif
 
     txn = session->txn;
+    txn_global = &S2C(session)->txn_global;
     WT_TIME_WINDOW_INIT(&tw);
 
     /*
      * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
      * after an error or a prepared transaction.
      */
-    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
     F_CLR(txn, txn_flags);
 
-    /* The value older than the prepared update in the history store must be a full value. */
-    WT_ASSERT(session, fix_upd->type == WT_UPDATE_STANDARD);
+    /*
+     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before
+     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a
+     * function in the eviction flow may attempt to forcibly rollback the transaction if it is not
+     * marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so that
+     * cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
+     */
+    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     /*
      * If the history update already has a stop time point and we are committing the prepared update
@@ -997,11 +1048,52 @@ __txn_fixup_prepared_update(
         hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
           (uint64_t)WT_UPDATE_STANDARD, &hs_value);
         WT_ERR(hs_cursor->update(hs_cursor));
-    } else
-        WT_ERR(hs_cursor->remove(hs_cursor));
+    } else {
+        /*
+         * Remove the history store entry if a checkpoint is not running, otherwise place a
+         * tombstone in front of the history store entry if it doesn't have a stop timestamp.
+         */
+        if (txn_global->checkpoint_running) {
+            /* Don't update the history store entry if the entry already has a stop timestamp. */
+            if (fix_upd->type != WT_UPDATE_TOMBSTONE) {
+                /*
+                 * When the history store's update start transaction id is greater than the
+                 * checkpoint's reserved transaction id, the durable timestamp of this update is
+                 * guaranteed to be greater than the checkpoint timestamp, as such there is no need
+                 * to save this unstable update in the history store.
+                 */
+                if (fix_upd->txnid > txn_global->checkpoint_reserved_txn_id)
+                    WT_ERR(hs_cursor->remove(hs_cursor));
+                else {
+                    tw.durable_stop_ts = fix_upd->durable_ts;
+                    tw.stop_ts = fix_upd->start_ts;
+
+                    /*
+                     * Set the stop transaction id of the time window to the checkpoint reserved
+                     * transaction id. As such the tombstone won't be visible to rollback to stable,
+                     * additionally checkpoint garbage collection cannot clean it up as it greater
+                     * than the globally visible transaction id.
+                     */
+                    tw.stop_txn = txn_global->checkpoint_reserved_txn_id;
+                    WT_TIME_WINDOW_SET_START(&tw, fix_upd);
+
+                    hs_value.data = fix_upd->data;
+                    hs_value.size = fix_upd->size;
+                    hs_cursor->set_value(hs_cursor, &tw, tw.durable_stop_ts, tw.durable_start_ts,
+                      (uint64_t)WT_UPDATE_STANDARD, &hs_value);
+                    WT_ERR(hs_cursor->update(hs_cursor));
+                    WT_STAT_CONN_INCR(
+                      session, txn_prepare_rollback_fix_hs_update_with_ckpt_reserved_txnid);
+                }
+            } else
+                WT_STAT_CONN_INCR(session, txn_prepare_rollback_do_not_remove_hs_update);
+        } else
+            WT_ERR(hs_cursor->remove(hs_cursor));
+    }
 
 err:
     F_SET(txn, txn_flags);
+    F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     return (ret);
 }
@@ -1034,10 +1126,18 @@ __txn_search_prepared_op(
     }
 
     /*
-     * Transaction error and prepare are cleared temporarily as cursor functions are not allowed
-     * after an error or a prepared transaction.
+     * Transaction error is cleared temporarily as cursor functions are not allowed after an error.
      */
-    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR | WT_TXN_PREPARE);
+    txn_flags = FLD_MASK(txn->flags, WT_TXN_ERROR);
+
+    /*
+     * The API layer will immediately return an error if the WT_TXN_PREPARE flag is set before
+     * attempting cursor operations. However, we can't clear the WT_TXN_PREPARE flag because a
+     * function in the eviction flow may attempt to forcibly rollback the transaction if it is not
+     * marked as a prepared transaction. The flag WT_TXN_PREPARE_IGNORE_API_CHECK is set so that
+     * cursor operations can proceed without having to clear the WT_TXN_PREPARE flag.
+     */
+    F_SET(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
 
     switch (op->type) {
     case WT_TXN_OP_BASIC_COL:
@@ -1061,6 +1161,7 @@ __txn_search_prepared_op(
     F_CLR(txn, txn_flags);
     WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
     F_SET(txn, txn_flags);
+    F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
     WT_RET_ASSERT(session, *updp != NULL, WT_NOTFOUND,
       "unable to locate update associated with a prepared operation");
@@ -1127,7 +1228,9 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     if (upd == NULL || upd->prepare_state != WT_PREPARE_INPROGRESS)
         goto prepare_verify;
 
-    WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
+    /* A prepared operation that is rolled back will not have a timestamp worth asserting on. */
+    if (commit)
+        WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
 
     for (first_committed_upd = upd; first_committed_upd != NULL &&
          (first_committed_upd->txnid == WT_TXN_ABORTED ||
@@ -1147,13 +1250,13 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * updates first, the history search logic may race with other sessions modifying the same key
      * and checkpoint moving the new updates to the history store.
      *
-     * For prepared delete commit, we don't need to fix the history store. Whereas for rollback, if
-     * the update is also from the same prepared transaction, restore the update from history store
-     * or remove the key.
+     * Fix the history store entry for the updates other than tombstone type or the tombstone
+     * followed by the update is also from the same prepared transaction by either restoring the
+     * previous update from history store or removing the key.
      */
     prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
-        (!commit && upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
+        (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
     first_committed_upd_in_hs =
       first_committed_upd != NULL && F_ISSET(first_committed_upd, WT_UPDATE_HS);

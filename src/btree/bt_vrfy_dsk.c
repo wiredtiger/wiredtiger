@@ -20,22 +20,27 @@ static int __verify_dsk_row_int(WT_SESSION_IMPL *, const char *, const WT_PAGE_H
 static int __verify_dsk_row_leaf(
   WT_SESSION_IMPL *, const char *, const WT_PAGE_HEADER *, WT_ADDR *);
 
-#define WT_ERR_VRFY(session, ...)                               \
-    do {                                                        \
-        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) \
-            __wt_errx(session, __VA_ARGS__);                    \
-        goto err;                                               \
+#define WT_ERR_VRFY(session, ...)                                          \
+    do {                                                                   \
+        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
+            __wt_errx(session, __VA_ARGS__);                               \
+            /* Easy way to set a breakpoint when tracking corruption */    \
+            WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
+        }                                                                  \
+        goto err;                                                          \
     } while (0)
 
-#define WT_RET_VRFY_RETVAL(session, ret, ...)                     \
-    do {                                                          \
-        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) { \
-            if ((ret) == 0)                                       \
-                __wt_errx(session, __VA_ARGS__);                  \
-            else                                                  \
-                __wt_err(session, ret, __VA_ARGS__);              \
-        }                                                         \
-        return ((ret) == 0 ? WT_ERROR : ret);                     \
+#define WT_RET_VRFY_RETVAL(session, ret, ...)                              \
+    do {                                                                   \
+        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
+            if ((ret) == 0)                                                \
+                __wt_errx(session, __VA_ARGS__);                           \
+            else                                                           \
+                __wt_err(session, ret, __VA_ARGS__);                       \
+            /* Easy way to set a breakpoint when tracking corruption */    \
+            WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
+        }                                                                  \
+        return ((ret) == 0 ? WT_ERROR : ret);                              \
     } while (0)
 
 #define WT_RET_VRFY(session, ...) WT_RET_VRFY_RETVAL(session, 0, __VA_ARGS__)
@@ -249,8 +254,9 @@ __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t l
     ret = WT_ERROR;
     WT_ERR_VRFY(session,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
-      last_cell_num, cell_num, tag, __wt_buf_set_printable(session, last->data, last->size, tmp1),
-      __wt_buf_set_printable(session, current->data, current->size, tmp2));
+      last_cell_num, cell_num, tag,
+      __wt_buf_set_printable(session, last->data, last->size, false, tmp1),
+      __wt_buf_set_printable(session, current->data, current->size, false, tmp2));
 
 err:
     __wt_scr_free(session, &tmp1);

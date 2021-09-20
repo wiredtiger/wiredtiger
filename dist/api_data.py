@@ -218,6 +218,10 @@ tiered_config = [
             the bucket indicating the location for this table'''),
         Config('bucket_prefix', '', r'''
             the unique bucket prefix for this table'''),
+        Config('cache_directory', '', r'''
+            a directory to store locally cached versions of files in the storage source.  By
+            default, it is named with \c "-cache" appended to the bucket name.  A relative
+            directory name is relative to the home directory'''),
         Config('local_retention', '300', r'''
             time in seconds to retain data on tiered storage on the local tier
             for faster read access''',
@@ -234,6 +238,10 @@ tiered_tree_config = [
         the bucket indicating the location for this table'''),
     Config('bucket_prefix', '', r'''
         the unique bucket prefix for this table'''),
+    Config('cache_directory', '', r'''
+        a directory to store locally cached versions of files in the storage source.  By
+        default, it is named with \c "-cache" appended to the bucket name.  A relative
+        directory name is relative to the home directory'''),
 ]
 
 file_runtime_config = common_runtime_config + [
@@ -793,7 +801,9 @@ connection_runtime_config = [
         intended for use with internal stress testing of WiredTiger.''',
         type='list', undoc=True,
         choices=[
-        'aggressive_sweep', 'backup_rename', 'checkpoint_slow', 'history_store_checkpoint_delay',
+        'aggressive_sweep', 'backup_rename', 'checkpoint_reserved_txnid_delay', 'checkpoint_slow',
+        'failpoint_history_store_delete_key_from_ts', 'failpoint_history_store_insert_1',
+        'failpoint_history_store_insert_2', 'history_store_checkpoint_delay',
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
         'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7', 'split_8']),
     Config('verbose', '[]', r'''
@@ -994,6 +1004,10 @@ wiredtiger_open_tiered_storage_configuration = [
             unique string prefix to identify our objects in the bucket.
             Multiple instances can share the storage bucket and this
             identifier is used in naming objects'''),
+        Config('cache_directory', '', r'''
+            a directory to store locally cached versions of files in the storage source.  By
+            default, it is named with \c "-cache" appended to the bucket name.  A relative
+            directory name is relative to the home directory'''),
         Config('name', 'none', r'''
             Permitted values are \c "none"
             or custom storage name created with
@@ -1432,10 +1446,11 @@ methods = {
         selects a simple hexadecimal format, "json" selects a JSON format
         with each record formatted as fields named by column names if
         available, "pretty" selects a human-readable format (making it
-        incompatible with the "load") and "print" selects a format where only
-        non-printing characters are hexadecimal encoded.  These formats are
-        compatible with the @ref util_dump and @ref util_load commands''',
-        choices=['hex', 'json', 'pretty', 'print']),
+        incompatible with the "load"), "pretty_hex" is similar to "pretty" (also incompatible with
+        "load") except raw byte data elements will be printed like "hex" format, and
+        "print" selects a format where only non-printing characters are hexadecimal encoded. These
+        formats are compatible with the @ref util_dump and @ref util_load commands''',
+        choices=['hex', 'json', 'pretty', 'pretty_hex', 'print']),
     Config('incremental', '', r'''
         configure the cursor for block incremental backup usage. These formats
         are only compatible with the backup data source; see @ref backup''',
@@ -1659,10 +1674,11 @@ methods = {
             applicable only for prepared transactions. Indicates if the prepare
             timestamp and the commit timestamp of this transaction can be
             rounded up. If the prepare timestamp is less than the oldest
-            timestamp, the prepare timestamp  will be rounded to the oldest
+            timestamp, the prepare timestamp will be rounded to the oldest
             timestamp. If the commit timestamp is less than the prepare
             timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp''', type='boolean'),
+            timestamp. Allows setting the prepared timestamp smaller than or equal
+            to the latest active read timestamp''', type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the
             read timestamp will be rounded up to the oldest timestamp''',

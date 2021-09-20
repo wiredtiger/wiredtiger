@@ -9,7 +9,8 @@
 #include "wt_internal.h"
 
 static int __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, uint64_t *hs_counter);
+  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts,
+  uint64_t *hs_counter);
 
 /*
  * __hs_verbose_cache_stats --
@@ -63,7 +64,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
  */
 static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
-  const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw, bool checkpoint_running)
+  const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw, bool error_on_ooo_ts)
 {
 #ifdef HAVE_DIAGNOSTIC
     WT_CURSOR_BTREE *hs_cbt;
@@ -137,10 +138,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cursor->set_key(cursor, 4, btree->id, key, tw->start_ts, UINT64_MAX);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_before(session, cursor), true);
 
-    /* Only clear the flag if it wasn't set when we entered the function. */
-    if (!hs_read_all_flag)
-        F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
-
     if (ret == 0) {
         WT_ERR(cursor->get_key(cursor, &hs_btree_id, hs_key, &hs_start_ts, &hs_counter));
 
@@ -151,16 +148,17 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
             WT_ERR(__wt_compare(session, NULL, existing_val, hs_value, &cmp));
             /*
              * The same value should not be inserted again unless:
-             * 1. the previous entry is already deleted (i.e. the stop timestamp is globally
+             * 1. The previous entry is already deleted (i.e. the stop timestamp is globally
              * visible)
-             * 2. it came from a different transaction
-             * 3. it came from the same transaction but with a different timestamp
+             * 2. It came from a different transaction
+             * 3. It came from the same transaction but with a different timestamp
+             * 4. The prepared rollback left the history store entry when checkpoint is in progress.
              */
             if (cmp == 0) {
                 if (!__wt_txn_tw_stop_visible_all(session, &hs_cbt->upd_value->tw) &&
                   tw->start_txn != WT_TXN_NONE &&
                   tw->start_txn == hs_cbt->upd_value->tw.start_txn &&
-                  tw->start_ts == hs_cbt->upd_value->tw.start_ts) {
+                  tw->start_ts == hs_cbt->upd_value->tw.start_ts && tw->start_ts != tw->stop_ts) {
                     /*
                      * If we have issues with duplicate history store records, we want to be able to
                      * distinguish between modifies and full updates. Since modifies are not
@@ -169,7 +167,6 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
                      */
                     WT_ASSERT(session,
                       type != WT_UPDATE_MODIFY && (uint8_t)upd_type_full_diag != WT_UPDATE_MODIFY);
-                    WT_ASSERT(session, false && "Duplicate values inserted into history store");
                 }
             }
             counter = hs_counter + 1;
@@ -189,28 +186,12 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     if (ret == 0)
         WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
     else {
-        F_SET(cursor, WT_CURSTD_HS_READ_ALL);
-
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
-
-        if (!hs_read_all_flag)
-            F_CLR(cursor, WT_CURSTD_HS_READ_ALL);
     }
-    if (ret == 0) {
-        /*
-         * Fail the eviction if we detect out of order timestamp when checkpoint is running. We
-         * cannot modify the history store to fix the out of order timestamp updates as it may make
-         * the history store checkpoint inconsistent.
-         */
-        if (checkpoint_running) {
-            ret = EBUSY;
-            WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
-            goto err;
-        }
+    if (ret == 0)
         WT_ERR(__hs_delete_reinsert_from_pos(
-          session, cursor, btree->id, key, tw->start_ts + 1, true, &counter));
-    }
+          session, cursor, btree->id, key, tw->start_ts + 1, true, error_on_ooo_ts, &counter));
 
 #ifdef HAVE_DIAGNOSTIC
     /*
@@ -286,8 +267,7 @@ __hs_next_upd_full_value(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates,
  *     fails or succeeds, if there is a successful write to history, cache_write_hs is set to true.
  */
 int
-__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
-  bool *cache_write_hs, bool checkpoint_running)
+__wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *multi)
 {
     WT_BTREE *btree, *hs_btree;
     WT_CURSOR *hs_cursor;
@@ -313,9 +293,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
     uint32_t i;
     uint8_t *p;
     int nentries;
-    bool enable_reverse_modify, hs_inserted, squashed;
+    bool enable_reverse_modify, error_on_ooo_ts, hs_inserted, squashed;
 
-    *cache_write_hs = false;
+    error_on_ooo_ts = F_ISSET(r, WT_REC_CHECKPOINT_RUNNING);
+    r->cache_write_hs = false;
     btree = S2BT(session);
     prev_upd = NULL;
     insert_cnt = 0;
@@ -366,7 +347,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             continue;
 
         /* History store table key component: source key. */
-        switch (page->type) {
+        switch (r->page->type) {
         case WT_PAGE_COL_FIX:
         case WT_PAGE_COL_VAR:
             p = key->mem;
@@ -376,7 +357,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
         case WT_PAGE_ROW_LEAF:
             if (list->ins == NULL) {
                 WT_WITH_BTREE(
-                  session, btree, ret = __wt_row_leaf_key(session, page, list->ripcip, key, false));
+                  session, btree, ret = __wt_row_leaf_key(session, r->page, list->rip, key, false));
                 WT_ERR(ret);
             } else {
                 key->data = WT_INSERT_KEY(list->ins);
@@ -384,7 +365,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             }
             break;
         default:
-            WT_ERR(__wt_illegal_value(session, page->type));
+            WT_ERR(__wt_illegal_value(session, r->page->type));
         }
 
         first_globally_visible_upd = min_ts_upd = out_of_order_ts_upd = NULL;
@@ -434,11 +415,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             if (min_ts_upd != NULL && min_ts_upd->start_ts < upd->start_ts &&
               out_of_order_ts_upd != min_ts_upd) {
                 /*
-                 * Fail the eviction if we detect out of order timestamp when checkpoint is running.
+                 * Fail the eviction if we detect out of order timestamps and the error flag is set.
                  * We cannot modify the history store to fix the out of order timestamp updates as
                  * it may make the history store checkpoint inconsistent.
                  */
-                if (checkpoint_running) {
+                if (error_on_ooo_ts) {
                     ret = EBUSY;
                     WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
                     goto err;
@@ -513,7 +494,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             if (!F_ISSET(fix_ts_upd, WT_UPDATE_FIXED_HS)) {
                 /* Delete and reinsert any update of the key with a higher timestamp. */
                 WT_ERR(__wt_hs_delete_key_from_ts(session, hs_cursor, btree->id, key,
-                  fix_ts_upd->start_ts + 1, true, checkpoint_running));
+                  fix_ts_upd->start_ts + 1, true, error_on_ooo_ts));
                 F_SET(fix_ts_upd, WT_UPDATE_FIXED_HS);
             }
         }
@@ -645,6 +626,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
             /* Clear out the insert success flag prior to our insert attempt. */
             __wt_curhs_clear_insert_success(hs_cursor);
 
+            /* Fail here 0.05% of the time if we are in the eviction path. */
+            if (F_ISSET(r, WT_REC_EVICT) &&
+              __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1, 0.05))
+                WT_ERR(EBUSY);
+
             /*
              * Calculate reverse modify and clear the history store records with timestamps when
              * inserting the first update. Always write on-disk data store updates to the history
@@ -665,13 +651,13 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
                 entries, &nentries) == 0) {
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
-                  modify_value, &tw, checkpoint_running);
+                  modify_value, &tw, error_on_ooo_ts);
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
-                  full_value, &tw, checkpoint_running);
+                  full_value, &tw, error_on_ooo_ts);
             }
 
             /*
@@ -717,6 +703,11 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_PAGE *page, WT_MULTI *multi,
         __wt_update_vector_clear(&updates);
     }
 
+    /* Fail here 0.5% of the time if we are an eviction thread. */
+    if (F_ISSET(r, WT_REC_EVICT) &&
+      __wt_failpoint(session, WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2, 0.05))
+        WT_ERR(EBUSY);
+
     WT_ERR(__wt_block_manager_named_size(session, WT_HS_FILE, &hs_size));
     hs_btree = __wt_curhs_get_btree(hs_cursor);
     max_hs_size = hs_btree->file_max;
@@ -731,7 +722,7 @@ err:
 
     /* cache_write_hs is set to true as there was at least one successful write to history. */
     if (insert_cnt > 0)
-        *cache_write_hs = true;
+        r->cache_write_hs = true;
 
     __wt_scr_free(session, &key);
     /* modify_value is allocated in __wt_modify_pack. Free it if it is allocated. */
@@ -753,7 +744,7 @@ err:
  */
 int
 __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool checkpoint_running)
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts)
 {
     WT_DECL_RET;
     WT_ITEM hs_key;
@@ -771,6 +762,10 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
     hs_read_all_flag = F_ISSET(hs_cursor, WT_CURSTD_HS_READ_ALL);
 
     hs_cursor->set_key(hs_cursor, 3, btree_id, key, ts);
+    /*
+     * Setting the flag WT_CURSTD_HS_READ_ALL before searching the history store optimizes the
+     * search routine as we do not skip globally visible tombstones during the search.
+     */
     F_SET(hs_cursor, WT_CURSTD_HS_READ_ALL);
     WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, hs_cursor), true);
     /* Empty history store is fine. */
@@ -782,19 +777,9 @@ __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint3
         ++hs_counter;
     }
 
-    /*
-     * Fail the eviction if we detect out of order timestamp when checkpoint is running. We cannot
-     * modify the history store to fix the out of order timestamp updates as it may make the history
-     * store checkpoint inconsistent.
-     */
-    if (checkpoint_running) {
-        ret = EBUSY;
-        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
-        goto err;
-    }
+    WT_ERR(__hs_delete_reinsert_from_pos(
+      session, hs_cursor, btree_id, key, ts, reinsert, error_on_ooo_ts, &hs_counter));
 
-    WT_ERR(
-      __hs_delete_reinsert_from_pos(session, hs_cursor, btree_id, key, ts, reinsert, &hs_counter));
 done:
 err:
     if (!hs_read_all_flag)
@@ -811,13 +796,13 @@ err:
  */
 static int
 __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, uint32_t btree_id,
-  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, uint64_t *counter)
+  const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts, uint64_t *counter)
 {
     WT_CURSOR *hs_insert_cursor;
     WT_CURSOR_BTREE *hs_cbt;
     WT_DECL_RET;
     WT_ITEM hs_key, hs_value;
-    WT_TIME_WINDOW tw, hs_insert_tw;
+    WT_TIME_WINDOW hs_insert_tw, tw, *twp;
     wt_timestamp_t hs_ts;
     uint64_t hs_counter, hs_upd_type;
     uint32_t hs_btree_id;
@@ -840,6 +825,11 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     WT_ASSERT(session, ts > WT_TS_NONE || !reinsert);
 
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
+        /* Ignore records that are obsolete. */
+        __wt_hs_upd_time_window(hs_cursor, &twp);
+        if (__wt_txn_tw_stop_visible_all(session, twp))
+            continue;
+
         /* We shouldn't have crossed the btree and user key search space. */
         WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, &hs_key, &hs_ts, &hs_counter));
         WT_ASSERT(session, hs_btree_id == btree_id);
@@ -854,6 +844,17 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
     if (ret == WT_NOTFOUND)
         return (0);
     WT_ERR(ret);
+
+    /*
+     * Fail the eviction if we detect out of order timestamps when we've passed the error return
+     * flag. We cannot modify the history store to fix the out of order timestamp updates as it may
+     * make the history store checkpoint inconsistent.
+     */
+    if (error_on_ooo_ts) {
+        ret = EBUSY;
+        WT_STAT_CONN_INCR(session, cache_eviction_fail_checkpoint_out_of_order_ts);
+        goto err;
+    }
 
     /*
      * The goal of this function is to move out-of-order content to maintain ordering in the

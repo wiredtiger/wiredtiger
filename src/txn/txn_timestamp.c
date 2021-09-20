@@ -387,6 +387,13 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     last_oldest_ts = txn_global->oldest_timestamp;
     last_stable_ts = txn_global->stable_timestamp;
 
+    /* It is a no-op to set the oldest or stable timestamps behind the global values. */
+    if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts <= last_oldest_ts)
+        has_oldest = false;
+
+    if (has_stable && txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
+        has_stable = false;
+
     /*
      * First do error checking on the timestamp values. The oldest timestamp must always be less
      * than or equal to the stable timestamp. If we're only setting one then compare against the
@@ -434,12 +441,6 @@ __wt_txn_global_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     __wt_readunlock(session, &txn_global->rwlock);
 
     /* Check if we are actually updating anything. */
-    if (has_oldest && txn_global->has_oldest_timestamp && oldest_ts <= last_oldest_ts)
-        has_oldest = false;
-
-    if (has_stable && txn_global->has_stable_timestamp && stable_ts <= last_stable_ts)
-        has_stable = false;
-
     if (!has_durable && !has_oldest && !has_stable)
         return (0);
 
@@ -714,7 +715,19 @@ __wt_txn_set_prepare_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t prepare_
         WT_RET_MSG(session, EINVAL,
           "commit timestamp should not have been set before the prepare timestamp");
 
-    WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
+        /*
+         * Allows setting the prepared timestamp smaller than or equal to the latest active read
+         * timestamp. This feature is necessary to find the largest key in the table even if that
+         * key has been deleted. Set this flag cautiously as it breaks repeated reads.
+         */
+#ifdef HAVE_DIAGNOSTIC
+    if (!F_ISSET(txn, WT_TXN_TS_ROUND_PREPARED))
+        WT_RET(__txn_assert_after_reads(session, "prepare", prepare_ts));
+    else
+        WT_RET(__wt_msg(session,
+          "Skip checking prepare timestamp %s against the latest active read timestamp.",
+          __wt_timestamp_to_string(prepare_ts, ts_string[0])));
+#endif
 
     /*
      * Check whether the prepare timestamp is less than the oldest timestamp.
