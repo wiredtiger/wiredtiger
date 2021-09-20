@@ -205,12 +205,6 @@ class search_near_02 : public test_harness::test {
             tc->transaction.rollback();
     }
 
-    void
-    update_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "update_operation: nothing done." << std::endl;
-    }
-
     private:
     /*
      * Perform search_near calls using a cursor with prefix key enabled and a cursor
