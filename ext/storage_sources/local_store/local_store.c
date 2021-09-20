@@ -700,9 +700,9 @@ local_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         goto err;
 
     local->op_count++;
-    if ((ret = rename(source, dest_path)) != 0) {
+    if ((ret = link(source, dest_path)) != 0) {
         ret = local_err(
-          local, session, errno, "ss_flush_finish rename %s to %s failed", source, dest_path);
+          local, session, errno, "ss_flush_finish link %s to %s failed", source, dest_path);
         goto err;
     }
     /* Set the file to readonly in the cache. */

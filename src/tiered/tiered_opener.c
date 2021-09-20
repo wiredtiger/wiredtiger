@@ -19,45 +19,45 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     WT_BUCKET_STORAGE *bstorage;
     WT_DECL_RET;
     WT_TIERED *tiered;
+    u_int open_flags;
     const char *object_name, *object_uri;
+    bool local_only;
 
     tiered = opener->cookie;
     object_uri = NULL;
+    open_flags = flags;
+    local_only = false;
 
     WT_ASSERT(session,
       (object_id > 0 && object_id <= tiered->current_id) || object_id == WT_TIERED_CURRENT_ID);
     /*
-     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
-     * This can be called at any time, because we are opening the objects lazily.
+     * First look for the local file. This will be the fastest access and we retain recent objects
+     * in the local database for a while.
      */
     if (object_id == tiered->current_id || object_id == WT_TIERED_CURRENT_ID) {
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
         if (!WT_PREFIX_SKIP(object_name, "file:"))
             WT_RET_MSG(session, EINVAL, "expected a 'file:' URI");
-        WT_ERR(__wt_open(session, object_name, type, flags, fhp));
+        local_only = true;
     } else {
         WT_ERR(
           __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &object_uri));
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
+	FLD_SET(open_flags, WT_FS_OPEN_READONLY);
+	WT_ASSERT(session, !FLD_ISSET(open_flags, WT_FS_OPEN_CREATE));
+    }
+    ret = __wt_open(session, object_name, type, open_flags, fhp);
+    /*
+     * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
+     * This can be called at any time, because we are opening the objects lazily.
+     */
+    if (!local_only && ret != 0) {
         bstorage = tiered->bstorage;
         flags |= WT_FS_OPEN_READONLY;
         WT_WITH_BUCKET_STORAGE(
           bstorage, session, { ret = __wt_open(session, object_name, type, flags, fhp); });
-        if (ret == ENOENT) {
-            /*
-             * There is a window where the object may not be copied yet to the bucket. If it isn't
-             * found try the local system. If it isn't found there then try the bucket one more
-             * time.
-             */
-            ret = __wt_open(session, object_name, type, flags, fhp);
-            __wt_errx(session, "OPENER: local %s ret %d", object_name, ret);
-            if (ret == ENOENT)
-                WT_WITH_BUCKET_STORAGE(
-                  bstorage, session, { ret = __wt_open(session, object_name, type, flags, fhp); });
-            WT_ERR(ret);
-        }
     }
 err:
     __wt_free(session, object_uri);
