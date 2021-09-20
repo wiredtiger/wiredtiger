@@ -45,10 +45,13 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
           __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &object_uri));
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
-	FLD_SET(open_flags, WT_FS_OPEN_READONLY);
-	WT_ASSERT(session, !FLD_ISSET(open_flags, WT_FS_OPEN_CREATE));
+        FLD_SET(open_flags, WT_FS_OPEN_READONLY);
+        WT_ASSERT(session, !FLD_ISSET(open_flags, WT_FS_OPEN_CREATE));
+        F_SET(session, WT_SESSION_QUIET_NOT_EXIST);
     }
     ret = __wt_open(session, object_name, type, open_flags, fhp);
+    F_CLR(session, WT_SESSION_QUIET_NOT_EXIST);
+
     /*
      * FIXME-WT-7590 we will need some kind of locking while we're looking at the tiered structure.
      * This can be called at any time, because we are opening the objects lazily.

@@ -745,8 +745,9 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
         f |= O_CLOEXEC;
 #endif
         WT_SYSCALL_RETRY(((pfh->fd = open(name, f, 0444)) == -1 ? -1 : 0), ret);
-        if (ret != 0)
+        if (ret != 0) {
             WT_ERR_MSG(session, ret, "%s: handle-open: open-directory", name);
+        }
         WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
         goto directory_open;
     }
@@ -797,12 +798,16 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
 
     /* Create/Open the file. */
     WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
-    if (ret != 0)
+    if (ret != 0) {
+        /* If we don't want error messages, just return the error value. */
+        if (F_ISSET(session, WT_SESSION_QUIET_NOT_EXIST) && ret == ENOENT)
+            goto err;
         WT_ERR_MSG(session, ret,
           pfh->direct_io ? "%s: handle-open: open: failed with direct I/O configured, some "
                            "filesystem types do not support direct I/O" :
                            "%s: handle-open: open",
           name);
+    }
 
 #ifdef __linux__
     /*
