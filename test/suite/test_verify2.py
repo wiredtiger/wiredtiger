@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import wttest
+import wiredtiger, wttest
 class test_verify2(wttest.WiredTigerTestCase):
     tablename = 'test_verify.a'
     params = 'key_format=S,value_format=S'
@@ -65,7 +65,7 @@ class test_verify2(wttest.WiredTigerTestCase):
         # Search for data.
         cursor = self.session.open_cursor(self.uri)
         cursor.set_key("1")
-        cursor.search()
+        self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
         # Verify.
