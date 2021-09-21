@@ -28,7 +28,7 @@
 
 import wiredtiger, wttest
 class test_verify2(wttest.WiredTigerTestCase):
-    tablename = 'test_verify.a'
+    tablename = 'test_verify'
     params = 'key_format=S,value_format=S'
     uri = 'table:' + tablename
 
