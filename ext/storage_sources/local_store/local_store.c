@@ -638,7 +638,7 @@ local_file_copy(LOCAL_STORAGE *local, WT_SESSION *session, const char *src_path,
         }
     }
     if ((ret = rename(tmp_path, dest_path)) != 0) {
-        ret = local_err(local, session, ret, "%s: cannot rename from %s", dest_path, tmp_path);
+        ret = local_err(local, session, errno, "%s: cannot rename from %s", dest_path, tmp_path);
         goto err;
     }
 err:
