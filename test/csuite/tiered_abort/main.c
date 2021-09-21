@@ -91,12 +91,12 @@ static uint32_t flush_calls = 1;
  */
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
-    "M,create,"                                               \
+    "M,create,verbose=(tiered),"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
     "statistics=(fast),statistics_log=(wait=1,json=true),"    \
-    "tiered_storage=(bucket=%s,bucket_prefix=pfx,name=local_store)"
+    "tiered_storage=(bucket=%s,bucket_prefix=pfx,local_retention=3,name=local_store)"
 #define ENV_CONFIG_TXNSYNC                                \
     ENV_CONFIG_DEF                                        \
     ",eviction_dirty_target=20,eviction_dirty_trigger=90" \

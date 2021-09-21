@@ -84,13 +84,20 @@ __wt_tiered_pop_work(
     __wt_spin_lock(session, &conn->tiered_lock);
 
     TAILQ_FOREACH (entry, &conn->tieredqh, q) {
-        if (FLD_ISSET(type, entry->type) && (maxval == 0 || entry->op_val < maxval)) {
-            TAILQ_REMOVE(&conn->tieredqh, entry, q);
-            WT_STAT_CONN_INCR(session, tiered_work_units_dequeued);
+        if (FLD_ISSET(type, entry->type)) {
+            /*
+             * Work units with a maximum value are (at least for now) enqueued in value order.
+             * Currently the only value based work unit is a time for dropping a local object. So if
+             * we find a work unit of the correct type and its time is larger, we're done.
+             */
+            if (maxval == 0 || entry->op_val < maxval) {
+                TAILQ_REMOVE(&conn->tieredqh, entry, q);
+                WT_STAT_CONN_INCR(session, tiered_work_units_dequeued);
+                *entryp = entry;
+            }
             break;
         }
     }
-    *entryp = entry;
     __wt_spin_unlock(session, &conn->tiered_lock);
     return;
 }
