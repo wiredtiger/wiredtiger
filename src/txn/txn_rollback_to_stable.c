@@ -227,12 +227,17 @@ err:
 static inline int
 __rollback_row_modify(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
 {
+    WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
     WT_PAGE_MODIFY *mod;
     WT_UPDATE *last_upd, *old_upd, **upd_entry;
     size_t upd_size;
 
     last_upd = NULL;
+
+    __wt_btcur_init(session, &cbt);
+    __wt_btcur_open(&cbt);
+
     /* If we don't yet have a modify structure, we'll need one. */
     WT_RET(__wt_page_modify_init(session, page));
     mod = page->modify;
@@ -269,13 +274,16 @@ __rollback_row_modify(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_U
      * Serialize the update. Rollback to stable doesn't need to check the visibility of the on page
      * value to detect conflict.
      */
-    WT_ERR(__wt_update_serial(session, NULL, page, upd_entry, &upd, upd_size, true));
+    WT_ERR(__wt_update_serial(session, &cbt, page, upd_entry, &upd, upd_size, true));
 
     if (0) {
 err:
         if (last_upd != NULL)
             last_upd->next = NULL;
     }
+
+    /* Free any resources that may have been cached in the cursor. */
+    WT_TRET(__wt_btcur_close(&cbt, true));
 
     return (ret);
 }
