@@ -280,7 +280,7 @@ class search_near_02 : public test_harness::test {
             testutil_check(cursor_default->next(cursor_default.get()));
             const char *k;
             testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-            testutil_assert(std::string(k) == key_prefix_str);
+            testutil_assert(k == key_prefix_str);
         }
         /*
          * If the exact value from the default search near call is set to 0, we expect both search
@@ -305,7 +305,7 @@ class search_near_02 : public test_harness::test {
                 testutil_check(cursor_default->prev(cursor_default.get()));
                 const char *k;
                 testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                testutil_assert(std::string(k) == key_prefix_str);
+                testutil_assert(k == key_prefix_str);
             }
         }
     }
