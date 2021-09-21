@@ -68,7 +68,8 @@ class test_verify2(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
         cursor.close()
 
-        # Verify.
+        # We don't need to call checkpoint before calling verify as the btree is not marked as
+        # modified.
         self.assertEqual(self.session.verify(self.uri, None), 0)
 
 if __name__ == '__main__':
