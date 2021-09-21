@@ -230,18 +230,15 @@ class search_near_02 : public test_harness::test {
         testutil_assert(
           ret_default == ret_prefix || (ret_default == 0 && ret_prefix == WT_NOTFOUND));
 
-        /*
-         * We only have to perform validation when the default search near call is successful.
-         */
+        /* We only have to perform validation when the default search near call is successful. */
         if (ret_default == 0) {
             /* Both calls are successful. */
             if (ret_prefix == 0)
                 validate_successful_calls(
                   cursor_default, cursor_prefix, prefix, exact_default, exact_prefix);
-            /* The prefix search near call failed.*/
+            /* The prefix search near call failed. */
             else
-                validate_unsuccessful_prefix_call(
-                  cursor_default, cursor_prefix, prefix, exact_default, exact_prefix);
+                validate_unsuccessful_prefix_call(cursor_default, prefix, exact_default);
         }
     }
 
@@ -249,6 +246,10 @@ class search_near_02 : public test_harness::test {
     validate_successful_calls(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
       const std::string &prefix, int exact_default, int exact_prefix)
     {
+        const char *k;
+        std::string k_str;
+        int ret;
+
         /*
          * The prefix search near call cannot retrieve a key with a smaller value than the prefix we
          * searched.
@@ -264,114 +265,166 @@ class search_near_02 : public test_harness::test {
         testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
         std::string key_prefix_str = key_prefix;
 
+        /* The key at the prefix cursor should contain the prefix. */
+        testutil_assert(key_prefix_str.substr(0, prefix.size()) == prefix);
+
         logger::log_msg(LOG_TRACE,
           "search_near (normal) exact " + std::to_string(exact_default) + " key " + key_default);
         logger::log_msg(LOG_TRACE,
           "search_near (prefix) exact " + std::to_string(exact_prefix) + " key " + key_prefix);
 
-        /* They key from the prefix search near needs to contain the prefix. */
-        testutil_assert(key_prefix_str.substr(0, prefix.size()) == prefix);
-
-        /*
-         * If the exact value from the default search near call is -1, the key found by the prefix
-         * search near has to be the next key.
-         */
+        /* Example: */
+        /* keys: a, bb, bba */
+        /* Default search_near(bb) returns a, exact = -1 */
+        /* Prefix search_near(bb) returns bb, exact = 0 */
+        /* Prefix search_near(bb) returns bba, exact = 1 */
         if (exact_default == -1) {
-            testutil_check(cursor_default->next(cursor_default.get()));
-            const char *k;
-            testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-            testutil_assert(k == key_prefix_str);
-        }
-        /*
-         * If the exact value from the default search near call is set to 0, we expect both search
-         * near calls to return the same output.
-         */
-        else if (exact_default == 0)
-            testutil_assert(exact_prefix == exact_default && key_default_str == key_prefix_str);
-        /*
-         * If the exact value from the default search near call is 1, the validation depends on the
-         * exact value set by the prefix search near.
-         */
-        else {
-            /* Both search near calls should have returned the same key. */
-            if (exact_prefix == 1)
-                testutil_assert(key_default_str == key_prefix_str);
+            /* The key at the default cursor should not contain the prefix. */
+            testutil_assert((key_default_str.substr(0, prefix.size()) != prefix));
+
             /*
-             * The exact value from the default search near is 1 and the exact value from the prefix
-             * enabled search near call is 0. This means the latter has found the exact same key. We
-             * only need to check the previous key using the default cursor.
+             * At least all the keys between the default cursor and the prefix cursor should contain
+             * the prefix.
              */
-            else {
-                testutil_check(cursor_default->prev(cursor_default.get()));
-                const char *k;
+            while (ret = cursor_default->next(cursor_default.get()) == 0) {
+                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                k_str = k;
+                testutil_assert((k_str.substr(0, prefix.size()) == prefix));
+                if (k_str == key_prefix_str)
+                    break;
+            }
+
+            /* We should be at the key pointed by the prefix cursor. */
+            testutil_assert(ret != WT_NOTFOUND && k_str == key_prefix_str);
+        }
+        /* Example: */
+        /* keys: a, bb, bba */
+        /* Default search_near(bb) returns bb, exact = 0 */
+        /* Prefix search_near(bb) returns bb, exact = 0 */
+        /* Prefix search_near(bb) returns bba, exact = 1 */
+        else if (exact_default == 0) {
+            /* The key at the default cursor should be the prefix. */
+            testutil_assert(key_default_str == prefix);
+
+            if (exact_prefix == 0) {
+                /* Both cursors should be pointing at the same key. */
+                testutil_assert(key_default_str == key_prefix_str);
+            } else {
+                /*
+                 * The next key of the default cursor should be equal to the key pointed by the
+                 * prefix cursor.
+                 */
+                testutil_assert(cursor_default->next(cursor_default.get()) == 0);
                 testutil_check(cursor_default->get_key(cursor_default.get(), &k));
                 testutil_assert(k == key_prefix_str);
+            }
+        }
+        /* Example: */
+        /* keys: a, bb, bba */
+        /* Default search_near(bb) returns bba, exact = 1 */
+        /* Prefix search_near(bb) returns bb, exact = 0 */
+        /* Prefix search_near(bb) returns bba, exact = 1 */
+        else {
+            if (exact_prefix == 0) {
+                /*
+                 * The previous key of the default cursor should be equal to the key pointed by the
+                 * prefix cursor.
+                 */
+                testutil_assert(cursor_default->prev(cursor_default.get()) == 0);
+                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                testutil_assert(k == key_prefix_str);
+            } else {
+                /* Both cursors should be pointing at the same key. */
+                testutil_assert(key_default_str == key_prefix_str);
             }
         }
     }
 
     /*
-     * Validate that no keys with the prefix used for the search have been found. To validate this,
-     * we can use the exact value set by the default search near.
-     * Since the prefix search near failed, the exact value set by the default
-     * search near call has to be either -1 or 1:
-     * - If it is -1, we need to check the next keys until we reach the end of the
-     * table or a key that is greater than the prefix we looked for.
-     * - If it is 1, we need to check the previous keys until we reach the end of
-     * the table or a key that is smaller than the prefix we looked for.
+     * Validate that no keys with the prefix used for the search have been found.
+     * To validate this, we can use the exact value set by the default search near. Since the prefix
+     * search near failed, the exact value set by the default search near call has to be either -1
+     * or 1:
+     * - If it is -1, we need to check the next key, if it exists, is lexicographically greater than
+     * the prefix we looked for.
+     * - If it is 1, we need to check the previous keys, if it exists, if lexicographically smaller
+     * than the prefix we looked for.
      */
     void
-    validate_unsuccessful_prefix_call(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
-      const std::string &prefix, int exact_default, int exact_prefix)
+    validate_unsuccessful_prefix_call(
+      scoped_cursor &cursor_default, const std::string &prefix, int exact_default)
     {
+        int ret;
+        const char *k;
+        std::string k_str;
+
         /*
          * The exact value from the default search near call cannot be 0, otherwise the prefix
          * search near should be successful too.
          */
         testutil_assert(exact_default == -1 || exact_default == 1);
 
-        /* Check the key returned by the default search near does not contain the prefix. */
+        /* Retrieve the key at the default cursor. */
         const char *key_default;
         testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
         std::string key_default_str = key_default;
+
+        /* The key at the default cursor should not contain the prefix. */
         testutil_assert(key_default_str.substr(0, prefix.size()) != prefix);
 
-        /*
-         * If the default search near call sets exact to -1, make sure no following keys in the
-         * table contains the prefix.
-         */
+        /* Example: */
+        /* keys: a, bb, bbb */
+        /* Default search_near(bba) returns bb, exact = -1 */
+        /* Prefix search_near(bba) returns WT_NOTFOUND */
         if (exact_default == -1) {
-            // TODO - Is checking the next key (if it exists) enough ?
-            while (cursor_default->next(cursor_default.get()) == 0) {
-                const char *k;
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                std::string k_str = k;
-                /*
-                 * We can stop searching if the current key is greater than the prefix.
-                 */
-                if (!std::lexicographical_compare(
-                      k_str.begin(), k_str.end(), prefix.begin(), prefix.end()))
-                    break;
-                /* Check the key does not contain the prefix. */
-                testutil_assert(k_str.substr(0, prefix.size()) != prefix);
-            }
-            /* We have reached the end of the table or we did an early exit. */
-        }
-        /*
-         * If the default search near call sets exact to 1, make sure the previous key is
-         * lexicographically smaller than prefix.
-         */
-        else {
-            int ret = cursor_default->prev(cursor_default.get());
+            /*
+             * The current key of the default cursor should be lexicographically smaller than the
+             * prefix.
+             */
+            testutil_assert(std::lexicographical_compare(
+              key_default_str.begin(), key_default_str.end(), prefix.begin(), prefix.end()));
+
+            /*
+             * The next key of the default cursor should be lexicographically greater than the
+             * prefix if it exists.
+             */
+            ret = cursor_default->next(cursor_default.get());
             if (ret == 0) {
-                const char *k;
                 testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                std::string k_str = k;
+                k_str = k;
+                testutil_assert(!std::lexicographical_compare(
+                  k_str.begin(), k_str.end(), prefix.begin(), prefix.end()));
+            } else {
+                /* End of the table. */
+                testutil_assert(ret == WT_NOTFOUND);
+            }
+        }
+        /* Example: */
+        /* keys: a, bb, bbb */
+        /* Default search_near(bba) returns bba, exact = 1 */
+        /* Prefix search_near(bba) returns WT_NOTFOUND */
+        else {
+            /*
+             * The current key of the default cursor should be lexicographically greater than the
+             * prefix.
+             */
+            testutil_assert(!std::lexicographical_compare(
+              key_default_str.begin(), key_default_str.end(), prefix.begin(), prefix.end()));
+
+            /*
+             * The next key of the default cursor should be lexicographically smaller than the
+             * prefix if it exists.
+             */
+            ret = cursor_default->prev(cursor_default.get());
+            if (ret == 0) {
+                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+                k_str = k;
                 testutil_assert(std::lexicographical_compare(
                   k_str.begin(), k_str.end(), prefix.begin(), prefix.end()));
-            } else
-                /* Check we have reached the end of the table. */
+            } else {
+                /* End of the table. */
                 testutil_assert(ret == WT_NOTFOUND);
+            }
         }
     }
 };
