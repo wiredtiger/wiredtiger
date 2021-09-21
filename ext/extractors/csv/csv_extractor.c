@@ -195,8 +195,7 @@ csv_customize(WT_EXTRACTOR *extractor, WT_SESSION *session, const char *uri, WT_
     return (0);
 
 err:
-    if (parser != NULL)
-        (void)parser->close(parser);
+    (void)parser->close(parser);
     return (ret);
 }
 
