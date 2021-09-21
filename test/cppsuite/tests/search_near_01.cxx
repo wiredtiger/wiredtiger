@@ -82,11 +82,12 @@ class search_near_01 : public test_harness::test {
                             tc->transaction.rollback();
                             ++rollback_retries;
                             --count;
-                            continue;
+                        } else {
+                            /* Commit txn at commit timestamp 100. */
+                            tc->transaction.commit(
+                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100));
+                            rollback_retries = 0;
                         }
-                        /* Commit txn at commit timestamp 100. */
-                        tc->transaction.commit("commit_timestamp=" + tc->tsm->decimal_to_hex(100));
-                        rollback_retries = 0;
                     }
                 }
             }
@@ -168,10 +169,10 @@ class search_near_01 : public test_harness::test {
     void
     read_operation(test_harness::thread_context *tc) override final
     {
-
+        /* Make sure that thread statistics cursor is null before we open it. */
+        testutil_assert(tc->stat_cursor.get() == nullptr);
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-
         std::map<uint64_t, scoped_cursor> cursors;
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         std::string srch_key;
@@ -231,7 +232,7 @@ class search_near_01 : public test_harness::test {
                 logger::log_msg(LOG_INFO,
                   "Read thread {" + std::to_string(tc->id) +
                     "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                    " prefix fash path  " + std::to_string(expected_entries));
+                    " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat));
 
                 /*
                  * It is possible that WiredTiger increments the entries skipped stat while we
