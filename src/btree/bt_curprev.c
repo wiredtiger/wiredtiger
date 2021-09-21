@@ -489,7 +489,7 @@ __cursor_row_prev(
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    prefix_used = F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) && prefix != NULL;
+    prefix_used = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -548,8 +548,6 @@ restart_read_insert:
              * visiting is before our prefix.
              */
             if (prefix_used && __wt_prefix_match(prefix, key) > 0) {
-                /* It is not okay for the user to have a custom collator. */
-                WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
@@ -597,8 +595,6 @@ restart_read_page:
          * visiting is before our prefix.
          */
         if (prefix_used && __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
-            /* It is not okay for the user to have a custom collator. */
-            WT_ASSERT(session, CUR2BT(cbt)->collator == NULL);
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
