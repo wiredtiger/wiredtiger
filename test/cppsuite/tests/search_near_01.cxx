@@ -76,7 +76,7 @@ class search_near_01 : public test_harness::test {
                         prefix_key = {ALPHABET.at(tc->id), ALPHABET.at(j), ALPHABET.at(k)};
                         prefix_key += random_generator::instance().generate_random_string(
                           tc->key_size - PREFIX_KEY_LEN);
-                        if (tc->insert(cursor, coll.id, prefix_key)) {
+                        if (!tc->insert(cursor, coll.id, prefix_key)) {
                             testutil_assert(rollback_retries < MAX_ROLLBACKS);
                             /* We failed to insert, rollback our transaction and retry. */
                             tc->transaction.rollback();
