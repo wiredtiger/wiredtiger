@@ -661,6 +661,18 @@ struct __wt_cursor {
 	 */
 	int __F(reconfigure)(WT_CURSOR *cursor, const char *config);
 
+	/*!
+	 * Get the largest key of the cursor regardless of visibility. Call WT_CURSOR::get_key to
+	 * retrieve the largest key. However, it throws if WT_CURSOR:get_value is called. The cursor
+	 * is not positioned after that. Only supported by data cursors.
+	 *
+	 * @snippet ex_all.c Reset the cursor
+	 *
+	 * @param cursor the cursor handle
+	 * @errors
+	 */
+	int __F(largest_key)(WT_CURSOR *cursor);
+
 	/*
 	 * Protected fields, only to be used by cursor implementations.
 	 */

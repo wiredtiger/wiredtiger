@@ -102,6 +102,7 @@ __wt_apply_single_idx(WT_SESSION_IMPL *session, WT_INDEX *idx, WT_CURSOR *cur,
       __wt_cursor_notsup,                             /* remove */
       __wt_cursor_notsup,                             /* reserve */
       __wt_cursor_reconfigure_notsup,                 /* reconfigure */
+      __wt_cursor_largest_key,                        /* largest_key */
       __wt_cursor_notsup,                             /* cache */
       __wt_cursor_reopen_notsup,                      /* reopen */
       __wt_cursor_notsup);                            /* close */
@@ -968,6 +969,7 @@ __wt_curtable_open(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *owner, 
       __curtable_remove,                                /* remove */
       __curtable_reserve,                               /* reserve */
       __wt_cursor_reconfigure,                          /* reconfigure */
+      __wt_cursor_largest_key,                          /* largest_key */
       __wt_cursor_notsup,                               /* cache */
       __wt_cursor_reopen_notsup,                        /* reopen */
       __curtable_close);                                /* close */
