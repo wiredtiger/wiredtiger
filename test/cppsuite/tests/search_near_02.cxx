@@ -86,8 +86,9 @@ class search_near_02 : public test_harness::test {
 
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
-        for (int i = tc->id * collections_per_thread;
-             i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
+        const uint64_t thread_offset = tc->id * collections_per_thread;
+        for (uint64_t i = thread_offset;
+             i < thread_offset + collections_per_thread && tc->running(); ++i) {
             collection &coll = tc->db.get_collection(i);
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
             ccv.push_back({coll, std::move(cursor)});
