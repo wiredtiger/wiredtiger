@@ -56,7 +56,7 @@ class test_verify2(wttest.WiredTigerTestCase):
 
     # Create an empty table and search a key. This used to mark the associated btree as dirty. In
     # fact, because the tree is empty, its only reference to a leaf page is marked as deleted and we
-    # instantiate the deleted page in this case. Before WT-7750, this would mark the btree as
+    # instantiate the deleted page in this case. Before WT-8126, this would mark the btree as
     # modified.
     def test_verify_search(self):
         self.assertEqual(self.session.create(self.uri, self.params), 0)
