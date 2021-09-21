@@ -212,8 +212,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     cursor->set_value(
       cursor, tw, tw->durable_stop_ts, tw->durable_start_ts, (uint64_t)type, hs_value);
     WT_ERR(cursor->insert(cursor));
-    WT_STAT_CONN_INCR(session, cache_hs_insert);
-    WT_STAT_DATA_INCR(session, cache_hs_insert);
+    WT_STAT_CONN_DATA_INCR(session, cache_hs_insert);
 
 err:
     if (!hs_read_all_flag)
@@ -459,6 +458,10 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
               prev_upd->start_ts == upd->start_ts)
                 enable_reverse_modify = false;
 
+            /*
+             * Find the first update to insert to the history store. (The value that is just older
+             * than the on-page value)
+             */
             if (newest_hs == NULL) {
                 if (upd->txnid != ref_upd->txnid || upd->start_ts != ref_upd->start_ts) {
                     if (upd->type == WT_UPDATE_TOMBSTONE)
@@ -679,16 +682,14 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 WT_ERR(__wt_modify_pack(hs_cursor, entries, nentries, &modify_value));
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_MODIFY,
                   modify_value, &tw, error_on_ooo_ts);
-                WT_STAT_CONN_INCR(session, cache_hs_insert_reverse_modify);
-                WT_STAT_DATA_INCR(session, cache_hs_insert_reverse_modify);
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_reverse_modify);
                 __wt_scr_free(session, &modify_value);
                 ++modify_cnt;
             } else {
                 modify_cnt = 0;
                 ret = __hs_insert_record(session, hs_cursor, btree, key, WT_UPDATE_STANDARD,
                   full_value, &tw, error_on_ooo_ts);
-                WT_STAT_CONN_INCR(session, cache_hs_insert_full_update);
-                WT_STAT_DATA_INCR(session, cache_hs_insert_full_update);
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_insert_full_update);
             }
 
             /*
