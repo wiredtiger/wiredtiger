@@ -1121,7 +1121,7 @@ int
 __wt_cursor_largest_key(WT_CURSOR *cursor)
 {
     WT_DECL_RET;
-    WT_ITEM *key;
+    WT_DECL_ITEM(key);
     WT_SESSION_IMPL *session;
 
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
