@@ -64,7 +64,7 @@ class test_verify2(wttest.WiredTigerTestCase):
 
         # Search for data.
         cursor = self.session.open_cursor(self.uri)
-        cursor.set_key("234234")
+        cursor.set_key("1")
         cursor.search()
         cursor.close()
 
