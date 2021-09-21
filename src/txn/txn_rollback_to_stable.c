@@ -229,59 +229,21 @@ __rollback_row_modify(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_U
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
-    WT_PAGE_MODIFY *mod;
-    WT_UPDATE *last_upd, *old_upd, **upd_entry;
-    size_t upd_size;
-
-    last_upd = NULL;
 
     __wt_btcur_init(session, &cbt);
     __wt_btcur_open(&cbt);
 
-    /* If we don't yet have a modify structure, we'll need one. */
-    WT_RET(__wt_page_modify_init(session, page));
-    mod = page->modify;
+    /* Search the page. */
+    WT_ERR(__wt_row_search(&cbt, &cbt.iface.key, true, NULL, true, NULL));
 
-    /* Allocate an update array as necessary. */
-    WT_PAGE_ALLOC_AND_SWAP(session, page, mod->mod_row_update, upd_entry, page->entries);
+    /* Apply the modification. */
+#ifdef HAVE_DIAGNOSTIC
+    WT_ERR(__wt_row_modify(&cbt, &cbt.iface.key, NULL, upd, WT_UPDATE_INVALID, true, false));
+#else
+    WT_ERR(__wt_row_modify(&cbt, &cbt.iface.key, NULL, upd, WT_UPDATE_INVALID, true));
+#endif
 
-    /* Set the WT_UPDATE array reference. */
-    upd_entry = &mod->mod_row_update[WT_ROW_SLOT(page, rip)];
-    upd_size = __wt_update_list_memsize(upd);
-
-    /* If there are existing updates, append them after the new updates. */
-    for (last_upd = upd; last_upd->next != NULL; last_upd = last_upd->next)
-        ;
-    last_upd->next = *upd_entry;
-
-    /*
-     * We can either put a tombstone plus an update or a single update on the update chain.
-     *
-     * Set the "old" entry to the second update in the list so that the serialization function
-     * succeeds in swapping the first update into place.
-     */
-    if (upd->next != NULL)
-        *upd_entry = upd->next;
-    old_upd = *upd_entry;
-
-    /*
-     * Point the new WT_UPDATE item to the next element in the list. The serialization function acts
-     * as our memory barrier to flush this write.
-     */
-    upd->next = old_upd;
-
-    /*
-     * Serialize the update. Rollback to stable doesn't need to check the visibility of the on page
-     * value to detect conflict.
-     */
-    WT_ERR(__wt_update_serial(session, &cbt, page, upd_entry, &upd, upd_size, true));
-
-    if (0) {
 err:
-        if (last_upd != NULL)
-            last_upd->next = NULL;
-    }
-
     /* Free any resources that may have been cached in the cursor. */
     WT_TRET(__wt_btcur_close(&cbt, true));
 
