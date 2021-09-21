@@ -101,20 +101,22 @@ class search_near_01 : public test_harness::test {
     populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
       test_harness::configuration *config, test_harness::workload_tracking *tracking) override final
     {
-        uint64_t collection_count, key_count, key_size;
+        uint64_t collection_count, key_size;
         std::vector<thread_context *> workers;
         thread_manager tm;
 
         /* Validate our config. */
         collection_count = config->get_int(COLLECTION_COUNT);
-        key_count = keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
+        keys_per_prefix = config->get_int(KEY_COUNT_PER_COLLECTION);
         key_size = config->get_int(KEY_SIZE);
+        testutil_assert(collection_count > 0);
+        testutil_assert(keys_per_prefix > 0);
         /* Check the prefix length is not greater than the key size. */
         testutil_assert(key_size >= PREFIX_KEY_LEN);
 
         logger::log_msg(LOG_INFO,
           "Populate configuration with key size: " + std::to_string(key_size) +
-            " key count: " + std::to_string(key_count) +
+            " key count: " + std::to_string(keys_per_prefix) +
             " number of collections: " + std::to_string(collection_count));
 
         /* Create n collections as per the configuration. */
@@ -235,13 +237,14 @@ class search_near_01 : public test_harness::test {
                     " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat));
 
                 /*
-                 * It is possible that WiredTiger increments the entries skipped stat while we
-                 * performing prefix search nears, to account for this anomaly, create an additional
-                 * 10% buffer. Assert that the number of expected entries is the upper limit which
-                 * the prefix search near can traverse and the prefix fast path is incremented.
+                 * It is possible that WiredTiger increments the entries skipped stat irrelevant to
+                 * prefix search near. This is dependent on how many read threads are present in the
+                 * test. Account for this by creating a small buffer using thread count. Assert that
+                 * the number of expected entries is the upper limit which the prefix search near
+                 * can traverse and the prefix fast path is incremented.
                  */
                 testutil_assert(
-                  (expected_entries + expected_entries * 0.1) >= entries_stat - prev_entries_stat);
+                  (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
                 testutil_assert(prefix_stat > prev_prefix_stat);
 
                 tc->transaction.add_op();
