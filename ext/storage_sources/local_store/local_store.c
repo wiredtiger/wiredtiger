@@ -601,7 +601,7 @@ local_file_copy(LOCAL_STORAGE *local, WT_SESSION *session, const char *src_path,
     dest = src = NULL;
     pathlen = strlen(dest_path) + 10;
     if ((tmp_path = malloc(pathlen)) != NULL)
-        if (snprintf(tmp_path, pathlen, "%s.TEMP", dest_path) >= (int)pathlen) {
+        if (snprintf(tmp_path, pathlen, "%s.TMP", dest_path) >= (int)pathlen) {
             ret = local_err(local, session, EINVAL, "overflow snprintf");
             goto err;
         }
