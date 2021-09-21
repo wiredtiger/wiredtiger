@@ -490,7 +490,6 @@ run_workload(uint32_t nth, const char *build_dir)
         testutil_check(__wt_thread_create(NULL, &thr[ts_id], thread_ts_run, &td[ts_id]));
     }
     printf("Create %" PRIu32 " writer threads\n", nth);
-    printf("Create %" PRIu32 " writer threads\n", nth);
     for (i = 0; i < nth; ++i) {
         td[i].conn = conn;
         td[i].start = WT_BILLION * (uint64_t)i;
