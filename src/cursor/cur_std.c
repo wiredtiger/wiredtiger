@@ -1123,14 +1123,22 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TXN *txn;
+    bool has_read_ts;
 
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
+
+    txn = session->txn;
+    has_read_ts = F_ISSET(txn, WT_TXN_SHARED_TS_READ);
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
     /* Reset the cursor to give up the cursor position. */
     WT_ERR(cursor->reset(cursor));
     /* Ignore deletion */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+
+    /* Force read without a read timestamp. */
+    F_CLR(txn, WT_TXN_SHARED_TS_READ);
 
     /* Call cursor prev with read uncommitted isolation level. */
     WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->prev(cursor));
@@ -1144,6 +1152,8 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
+    if (has_read_ts)
+        F_SET(txn, WT_TXN_SHARED_TS_READ);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
