@@ -126,7 +126,7 @@ class search_near_02 : public test_harness::test {
 
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cc.cursor->reset(cc.cursor.get()));
-            if (++counter == collections_per_thread)
+            if (++counter == ccv.size())
                 counter = 0;
             testutil_assert(counter < collections_per_thread);
         }
