@@ -91,7 +91,7 @@ static uint32_t flush_calls = 1;
  */
 #define ENV_CONFIG_DEF                                        \
     "cache_size=%" PRIu32                                     \
-    "M,create,verbose=(tiered),"                              \
+    "M,create,"                                               \
     "debug_mode=(table_logging=true,checkpoint_retention=5)," \
     "eviction_updates_target=20,eviction_updates_trigger=90," \
     "log=(archive=true,file_max=10M,enabled),session_max=%d," \
