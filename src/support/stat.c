@@ -1403,8 +1403,10 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
+  "session: attempts to remove local objects and the object is in use",
   "session: flush state races",
   "session: flush_tier operation calls",
+  "session: local objects removed",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -1938,8 +1940,10 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
+    stats->local_objects_inuse = 0;
     stats->flush_state_races = 0;
     stats->flush_tier = 0;
+    stats->local_objects_removed = 0;
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -2485,8 +2489,10 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
+    to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
     to->flush_state_races += WT_STAT_READ(from, flush_state_races);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
+    to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
     to->session_open += WT_STAT_READ(from, session_open);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_READ(from, session_table_alter_fail);

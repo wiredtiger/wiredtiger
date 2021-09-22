@@ -507,6 +507,8 @@ conn_stats = [
     ##########################################
     StorageStat('flush_state_races', 'flush state races'),
     StorageStat('flush_tier', 'flush_tier operation calls'),
+    StorageStat('local_objects_inuse', 'attempts to remove local objects and the object is in use'),
+    StorageStat('local_objects_removed', 'local objects removed'),
 
     ##########################################
     # Thread Count statistics

@@ -147,6 +147,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
          */
         if (__wt_handle_is_open(session, object)) {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, queue again", object);
+            WT_STAT_CONN_INCR(session, local_objects_inuse);
             /*
              * FIXME-WT-7470: If the object we want to remove is in use this is the place to call
              * object sweep to clean up block->ofh file handles. Another alternative would be to try
@@ -156,6 +157,7 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             __wt_tiered_push_work(session, entry);
         } else {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+            WT_STAT_CONN_INCR(session, local_objects_removed);
             WT_ERR(__wt_fs_remove(session, object, false));
             /*
              * We are responsible for freeing the work unit when we're done with it.
