@@ -2365,6 +2365,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
      * write a new overflow record.
      */
     addr = NULL;
+    size = 0;
     if (!page->modify->compact_rewrite_ovfl)
         WT_RET(__wt_ovfl_reuse_search(session, page, &addr, &size, kv->buf.data, kv->buf.size));
 
