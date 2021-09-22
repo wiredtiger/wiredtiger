@@ -1126,6 +1126,8 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_TXN *txn;
     bool has_read_ts;
 
+    txn = NULL;
+    has_read_ts = false;
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
 
     txn = session->txn;
