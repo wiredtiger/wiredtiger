@@ -274,69 +274,47 @@ class search_near_02 : public test_harness::test {
           "search_near (prefix) exact " + std::to_string(exact_prefix) + " key " + key_prefix);
 
         /* Example: */
-        /* keys: a, bb, bba */
-        /* Default search_near(bb) returns a, exact = -1 */
-        /* Prefix search_near(bb) returns bb, exact = 0 */
-        /* Prefix search_near(bb) returns bba, exact = 1 */
+        /* keys: a, bb, bba. */
+        /* Only bb is not visible. */
+        /* Default search_near(bb) returns a, exact = -1. */
+        /* Prefix search_near(bb) returns bba, exact = 1. */
         if (exact_default == -1) {
             /* The key at the default cursor should not contain the prefix. */
             testutil_assert((key_default_str.substr(0, prefix.size()) != prefix));
 
             /*
-             * At least all the keys between the default cursor and the prefix cursor should contain
-             * the prefix.
+             * The prefix cursor should be positioned at a key lexicographically greater than the
+             * prefix.
              */
-            while (ret = cursor_default->next(cursor_default.get()) == 0) {
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                k_str = k;
-                testutil_assert((k_str.substr(0, prefix.size()) == prefix));
-                if (k_str == key_prefix_str)
-                    break;
-            }
+            testutil_assert(exact_prefix == 1);
 
-            /* We should be at the key pointed by the prefix cursor. */
-            testutil_assert(ret != WT_NOTFOUND && k_str == key_prefix_str);
+            /*
+             * The next key of the default cursor should be equal to the key pointed by the prefix
+             * cursor.
+             */
+            testutil_assert(cursor_default->next(cursor_default.get()) == 0);
+            testutil_check(cursor_default->get_key(cursor_default.get(), &k));
+            testutil_assert(k == key_prefix_str);
         }
         /* Example: */
         /* keys: a, bb, bba */
+        /* All keys are visible. */
         /* Default search_near(bb) returns bb, exact = 0 */
         /* Prefix search_near(bb) returns bb, exact = 0 */
-        /* Prefix search_near(bb) returns bba, exact = 1 */
         else if (exact_default == 0) {
-            /* The key at the default cursor should be the prefix. */
-            testutil_assert(key_default_str == prefix);
-
-            if (exact_prefix == 0) {
-                /* Both cursors should be pointing at the same key. */
-                testutil_assert(key_default_str == key_prefix_str);
-            } else {
-                /*
-                 * The next key of the default cursor should be equal to the key pointed by the
-                 * prefix cursor.
-                 */
-                testutil_assert(cursor_default->next(cursor_default.get()) == 0);
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                testutil_assert(k == key_prefix_str);
-            }
+            /* Both cursors should be pointing at the same key which is the prefix. */
+            testutil_assert(exact_prefix == exact_default);
+            testutil_assert(key_default_str == prefix && key_prefix_str == prefix);
         }
         /* Example: */
         /* keys: a, bb, bba */
-        /* Default search_near(bb) returns bba, exact = 1 */
-        /* Prefix search_near(bb) returns bb, exact = 0 */
-        /* Prefix search_near(bb) returns bba, exact = 1 */
+        /* Only bb is not visible. */
+        /* Default search_near(bb) returns bba, exact = 1. */
+        /* Prefix search_near(bb) returns bba, exact = 1. */
         else {
-            if (exact_prefix == 0) {
-                /*
-                 * The previous key of the default cursor should be equal to the key pointed by the
-                 * prefix cursor.
-                 */
-                testutil_assert(cursor_default->prev(cursor_default.get()) == 0);
-                testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-                testutil_assert(k == key_prefix_str);
-            } else {
-                /* Both cursors should be pointing at the same key. */
-                testutil_assert(key_default_str == key_prefix_str);
-            }
+            /* Both cursors should be pointing at the same key. */
+            testutil_assert(exact_prefix == exact_default);
+            testutil_assert(key_default_str == key_prefix_str);
         }
     }
 
@@ -373,9 +351,10 @@ class search_near_02 : public test_harness::test {
         testutil_assert(key_default_str.substr(0, prefix.size()) != prefix);
 
         /* Example: */
-        /* keys: a, bb, bbb */
-        /* Default search_near(bba) returns bb, exact = -1 */
-        /* Prefix search_near(bba) returns WT_NOTFOUND */
+        /* keys: a, bb, bbb. */
+        /* All keys are visible. */
+        /* Default search_near(bba) returns bb, exact = -1. */
+        /* Prefix search_near(bba) returns WT_NOTFOUND. */
         if (exact_default == -1) {
             /*
              * The current key of the default cursor should be lexicographically smaller than the
@@ -400,9 +379,10 @@ class search_near_02 : public test_harness::test {
             }
         }
         /* Example: */
-        /* keys: a, bb, bbb */
-        /* Default search_near(bba) returns bba, exact = 1 */
-        /* Prefix search_near(bba) returns WT_NOTFOUND */
+        /* keys: a, bb, bbb. */
+        /* All keys are visible. */
+        /* Default search_near(bba) returns bbb, exact = 1. */
+        /* Prefix search_near(bba) returns WT_NOTFOUND. */
         else {
             /*
              * The current key of the default cursor should be lexicographically greater than the
