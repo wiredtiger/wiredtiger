@@ -168,7 +168,7 @@ class search_near_02 : public test_harness::test {
 
             /*
              * Select a random timestamp between the oldest and now and start the transaction at
-             * that time. Get rid of the last 32 bits as they represent as increment for uniqueness.
+             * that time. Get rid of the last 32 bits as they represent an increment for uniqueness.
              */
             wt_timestamp_t ts = random_generator::instance().generate_integer(
               (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
