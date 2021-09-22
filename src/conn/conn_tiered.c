@@ -139,17 +139,24 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
-        __wt_errx(session, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         WT_PREFIX_SKIP_REQUIRED(session, object, "object:");
-        F_SET(session, WT_SESSION_QUIET_TIERED);
-        WT_ERR(__wt_fs_remove(session, object, false));
-        F_CLR(session, WT_SESSION_QUIET_TIERED);
         /*
-         * We are responsible for freeing the work unit when we're done with it.
+         * If the handle is still open, it could still be in use for reading. In that case put the
+         * work unit back on the work queue and keep trying.
          */
-        __wt_tiered_work_free(session, entry);
-        entry = NULL;
+        if (__wt_handle_is_open(session, object)) {
+            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s in USE, requeue", object);
+            __wt_tiered_push_work(session, entry);
+	} else {
+            __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
+            WT_ERR(__wt_fs_remove(session, object, false));
+            /*
+             * We are responsible for freeing the work unit when we're done with it.
+             */
+            __wt_tiered_work_free(session, entry);
+            entry = NULL;
+        }
     }
 err:
     if (entry != NULL)
