@@ -1,19 +1,26 @@
 # Configuration for search_near_02.
-# need to be defined.
-duration_seconds=5,
-cache_size_mb=250,
+# The configuration creates:
+# - threads that insert random keys and values during the test. The keys have a large size to
+# encourage them to be split across multiple pages.
+# - threads that perform prefix search_near on random keys.
+# We also configure a small cache to trigger eviction more often.
+duration_seconds=180,
+cache_size_mb=1,
 workload_generator=
 (
     populate_config=
     (
-        collection_count=1,
+        collection_count=10,
     ),
     insert_config=
     (
-        thread_count=1,
+        op_rate=100ms,
+        thread_count=10,
+        key_size=2000
     ),
     read_config=
     (
-        thread_count=1
+        op_rate=250ms,
+        thread_count=10
     ),
 )
