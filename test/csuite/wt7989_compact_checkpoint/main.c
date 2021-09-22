@@ -37,6 +37,7 @@
  */
 
 #define NUM_RECORDS 1000000
+#define CHECKPOINT_NUM 3
 
 /* Constants and variables declaration. */
 /*
@@ -78,11 +79,13 @@ main(int argc, char *argv[])
     /*
      * First run test with WT_TIMING_STRESS_CHECKPOINT_SLOW.
      */
+    printf("Running stress test...\n");
     run_test(true, opts->home, opts->uri);
 
     /*
      * Now run test where compact and checkpoint threads are synchronized using condition variable.
      */
+    printf("Running normal test...\n");
     testutil_assert(sizeof(home_cv) > strlen(opts->home) + 3);
     sprintf(home_cv, "%s.CV", opts->home);
     run_test(false, home_cv, opts->uri);
@@ -110,8 +113,8 @@ run_test(bool stress_test, const char *home, const char *uri)
 
     if (stress_test) {
         /*
-         * Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag. It adds 10 seconds sleep before each
-         * checkpoint.
+         * Set WT_TIMING_STRESS_CHECKPOINT_SLOW flag for stress test. It adds 10 seconds sleep
+         * before each checkpoint.
          */
         set_timing_stress_checkpoint(conn);
     }
@@ -166,12 +169,8 @@ run_test(bool stress_test, const char *home, const char *uri)
     printf(" - Compressed file size MB: %f\n - Original file size MB: %f\n",
       file_sz_after / (1024.0 * 1024), file_sz_before / (1024.0 * 1024));
 
-    /*
-     * FIXME-WT-8055 At the moment the assert below is commented out to prevent evergreen from going
-     * red. Please enable the assert as soon as the underlying defect is fixed and compact does its
-     * job well.
-     */
-    /*testutil_assert(file_sz_before * 0.9 > file_sz_after);*/
+    /* Make sure the compact operation has reduced the file size by at least 20%. */
+    testutil_assert(file_sz_before * 0.8 > file_sz_after);
 }
 
 static void *
@@ -198,6 +197,7 @@ thread_func_compact(void *arg)
 
     /* Perform compact operation. */
     testutil_check(session->compact(session, td->uri, NULL));
+
     testutil_check(session->close(session, NULL));
 
     return (NULL);
@@ -220,7 +220,12 @@ thread_func_checkpoint(void *arg)
 {
     struct thread_data *td;
     WT_SESSION *session;
+    time_t t;
+    uint64_t sleep_sec;
+    int i;
     bool signalled;
+
+    srand((u_int)time(&t));
 
     td = (struct thread_data *)arg;
 
@@ -238,7 +243,20 @@ thread_func_checkpoint(void *arg)
         printf("Signal received!\n");
     }
 
-    testutil_check(session->checkpoint(session, NULL));
+    /*
+     * Run several checkpoints. First one without any delay. Others will have a random delay before
+     * start.
+     */
+    for (i = 0; i < CHECKPOINT_NUM; i++) {
+        testutil_check(session->checkpoint(session, NULL));
+
+        if (i < CHECKPOINT_NUM - 1) {
+            sleep_sec = (uint64_t)rand() % 15 + 1;
+            printf("Sleep %" PRIu64 " sec before next checkpoint.\n", sleep_sec);
+            __wt_sleep(sleep_sec, 0);
+        }
+    }
+
     testutil_check(session->close(session, NULL));
 
     return (NULL);
