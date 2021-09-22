@@ -2364,8 +2364,10 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
      * See if this overflow record has already been written and reuse it if possible, otherwise
      * write a new overflow record.
      */
-    WT_RET(__wt_ovfl_reuse_search(session, page, &addr, &size, kv->buf.data, kv->buf.size));
-    if (addr == NULL) {
+    if (!page->modify->compact_rewrite_ovfl)
+        WT_RET(__wt_ovfl_reuse_search(session, page, &addr, &size, kv->buf.data, kv->buf.size));
+
+    if (addr == NULL || page->modify->compact_rewrite_ovfl) {
         /* Allocate a buffer big enough to write the overflow record. */
         size = kv->buf.size;
         WT_RET(bm->write_size(bm, session, &size));
@@ -2390,7 +2392,7 @@ __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *k
          * Track the overflow record (unless it's a bulk load, which by definition won't ever reuse
          * a record.
          */
-        if (!r->is_bulk_load)
+        if (!r->is_bulk_load && !page->modify->compact_rewrite_ovfl)
             WT_ERR(__wt_ovfl_reuse_add(session, page, addr, size, kv->buf.data, kv->buf.size));
     }
 

@@ -831,7 +831,16 @@ __wt_rec_row_leaf(
              *
              * Repack the cell if we clear the transaction ids in the cell.
              */
-            if (vpack->raw == WT_CELL_VALUE_COPY) {
+            /* If requested, rewrite the overflow value. */
+            if (page->modify->compact_rewrite_ovfl && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW)) {
+                r->ovfl_items = true;
+                /* Read the value from disk. */
+                WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, vpack, r->cur));
+                /* Rebuild the cell */
+                WT_ERR(__wt_rec_cell_build_val(session, r, r->cur->data, r->cur->size, twp, 0));
+                dictionary = true;
+                WT_ASSERT(session, val->len != 0);
+            } else if (vpack->raw == WT_CELL_VALUE_COPY) {
                 WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;

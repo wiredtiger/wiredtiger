@@ -145,7 +145,12 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.compact(self.uri)
         sizeAfterCompact = self.getSize()
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
-        self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        c = self.session.open_cursor(self.uri, None)
+        for i in range(self.nOverflowRecords):
+            val = c[i + self.nrecords]
+            self.assertEqual(val, self.overflowValue)
+        c.close()
+        self.assertLess(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
 
         # 9. Insert some normal values and expect that file size won't increase as free extents
         #    in the middle of the file will be used to write new data.
