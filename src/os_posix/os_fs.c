@@ -799,7 +799,7 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     WT_SYSCALL_RETRY(((pfh->fd = open(name, f, mode)) == -1 ? -1 : 0), ret);
     if (ret != 0) {
         /* If we don't want error messages, just return the error value. */
-        if (F_ISSET(session, WT_SESSION_QUIET_NOT_EXIST) && ret == ENOENT)
+        if (F_ISSET(session, WT_SESSION_QUIET_TIERED) && ret == ENOENT)
             goto err;
         WT_ERR_MSG(session, ret,
           pfh->direct_io ? "%s: handle-open: open: failed with direct I/O configured, some "

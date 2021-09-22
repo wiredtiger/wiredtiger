@@ -142,7 +142,9 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
         __wt_errx(session, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         WT_PREFIX_SKIP_REQUIRED(session, object, "object:");
+        F_SET(session, WT_SESSION_QUIET_TIERED);
         WT_ERR(__wt_fs_remove(session, object, false));
+        F_CLR(session, WT_SESSION_QUIET_TIERED);
         /*
          * We are responsible for freeing the work unit when we're done with it.
          */
