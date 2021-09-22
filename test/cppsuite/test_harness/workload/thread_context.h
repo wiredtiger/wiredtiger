@@ -159,7 +159,6 @@ class thread_context {
     public:
     scoped_session session;
     scoped_cursor op_track_cursor;
-    scoped_cursor stat_cursor;
     transaction_context transaction;
     timestamp_manager *tsm;
     workload_tracking *tracking;
