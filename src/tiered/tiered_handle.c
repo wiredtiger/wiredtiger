@@ -441,9 +441,7 @@ __wt_tiered_switch(WT_SESSION_IMPL *session, const char *config)
 
 /*
  * __wt_tiered_name --
- *     Given a dhandle structure and object number generate the URI name of the given type. XXX
- *     Currently this is only used in this file but I anticipate it may be of use outside. If not,
- *     make this static and tiered_name instead.
+ *     Given a dhandle structure and object number generate the URI name of the given type.
  */
 int
 __wt_tiered_name(
