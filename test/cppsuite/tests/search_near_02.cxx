@@ -298,23 +298,19 @@ class search_near_02 : public test_harness::test {
         }
         /* Example: */
         /* keys: a, bb, bba */
-        /* All keys are visible. */
+        /* Case 1: all keys are visible. */
         /* Default search_near(bb) returns bb, exact = 0 */
         /* Prefix search_near(bb) returns bb, exact = 0 */
-        else if (exact_default == 0) {
-            /* Both cursors should be pointing at the same key which is the prefix. */
-            testutil_assert(exact_prefix == exact_default);
-            testutil_assert(key_default_str == prefix && key_prefix_str == prefix);
-        }
-        /* Example: */
-        /* keys: a, bb, bba */
-        /* Only bb is not visible. */
+        /* Case 2: only bb is not visible. */
         /* Default search_near(bb) returns bba, exact = 1. */
         /* Prefix search_near(bb) returns bba, exact = 1. */
         else {
             /* Both cursors should be pointing at the same key. */
             testutil_assert(exact_prefix == exact_default);
             testutil_assert(key_default_str == key_prefix_str);
+            /* Both cursors should have found the exact key. */
+            if (exact_default == 0)
+                testutil_assert(key_default_str == prefix);
         }
     }
 
