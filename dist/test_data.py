@@ -116,7 +116,7 @@ thread_count = [
         Specifies the number of threads that will be used to perform a certain function.''', min=0)
 ]
 
-read_thread_config = thread_count + throttle_config + transaction_config
+read_thread_config = thread_count + throttle_config + transaction_config + record_config
 update_insert_thread_config = thread_count + transaction_config + throttle_config + record_config
 
 #

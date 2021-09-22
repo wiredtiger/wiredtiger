@@ -49,9 +49,10 @@ static const WT_CONFIG_CHECK confchk_populate_config_subconfigs[] = {
   {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_read_config_subconfigs[] = {
-  {"op_rate", "string", NULL, NULL, NULL, 0},
+  {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
   {"ops_per_transaction", "category", NULL, NULL, confchk_ops_per_transaction_subconfigs, 2},
-  {"thread_count", "int", NULL, "min=0", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"thread_count", "int", NULL, "min=0", NULL, 0},
+  {"value_size", "int", NULL, "min=0,max=1000000000", NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_update_config_subconfigs[] = {
   {"key_size", "int", NULL, "min=0,max=10000", NULL, 0}, {"op_rate", "string", NULL, NULL, NULL, 0},
@@ -64,7 +65,7 @@ static const WT_CONFIG_CHECK confchk_workload_generator_subconfigs[] = {
   {"insert_config", "category", NULL, NULL, confchk_insert_config_subconfigs, 5},
   {"op_rate", "string", NULL, NULL, NULL, 0},
   {"populate_config", "category", NULL, NULL, confchk_populate_config_subconfigs, 5},
-  {"read_config", "category", NULL, NULL, confchk_read_config_subconfigs, 3},
+  {"read_config", "category", NULL, NULL, confchk_read_config_subconfigs, 5},
   {"update_config", "category", NULL, NULL, confchk_update_config_subconfigs, 5},
   {NULL, NULL, NULL, NULL, NULL, 0}};
 
@@ -151,10 +152,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5),op_rate=1s,"
     "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5)),"
+    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
+    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
+    "value_size=5),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_base_test, 10},
   {"burst_inserts",
@@ -170,10 +171,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5),op_rate=1s,"
     "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5)),"
+    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
+    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
+    "value_size=5),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_burst_inserts, 11},
   {"example_test",
@@ -188,10 +189,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5),op_rate=1s,"
     "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5)),"
+    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
+    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
+    "value_size=5),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_example_test, 10},
   {"hs_cleanup",
@@ -206,10 +207,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5),op_rate=1s,"
     "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5)),"
+    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
+    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
+    "value_size=5),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_hs_cleanup, 10},
   {"search_near_02",
@@ -224,10 +225,10 @@ static const WT_CONFIG_ENTRY config_entries[] = {
     "insert_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
     "min=0),thread_count=0,value_size=5),op_rate=1s,"
     "populate_config=(collection_count=1,key_count_per_collection=0,"
-    "key_size=5,thread_count=1,value_size=5),read_config=(op_rate=1s,"
-    "ops_per_transaction=(max=1,min=0),thread_count=0),"
-    "update_config=(key_size=5,op_rate=1s,ops_per_transaction=(max=1,"
-    "min=0),thread_count=0,value_size=5)),"
+    "key_size=5,thread_count=1,value_size=5),read_config=(key_size=5,"
+    "op_rate=1s,ops_per_transaction=(max=1,min=0),thread_count=0,"
+    "value_size=5),update_config=(key_size=5,op_rate=1s,"
+    "ops_per_transaction=(max=1,min=0),thread_count=0,value_size=5)),"
     "workload_tracking=(enabled=true,op_rate=1s)",
     confchk_search_near_02, 10},
   {NULL, NULL, NULL, 0}};
