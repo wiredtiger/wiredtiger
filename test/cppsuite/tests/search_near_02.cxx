@@ -144,8 +144,6 @@ class search_near_02 : public test_harness::test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;
-        // TODO - Should this be a fixed value ? Should it be from the configuration ?
-        const uint64_t prefix_size_max = 3;
         const char *key_prefix, *key_default;
         int exact_prefix, exact_default;
         int ret;
@@ -186,10 +184,10 @@ class search_near_02 : public test_harness::test {
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
                  */
-                const uint64_t prefix_size_tmp = random_generator::instance().generate_integer(
-                  static_cast<uint64_t>(1), prefix_size_max);
+                const uint64_t prefix_size = random_generator::instance().generate_integer(
+                  static_cast<int64_t>(1), tc->key_size);
                 const std::string prefix = random_generator::instance().generate_random_string(
-                  prefix_size_tmp, characters_type::ALPHABET);
+                  prefix_size, characters_type::ALPHABET);
 
                 /* Open a cursor with the default configuration on the selected collection. */
                 scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name.c_str()));
