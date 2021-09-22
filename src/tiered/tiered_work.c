@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /*
- * __wt_tiered_flush_state --
+ * __tiered_flush_state --
  *     Account for flush work units so threads can know when shared storage flushing is complete.
  */
 static void
