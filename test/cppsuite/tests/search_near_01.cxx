@@ -164,7 +164,8 @@ class search_near_01 : public test_harness::test {
                 }
             }
         }
-        srchkey_len = random_generator::instance().generate_integer(1UL, PREFIX_KEY_LEN);
+        srchkey_len =
+          random_generator::instance().generate_integer(static_cast<uint64_t>(1), PREFIX_KEY_LEN);
         logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
