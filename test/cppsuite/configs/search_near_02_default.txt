@@ -29,9 +29,4 @@ workload_generator=
         op_rate=250ms,
         thread_count=10
     ),
-),
-# Tracking is disabled as not necessary.
-workload_tracking=
-(
-    enabled=false
 )
