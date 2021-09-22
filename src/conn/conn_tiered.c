@@ -139,7 +139,6 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
             break;
         WT_ERR(__wt_tiered_name(
           session, &entry->tiered->iface, entry->id, WT_TIERED_NAME_OBJECT, &object));
-        __wt_errx(session, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: %s at %" PRIu64, object, now);
         WT_PREFIX_SKIP_REQUIRED(session, object, "object:");
         /*
