@@ -6,6 +6,12 @@
 # We also configure a small cache to trigger eviction more often.
 duration_seconds=180,
 cache_size_mb=1,
+timestamp_manager=
+(
+    # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
+    # checks.
+    oldest_lag=10,
+),
 workload_generator=
 (
     populate_config=
