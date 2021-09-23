@@ -69,8 +69,8 @@ static void set_timing_stress_checkpoint(WT_CONNECTION *conn);
 int
 main(int argc, char *argv[])
 {
-    TEST_OPTS *opts, _opts;
     char home_cv[512];
+    TEST_OPTS *opts, _opts;
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -102,11 +102,11 @@ main(int argc, char *argv[])
 static void
 run_test(bool stress_test, const char *home, const char *uri)
 {
+    pthread_t thread_checkpoint, thread_compact;
     struct thread_data td;
+    uint64_t file_sz_after, file_sz_before;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    pthread_t thread_checkpoint, thread_compact;
-    uint64_t file_sz_after, file_sz_before;
 
     testutil_make_work_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
@@ -218,18 +218,18 @@ wait_run_check(WT_SESSION_IMPL *session)
 static void *
 thread_func_checkpoint(void *arg)
 {
-    struct thread_data *td;
-    WT_SESSION *session;
-    time_t t;
-    uint64_t sleep_sec;
-    int i;
     bool signalled;
-
-    srand((u_int)time(&t));
+    int i;
+    struct thread_data *td;
+    uint64_t sleep_sec;
+    WT_RAND_STATE rnd;
+    WT_SESSION *session;
 
     td = (struct thread_data *)arg;
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
+
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
     if (td->cond != NULL) {
         printf("Waiting for the signal...\n");
@@ -251,7 +251,7 @@ thread_func_checkpoint(void *arg)
         testutil_check(session->checkpoint(session, NULL));
 
         if (i < CHECKPOINT_NUM - 1) {
-            sleep_sec = (uint64_t)rand() % 15 + 1;
+            sleep_sec = (uint64_t)__wt_random(&rnd) % 15 + 1;
             printf("Sleep %" PRIu64 " sec before next checkpoint.\n", sleep_sec);
             __wt_sleep(sleep_sec, 0);
         }
@@ -265,23 +265,23 @@ thread_func_checkpoint(void *arg)
 static void
 populate(WT_SESSION *session, const char *uri)
 {
-    WT_CURSOR *cursor;
-    time_t t;
-    uint64_t val;
     int i, str_len;
+    uint64_t val;
+    WT_CURSOR *cursor;
+    WT_RAND_STATE rnd;
 
-    srand((u_int)time(&t));
+    __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'a' + rand() % 26;
+        data_str[i] = 'a' + __wt_random(&rnd) % 26;
 
     data_str[str_len - 1] = '\0';
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
     for (i = 0; i < NUM_RECORDS; i++) {
         cursor->set_key(cursor, i);
-        val = (uint64_t)rand();
+        val = (uint64_t)__wt_random(&rnd);
         cursor->set_value(cursor, val, val, val, data_str);
         testutil_check(cursor->insert(cursor));
     }
@@ -292,8 +292,8 @@ populate(WT_SESSION *session, const char *uri)
 static void
 remove_records(WT_SESSION *session, const char *uri)
 {
-    WT_CURSOR *cursor;
     int i;
+    WT_CURSOR *cursor;
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -309,10 +309,9 @@ remove_records(WT_SESSION *session, const char *uri)
 static uint64_t
 get_file_size(WT_SESSION *session, const char *uri)
 {
-    WT_CURSOR *cur_stat;
+    char *descr, *str_val, stat_uri[128];
     uint64_t val;
-    char *descr, *str_val;
-    char stat_uri[128];
+    WT_CURSOR *cur_stat;
 
     sprintf(stat_uri, "statistics:%s", uri);
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
