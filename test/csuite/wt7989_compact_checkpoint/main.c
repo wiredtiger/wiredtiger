@@ -170,7 +170,7 @@ run_test(bool stress_test, const char *home, const char *uri)
       file_sz_after / (1024.0 * 1024), file_sz_before / (1024.0 * 1024));
 
     /* Make sure the compact operation has reduced the file size by at least 20%. */
-    testutil_assert(file_sz_before * 0.8 > file_sz_after);
+    testutil_assert((file_sz_before / 100) * 80 > file_sz_after);
 }
 
 static void *
