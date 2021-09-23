@@ -193,6 +193,7 @@ class search_near_02 : public test_harness::test {
                 /* Call search near with the prefix cursor. */
                 cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());
                 ret = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
+                testutil_assert(ret == 0 || ret == WT_NOTFOUND);
                 if (ret == 0) {
                     testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
                     key_prefix_str = key_prefix;
