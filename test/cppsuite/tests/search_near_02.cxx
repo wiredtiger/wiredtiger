@@ -254,7 +254,7 @@ class search_near_02 : public test_harness::test {
          * The prefix search near call cannot retrieve a key with a smaller value than the prefix we
          * searched.
          */
-        testutil_assert(exact_prefix == 0 || exact_prefix == 1);
+        testutil_assert(exact_prefix >= 0);
 
         /* Retrieve the keys each cursor is pointing at. */
         const char *key_default;
@@ -276,9 +276,9 @@ class search_near_02 : public test_harness::test {
         /* Example: */
         /* keys: a, bb, bba. */
         /* Only bb is not visible. */
-        /* Default search_near(bb) returns a, exact = -1. */
-        /* Prefix search_near(bb) returns bba, exact = 1. */
-        if (exact_default == -1) {
+        /* Default search_near(bb) returns a, exact < 0. */
+        /* Prefix search_near(bb) returns bba, exact > 0. */
+        if (exact_default < 0) {
             /* The key at the default cursor should not contain the prefix. */
             testutil_assert((key_default_str.substr(0, prefix.size()) != prefix));
 
@@ -286,7 +286,7 @@ class search_near_02 : public test_harness::test {
              * The prefix cursor should be positioned at a key lexicographically greater than the
              * prefix.
              */
-            testutil_assert(exact_prefix == 1);
+            testutil_assert(exact_prefix > 0);
 
             /*
              * The next key of the default cursor should be equal to the key pointed by the prefix
@@ -302,8 +302,8 @@ class search_near_02 : public test_harness::test {
         /* Default search_near(bb) returns bb, exact = 0 */
         /* Prefix search_near(bb) returns bb, exact = 0 */
         /* Case 2: only bb is not visible. */
-        /* Default search_near(bb) returns bba, exact = 1. */
-        /* Prefix search_near(bb) returns bba, exact = 1. */
+        /* Default search_near(bb) returns bba, exact > 0. */
+        /* Prefix search_near(bb) returns bba, exact > 0. */
         else {
             /* Both cursors should be pointing at the same key. */
             testutil_assert(exact_prefix == exact_default);
@@ -336,7 +336,7 @@ class search_near_02 : public test_harness::test {
          * The exact value from the default search near call cannot be 0, otherwise the prefix
          * search near should be successful too.
          */
-        testutil_assert(exact_default == -1 || exact_default == 1);
+        testutil_assert(exact_default != 0);
 
         /* Retrieve the key at the default cursor. */
         const char *key_default;
@@ -349,9 +349,9 @@ class search_near_02 : public test_harness::test {
         /* Example: */
         /* keys: a, bb, bbb. */
         /* All keys are visible. */
-        /* Default search_near(bba) returns bb, exact = -1. */
+        /* Default search_near(bba) returns bb, exact < 0. */
         /* Prefix search_near(bba) returns WT_NOTFOUND. */
-        if (exact_default == -1) {
+        if (exact_default < 0) {
             /*
              * The current key of the default cursor should be lexicographically smaller than the
              * prefix.
@@ -377,7 +377,7 @@ class search_near_02 : public test_harness::test {
         /* Example: */
         /* keys: a, bb, bbb. */
         /* All keys are visible. */
-        /* Default search_near(bba) returns bbb, exact = 1. */
+        /* Default search_near(bba) returns bbb, exact > 0. */
         /* Prefix search_near(bba) returns WT_NOTFOUND. */
         else {
             /*
