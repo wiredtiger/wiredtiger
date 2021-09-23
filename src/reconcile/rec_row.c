@@ -844,6 +844,7 @@ __wt_rec_row_leaf(
                 WT_ERR(__wt_rec_cell_build_val(
                   session, r, tmp_ovfl_val->data, tmp_ovfl_val->size, twp, 0));
                 dictionary = true;
+                /* Remove the original disk block for the overflow value. */
                 WT_ERR(__wt_ovfl_remove(session, page, vpack));
             } else if (vpack->raw == WT_CELL_VALUE_COPY) {
                 WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
