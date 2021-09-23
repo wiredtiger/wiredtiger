@@ -143,6 +143,7 @@ class search_near_02 : public test_harness::test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
+        int64_t prefix_size;
         std::map<uint64_t, scoped_cursor> cursors;
 
         while (tc->running()) {
@@ -180,7 +181,7 @@ class search_near_02 : public test_harness::test {
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
                  */
-                const uint64_t prefix_size = random_generator::instance().generate_integer(
+                prefix_size = random_generator::instance().generate_integer(
                   static_cast<int64_t>(1), tc->key_size);
                 const std::string prefix = random_generator::instance().generate_random_string(
                   prefix_size, characters_type::ALPHABET);
