@@ -225,7 +225,7 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_row_modify(WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_UPDATE *upd)
+__rollback_row_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -576,7 +576,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     }
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, page, rip, upd));
+        WT_ERR(__rollback_row_modify(session, upd));
     else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
 
@@ -737,7 +737,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
     }
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, page, rip, upd));
+        WT_ERR(__rollback_row_modify(session, upd));
     else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     return (0);
