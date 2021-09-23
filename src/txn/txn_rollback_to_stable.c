@@ -225,7 +225,7 @@ err:
  *     Add the provided update to the head of the update list.
  */
 static inline int
-__rollback_row_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
+__rollback_row_modify(WT_SESSION_IMPL *session, WT_ITEM *key, WT_UPDATE *upd)
 {
     WT_CURSOR_BTREE cbt;
     WT_DECL_RET;
@@ -234,13 +234,13 @@ __rollback_row_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
     __wt_btcur_open(&cbt);
 
     /* Search the page. */
-    WT_ERR(__wt_row_search(&cbt, &cbt.iface.key, true, NULL, true, NULL));
+    WT_ERR(__wt_row_search(&cbt, key, true, NULL, true, NULL));
 
     /* Apply the modification. */
 #ifdef HAVE_DIAGNOSTIC
-    WT_ERR(__wt_row_modify(&cbt, &cbt.iface.key, NULL, upd, WT_UPDATE_INVALID, true, false));
+    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true, false));
 #else
-    WT_ERR(__wt_row_modify(&cbt, &cbt.iface.key, NULL, upd, WT_UPDATE_INVALID, true));
+    WT_ERR(__wt_row_modify(&cbt, key, NULL, upd, WT_UPDATE_INVALID, true));
 #endif
 
 err:
@@ -576,7 +576,7 @@ __rollback_ondisk_fixup_key(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, 
     }
 
     if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, upd));
+        WT_ERR(__rollback_row_modify(session, key, upd));
     else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
 
@@ -614,6 +614,7 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
   WT_ITEM *row_key, WT_CELL_UNPACK_KV *vpack, wt_timestamp_t rollback_timestamp,
   bool *is_ondisk_stable)
 {
+    WT_DECL_ITEM(key);
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
     WT_PAGE *page;
@@ -736,14 +737,23 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
         return (0);
     }
 
-    if (rip != NULL)
-        WT_ERR(__rollback_row_modify(session, upd));
-    else
+    if (rip != NULL) {
+        if (row_key != NULL)
+            key = row_key;
+        else {
+            /* Unpack a row key. */
+            WT_ERR(__wt_scr_alloc(session, 0, &key));
+            WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
+        }
+        WT_ERR(__rollback_row_modify(session, key, upd));
+    } else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
     return (0);
 
 err:
     __wt_free(session, upd);
+    if(rip != NULL && row_key == NULL)
+        __wt_scr_free(session, &key);
     return (ret);
 }
 
