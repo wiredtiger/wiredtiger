@@ -704,7 +704,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         /*
          * Set the cursor key before the prefix search near check. If the prefix doesn't match,
          * restore the cursor state, and continue to search for a valid key. Otherwise set the
-         * cursor value and return the valid.
+         * cursor value and return the valid record.
          */
         WT_ERR(__wt_key_return(cbt));
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) &&
