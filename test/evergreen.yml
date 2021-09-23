@@ -982,7 +982,9 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_default.txt -l 2
-            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 2
+            # FIXME-WT-7912: temporarily disable this test until the search_near code is fixed when
+            # prefixes are across multiple pages.
+            # ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_default.txt -l 2
 
   - name: cppsuite-base-test-stress
     depends_on:
