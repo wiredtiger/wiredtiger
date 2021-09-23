@@ -69,8 +69,8 @@ static void set_timing_stress_checkpoint(WT_CONNECTION *conn);
 int
 main(int argc, char *argv[])
 {
-    char home_cv[512];
     TEST_OPTS *opts, _opts;
+    char home_cv[512];
 
     opts = &_opts;
     memset(opts, 0, sizeof(*opts));
@@ -102,11 +102,11 @@ main(int argc, char *argv[])
 static void
 run_test(bool stress_test, const char *home, const char *uri)
 {
-    pthread_t thread_checkpoint, thread_compact;
     struct thread_data td;
-    uint64_t file_sz_after, file_sz_before;
     WT_CONNECTION *conn;
     WT_SESSION *session;
+    pthread_t thread_checkpoint, thread_compact;
+    uint64_t file_sz_after, file_sz_before;
 
     testutil_make_work_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
@@ -218,12 +218,12 @@ wait_run_check(WT_SESSION_IMPL *session)
 static void *
 thread_func_checkpoint(void *arg)
 {
-    bool signalled;
-    int i;
     struct thread_data *td;
-    uint64_t sleep_sec;
     WT_RAND_STATE rnd;
     WT_SESSION *session;
+    uint64_t sleep_sec;
+    int i;
+    bool signalled;
 
     td = (struct thread_data *)arg;
 
@@ -265,10 +265,10 @@ thread_func_checkpoint(void *arg)
 static void
 populate(WT_SESSION *session, const char *uri)
 {
-    int i, str_len;
-    uint64_t val;
     WT_CURSOR *cursor;
     WT_RAND_STATE rnd;
+    uint64_t val;
+    int i, str_len;
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
@@ -292,8 +292,8 @@ populate(WT_SESSION *session, const char *uri)
 static void
 remove_records(WT_SESSION *session, const char *uri)
 {
-    int i;
     WT_CURSOR *cursor;
+    int i;
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -309,9 +309,9 @@ remove_records(WT_SESSION *session, const char *uri)
 static uint64_t
 get_file_size(WT_SESSION *session, const char *uri)
 {
-    char *descr, *str_val, stat_uri[128];
-    uint64_t val;
     WT_CURSOR *cur_stat;
+    uint64_t val;
+    char *descr, *str_val, stat_uri[128];
 
     sprintf(stat_uri, "statistics:%s", uri);
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
