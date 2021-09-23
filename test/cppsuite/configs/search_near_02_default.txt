@@ -3,9 +3,9 @@
 # - threads that insert random keys and values during the test. The keys have a large size to
 # encourage them to be split across multiple pages.
 # - threads that perform prefix search_near on random keys.
-# We also configure a small cache to trigger eviction more often.
+# We also configure a relatively small cache to trigger eviction more often.
 duration_seconds=180,
-cache_size_mb=1,
+cache_size_mb=200,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
