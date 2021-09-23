@@ -100,7 +100,7 @@ functions:
           set -o verbose
           
           cd wiredtiger/gperftools-2.9.1
-          sh ./configure --prefix=$(pwd)/TCMALLOC_LIB
+          sh ./configure --prefix=$(pwd)/TCMALLOC_LIB 
           make install
     - *enable_tcmalloc
 

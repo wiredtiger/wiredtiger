@@ -3,34 +3,22 @@ set -o errexit  # Exit the script with error if any of the commands fail
 
 find_gperftools()
 {
-    if [ ! -z "$CMAKE" ]; then
-        return 0
-        
-    if [ -z "$CMAKE" -o -z "$( $CMAKE --version 2>/dev/null )" ]; then
-        # Some images have no cmake yet, or a broken cmake (see: BUILD-8570)
-        echo "-- MAKE CMAKE --"
-        CMAKE_INSTALL_DIR=$(readlink -f cmake-install)
-        curl --retry 5 https://cmake.org/files/v3.11/cmake-3.11.0.tar.gz -sS --max-time 120 --fail --output cmake.tar.gz
-        tar xzf cmake.tar.gz
-        cd cmake-3.11.0
-        ./bootstrap --prefix="${CMAKE_INSTALL_DIR}"
-        make -j8
-        make install
-        cd ..
-        CMAKE="${CMAKE_INSTALL_DIR}/bin/cmake"
-        CTEST="${CMAKE_INSTALL_DIR}/bin/ctest"
-        echo "-- DONE MAKING CMAKE --"
-    fi
+    # curl https://s3.amazonaws.com/boxes.10gen.com//Users/jiechenbo_build/test.tar.gz -o test.tar.gz
 
-    echo "=========================================================="
-    echo "CMake and CTest environment variables, paths and versions:"
-    echo "CMAKE: ${CMAKE}"
-    echo "CTEST: ${CTEST}"
-    command -v ${CMAKE}
-    command -v ${CTEST}
-    ${CMAKE} --version
-    ${CTEST} --version
-    echo "=========================================================="
+    echo "-- MAKE CMAKE --"
+    CMAKE_INSTALL_DIR=$(readlink -f cmake-install)
+    curl --retry 5 -L https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz -sS --max-time 120 --fail --output tcmalloc.tar.gz
+    tar xzf tcmalloc.tar.gz
+    cd gperftools-2.9.1
+    sh ./configure --prefix=$(pwd)/TCMALLOC_LIB 
+    make install
+
+    tar czf test.tar.gz $(pwd)/TCMALLOC_LIB 
+    s3put --grant public-read --bucket boxes.10gen.com  --callback 5 --prefix /Users/jiechenbo_build/test.tar.gz
+
+    export CPPFLAGS='-I$(pwd)/TCMALLOC_LIB/include/'
+    export LDFLAGS='-L$(pwd)/TCMALLOC_LIB/lib/'
+    echo "-- DONE MAKING GPERFTOOLS --"
 }
 
 find_gperftools
