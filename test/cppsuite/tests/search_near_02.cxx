@@ -56,7 +56,7 @@ class search_near_02 : public test_harness::test {
         logger::log_msg(
           LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
 
-        for (int64_t i = 0; i < collection_count; ++i)
+        for (uint64_t i = 0; i < collection_count; ++i)
             database.add_collection();
 
         logger::log_msg(LOG_INFO, "Populate: finished.");
@@ -81,8 +81,8 @@ class search_near_02 : public test_harness::test {
 
         /* Collection cursor vector. */
         std::vector<collection_cursor> ccv;
-        uint64_t collection_count = tc->db.get_collection_count();
-        uint64_t collections_per_thread = collection_count / tc->thread_count;
+        int64_t collection_count = tc->db.get_collection_count();
+        int64_t collections_per_thread = collection_count / tc->thread_count;
 
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
@@ -179,7 +179,6 @@ class search_near_02 : public test_harness::test {
              * If this happens, we can exit the current loop.
              */
             while (tc->transaction.active() && tc->running() && ts >= tc->tsm->get_oldest_ts()) {
-
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
