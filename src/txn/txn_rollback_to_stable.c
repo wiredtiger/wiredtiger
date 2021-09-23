@@ -748,11 +748,12 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
         WT_ERR(__rollback_row_modify(session, ref, upd, key));
     } else
         WT_ERR(__rollback_col_modify(session, ref, upd, recno));
-    return (0);
 
+    if (0) {
 err:
-    __wt_free(session, upd);
-    if(rip != NULL && row_key == NULL)
+        __wt_free(session, upd);
+    }
+    if (rip != NULL && row_key == NULL)
         __wt_scr_free(session, &key);
     return (ret);
 }
