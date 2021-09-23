@@ -5,7 +5,7 @@
 # - threads that perform prefix search_near on random keys.
 # We also configure a relatively small cache to trigger eviction more often.
 duration_seconds=180,
-cache_size_mb=200,
+cache_size_mb=50,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility
