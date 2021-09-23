@@ -165,7 +165,7 @@ run_test(bool stress_test, const char *home, const char *uri)
 
     testutil_check(session->close(session, NULL));
     session = NULL;
-    
+
     testutil_check(conn->close(conn, NULL));
     conn = NULL;
 
