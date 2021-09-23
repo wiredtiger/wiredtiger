@@ -702,6 +702,10 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     if (valid) {
         exact = cbt->compare;
         WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
+        /*
+         * Since the cursor is at a valid position, we can retrieve the key. In case of a prefix
+         * match, check whether the prefix is part of the key
+         */
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
             valid = __wt_prefix_match(&state.key, &cbt->iface.key) == 0;
         if (valid)
