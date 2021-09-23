@@ -164,6 +164,10 @@ run_test(bool stress_test, const char *home, const char *uri)
     }
 
     testutil_check(session->close(session, NULL));
+    session = NULL;
+    
+    testutil_check(conn->close(conn, NULL));
+    conn = NULL;
 
     /* Check if there's at least 10% compaction. */
     printf(" - Compressed file size MB: %f\n - Original file size MB: %f\n",
@@ -199,6 +203,7 @@ thread_func_compact(void *arg)
     testutil_check(session->compact(session, td->uri, NULL));
 
     testutil_check(session->close(session, NULL));
+    session = NULL;
 
     return (NULL);
 }
@@ -258,6 +263,7 @@ thread_func_checkpoint(void *arg)
     }
 
     testutil_check(session->close(session, NULL));
+    session = NULL;
 
     return (NULL);
 }
@@ -287,6 +293,7 @@ populate(WT_SESSION *session, const char *uri)
     }
 
     testutil_check(cursor->close(cursor));
+    cursor = NULL;
 }
 
 static void
@@ -304,6 +311,7 @@ remove_records(WT_SESSION *session, const char *uri)
     }
 
     testutil_check(cursor->close(cursor));
+    cursor = NULL;
 }
 
 static uint64_t
@@ -319,6 +327,7 @@ get_file_size(WT_SESSION *session, const char *uri)
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, &val));
     testutil_check(cur_stat->close(cur_stat));
+    cur_stat = NULL;
 
     return (val);
 }
