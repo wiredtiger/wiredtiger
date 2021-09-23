@@ -685,7 +685,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
 
     /*
      * If we find a valid key, check if we are performing a prefix search near. If we are, return
-     * the key only if it is a prefix match. If not, return the valid key.
+     * the record only if it is a prefix match. If not, return the record.
      *
      * Else, creating a record past the end of the tree in a fixed-length column-store implicitly
      * fills the gap with empty records. In this case, we instantiate the empty record, it's an
@@ -702,14 +702,18 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
     if (valid) {
         exact = cbt->compare;
         /*
-         * Set the cursor pointer key before the prefix search near check, to ensure that the key is
-         * returned to the caller in either case.
+         * Set the cursor key before the prefix search near check. If the prefix doesn't match,
+         * restore the cursor state, and continue to search for a valid key. Otherwise set the
+         * cursor value and return the valid.
          */
-        WT_ERR(__cursor_kv_return(cbt, cbt->upd_value));
-        if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
-            valid = __wt_prefix_match(&state.key, &cbt->iface.key) == 0;
-        if (valid)
+        WT_ERR(__wt_key_return(cbt));
+        if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH) &&
+          __wt_prefix_match(&state.key, &cursor->key) != 0)
+            __cursor_state_restore(cursor, &state);
+        else {
+            WT_ERR(__wt_value_return(cbt, cbt->upd_value));
             goto done;
+        }
     }
 
     if (__cursor_fix_implicit(btree, cbt)) {
