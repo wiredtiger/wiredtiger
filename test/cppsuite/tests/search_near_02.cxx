@@ -143,8 +143,11 @@ class search_near_02 : public test_harness::test {
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
+        const char *key_prefix;
+        int exact_prefix, ret;
         int64_t prefix_size;
         std::map<uint64_t, scoped_cursor> cursors;
+        std::string generated_prefix, key_prefix_str;
 
         while (tc->running()) {
             /* Get a random collection to work on. */
@@ -170,6 +173,7 @@ class search_near_02 : public test_harness::test {
               (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
             /* Put back the timestamp in the correct format. */
             ts <<= 32;
+
             tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
             /*
@@ -183,14 +187,25 @@ class search_near_02 : public test_harness::test {
                  */
                 prefix_size = random_generator::instance().generate_integer(
                   static_cast<int64_t>(1), tc->key_size);
-                const std::string prefix = random_generator::instance().generate_random_string(
+                generated_prefix = random_generator::instance().generate_random_string(
                   prefix_size, characters_type::ALPHABET);
+
+                /* Call search near with the prefix cursor. */
+                cursor_prefix->set_key(cursor_prefix.get(), generated_prefix.c_str());
+                ret = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
+                if (ret == 0) {
+                    testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
+                    key_prefix_str = key_prefix;
+                } else {
+                    key_prefix_str = "";
+                }
 
                 /* Open a cursor with the default configuration on the selected collection. */
                 scoped_cursor cursor_default(tc->session.open_scoped_cursor(coll.name.c_str()));
 
-                /* Call the search_near api using the two cursors. */
-                search_near(cursor_default, cursor_prefix, prefix);
+                /* Verify the prefix search_near output using the default cursor. */
+                validate_prefix_search_near(
+                  ret, exact_prefix, key_prefix_str, cursor_default, generated_prefix);
 
                 tc->transaction.add_op();
                 tc->transaction.try_rollback();
@@ -204,21 +219,15 @@ class search_near_02 : public test_harness::test {
     }
 
     private:
-    /*
-     * Perform search_near calls using a cursor with prefix key enabled and a cursor without it.
-     * Validate the output of the former with the latter.
-     */
+    /* Validate prefix search_near call outputs using a cursor without prefix key enabled. */
     void
-    search_near(
-      scoped_cursor &cursor_default, scoped_cursor &cursor_prefix, const std::string &prefix)
+    validate_prefix_search_near(int ret_prefix, int exact_prefix, const std::string &key_prefix,
+      scoped_cursor &cursor_default, const std::string &prefix)
     {
-        /* Call search near with both cursors using the given prefix. */
+        /* Call search near with the default cursor using the given prefix. */
+        int exact_default;
         cursor_default->set_key(cursor_default.get(), prefix.c_str());
-        cursor_prefix->set_key(cursor_prefix.get(), prefix.c_str());
-
-        int exact_default, exact_prefix;
         int ret_default = cursor_default->search_near(cursor_default.get(), &exact_default);
-        int ret_prefix = cursor_prefix->search_near(cursor_prefix.get(), &exact_prefix);
 
         /*
          * It is not possible to have a prefix search near call successful and the default search
@@ -232,7 +241,7 @@ class search_near_02 : public test_harness::test {
             /* Both calls are successful. */
             if (ret_prefix == 0)
                 validate_successful_calls(
-                  cursor_default, cursor_prefix, prefix, exact_default, exact_prefix);
+                  ret_prefix, exact_prefix, key_prefix, cursor_default, exact_default, prefix);
             /* The prefix search near call failed. */
             else
                 validate_unsuccessful_prefix_call(cursor_default, prefix, exact_default);
@@ -240,8 +249,8 @@ class search_near_02 : public test_harness::test {
     }
 
     void
-    validate_successful_calls(scoped_cursor &cursor_default, scoped_cursor &cursor_prefix,
-      const std::string &prefix, int exact_default, int exact_prefix)
+    validate_successful_calls(int ret_prefix, int exact_prefix, const std::string &key_prefix,
+      scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
     {
         const char *k;
         std::string k_str;
@@ -253,17 +262,13 @@ class search_near_02 : public test_harness::test {
          */
         testutil_assert(exact_prefix >= 0);
 
-        /* Retrieve the keys each cursor is pointing at. */
+        /* The key at the prefix cursor should contain the prefix. */
+        testutil_assert(key_prefix.substr(0, prefix.size()) == prefix);
+
+        /* Retrieve the key the default cursor is pointing at. */
         const char *key_default;
         testutil_check(cursor_default->get_key(cursor_default.get(), &key_default));
         std::string key_default_str = key_default;
-
-        const char *key_prefix;
-        testutil_check(cursor_prefix->get_key(cursor_prefix.get(), &key_prefix));
-        std::string key_prefix_str = key_prefix;
-
-        /* The key at the prefix cursor should contain the prefix. */
-        testutil_assert(key_prefix_str.substr(0, prefix.size()) == prefix);
 
         logger::log_msg(LOG_TRACE,
           "search_near (normal) exact " + std::to_string(exact_default) + " key " + key_default);
@@ -291,7 +296,7 @@ class search_near_02 : public test_harness::test {
              */
             testutil_assert(cursor_default->next(cursor_default.get()) == 0);
             testutil_check(cursor_default->get_key(cursor_default.get(), &k));
-            testutil_assert(k == key_prefix_str);
+            testutil_assert(k == key_prefix);
         }
         /* Example: */
         /* keys: a, bb, bba */
@@ -304,7 +309,7 @@ class search_near_02 : public test_harness::test {
         else {
             /* Both cursors should be pointing at the same key. */
             testutil_assert(exact_prefix == exact_default);
-            testutil_assert(key_default_str == key_prefix_str);
+            testutil_assert(key_default_str == key_prefix);
             /* Both cursors should have found the exact key. */
             if (exact_default == 0)
                 testutil_assert(key_default_str == prefix);
