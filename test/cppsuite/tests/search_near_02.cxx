@@ -144,9 +144,6 @@ class search_near_02 : public test_harness::test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         std::map<uint64_t, scoped_cursor> cursors;
-        const char *key_prefix, *key_default;
-        int exact_prefix, exact_default;
-        int ret;
 
         while (tc->running()) {
             /* Get a random collection to work on. */
