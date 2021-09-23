@@ -2018,6 +2018,10 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * our transaction. If so, we can avoid reading the records on the page and move to the next
      * page. We base this decision on the aggregate stop point added to the page during the last
      * reconciliation. We can skip this test if the page has been modified since it was reconciled.
+     * We also skip this test on an internal page, as we rely on reconciliation to mark the internal
+     * page dirty. There could be a period of time when the internal page is marked clean but the
+     * leaf page is dirty and has newer data than let on by the internal page's aggregated
+     * information.
      *
      * We are making these decisions while holding a lock for the page as checkpoint or eviction can
      * make changes to the data structures (i.e., aggregate timestamps) we are reading. It is okay
@@ -2025,13 +2029,17 @@ __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool 
      * checking if the page has been modified. So, only do a page modified check if the page was in
      * memory before locking.
      */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (0);
+
     WT_REF_LOCK(session, ref, &previous_state);
     if ((previous_state == WT_REF_DISK || previous_state == WT_REF_DELETED ||
           (previous_state == WT_REF_MEM && !__wt_page_is_modified(ref->page))) &&
-      __wt_ref_addr_copy(session, ref, &addr) &&
-      __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts) &&
-      __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_durable_ts))
+      __wt_ref_addr_copy(session, ref, &addr) && addr.ta.newest_stop_txn != WT_TXN_MAX &&
+      addr.ta.newest_stop_ts != WT_TS_MAX &&
+      __wt_txn_visible(session, addr.ta.newest_stop_txn, addr.ta.newest_stop_ts))
         *skipp = true;
+
     WT_REF_UNLOCK(ref, previous_state);
 
     return (0);
