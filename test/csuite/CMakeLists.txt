@@ -346,6 +346,3 @@ define_c_test(
     ARGUMENTS -h $<TARGET_FILE_DIR:test_wt8057_compact_stress>/WT_HOME
     DEPENDS "WT_POSIX"
 )
-
-# Run this during a "ctest check" or "ctest csuite" smoke test
-set_tests_properties(${c_tests} PROPERTIES LABELS "check;csuite")
