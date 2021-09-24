@@ -65,6 +65,7 @@ define_c_test(
     TARGET test_rwlock
     SOURCES rwlock/main.c
     DIR_NAME rwlock
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_rwlock>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -81,6 +82,7 @@ define_c_test(
     TARGET test_scope
     SOURCES scope/main.c
     DIR_NAME scope
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_scope>/WT_HOME
 )
 
 define_c_test(
@@ -114,6 +116,7 @@ define_c_test(
     TARGET test_wt1965_col_efficiency
     SOURCES wt1965_col_efficiency/main.c
     DIR_NAME wt1965_col_efficiency
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt1965_col_efficiency>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -121,6 +124,7 @@ define_c_test(
     TARGET test_wt2403_lsm_workload
     SOURCES wt2403_lsm_workload/main.c
     DIR_NAME wt2403_lsm_workload
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2403_lsm_workload>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -128,12 +132,14 @@ define_c_test(
     TARGET test_wt2246_col_append
     SOURCES wt2246_col_append/main.c
     DIR_NAME wt2246_col_append
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2246_col_append>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt2323_join_visibility
     SOURCES wt2323_join_visibility/main.c
     DIR_NAME wt2323_join_visibility
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2323_join_visibility>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -158,18 +164,21 @@ define_c_test(
     TARGET test_wt2695_checksum
     SOURCES wt2695_checksum/main.c
     DIR_NAME wt2695_checksum
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2695_checksum>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt2592_join_schema
     SOURCES wt2592_join_schema/main.c
     DIR_NAME wt2592_join_schema
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2592_join_schema>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt2834_join_bloom_fix
     SOURCES wt2834_join_bloom_fix/main.c
     DIR_NAME wt2834_join_bloom_fix
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2834_join_bloom_fix>/WT_HOME
 )
 
 define_c_test(
@@ -198,6 +207,7 @@ define_c_test(
     TARGET test_wt2999_join_extractor
     SOURCES wt2999_join_extractor/main.c
     DIR_NAME wt2999_join_extractor
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt2999_join_extractor>/WT_HOME
 )
 
 define_c_test(
@@ -208,7 +218,7 @@ define_c_test(
     # and build directory as this path is more dynamic compared to layout autoconf
     # produces in build_posix.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
-    ARGUMENTS -b ${CMAKE_BINARY_DIR}
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} -h $<TARGET_FILE_DIR:test_wt3120_filesys>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -216,18 +226,21 @@ define_c_test(
     TARGET test_wt3135_search_near_collator
     SOURCES wt3135_search_near_collator/main.c
     DIR_NAME wt3135_search_near_collator
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt3135_search_near_collator>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt3184_dup_index_collator
     SOURCES wt3184_dup_index_collator/main.c
     DIR_NAME wt3184_dup_index_collator
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt3184_dup_index_collator>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt3338_partial_update
     SOURCES wt3338_partial_update/main.c
     DIR_NAME wt3338_partial_update
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt3338_partial_update>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -235,6 +248,7 @@ define_c_test(
     TARGET test_wt3363_checkpoint_op_races
     SOURCES wt3363_checkpoint_op_races/main.c
     DIR_NAME wt3363_checkpoint_op_races
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt3363_checkpoint_op_races>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -242,6 +256,7 @@ define_c_test(
     TARGET test_wt3874_pad_byte_collator
     SOURCES wt3874_pad_byte_collator/main.c
     DIR_NAME wt3874_pad_byte_collator
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt3874_pad_byte_collator>/WT_HOME
 )
 
 define_c_test(
@@ -257,12 +272,14 @@ define_c_test(
     TARGET test_wt4117_checksum
     SOURCES wt4117_checksum/main.c
     DIR_NAME wt4117_checksum
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4117_checksum>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt4156_metadata_salvage
     SOURCES wt4156_metadata_salvage/main.c
     DIR_NAME wt4156_metadata_salvage
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4156_metadata_salvage>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -270,6 +287,7 @@ define_c_test(
     TARGET test_wt4333_handle_locks
     SOURCES wt4333_handle_locks/main.c
     DIR_NAME wt4333_handle_locks
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4333_handle_locks>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -277,12 +295,14 @@ define_c_test(
     TARGET test_wt4699_json
     SOURCES wt4699_json/main.c
     DIR_NAME wt4699_json
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4699_json>/WT_HOME
 )
 
 define_c_test(
     TARGET test_wt4803_history_store_abort
     SOURCES wt4803_history_store_abort/main.c
     DIR_NAME wt4803_history_store_abort
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4803_history_store_abort>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -290,6 +310,7 @@ define_c_test(
     TARGET test_wt4891_meta_ckptlist_get_alloc
     SOURCES wt4891_meta_ckptlist_get_alloc/main.c
     DIR_NAME wt4891_meta_ckptlist_get_alloc
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt4891_meta_ckptlist_get_alloc>/WT_HOME
 )
 
 define_c_test(
@@ -314,6 +335,7 @@ define_c_test(
     TARGET test_wt7989_compact_checkpoint
     SOURCES wt7989_compact_checkpoint/main.c
     DIR_NAME wt7989_compact_checkpoint
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt7989_compact_checkpoint>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 
@@ -321,6 +343,7 @@ define_c_test(
     TARGET test_wt8057_compact_stress
     SOURCES wt8057_compact_stress/main.c
     DIR_NAME wt8057_compact_stress
+    ARGUMENTS -h $<TARGET_FILE_DIR:test_wt8057_compact_stress>/WT_HOME
     DEPENDS "WT_POSIX"
 )
 

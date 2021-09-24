@@ -255,14 +255,8 @@ macro(define_c_test)
                 BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
                 ${additional_executable_args}
             )
-            # Take a CMake-based path and convert it to a platform-specfic path (/ for Unix, \ for Windows).
-            set(wt_test_home_dir ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}/WT_HOME_${C_TEST_TARGET})
-            file(TO_NATIVE_PATH "${wt_test_home_dir}" wt_test_home_dir)
-            # Ensure each DB home directory is run under the tests working directory.
-            set(command_args -h ${wt_test_home_dir})
-            list(APPEND command_args ${C_TEST_ARGUMENTS})
             add_test(NAME ${C_TEST_TARGET}
-                COMMAND ${exec_wrapper} $<TARGET_FILE:${C_TEST_TARGET}> ${command_args}
+                COMMAND ${exec_wrapper} $<TARGET_FILE:${C_TEST_TARGET}> ${C_TEST_ARGUMENTS}
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
             )
         endif()
