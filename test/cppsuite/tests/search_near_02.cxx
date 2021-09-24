@@ -326,6 +326,9 @@ class search_near_02 : public test_harness::test {
             /* Both cursors should have found the exact key. */
             if (exact_default == 0)
                 testutil_assert(key_default_str == prefix);
+            /* Both cursors have found a key that is lexicographically greater than the prefix. */
+            else
+                testutil_assert(key_default_str != prefix);
         }
     }
 
