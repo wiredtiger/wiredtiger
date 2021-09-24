@@ -36,7 +36,8 @@ define_c_test(
     TARGET test_incr_backup
     SOURCES incr_backup/main.c
     DIR_NAME incr_backup
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/incr_backup/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_incr_backup>
     DEPENDS "WT_POSIX"
 )
 
@@ -44,7 +45,8 @@ define_c_test(
     TARGET test_random_abort
     SOURCES random_abort/main.c
     DIR_NAME random_abort
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_abort/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_random_abort>
     DEPENDS "WT_POSIX"
 )
 
@@ -54,7 +56,8 @@ define_c_test(
         random_directio/main.c
         random_directio/util.c
     DIR_NAME random_directio
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/random_directio/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_random_directio>
     DEPENDS "WT_POSIX"
 )
 
@@ -69,7 +72,8 @@ define_c_test(
     TARGET test_schema_abort
     SOURCES schema_abort/main.c
     DIR_NAME schema_abort
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/schema_abort/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_schema_abort>
     DEPENDS "WT_POSIX"
 )
 
@@ -83,7 +87,7 @@ define_c_test(
     TARGET test_tiered_abort
     SOURCES tiered_abort/main.c
     DIR_NAME tiered_abort
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
     DEPENDS "WT_POSIX"
 )
@@ -92,7 +96,7 @@ define_c_test(
     TARGET test_timestamp_abort
     SOURCES timestamp_abort/main.c
     DIR_NAME timestamp_abort
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/timestamp_abort/smoke.sh
     ARGUMENTS -b $<TARGET_FILE:test_timestamp_abort>
     DEPENDS "WT_POSIX"
 )
@@ -101,7 +105,8 @@ define_c_test(
     TARGET test_truncated_log
     SOURCES truncated_log/main.c
     DIR_NAME truncated_log
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/truncated_log/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_truncated_log>
     DEPENDS "WT_POSIX"
 )
 
@@ -136,7 +141,8 @@ define_c_test(
     TARGET test_wt2535_insert_race
     SOURCES wt2535_insert_race/main.c
     DIR_NAME wt2535_insert_race
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2535_insert_race/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt2535_insert_race>
     DEPENDS "WT_POSIX"
 )
 
@@ -144,7 +150,8 @@ define_c_test(
     TARGET test_wt2447_join_main_table
     SOURCES wt2447_join_main_table/main.c
     DIR_NAME wt2447_join_main_table
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2447_join_main_table/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt2447_join_main_table>
 )
 
 define_c_test(
@@ -169,7 +176,8 @@ define_c_test(
     TARGET test_wt2853_perf
     SOURCES wt2853_perf/main.c
     DIR_NAME wt2853_perf
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2853_perf/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt2853_perf>
     DEPENDS "WT_POSIX"
 )
 
@@ -181,8 +189,8 @@ define_c_test(
     # and build directory as this path is more dynamic compared to layout autoconf
     # produces in build_posix.
     FLAGS "-DWT_FAIL_FS_LIB=\"ext/test/fail_fs/libwiredtiger_fail_fs.so\""
-    ARGUMENTS -b ${CMAKE_BINARY_DIR}
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt2909_checkpoint_integrity/smoke.sh
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_wt2909_checkpoint_integrity>
     DEPENDS "WT_POSIX"
 )
 
@@ -240,7 +248,8 @@ define_c_test(
     TARGET test_wt4105_large_doc_small_upd
     SOURCES wt4105_large_doc_small_upd/main.c
     DIR_NAME wt4105_large_doc_small_upd
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt4105_large_doc_small_upd/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt4105_large_doc_small_upd>
     DEPENDS "WT_POSIX"
 )
 
@@ -287,7 +296,8 @@ define_c_test(
     TARGET test_wt6185_modify_ts
     SOURCES wt6185_modify_ts/main.c
     DIR_NAME wt6185_modify_ts
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt6185_modify_ts/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt6185_modify_ts>
     DEPENDS "WT_POSIX"
 )
 
@@ -295,7 +305,8 @@ define_c_test(
     TARGET test_wt6616_checkpoint_oldest_ts
     SOURCES wt6616_checkpoint_oldest_ts/main.c
     DIR_NAME wt6616_checkpoint_oldest_ts
-    SMOKE
+    EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/wt6616_checkpoint_oldest_ts/smoke.sh
+    ARGUMENTS $<TARGET_FILE:test_wt6616_checkpoint_oldest_ts>
     DEPENDS "WT_POSIX"
 )
 

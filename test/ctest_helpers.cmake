@@ -204,8 +204,8 @@ endfunction()
 macro(define_c_test)
     cmake_parse_arguments(
         "C_TEST"
-        "SMOKE"
-        "TARGET;DIR_NAME;DEPENDS"
+        ""
+        "TARGET;DIR_NAME;DEPENDS;EXEC_SCRIPT"
         "SOURCES;FLAGS;ARGUMENTS"
         ${ARGN}
     )
@@ -236,16 +236,17 @@ macro(define_c_test)
             # Which while technically valid breaks assumptions in our testing utilities. Wrap the execution in powershell to avoid this.
             set(exec_wrapper "powershell.exe")
         endif()
-        if (C_TEST_SMOKE)
+        if (C_TEST_EXEC_SCRIPT)
             # csuite test comes with a smoke execution wrapper.
             create_test_executable(${C_TEST_TARGET}
                 SOURCES ${C_TEST_SOURCES}
-                ADDITIONAL_FILES ${CMAKE_CURRENT_SOURCE_DIR}/${C_TEST_DIR_NAME}/smoke.sh
+                ADDITIONAL_FILES ${C_TEST_EXEC_SCRIPT}
                 BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
                 ${additional_executable_args}
             )
+            get_filename_component(exec_script_basename ${C_TEST_EXEC_SCRIPT} NAME)
             add_test(NAME ${C_TEST_TARGET}
-                COMMAND ${exec_wrapper} ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}/smoke.sh ${C_TEST_ARGUMENTS} $<TARGET_FILE:${C_TEST_TARGET}>
+                COMMAND ${exec_wrapper} ${exec_script_basename} ${C_TEST_ARGUMENTS}
                 WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/${C_TEST_DIR_NAME}
             )
         else()
