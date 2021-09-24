@@ -249,6 +249,18 @@ class search_near_02 : public test_harness::test {
         }
     }
 
+    /*
+     * Validate a successful prefix enabled search near call using a successful default search near
+     * call.
+     * The exact value set by the prefix search near call has to be either 0 or 1. Indeed, it cannot
+     * be -1 as the key needs to contain the prefix.
+     * - If it is 0, both search near calls should return the same outputs and both cursors should
+     * be positioned on the prefix we are looking for.
+     * - If it is 1, it will depend on the exact value set by the default search near call which can
+     * be -1 or 1. If it is -1, calling next on the default cursor should get us ti the key found by
+     * the prefix search near call. If it is 1, it means both search near calls have found the same
+     * key that is lexicographically greater than the prefix but still contains the prefix.
+     */
     void
     validate_successful_calls(int ret_prefix, int exact_prefix, const std::string &key_prefix,
       scoped_cursor &cursor_default, int exact_default, const std::string &prefix)
