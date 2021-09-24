@@ -24,6 +24,7 @@ build_branch()
     config=""
     config+="--enable-snappy "
     config+="--disable-standalone-build "
+    config+="--enable-tcmalloc "
     (sh build_posix/reconf &&
          ./configure $config && make -j $(grep -c ^processor /proc/cpuinfo)) > /dev/null
     cd ..

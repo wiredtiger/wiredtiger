@@ -59,60 +59,17 @@ functions:
       params:
         path: "dbpath_100k_500.tgz"
         destination: "mongo-tests/largescale/many-collection/dbpath/."
-  "fetch artifacts from many-coll" :
-    - command: s3.get
-      params:
-        aws_key: ${aws_key}
-        aws_secret: ${aws_secret}
-        remote_file: gperftools.tgz
-        bucket: build_external
-        local_file: gperftools.tgz
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          mkdir -p mongo-tests/largescale/many-collection/dbpath
-    - command: archive.targz_extract
-      params:
-        path: "dbpath_100k_500.tgz"
-        destination: "mongo-tests/largescale/many-collection/dbpath/."
 
-  "fetch tcmalloc":
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-        
-          curl --retry 5 -L https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz -sS --max-time 120 --fail --output tcmalloc.tar.gz
-    - command: archive.targz_extract
-      params:
-        path: "tcmalloc.tar.gz"
-        destination: "wiredtiger"
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          
-          cd wiredtiger/gperftools-2.9.1
-          sh ./configure --prefix=$(pwd)/TCMALLOC_LIB 
-          make install
-    - *enable_tcmalloc
-
-  "enable tcmalloc": &enable_tcmalloc
+  "fetch tcmalloc": &fetch_tcmalloc
     command: shell.exec
     params:
+      working_dir: "wiredtiger"
       shell: bash
       script: |
         set -o errexit
         set -o verbose
-        export CPPFLAGS='-I$(pwd)/TCMALLOC_LIB/include/'
-        export LDFLAGS='-L$(pwd)/TCMALLOC_LIB/lib/'
+
+        sh test/evergreen/find_gperftools.sh ${aws_key} ${aws_secret}
 
   "fetch mongo-tests repo" :
     command: shell.exec
@@ -219,29 +176,7 @@ functions:
           fi
         fi
   "compile wiredtiger":
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-        
-          curl --retry 5 -L https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz -sS --max-time 120 --fail --output tcmalloc.tar.gz
-    - command: archive.targz_extract
-      params:
-        path: "tcmalloc.tar.gz"
-        destination: "."
-    - command: shell.exec
-      params:
-        shell: bash
-        script: |
-          set -o errexit
-          set -o verbose
-          
-          ls $(pwd)/.
-          cd gperftools-2.9.1
-          sh ./configure --prefix=$(pwd)/TCMALLOC_LIB
-          make install
+    - *fetch_tcmalloc
     - *configure_wiredtiger
     - *make_wiredtiger
   "compile wiredtiger no linux ftruncate":
