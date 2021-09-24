@@ -237,7 +237,7 @@ macro(define_c_test)
             set(exec_wrapper "powershell.exe")
         endif()
         if (C_TEST_EXEC_SCRIPT)
-            # csuite test comes with a smoke execution wrapper.
+            # Define the c test to be executed with a script, rather than invoking the binary directly.
             create_test_executable(${C_TEST_TARGET}
                 SOURCES ${C_TEST_SOURCES}
                 ADDITIONAL_FILES ${C_TEST_EXEC_SCRIPT}
