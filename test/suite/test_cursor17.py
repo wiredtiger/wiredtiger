@@ -48,7 +48,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         ('table-r-complex', dict(type='table:', keyformat='r', valueformat=None,
             dataset=ComplexDataSet)),
         # ('table-i-complex-lsm', dict(type='table:', keyformat='i', valueformat=None,
-            dataset=ComplexLSMDataSet)),
+        #   dataset=ComplexLSMDataSet)),
     ]
 
     scenarios = make_scenarios(types)
