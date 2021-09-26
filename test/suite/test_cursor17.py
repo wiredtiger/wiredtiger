@@ -173,14 +173,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.type + self.tablename, None)
         # Verify the largest key.
         self.session.begin_transaction()
-        with self.expectedStderrPattern(""):
-            try:
-                cursor.largest_key()
-            except wiredtiger.WiredTigerError as e:
-                gotException = True
-                self.pr('got expected exception: ' + str(e))
-                self.assertTrue(str(e).find('') >= 0)
-        self.assertTrue(gotException, msg = 'item not found')
+        self.assertEquals(cursor.largest_key(), wiredtiger.WT_NOTFOUND)
         self.session.rollback_transaction()
 
     def test_fast_truncate(self):
