@@ -349,11 +349,11 @@ __wt_evict_thread_stop(WT_SESSION_IMPL *session, WT_THREAD *thread)
     WT_WITH_PASS_LOCK(session, ret = __evict_clear_all_walks(session));
     WT_ERR(ret);
     /*
-     * The only three cases when the eviction server is expected to stop are when recovery is
-     * finished, when the connection is closing or when an error has occurred and connection panic
-     * flag is set.
+     * The only cases when the eviction server is expected to stop are when recovery is finished,
+     * when the connection is closing or when an error has occurred and connection panic flag is
+     * set.
      */
-    WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_RECOVERING | WT_CONN_PANIC));
+    WT_ASSERT(session, F_ISSET(conn, WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
 
     /* Clear the eviction thread session flag. */
     F_CLR(session, WT_SESSION_EVICTION);
