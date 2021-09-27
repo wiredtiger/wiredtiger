@@ -176,9 +176,10 @@ class search_near_02 : public test_harness::test {
 
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
+             * To tackle this issue, we round the timestamp to the oldest timestamp value.
              */
-            if(ts >= tc->tsm->get_oldest_ts())
-                tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+            tc->transaction.begin(
+              "roundup_timestamps=(read=true),read_timestamp=" + tc->tsm->decimal_to_hex(ts));
 
             while (tc->transaction.active() && tc->running()) {
                 /*
