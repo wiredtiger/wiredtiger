@@ -112,20 +112,20 @@ class test_cursor17(wttest.WiredTigerTestCase):
 
         session2.rollback_transaction()
 
-    def test_invisible_timestamp(self):
+    def test_read_timestamp(self):
         self.populate(100)
 
         cursor = self.session.open_cursor(self.type + self.tablename, None)
-        self.session.begin_transaction()
-        cursor[101] = self.ds.value(101)
-        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
-
-        cursor = self.session.open_cursor(self.type + self.tablename, None)
-
-        # Verify the largest key.
         self.session.begin_transaction('read_timestamp=' + self.timestamp_str(5))
-        self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), 101)
+        # Expect the largest key to throw.
+        with self.expectedStderrPattern("largest key cannot be called with a read timestamp"):
+            try:
+                cursor.largest_key()
+            except wiredtiger.WiredTigerError as e:
+                gotException = True
+                self.pr('got expected exception: ' + str(e))
+                self.assertTrue(str(e).find('nvalid argument') >= 0)
+        self.assertTrue(gotException, msg = 'expected exception')
         self.session.rollback_transaction()
 
     def test_not_positioned(self):
