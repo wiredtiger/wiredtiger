@@ -153,8 +153,8 @@ function(define_test_variants target)
         1
         "DEFINE_TEST"
         ""
-        "CMD;DIR_NAME"
-        "VARIANTS;LABELS"
+        "DIR_NAME"
+        "VARIANTS;LABELS;CMDS"
     )
     if (NOT "${DEFINE_TEST_UNPARSED_ARGUMENTS}" STREQUAL "")
         message(FATAL_ERROR "Unknown arguments to define_test_variants: ${DEFINE_TEST_UNPARSED_ARGUMENTS}")
@@ -195,8 +195,8 @@ function(define_test_variants target)
         # Ensure the variant target is created prior to building the test.
         add_dependencies(${target} create_dir_${curr_variant_name})
         set(test_cmd)
-        if(DEFINE_TEST_CMD)
-            set(test_cmd ${DEFINE_TEST_CMD})
+        if(DEFINE_TEST_CMDS)
+            set(test_cmd ${DEFINE_TEST_CMDS})
         else()
             set(test_cmd $<TARGET_FILE:${target}>)
         endif()
@@ -275,12 +275,10 @@ function(define_c_test)
         endif()
         # Define the ctest target.
         if(C_TEST_VARIANTS)
-            # We need to pass a string literal to 'define_test_variants' as 'CMD' is a single value parameter.
-            string (REPLACE ";" " " test_cmd "${test_cmd}")
             # If we want to define multiple variant executions of the test script/binary.
             define_test_variants(${C_TEST_TARGET}
                 VARIANTS ${C_TEST_VARIANTS}
-                CMD "${test_cmd}"
+                CMDS ${test_cmd}
                 DIR_NAME ${C_TEST_DIR_NAME}
                 LABELS "check;csuite"
             )
