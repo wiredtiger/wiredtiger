@@ -166,21 +166,21 @@ class search_near_02 : public test_harness::test {
             auto &cursor_prefix = cursors[coll.id];
 
             /*
-             * Select a random timestamp between the oldest and now and start the transaction at
-             * that time. Get rid of the last 32 bits as they represent an increment for uniqueness.
+             * Pick a random timestamp between the oldest and now. Get rid of the last 32 bits as
+             * they represent an increment for uniqueness.
              */
             wt_timestamp_t ts = random_generator::instance().generate_integer(
               (tc->tsm->get_oldest_ts() >> 32), (tc->tsm->get_next_ts() >> 32));
             /* Put back the timestamp in the correct format. */
             ts <<= 32;
 
-            tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(ts));
-
             /*
              * The oldest timestamp might move ahead and the reading timestamp might become invalid.
-             * If this happens, we can exit the current loop.
              */
-            while (tc->transaction.active() && tc->running() && ts >= tc->tsm->get_oldest_ts()) {
+            if(ts >= tc->tsm->get_oldest_ts())
+                tc->transaction.begin("read_timestamp=" + tc->tsm->decimal_to_hex(ts));
+
+            while (tc->transaction.active() && tc->running()) {
                 /*
                  * Generate a random prefix. For this, we start by generating a random size and then
                  * its value.
