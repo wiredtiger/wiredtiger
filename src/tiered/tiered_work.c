@@ -26,8 +26,10 @@ __tiered_flush_state(WT_SESSION_IMPL *session, uint32_t type, bool incr)
         old_state = conn->flush_state;
         if (incr)
             new_state = old_state + 1;
-        else
+        else {
+            WT_ASSERT(session, new_state != 0);
             new_state = old_state - 1;
+        }
         if (__wt_atomic_casv32(&conn->flush_state, old_state, new_state))
             break;
         WT_STAT_CONN_INCR(session, flush_state_races);

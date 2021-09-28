@@ -41,7 +41,6 @@ __fhandle_method_finalize(WT_SESSION_IMPL *session, WT_FILE_HANDLE *handle, bool
     return (0);
 }
 
-#ifdef HAVE_DIAGNOSTIC
 /*
  * __wt_handle_is_open --
  *     Return if there's an open handle matching a name.
@@ -72,7 +71,6 @@ __wt_handle_is_open(WT_SESSION_IMPL *session, const char *name)
 
     return (found);
 }
-#endif
 
 /*
  * __handle_search --
