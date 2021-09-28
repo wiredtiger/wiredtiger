@@ -778,8 +778,9 @@ config_sanity(WTPERF *wtperf)
     /* If we have separate tables for scanning, we need a separate count. */
     if ((opts->scan_icount > 0 && opts->scan_table_count == 0) ||
       (opts->scan_icount == 0 && opts->scan_table_count > 0)) {
-        fprintf(stderr, "scan_icount %" PRIu32 " and scan_table_count %" PRIu32
-                        " must both be zero or nonzero.\n",
+        fprintf(stderr,
+          "scan_icount %" PRIu32 " and scan_table_count %" PRIu32
+          " must both be zero or nonzero.\n",
           opts->scan_icount, opts->scan_table_count);
         return (EINVAL);
     }
@@ -809,8 +810,9 @@ config_sanity(WTPERF *wtperf)
 
     if (wtperf->workload != NULL)
         for (i = 0, workp = wtperf->workload; i < wtperf->workload_cnt; ++i, ++workp) {
-            if (opts->readonly && (workp->insert != 0 || workp->modify != 0 ||
-                                    workp->truncate != 0 || workp->update != 0)) {
+            if (opts->readonly &&
+              (workp->insert != 0 || workp->modify != 0 || workp->truncate != 0 ||
+                workp->update != 0)) {
                 fprintf(stderr,
                   "Invalid workload: insert, modify, truncate or update specified with "
                   "readonly\n");

@@ -218,9 +218,9 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 {
     WT_BLOCK_HEADER *blk, swap;
     WT_DECL_RET;
-    int cret;
     WT_FH *fh;
     size_t bufsize;
+    int cret;
 
 #if BLKCACHE_TRACE == 1
     WT_BLKCACHE_ID id;
@@ -264,16 +264,16 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
 
     /* Ask the block cache to give us the block. If it doesn't have it, read it. */
     if (fh->file_type != WT_FS_OPEN_FILE_TYPE_DATA)
-	WT_RET(__wt_read(session, fh, offset, size, buf->mem));
+        WT_RET(__wt_read(session, fh, offset, size, buf->mem));
     else {
-	if((cret =__wt_blkcache_get_or_check(session, offset, size, checksum,
-					    buf->mem)) != 0) {
-	    WT_RET(__wt_read(session, fh, offset, size, buf->mem));
-	    if (cret != WT_BLKCACHE_BYPASS) {
-		WT_TRET_ERROR_OK(__wt_blkcache_put(session, offset, size, checksum,
-						   buf->mem, false, false), WT_BLKCACHE_FULL);
-	    }
-	}
+        if ((cret = __wt_blkcache_get_or_check(session, offset, size, checksum, buf->mem)) != 0) {
+            WT_RET(__wt_read(session, fh, offset, size, buf->mem));
+            if (cret != WT_BLKCACHE_BYPASS) {
+                WT_TRET_ERROR_OK(
+                  __wt_blkcache_put(session, offset, size, checksum, buf->mem, false, false),
+                  WT_BLKCACHE_FULL);
+            }
+        }
     }
     buf->size = size;
 

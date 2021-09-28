@@ -1690,8 +1690,6 @@ extern void *__wt_ext_scr_alloc(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session
 extern void __wt_abort(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn))
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_backup_destroy(WT_SESSION_IMPL *session);
-extern void __wt_blkcache_evicting_clean(
-  WT_SESSION_IMPL *session, uint8_t *addr, bool never_modified);
 extern void __wt_blkcache_remove(
   WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum);
 extern void __wt_block_cache_destroy(WT_SESSION_IMPL *session);

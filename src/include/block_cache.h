@@ -17,11 +17,11 @@
 
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
-#define BLKCACHE_HASHSIZE_MAX 1024*1024*1024
+#define BLKCACHE_HASHSIZE_MAX 1024 * 1024 * 1024
 
 #define BLKCACHE_TRACE 0
 
-#define WT_BLKCACHE_FULL   -2
+#define WT_BLKCACHE_FULL -2
 #define WT_BLKCACHE_BYPASS -3
 
 /*
@@ -88,14 +88,11 @@ struct __wt_blkcache {
     uint32_t min_freq_counter;
 
     /*
-     * Various metrics helping us measure the overhead and
-     * decide if to bypass the cache.
-     * We access some of them without synchronization despite races.
-     * These serve as heuristics, and we don't need precise values
-     * for them to be useful. If, because of races, we lose updates
-     * of these values, assuming that we lose them at the same
-     * rate for all variables, the ratio should remain roughly
-     * accurate. We care about the ratio.
+     * Various metrics helping us measure the overhead and decide if to bypass the cache. We access
+     * some of them without synchronization despite races. These serve as heuristics, and we don't
+     * need precise values for them to be useful. If, because of races, we lose updates of these
+     * values, assuming that we lose them at the same rate for all variables, the ratio should
+     * remain roughly accurate. We care about the ratio.
      */
     size_t lookups;
     size_t inserts;
