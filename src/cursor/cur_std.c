@@ -1151,6 +1151,7 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
+    F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));

@@ -76,6 +76,15 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.get_key(), 100)
         self.session.rollback_transaction()
 
+        # Verify the key is not visible.
+        self.session.begin_transaction()
+        cursor.set_key(100)
+        if self.valueformat != '8t':
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        else:
+            self.assertEqual(cursor.search(), 0)
+        self.session.rollback_transaction()
+
         # Use evict cursor to evict the key from memory.
         evict_cursor = self.session.open_cursor(self.type + self.tablename, None, "debug=(release_evict)")
         evict_cursor.set_key(100)
