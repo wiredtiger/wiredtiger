@@ -87,18 +87,19 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
 }
 
 static void
-__blkcache_print_reference_hist(const char *header, uint32_t *hist)
+__blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, uint32_t *hist)
 {
     int j;
 
-    printf("%s:\n", header);
-    printf("Reuses \t Number of blocks \n");
-    printf("-----------------------------\n");
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s:\n", header);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "Reuses \t Number of blocks");
+    __wt_verbose(session, WT_VERB_BLKCACHE,"%s\n", "-----------------------------");
     for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-        printf("[%d - %d] \t %d \n", j * BLKCACHE_HIST_BOUNDARY, (j + 1) * BLKCACHE_HIST_BOUNDARY,
-          hist[j]);
+        __wt_verbose(session, WT_VERB_BLKCACHE,
+		     "[%d - %d] \t %u \n",
+		     j * BLKCACHE_HIST_BOUNDARY, (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
     }
-    printf("\n");
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "\n");
 }
 
 static inline bool
@@ -184,7 +185,7 @@ __blkcache_eviction_thread(void *arg)
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
-    printf(
+    __wt_verbose(session, WT_VERB_BLKCACHE,
       "Block cache eviction thread starting... Aggressive target = %d, "
       "full target = %f.\n",
       blkcache->evict_aggressive, blkcache->full_target);
@@ -313,11 +314,6 @@ __wt_blkcache_get_or_check(
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket, hash;
-#if BLKCACHE_TRACE == 1
-    uint64_t time_start, time_stop;
-
-    time_start = time_stop = 0;
-#endif
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -347,9 +343,6 @@ __wt_blkcache_get_or_check(
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
         if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
-#if BLKCACHE_TRACE == 1
-            time_start = __wt_clock(session);
-#endif
             if (data_ptr != NULL)
                 memcpy(data_ptr, blkcache_item->data, size);
 
@@ -358,18 +351,7 @@ __wt_blkcache_get_or_check(
                 blkcache_item->freq_rec_counter = 0;
             blkcache_item->freq_rec_counter++;
 
-#if BLKCACHE_TRACE == 1
-            time_stop = __wt_clock(session);
-#endif
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-#if BLKCACHE_TRACE == 1
-            __wt_verbose(session, WT_VERB_BLKCACHE,
-              "memory read latency: "
-              "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64
-              ", "
-              "latency=%" PRIu64 " ns.",
-              (uintmax_t)offset, (uint32_t)size, hash, WT_CLOCKDIFF_NS(time_stop, time_start));
-#endif
             WT_STAT_CONN_INCR(session, block_cache_hits);
             __wt_verbose(session, WT_VERB_BLKCACHE,
               "block found in cache: "
@@ -409,11 +391,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     WT_DECL_RET;
     uint64_t bucket, hash;
     void *data_ptr;
-#if BLKCACHE_TRACE == 1
-    uint64_t time_start, time_stop;
-
-    time_start = time_stop = 0;
-#endif
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -489,14 +466,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
      */
     blkcache_item->freq_rec_counter = 1;
 
-#if BLKCACHE_TRACE == 1
-    time_start = __wt_clock(session);
-#endif
     memcpy(blkcache_item->data, data, size);
-#if BLKCACHE_TRACE == 1
-    time_stop = __wt_clock(session);
-#endif
-
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
 
     blkcache->num_data_blocks++;
@@ -504,15 +474,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     blkcache->inserts++;
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-
-#if BLKCACHE_TRACE == 1
-    __wt_verbose(session, WT_VERB_BLKCACHE,
-      "memory write latency: "
-      "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64
-      ", "
-      "latency=%" PRIu64 " ns.",
-      (uintmax_t)offset, (uint32_t)size, hash, WT_CLOCKDIFF_NS(time_stop, time_start));
-#endif
 
     WT_STAT_CONN_INCRV(session, block_cache_bytes, size);
     WT_STAT_CONN_INCR(session, block_cache_blocks);
@@ -629,12 +590,6 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
     blkcache->system_ram = system_ram;
     blkcache->write_allocate = write_allocate;
 
-    printf(
-      "Block cache: fraction in dram: %f, full_target %f,"
-      "overhead percent: %f, evict_aggressive: %d, chkpt_write_bypass: %d \n",
-      (double)blkcache->fraction_in_dram, blkcache->full_target, blkcache->overhead_pct,
-      -evict_aggressive, chkpt_write_bypass);
-
     if (type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
         if ((ret = memkind_create_pmem(nvram_device_path, 0, &blkcache->pmem_kind)) != 0)
@@ -705,7 +660,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         blkcache->blkcache_exiting = true;
         __wt_cond_signal(session, blkcache->blkcache_cond);
         WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
-        printf("Block cache eviction thread exited...\n");
+        __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "Block cache eviction thread exited...");
         __wt_cond_destroy(session, &blkcache->blkcache_cond);
     }
 
@@ -717,9 +672,11 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
             TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
-#if 0 /* Todo: remove this later. Some workloads crash on freeing arenas */
+	    /* Some workloads crash on freeing arenas. If that
+	     * occurs the call to free can be removed and the
+	     * library/OS will clean up for us once the process exits.
+	     */
             __blkcache_free(session, blkcache_item->data);
-#endif
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EXIT);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= blkcache_item->id.size;
@@ -731,9 +688,11 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 
 done:
     /* Print reference histograms */
-    __blkcache_print_reference_hist("All blocks", blkcache->cache_references);
-    __blkcache_print_reference_hist("Removed blocks", blkcache->cache_references_removed_blocks);
-    __blkcache_print_reference_hist("Evicted blocks", blkcache->cache_references_evicted_blocks);
+    __blkcache_print_reference_hist(session, "All blocks", blkcache->cache_references);
+    __blkcache_print_reference_hist(session, "Removed blocks",
+				    blkcache->cache_references_removed_blocks);
+    __blkcache_print_reference_hist(session, "Evicted blocks",
+				    blkcache->cache_references_evicted_blocks);
 
 #ifdef HAVE_LIBMEMKIND
     if (blkcache->type == BLKCACHE_NVRAM) {

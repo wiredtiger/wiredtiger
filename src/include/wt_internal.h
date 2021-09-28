@@ -407,6 +407,7 @@ typedef uint64_t wt_timestamp_t;
 
 #include "api.h"
 #include "block.h"
+#include "block_cache.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
