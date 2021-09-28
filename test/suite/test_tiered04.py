@@ -61,7 +61,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         os.mkdir(self.bucket)
         os.mkdir(self.bucket1)
         return \
-          'statistics=(all),verbose=(tiered,temporary),' + \
+          'statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
@@ -142,6 +142,11 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.assertTrue(os.path.exists(self.obj2file))
         self.pr("Sleep")
         time.sleep(self.retention + 1)
+        # We call flush_tier here because otherwise the internal thread that
+        # processes the work units won't run for a while. This call will signal
+        # the internal thread to process the work units.
+        self.session.flush_tier(None)
+        time.sleep(1)
         self.pr("Check removal of ")
         self.pr(self.objfile)
         self.assertFalse(os.path.exists(self.objfile))
@@ -170,7 +175,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         c.close()
 
         calls = self.get_stat(stat.conn.flush_tier, None)
-        flush = 2
+        flush = 3
         self.assertEqual(calls, flush)
         obj = self.get_stat(stat.conn.tiered_object_size, None)
         self.assertEqual(obj, self.object_sys_val)
@@ -202,8 +207,9 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.assertEqual(retain, self.retention)
         self.session.flush_tier(None)
         self.session.flush_tier('force=true')
+        flush += 2
         calls = self.get_stat(stat.conn.flush_tier, None)
-        self.assertEqual(calls, 4)
+        self.assertEqual(calls, flush)
 
         # Test reconfiguration.
         config = 'tiered_storage=(local_retention=%d)' % self.retention1
@@ -219,9 +225,10 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.flush_tier('timeout=10')
         self.session.flush_tier('lock_wait=false')
         self.session.flush_tier('sync=off')
+        flush += 3
         self.pr("reconfigure get stat")
         calls = self.get_stat(stat.conn.flush_tier, None)
-        self.assertEqual(calls, 7)
+        self.assertEqual(calls, flush)
 
 if __name__ == '__main__':
     wttest.run()
