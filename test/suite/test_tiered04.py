@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, wiredtiger, wttest
+import os, time, wiredtiger, wttest
 from wiredtiger import stat
 StorageSource = wiredtiger.StorageSource  # easy access to constants
 
@@ -36,6 +36,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
 
     # If the 'uri' changes all the other names must change with it.
     fileuri_base = 'file:test_tiered04-000000000'
+    objfile = 'test_tiered04-0000000001.wtobj'
+    obj2file = 'test_tiered04-0000000002.wtobj'
     objuri = 'object:test_tiered04-0000000001.wtobj'
     tiereduri = "tiered:test_tiered04"
     uri = "table:test_tiered04"
@@ -53,13 +55,13 @@ class test_tiered04(wttest.WiredTigerTestCase):
     object_sys_val = 9 * 1024 * 1024
     object_uri = "15M"
     object_uri_val = 15 * 1024 * 1024
-    retention = 600
-    retention1 = 350
+    retention = 3
+    retention1 = 600
     def conn_config(self):
         os.mkdir(self.bucket)
         os.mkdir(self.bucket1)
         return \
-          'statistics=(all),' + \
+          'statistics=(all),verbose=(tiered,temporary),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=%s,' % self.bucket + \
           'bucket_prefix=%s,' % self.prefix + \
@@ -120,19 +122,45 @@ class test_tiered04(wttest.WiredTigerTestCase):
 
         self.pr("flush tier")
         c = self.session.open_cursor(self.uri)
+        c1 = self.session.open_cursor(self.uri1)
+        cn = self.session.open_cursor(self.uri_none)
         c["0"] = "0"
+        c1["0"] = "0"
+        cn["0"] = "0"
         self.check(c, 1)
+        self.check(c1, 1)
+        self.check(cn, 1)
         c.close()
+
+        # Check the local retention. After a flush_tier call the object file should exist in
+        # the local database. Then after sleeping long enough it should be removed.
+        self.session.checkpoint()
         self.session.flush_tier(None)
+        self.pr("Check for ")
+        self.pr(self.objfile)
+        self.assertTrue(os.path.exists(self.objfile))
+        self.assertTrue(os.path.exists(self.obj2file))
+        self.pr("Sleep")
+        time.sleep(self.retention + 1)
+        self.pr("Check removal of ")
+        self.pr(self.objfile)
+        self.assertFalse(os.path.exists(self.objfile))
 
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
+        c1["1"] = "1"
+        cn["1"] = "1"
         self.check(c, 2)
         c.close()
 
         c = self.session.open_cursor(self.uri)
         c["2"] = "2"
+        c1["2"] = "2"
+        cn["2"] = "2"
         self.check(c, 3)
+        c1.close()
+        cn.close()
+        self.session.checkpoint()
 
         self.pr("flush tier again, holding open cursor")
         self.session.flush_tier(None)
@@ -178,13 +206,13 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.assertEqual(calls, 4)
 
         # Test reconfiguration.
-        new = self.retention * 2
-        config = 'tiered_storage=(local_retention=%d)' % new
+        config = 'tiered_storage=(local_retention=%d)' % self.retention1
         self.pr("reconfigure")
         self.conn.reconfigure(config)
         retain = self.get_stat(stat.conn.tiered_retention, None)
-        self.assertEqual(retain, new)
-        self.pr("reconfigure flush_tier")
+        self.assertEqual(retain, self.retention1)
+
+
         # Call flush_tier with its various configuration arguments. It is difficult
         # to force a timeout or lock contention with a unit test. So just test the
         # call for now.
