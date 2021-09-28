@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -94,7 +94,7 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     uint64_t time_diff, time_start, time_stop;
     uint32_t page_flags;
     uint8_t previous_state;
-    bool timer;
+    bool prepare, timer;
 
     time_start = time_stop = 0;
 
@@ -159,11 +159,10 @@ __page_read(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
     page_flags = WT_DATA_IN_ITEM(&tmp) ? WT_PAGE_DISK_ALLOC : WT_PAGE_DISK_MAPPED;
     if (LF_ISSET(WT_READ_IGNORE_CACHE_SIZE))
         FLD_SET(page_flags, WT_PAGE_EVICT_NO_PROGRESS);
-    F_SET(session, WT_SESSION_INSTANTIATE_PREPARE);
-    ret = __wt_page_inmem(session, ref, tmp.data, page_flags, &notused);
-    F_CLR(session, WT_SESSION_INSTANTIATE_PREPARE);
-    WT_ERR(ret);
+    WT_ERR(__wt_page_inmem(session, ref, tmp.data, page_flags, &notused, &prepare));
     tmp.mem = NULL;
+    if (prepare)
+        WT_ERR(__wt_page_inmem_prepare(session, ref));
 
 skip_read:
     switch (previous_state) {
@@ -230,10 +229,8 @@ __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags
      * Ignore reads of pages already known to be in cache, otherwise the eviction server can
      * dominate these statistics.
      */
-    if (!LF_ISSET(WT_READ_CACHE)) {
-        WT_STAT_CONN_INCR(session, cache_pages_requested);
-        WT_STAT_DATA_INCR(session, cache_pages_requested);
-    }
+    if (!LF_ISSET(WT_READ_CACHE))
+        WT_STAT_CONN_DATA_INCR(session, cache_pages_requested);
 
     for (evict_skip = stalled = wont_need = false, force_attempts = 0, sleep_usecs = yield_cnt = 0;
          ;) {
@@ -346,14 +343,6 @@ read:
                 else if (ret == EBUSY) {
                     WT_NOT_READ(ret, 0);
                     WT_STAT_CONN_INCR(session, page_forcible_evict_blocked);
-                    /*
-                     * Forced eviction failed: check if this transaction is keeping content pinned
-                     * in cache.
-                     */
-                    if (force_attempts > 1 &&
-                      (ret = __wt_txn_is_blocking(session, true)) == WT_ROLLBACK)
-                        WT_STAT_CONN_INCR(session, cache_eviction_force_rollback);
-                    WT_RET(ret);
                     stalled = true;
                     break;
                 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -28,7 +28,7 @@ __wt_connection_open(WT_CONNECTION_IMPL *conn, const char *cfg[])
      * Open the default session. We open this before starting service threads because those may
      * allocate and use session resources that need to get cleaned up on close.
      */
-    WT_RET(__wt_open_internal_session(conn, "connection", false, 0, &session));
+    WT_RET(__wt_open_internal_session(conn, "connection", false, 0, 0, &session));
 
     /*
      * The connection's default session is originally a static structure, swap that out for a more
@@ -74,11 +74,10 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     session = conn->default_session;
 
     /*
-     * The LSM and async services are not shut down in this path (which is called when
-     * wiredtiger_open hits an error (as well as during normal shutdown). Assert they're not
-     * running.
+     * The LSM services are not shut down in this path (which is called when wiredtiger_open hits an
+     * error (as well as during normal shutdown). Assert they're not running.
      */
-    WT_ASSERT(session, !F_ISSET(conn, WT_CONN_SERVER_ASYNC | WT_CONN_SERVER_LSM));
+    WT_ASSERT(session, !FLD_ISSET(conn->server_flags, WT_CONN_SERVER_LSM));
 
     /* Shut down the subsystems, ensuring workers see the state change. */
     F_SET(conn, WT_CONN_CLOSING);
@@ -95,6 +94,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_capacity_server_destroy(session));
     WT_TRET(__wt_checkpoint_server_destroy(session));
     WT_TRET(__wt_statlog_destroy(session, true));
+    WT_TRET(__wt_tiered_storage_destroy(session));
     WT_TRET(__wt_sweep_destroy(session));
 
     /* The eviction server is shut down last. */
@@ -106,6 +106,9 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
 
     /* Close open data handles. */
     WT_TRET(__wt_conn_dhandle_discard(session));
+
+    /* Close the checkpoint reserved session. */
+    WT_TRET(__wt_checkpoint_reserved_session_destroy(session));
 
     /* Shut down metadata tracking. */
     WT_TRET(__wt_meta_track_destroy(session));
@@ -127,6 +130,7 @@ __wt_connection_close(WT_CONNECTION_IMPL *conn)
     WT_TRET(__wt_conn_remove_data_source(session));
     WT_TRET(__wt_conn_remove_encryptor(session));
     WT_TRET(__wt_conn_remove_extractor(session));
+    WT_TRET(__wt_conn_remove_storage_source(session));
 
     /* Disconnect from shared cache - must be before cache destroy. */
     WT_TRET(__wt_conn_cache_pool_destroy(session));
@@ -206,6 +210,7 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
      * can know if statistics are enabled or not.
      */
     WT_RET(__wt_statlog_create(session, cfg));
+    WT_RET(__wt_tiered_storage_create(session, cfg));
     WT_RET(__wt_logmgr_create(session));
 
     /*
@@ -219,15 +224,10 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
     WT_RET(__wt_meta_track_init(session));
 
     /*
-     * Drop the lookaside file if it still exists.
-     */
-    WT_RET(__wt_hs_cleanup_las(session));
-
-    /*
      * Create the history store file. This will only actually create it on a clean upgrade or when
      * creating a new database.
      */
-    WT_RET(__wt_hs_create(session, cfg));
+    WT_RET(__wt_hs_open(session, cfg));
 
     /*
      * Start the optional logging/archive threads. NOTE: The log manager must be started before
@@ -247,6 +247,9 @@ __wt_connection_workers(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Start the optional capacity thread. */
     WT_RET(__wt_capacity_server_create(session, cfg));
+
+    /* Initialize checkpoint reserved session, required for the checkpoint operation. */
+    WT_RET(__wt_checkpoint_reserved_session_init(session));
 
     /* Start the optional checkpoint thread. */
     WT_RET(__wt_checkpoint_server_create(session, cfg));

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -42,14 +42,15 @@ err:
         WT_IGNORE_RET(__wt_panic(session, ret, "Unrecoverable utility thread error"));
 
     /*
-     * The three cases when threads are expected to stop are:
+     * The cases when threads are expected to stop are:
      * 1.  When recovery is done.
      * 2.  When the connection is closing.
      * 3.  When a shutdown has been requested via clearing the run flag.
+     * 4.  When an error has occurred and the connection panic flag is set.
      */
     WT_ASSERT(session,
       !F_ISSET(thread, WT_THREAD_RUN) ||
-        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_RECOVERING));
+        F_ISSET(S2C(session), WT_CONN_CLOSING | WT_CONN_PANIC | WT_CONN_RECOVERING));
 
     return (WT_THREAD_RET_VALUE);
 }
@@ -181,7 +182,7 @@ __thread_group_resize(WT_SESSION_IMPL *session, WT_THREAD_GROUP *group, uint32_t
         /* Threads get their own session. */
         session_flags = LF_ISSET(WT_THREAD_CAN_WAIT) ? WT_SESSION_CAN_WAIT : 0;
         WT_ERR(
-          __wt_open_internal_session(conn, group->name, false, session_flags, &thread->session));
+          __wt_open_internal_session(conn, group->name, false, session_flags, 0, &thread->session));
         if (LF_ISSET(WT_THREAD_PANIC_FAIL))
             F_SET(thread, WT_THREAD_PANIC_FAIL);
         thread->id = i;

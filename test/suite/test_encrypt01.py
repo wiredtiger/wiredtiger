@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -37,6 +37,16 @@ from wtscenario import make_scenarios
 # Test basic encryption
 class test_encrypt01(wttest.WiredTigerTestCase):
 
+    # To test the sodium encryptor, we use secretkey= rather than
+    # setting a keyid, because for a "real" (vs. test-only) encryptor,
+    # keyids require some kind of key server, and (a) setting one up
+    # for testing would be a nuisance and (b) currently the sodium
+    # encryptor doesn't support any anyway.
+    #
+    # It expects secretkey= to provide a hex-encoded 256-bit chacha20 key.
+    # This key will serve for testing purposes.
+    sodium_testkey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef'
+
     types = [
         ('file', dict(uri='file:test_encrypt01')),
         ('table', dict(uri='table:test_encrypt01')),
@@ -49,7 +59,9 @@ class test_encrypt01(wttest.WiredTigerTestCase):
         ('rotn', dict( sys_encrypt='rotn', sys_encrypt_args=',keyid=11',
             file_encrypt='rotn', file_encrypt_args=',keyid=13')),
         ('rotn-none', dict( sys_encrypt='rotn', sys_encrypt_args=',keyid=9',
-            file_encrypt='none',  file_encrypt_args=''))
+            file_encrypt='none',  file_encrypt_args='')),
+        ('sodium', dict( sys_encrypt='sodium', sys_encrypt_args=',secretkey=' + sodium_testkey,
+            file_encrypt='sodium', file_encrypt_args=''))
     ]
     compress = [
         ('none', dict(log_compress=None, block_compress=None)),
@@ -61,13 +73,20 @@ class test_encrypt01(wttest.WiredTigerTestCase):
         ('none-snappy', dict(log_compress=None, block_compress='snappy')),
         ('snappy-lz4', dict(log_compress='snappy', block_compress='lz4')),
     ]
-    scenarios = make_scenarios(types, encrypt, compress)
+    loadExt = [
+        ('earlyLoadTrue', dict(earlyLoad=True)),
+        ('earlyLoadFalse', dict(earlyLoad=False)),
+    ]
+
+    scenarios = make_scenarios(types, encrypt, compress, loadExt)
 
     nrecords = 5000
     bigvalue = "abcdefghij" * 1001    # len(bigvalue) = 10010
 
     def conn_extensions(self, extlist):
         extlist.skip_if_missing = True
+        if self.earlyLoad == True:
+            extlist.early_load_ext = True
         extlist.extension('encryptors', self.sys_encrypt)
         extlist.extension('encryptors', self.file_encrypt)
         extlist.extension('compressors', self.block_compress)

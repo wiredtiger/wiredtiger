@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -339,7 +339,10 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
   ...) WT_GCC_FUNC_ATTRIBUTE((cold)) WT_GCC_FUNC_ATTRIBUTE((format(printf, 5, 6)))
   WT_GCC_FUNC_ATTRIBUTE((visibility("default")))
 {
+    WT_CONNECTION_IMPL *conn;
     va_list ap;
+
+    conn = S2C(session);
 
     /*
      * Ignore error returns from underlying event handlers, we already have an error value to
@@ -355,7 +358,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      *
      * If the connection has already panicked, just return the error.
      */
-    if (session != NULL && F_ISSET(S2C(session), WT_CONN_PANIC))
+    if (session != NULL && F_ISSET(conn, WT_CONN_PANIC))
         return (WT_PANIC);
 
     /*
@@ -369,15 +372,20 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
       __eventv(session, false, WT_PANIC, func, line, "the process must exit and restart", ap));
     va_end(ap);
 
-/*
- * Confusing #ifdef structure because gcc/clang knows the abort call won't return, and Visual Studio
- * doesn't.
- */
 #if defined(HAVE_DIAGNOSTIC)
-    __wt_abort(session); /* Drop core if testing. */
-                         /* NOTREACHED */
+    /*
+     * In the diagnostic builds, we want to drop core in case of panics that are not due to data
+     * corruption. A core could be useful in debugging.
+     *
+     * In the case of corruption, we want to be able to test the application's capability to salvage
+     * by returning an error code. But we do not want to lose the ability to drop core if required.
+     * Hence in the diagnostic mode, the application can set the debug flag to choose between
+     * dropping a core and returning an error.
+     */
+    if (!F_ISSET(conn, WT_CONN_DATA_CORRUPTION) ||
+      FLD_ISSET(conn->debug_flags, WT_CONN_DEBUG_CORRUPTION_ABORT))
+        __wt_abort(session);
 #endif
-#if !defined(HAVE_DIAGNOSTIC) || defined(_WIN32)
     /*
      * !!!
      * This function MUST handle a NULL WT_SESSION_IMPL handle.
@@ -385,7 +393,7 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * Panic the connection;
      */
     if (session != NULL)
-        F_SET(S2C(session), WT_CONN_PANIC);
+        F_SET(conn, WT_CONN_PANIC);
 
     /*
      * !!!
@@ -394,7 +402,6 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * Order shall return.
      */
     return (WT_PANIC);
-#endif
 }
 
 /*
@@ -427,6 +434,31 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
     ret = __eventv(session, false, 0, NULL, 0, fmt, ap);
     va_end(ap);
     return (ret);
+}
+
+/*
+ * __wt_failpoint --
+ *     A generic failpoint function, it will return true if the failpoint triggers. Takes a double
+ *     representing the probability of the failpoint occurring. Supports percentages with two
+ *     decimal places.
+ */
+bool
+__wt_failpoint(WT_SESSION_IMPL *session, uint64_t conn_flag, double probability)
+{
+    WT_CONNECTION_IMPL *conn;
+    uint32_t ratio;
+
+    conn = S2C(session);
+    /* To support two decimal places we multiply the percent change of occurring by 100. */
+    ratio = (uint32_t)(probability * 100);
+
+    WT_ASSERT(session, probability >= 0 && probability <= 100);
+
+    if (FLD_ISSET(conn->timing_stress_flags, conn_flag)) {
+        if (__wt_random(&session->rnd) % 10000 <= ratio)
+            return (true);
+    }
+    return (false);
 }
 
 /*
@@ -465,8 +497,8 @@ __wt_msg(WT_SESSION_IMPL *session, const char *fmt, ...) WT_GCC_FUNC_ATTRIBUTE((
     handler = session->event_handler;
     ret = handler->handle_message(handler, wt_session, buf->data);
 
+err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 
@@ -494,8 +526,8 @@ __wt_ext_msg_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
     handler = session->event_handler;
     ret = handler->handle_message(handler, wt_session, buf->data);
 
+err:
     __wt_scr_free(session, &buf);
-
     return (ret);
 }
 
@@ -566,8 +598,9 @@ __wt_bad_object_type(WT_SESSION_IMPL *session, const char *uri) WT_GCC_FUNC_ATTR
     if (WT_PREFIX_MATCH(uri, "backup:") || WT_PREFIX_MATCH(uri, "colgroup:") ||
       WT_PREFIX_MATCH(uri, "config:") || WT_PREFIX_MATCH(uri, "file:") ||
       WT_PREFIX_MATCH(uri, "index:") || WT_PREFIX_MATCH(uri, "log:") ||
-      WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "statistics:") ||
-      WT_PREFIX_MATCH(uri, "table:"))
+      WT_PREFIX_MATCH(uri, "lsm:") || WT_PREFIX_MATCH(uri, "object:") ||
+      WT_PREFIX_MATCH(uri, "statistics:") || WT_PREFIX_MATCH(uri, "table:") ||
+      WT_PREFIX_MATCH(uri, "tiered:"))
         return (__wt_object_unsupported(session, uri));
 
     WT_RET_MSG(session, ENOTSUP, "unknown object type: %s", uri);

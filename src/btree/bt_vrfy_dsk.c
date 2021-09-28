@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -20,22 +20,27 @@ static int __verify_dsk_row_int(WT_SESSION_IMPL *, const char *, const WT_PAGE_H
 static int __verify_dsk_row_leaf(
   WT_SESSION_IMPL *, const char *, const WT_PAGE_HEADER *, WT_ADDR *);
 
-#define WT_ERR_VRFY(session, ...)                               \
-    do {                                                        \
-        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) \
-            __wt_errx(session, __VA_ARGS__);                    \
-        goto err;                                               \
+#define WT_ERR_VRFY(session, ...)                                          \
+    do {                                                                   \
+        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
+            __wt_errx(session, __VA_ARGS__);                               \
+            /* Easy way to set a breakpoint when tracking corruption */    \
+            WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
+        }                                                                  \
+        goto err;                                                          \
     } while (0)
 
-#define WT_RET_VRFY_RETVAL(session, ret, ...)                     \
-    do {                                                          \
-        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) { \
-            if ((ret) == 0)                                       \
-                __wt_errx(session, __VA_ARGS__);                  \
-            else                                                  \
-                __wt_err(session, ret, __VA_ARGS__);              \
-        }                                                         \
-        return ((ret) == 0 ? WT_ERROR : ret);                     \
+#define WT_RET_VRFY_RETVAL(session, ret, ...)                              \
+    do {                                                                   \
+        if (!(F_ISSET(session, WT_SESSION_QUIET_CORRUPT_FILE))) {          \
+            if ((ret) == 0)                                                \
+                __wt_errx(session, __VA_ARGS__);                           \
+            else                                                           \
+                __wt_err(session, ret, __VA_ARGS__);                       \
+            /* Easy way to set a breakpoint when tracking corruption */    \
+            WT_IGNORE_RET(__wt_session_breakpoint((WT_SESSION *)session)); \
+        }                                                                  \
+        return ((ret) == 0 ? WT_ERROR : ret);                              \
     } while (0)
 
 #define WT_RET_VRFY(session, ...) WT_RET_VRFY_RETVAL(session, 0, __VA_ARGS__)
@@ -249,8 +254,9 @@ __verify_row_key_order_check(WT_SESSION_IMPL *session, WT_ITEM *last, uint32_t l
     ret = WT_ERROR;
     WT_ERR_VRFY(session,
       "the %" PRIu32 " and %" PRIu32 " keys on page at %s are incorrectly sorted: %s, %s",
-      last_cell_num, cell_num, tag, __wt_buf_set_printable(session, last->data, last->size, tmp1),
-      __wt_buf_set_printable(session, current->data, current->size, tmp2));
+      last_cell_num, cell_num, tag,
+      __wt_buf_set_printable(session, last->data, last->size, false, tmp1),
+      __wt_buf_set_printable(session, current->data, current->size, false, tmp2));
 
 err:
     __wt_scr_free(session, &tmp1);
@@ -305,7 +311,7 @@ __verify_dsk_row_int(
         WT_ERR(__err_cell_type(session, cell_num, tag, unpack->type, dsk->type));
         cell_type = unpack->type;
 
-        /* Internal row-store cells should not have prefix compression or recno/rle fields.  */
+        /* Internal row-store cells should not have prefix compression or recno/rle fields. */
         if (unpack->prefix != 0)
             WT_ERR_VRFY(
               session, "the %" PRIu32 " cell on page at %s has a non-zero prefix", cell_num, tag);
@@ -383,7 +389,7 @@ __verify_dsk_row_int(
          */
         switch (cell_type) {
         case WT_CELL_KEY:
-            /* Get the cell's data/length and make sure we have enough buffer space.  */
+            /* Get the cell's data/length and make sure we have enough buffer space. */
             WT_ERR(__wt_buf_init(session, current, unpack->size));
 
             /* Copy the data into place. */
@@ -452,7 +458,6 @@ __verify_dsk_row_leaf(
     WT_DECL_RET;
     WT_ITEM *last;
     enum { FIRST, WAS_KEY, WAS_VALUE } last_cell_type;
-    void *huffman;
     size_t prefix;
     uint32_t cell_num, cell_type, i, key_cnt, last_cell_num;
     uint8_t *end;
@@ -460,7 +465,6 @@ __verify_dsk_row_leaf(
     btree = S2BT(session);
     bm = btree->bm;
     unpack = &_unpack;
-    huffman = dsk->type == WT_PAGE_ROW_INT ? NULL : btree->huffman_key;
 
     WT_ERR(__wt_scr_alloc(session, 0, &current));
     WT_ERR(__wt_scr_alloc(session, 0, &last_pfx));
@@ -487,7 +491,7 @@ __verify_dsk_row_leaf(
         WT_ERR(__err_cell_type(session, cell_num, tag, unpack->type, dsk->type));
         cell_type = unpack->type;
 
-        /* Leaf row-store cells should not have recno/rle fields.  */
+        /* Leaf row-store cells should not have recno/rle fields. */
         if (unpack->v != 0)
             WT_ERR_VRFY(session,
               "the %" PRIu32 " cell on page at %s has a non-zero rle/recno field", cell_num, tag);
@@ -575,37 +579,15 @@ __verify_dsk_row_leaf(
               cell_num, tag, prefix, last->size);
 
         /*
-         * If Huffman decoding required, unpack the cell to build the key, then resolve the prefix.
-         * Else, we can do it faster internally because we don't have to shuffle memory around as
-         * much.
+         * Get the cell's data/length and make sure we have enough buffer space.
          */
-        if (huffman != NULL) {
-            WT_ERR(__wt_dsk_cell_data_ref(session, dsk->type, unpack, current));
+        WT_ERR(__wt_buf_init(session, current, prefix + unpack->size));
 
-            /*
-             * If there's a prefix, make sure there's enough buffer space, then shift the decoded
-             * data past the prefix and copy the prefix into place. Take care with the pointers:
-             * current->data may be pointing inside the buffer.
-             */
-            if (prefix != 0) {
-                WT_ERR(__wt_buf_grow(session, current, prefix + current->size));
-                memmove((uint8_t *)current->mem + prefix, current->data, current->size);
-                memcpy(current->mem, last->data, prefix);
-                current->data = current->mem;
-                current->size += prefix;
-            }
-        } else {
-            /*
-             * Get the cell's data/length and make sure we have enough buffer space.
-             */
-            WT_ERR(__wt_buf_init(session, current, prefix + unpack->size));
-
-            /* Copy the prefix then the data into place. */
-            if (prefix != 0)
-                memcpy(current->mem, last->data, prefix);
-            memcpy((uint8_t *)current->mem + prefix, unpack->data, unpack->size);
-            current->size = prefix + unpack->size;
-        }
+        /* Copy the prefix then the data into place. */
+        if (prefix != 0)
+            memcpy(current->mem, last->data, prefix);
+        memcpy((uint8_t *)current->mem + prefix, unpack->data, unpack->size);
+        current->size = prefix + unpack->size;
 
 key_compare:
         /*

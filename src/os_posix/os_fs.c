@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -49,18 +49,15 @@ __posix_sync(WT_SESSION_IMPL *session, int fd, const char *name, const char *fun
 
 #if defined(F_FULLFSYNC)
     /*
-     * OS X fsync documentation:
-     * "Note that while fsync() will flush all data from the host to the
-     * drive (i.e. the "permanent storage device"), the drive itself may
-     * not physically write the data to the platters for quite some time
-     * and it may be written in an out-of-order sequence. For applications
-     * that require tighter guarantees about the integrity of their data,
-     * Mac OS X provides the F_FULLFSYNC fcntl. The F_FULLFSYNC fcntl asks
-     * the drive to flush all buffered data to permanent storage."
+     * OS X fsync documentation: "Note that while fsync() will flush all data from the host to the
+     * drive (i.e. the "permanent storage device"), the drive itself may not physically write the
+     * data to the platters for quite some time and it may be written in an out-of-order sequence.
+     * For applications that require tighter guarantees about the integrity of their data, Mac OS X
+     * provides the F_FULLFSYNC fcntl. The F_FULLFSYNC fcntl asks the drive to flush all buffered
+     * data to permanent storage."
      *
-     * OS X F_FULLFSYNC fcntl documentation:
-     * "This is currently implemented on HFS, MS-DOS (FAT), and Universal
-     * Disk Format (UDF) file systems."
+     * OS X F_FULLFSYNC fcntl documentation: "This is currently implemented on HFS, MS-DOS (FAT),
+     * and Universal Disk Format (UDF) file systems."
      *
      * See comment in __posix_sync(): sync cannot be retried or fail.
      */
@@ -208,7 +205,9 @@ __posix_fs_remove(
 
 #ifdef __linux__
     /* Flush the backing directory to guarantee the remove. */
+    WT_RET(__wt_log_printf(session, "REMOVE: posix_directory_sync %s", name));
     WT_RET(__posix_directory_sync(session, name));
+    WT_RET(__wt_log_printf(session, "REMOVE: DONE posix_directory_sync %s", name));
 #endif
     return (0);
 }
@@ -248,7 +247,9 @@ __posix_fs_rename(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
      * not provide the guarantee or only provide the guarantee with specific mount options. Flush
      * both of the from/to directories until it's a performance problem.
      */
+    WT_RET(__wt_log_printf(session, "RENAME: posix_directory_sync %s", from));
     WT_RET(__posix_directory_sync(session, from));
+    WT_RET(__wt_log_printf(session, "RENAME: DONE posix_directory_sync %s", from));
 
     /*
      * In almost all cases, we're going to be renaming files in the same directory, we can at least
@@ -807,8 +808,11 @@ __posix_open_file(WT_FILE_SYSTEM *file_system, WT_SESSION *wt_session, const cha
     /*
      * Durability: some filesystems require a directory sync to be confident the file will appear.
      */
-    if (LF_ISSET(WT_FS_OPEN_DURABLE))
+    if (LF_ISSET(WT_FS_OPEN_DURABLE)) {
+        WT_ERR(__wt_log_printf(session, "OPEN/CREATE: posix_directory_sync %s", name));
         WT_ERR(__posix_directory_sync(session, name));
+        WT_ERR(__wt_log_printf(session, "OPEN/CREATE: DONE posix_directory_sync %s", name));
+    }
 #endif
 
     WT_ERR(__posix_open_file_cloexec(session, pfh->fd, name));
@@ -1025,11 +1029,10 @@ __wt_map_file(WT_FILE_HANDLE *file_handle, WT_SESSION *wt_session)
  * file while others might be reading or writing it:
  *
  * Every time someone reads or writes from the mapped region, they increment the "use" count via
- * cas. If someone wants to change the file size, they set the "stop" flag. If a session sees
- * the stop flag, it does not read via mmap, but resorts to the regular syscall. The session
- * that set the stop flag spin-waits until the "use" count goes to zero. Then it changes the
- * file size and remaps the region without synchronization. Once all that is done, it resets the
- * "stop" flag.
+ * cas. If someone wants to change the file size, they set the "stop" flag. If a session sees the
+ * stop flag, it does not read via mmap, but resorts to the regular syscall. The session that set
+ * the stop flag spin-waits until the "use" count goes to zero. Then it changes the file size and
+ * remaps the region without synchronization. Once all that is done, it resets the "stop" flag.
  */
 
 /*

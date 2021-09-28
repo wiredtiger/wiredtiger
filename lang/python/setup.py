@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -27,8 +27,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import re, os, sys
-from distutils.core import setup, Extension
+import re, os
+from setuptools import setup, Extension
 
 # OS X hack: turn off the Universal binary support that is built into the
 # Python build machinery, just build for the default CPU architecture.

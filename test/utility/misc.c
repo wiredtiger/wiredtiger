@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -33,6 +33,12 @@
 
 void (*custom_die)(void) = NULL;
 const char *progname = "program name not set";
+
+/*
+ * Backup directory initialize command, remove and re-create the primary backup directory, plus a
+ * copy we maintain for recovery testing.
+ */
+#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
 
 /*
  * testutil_die --
@@ -131,6 +137,46 @@ testutil_clean_work_dir(const char *dir)
 }
 
 /*
+ * testutil_build_dir --
+ *     Get the git top level directory and concatenate the build directory.
+ */
+void
+testutil_build_dir(TEST_OPTS *opts, char *buf, int size)
+{
+    FILE *fp;
+    char *p;
+
+    /* If a build directory was manually given as an option we can directly return this instead. */
+    if (opts->build_dir != NULL) {
+        strncpy(buf, opts->build_dir, (size_t)size);
+        return;
+    }
+
+    /* Get the git top level directory. */
+#ifdef _WIN32
+    fp = _popen("git rev-parse --show-toplevel", "r");
+#else
+    fp = popen("git rev-parse --show-toplevel", "r");
+#endif
+
+    if (fp == NULL)
+        testutil_die(errno, "popen");
+    p = fgets(buf, size, fp);
+    if (p == NULL)
+        testutil_die(errno, "fgets");
+
+#ifdef _WIN32
+    _pclose(fp);
+#else
+    pclose(fp);
+#endif
+
+    /* Remove the trailing newline character added by fgets. */
+    buf[strlen(buf) - 1] = '\0';
+    strcat(buf, "/build_posix");
+}
+
+/*
  * testutil_make_work_dir --
  *     Delete the existing work directory, then create a new one.
  */
@@ -191,6 +237,75 @@ testutil_cleanup(TEST_OPTS *opts)
     free(opts->uri);
     free(opts->progress_file_name);
     free(opts->home);
+}
+
+/*
+ * testutil_copy_data --
+ *     Copy the data to a backup folder.
+ */
+void
+testutil_copy_data(const char *dir)
+{
+    int status;
+    char buf[512];
+
+    testutil_check(__wt_snprintf(buf, sizeof(buf),
+      "rm -rf ../%s.SAVE && mkdir ../%s.SAVE && cp -rp * ../%s.SAVE", dir, dir, dir));
+    if ((status = system(buf)) < 0)
+        testutil_die(status, "system: %s", buf);
+}
+
+/*
+ * testutil_timestamp_parse --
+ *     Parse a timestamp to an integral value.
+ */
+void
+testutil_timestamp_parse(const char *str, uint64_t *tsp)
+{
+    char *p;
+
+    *tsp = __wt_strtouq(str, &p, 16);
+    testutil_assert(p - str <= 16);
+}
+
+void
+testutil_create_backup_directory(const char *home)
+{
+    size_t len;
+    char *cmd;
+
+    len = strlen(home) * 4 + strlen(HOME_BACKUP_INIT_CMD) + 1;
+    cmd = dmalloc(len);
+    testutil_check(__wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, home, home, home, home));
+    testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
+    free(cmd);
+}
+
+/*
+ * copy_file --
+ *     Copy a single file into the backup directories.
+ */
+void
+testutil_copy_file(WT_SESSION *session, const char *name)
+{
+    size_t len;
+    char *first, *second;
+
+    len = strlen("BACKUP") + strlen(name) + 10;
+    first = dmalloc(len);
+    testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
+    testutil_check(__wt_copy_and_sync(session, name, first));
+
+    /*
+     * Save another copy of the original file to make debugging recovery errors easier.
+     */
+    len = strlen("BACKUP.copy") + strlen(name) + 10;
+    second = dmalloc(len);
+    testutil_check(__wt_snprintf(second, len, "BACKUP.copy/%s", name));
+    testutil_check(__wt_copy_and_sync(session, first, second));
+
+    free(first);
+    free(second);
 }
 
 /*

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,9 +32,6 @@
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-
-def timestamp_str(t):
-    return '%x' % t
 
 class test_checkpoint04(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB,log=(enabled),statistics=(all)'

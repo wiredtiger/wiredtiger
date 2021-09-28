@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -57,7 +57,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -116,7 +116,7 @@ new_page:
     __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
 restart_read:
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd, NULL));
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd));
     if (cbt->upd_value->type == WT_UPDATE_INVALID) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
@@ -157,7 +157,7 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
 
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
@@ -211,6 +211,7 @@ __cursor_var_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
             return (WT_NOTFOUND);
         __cursor_set_recno(cbt, cbt->ref->ref_recno);
         cbt->cip_saved = NULL;
+        F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
         goto new_page;
     }
 
@@ -232,7 +233,7 @@ restart_read:
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         __wt_upd_value_clear(cbt->upd_value);
         if (cbt->ins != NULL)
-            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd, NULL));
+            WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
@@ -245,56 +246,84 @@ restart_read:
         }
 
         /*
-         * If we're at the same slot as the last reference and there's no matching insert list item,
-         * re-use the return information (so encoded items with large repeat counts aren't
-         * repeatedly decoded). Otherwise, unpack the cell and build the return information.
+         * There's no matching insert list item. If we're on the same slot as the last reference,
+         * and the cell is cacheable (it might not be if it's not globally visible), reuse the
+         * previous return data to avoid repeatedly decoding items.
          */
-        if (cbt->cip_saved != cip) {
-            cell = WT_COL_PTR(page, cip);
-            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            if (unpack.type == WT_CELL_DEL) {
-                if ((rle = __wt_cell_rle(&unpack)) == 1) {
-                    ++*skippedp;
-                    continue;
-                }
-
-                /*
-                 * There can be huge gaps in the variable-length column-store name space appearing
-                 * as deleted records. If more than one deleted record, do the work of finding the
-                 * next record to return instead of looping through the records.
-                 *
-                 * First, find the smallest record in the update list that's larger than the current
-                 * record.
-                 */
-                ins = __col_insert_search_gt(cbt->ins_head, cbt->recno);
-
-                /*
-                 * Second, for records with RLEs greater than 1, the above call to __col_var_search
-                 * located this record in the page's list of repeating records, and returned the
-                 * starting record. The starting record plus the RLE is the record to which we could
-                 * skip, if there was no smaller record in the update list.
-                 */
-                cbt->recno = rle_start + rle;
-                if (ins != NULL && WT_INSERT_RECNO(ins) < cbt->recno)
-                    cbt->recno = WT_INSERT_RECNO(ins);
-
-                /* Adjust for the outer loop increment. */
-                --cbt->recno;
-                ++*skippedp;
-                continue;
-            }
-
-            WT_RET(__wt_bt_col_var_cursor_walk_txn_read(session, cbt, page, &unpack, cip));
-            if (cbt->upd_value->type == WT_UPDATE_INVALID ||
-              cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-                ++*skippedp;
-                continue;
-            }
-
+        if (cbt->cip_saved == cip && F_ISSET(cbt, WT_CBT_CACHEABLE_RLE_CELL)) {
+            F_CLR(&cbt->iface, WT_CURSTD_VALUE_EXT);
+            F_SET(&cbt->iface, WT_CURSTD_VALUE_INT);
+            cbt->iface.value.data = cbt->tmp->data;
+            cbt->iface.value.size = cbt->tmp->size;
             return (0);
         }
-        cbt->iface.value.data = cbt->tmp->data;
-        cbt->iface.value.size = cbt->tmp->size;
+
+        /* Unpack the cell and build the return information. */
+        cell = WT_COL_PTR(page, cip);
+        __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+        rle = __wt_cell_rle(&unpack);
+        if (unpack.type == WT_CELL_DEL) {
+            if (rle == 1) {
+                ++*skippedp;
+                continue;
+            }
+
+            /*
+             * There can be huge gaps in the variable-length column-store name space appearing as
+             * deleted records. If more than one deleted record, do the work of finding the next
+             * record to return instead of looping through the records.
+             *
+             * First, find the smallest record in the update list that's larger than the current
+             * record.
+             */
+            ins = __col_insert_search_gt(cbt->ins_head, cbt->recno);
+
+            /*
+             * Second, for records with RLEs greater than 1, the above call to __col_var_search
+             * located this record in the page's list of repeating records, and returned the
+             * starting record. The starting record plus the RLE is the record to which we could
+             * skip, if there was no smaller record in the update list.
+             */
+            cbt->recno = rle_start + rle;
+            if (ins != NULL && WT_INSERT_RECNO(ins) < cbt->recno)
+                cbt->recno = WT_INSERT_RECNO(ins);
+
+            /* Adjust for the outer loop increment. */
+            --cbt->recno;
+            ++*skippedp;
+            continue;
+        }
+
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
+        if (cbt->upd_value->type == WT_UPDATE_INVALID ||
+          cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
+            ++*skippedp;
+            continue;
+        }
+        WT_RET(__wt_value_return(cbt, cbt->upd_value));
+
+        /*
+         * It is only safe to cache the value for other keys in the same RLE cell if it is globally
+         * visible. Otherwise, there might be some older timestamp where the value isn't uniform
+         * across the cell. Always set cip_saved so it's easy to tell when we change cells.
+         */
+        cbt->cip_saved = cip;
+        if (rle > 1 &&
+          __wt_txn_visible_all(session, unpack.tw.start_txn, unpack.tw.durable_start_ts)) {
+            /*
+             * Copy the value into cbt->tmp to cache it. This is perhaps unfortunate, because
+             * copying isn't free, but it's currently necessary. The memory we're copying might be
+             * on the disk page (which is safe because the page is pinned as long as the cursor is
+             * sitting on it) but if not it belongs to cbt->upd_value, and that (though it belongs
+             * to the cursor and won't disappear arbitrarily) might be invalidated or changed by
+             * other paths through this function on a subsequent call but before we are done with
+             * this RLE cell. In principle those paths could clear WT_CBT_CACHEABLE_RLE_CELL, but
+             * the code is currently structured in a way that makes that difficult.
+             */
+            WT_RET(__wt_buf_set(session, cbt->tmp, cbt->iface.value.data, cbt->iface.value.size));
+            F_SET(cbt, WT_CBT_CACHEABLE_RLE_CELL);
+        } else
+            F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
         return (0);
     }
     /* NOTREACHED */
@@ -305,7 +334,8 @@ restart_read:
  *     Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_row_next(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, WT_ITEM *prefix)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
@@ -313,11 +343,12 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool kpack_used;
+    bool prefix_search;
 
-    session = CUR2S(cbt);
-    page = cbt->ref->page;
     key = &cbt->iface.key;
+    page = cbt->ref->page;
+    session = CUR2S(cbt);
+    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -365,7 +396,15 @@ restart_read_insert:
         if ((ins = cbt->ins) != NULL) {
             key->data = WT_INSERT_KEY(ins);
             key->size = WT_INSERT_KEY_SIZE(ins);
-            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd, NULL));
+            /*
+             * If the cursor has prefix search configured we can early exit here if the key that we
+             * are visiting is after our prefix.
+             */
+            if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
+                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
+                return (WT_NOTFOUND);
+            }
+            WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
                 continue;
@@ -401,9 +440,17 @@ restart_read_insert:
         cbt->slot = cbt->row_iteration_slot / 2 - 1;
 restart_read_page:
         rip = &page->pg_row[cbt->slot];
-        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack, &kpack_used));
-        WT_RET(__wt_txn_read(
-          session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip), NULL));
+        WT_RET(__cursor_row_slot_key_return(cbt, rip, &kpack));
+        /*
+         * If the cursor has prefix search configured we can early exit here if the key that we are
+         * visiting is after our prefix.
+         */
+        if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
+            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
+            return (WT_NOTFOUND);
+        }
+        WT_RET(
+          __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
             continue;
@@ -428,8 +475,12 @@ restart_read_page:
 static int
 __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, bool next)
 {
+    WT_BTREE *btree;
+    WT_DECL_RET;
     int cmp;
 
+    WT_UNUSED(ret);
+    btree = S2BT(session);
     cmp = 0; /* -Werror=maybe-uninitialized */
 
     if (cbt->lastrecno != WT_RECNO_OOB) {
@@ -444,9 +495,14 @@ __cursor_key_order_check_col(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
         return (0);
     }
 
-    WT_RET_PANIC(session, EINVAL,
+    WT_RET(__wt_msg(session, "dumping the tree"));
+    WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+    WT_ERR_PANIC(session, EINVAL,
       "WT_CURSOR.%s out-of-order returns: returned key %" PRIu64 " then key %" PRIu64,
       next ? "next" : "prev", cbt->lastrecno, cbt->recno);
+
+err:
+    return (ret);
 }
 
 /*
@@ -476,12 +532,15 @@ __cursor_key_order_check_row(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, boo
     WT_ERR(__wt_scr_alloc(session, 512, &a));
     WT_ERR(__wt_scr_alloc(session, 512, &b));
 
-    WT_ERR_PANIC(session, EINVAL,
-      "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
-      next ? "next" : "prev",
-      __wt_buf_set_printable_format(
-        session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, a),
-      __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, b));
+    WT_ERR(
+      __wt_msg(session, "WT_CURSOR.%s out-of-order returns: returned key %.1024s then key %.1024s",
+        next ? "next" : "prev",
+        __wt_buf_set_printable_format(
+          session, cbt->lastkey->data, cbt->lastkey->size, btree->key_format, false, a),
+        __wt_buf_set_printable_format(session, key->data, key->size, btree->key_format, false, b)));
+    WT_ERR(__wt_msg(session, "dumping the tree"));
+    WT_WITH_BTREE(session, btree, ret = __wt_debug_tree_all(session, NULL, NULL, NULL));
+    WT_ERR_PANIC(session, EINVAL, "found key out-of-order returns");
 
 err:
     __wt_scr_free(session, &a);
@@ -574,6 +633,7 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
     /* Clear saved iteration cursor position information. */
     cbt->cip_saved = NULL;
     cbt->rip_saved = NULL;
+    F_CLR(cbt, WT_CBT_CACHEABLE_RLE_CELL);
 
     /*
      * If we don't have a search page, then we're done, we're starting at the beginning or end of
@@ -617,11 +677,12 @@ __wt_btcur_iterate_setup(WT_CURSOR_BTREE *cbt)
 }
 
 /*
- * __wt_btcur_next --
- *     Move to the next record in the tree.
+ * __wt_btcur_next_prefix --
+ *     Move to the next record in the tree. Taking an optional prefix item for a special case of
+ *     search near.
  */
 int
-__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
+__wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -635,8 +696,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
     session = CUR2S(cbt);
     total_skipped = 0;
 
-    WT_STAT_CONN_INCR(session, cursor_next);
-    WT_STAT_DATA_INCR(session, cursor_next);
+    WT_STAT_CONN_DATA_INCR(session, cursor_next);
 
     flags = WT_READ_NO_SPLIT | WT_READ_SKIP_INTL; /* tree walk flags */
     if (truncating)
@@ -644,7 +704,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 
     F_CLR(cursor, WT_CURSTD_KEY_SET | WT_CURSTD_VALUE_SET);
 
-    WT_ERR(__cursor_func_init(cbt, false));
+    WT_ERR(__wt_cursor_func_init(cbt, false));
 
     /*
      * If we aren't already iterating in the right direction, there's some setup to do.
@@ -653,7 +713,7 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         __wt_btcur_iterate_setup(cbt);
 
     /*
-     * Walk any page we're holding until the underlying call returns not- found. Then, move to the
+     * Walk any page we're holding until the underlying call returns not-found. Then, move to the
      * next page, until we reach the end of the file.
      */
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_NEXT);
@@ -662,6 +722,8 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         if (F_ISSET(cbt, WT_CBT_ITERATE_APPEND)) {
+            /* The page cannot be NULL if the above flag is set. */
+            WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
                 ret = __cursor_fix_append_next(cbt, newpage, restart);
@@ -688,8 +750,14 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_next(cbt, newpage, restart, &skipped);
+                ret = __cursor_row_next(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
+                /*
+                 * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
+                 * positioned when traversing keys for prefix search near.
+                 */
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                    return (WT_NOTFOUND);
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
@@ -706,7 +774,6 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
                 continue;
             }
         }
-
         /*
          * If we saw a lot of deleted records on this page, or we went all the way through a page
          * and only saw deleted records, try to evict the page when we release it. Otherwise
@@ -728,21 +795,29 @@ __wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
 
         if (F_ISSET(cbt, WT_CBT_READ_ONCE))
             LF_SET(WT_READ_WONT_NEED);
-        WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
+
+        /*
+         * If we are running with snapshot isolation, and not interested in returning tombstones, we
+         * could potentially skip pages. The skip function looks at the aggregated timestamp
+         * information to determine if something is visible on the page. If nothing is, the page is
+         * skipped.
+         */
+        if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
+            WT_ERR(
+              __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
+        else
+            WT_ERR(__wt_tree_walk(session, &cbt->ref, flags));
         WT_ERR_TEST(cbt->ref == NULL, WT_NOTFOUND, false);
     }
 
 err:
-    if (total_skipped < 100) {
-        WT_STAT_CONN_INCR(session, cursor_next_skip_lt_100);
-        WT_STAT_DATA_INCR(session, cursor_next_skip_lt_100);
-    } else {
-        WT_STAT_CONN_INCR(session, cursor_next_skip_ge_100);
-        WT_STAT_DATA_INCR(session, cursor_next_skip_ge_100);
-    }
+    if (total_skipped < 100)
+        WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_lt_100);
+    else
+        WT_STAT_CONN_DATA_INCR(session, cursor_next_skip_ge_100);
 
-    WT_STAT_CONN_INCRV(session, cursor_next_skip_total, total_skipped);
-    WT_STAT_DATA_INCRV(session, cursor_next_skip_total, total_skipped);
+    WT_STAT_CONN_DATA_INCRV(session, cursor_next_skip_total, total_skipped);
 
     switch (ret) {
     case 0:
@@ -773,4 +848,14 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
     return (ret);
+}
+
+/*
+ * __wt_btcur_next --
+ *     Move to the next record in the tree.
+ */
+int
+__wt_btcur_next(WT_CURSOR_BTREE *cbt, bool truncating)
+{
+    return (__wt_btcur_next_prefix(cbt, NULL, truncating));
 }

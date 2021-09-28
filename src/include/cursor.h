@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -60,17 +60,19 @@ struct __wt_cursor_backup {
     uint64_t bit_offset;  /* Current offset */
     uint64_t granularity; /* Length, transfer size */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURBACKUP_CKPT_FAKE 0x001u   /* Object has fake checkpoint */
-#define WT_CURBACKUP_DUP 0x002u         /* Duplicated backup cursor */
-#define WT_CURBACKUP_FORCE_FULL 0x004u  /* Force full file copy for this cursor */
-#define WT_CURBACKUP_FORCE_STOP 0x008u  /* Force stop incremental backup */
-#define WT_CURBACKUP_HAS_CB_INFO 0x010u /* Object has checkpoint backup info */
-#define WT_CURBACKUP_INCR 0x020u        /* Incremental backup cursor */
-#define WT_CURBACKUP_INCR_INIT 0x040u   /* Cursor traversal initialized */
-#define WT_CURBACKUP_LOCKER 0x080u      /* Hot-backup started */
-#define WT_CURBACKUP_RENAME 0x100u      /* Object had a rename */
-                                        /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CURBACKUP_CONSOLIDATE 0x002u /* Consolidate returned info on this object */
+#define WT_CURBACKUP_DUP 0x004u         /* Duplicated backup cursor */
+#define WT_CURBACKUP_FORCE_FULL 0x008u  /* Force full file copy for this cursor */
+#define WT_CURBACKUP_FORCE_STOP 0x010u  /* Force stop incremental backup */
+#define WT_CURBACKUP_HAS_CB_INFO 0x020u /* Object has checkpoint backup info */
+#define WT_CURBACKUP_INCR 0x040u        /* Incremental backup cursor */
+#define WT_CURBACKUP_INCR_INIT 0x080u   /* Cursor traversal initialized */
+#define WT_CURBACKUP_LOCKER 0x100u      /* Hot-backup started */
+#define WT_CURBACKUP_QUERYID 0x200u     /* Backup cursor for incremental ids */
+#define WT_CURBACKUP_RENAME 0x400u      /* Object had a rename */
+                                        /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -152,19 +154,22 @@ struct __wt_cursor_btree {
      * Variable-length column-store values are run-length encoded and may be overflow values or
      * Huffman encoded. To avoid repeatedly reading overflow values or decompressing encoded values,
      * process it once and store the result in a temporary buffer. The cip_saved field is used to
-     * determine if we've switched columns since our last cursor call.
+     * determine if we've switched columns since our last cursor call. Note however that this result
+     * caching is not necessarily safe for all RLE cells. The flag WT_CBT_CACHEABLE_RLE_CELL
+     * indicates that the value is uniform across the whole cell. If it is not set (e.g. if the cell
+     * is not globally visible yet), the cached values should not be used.
      */
     WT_COL *cip_saved; /* Last iteration reference */
 
     /*
-     * We don't instantiate prefix-compressed keys on pages where there's no Huffman encoding
-     * because we don't want to waste memory if only moving a cursor through the page, and it's
-     * faster to build keys while moving through the page than to roll-forward from a previously
-     * instantiated key (we don't instantiate all of the keys, just the ones at binary search
-     * points). We can't use the application's WT_CURSOR key field as a copy of the last-returned
-     * key because it may have been altered by the API layer, for example, dump cursors. Instead we
-     * store the last-returned key in a temporary buffer. The rip_saved field is used to determine
-     * if the key in the temporary buffer has the prefix needed for building the current key.
+     * We don't instantiate prefix-compressed keys on pages because we don't want to waste memory if
+     * only moving a cursor through the page, and it's faster to build keys while moving through the
+     * page than to roll-forward from a previously instantiated key (we don't instantiate all of the
+     * keys, just the ones at binary search points). We can't use the application's WT_CURSOR key
+     * field as a copy of the last-returned key because it may have been altered by the API layer,
+     * for example, dump cursors. Instead we store the last-returned key in a temporary buffer. The
+     * rip_saved field is used to determine if the key in the temporary buffer has the prefix needed
+     * for building the current key.
      */
     WT_ROW *rip_saved; /* Last-returned key reference */
 
@@ -210,19 +215,20 @@ struct __wt_cursor_btree {
     uint64_t lastrecno;
 #endif
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CBT_ACTIVE 0x001u             /* Active in the tree */
-#define WT_CBT_ITERATE_APPEND 0x002u     /* Col-store: iterating append list */
-#define WT_CBT_ITERATE_NEXT 0x004u       /* Next iteration configuration */
-#define WT_CBT_ITERATE_PREV 0x008u       /* Prev iteration configuration */
-#define WT_CBT_ITERATE_RETRY_NEXT 0x010u /* Prepare conflict by next. */
-#define WT_CBT_ITERATE_RETRY_PREV 0x020u /* Prepare conflict by prev. */
-#define WT_CBT_NO_TRACKING 0x040u        /* Non tracking cursor. */
-#define WT_CBT_NO_TXN 0x080u             /* Non-txn cursor (e.g. a checkpoint) */
-#define WT_CBT_READ_ONCE 0x100u          /* Page in with WT_READ_WONT_NEED */
-#define WT_CBT_SEARCH_SMALLEST 0x200u    /* Row-store: small-key insert list */
-#define WT_CBT_VAR_ONPAGE_MATCH 0x400u   /* Var-store: on-page recno match */
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_CBT_CACHEABLE_RLE_CELL 0x002u /* Col-store: value in RLE cell valid for all its keys */
+#define WT_CBT_ITERATE_APPEND 0x004u     /* Col-store: iterating append list */
+#define WT_CBT_ITERATE_NEXT 0x008u       /* Next iteration configuration */
+#define WT_CBT_ITERATE_PREV 0x010u       /* Prev iteration configuration */
+#define WT_CBT_ITERATE_RETRY_NEXT 0x020u /* Prepare conflict by next. */
+#define WT_CBT_ITERATE_RETRY_PREV 0x040u /* Prepare conflict by prev. */
+#define WT_CBT_NO_TRACKING 0x080u        /* Non tracking cursor. */
+#define WT_CBT_NO_TXN 0x100u             /* Non-txn cursor (e.g. a checkpoint) */
+#define WT_CBT_READ_ONCE 0x200u          /* Page in with WT_READ_WONT_NEED */
+#define WT_CBT_SEARCH_SMALLEST 0x400u    /* Row-store: small-key insert list */
+#define WT_CBT_VAR_ONPAGE_MATCH 0x800u   /* Var-store: on-page recno match */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 #define WT_CBT_POSITION_MASK /* Flags associated with position */                      \
     (WT_CBT_ITERATE_APPEND | WT_CBT_ITERATE_NEXT | WT_CBT_ITERATE_PREV |               \
@@ -278,6 +284,25 @@ struct __wt_cursor_dump {
     WT_CURSOR iface;
 
     WT_CURSOR *child;
+};
+
+struct __wt_cursor_hs {
+    WT_CURSOR iface;
+
+    WT_CURSOR *file_cursor; /* Queries of regular history store data */
+    WT_TIME_WINDOW time_window;
+    uint32_t btree_id;
+    WT_ITEM *datastore_key;
+
+    bool insert_success;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_HS_CUR_BTREE_ID_SET 0x1u
+#define WT_HS_CUR_COUNTER_SET 0x2u
+#define WT_HS_CUR_KEY_SET 0x4u
+#define WT_HS_CUR_TS_SET 0x8u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
+    uint8_t flags;
 };
 
 struct __wt_cursor_index {
@@ -336,12 +361,12 @@ struct __wt_cursor_join_endpoint {
     uint8_t recno_buf[10]; /* holds packed recno */
     WT_CURSOR *cursor;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURJOIN_END_EQ 0x1u         /* include values == cursor */
 #define WT_CURJOIN_END_GT 0x2u         /* include values >  cursor */
 #define WT_CURJOIN_END_LT 0x4u         /* include values <  cursor */
 #define WT_CURJOIN_END_OWN_CURSOR 0x8u /* must close cursor */
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
 #define WT_CURJOIN_END_GE (WT_CURJOIN_END_GT | WT_CURJOIN_END_EQ)
 #define WT_CURJOIN_END_LE (WT_CURJOIN_END_LT | WT_CURJOIN_END_EQ)
     uint8_t flags; /* range for this endpoint */
@@ -365,12 +390,12 @@ struct __wt_cursor_join_entry {
     uint32_t bloom_hash_count; /* hash functions in bloom */
     uint64_t count;            /* approx number of matches */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURJOIN_ENTRY_BLOOM 0x1u           /* use a bloom filter */
 #define WT_CURJOIN_ENTRY_DISJUNCTION 0x2u     /* endpoints are or-ed */
 #define WT_CURJOIN_ENTRY_FALSE_POSITIVES 0x4u /* don't filter false pos */
 #define WT_CURJOIN_ENTRY_OWN_BLOOM 0x8u       /* this entry owns the bloom */
-                                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                              /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 
     WT_CURSOR_JOIN_ENDPOINT *ends; /* reference endpoints */
@@ -393,11 +418,11 @@ struct __wt_cursor_join {
     u_int entries_next;
     uint8_t recno_buf[10]; /* holds packed recno */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURJOIN_DISJUNCTION 0x1u /* Entries are or-ed */
 #define WT_CURJOIN_ERROR 0x2u       /* Error in initialization */
 #define WT_CURJOIN_INITIALIZED 0x4u /* Successful initialization */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 
@@ -422,9 +447,9 @@ struct __wt_cursor_log {
     uint32_t rectype;                 /* Record type */
     uint64_t txnid;                   /* Record txnid */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CURLOG_ARCHIVE_LOCK 0x1u /* Archive lock held */
-                                    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 
@@ -434,11 +459,11 @@ struct __wt_cursor_metadata {
     WT_CURSOR *file_cursor;   /* Queries of regular metadata */
     WT_CURSOR *create_cursor; /* Extra cursor for create option */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_MDC_CREATEONLY 0x1u
 #define WT_MDC_ONMETADATA 0x2u
 #define WT_MDC_POSITIONED 0x4u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 8 */
     uint8_t flags;
 };
 

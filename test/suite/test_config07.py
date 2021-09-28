@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -83,7 +83,7 @@ class test_config07(wttest.WiredTigerTestCase):
         msg = '/invalid log extend length/'
 
         config = 'log=(enabled,file_max=1M),file_extend=' + self.log_extend_len
-        configarg = 'create,statistics=(fast)' + ',' + config
+        configarg = 'create,' + config
 
         # Expect an error when an invalid log extend size is provided.
         if self.expected_log_size is None:

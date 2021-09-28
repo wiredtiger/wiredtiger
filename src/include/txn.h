@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -14,24 +14,24 @@
 #define WT_TS_NONE 0         /* Beginning of time */
 #define WT_TS_MAX UINT64_MAX /* End of time */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_LOG_CKPT_CLEANUP 0x01u
 #define WT_TXN_LOG_CKPT_PREPARE 0x02u
 #define WT_TXN_LOG_CKPT_START 0x04u
 #define WT_TXN_LOG_CKPT_STOP 0x08u
 #define WT_TXN_LOG_CKPT_SYNC 0x10u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_OLDEST_STRICT 0x1u
 #define WT_TXN_OLDEST_WAIT 0x2u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_TS_ALREADY_LOCKED 0x1u
 #define WT_TXN_TS_INCLUDE_CKPT 0x2u
 #define WT_TXN_TS_INCLUDE_OLDEST 0x4u
-/* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
 
 typedef enum {
     WT_VISIBLE_FALSE = 0,   /* Not a visible update */
@@ -104,14 +104,7 @@ struct __wt_txn_shared {
      */
     wt_timestamp_t read_timestamp;
 
-    TAILQ_ENTRY(__wt_txn_shared) read_timestampq;
-    TAILQ_ENTRY(__wt_txn_shared) durable_timestampq;
-    /* Set if need to clear from the durable queue */
-
     volatile uint8_t is_allocating;
-    uint8_t clear_durable_q;
-    uint8_t clear_read_q; /* Set if need to clear from the read queue */
-
     WT_CACHE_LINE_PAD_END
 };
 
@@ -140,23 +133,11 @@ struct __wt_txn_global {
     bool oldest_is_pinned;
     bool stable_is_pinned;
 
-    WT_SPINLOCK id_lock;
-
     /* Protects the active transaction states. */
     WT_RWLOCK rwlock;
 
     /* Protects logging, checkpoints and transaction visibility. */
     WT_RWLOCK visibility_rwlock;
-
-    /* List of transactions sorted by durable timestamp. */
-    WT_RWLOCK durable_timestamp_rwlock;
-    TAILQ_HEAD(__wt_txn_dts_qh, __wt_txn_shared) durable_timestamph;
-    uint32_t durable_timestampq_len;
-
-    /* List of transactions sorted by read timestamp. */
-    WT_RWLOCK read_timestamp_rwlock;
-    TAILQ_HEAD(__wt_txn_rts_qh, __wt_txn_shared) read_timestamph;
-    uint32_t read_timestampq_len;
 
     /*
      * Track information about the running checkpoint. The transaction snapshot used when
@@ -167,11 +148,13 @@ struct __wt_txn_global {
      * We rely on the fact that (a) the only table a checkpoint updates is the metadata; and (b)
      * once checkpoint has finished reading a table, it won't revisit it.
      */
-    volatile bool checkpoint_running;           /* Checkpoint running */
-    volatile uint32_t checkpoint_id;            /* Checkpoint's session ID */
-    WT_TXN_SHARED checkpoint_txn_shared;        /* Checkpoint's txn shared state */
-    wt_timestamp_t checkpoint_timestamp;        /* Checkpoint's timestamp */
-    wt_timestamp_t checkpoint_oldest_timestamp; /* The oldest timestamp at the time of checkpoint */
+    volatile bool checkpoint_running;    /* Checkpoint running */
+    volatile bool checkpoint_running_hs; /* Checkpoint running and processing history store file */
+    volatile uint32_t checkpoint_id;     /* Checkpoint's session ID */
+    WT_TXN_SHARED checkpoint_txn_shared; /* Checkpoint's txn shared state */
+    wt_timestamp_t checkpoint_timestamp; /* Checkpoint's timestamp */
+    volatile uint64_t checkpoint_reserved_txn_id; /* A transaction ID reserved by checkpoint for
+                                            prepared transaction resolution. */
 
     volatile uint64_t debug_ops;       /* Debug mode op counter */
     uint64_t debug_rollback;           /* Debug mode rollback */
@@ -186,6 +169,24 @@ typedef enum __wt_txn_isolation {
     WT_ISO_SNAPSHOT
 } WT_TXN_ISOLATION;
 
+typedef enum __wt_txn_type {
+    WT_TXN_OP_NONE = 0,
+    WT_TXN_OP_BASIC_COL,
+    WT_TXN_OP_BASIC_ROW,
+    WT_TXN_OP_INMEM_COL,
+    WT_TXN_OP_INMEM_ROW,
+    WT_TXN_OP_REF_DELETE,
+    WT_TXN_OP_TRUNCATE_COL,
+    WT_TXN_OP_TRUNCATE_ROW
+} WT_TXN_TYPE;
+
+typedef enum {
+    WT_TXN_TRUNC_ALL,
+    WT_TXN_TRUNC_BOTH,
+    WT_TXN_TRUNC_START,
+    WT_TXN_TRUNC_STOP
+} WT_TXN_TRUNC_MODE;
+
 /*
  * WT_TXN_OP --
  *	A transactional operation.  Each transaction builds an in-memory array
@@ -194,16 +195,7 @@ typedef enum __wt_txn_isolation {
  */
 struct __wt_txn_op {
     WT_BTREE *btree;
-    enum {
-        WT_TXN_OP_NONE = 0,
-        WT_TXN_OP_BASIC_COL,
-        WT_TXN_OP_BASIC_ROW,
-        WT_TXN_OP_INMEM_COL,
-        WT_TXN_OP_INMEM_ROW,
-        WT_TXN_OP_REF_DELETE,
-        WT_TXN_OP_TRUNCATE_COL,
-        WT_TXN_OP_TRUNCATE_ROW
-    } type;
+    WT_TXN_TYPE type;
     union {
         /* WT_TXN_OP_BASIC_ROW, WT_TXN_OP_INMEM_ROW */
         struct {
@@ -231,18 +223,13 @@ struct __wt_txn_op {
         /* WT_TXN_OP_TRUNCATE_ROW */
         struct {
             WT_ITEM start, stop;
-            enum {
-                WT_TXN_TRUNC_ALL,
-                WT_TXN_TRUNC_BOTH,
-                WT_TXN_TRUNC_START,
-                WT_TXN_TRUNC_STOP
-            } mode;
+            WT_TXN_TRUNC_MODE mode;
         } truncate_row;
     } u;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_TXN_OP_KEY_REPEATED 0x1u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -259,8 +246,8 @@ struct __wt_txn {
 
     /*
      * Snapshot data:
+     *	ids >= snap_max are invisible,
      *	ids < snap_min are visible,
-     *	ids > snap_max are invisible,
      *	everything else is visible unless it is in the snapshot.
      */
     uint64_t snap_min, snap_max;
@@ -296,6 +283,9 @@ struct __wt_txn {
     WT_TXN_OP *mod;
     size_t mod_alloc;
     u_int mod_count;
+#ifdef HAVE_DIAGNOSTIC
+    u_int prepare_count;
+#endif
 
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;
@@ -326,31 +316,33 @@ struct __wt_txn {
  *	clearing.
  */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TXN_AUTOCOMMIT 0x000001u
-#define WT_TXN_ERROR 0x000002u
-#define WT_TXN_HAS_ID 0x000004u
-#define WT_TXN_HAS_SNAPSHOT 0x000008u
-#define WT_TXN_HAS_TS_COMMIT 0x000010u
-#define WT_TXN_HAS_TS_DURABLE 0x000020u
-#define WT_TXN_HAS_TS_PREPARE 0x000040u
-#define WT_TXN_IGNORE_PREPARE 0x000080u
-#define WT_TXN_PREPARE 0x000100u
-#define WT_TXN_READONLY 0x000200u
-#define WT_TXN_RUNNING 0x000400u
-#define WT_TXN_SHARED_TS_DURABLE 0x000800u
-#define WT_TXN_SHARED_TS_READ 0x001000u
-#define WT_TXN_SYNC_SET 0x002000u
-#define WT_TXN_TS_COMMIT_ALWAYS 0x004000u
-#define WT_TXN_TS_COMMIT_KEYS 0x008000u
-#define WT_TXN_TS_COMMIT_NEVER 0x010000u
-#define WT_TXN_TS_DURABLE_ALWAYS 0x020000u
-#define WT_TXN_TS_DURABLE_KEYS 0x040000u
-#define WT_TXN_TS_DURABLE_NEVER 0x080000u
-#define WT_TXN_TS_ROUND_PREPARED 0x100000u
-#define WT_TXN_TS_ROUND_READ 0x200000u
-#define WT_TXN_UPDATE 0x400000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_TXN_AUTOCOMMIT 0x0000001u
+#define WT_TXN_ERROR 0x0000002u
+#define WT_TXN_HAS_ID 0x0000004u
+#define WT_TXN_HAS_SNAPSHOT 0x0000008u
+#define WT_TXN_HAS_TS_COMMIT 0x0000010u
+#define WT_TXN_HAS_TS_DURABLE 0x0000020u
+#define WT_TXN_HAS_TS_PREPARE 0x0000040u
+#define WT_TXN_IGNORE_PREPARE 0x0000080u
+#define WT_TXN_PREPARE 0x0000100u
+#define WT_TXN_PREPARE_IGNORE_API_CHECK 0x0000200u
+#define WT_TXN_READONLY 0x0000400u
+#define WT_TXN_RUNNING 0x0000800u
+#define WT_TXN_SHARED_TS_DURABLE 0x0001000u
+#define WT_TXN_SHARED_TS_READ 0x0002000u
+#define WT_TXN_SYNC_SET 0x0004000u
+#define WT_TXN_TS_READ_BEFORE_OLDEST 0x0008000u
+#define WT_TXN_TS_ROUND_PREPARED 0x0010000u
+#define WT_TXN_TS_ROUND_READ 0x0020000u
+#define WT_TXN_TS_WRITE_ALWAYS 0x0040000u
+#define WT_TXN_TS_WRITE_KEY_CONSISTENT 0x0080000u
+#define WT_TXN_TS_WRITE_MIXED_MODE 0x0100000u
+#define WT_TXN_TS_WRITE_NEVER 0x0200000u
+#define WT_TXN_TS_WRITE_ORDERED 0x0400000u
+#define WT_TXN_UPDATE 0x0800000u
+#define WT_TXN_VERB_TS_WRITE 0x1000000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 
     /*

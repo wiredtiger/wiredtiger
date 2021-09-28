@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -30,6 +30,39 @@ struct __wt_process {
     WT_CACHE_POOL *cache_pool; /* shared cache information */
 };
 extern WT_PROCESS __wt_process;
+
+/*
+ * WT_BUCKET_STORAGE --
+ *	A list entry for a storage source with a unique name (bucket, prefix).
+ */
+struct __wt_bucket_storage {
+    const char *bucket;                /* Bucket name */
+    const char *bucket_prefix;         /* Bucket prefix */
+    const char *cache_directory;       /* Locally cached file location */
+    int owned;                         /* Storage needs to be terminated */
+    uint64_t object_size;              /* Tiered object size */
+    uint64_t retain_secs;              /* Tiered period */
+    const char *auth_token;            /* Tiered authentication cookie */
+    WT_FILE_SYSTEM *file_system;       /* File system for bucket */
+    WT_STORAGE_SOURCE *storage_source; /* Storage source callbacks */
+    /* Linked list of bucket storage entries */
+    TAILQ_ENTRY(__wt_bucket_storage) hashq;
+    TAILQ_ENTRY(__wt_bucket_storage) q;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_BUCKET_FREE 0x1u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t flags;
+};
+
+/* Call a function with the bucket storage and its associated file system. */
+#define WT_WITH_BUCKET_STORAGE(bsto, s, e)                                  \
+    do {                                                                    \
+        WT_BUCKET_STORAGE *__saved_bstorage = (s)->bucket_storage;          \
+        (s)->bucket_storage = ((bsto) == NULL ? S2C(s)->bstorage : (bsto)); \
+        e;                                                                  \
+        (s)->bucket_storage = __saved_bstorage;                             \
+    } while (0)
 
 /*
  * WT_KEYED_ENCRYPTOR --
@@ -102,6 +135,28 @@ struct __wt_named_extractor {
 };
 
 /*
+ * WT_NAMED_STORAGE_SOURCE --
+ *	A storage source list entry
+ */
+struct __wt_named_storage_source {
+    const char *name;                  /* Name of storage source */
+    WT_STORAGE_SOURCE *storage_source; /* User supplied callbacks */
+    TAILQ_HEAD(__wt_buckethash, __wt_bucket_storage) * buckethashqh;
+    TAILQ_HEAD(__wt_bucket_qh, __wt_bucket_storage) bucketqh;
+    /* Linked list of storage sources */
+    TAILQ_ENTRY(__wt_named_storage_source) q;
+};
+
+/*
+ * WT_NAME_FLAG --
+ *	Simple structure for name and flag configuration searches
+ */
+struct __wt_name_flag {
+    const char *name;
+    uint64_t flag;
+};
+
+/*
  * WT_CONN_CHECK_PANIC --
  *	Check if we've panicked and return the appropriate error.
  */
@@ -112,22 +167,22 @@ struct __wt_named_extractor {
  * Macros to ensure the dhandle is inserted or removed from both the main queue and the hashed
  * queue.
  */
-#define WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket)                              \
-    do {                                                                           \
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
-        TAILQ_INSERT_HEAD(&(conn)->dhqh, dhandle, q);                              \
-        TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                \
-        ++(conn)->dh_bucket_count[bucket];                                         \
-        ++(conn)->dhandle_count;                                                   \
+#define WT_CONN_DHANDLE_INSERT(conn, dhandle, bucket)                                            \
+    do {                                                                                         \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
+        TAILQ_INSERT_HEAD(&(conn)->dhqh, dhandle, q);                                            \
+        TAILQ_INSERT_HEAD(&(conn)->dhhash[bucket], dhandle, hashq);                              \
+        ++(conn)->dh_bucket_count[bucket];                                                       \
+        ++(conn)->dhandle_count;                                                                 \
     } while (0)
 
-#define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                              \
-    do {                                                                           \
-        WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
-        TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);                                   \
-        TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                     \
-        --(conn)->dh_bucket_count[bucket];                                         \
-        --(conn)->dhandle_count;                                                   \
+#define WT_CONN_DHANDLE_REMOVE(conn, dhandle, bucket)                                            \
+    do {                                                                                         \
+        WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_HANDLE_LIST_WRITE)); \
+        TAILQ_REMOVE(&(conn)->dhqh, dhandle, q);                                                 \
+        TAILQ_REMOVE(&(conn)->dhhash[bucket], dhandle, hashq);                                   \
+        --(conn)->dh_bucket_count[bucket];                                                       \
+        --(conn)->dhandle_count;                                                                 \
     } while (0)
 
 /*
@@ -171,10 +226,12 @@ struct __wt_connection_impl {
     WT_SPINLOCK api_lock;        /* Connection API spinlock */
     WT_SPINLOCK checkpoint_lock; /* Checkpoint spinlock */
     WT_SPINLOCK fh_lock;         /* File handle queue spinlock */
+    WT_SPINLOCK flush_tier_lock; /* Flush tier spinlock */
     WT_SPINLOCK metadata_lock;   /* Metadata update spinlock */
     WT_SPINLOCK reconfig_lock;   /* Single thread reconfigure */
     WT_SPINLOCK schema_lock;     /* Schema operation spinlock */
     WT_RWLOCK table_lock;        /* Table list lock */
+    WT_SPINLOCK tiered_lock;     /* Tiered work queue spinlock */
     WT_SPINLOCK turtle_lock;     /* Turtle file spinlock */
     WT_RWLOCK dhandle_lock;      /* Data handle list lock */
 
@@ -224,13 +281,15 @@ struct __wt_connection_impl {
     TAILQ_HEAD(__wt_dhhash, __wt_data_handle) * dhhash;
     /* Locked: data handle list */
     TAILQ_HEAD(__wt_dhandle_qh, __wt_data_handle) dhqh;
-    /* Locked: LSM handle list. */
-    TAILQ_HEAD(__wt_lsm_qh, __wt_lsm_tree) lsmqh;
+    /* Locked: dynamic library handle list */
+    TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
     /* Locked: file list */
     TAILQ_HEAD(__wt_fhhash, __wt_fh) * fhhash;
     TAILQ_HEAD(__wt_fh_qh, __wt_fh) fhqh;
-    /* Locked: library list */
-    TAILQ_HEAD(__wt_dlh_qh, __wt_dlh) dlhqh;
+    /* Locked: LSM handle list. */
+    TAILQ_HEAD(__wt_lsm_qh, __wt_lsm_tree) lsmqh;
+    /* Locked: Tiered system work queue. */
+    TAILQ_HEAD(__wt_tiered_qh, __wt_tiered_work_unit) tieredqh;
 
     WT_SPINLOCK block_lock; /* Locked: block manager list */
     TAILQ_HEAD(__wt_blockhash, __wt_block) * blockhash;
@@ -267,6 +326,11 @@ struct __wt_connection_impl {
                                      within a cache pool). */
 
     WT_TXN_GLOBAL txn_global; /* Global transaction state */
+
+    /* Recovery checkpoint snapshot details saved in the metadata file */
+    uint64_t recovery_ckpt_snap_min, recovery_ckpt_snap_max;
+    uint64_t *recovery_ckpt_snapshot;
+    uint32_t recovery_ckpt_snapshot_count;
 
     WT_RWLOCK hot_backup_lock; /* Hot backup serialization */
     uint64_t hot_backup_start; /* Clock value of most recent checkpoint needed by hot backup */
@@ -313,17 +377,15 @@ struct __wt_connection_impl {
     /* Connection's base write generation. */
     uint64_t base_write_gen;
 
+    /* Last checkpoint connection's base write generation */
+    uint64_t last_ckpt_base_write_gen;
+
     uint32_t stat_flags; /* Options declared in flags.py */
 
     /* Connection statistics */
     uint64_t rec_maximum_seconds; /* Maximum seconds reconciliation took. */
     WT_CONNECTION_STATS *stats[WT_COUNTER_SLOTS];
     WT_CONNECTION_STATS *stat_array;
-
-    WT_ASYNC *async;        /* Async structure */
-    bool async_cfg;         /* Global async configuration */
-    uint32_t async_size;    /* Async op array size */
-    uint32_t async_workers; /* Number of async workers */
 
     WT_CAPACITY capacity;              /* Capacity structure */
     WT_SESSION_IMPL *capacity_session; /* Capacity thread session */
@@ -332,6 +394,9 @@ struct __wt_connection_impl {
     WT_CONDVAR *capacity_cond;         /* Capacity wait mutex */
 
     WT_LSM_MANAGER lsm_manager; /* LSM worker thread information */
+
+    WT_BUCKET_STORAGE *bstorage;     /* Bucket storage for the connection */
+    WT_BUCKET_STORAGE bstorage_none; /* Bucket storage for "none" */
 
     WT_KEYED_ENCRYPTOR *kencryptor; /* Encryptor for metadata and log */
 
@@ -355,7 +420,25 @@ struct __wt_connection_impl {
     const char *stat_stamp; /* Statistics log entry timestamp */
     uint64_t stat_usecs;    /* Statistics log period */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+    uint64_t tiered_retention;       /* Earliest time to check to remove local overlap copies */
+    WT_SESSION_IMPL *tiered_session; /* Tiered thread session */
+    wt_thread_t tiered_tid;          /* Tiered thread */
+    bool tiered_tid_set;             /* Tiered thread set */
+    WT_CONDVAR *flush_cond;          /* Flush wait mutex */
+    WT_CONDVAR *tiered_cond;         /* Tiered wait mutex */
+    bool tiered_server_running;      /* Internal tiered server operating */
+    uint32_t flush_state;            /* State of last flush tier */
+
+    WT_TIERED_MANAGER tiered_mgr;        /* Tiered manager thread information */
+    WT_SESSION_IMPL *tiered_mgr_session; /* Tiered manager thread session */
+    wt_thread_t tiered_mgr_tid;          /* Tiered manager thread */
+    bool tiered_mgr_tid_set;             /* Tiered manager thread set */
+    WT_CONDVAR *tiered_mgr_cond;         /* Tiered manager wait mutex */
+
+    uint32_t tiered_threads_max; /* Max tiered threads */
+    uint32_t tiered_threads_min; /* Min tiered threads */
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CONN_LOG_ARCHIVE 0x001u         /* Archive is enabled */
 #define WT_CONN_LOG_CONFIG_ENABLED 0x002u  /* Logging is configured */
 #define WT_CONN_LOG_DEBUG_MODE 0x004u      /* Debug-mode logging enabled */
@@ -368,7 +451,7 @@ struct __wt_connection_impl {
 #define WT_CONN_LOG_RECOVER_ERR 0x200u     /* Error if recovery required */
 #define WT_CONN_LOG_RECOVER_FAILED 0x400u  /* Recovery failed */
 #define WT_CONN_LOG_ZERO_FILL 0x800u       /* Manually zero files */
-                                           /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t log_flags;                    /* Global logging configuration */
     WT_CONDVAR *log_cond;                  /* Log server wait mutex */
     WT_SESSION_IMPL *log_session;          /* Log server session */
@@ -393,7 +476,8 @@ struct __wt_connection_impl {
     uint16_t log_req_min;                  /* Min required log version */
     uint32_t txn_logsync;                  /* Log sync configuration */
 
-    WT_SESSION_IMPL *meta_ckpt_session; /* Metadata checkpoint session */
+    WT_SESSION_IMPL *meta_ckpt_session;     /* Metadata checkpoint session */
+    WT_SESSION_IMPL *ckpt_reserved_session; /* Checkpoint reserved session */
 
     /*
      * Is there a data/schema change that needs to be the part of a checkpoint.
@@ -407,8 +491,6 @@ struct __wt_connection_impl {
     uint64_t sweep_idle_time;       /* Handle sweep idle time */
     uint64_t sweep_interval;        /* Handle sweep interval */
     uint64_t sweep_handles_min;     /* Handle sweep minimum open */
-
-    uint32_t stable_rollback_maxfile;
 
     /* Locked: collator list */
     TAILQ_HEAD(__wt_coll_qh, __wt_named_collator) collqh;
@@ -426,6 +508,10 @@ struct __wt_connection_impl {
     /* Locked: extractor list */
     TAILQ_HEAD(__wt_extractor_qh, __wt_named_extractor) extractorqh;
 
+    /* Locked: storage source list */
+    WT_SPINLOCK storage_lock; /* Storage source list lock */
+    TAILQ_HEAD(__wt_storage_source_qh, __wt_named_storage_source) storagesrcqh;
+
     void *lang_private; /* Language specific private storage */
 
     /* If non-zero, all buffers used for I/O will be aligned to this. */
@@ -439,11 +525,11 @@ struct __wt_connection_impl {
     wt_off_t data_extend_len; /* file_extend data length */
     wt_off_t log_extend_len;  /* file_extend log length */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_DIRECT_IO_CHECKPOINT 0x1u /* Checkpoints */
 #define WT_DIRECT_IO_DATA 0x2u       /* Data files */
 #define WT_DIRECT_IO_LOG 0x4u        /* Log files */
-                                     /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t direct_io;              /* O_DIRECT, FILE_FLAG_NO_BUFFERING */
     uint64_t write_through;          /* FILE_FLAG_WRITE_THROUGH */
 
@@ -456,77 +542,82 @@ struct __wt_connection_impl {
     uint32_t debug_ckpt_cnt; /* Checkpoint retention number. */
     uint32_t debug_log_cnt;  /* Log file retention count */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CONN_DEBUG_CKPT_RETAIN 0x1u
-#define WT_CONN_DEBUG_CURSOR_COPY 0x2u
-#define WT_CONN_DEBUG_REALLOC_EXACT 0x4u
-#define WT_CONN_DEBUG_SLOW_CKPT 0x8u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_DEBUG_CKPT_RETAIN 0x01u
+#define WT_CONN_DEBUG_CORRUPTION_ABORT 0x02u
+#define WT_CONN_DEBUG_CURSOR_COPY 0x04u
+#define WT_CONN_DEBUG_REALLOC_EXACT 0x08u
+#define WT_CONN_DEBUG_SLOW_CKPT 0x10u
+#define WT_CONN_DEBUG_UPDATE_RESTORE_EVICT 0x20u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t debug_flags;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_VERB_API 0x0000000001u
 #define WT_VERB_BACKUP 0x0000000002u
 #define WT_VERB_BLKCACHE     0x0000000004u
-#define WT_VERB_BLOCK 0x0000000008u
-#define WT_VERB_CHECKPOINT 0x0000000010u
-#define WT_VERB_CHECKPOINT_CLEANUP      0x0000000020u
-#define WT_VERB_CHECKPOINT_PROGRESS 0x0000000040u
-#define WT_VERB_COMPACT 0x0000000080u
-#define WT_VERB_COMPACT_PROGRESS 0x0000000100u
-#define WT_VERB_ERROR_RETURNS 0x0000000200u
-#define WT_VERB_EVICT 0x0000000400u
-#define WT_VERB_EVICTSERVER 0x0000000800u
-#define WT_VERB_EVICT_STUCK 0x0000001000u
-#define WT_VERB_FILEOPS 0x0000002000u
-#define WT_VERB_HANDLEOPS 0x0000004000u
-#define WT_VERB_HS 0x0000008000u
-#define WT_VERB_HS_ACTIVITY 0x0000010000u
-#define WT_VERB_LOG 0x0000020000u
-#define WT_VERB_LSM 0x0000040000u
-#define WT_VERB_LSM_MANAGER 0x0000080000u
-#define WT_VERB_METADATA 0x0000100000u
-#define WT_VERB_MUTEX 0x0000200000u
-#define WT_VERB_OVERFLOW 0x0000400000u
-#define WT_VERB_READ 0x0000800000u
-#define WT_VERB_REBALANCE 0x0001000000u
-#define WT_VERB_RECONCILE 0x0002000000u
-#define WT_VERB_RECOVERY 0x0004000000u
-#define WT_VERB_RECOVERY_PROGRESS 0x0008000000u
-#define WT_VERB_RTS 0x0010000000u
-#define WT_VERB_SALVAGE 0x0020000000u
-#define WT_VERB_SHARED_CACHE 0x0040000000u
-#define WT_VERB_SPLIT 0x0080000000u
-#define WT_VERB_TEMPORARY 0x0100000000u
-#define WT_VERB_THREAD_GROUP 0x0200000000u
-#define WT_VERB_TIMESTAMP 0x0400000000u
-#define WT_VERB_TRANSACTION 0x0800000000u
-#define WT_VERB_VERIFY 0x1000000000u
-#define WT_VERB_VERSION 0x2000000000u
-#define WT_VERB_WRITE 0x4000000000u
-#define WT_VERG_CHECKPOINT_CLEANUP      0x8000000000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+#define WT_VERB_BLOCK 0x0000000004u
+#define WT_VERB_CHECKPOINT 0x0000000008u
+#define WT_VERB_CHECKPOINT_CLEANUP 0x0000000010u
+#define WT_VERB_CHECKPOINT_PROGRESS 0x0000000020u
+#define WT_VERB_COMPACT 0x0000000040u
+#define WT_VERB_COMPACT_PROGRESS 0x0000000080u
+#define WT_VERB_ERROR_RETURNS 0x0000000100u
+#define WT_VERB_EVICT 0x0000000200u
+#define WT_VERB_EVICTSERVER 0x0000000400u
+#define WT_VERB_EVICT_STUCK 0x0000000800u
+#define WT_VERB_FILEOPS 0x0000001000u
+#define WT_VERB_HANDLEOPS 0x0000002000u
+#define WT_VERB_HS 0x0000004000u
+#define WT_VERB_HS_ACTIVITY 0x0000008000u
+#define WT_VERB_LOG 0x0000010000u
+#define WT_VERB_LSM 0x0000020000u
+#define WT_VERB_LSM_MANAGER 0x0000040000u
+#define WT_VERB_METADATA 0x0000080000u
+#define WT_VERB_MUTEX 0x0000100000u
+#define WT_VERB_OVERFLOW 0x0000200000u
+#define WT_VERB_READ 0x0000400000u
+#define WT_VERB_RECONCILE 0x0000800000u
+#define WT_VERB_RECOVERY 0x0001000000u
+#define WT_VERB_RECOVERY_PROGRESS 0x0002000000u
+#define WT_VERB_RTS 0x0004000000u
+#define WT_VERB_SALVAGE 0x0008000000u
+#define WT_VERB_SHARED_CACHE 0x0010000000u
+#define WT_VERB_SPLIT 0x0020000000u
+#define WT_VERB_TEMPORARY 0x0040000000u
+#define WT_VERB_THREAD_GROUP 0x0080000000u
+#define WT_VERB_TIERED 0x0100000000u
+#define WT_VERB_TIMESTAMP 0x0200000000u
+#define WT_VERB_TRANSACTION 0x0400000000u
+#define WT_VERB_VERIFY 0x0800000000u
+#define WT_VERB_VERSION 0x1000000000u
+#define WT_VERB_WRITE 0x2000000000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t verbose;
 
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x0001u
-#define WT_TIMING_STRESS_BACKUP_RENAME 0x0002u
-#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x0004u
-#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x0008u
-#define WT_TIMING_STRESS_HS_SWEEP 0x0010u
-#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x0020u
-#define WT_TIMING_STRESS_SPLIT_1 0x0040u
-#define WT_TIMING_STRESS_SPLIT_2 0x0080u
-#define WT_TIMING_STRESS_SPLIT_3 0x0100u
-#define WT_TIMING_STRESS_SPLIT_4 0x0200u
-#define WT_TIMING_STRESS_SPLIT_5 0x0400u
-#define WT_TIMING_STRESS_SPLIT_6 0x0800u
-#define WT_TIMING_STRESS_SPLIT_7 0x1000u
-#define WT_TIMING_STRESS_SPLIT_8 0x2000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_TIMING_STRESS_AGGRESSIVE_SWEEP 0x00001u
+#define WT_TIMING_STRESS_BACKUP_RENAME 0x00002u
+#define WT_TIMING_STRESS_CHECKPOINT_RESERVED_TXNID_DELAY 0x00004u
+#define WT_TIMING_STRESS_CHECKPOINT_SLOW 0x00008u
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_DELETE_KEY_FROM_TS 0x00010u
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_1 0x00020u
+#define WT_TIMING_STRESS_FAILPOINT_HISTORY_STORE_INSERT_2 0x00040u
+#define WT_TIMING_STRESS_HS_CHECKPOINT_DELAY 0x00080u
+#define WT_TIMING_STRESS_HS_SEARCH 0x00100u
+#define WT_TIMING_STRESS_HS_SWEEP 0x00200u
+#define WT_TIMING_STRESS_PREPARE_CHECKPOINT_DELAY 0x00400u
+#define WT_TIMING_STRESS_SPLIT_1 0x00800u
+#define WT_TIMING_STRESS_SPLIT_2 0x01000u
+#define WT_TIMING_STRESS_SPLIT_3 0x02000u
+#define WT_TIMING_STRESS_SPLIT_4 0x04000u
+#define WT_TIMING_STRESS_SPLIT_5 0x08000u
+#define WT_TIMING_STRESS_SPLIT_6 0x10000u
+#define WT_TIMING_STRESS_SPLIT_7 0x20000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
 #define WT_STDERR(s) (&S2C(s)->wt_stderr)
@@ -538,36 +629,45 @@ struct __wt_connection_impl {
      */
     WT_FILE_SYSTEM *file_system;
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_CONN_CACHE_CURSORS 0x00000001u
-#define WT_CONN_CACHE_POOL 0x00000002u
-#define WT_CONN_CKPT_SYNC 0x00000004u
-#define WT_CONN_CLOSING 0x00000008u
-#define WT_CONN_CLOSING_NO_MORE_OPENS 0x00000010u
-#define WT_CONN_CLOSING_TIMESTAMP 0x00000020u
-#define WT_CONN_COMPATIBILITY 0x00000040u
-#define WT_CONN_DATA_CORRUPTION 0x00000080u
-#define WT_CONN_EVICTION_RUN 0x00000100u
-#define WT_CONN_FILE_CLOSE_SYNC 0x00000200u
-#define WT_CONN_HS_OPEN 0x00000400u
-#define WT_CONN_INCR_BACKUP 0x00000800u
-#define WT_CONN_IN_MEMORY 0x00001000u
-#define WT_CONN_LEAK_MEMORY 0x00002000u
-#define WT_CONN_LSM_MERGE 0x00004000u
-#define WT_CONN_OPTRACK 0x00008000u
-#define WT_CONN_PANIC 0x00010000u
-#define WT_CONN_READONLY 0x00020000u
-#define WT_CONN_RECONFIGURING 0x00040000u
-#define WT_CONN_RECOVERING 0x00080000u
-#define WT_CONN_SALVAGE 0x00100000u
-#define WT_CONN_SERVER_ASYNC 0x00200000u
-#define WT_CONN_SERVER_CAPACITY 0x00400000u
-#define WT_CONN_SERVER_CHECKPOINT 0x00800000u
-#define WT_CONN_SERVER_LOG 0x01000000u
-#define WT_CONN_SERVER_LSM 0x02000000u
-#define WT_CONN_SERVER_STATISTICS 0x04000000u
-#define WT_CONN_SERVER_SWEEP 0x08000000u
-#define WT_CONN_WAS_BACKUP 0x10000000u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
+/*
+ * Server subsystem flags.
+ */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_SERVER_CAPACITY 0x01u
+#define WT_CONN_SERVER_CHECKPOINT 0x02u
+#define WT_CONN_SERVER_LOG 0x04u
+#define WT_CONN_SERVER_LSM 0x08u
+#define WT_CONN_SERVER_STATISTICS 0x10u
+#define WT_CONN_SERVER_SWEEP 0x20u
+#define WT_CONN_SERVER_TIERED 0x40u
+#define WT_CONN_SERVER_TIERED_MGR 0x80u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
+    uint32_t server_flags;
+
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
+#define WT_CONN_CACHE_CURSORS 0x000001u
+#define WT_CONN_CACHE_POOL 0x000002u
+#define WT_CONN_CKPT_GATHER 0x000004u
+#define WT_CONN_CKPT_SYNC 0x000008u
+#define WT_CONN_CLOSING 0x000010u
+#define WT_CONN_CLOSING_NO_MORE_OPENS 0x000020u
+#define WT_CONN_CLOSING_TIMESTAMP 0x000040u
+#define WT_CONN_COMPATIBILITY 0x000080u
+#define WT_CONN_DATA_CORRUPTION 0x000100u
+#define WT_CONN_EVICTION_RUN 0x000200u
+#define WT_CONN_FILE_CLOSE_SYNC 0x000400u
+#define WT_CONN_HS_OPEN 0x000800u
+#define WT_CONN_INCR_BACKUP 0x001000u
+#define WT_CONN_IN_MEMORY 0x002000u
+#define WT_CONN_LEAK_MEMORY 0x004000u
+#define WT_CONN_LSM_MERGE 0x008000u
+#define WT_CONN_OPTRACK 0x010000u
+#define WT_CONN_PANIC 0x020000u
+#define WT_CONN_READONLY 0x040000u
+#define WT_CONN_RECONFIGURING 0x080000u
+#define WT_CONN_RECOVERING 0x100000u
+#define WT_CONN_SALVAGE 0x200000u
+#define WT_CONN_WAS_BACKUP 0x400000u
+    /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

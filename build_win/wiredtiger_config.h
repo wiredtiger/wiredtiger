@@ -19,6 +19,9 @@
 /* ZSTD support automatically loaded. */
 /* #undef HAVE_BUILTIN_EXTENSION_ZSTD */
 
+/* libsodium support automatically loaded. */
+/* #undef HAVE_BUILTIN_EXTENSION_SODIUM */
+
 /* Define to 1 if you have the `clock_gettime' function. */
 /* #undef HAVE_CLOCK_GETTIME */
 
@@ -67,11 +70,17 @@
 /* Define to 1 if you have the `zstd' library (-lzstd). */
 /* #undef HAVE_LIBZSTD */
 
+/* Define to 1 if you have the `sodium' library (-lsodium). */
+/* #undef HAVE_LIBSODIUM */
+
 /* Define to 1 if you have the <memory.h> header file. */
 /* #undef HAVE_MEMORY_H */
 
 /* Define to 1 to disable any crc32 hardware support. */
 /* #undef HAVE_NO_CRC32_HARDWARE */
+
+/* Define to 1 to disable standalone wiredtiger build. */
+/* #undef WT_STANDALONE_BUILD */
 
 /* Define to 1 if pthread condition variables support monotonic clocks. */
 /* #undef HAVE_PTHREAD_COND_MONOTONIC */

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -36,6 +36,10 @@ import os, sys
 fname = os.path.basename(__file__)
 if fname != '__init__.py' and fname != '__init__.pyc':
     print(__file__ + ': this file is not yet installed')
+    sys.exit(1)
+
+if sys.version_info[0] <= 2:
+    print('WiredTiger requires Python version 3.0 or above')
     sys.exit(1)
 
 # After importing the SWIG-generated file, copy all symbols from from it

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -31,14 +31,16 @@ from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
-def timestamp_str(t):
-    return '%x' % t
-
 # test_rollback_to_stable06.py
 # Test that rollback to stable removes all keys when the stable timestamp is earlier than
 # all commit timestamps.
 class test_rollback_to_stable06(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
+
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -50,7 +52,7 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values, prepare_values)
+    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all)'
@@ -66,12 +68,12 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         # Create a table without logging.
         uri = "table:rollback_to_stable06"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 10.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(10) +
-            ',stable_timestamp=' + timestamp_str(10))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
+            ',stable_timestamp=' + self.timestamp_str(10))
 
         value_a = "aaaaa" * 100
         value_b = "bbbbb" * 100
@@ -79,10 +81,10 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
         value_d = "ddddd" * 100
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_b, ds, nrows, 30)
-        self.large_updates(uri, value_c, ds, nrows, 40)
-        self.large_updates(uri, value_d, ds, nrows, 50)
+        self.large_updates(uri, value_a, ds, nrows, self.prepare, 20)
+        self.large_updates(uri, value_b, ds, nrows, self.prepare, 30)
+        self.large_updates(uri, value_c, ds, nrows, self.prepare, 40)
+        self.large_updates(uri, value_d, ds, nrows, self.prepare, 50)
 
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
@@ -118,8 +120,7 @@ class test_rollback_to_stable06(test_rollback_to_stable_base):
             self.assertEqual(upd_aborted, nrows * 4)
             self.assertEqual(hs_removed, 0)
         else:
-            self.assertGreaterEqual(upd_aborted, 0)
-            self.assertGreaterEqual(hs_removed, nrows * 3)
+            self.assertGreaterEqual(upd_aborted + hs_removed + keys_removed, nrows * 4)
 
 if __name__ == '__main__':
     wttest.run()

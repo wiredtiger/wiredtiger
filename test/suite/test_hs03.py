@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,9 +30,7 @@ from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
-
-def timestamp_str(t):
-    return '%x' % t
+from wtscenario import make_scenarios
 
 # test_hs03.py
 # Ensure checkpoints don't read too unnecessary history store entries.
@@ -40,6 +38,12 @@ class test_hs03(wttest.WiredTigerTestCase):
     # Force a small cache.
     conn_config = 'cache_size=50MB,statistics=(fast)'
     session_config = 'isolation=snapshot'
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S'))
+    ]
+    scenarios = make_scenarios(key_format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')
@@ -54,14 +58,14 @@ class test_hs03(wttest.WiredTigerTestCase):
         for i in range(nrows + 1, nrows + nops + 1):
             session.begin_transaction()
             cursor[ds.key(i)] = value
-            session.commit_transaction('commit_timestamp=' + timestamp_str(i))
+            session.commit_transaction('commit_timestamp=' + self.timestamp_str(i))
         cursor.close()
 
     def test_checkpoint_hs_reads(self):
         # Create a small table.
         uri = "table:test_hs03"
         nrows = 100
-        ds = SimpleDataSet(self, uri, nrows, key_format="S", value_format='u')
+        ds = SimpleDataSet(self, uri, nrows, key_format=self.key_format, value_format='u')
         ds.populate()
         bigvalue = b"aaaaa" * 100
 
@@ -74,7 +78,7 @@ class test_hs03(wttest.WiredTigerTestCase):
 
         # Check to see the history store working with old timestamp.
         bigvalue2 = b"ddddd" * 100
-        self.conn.set_timestamp('stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(1))
         hs_writes_start = self.get_stat(stat.conn.cache_write_hs)
         self.large_updates(self.session, uri, bigvalue2, ds, nrows, 10000)
 
@@ -84,7 +88,7 @@ class test_hs03(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(hs_writes, 0)
 
         for ts in range(2, 4):
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(ts))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(ts))
 
             # Now just update one record and checkpoint again.
             self.large_updates(self.session, uri, bigvalue2, ds, nrows, 1)

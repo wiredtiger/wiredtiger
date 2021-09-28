@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,11 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-try:
-    import Queue as queue  # python2
-except ImportError:
-    import queue
-import os, shutil, sys, threading, time, wiredtiger, wttest
+import os, queue, shutil, sys, threading, time, wiredtiger, wttest
 from helper import compare_tables
 
 class checkpoint_thread(threading.Thread):
@@ -45,6 +41,20 @@ class checkpoint_thread(threading.Thread):
             # Sleep for 10 milliseconds.
             time.sleep(0.001)
             sess.checkpoint()
+        sess.close()
+
+class flush_tier_thread(threading.Thread):
+    def __init__(self, conn, done):
+        self.conn = conn
+        self.done = done
+        threading.Thread.__init__(self)
+
+    def run(self):
+        sess = self.conn.open_session()
+        while not self.done.isSet():
+            # Sleep for 25 milliseconds.
+            time.sleep(0.0025)
+            sess.flush_tier()
         sess.close()
 
 class backup_thread(threading.Thread):
@@ -85,20 +95,16 @@ class backup_thread(threading.Thread):
                     uri = "file:" + next_file
                     uris.append(uri)
 
-                # TODO: We want a self.assertTrue here - be need to be a
-                # wttest to do that..
-                if not compare_tables(
-                        self, sess, uris, "checkpoint=WiredTigerCheckpoint"):
-                    print("Error: checkpoint tables differ.")
-                else:
-                    wttest.WiredTigerTestCase.printVerbose(
-                        3, "Checkpoint tables match")
+                # Add an assert to stop running the test if any difference in table contents
+                # is found. We would have liked to use self.assertTrue instead, but are unable
+                # to because backup_thread does not support this method unless it is a wttest.
+                wttest.WiredTigerTestCase.printVerbose(3, "Testing if checkpoint tables match:")
+                assert compare_tables(self, sess, uris) == True
+                wttest.WiredTigerTestCase.printVerbose(3, "Checkpoint tables match")
 
-                if not compare_tables(self, bkp_session, uris):
-                    print("Error: backup tables differ.")
-                else:
-                    wttest.WiredTigerTestCase.printVerbose(
-                        3, "Backup tables match")
+                wttest.WiredTigerTestCase.printVerbose(3, "Testing if backup tables match:")
+                assert compare_tables(self, bkp_session, uris) == True
+                wttest.WiredTigerTestCase.printVerbose(3, "Backup tables match")
             finally:
                 if bkp_conn != None:
                     bkp_conn.close()

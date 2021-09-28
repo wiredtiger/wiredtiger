@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -89,8 +89,6 @@ static const char *list[] = {
   "runs.type",
   "firstfit=",
   "disk.firstfit",
-  "huffman_key=",
-  "btree.huffman_key",
   "huffman_value=",
   "btree.huffman_value",
   "in_memory=",
@@ -103,10 +101,6 @@ static const char *list[] = {
   "btree.internal_key_truncation",
   "internal_page_max=",
   "btree.internal_page_max",
-  "isolation=",
-  "transaction.isolation",
-  "key_gap=",
-  "btree.key_gap",
   "key_max=",
   "btree.key_max",
   "key_min=",
@@ -149,8 +143,6 @@ static const char *list[] = {
   "ops.random_cursor",
   "read_pct=",
   "ops.pct.read",
-  "rebalance=",
-  "ops.rebalance",
   "repeat_data_pct=",
   "btree.repeat_data_pct",
   "reverse=",
@@ -189,8 +181,6 @@ static const char *list[] = {
   "stress.split_6",
   "timing_stress_split_7=",
   "stress.split_7",
-  "timing_stress_split_8=",
-  "stress.split_8",
   "transaction-frequency=",
   "transaction.frequency",
   "transaction_timestamps=",

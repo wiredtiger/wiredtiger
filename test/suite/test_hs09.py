@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -25,49 +25,61 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# history_store
+# [END_TAGS]
 
 import wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_hs09.py
 # Verify that we write the newest committed version to data store and the
 # second newest committed version to history store.
 class test_hs09(wttest.WiredTigerTestCase):
     # Force a small cache.
-    conn_config = 'cache_size=50MB,statistics=(fast)'
+    conn_config = 'cache_size=20MB'
     session_config = 'isolation=snapshot'
     uri = "table:test_hs09"
     key_format_values = [
-        # The commented columnar tests needs to be enabled once columnar page instantiated is fixed in (WT-6061).
-        #('column', dict(key_format='r')),
-        ('integer', dict(key_format='i')),
-        ('string', dict(key_format='S')),
+        ('column', dict(key_format='r')),
+        ('integer-row', dict(key_format='i')),
+        ('string-row', dict(key_format='S')),
     ]
     scenarios = make_scenarios(key_format_values)
+    nrows = 1000
 
     def create_key(self, i):
         if self.key_format == 'S':
             return str(i)
         return i
 
-    def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts, expected_hs_stop_ts):
+    def check_ckpt_hs(self, expected_data_value, expected_hs_value, expected_hs_start_ts,
+                      expected_hs_stop_ts, expect_prepared_in_datastore = False):
         session = self.conn.open_session(self.session_config)
         session.checkpoint()
-        # Check the data file value
+        # Check the data file value.
         cursor = session.open_cursor(self.uri, None, 'checkpoint=WiredTigerCheckpoint')
+
+        # If we are expecting prepapred updates in the datastore, start an explicit transaction with
+        # ignore prepare flag to avoid getting a WT_PREPARE_CONFLICT error.
+        if expect_prepared_in_datastore:
+            session.begin_transaction("ignore_prepare=true")
+
         for _, value in cursor:
             self.assertEqual(value, expected_data_value)
+
+        if expect_prepared_in_datastore:
+            session.rollback_transaction()
+
         cursor.close()
-        # Check the history store file value
+        # Check the history store file value.
         cursor = session.open_cursor("file:WiredTigerHS.wt", None, 'checkpoint=WiredTigerCheckpoint')
         for _, _, hs_start_ts, _, hs_stop_ts, _, type, value in cursor:
-            # No WT_UPDATE_TOMBSTONE in the history store
+            # No WT_UPDATE_TOMBSTONE in the history store.
             self.assertNotEqual(type, 5)
-            # No WT_UPDATE_BIRTHMARK in the history store
+            # No WT_UPDATE_BIRTHMARK in the history store.
             self.assertNotEqual(type, 1)
             # WT_UPDATE_STANDARD
             if (type == 4):
@@ -87,20 +99,20 @@ class test_hs09(wttest.WiredTigerTestCase):
         value3 = 'c' * 500
 
         # Load 500KB of data.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
-        # Uncommitted changes
+        # Uncommitted changes.
         self.session.begin_transaction()
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
@@ -117,28 +129,30 @@ class test_hs09(wttest.WiredTigerTestCase):
         value3 = 'c' * 500
 
         # Load 1MB of data.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, 2000):
             cursor[self.create_key(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Load another 1MB of data with a later timestamp.
         self.session.begin_transaction()
         for i in range(1, 2000):
             cursor[self.create_key(i)] = value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
-        # Prepare some updates
+        # Prepare some updates.
         self.session.begin_transaction()
         for i in range(1, 11):
             cursor[self.create_key(i)] = value3
-        self.session.prepare_transaction('prepare_timestamp=' + timestamp_str(4))
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(4))
 
-        self.check_ckpt_hs(value2, value1, 2, 3)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(5) +
-            ',durable_timestamp=' + timestamp_str(5))
+        # We can expect prepared values to show up in data store if the eviction runs between now
+        # and the time when we open a cursor on the user table.
+        self.check_ckpt_hs(value2, value1, 2, 3, True)
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5) +
+            ',durable_timestamp=' + self.timestamp_str(5))
 
     def test_write_newest_version_to_data_store(self):
         # Create a small table.
@@ -149,18 +163,18 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
 
         # Load 500KB of data.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
         self.check_ckpt_hs(value2, value1, 2, 3)
 
@@ -173,26 +187,26 @@ class test_hs09(wttest.WiredTigerTestCase):
         value2 = 'b' * 500
 
         # Load 500KB of data.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value1
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         # Load another 500KB of data with a later timestamp.
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor[self.create_key(i)] = value2
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
         # Delete records.
         self.session.begin_transaction()
-        for i in range(1, 1000):
+        for i in range(1, self.nrows):
             cursor = self.session.open_cursor(self.uri)
             cursor.set_key(self.create_key(i))
             self.assertEqual(cursor.remove(), 0)
-        self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
 
         self.check_ckpt_hs(value2, value1, 2, 3)
 

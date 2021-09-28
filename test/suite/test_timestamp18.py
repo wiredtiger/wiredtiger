@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,6 +26,11 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 #
+# [TEST_TAGS]
+# transactions:mixed_mode_timestamps
+# verify:prepare
+# [END_TAGS]
+#
 # test_timestamp18.py
 #   Mixing timestamped and non-timestamped writes.
 #
@@ -33,22 +38,27 @@
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 class test_timestamp18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
+
+    key_format_values = [
+        ('string-row', dict(key_format='S', usestrings=True)),
+        ('column', dict(key_format='r', usestrings=False)),
+    ]
     non_ts_writes = [
         ('insert', dict(delete=False)),
         ('delete', dict(delete=True)),
     ]
-    scenarios = make_scenarios(non_ts_writes)
+    scenarios = make_scenarios(key_format_values, non_ts_writes)
+
+    def get_key(self, i):
+        return str(i) if self.usestrings else i
 
     def test_ts_writes_with_non_ts_write(self):
         uri = 'table:test_timestamp18'
-        self.session.create(uri, 'key_format=S,value_format=S')
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1))
+        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
         cursor = self.session.open_cursor(uri)
 
         value1 = 'a' * 500
@@ -59,18 +69,18 @@ class test_timestamp18(wttest.WiredTigerTestCase):
         # A series of timestamped writes on each key.
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[str(i)] = value1
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(2))
+            cursor[self.get_key(i)] = value1
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[str(i)] = value2
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(3))
+            cursor[self.get_key(i)] = value2
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3))
 
         for i in range(1, 10000):
             self.session.begin_transaction()
-            cursor[str(i)] = value3
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(4))
+            cursor[self.get_key(i)] = value3
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
 
         # Add a non-timestamped delete.
         # Let's do every second key to ensure that we get the truncation right and don't
@@ -78,30 +88,30 @@ class test_timestamp18(wttest.WiredTigerTestCase):
         for i in range(1, 10000):
             if i % 2 == 0:
                 if self.delete:
-                    cursor.set_key(str(i))
+                    cursor.set_key(self.get_key(i))
                     cursor.remove()
                 else:
-                    cursor[str(i)] = value4
+                    cursor[self.get_key(i)] = value4
 
         self.session.checkpoint()
 
         for ts in range(2, 4):
-            self.session.begin_transaction('read_timestamp=' + timestamp_str(ts))
+            self.session.begin_transaction('read_timestamp=' + self.timestamp_str(ts))
             for i in range(1, 10000):
                 # The non-timestamped delete should cover all the previous writes and make them effectively
                 # invisible.
                 if i % 2 == 0:
                     if self.delete:
-                        cursor.set_key(str(i))
+                        cursor.set_key(self.get_key(i))
                         self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
                     else:
-                        self.assertEqual(cursor[str(i)], value4)
+                        self.assertEqual(cursor[self.get_key(i)], value4)
                 # Otherwise, expect one of the timestamped writes.
                 else:
                     if ts == 2:
-                        self.assertEqual(cursor[str(i)], value1)
+                        self.assertEqual(cursor[self.get_key(i)], value1)
                     elif ts == 3:
-                        self.assertEqual(cursor[str(i)], value2)
+                        self.assertEqual(cursor[self.get_key(i)], value2)
                     else:
-                        self.assertEqual(cursor[str(i)], value3)
+                        self.assertEqual(cursor[self.get_key(i)], value3)
             self.session.rollback_transaction()

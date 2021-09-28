@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -32,9 +32,6 @@
 
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-
-def timestamp_str(t):
-    return '%x' % t
 
 class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot'
@@ -70,8 +67,6 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.log_flush("sync=on"), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda: self.session.rebalance("table:mytable", None), msg)
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: self.session.rename("table:mytable", "table:mynewtable", None), msg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.reset(), msg)
@@ -93,9 +88,6 @@ class test_prepare02(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertTimestampsEqual(self.session.query_timestamp('get=prepare'), '2a')
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:self.session.checkpoint(), msg)
-        # WT_SESSION.transaction_pinned_range permitted, not supported in the Python API.
-        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-            lambda:self.session.transaction_sync(), msg)
         self.session.breakpoint()
 
         # Commit the transaction. Test that no "not permitted in a prepared transaction" error has

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -224,9 +224,9 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
     WT_DECL_RET;
     char *metaconf, *unused_value;
     bool exist_backup, exist_incr, exist_isrc, exist_turtle;
-    bool load, loadTurtle, validate_turtle;
+    bool load, load_turtle, validate_turtle;
 
-    load = loadTurtle = validate_turtle = false;
+    load = load_turtle = validate_turtle = false;
 
     /*
      * Discard any turtle setup file left-over from previous runs. This doesn't matter for
@@ -269,7 +269,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
 
         if (ret != 0) {
             WT_RET(__wt_remove_if_exists(session, WT_METADATA_TURTLE, false));
-            loadTurtle = true;
+            load_turtle = true;
         } else
             /*
              * Set a flag to specify that we should validate whether we can start up on the turtle
@@ -312,7 +312,7 @@ __wt_turtle_init(WT_SESSION_IMPL *session)
         WT_RET(__metadata_load_bulk(session));
     }
 
-    if (load || loadTurtle) {
+    if (load || load_turtle) {
         /* Create the turtle file. */
         WT_RET(__metadata_config(session, &metaconf));
         WT_WITH_TURTLE_LOCK(session, ret = __wt_turtle_update(session, WT_METAFILE_URI, metaconf));
@@ -339,7 +339,7 @@ __wt_turtle_read(WT_SESSION_IMPL *session, const char *key, char **valuep)
     *valuep = NULL;
 
     /* Require single-threading. */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TURTLE));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));
 
     /*
      * Open the turtle file; there's one case where we won't find the turtle file, yet still
@@ -404,7 +404,7 @@ __wt_turtle_update(WT_SESSION_IMPL *session, const char *key, const char *value)
     conn = S2C(session);
 
     /* Require single-threading. */
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TURTLE));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));
 
     /*
      * Create the turtle setup file: we currently re-write it from scratch every time.

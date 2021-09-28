@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -65,13 +65,12 @@ compare_backups(int i)
     char buf[1024], msg[32];
 
     /*
-     * We run 'wt dump' on both the full backup directory and the
-     * incremental backup directory for this iteration.  Since running
-     * 'wt' runs recovery and makes both directories "live", we need
-     * a new directory for each iteration.
+     * We run 'wt dump' on both the full backup directory and the incremental backup directory for
+     * this iteration. Since running 'wt' runs recovery and makes both directories "live", we need a
+     * new directory for each iteration.
      *
-     * If i == 0, we're comparing against the main, original directory
-     * with the final incremental directory.
+     * If i == 0, we're comparing against the main, original directory with the final incremental
+     * directory.
      */
     if (i == 0)
         (void)snprintf(buf, sizeof(buf), "../../wt -R -h %s dump main > %s.%d", home, full_out, i);
@@ -327,13 +326,23 @@ take_incr_backup(WT_SESSION *session, int i)
     size_t alloc, count, rdsize, tmp_sz;
     int j, ret, rfd, wfd;
     char buf[1024], h[256], *tmp;
-    const char *filename;
+    const char *filename, *idstr;
     bool first;
 
     tmp = NULL;
     tmp_sz = 0;
+    /*! [Query existing IDs] */
+    error_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &backup_cur));
+    while ((ret = backup_cur->next(backup_cur)) == 0) {
+        error_check(backup_cur->get_key(backup_cur, &idstr));
+        printf("Existing incremental ID string: %s\n", idstr);
+    }
+    error_check(backup_cur->close(backup_cur));
+    /*! [Query existing IDs] */
+
     /* Open the backup data source for incremental backup. */
-    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\")", i - 1, i);
+    (void)snprintf(buf, sizeof(buf), "incremental=(src_id=\"ID%d\",this_id=\"ID%d\"%s)", i - 1, i,
+      i % 2 == 0 ? "" : ",consolidate=true");
     error_check(session->open_cursor(session, "backup:", NULL, buf, &backup_cur));
     rfd = wfd = -1;
     count = 0;
@@ -454,7 +463,7 @@ main(int argc, char *argv[])
     WT_CURSOR *backup_cur;
     WT_SESSION *session;
     int i, j, ret;
-    char cmd_buf[256];
+    char cmd_buf[256], *idstr;
 
     (void)argc; /* Unused variable */
     (void)testutil_set_progname(argv);
@@ -507,6 +516,15 @@ main(int argc, char *argv[])
     error_check(wt_conn->close(wt_conn, NULL));
     error_check(wiredtiger_open(home, NULL, CONN_CONFIG, &wt_conn));
     error_check(wt_conn->open_session(wt_conn, NULL, NULL, &session));
+
+    printf("Verify query after reopen\n");
+    error_check(session->open_cursor(session, "backup:query_id", NULL, NULL, &backup_cur));
+    while ((ret = backup_cur->next(backup_cur)) == 0) {
+        error_check(backup_cur->get_key(backup_cur, &idstr));
+        printf("Existing incremental ID string: %s\n", idstr);
+    }
+    error_check(backup_cur->close(backup_cur));
+
     /*
      * We should have an entry for i-1 and i-2. Use the older one.
      */

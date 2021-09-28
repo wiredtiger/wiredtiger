@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -33,6 +33,8 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
     int suffix;
     bool exists;
 
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp));
+
     /*
      * Create the underlying file and open a handle.
      *
@@ -46,8 +48,6 @@ __wt_block_manager_create(WT_SESSION_IMPL *session, const char *filename, uint32
             break;
         WT_ERR_TEST(ret != EEXIST, ret, false);
 
-        if (tmp == NULL)
-            WT_ERR(__wt_scr_alloc(session, 0, &tmp));
         for (suffix = 1;; ++suffix) {
             WT_ERR(__wt_buf_fmt(session, tmp, "%s.%d", filename, suffix));
             WT_ERR(__wt_fs_exist(session, tmp->data, &exists));
@@ -91,12 +91,19 @@ __block_destroy(WT_SESSION_IMPL *session, WT_BLOCK *block)
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
     uint64_t bucket;
+    u_int i;
 
     conn = S2C(session);
     bucket = block->name_hash & (conn->hash_size - 1);
     WT_CONN_BLOCK_REMOVE(conn, block, bucket);
 
     __wt_free(session, block->name);
+
+    if (block->has_objects && block->ofh != NULL) {
+        for (i = 0; i < block->max_objectid; i++)
+            WT_TRET(__wt_close(session, &block->ofh[i]));
+        __wt_free(session, block->ofh);
+    }
 
     if (block->fh != NULL)
         WT_TRET(__wt_close(session, &block->fh));
@@ -131,8 +138,8 @@ __wt_block_configure_first_fit(WT_BLOCK *block, bool on)
  *     Open a block handle.
  */
 int
-__wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[],
-  bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
+__wt_block_open(WT_SESSION_IMPL *session, const char *filename, WT_BLOCK_FILE_OPENER *opener,
+  const char *cfg[], bool forced_salvage, bool readonly, uint32_t allocsize, WT_BLOCK **blockp)
 {
     WT_BLOCK *block;
     WT_CONFIG_ITEM cval;
@@ -169,12 +176,16 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
     block->ref = 1;
     block->name_hash = hash;
     block->allocsize = allocsize;
+    block->opener = opener;
     WT_CONN_BLOCK_INSERT(conn, block, bucket);
 
     WT_ERR(__wt_strdup(session, filename, &block->name));
 
     WT_ERR(__wt_config_gets(session, cfg, "block_allocation", &cval));
     block->allocfirst = WT_STRING_MATCH("first", cval.str, cval.len);
+    block->has_objects = (opener != NULL);
+    if (block->has_objects)
+        block->objectid = opener->current_object_id(opener);
 
     /* Configuration: optional OS buffer cache maximum size. */
     WT_ERR(__wt_config_gets(session, cfg, "os_cache_max", &cval));
@@ -203,10 +214,23 @@ __wt_block_open(WT_SESSION_IMPL *session, const char *filename, const char *cfg[
         LF_SET(WT_FS_OPEN_DIRECTIO);
     if (!readonly && FLD_ISSET(conn->direct_io, WT_DIRECT_IO_DATA))
         LF_SET(WT_FS_OPEN_DIRECTIO);
-    WT_ERR(__wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, flags, &block->fh));
+    block->file_flags = flags;
+    if (block->has_objects)
+        WT_ERR(opener->open(opener, session, WT_TIERED_CURRENT_ID, WT_FS_OPEN_FILE_TYPE_DATA,
+          block->file_flags, &block->fh));
+    else
+        WT_ERR(
+          __wt_open(session, filename, WT_FS_OPEN_FILE_TYPE_DATA, block->file_flags, &block->fh));
 
     /* Set the file's size. */
     WT_ERR(__wt_filesize(session, block->fh, &block->size));
+    /*
+     * If we're opening a file and it only contains a header and we're doing incremental backup
+     * indicate this so that the first checkpoint is sure to set all the bits as dirty to cover the
+     * header so that the header gets copied.
+     */
+    if (block->size == allocsize && F_ISSET(conn, WT_CONN_INCR_BACKUP))
+        block->created_during_backup = true;
 
     /* Initialize the live checkpoint's lock. */
     WT_ERR(__wt_spin_init(session, &block->live_lock, "block manager"));
@@ -377,7 +401,19 @@ __desc_read(WT_SESSION_IMPL *session, uint32_t allocsize, WT_BLOCK *block)
     if (desc->magic != WT_BLOCK_MAGIC || !checksum_matched) {
         if (strcmp(block->name, WT_METAFILE) == 0 || strcmp(block->name, WT_HS_FILE) == 0)
             WT_ERR_MSG(session, WT_TRY_SALVAGE, "%s is corrupted", block->name);
-        WT_ERR_MSG(session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
+        /*
+         * If we're doing an import, we can't expect to be able to verify checksums since we don't
+         * know the allocation size being used. This isn't an error so we should just return success
+         * and let import get whatever information it needs.
+         */
+        if (F_ISSET(session, WT_SESSION_IMPORT_REPAIR))
+            goto err;
+
+        if (F_ISSET(session, WT_SESSION_ROLLBACK_TO_STABLE))
+            ret = ENOENT;
+        else
+            WT_ERR_MSG(
+              session, WT_ERROR, "%s does not appear to be a WiredTiger file", block->name);
     }
 
     if (desc->majorv > WT_BLOCK_MAJOR_VERSION ||

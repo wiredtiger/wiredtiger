@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -33,11 +33,21 @@
 #define WT_HS_FILE "WiredTigerHS.wt"     /* History store table */
 #define WT_HS_URI "file:WiredTigerHS.wt" /* History store table URI */
 
-#define WT_SYSTEM_PREFIX "system:"               /* System URI prefix */
-#define WT_SYSTEM_CKPT_TS "checkpoint_timestamp" /* Checkpoint timestamp name */
-#define WT_SYSTEM_CKPT_URI "system:checkpoint"   /* Checkpoint timestamp URI */
-#define WT_SYSTEM_OLDEST_TS "oldest_timestamp"   /* Oldest timestamp name */
-#define WT_SYSTEM_OLDEST_URI "system:oldest"     /* Oldest timestamp URI */
+#define WT_SYSTEM_PREFIX "system:"                               /* System URI prefix */
+#define WT_SYSTEM_CKPT_TS "checkpoint_timestamp"                 /* Checkpoint timestamp name */
+#define WT_SYSTEM_CKPT_URI "system:checkpoint"                   /* Checkpoint timestamp URI */
+#define WT_SYSTEM_OLDEST_TS "oldest_timestamp"                   /* Oldest timestamp name */
+#define WT_SYSTEM_OLDEST_URI "system:oldest"                     /* Oldest timestamp URI */
+#define WT_SYSTEM_CKPT_SNAPSHOT "snapshots"                      /* List of snapshots */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MIN "snapshot_min"               /* Snapshot minimum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_MAX "snapshot_max"               /* Snapshot maximum */
+#define WT_SYSTEM_CKPT_SNAPSHOT_COUNT "snapshot_count"           /* Snapshot count */
+#define WT_SYSTEM_CKPT_SNAPSHOT_URI "system:checkpoint_snapshot" /* Checkpoint snapshot URI */
+#define WT_SYSTEM_BASE_WRITE_GEN_URI "system:checkpoint_base_write_gen" /* Base write gen URI */
+#define WT_SYSTEM_BASE_WRITE_GEN "base_write_gen"                       /* Base write gen name */
+
+/* Check whether a string is a legal URI for a btree object */
+#define WT_BTREE_PREFIX(str) (WT_PREFIX_MATCH(str, "file:") || WT_PREFIX_MATCH(str, "tiered:"))
 
 /*
  * Optimize comparisons against the metafile URI, flag handles that reference the metadata file.
@@ -63,7 +73,7 @@
  */
 #define WT_WITH_TURTLE_LOCK(session, op)                                                      \
     do {                                                                                      \
-        WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_TURTLE));                      \
+        WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TURTLE));        \
         WT_WITH_LOCK_WAIT(session, &S2C(session)->turtle_lock, WT_SESSION_LOCKED_TURTLE, op); \
     } while (0)
 
@@ -74,11 +84,11 @@
 struct __wt_blkincr {
     const char *id_str;   /* User's name for this backup. */
     uint64_t granularity; /* Granularity of this backup. */
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLKINCR_FULL 0x1u  /* There is no checkpoint, always do full file */
 #define WT_BLKINCR_INUSE 0x2u /* This entry is active */
 #define WT_BLKINCR_VALID 0x4u /* This entry is valid */
-                              /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                              /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t flags;
 };
 
@@ -97,10 +107,10 @@ struct __wt_block_mods {
 
     uint64_t offset; /* Zero bit offset for bitstring */
     uint64_t granularity;
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_BLOCK_MODS_RENAME 0x1u /* Entry is from a rename */
 #define WT_BLOCK_MODS_VALID 0x2u  /* Entry is valid */
-                                  /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                  /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
@@ -111,6 +121,8 @@ struct __wt_block_mods {
  */
 #define WT_CHECKPOINT "WiredTigerCheckpoint"
 #define WT_CKPT_FOREACH(ckptbase, ckpt) for ((ckpt) = (ckptbase); (ckpt)->name != NULL; ++(ckpt))
+#define WT_CKPT_FOREACH_NAME_OR_ORDER(ckptbase, ckpt) \
+    for ((ckpt) = (ckptbase); (ckpt)->name != NULL || (ckpt)->order != 0; ++(ckpt))
 
 struct __wt_ckpt {
     char *name; /* Name or NULL */
@@ -130,7 +142,8 @@ struct __wt_ckpt {
 
     uint64_t size; /* Checkpoint size */
 
-    uint64_t write_gen; /* Write generation */
+    uint64_t write_gen;     /* Write generation */
+    uint64_t run_write_gen; /* Runtime write generation. */
 
     char *block_metadata;   /* Block-stored metadata */
     char *block_checkpoint; /* Block-stored checkpoint */
@@ -144,12 +157,12 @@ struct __wt_ckpt {
 
     void *bpriv; /* Block manager private */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
+/* AUTOMATIC FLAG VALUE GENERATION START 0 */
 #define WT_CKPT_ADD 0x01u        /* Checkpoint to be added */
 #define WT_CKPT_BLOCK_MODS 0x02u /* Return list of modified blocks */
 #define WT_CKPT_DELETE 0x04u     /* Checkpoint to be deleted */
 #define WT_CKPT_FAKE 0x08u       /* Checkpoint is a fake */
 #define WT_CKPT_UPDATE 0x10u     /* Checkpoint requires update */
-                                 /* AUTOMATIC FLAG VALUE GENERATION STOP */
+                                 /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };

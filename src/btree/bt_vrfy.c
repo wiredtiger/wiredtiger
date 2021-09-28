@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -171,7 +171,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bool bm_start, quit;
 
 #if 0
-    /* FIXME-WT-6263: Temporarily disable history store verification. */
+    /* FIXME-WT-6682: temporarily disable history store verification. */
     bool skip_hs;
 #endif
 
@@ -182,9 +182,9 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
     bm_start = false;
 
 #if 0
-    /* FIXME-WT-6263: Temporarily disable history store verification. */
-
     /*
+     * FIXME-WT-6682: temporarily disable history store verification.
+     *
      * Skip the history store explicit call if we're performing a metadata verification. The
      * metadata file is verified before we verify the history store, and it makes no sense to verify
      * the history store against itself.
@@ -213,7 +213,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
      * Get a list of the checkpoints for this file. Empty objects have no checkpoints, in which case
      * there's no work to do.
      */
-    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase), true);
+    WT_ERR_NOTFOUND_OK(__wt_meta_ckptlist_get(session, name, false, &ckptbase, NULL), true);
     if (ret == WT_NOTFOUND) {
         ret = 0;
         goto done;
@@ -259,10 +259,6 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             memset(&addr_unpack, 0, sizeof(addr_unpack));
             WT_TIME_AGGREGATE_COPY(&addr_unpack.ta, &ckpt->ta);
-            if (ckpt->write_gen <= S2C(session)->base_write_gen) {
-                addr_unpack.ta.oldest_start_txn = WT_TXN_NONE;
-                addr_unpack.ta.newest_stop_txn = WT_TXN_MAX;
-            }
             if (ckpt->ta.prepare)
                 addr_unpack.ta.prepare = 1;
             addr_unpack.raw = WT_CELL_ADDR_INT;
@@ -273,6 +269,8 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
 
 #if 0
             /*
+             * FIXME-WT-6682: temporarily disable history store verification.
+             *
              * The checkpoints are in time-order, so the last one in the list is the most recent. If
              * this is the most recent checkpoint, verify the history store against it.
              *
@@ -280,9 +278,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              */
             if (ret == 0 && (ckpt + 1)->name == NULL && !skip_hs) {
                 /* Open a history store cursor. */
-                WT_ERR(__wt_hs_cursor_open(session);
-                WT_TRET(__wt_history_store_verify_one(session));
-                WT_TRET(__wt_hs_cursor_close(session);
+                WT_TRET(__wt_hs_verify_one(session));
                 /*
                  * We cannot error out here. If we got an error verifying the history store, we need
                  * to follow through with reacquiring the exclusive call below. We'll error out
@@ -295,7 +291,7 @@ __wt_verify(WT_SESSION_IMPL *session, const char *cfg[])
              * We have an exclusive lock on the handle, but we're swapping root pages in-and-out of
              * that handle, and there's a race with eviction entering the tree and seeing an invalid
              * root page. Eviction must work on trees being verified (else we'd have to do our own
-             * eviction), lock eviction out whenever we're loading a new root page. This loops works
+             * eviction), lock eviction out whenever we're loading a new root page. This loop works
              * because we are called with eviction locked out, so we release the lock at the top of
              * the loop and re-acquire it here.
              */
@@ -629,8 +625,8 @@ __verify_row_int_key_order(
           " on the page at %s sorts before the last key appearing on page %s, earlier in the tree: "
           "%s, %s",
           entry, __verify_addr_string(session, ref, vs->tmp1), (char *)vs->max_addr->data,
-          __wt_buf_set_printable(session, item.data, item.size, vs->tmp2),
-          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp3));
+          __wt_buf_set_printable(session, item.data, item.size, false, vs->tmp2),
+          __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, false, vs->tmp3));
 
     /* Update the largest key we've seen to the key just checked. */
     WT_RET(__wt_buf_set(session, vs->max_key, item.data, item.size));
@@ -681,8 +677,9 @@ __verify_row_leaf_key_order(WT_SESSION_IMPL *session, WT_REF *ref, WT_VSTUFF *vs
               "the first key on the page at %s sorts equal to or less than the last key appearing "
               "on the page at %s, earlier in the tree: %s, %s",
               __verify_addr_string(session, ref, vs->tmp2), (char *)vs->max_addr->data,
-              __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, vs->tmp3),
-              __wt_buf_set_printable(session, vs->max_key->data, vs->max_key->size, vs->tmp4));
+              __wt_buf_set_printable(session, vs->tmp1->data, vs->tmp1->size, false, vs->tmp3),
+              __wt_buf_set_printable(
+                session, vs->max_key->data, vs->max_key->size, false, vs->tmp4));
     }
 
     /* Update the largest key we've seen to the last key on this page. */
@@ -780,11 +777,12 @@ __verify_key_hs(
     wt_timestamp_t older_start_ts, older_stop_ts;
     uint64_t hs_counter;
     uint32_t hs_btree_id;
-    int cmp, exact;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
 
     btree = S2BT(session);
     hs_btree_id = btree->id;
+    WT_RET(__wt_curhs_open(session, NULL, &hs_cursor));
+    F_SET(hs_cursor, WT_CURSTD_HS_READ_COMMITTED);
 
     /*
      * Set the data store timestamp and transactions to initiate timestamp range verification. Since
@@ -797,36 +795,23 @@ __verify_key_hs(
      * Open a history store cursor positioned at the end of the data store key (the newest record)
      * and iterate backwards until we reach a different key or btree.
      */
-    hs_cursor = session->hs_cursor;
-    hs_cursor->set_key(hs_cursor, hs_btree_id, tmp1, WT_TS_MAX, WT_TXN_MAX);
-    ret = hs_cursor->search_near(hs_cursor, &exact);
-
-    /* If we jumped to the next key, go back to the previous key. */
-    if (ret == 0 && exact > 0)
-        ret = hs_cursor->prev(hs_cursor);
+    hs_cursor->set_key(hs_cursor, 4, hs_btree_id, tmp1, WT_TS_MAX, UINT64_MAX);
+    ret = __wt_curhs_search_near_before(session, hs_cursor);
 
     for (; ret == 0; ret = hs_cursor->prev(hs_cursor)) {
-        WT_RET(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
-
-        if (hs_btree_id != btree->id)
-            break;
-
-        WT_RET(__wt_compare(session, NULL, tmp1, vs->tmp2, &cmp));
-        if (cmp != 0)
-            break;
-
+        WT_ERR(hs_cursor->get_key(hs_cursor, &hs_btree_id, vs->tmp2, &older_start_ts, &hs_counter));
         /* Verify the newer record's start is later than the older record's stop. */
         if (newer_start_ts < older_stop_ts) {
-            WT_RET_MSG(session, WT_ERROR,
+            WT_ERR_MSG(session, WT_ERROR,
               "key %s has a overlap of timestamp ranges between history store stop timestamp %s "
               "being newer than a more recent timestamp range having start timestamp %s",
-              __wt_buf_set_printable(session, tmp1->data, tmp1->size, vs->tmp2),
-              __verify_timestamp_to_pretty_string(older_stop_ts, ts_string[0]),
-              __verify_timestamp_to_pretty_string(newer_start_ts, ts_string[1]));
+              __wt_buf_set_printable(session, tmp1->data, tmp1->size, false, vs->tmp2),
+              __wt_timestamp_to_string(older_stop_ts, ts_string[0]),
+              __wt_timestamp_to_string(newer_start_ts, ts_string[1]));
         }
 
         if (vs->stable_timestamp != WT_TS_NONE)
-            WT_RET(
+            WT_ERR(
               __verify_ts_stable_cmp(session, tmp1, NULL, 0, older_start_ts, older_stop_ts, vs));
 
         /*
@@ -835,7 +820,8 @@ __verify_key_hs(
          */
         newer_start_ts = older_start_ts;
     }
-
+err:
+    WT_TRET(hs_cursor->close(hs_cursor));
     return (ret == WT_NOTFOUND ? 0 : ret);
 #else
     WT_UNUSED(session);

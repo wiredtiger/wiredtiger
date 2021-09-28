@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -87,8 +87,8 @@ __wt_schema_internal_session(WT_SESSION_IMPL *session, WT_SESSION_IMPL **int_ses
     if (F_ISSET(session->txn, WT_TXN_RUNNING)) {
         /* We should not have a schema txn running now. */
         WT_ASSERT(session, !F_ISSET(session, WT_SESSION_SCHEMA_TXN));
-        WT_RET(
-          __wt_open_internal_session(S2C(session), "schema", true, session->flags, int_sessionp));
+        WT_RET(__wt_open_internal_session(
+          S2C(session), "schema", true, session->flags, session->lock_flags, int_sessionp));
     }
     return (0);
 }
@@ -141,9 +141,9 @@ __wt_str_name_check(WT_SESSION_IMPL *session, const char *str)
     bool skip;
 
     /*
-     * Check if name is somewhere in the WiredTiger name space: it would be
-     * "bad" if the application truncated the metadata file.  Skip any
-     * leading URI prefix if needed, check and then skip over a table name.
+     * Check if name is somewhere in the WiredTiger name space: it would be "bad" if the application
+     * truncated the metadata file. Skip any leading URI prefix if needed, check and then skip over
+     * a table name.
      */
     name = str;
     skip = false;

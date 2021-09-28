@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -48,8 +48,7 @@ __curbulk_insert_fix(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-    WT_STAT_CONN_INCR(session, cursor_insert_bulk);
-    WT_STAT_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     /*
      * If the "append" flag was configured, the application doesn't have to supply a key, else
@@ -98,8 +97,7 @@ __curbulk_insert_fix_bitmap(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-    WT_STAT_CONN_INCR(session, cursor_insert_bulk);
-    WT_STAT_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkvalue(cursor));
 
@@ -131,8 +129,7 @@ __curbulk_insert_var(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-    WT_STAT_CONN_INCR(session, cursor_insert_bulk);
-    WT_STAT_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     /*
      * If the "append" flag was configured, the application doesn't have to supply a key, else
@@ -205,8 +202,8 @@ __bulk_row_keycmp_err(WT_CURSOR_BULK *cbulk)
     WT_ERR_MSG(session, EINVAL,
       "bulk-load presented with out-of-order keys: %s compares smaller than previously inserted "
       "key %s",
-      __wt_buf_set_printable(session, cursor->key.data, cursor->key.size, a),
-      __wt_buf_set_printable(session, cbulk->last.data, cbulk->last.size, b));
+      __wt_buf_set_printable(session, cursor->key.data, cursor->key.size, false, a),
+      __wt_buf_set_printable(session, cbulk->last.data, cbulk->last.size, false, b));
 
 err:
     __wt_scr_free(session, &a);
@@ -235,8 +232,7 @@ __curbulk_insert_row(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-    WT_STAT_CONN_INCR(session, cursor_insert_bulk);
-    WT_STAT_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));
@@ -281,8 +277,7 @@ __curbulk_insert_row_skip_check(WT_CURSOR *cursor)
      * single-threaded and not visible until the bulk cursor is closed.
      */
     CURSOR_API_CALL(cursor, session, insert, btree);
-    WT_STAT_CONN_INCR(session, cursor_insert_bulk);
-    WT_STAT_DATA_INCR(session, cursor_insert_bulk);
+    WT_STAT_CONN_DATA_INCR(session, cursor_insert_bulk);
 
     WT_ERR(__cursor_checkkey(cursor));
     WT_ERR(__cursor_checkvalue(cursor));

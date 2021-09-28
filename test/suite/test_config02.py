@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -25,6 +25,11 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
+# [TEST_TAGS]
+# connection_api:wiredtiger_open
+# config_api
+# [END_TAGS]
 
 import os
 import wiredtiger, wttest
@@ -74,6 +79,12 @@ class test_config02(wttest.WiredTigerTestCase):
         WIREDTIGER_HOME is set to homeenv, if it is not null.
         configextra are any extra configuration strings needed on the open.
         """
+        try:
+            os.putenv('SOMEVAR', 'somevalue')
+            os.unsetenv('SOMEVAR')
+        except:
+            self.skipTest('putenv and/or unsetenv not support on this OS')
+            return
         configarg = 'create'
         if configextra != None:
             configarg += ',' + configextra

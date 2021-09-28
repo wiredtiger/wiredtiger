@@ -305,52 +305,6 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
     return blkcache->estimated_file_size;
 }
 
-#if 0
-/*
- *  __wt_blkcache_evicting_clean --
- *
- *     Notify the block cache if a clean page is being evicted from
- *     the DRAM cache.
- */
-void
-__wt_blkcache_evicting_clean(WT_SESSION_IMPL *session, uint8_t *addr, bool never_modified)
-{
-    WT_BLKCACHE *blkcache;
-    WT_BLKCACHE_ID id;
-    WT_BLKCACHE_ITEM *blkcache_item;
-    WT_BM *bm;
-    WT_BTREE *btree;
-    WT_CONNECTION_IMPL *conn;
-    uint64_t bucket, hash;
-
-    btree = S2BT(session);
-    bm = btree->bm;
-    conn = S2C(session);
-    blkcache = &conn->blkcache;
-    blkcache_item = NULL;
-
-    if (blkcache->type == BLKCACHE_UNCONFIGURED)
-        return;
-
-    if (__wt_block_buffer_to_addr(bm->block, addr, (wt_off_t *)&id.offset,
-				  (uint32_t *)&id.size, (uint32_t *)&id.checksum) != 0)
-	return;
-
-    hash = __wt_hash_city64(&id, sizeof(id));
-
-    bucket = hash % blkcache->hash_size;
-    __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
-    TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if (memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID)) == 0) {
-	    if (blkcache_item->freq_rec_counter <= 0 && never_modified) {
-		blkcache_item->freq_rec_counter = 0;
-		WT_STAT_CONN_INCR(session, block_cache_blocks_upgraded);
-	    }
-	}
-    }
-    __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
-}
-#endif
 /*
  * __wt_blkcache_get_or_check --
  *     Get a block from the cache or check if one exists.

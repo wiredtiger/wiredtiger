@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -73,7 +73,6 @@ __wt_conn_stat_init(WT_SESSION_IMPL *session)
     conn = S2C(session);
     stats = conn->stats;
 
-    __wt_async_stats_update(session);
     __wt_cache_stats_update(session);
     __wt_txn_stats_update(session);
 
@@ -529,7 +528,7 @@ __statlog_on_close(WT_SESSION_IMPL *session)
     if (!FLD_ISSET(conn->stat_flags, WT_STAT_ON_CLOSE))
         return (0);
 
-    if (F_ISSET(conn, WT_CONN_SERVER_STATISTICS))
+    if (FLD_ISSET(conn->server_flags, WT_CONN_SERVER_STATISTICS))
         WT_RET_MSG(session, EINVAL, "Attempt to log statistics while a server is running");
 
     WT_RET(__wt_scr_alloc(session, strlen(conn->stat_path) + 128, &tmp));
@@ -548,7 +547,7 @@ err:
 static bool
 __statlog_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_STATISTICS));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_STATISTICS));
 }
 
 /*
@@ -615,10 +614,10 @@ __statlog_start(WT_CONNECTION_IMPL *conn)
     if (conn->stat_session != NULL)
         return (0);
 
-    F_SET(conn, WT_CONN_SERVER_STATISTICS);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_STATISTICS);
 
     /* The statistics log server gets its own session. */
-    WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, &conn->stat_session));
+    WT_RET(__wt_open_internal_session(conn, "statlog-server", true, 0, 0, &conn->stat_session));
     session = conn->stat_session;
 
     WT_RET(__wt_cond_alloc(session, "statistics log server", &conn->stat_cond));
@@ -686,7 +685,7 @@ __wt_statlog_destroy(WT_SESSION_IMPL *session, bool is_close)
     conn = S2C(session);
 
     /* Stop the server thread. */
-    F_CLR(conn, WT_CONN_SERVER_STATISTICS);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_STATISTICS);
     if (conn->stat_tid_set) {
         __wt_cond_signal(session, conn->stat_cond);
         WT_TRET(__wt_thread_join(session, &conn->stat_tid));

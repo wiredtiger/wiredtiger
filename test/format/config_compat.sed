@@ -5,11 +5,9 @@ s/^backup=/backups=/
 s/^btree.bitcnt=/bitcnt=/
 s/^btree.compression=/compression=/
 s/^btree.dictionary=/dictionary=/
-s/^btree.huffman_key=/huffman_key=/
 s/^btree.huffman_value=/huffman_value=/
 s/^btree.internal_key_truncation=/internal_key_truncation=/
 s/^btree.internal_page_max=/internal_page_max=/
-s/^btree.key_gap=/key_gap=/
 s/^btree.key_max=/key_max=/
 s/^btree.key_min=/key_min=/
 s/^btree.leaf_page_max=/leaf_page_max=/
@@ -57,7 +55,6 @@ s/^ops.pct.read=/read_pct=/
 s/^ops.pct.write=/write_pct=/
 s/^ops.prepare=/prepare=/
 s/^ops.random_cursor=/random_cursor=/
-s/^ops.rebalance=/rebalance=/
 s/^ops.salvage=/salvage=/
 s/^ops.truncate=/truncate=/
 s/^ops.verify=/verify=/
@@ -81,7 +78,6 @@ s/^stress.split_4=/timing_stress_split_4=/
 s/^stress.split_5=/timing_stress_split_5=/
 s/^stress.split_6=/timing_stress_split_6=/
 s/^stress.split_7=/timing_stress_split_7=/
-s/^stress.split_8=/timing_stress_split_8=/
 s/^transaction.frequency=/transaction-frequency=/
 s/^transaction.isolation=/isolation=/
 s/^transaction.timestamps=/transaction_timestamps=/

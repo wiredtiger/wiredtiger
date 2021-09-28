@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -29,11 +29,6 @@
 import string, os, sys, random
 from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
-
-_python3 = (sys.version_info >= (3, 0, 0))
-
-def timestamp_str(t):
-    return '%x' % t
 
 # test_util01.py
 #    Utilities: wt dump, as well as the dump cursor
@@ -100,19 +95,11 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
     def get_value(self, i):
         return self.get_bytes(i, 1000)
 
-    if _python3:
-        def _ord(self, byte):
-            return byte
+    def _ord(self, byte):
+        return byte
 
-        def _byte_to_str(self, byte):
-            return chr(byte)
-
-    else:
-        def _ord(self, byte):
-            return ord(byte)
-
-        def _byte_to_str(self, byte):
-            return byte
+    def _byte_to_str(self, byte):
+        return chr(byte)
 
     def dumpstr(self, s, hexoutput):
         """
@@ -143,7 +130,21 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
 
     def dump_kv_to_line(self, b):
         # The output from dump is a 'u' format.
-        return b.strip(b'\x00').decode() + '\n'
+        # Printable chars appear 'as is', unprintable chars
+        # appear as \hh where hh are hex digits.
+        # We can't decode the entire byte array, some Unicode decoders
+        # will complain as the set of bytes don't represent UTF-8 encoded
+        # characters.
+
+        # Create byte representation of printable ascii chars
+        printable_chars = bytes(string.printable, 'ascii')
+        result = ''
+        for byte in b.strip(b'\x00'):
+            if byte in printable_chars:
+                result += bytearray([byte]).decode()
+            else:
+                result += "\\{:02x}".format(byte)
+        return result + '\n'
 
     def write_entries(self, cursor, expectout, hexoutput, commit_timestamp, write_expected):
         if commit_timestamp is not None:
@@ -160,7 +161,7 @@ class test_util01(wttest.WiredTigerTestCase, suite_subprocess):
                 expectout.write(self.dumpstr(key, hexoutput))
                 expectout.write(self.dumpstr(value, hexoutput))
         if commit_timestamp is not None:
-            self.session.commit_transaction('commit_timestamp=' + timestamp_str(commit_timestamp))
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_timestamp))
 
     def dump(self, usingapi, hexoutput, commit_timestamp, read_timestamp):
         params = self.table_config()

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -71,7 +71,8 @@ __wt_log_slot_activate(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
      * are reset when the slot is freed.  See log_slot_free.
      */
     slot->slot_unbuffered = 0;
-    slot->slot_start_lsn = slot->slot_end_lsn = log->alloc_lsn;
+    WT_ASSIGN_LSN(&slot->slot_start_lsn, &log->alloc_lsn);
+    WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
     slot->slot_start_offset = log->alloc_lsn.l.offset;
     slot->slot_last_offset = log->alloc_lsn.l.offset;
     slot->slot_fh = log->log_fh;
@@ -102,7 +103,7 @@ __log_slot_close(WT_SESSION_IMPL *session, WT_LOGSLOT *slot, bool *releasep, boo
 
     *releasep = false;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
     log = conn->log;
     if (slot == NULL)
@@ -143,7 +144,7 @@ retry:
     WT_STAT_CONN_INCR(session, log_slot_closes);
     if (WT_LOG_SLOT_DONE(new_state))
         *releasep = true;
-    slot->slot_end_lsn = slot->slot_start_lsn;
+    WT_ASSIGN_LSN(&slot->slot_end_lsn, &slot->slot_start_lsn);
 /*
  * A thread setting the unbuffered flag sets the unbuffered size after setting the flag. There could
  * be a delay between a thread setting the flag, a thread closing the slot, and the original thread
@@ -182,7 +183,7 @@ retry:
     /*
      * XXX Would like to change so one piece of code advances the LSN.
      */
-    log->alloc_lsn = slot->slot_end_lsn;
+    WT_ASSIGN_LSN(&log->alloc_lsn, &slot->slot_end_lsn);
     WT_ASSERT(session, log->alloc_lsn.l.file >= log->write_lsn.l.file);
     return (0);
 }
@@ -214,7 +215,7 @@ __log_slot_dirty_max_check(WT_SESSION_IMPL *session, WT_LOGSLOT *slot)
       current->l.offset - last_sync->l.offset > conn->log_dirty_max) {
         /* Schedule the asynchronous sync */
         F_SET(slot, WT_SLOT_SYNC_DIRTY);
-        log->dirty_lsn = slot->slot_release_lsn;
+        WT_ASSIGN_LSN(&log->dirty_lsn, &slot->slot_release_lsn);
     }
 }
 
@@ -234,7 +235,7 @@ __log_slot_new(WT_SESSION_IMPL *session)
     int count;
 #endif
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     conn = S2C(session);
     log = conn->log;
 #ifdef HAVE_DIAGNOSTIC
@@ -317,7 +318,7 @@ __log_slot_switch_internal(WT_SESSION_IMPL *session, WT_MYSLOT *myslot, bool for
     release = false;
     slot = myslot->slot;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
 
     /*
      * If someone else raced us to closing this specific slot, we're done here.
@@ -460,7 +461,7 @@ __wt_log_slot_init(WT_SESSION_IMPL *session, bool alloc)
      * called after a log file switch. The release LSN is usually the same as the slot_start_lsn
      * except around a log file switch.
      */
-    slot->slot_release_lsn = log->alloc_lsn;
+    WT_ASSIGN_LSN(&slot->slot_release_lsn, &log->alloc_lsn);
     __wt_log_slot_activate(session, slot);
     log->active_slot = slot;
     log->pool_index = 0;
@@ -525,7 +526,7 @@ __wt_log_slot_join(WT_SESSION_IMPL *session, uint64_t mysize, uint32_t flags, WT
     log = conn->log;
     time_start = time_stop = 0;
 
-    WT_ASSERT(session, !F_ISSET(session, WT_SESSION_LOCKED_SLOT));
+    WT_ASSERT(session, !FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_SLOT));
     WT_ASSERT(session, mysize != 0);
 
     /*

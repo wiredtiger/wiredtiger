@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -242,7 +242,7 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     WT_DECL_RET;
     size_t len, tmp_sz;
     ssize_t rdsize;
-    uint64_t offset, size, type;
+    uint64_t offset, size, this_size, total, type;
     int rfd, wfd1, wfd2;
     char config[512], *tmp;
     bool first_pass;
@@ -266,45 +266,55 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
                 len = strlen(g.home) + strlen(name) + 10;
                 tmp = dmalloc(len);
                 testutil_check(__wt_snprintf(tmp, len, "%s/%s", g.home, name));
-                error_sys_check(rfd = open(tmp, O_RDONLY, 0));
+                error_sys_check(rfd = open(tmp, O_RDONLY, 0644));
                 free(tmp);
                 tmp = NULL;
 
                 len = strlen(g.home) + strlen("BACKUP") + strlen(name) + 10;
                 tmp = dmalloc(len);
                 testutil_check(__wt_snprintf(tmp, len, "%s/BACKUP/%s", g.home, name));
-                error_sys_check(wfd1 = open(tmp, O_WRONLY | O_CREAT, 0));
+                error_sys_check(wfd1 = open(tmp, O_WRONLY | O_CREAT, 0644));
                 free(tmp);
                 tmp = NULL;
 
                 len = strlen(g.home) + strlen("BACKUP.copy") + strlen(name) + 10;
                 tmp = dmalloc(len);
                 testutil_check(__wt_snprintf(tmp, len, "%s/BACKUP.copy/%s", g.home, name));
-                error_sys_check(wfd2 = open(tmp, O_WRONLY | O_CREAT, 0));
+                error_sys_check(wfd2 = open(tmp, O_WRONLY | O_CREAT, 0644));
                 free(tmp);
                 tmp = NULL;
 
                 first_pass = false;
             }
-            if (tmp_sz < size) {
-                tmp = drealloc(tmp, size);
-                tmp_sz = size;
+            this_size = WT_MIN(size, BACKUP_MAX_COPY);
+            if (tmp_sz < this_size) {
+                tmp = drealloc(tmp, this_size);
+                tmp_sz = this_size;
             }
             /*
              * Don't use the system checker for lseek. The system check macro uses an int which is
-             * often 4 bytes and checks for any negative value. The offset returned from lseek is
-             * 8 bytes and we can have a false positive error check.
+             * often 4 bytes and checks for any negative value. The offset returned from lseek is 8
+             * bytes and we can have a false positive error check.
              */
             if (lseek(rfd, (wt_off_t)offset, SEEK_SET) == -1)
                 testutil_die(errno, "backup-read: lseek");
-            error_sys_check(rdsize = read(rfd, tmp, size));
             if (lseek(wfd1, (wt_off_t)offset, SEEK_SET) == -1)
                 testutil_die(errno, "backup-write1: lseek");
             if (lseek(wfd2, (wt_off_t)offset, SEEK_SET) == -1)
                 testutil_die(errno, "backup-write2: lseek");
-            /* Use the read size since we may have read less than the granularity. */
-            error_sys_check(write(wfd1, tmp, (size_t)rdsize));
-            error_sys_check(write(wfd2, tmp, (size_t)rdsize));
+            total = 0;
+            while (total < size) {
+                /* Use the read size since we may have read less than the granularity. */
+                error_sys_check(rdsize = read(rfd, tmp, this_size));
+                /* If we get EOF, we're done. */
+                if (rdsize == 0)
+                    break;
+                error_sys_check(write(wfd1, tmp, (size_t)rdsize));
+                error_sys_check(write(wfd2, tmp, (size_t)rdsize));
+                total += (uint64_t)rdsize;
+                offset += (uint64_t)rdsize;
+                this_size = WT_MIN(this_size, size - total);
+            }
         } else {
             testutil_assert(type == WT_BACKUP_FILE);
             testutil_assert(first_pass == true);
@@ -338,39 +348,6 @@ copy_blocks(WT_SESSION *session, WT_CURSOR *bkup_c, const char *name)
     }
     free(tmp);
 }
-
-/*
- * copy_file --
- *     Copy a single file into the backup directories.
- */
-static void
-copy_file(WT_SESSION *session, const char *name)
-{
-    size_t len;
-    char *first, *second;
-
-    len = strlen("BACKUP") + strlen(name) + 10;
-    first = dmalloc(len);
-    testutil_check(__wt_snprintf(first, len, "BACKUP/%s", name));
-    testutil_check(__wt_copy_and_sync(session, name, first));
-
-    /*
-     * Save another copy of the original file to make debugging recovery errors easier.
-     */
-    len = strlen("BACKUP.copy") + strlen(name) + 10;
-    second = dmalloc(len);
-    testutil_check(__wt_snprintf(second, len, "BACKUP.copy/%s", name));
-    testutil_check(__wt_copy_and_sync(session, first, second));
-
-    free(first);
-    free(second);
-}
-
-/*
- * Backup directory initialize command, remove and re-create the primary backup directory, plus a
- * copy we maintain for recovery testing.
- */
-#define HOME_BACKUP_INIT_CMD "rm -rf %s/BACKUP %s/BACKUP.copy && mkdir %s/BACKUP %s/BACKUP.copy"
 
 #define RESTORE_SKIP 1
 #define RESTORE_SUCCESS 0
@@ -497,11 +474,10 @@ backup(void *arg)
     WT_CURSOR *backup_cursor;
     WT_DECL_RET;
     WT_SESSION *session;
-    size_t len;
     u_int incremental, period;
     uint64_t src_id, this_id;
     const char *config, *key;
-    char cfg[512], *cmd;
+    char cfg[512];
     bool full, incr_full;
 
     (void)(arg);
@@ -574,9 +550,10 @@ backup(void *arg)
                 else
                     active_now = &active[0];
                 src_id = g.backup_id - 1;
+                /* Use consolidation too. */
                 testutil_check(__wt_snprintf(cfg, sizeof(cfg),
-                  "incremental=(enabled,src_id=%" PRIu64 ",this_id=%" PRIu64 ")", src_id,
-                  g.backup_id));
+                  "incremental=(enabled,consolidate=true,src_id=%" PRIu64 ",this_id=%" PRIu64 ")",
+                  src_id, g.backup_id));
                 /* Restart a full incremental every once in a while. */
                 full = false;
                 incr_full = mmrand(NULL, 1, 8) == 1;
@@ -604,12 +581,7 @@ backup(void *arg)
 
         /* If we're taking a full backup, create the backup directories. */
         if (full || incremental == 0) {
-            len = strlen(g.home) * 4 + strlen(HOME_BACKUP_INIT_CMD) + 1;
-            cmd = dmalloc(len);
-            testutil_check(
-              __wt_snprintf(cmd, len, HOME_BACKUP_INIT_CMD, g.home, g.home, g.home, g.home));
-            testutil_checkfmt(system(cmd), "%s", "backup directory creation failed");
-            free(cmd);
+            testutil_create_backup_directory(g.home);
         }
 
         /*
@@ -625,12 +597,12 @@ backup(void *arg)
             testutil_check(backup_cursor->get_key(backup_cursor, &key));
             if (g.c_backup_incr_flag == INCREMENTAL_BLOCK) {
                 if (full)
-                    copy_file(session, key);
+                    testutil_copy_file(session, key);
                 else
                     copy_blocks(session, backup_cursor, key);
 
             } else
-                copy_file(session, key);
+                testutil_copy_file(session, key);
             active_files_add(active_now, key);
         }
         if (ret != WT_NOTFOUND)

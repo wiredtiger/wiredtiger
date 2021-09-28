@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -37,6 +37,12 @@ __wt_ref_out(WT_SESSION_IMPL *session, WT_REF *ref)
      * hazard pointer, wait for it to be cleared.
      */
     WT_ASSERT(session, __wt_hazard_check_assert(session, ref, true));
+
+    /* Check we are not evicting an accessible internal page with an active split generation. */
+    WT_ASSERT(session,
+      !F_ISSET(ref, WT_REF_FLAG_INTERNAL) ||
+        F_ISSET(session->dhandle, WT_DHANDLE_DEAD | WT_DHANDLE_EXCLUSIVE) ||
+        !__wt_gen_active(session, WT_GEN_SPLIT, ref->page->pg_intl_split_gen));
 
     __wt_page_out(session, &ref->page);
 }
@@ -219,14 +225,23 @@ __free_page_modify(WT_SESSION_IMPL *session, WT_PAGE *page)
 void
 __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref)
 {
-    if (ref->addr == NULL)
-        return;
+    void *ref_addr;
 
-    if (ref->home == NULL || __wt_off_page(ref->home, ref->addr)) {
-        __wt_free(session, ((WT_ADDR *)ref->addr)->addr);
-        __wt_free(session, ref->addr);
+    /*
+     * The page being discarded may be the child of a page being split, where the WT_REF.addr field
+     * is being instantiated (as it can no longer reference the on-disk image). Loop until we read
+     * and clear the address without a race, then free the read address as necessary.
+     */
+    do {
+        WT_ORDERED_READ(ref_addr, ref->addr);
+        if (ref_addr == NULL)
+            return;
+    } while (!__wt_atomic_cas_ptr(&ref->addr, ref_addr, NULL));
+
+    if (ref->home == NULL || __wt_off_page(ref->home, ref_addr)) {
+        __wt_free(session, ((WT_ADDR *)ref_addr)->addr);
+        __wt_free(session, ref_addr);
     }
-    ref->addr = NULL;
 }
 
 /*
@@ -276,11 +291,8 @@ __wt_free_ref(WT_SESSION_IMPL *session, WT_REF *ref, int page_type, bool free_pa
     /* Free any address allocation. */
     __wt_ref_addr_free(session, ref);
 
-    /* Free any page-deleted information. */
-    if (ref->page_del != NULL) {
-        __wt_free(session, ref->page_del->update_list);
-        __wt_free(session, ref->page_del);
-    }
+    /* Free any backing fast-truncate memory. */
+    __wt_free(session, ref->ft_info.del);
 
     __wt_overwrite_and_free_len(session, ref, WT_REF_CLEAR_SIZE);
 }
@@ -346,22 +358,12 @@ __free_page_col_var(WT_SESSION_IMPL *session, WT_PAGE *page)
 static void
 __free_page_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page)
 {
-    WT_IKEY *ikey;
     WT_ROW *rip;
     uint32_t i;
-    void *copy;
 
-    /*
-     * Free the in-memory index array.
-     *
-     * For each entry, see if the key was an allocation (that is, if it points somewhere other than
-     * the original page), and if so, free the memory.
-     */
-    WT_ROW_FOREACH (page, rip, i) {
-        copy = WT_ROW_KEY_COPY(rip);
-        WT_IGNORE_RET_BOOL(__wt_row_leaf_key_info(page, copy, &ikey, NULL, NULL, NULL));
-        __wt_free(session, ikey);
-    }
+    /* Free any allocated memory used by instantiated keys. */
+    WT_ROW_FOREACH (page, rip, i)
+        __wt_row_leaf_key_free(session, page, rip);
 }
 
 /*

@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -25,6 +25,9 @@
  * ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
  * OTHER DEALINGS IN THE SOFTWARE.
  */
+#ifndef TEST_UTIL_H
+#define TEST_UTIL_H
+
 #include "wt_internal.h"
 
 #ifdef _WIN32
@@ -51,6 +54,7 @@ typedef struct {
     char *home;
     const char *argv0;    /* Exec name */
     const char *progname; /* Truncated program name */
+    char *build_dir;      /* Build directory path */
 
     enum {
         TABLE_COL = 1, /* Fixed-length column store */
@@ -98,31 +102,31 @@ typedef struct {
  * testutil_assert --
  *     Complain and quit if something isn't true.
  */
-#define testutil_assert(a)                                        \
-    do {                                                          \
-        if (!(a))                                                 \
-            testutil_die(0, "%s/%d: %s", __func__, __LINE__, #a); \
+#define testutil_assert(a)                                                   \
+    do {                                                                     \
+        if (!(a))                                                            \
+            testutil_die(0, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #a); \
     } while (0)
 
 /*
  * testutil_assertfmt --
  *     Complain and quit if something isn't true.
  */
-#define testutil_assertfmt(a, fmt, ...)                                              \
-    do {                                                                             \
-        if (!(a))                                                                    \
-            testutil_die(0, "%s/%d: %s: " fmt, __func__, __LINE__, #a, __VA_ARGS__); \
+#define testutil_assertfmt(a, fmt, ...)                                                         \
+    do {                                                                                        \
+        if (!(a))                                                                               \
+            testutil_die(0, "%s/%d: %s: " fmt, __PRETTY_FUNCTION__, __LINE__, #a, __VA_ARGS__); \
     } while (0)
 
 /*
  * testutil_check --
  *     Complain and quit if a function call fails.
  */
-#define testutil_check(call)                                           \
-    do {                                                               \
-        int __r;                                                       \
-        if ((__r = (call)) != 0)                                       \
-            testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
+#define testutil_check(call)                                                      \
+    do {                                                                          \
+        int __r;                                                                  \
+        if ((__r = (call)) != 0)                                                  \
+            testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
 /*
@@ -130,10 +134,10 @@ typedef struct {
  *     Complain and quit if a function call fails, returning errno. The error test must be
  *     specified, not just the call, because system calls fail in a variety of ways.
  */
-#define testutil_checksys(call)                                          \
-    do {                                                                 \
-        if (call)                                                        \
-            testutil_die(errno, "%s/%d: %s", __func__, __LINE__, #call); \
+#define testutil_checksys(call)                                                     \
+    do {                                                                            \
+        if (call)                                                                   \
+            testutil_die(errno, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
 /*
@@ -144,7 +148,8 @@ typedef struct {
     do {                                                                                  \
         int __r;                                                                          \
         if ((__r = (call)) != 0)                                                          \
-            testutil_die(__r, "%s/%d: %s: " fmt, __func__, __LINE__, #call, __VA_ARGS__); \
+            testutil_die(                                                                 \
+              __r, "%s/%d: %s: " fmt, __PRETTY_FUNCTION__, __LINE__, #call, __VA_ARGS__); \
     } while (0)
 
 /*
@@ -152,11 +157,11 @@ typedef struct {
  *     Complain and quit if a function call fails. A special name because it appears in the
  *     documentation. Allow any non-negative values.
  */
-#define error_sys_check(call)                                          \
-    do {                                                               \
-        int __r;                                                       \
-        if ((__r = (int)(call)) < 0 && __r != ENOTSUP)                 \
-            testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
+#define error_sys_check(call)                                                     \
+    do {                                                                          \
+        int __r;                                                                  \
+        if ((__r = (int)(call)) < 0 && __r != ENOTSUP)                            \
+            testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
 /*
@@ -165,11 +170,11 @@ typedef struct {
  *     documentation. Ignore ENOTSUP to allow library calls which might not be included in any
  *     particular build.
  */
-#define error_check(call)                                              \
-    do {                                                               \
-        int __r;                                                       \
-        if ((__r = (call)) != 0 && __r != ENOTSUP)                     \
-            testutil_die(__r, "%s/%d: %s", __func__, __LINE__, #call); \
+#define error_check(call)                                                         \
+    do {                                                                          \
+        int __r;                                                                  \
+        if ((__r = (call)) != 0 && __r != ENOTSUP)                                \
+            testutil_die(__r, "%s/%d: %s", __PRETTY_FUNCTION__, __LINE__, #call); \
     } while (0)
 
 /*
@@ -263,11 +268,16 @@ void op_cursor(void *);
 void op_drop(void *);
 void testutil_clean_work_dir(const char *);
 void testutil_cleanup(TEST_OPTS *);
+void testutil_copy_data(const char *);
 bool testutil_is_flag_set(const char *);
+void testutil_build_dir(TEST_OPTS *, char *, int);
 void testutil_make_work_dir(const char *);
 int testutil_parse_opts(int, char *const *, TEST_OPTS *);
 void testutil_print_command_line(int argc, char *const *argv);
 void testutil_progress(TEST_OPTS *, const char *);
+void testutil_timestamp_parse(const char *, uint64_t *);
+void testutil_create_backup_directory(const char *);
+void testutil_copy_file(WT_SESSION *, const char *);
 #ifndef _WIN32
 void testutil_sleep_wait(uint32_t, pid_t);
 #endif
@@ -276,3 +286,5 @@ WT_THREAD_RET thread_append(void *);
 
 extern const char *progname;
 const char *testutil_set_progname(char *const *);
+
+#endif

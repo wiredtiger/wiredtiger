@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -63,7 +63,7 @@ __ckpt_server_config(WT_SESSION_IMPL *session, const char **cfg, bool *startp)
 static bool
 __ckpt_server_run_chk(WT_SESSION_IMPL *session)
 {
-    return (F_ISSET(S2C(session), WT_CONN_SERVER_CHECKPOINT));
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_CHECKPOINT));
 }
 
 /*
@@ -134,7 +134,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
     if (conn->ckpt_session != NULL)
         return (0);
 
-    F_SET(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_SET(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
 
     /*
      * The checkpoint server gets its own session.
@@ -144,7 +144,7 @@ __ckpt_server_start(WT_CONNECTION_IMPL *conn)
      */
     session_flags = WT_SESSION_CAN_WAIT;
     WT_RET(__wt_open_internal_session(
-      conn, "checkpoint-server", true, session_flags, &conn->ckpt_session));
+      conn, "checkpoint-server", true, session_flags, 0, &conn->ckpt_session));
     session = conn->ckpt_session;
 
     WT_RET(__wt_cond_alloc(session, "checkpoint server", &conn->ckpt_cond));
@@ -201,7 +201,7 @@ __wt_checkpoint_server_destroy(WT_SESSION_IMPL *session)
 
     conn = S2C(session);
 
-    F_CLR(conn, WT_CONN_SERVER_CHECKPOINT);
+    FLD_CLR(conn->server_flags, WT_CONN_SERVER_CHECKPOINT);
     if (conn->ckpt_tid_set) {
         __wt_cond_signal(session, conn->ckpt_cond);
         WT_TRET(__wt_thread_join(session, &conn->ckpt_tid));
@@ -239,4 +239,41 @@ __wt_checkpoint_signal(WT_SESSION_IMPL *session, wt_off_t logsize)
         __wt_cond_signal(session, conn->ckpt_cond);
         conn->ckpt_signalled = true;
     }
+}
+
+/*
+ * __wt_checkpoint_reserved_session_init --
+ *     Initialize checkpoint reserved session.
+ */
+int
+__wt_checkpoint_reserved_session_init(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+
+    WT_ASSERT(session, conn->ckpt_reserved_session == NULL);
+
+    return (__wt_open_internal_session(
+      conn, "ckpt-reserved", false, WT_SESSION_NO_RECONCILE, 0, &conn->ckpt_reserved_session));
+}
+
+/*
+ * __wt_checkpoint_reserved_session_destroy --
+ *     Release resources allocated for checkpoint reserved session.
+ */
+int
+__wt_checkpoint_reserved_session_destroy(WT_SESSION_IMPL *session)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
+
+    conn = S2C(session);
+
+    if (conn->ckpt_reserved_session != NULL) {
+        WT_TRET(__wt_session_close_internal(conn->ckpt_reserved_session));
+        conn->ckpt_reserved_session = NULL;
+    }
+
+    return (ret);
 }

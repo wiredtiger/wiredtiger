@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -60,13 +60,13 @@ typedef struct {
 #define COMPRESSION_LIST " (none | lz4 | snappy | zlib | zstd)"
 
 static CONFIG c[] = {
-  /* 5% */
-  {"assert.commit_timestamp", "assert commit_timestamp", C_BOOL, 5, 0, 0,
-    &g.c_assert_commit_timestamp, NULL},
-
-  /* 5% */
-  {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 5, 0, 0, &g.c_assert_read_timestamp,
+  /* 2% */
+  {"assert.read_timestamp", "assert read_timestamp", C_BOOL, 2, 0, 0, &g.c_assert_read_timestamp,
     NULL},
+
+  /* 2% */
+  {"assert.write_timestamp", "set write_timestamp_usage and assert write_timestamp", C_BOOL, 2, 0,
+    0, &g.c_assert_write_timestamp, NULL},
 
   /* 20% */
   {"backup", "configure backups", C_BOOL, 20, 0, 0, &g.c_backups, NULL},
@@ -88,9 +88,6 @@ static CONFIG c[] = {
     NULL},
 
   /* 20% */
-  {"btree.huffman_key", "configure huffman encoded keys", C_BOOL, 20, 0, 0, &g.c_huffman_key, NULL},
-
-  /* 20% */
   {"btree.huffman_value", "configure huffman encoded values", C_BOOL, 20, 0, 0, &g.c_huffman_value,
     NULL},
 
@@ -100,8 +97,6 @@ static CONFIG c[] = {
 
   {"btree.internal_page_max", "btree internal node maximum size", 0x0, 9, 17, 27,
     &g.c_intl_page_max, NULL},
-
-  {"btree.key_gap", "btree page instantiated key gap", 0x0, 0, 20, 20, &g.c_key_gap, NULL},
 
   {"btree.key_max", "maximum key size", 0x0, 20, 128, MEGABYTE(10), &g.c_key_max, NULL},
 
@@ -115,6 +110,8 @@ static CONFIG c[] = {
   {"btree.leaf_page_max", "btree leaf node maximum size", 0x0, 9, 17, 27, &g.c_leaf_page_max, NULL},
 
   {"btree.memory_page_max", "maximum cache page size", 0x0, 1, 10, 128, &g.c_memory_page_max, NULL},
+
+  {"btree.prefix", "common key prefix", C_BOOL, 3, 0, 0, &g.c_prefix, NULL},
 
   /* 80% */
   {"btree.prefix_compression", "configure prefix compressed keys", C_BOOL, 80, 0, 0,
@@ -152,8 +149,8 @@ static CONFIG c[] = {
   {"checkpoint.wait", "seconds to wait if wiredtiger checkpoints configured", 0x0, 5, 100, 3600,
     &g.c_checkpoint_wait, NULL},
 
-  {"disk.checksum", "checksum type (on | off | uncompressed)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
-    &g.c_checksum},
+  {"disk.checksum", "checksum type (on | off | uncompressed | unencrypted)", C_IGNORE | C_STRING, 0,
+    0, 0, NULL, &g.c_checksum},
 
   /* 5% */
   {"disk.data_extend", "configure data file extension", C_BOOL, 5, 0, 0, &g.c_data_extend, NULL},
@@ -184,6 +181,13 @@ static CONFIG c[] = {
 
   {"format.major_timeout", "long-running operations timeout (minutes)", C_IGNORE, 0, 0, 1000,
     &g.c_major_timeout, NULL},
+
+  /*
+   * 0%
+   * FIXME-WT-7418 and FIXME-WT-7510: Temporarily disable import until WT_ROLLBACK error and
+   * wt_copy_and_sync error is fixed. It should be (C_BOOL, 20, 0, 0).
+   */
+  {"import", "import table from newly created database", C_BOOL, 0, 0, 0, &g.c_import, NULL},
 
   /* 50% */
   {"logging", "configure logging", C_BOOL, 50, 0, 0, &g.c_logging, NULL},
@@ -251,9 +255,6 @@ static CONFIG c[] = {
     NULL},
 
   /* 100% */
-  {"ops.rebalance", "configure rebalance", C_BOOL, 100, 1, 0, &g.c_rebalance, NULL},
-
-  /* 100% */
   {"ops.salvage", "configure salvage", C_BOOL, 100, 1, 0, &g.c_salvage, NULL},
 
   /* 100% */
@@ -279,7 +280,7 @@ static CONFIG c[] = {
 
   {"runs.timer", "run time (minutes)", C_IGNORE, 0, 0, UINT_MAX, &g.c_timer, NULL},
 
-  {"runs.type", "object type (fix | var | row)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
+  {"runs.type", "object type (fix | row | var)", C_IGNORE | C_STRING, 0, 0, 0, NULL,
     &g.c_file_type},
 
   {"runs.verify_failure_dump", "configure page dump on repeatable read error", C_IGNORE | C_BOOL, 0,
@@ -300,12 +301,32 @@ static CONFIG c[] = {
   {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL},
 
   /* 2% */
+  {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay",
+    C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint_reserved_txnid_delay, NULL},
+
+  /* 2% */
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     &g.c_timing_stress_checkpoint_prepare, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_delete_key_from_ts", "stress failpoint history store delete key from ts",
+    C_BOOL, 30, 0, 0, &g.c_timing_stress_failpoint_hs_delete_key_from_ts, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_insert_1", "stress failpoint history store insert (#1)", C_BOOL, 30, 0, 0,
+    &g.c_timing_stress_failpoint_hs_insert_1, NULL},
+
+  /* 30% */
+  {"stress.failpoint_hs_insert_2", "stress failpoint history store insert (#2)", C_BOOL, 30, 0, 0,
+    &g.c_timing_stress_failpoint_hs_insert_2, NULL},
 
   /* 2% */
   {"stress.hs_checkpoint_delay", "stress history store checkpoint delay", C_BOOL, 2, 0, 0,
     &g.c_timing_stress_hs_checkpoint_delay, NULL},
+
+  /* 2% */
+  {"stress.hs_search", "stress history store search", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_search,
+    NULL},
 
   /* 2% */
   {"stress.hs_sweep", "stress history store sweep", C_BOOL, 2, 0, 0, &g.c_timing_stress_hs_sweep,
@@ -332,22 +353,11 @@ static CONFIG c[] = {
   /* 2% */
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, &g.c_timing_stress_split_7, NULL},
 
-  /* 2% */
-  {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL},
-
-  {"transaction.frequency", "operations inside an explicit transaction (percentage)", 0x0, 1, 100,
-    100, &g.c_txn_freq, NULL},
-
-  {"transaction.isolation",
-    "isolation level (random | read-uncommitted | read-committed | snapshot)", C_IGNORE | C_STRING,
-    0, 0, 0, NULL, &g.c_isolation},
-
-  /* 0% - By default, turned off until fallout has been debugged. */
-  {"transaction.rollback_to_stable", "configure rollback_to_stable", C_BOOL, 0, 0, 0,
-    &g.c_txn_rollback_to_stable, NULL},
+  {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0x0, 0, 100,
+    100, &g.c_txn_implicit, NULL},
 
   /* 70% */
-  {"transaction.timestamps", "configure transaction timestamps", C_BOOL, 70, 0, 0,
+  {"transaction.timestamps", "all transactions (or none), have timestamps", C_BOOL, 80, 0, 0,
     &g.c_txn_timestamps, NULL},
 
   {"wiredtiger.config", "wiredtiger_open API configuration string", C_IGNORE | C_STRING, 0, 0, 0,

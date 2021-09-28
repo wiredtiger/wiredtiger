@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -62,6 +62,12 @@ class test_compact(wttest.WiredTigerTestCase, suite_subprocess):
 
     # Test compaction.
     def test_compact(self):
+        # FIXME-WT-7187
+        # This test is temporarily disabled for OS/X, it fails often, but not consistently.
+        import platform
+        if platform.system() == 'Darwin':
+            self.skipTest('Compaction tests skipped, as they fail on OS/X')
+
         # Populate an object
         uri = self.type + self.name
         ds = self.dataset(self, uri, self.nentries - 1, config=self.config)

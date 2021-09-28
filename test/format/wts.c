@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -89,6 +89,36 @@ encryptor(uint32_t encrypt_flag)
     case ENCRYPT_ROTN_7:
         p = "rotn,keyid=7";
         break;
+    case ENCRYPT_SODIUM:
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+        break;
+    default:
+        testutil_die(EINVAL, "illegal encryption flag: %#" PRIx32, encrypt_flag);
+        /* NOTREACHED */
+    }
+    return (p);
+}
+
+/*
+ * encryptor_at_open --
+ *     Configure encryption for wts_open().
+ *
+ * This must set any secretkey. When keyids are in use it can return NULL.
+ */
+static const char *
+encryptor_at_open(uint32_t encrypt_flag)
+{
+    const char *p;
+
+    p = NULL;
+    switch (encrypt_flag) {
+    case ENCRYPT_NONE:
+        break;
+    case ENCRYPT_ROTN_7:
+        break;
+    case ENCRYPT_SODIUM:
+        p = "sodium,secretkey=" SODIUM_TESTKEY;
+        break;
     default:
         testutil_die(EINVAL, "illegal encryption flag: %#" PRIx32, encrypt_flag);
         /* NOTREACHED */
@@ -148,12 +178,13 @@ static WT_EVENT_HANDLER event_handler = {
  * create_database --
  *     Create a WiredTiger database.
  */
-static void
+void
 create_database(const char *home, WT_CONNECTION **connp)
 {
     WT_CONNECTION *conn;
     size_t max;
     char config[8 * 1024], *p;
+    const char *enc;
 
     p = config;
     max = sizeof(config);
@@ -190,8 +221,11 @@ create_database(const char *home, WT_CONNECTION **connp)
           compressor(g.c_logging_compression_flag));
 
     /* Encryption. */
-    if (g.c_encryption)
-        CONFIG_APPEND(p, ",encryption=(name=%s)", encryptor(g.c_encryption_flag));
+    if (g.c_encryption) {
+        enc = encryptor(g.c_encryption_flag);
+        if (enc != NULL)
+            CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
+    }
 
 /* Miscellaneous. */
 #ifdef HAVE_POSIX_MEMALIGN
@@ -230,8 +264,18 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",checkpoint_slow");
     if (g.c_timing_stress_checkpoint_prepare)
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
+    if (g.c_timing_stress_checkpoint_reserved_txnid_delay)
+        CONFIG_APPEND(p, ",checkpoint_reserved_txnid_delay");
+    if (g.c_timing_stress_failpoint_hs_delete_key_from_ts)
+        CONFIG_APPEND(p, ",failpoint_history_store_delete_key_from_ts");
+    if (g.c_timing_stress_failpoint_hs_insert_1)
+        CONFIG_APPEND(p, ",failpoint_history_store_insert_1");
+    if (g.c_timing_stress_failpoint_hs_insert_2)
+        CONFIG_APPEND(p, ",failpoint_history_store_insert_2");
     if (g.c_timing_stress_hs_checkpoint_delay)
         CONFIG_APPEND(p, ",history_store_checkpoint_delay");
+    if (g.c_timing_stress_hs_search)
+        CONFIG_APPEND(p, ",history_store_search");
     if (g.c_timing_stress_hs_sweep)
         CONFIG_APPEND(p, ",history_store_sweep_race");
     if (g.c_timing_stress_split_1)
@@ -248,16 +292,15 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",split_6");
     if (g.c_timing_stress_split_7)
         CONFIG_APPEND(p, ",split_7");
-    if (g.c_timing_stress_split_8)
-        CONFIG_APPEND(p, ",split_8");
     CONFIG_APPEND(p, "]");
 
     /* Extensions. */
-    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
+    CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
       g.c_reverse ? REVERSE_PATH : "", access(LZ4_PATH, R_OK) == 0 ? LZ4_PATH : "",
       access(ROTN_PATH, R_OK) == 0 ? ROTN_PATH : "",
       access(SNAPPY_PATH, R_OK) == 0 ? SNAPPY_PATH : "",
-      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "");
+      access(ZLIB_PATH, R_OK) == 0 ? ZLIB_PATH : "", access(ZSTD_PATH, R_OK) == 0 ? ZSTD_PATH : "",
+      access(SODIUM_PATH, R_OK) == 0 ? SODIUM_PATH : "");
 
     /*
      * Put configuration file configuration options second to last. Put command line configuration
@@ -292,10 +335,11 @@ create_object(WT_CONNECTION *conn)
     max = sizeof(config);
 
     CONFIG_APPEND(p,
-      "key_format=%s,allocation_size=512,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
+      "key_format=%s,allocation_size=%d,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
       ",memory_page_max=%" PRIu32,
-      (g.type == ROW) ? "u" : "r", g.c_firstfit ? "block_allocation=first" : "", g.intl_page_max,
-      g.leaf_page_max, MEGABYTE(g.c_memory_page_max));
+      (g.type == ROW) ? "u" : "r", BLOCK_ALLOCATION_SIZE,
+      g.c_firstfit ? "block_allocation=first" : "", g.intl_page_max, g.leaf_page_max,
+      MEGABYTE(g.c_memory_page_max));
 
     /*
      * Configure the maximum key/value sizes, but leave it as the default if we come up with
@@ -316,12 +360,8 @@ create_object(WT_CONNECTION *conn)
         CONFIG_APPEND(p, ",value_format=%" PRIu32 "t", g.c_bitcnt);
         break;
     case ROW:
-        if (g.c_huffman_key)
-            CONFIG_APPEND(p, ",huffman_key=english");
-        if (g.c_prefix_compression)
-            CONFIG_APPEND(p, ",prefix_compression_min=%" PRIu32, g.c_prefix_compression_min);
-        else
-            CONFIG_APPEND(p, ",prefix_compression=false");
+        CONFIG_APPEND(p, ",prefix_compression=%s,prefix_compression_min=%" PRIu32,
+          g.c_prefix_compression == 0 ? "false" : "true", g.c_prefix_compression_min);
         if (g.c_reverse)
             CONFIG_APPEND(p, ",collator=reverse");
     /* FALLTHROUGH */
@@ -344,28 +384,25 @@ create_object(WT_CONNECTION *conn)
     case CHECKSUM_UNCOMPRESSED:
         CONFIG_APPEND(p, ",checksum=\"uncompressed\"");
         break;
+    case CHECKSUM_UNENCRYPTED:
+        CONFIG_APPEND(p, ",checksum=\"unencrypted\"");
+        break;
     }
 
     /* Configure compression. */
     if (g.c_compression_flag != COMPRESS_NONE)
         CONFIG_APPEND(p, ",block_compressor=\"%s\"", compressor(g.c_compression_flag));
 
-    /* Configure Btree internal key truncation. */
+    /* Configure Btree. */
     CONFIG_APPEND(p, ",internal_key_truncate=%s", g.c_internal_key_truncation ? "true" : "false");
-
-    /* Configure Btree page key gap. */
-    CONFIG_APPEND(p, ",key_gap=%" PRIu32, g.c_key_gap);
-
-    /* Configure Btree split page percentage. */
     CONFIG_APPEND(p, ",split_pct=%" PRIu32, g.c_split_pct);
 
-    /*
-     * Assertions. Assertions slow down the code for additional diagnostic checking.
-     */
-    if (g.c_txn_timestamps && g.c_assert_commit_timestamp)
-        CONFIG_APPEND(p, ",assert=(commit_timestamp=key_consistent)");
-    if (g.c_txn_timestamps && g.c_assert_read_timestamp)
-        CONFIG_APPEND(p, ",assert=(read_timestamp=always)");
+    /* Assertions: assertions slow down the code for additional diagnostic checking.  */
+    if (g.c_assert_read_timestamp)
+        CONFIG_APPEND(p, ",assert=(read_timestamp=%s)", g.c_txn_timestamps ? "always" : "never");
+    if (g.c_assert_write_timestamp)
+        CONFIG_APPEND(p, ",assert=(write_timestamp=on),write_timestamp_usage=%s",
+          g.c_txn_timestamps ? "key_consistent" : "never");
 
     /* Configure LSM. */
     if (DATASOURCE("lsm")) {
@@ -432,19 +469,67 @@ void
 wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool allow_verify)
 {
     WT_CONNECTION *conn;
-    const char *config;
+    size_t max;
+    char config[1024], *p;
+    const char *enc;
 
     *connp = NULL;
     *sessionp = NULL;
+
+    p = config;
+    max = sizeof(config);
+    config[0] = '\0';
+
+    enc = encryptor_at_open(g.c_encryption_flag);
+    if (enc != NULL)
+        CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
+
+    /*
+     * Timing stress options aren't persisted in the base config and need to be added to the
+     * configuration for re-open.
+     */
+    CONFIG_APPEND(p, ",timing_stress_for_test=[");
+    if (g.c_timing_stress_aggressive_sweep)
+        CONFIG_APPEND(p, ",aggressive_sweep");
+    if (g.c_timing_stress_checkpoint)
+        CONFIG_APPEND(p, ",checkpoint_slow");
+    if (g.c_timing_stress_checkpoint_prepare)
+        CONFIG_APPEND(p, ",prepare_checkpoint_delay");
+    if (g.c_timing_stress_failpoint_hs_delete_key_from_ts)
+        CONFIG_APPEND(p, ",failpoint_history_store_delete_key_from_ts");
+    if (g.c_timing_stress_failpoint_hs_insert_1)
+        CONFIG_APPEND(p, ",failpoint_history_store_insert_1");
+    if (g.c_timing_stress_failpoint_hs_insert_2)
+        CONFIG_APPEND(p, ",failpoint_history_store_insert_2");
+    if (g.c_timing_stress_hs_checkpoint_delay)
+        CONFIG_APPEND(p, ",history_store_checkpoint_delay");
+    if (g.c_timing_stress_hs_search)
+        CONFIG_APPEND(p, ",history_store_search");
+    if (g.c_timing_stress_hs_sweep)
+        CONFIG_APPEND(p, ",history_store_sweep_race");
+    if (g.c_timing_stress_split_1)
+        CONFIG_APPEND(p, ",split_1");
+    if (g.c_timing_stress_split_2)
+        CONFIG_APPEND(p, ",split_2");
+    if (g.c_timing_stress_split_3)
+        CONFIG_APPEND(p, ",split_3");
+    if (g.c_timing_stress_split_4)
+        CONFIG_APPEND(p, ",split_4");
+    if (g.c_timing_stress_split_5)
+        CONFIG_APPEND(p, ",split_5");
+    if (g.c_timing_stress_split_6)
+        CONFIG_APPEND(p, ",split_6");
+    if (g.c_timing_stress_split_7)
+        CONFIG_APPEND(p, ",split_7");
+    CONFIG_APPEND(p, "]");
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (g.c_in_memory != 0)
         conn = g.wts_conn_inmemory;
     else {
-        config = "";
 #if WIREDTIGER_VERSION_MAJOR >= 10
         if (g.c_verify && allow_verify)
-            config = ",verify_metadata=true";
+            CONFIG_APPEND(p, ",verify_metadata=true");
 #else
         WT_UNUSED(allow_verify);
 #endif
@@ -466,8 +551,8 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
     /*
      * If running in-memory, there's only a single, shared WT_CONNECTION handle. Format currently
      * doesn't perform the operations coded to close and then re-open the database on in-memory
-     * databases (for example, salvage or rebalance), so the close gets all references, it doesn't
-     * have to avoid closing the real handle.
+     * databases (for example, salvage), so the close gets all references, it doesn't have to avoid
+     * closing the real handle.
      */
     if (conn == g.wts_conn_inmemory)
         g.wts_conn_inmemory = NULL;

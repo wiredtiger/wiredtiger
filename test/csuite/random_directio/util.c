@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -37,7 +37,7 @@
  * util.c
  * 	Utility functions for test that simulates system crashes.
  */
-#define COPY_BUF_SIZE ((size_t)(20 * 1024))
+#define COPY_BUF_SIZE ((size_t)(64 * 1024))
 
 /*
  * copy_directory --
@@ -101,8 +101,10 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          * delivered in between those calls so the file may no longer exist but reading the
          * directory will still return its entry. Handle that case and skip the file if it happens.
          */
-        if (rfd < 0 && errno == ENOENT)
+        if (rfd < 0 && errno == ENOENT) {
+            printf("COPY_DIR: direct:%d ENOENT Source file %s not found.\n", directio, dp->d_name);
             continue;
+        }
         testutil_assertfmt(rfd >= 0, "Open of source %s failed with %d\n", fromfile, errno);
         wfd = open(tofile, O_WRONLY | O_CREAT, 0666);
         testutil_assertfmt(wfd >= 0, "Open of dest %s failed with %d\n", tofile, errno);
@@ -113,7 +115,7 @@ copy_directory(const char *fromdir, const char *todir, bool directio)
          */
         if (buf == NULL) {
             if (directio) {
-                blksize = (size_t)sb.st_blksize;
+                blksize = (size_t)WT_MAX(sb.st_blksize, WT_BUFFER_ALIGNMENT_DEFAULT);
                 testutil_assert(blksize < COPY_BUF_SIZE);
                 /*
                  * Make sure we have plenty of room for adjusting the pointer.

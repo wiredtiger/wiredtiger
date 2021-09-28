@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -16,11 +16,25 @@ bool verbose = false; /* Verbose flag */
 
 static const char *command; /* Command name */
 
+/* Give users a hint in the help output for if they're trying to read MongoDB data files */
+static const char *mongodb_config = "log=(enabled=true,path=journal,compressor=snappy)";
+
 #define READONLY "readonly=true"
 #define REC_ERROR "log=(recover=error)"
 #define REC_LOGOFF "log=(enabled=false)"
 #define REC_RECOVER "log=(recover=on)"
 #define SALVAGE "salvage=true"
+
+/*
+ * wt_explicit_zero: clear a buffer, with precautions against being optimized away.
+ */
+static void
+wt_explicit_zero(void *ptr, size_t len)
+{
+    /* Call through a volatile pointer to avoid removal even when it's a dead store. */
+    static void *(*volatile memsetptr)(void *ptr, int ch, size_t len) = memset;
+    (void)memsetptr(ptr, '\0', len);
+}
 
 static void
 usage(void)
@@ -35,20 +49,16 @@ usage(void)
     static const char *commands[] = {"alter", "alter an object", "backup", "database backup",
       "compact", "compact an object", "copyright", "display copyright information", "create",
       "create an object", "downgrade", "downgrade a database", "drop", "drop an object", "dump",
-      "dump an object",
-      /*
-       * Import is not documented.
-       * "import", "import an object"
-       */
-      "list", "list database objects", "load", "load an object", "loadtext",
+      "dump an object", "list", "list database objects", "load", "load an object", "loadtext",
       "load an object from a text file", "printlog", "display the database log", "read",
-      "read values from an object", "rebalance", "rebalance an object", "rename",
-      "rename an object", "salvage", "salvage a file", "stat", "display statistics for an object",
-      "truncate", "truncate an object, removing all content", "upgrade", "upgrade an object",
-      "verify", "verify an object", "write", "write values to an object", NULL, NULL};
+      "read values from an object", "rename", "rename an object", "salvage", "salvage a file",
+      "stat", "display statistics for an object", "truncate",
+      "truncate an object, removing all content", "upgrade", "upgrade an object", "verify",
+      "verify an object", "write", "write values to an object", NULL, NULL};
 
     fprintf(stderr, "WiredTiger Data Engine (version %d.%d)\n", WIREDTIGER_VERSION_MAJOR,
       WIREDTIGER_VERSION_MINOR);
+    fprintf(stderr, "MongoDB wiredtiger_open configuration: \"%s\"\n", mongodb_config);
     util_usage(NULL, "global_options:", options);
     util_usage(NULL, "commands:", commands);
 }
@@ -101,13 +111,15 @@ main(int argc, char *argv[])
         case 'C': /* wiredtiger_open config */
             cmd_config = __wt_optarg;
             break;
-        case 'E':            /* secret key */
+        case 'E': /* secret key */
+            if (secretkey != NULL)
+                wt_explicit_zero(secretkey, strlen(secretkey));
             free(secretkey); /* lint: set more than once */
             if ((secretkey = strdup(__wt_optarg)) == NULL) {
                 (void)util_err(NULL, errno, NULL);
                 goto err;
             }
-            memset(__wt_optarg, 0, strlen(__wt_optarg));
+            wt_explicit_zero(__wt_optarg, strlen(__wt_optarg));
             break;
         case 'h': /* home directory */
             home = __wt_optarg;
@@ -194,10 +206,6 @@ main(int argc, char *argv[])
         else if (strcmp(command, "dump") == 0)
             func = util_dump;
         break;
-    case 'i':
-        if (strcmp(command, "import") == 0)
-            func = util_import;
-        break;
     case 'l':
         if (strcmp(command, "list") == 0)
             func = util_list;
@@ -218,8 +226,6 @@ main(int argc, char *argv[])
     case 'r':
         if (strcmp(command, "read") == 0)
             func = util_read;
-        else if (strcmp(command, "rebalance") == 0)
-            func = util_rebalance;
         else if (strcmp(command, "rename") == 0)
             func = util_rename;
         break;
@@ -293,6 +299,15 @@ open:
         goto err;
     }
 
+    if (secretkey != NULL) {
+        /* p contains a copy of secretkey, so zero both before freeing */
+        wt_explicit_zero(p, strlen(p));
+        wt_explicit_zero(secretkey, strlen(secretkey));
+    }
+    free(p);
+    free(secretkey);
+    config = secretkey = p = NULL;
+
     /* If we only want to verify the metadata, that is done in wiredtiger_open. We're done. */
     if (func == NULL && meta_verify)
         goto done;
@@ -311,6 +326,17 @@ err:
     }
 done:
 
+    /* may get here via either err or done before the free above happens */
+    if (p != NULL) {
+        /* p may contain a copy of secretkey, so zero before freeing */
+        wt_explicit_zero(p, strlen(p));
+        free(p);
+    }
+    if (secretkey != NULL) {
+        wt_explicit_zero(secretkey, strlen(secretkey));
+        free(secretkey);
+    }
+
     if (conn != NULL) {
         /* Maintain backward compatibility. */
         if (backward_compatible &&
@@ -321,9 +347,6 @@ done:
         if ((tret = conn->close(conn, NULL)) != 0 && ret == 0)
             ret = tret;
     }
-
-    free(p);
-    free(secretkey);
 
     return (ret == 0 ? EXIT_SUCCESS : EXIT_FAILURE);
 }

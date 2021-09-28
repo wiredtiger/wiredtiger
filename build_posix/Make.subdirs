@@ -15,10 +15,12 @@ ext/compressors/zlib ZLIB
 ext/compressors/zstd ZSTD
 ext/encryptors/nop
 ext/encryptors/rotn
+ext/encryptors/sodium SODIUM
 ext/extractors/csv
+ext/storage_sources/local_store POSIX_HOST
 ext/test/fail_fs
+ext/test/local_store
 .
-lang/java JAVA
 lang/python PYTHON
 
 # Test/Benchmark/Examples support library.
@@ -26,15 +28,16 @@ test/utility
 
 # Example programs.
 examples/c
-examples/java JAVA
 
 # Test programs.
 test/bloom
 test/checkpoint
+test/cppsuite HAVE_CXX
 test/csuite
 test/cursor_order
 test/fops
 test/format
+test/fuzz POSIX_HOST LIBFUZZER
 test/huge
 test/import
 test/manydbs

@@ -18,28 +18,29 @@ trap 'onintr' 2
 
 usage() {
 	echo "usage: $0 [-aEFRSv] [-b format-binary] [-c config] [-e env-var]"
-	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-t minutes] [format-configuration]"
+	echo "    [-h home] [-j parallel-jobs] [-n total-jobs] [-r live-record-binary] [-t minutes] [format-configuration]"
 	echo
-	echo "    -a           abort/recovery testing (defaults to off)"
+	echo "    -a           add configuration for abort/recovery testing (defaults to off)"
 	echo "    -b binary    format binary (defaults to "./t")"
 	echo "    -c config    format configuration file (defaults to CONFIG.stress)"
-	echo "    -e envvar    Environment variable setting (default to none)"
 	echo "    -E           skip known errors (defaults to off)"
+	echo "    -e envvar    Environment variable setting (default to none)"
 	echo "    -F           quit on first failure (defaults to off)"
 	echo "    -h home      run directory (defaults to .)"
 	echo "    -j parallel  jobs to execute in parallel (defaults to 8)"
 	echo "    -n total     total jobs to execute (defaults to no limit)"
-	echo "    -R           run timing stress split test configurations (defaults to off)"
+	echo "    -R           add configuration for randomized split stress (defaults to none)"
+	echo "    -r binary    record with UndoDB binary (defaults to no recording)"
 	echo "    -S           run smoke-test configurations (defaults to off)"
 	echo "    -t minutes   minutes to run (defaults to no limit)"
 	echo "    -v           verbose output (defaults to off)"
-	echo "    --           separates $name arguments from format arguments"
+	echo "    --           separates $name arguments from additional format arguments"
 
 	exit 1
 }
 
 # Smoke-tests.
-smoke_base_1="data_source=table rows=100000 threads=6 timer=4"
+smoke_base_1="runs.source=table rows=100000 threads=6 timer=4"
 smoke_base_2="$smoke_base_1 leaf_page_max=9 internal_page_max=9"
 smoke_list=(
 	# Three access methods.
@@ -48,14 +49,14 @@ smoke_list=(
 	# "$smoke_base_1 file_type=fix"
 	# "$smoke_base_1 file_type=var"
 
-	# Huffman key/value encoding.
-	"$smoke_base_1 file_type=row huffman_key=1 huffman_value=1"
+	# Huffman value encoding.
+	"$smoke_base_1 file_type=row huffman_value=1"
     # Temporarily disabled
-	# "$smoke_base_1 file_type=var huffman_key=1 huffman_value=1"
+	# "$smoke_base_1 file_type=var huffman_value=1"
 
 	# LSM
     # Temporarily disabled
-	# "$smoke_base_1 file_type=row data_source=lsm"
+	# "$smoke_base_1 file_type=row runs.source=lsm"
 
 	# Force the statistics server.
 	"$smoke_base_1 file_type=row statistics_server=1"
@@ -73,15 +74,16 @@ build=""
 config="CONFIG.stress"
 first_failure=0
 format_args=""
+format_binary="./t"
 home="."
+live_record_binary=""
 minutes=0
 parallel_jobs=8
 skip_errors=0
 smoke_test=0
-timing_stress_split_test=0
+stress_split_test=0
 total_jobs=0
 verbose=0
-format_binary="./t"
 
 while :; do
 	case "$1" in
@@ -94,12 +96,12 @@ while :; do
 	-c)
 		config="$2"
 		shift ; shift ;;
-	-e)
-		export "$2"
-		shift ; shift ;;
 	-E)
 		skip_errors=1
 		shift ;;
+	-e)
+		export "$2"
+		shift ; shift ;;
 	-F)
 		first_failure=1
 		shift ;;
@@ -121,8 +123,16 @@ while :; do
 		}
 		shift ; shift ;;
 	-R)
-		timing_stress_split_test=1
+		stress_split_test=1
 		shift ;;
+        -r)
+		live_record_binary="$2"
+		if [ ! $(command -v "$live_record_binary") ]; then
+			echo "$name: -r option argument \"${live_record_binary}\" does not exist in path"
+			echo "$name: usage and setup instructions can be found at: https://wiki.corp.mongodb.com/display/KERNEL/UndoDB+Usage"
+			exit 1
+		fi
+		shift; shift ;;
 	-S)
 		smoke_test=1
 		shift ;;
@@ -237,13 +247,44 @@ skip_known_errors()
 		err_tokens[1]=${!skip_error_list[i]:1:1}
 
 		grep -q "${err_tokens[0]}" $log && grep -q "${err_tokens[1]}" $log
-		
+
 		[[ $? -eq 0 ]] && {
 			echo "Skip error :  { ${err_tokens[0]} && ${err_tokens[1]} }"
 			return 0
 		}
 	done
 	return 1
+}
+
+# Categorize the failures
+# $1 Log file
+categorize_failure()
+{
+	log=$1
+
+	# Add any important configs to be picked from the detailed failed configuration.
+	configs=("backup=" "runs.source" "runs.type" "transaction.isolation" "transaction.rollback_to_stable"
+			 "ops.prepare" "transaction.timestamps")
+	count=${#configs[@]}
+
+	search_string=""
+
+	# now loop through the config array
+	for ((i=0; i<$count; i++))
+	do
+		if [ $i == $(($count - 1)) ]
+		then
+			search_string+=${configs[i]}
+		else
+			search_string+="${configs[i]}|"
+		fi
+	done
+
+	echo "############################################"
+	echo "test/format run configuration highlights"
+	echo "############################################"
+	grep -E "$search_string" $log
+	echo "############################################"
 }
 
 # Report a failure.
@@ -277,6 +318,8 @@ report_failure()
 	}
 	echo "$name: $dir/CONFIG:"
 	sed 's/^/    /' < $dir/CONFIG
+
+	categorize_failure $log
 
 	echo "$name: failure status reported" > $dir/$status
 }
@@ -351,10 +394,10 @@ resolve()
 
 			# Everything is a table unless explicitly a file.
 			uri="table:wt"
-			grep 'data_source=file' $dir/CONFIG > /dev/null && uri="file:wt"
-						
+			grep 'runs.source=file' $dir/CONFIG > /dev/null && uri="file:wt"
+
 			# Use the wt utility to recover & verify the object.
-			if  $($wt_binary -R -h $dir verify $uri >> $log 2>&1); then
+			if  $($wt_binary -m -R -h $dir verify $uri >> $log 2>&1); then
 				rm -rf $dir $dir.RECOVER $log
 				success=$(($success + 1))
 				verbose "$name: job in $dir successfully completed"
@@ -431,27 +474,31 @@ format()
 	dir="$home/RUNDIR.$count_jobs"
 	log="$dir.log"
 
+	args=""
 	if [[ $smoke_test -ne 0 ]]; then
 		args=${smoke_list[$smoke_next]}
 		smoke_next=$(($smoke_next + 1))
-		echo "$name: starting smoke-test job in $dir ($(date))"
-	elif [[ $timing_stress_split_test -ne 0 ]]; then
-		args=$format_args
-		for k in {1..7}; do
-			args+=" timing_stress_split_$k=$(($RANDOM%2))"
+	fi
+	if [[ $abort_test -ne 0 ]]; then
+		args+=" format.abort=1"
+	fi
+	if [[ $stress_split_test -ne 0 ]]; then
+		for k in {1..8}; do
+			args+=" stress_split_$k=$(($RANDOM%2))"
 		done
-		echo "$name: starting timing-stress-split job in $dir ($(date))"
-	else
-		args=$format_args
+	fi
+	args+=" $format_args"
+	echo "$name: starting job in $dir ($(date))"
 
-		# If abort/recovery testing is configured, do it 5% of the time.
-		[[ $abort_test -ne 0 ]] &&
-		    [[ $(($count_jobs % 20)) -eq 0 ]] && args="$args format.abort=1"
-
-		echo "$name: starting job in $dir ($(date))"
+	# If we're using UndoDB, append our default arguments.
+	#
+	# This script is typically left running until a failure is hit. To avoid filling up the
+	# disk, we should avoid keeping recordings from successful runs.
+	if [[ ! -z $live_record_binary ]]; then
+		live_record_binary="$live_record_binary --save-on=error"
 	fi
 
-	cmd="$format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
 	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
@@ -488,7 +535,7 @@ while :; do
 
 	# Check if we're only running the smoke-tests and we're done.
 	[[ $smoke_test -ne 0 ]] && [[ $smoke_next -ge ${#smoke_list[@]} ]] && quit=1
-	
+
 	# Check if the total number of jobs has been reached.
 	[[ $total_jobs -ne 0 ]] && [[ $count_jobs -ge $total_jobs ]] && quit=1
 

@@ -9,6 +9,7 @@ import textwrap
 import distutils.sysconfig
 
 EnsureSConsVersion( 2, 0, 0 )
+EnsurePythonVersion(3, 0)
 
 if not os.sys.platform == "win32":
     print ("SConstruct is only supported for Windows, use build_posix for other platforms")
@@ -22,18 +23,24 @@ AddOption("--dynamic-crt", dest="dynamic-crt", action="store_true", default=Fals
 AddOption("--enable-attach", dest="attach", action="store_true", default=False,
           help="Configure for debugger attach on failure.")
 
+AddOption("--disable-standalone-build", dest="standalone-build", action="store_true", default=False,
+          help="Disable WT Standalone build.")
+
 AddOption("--enable-diagnostic", dest="diagnostic", action="store_true", default=False,
           help="Configure WiredTiger to perform various run-time diagnostic tests. DO NOT configure this option in production environments.")
 
 AddOption("--enable-lz4", dest="lz4", type="string", nargs=1, action="store",
           help="Use LZ4 compression")
 
+<<<<<<< HEAD
 AddOption("--enable-memkind", dest="memkind", type="string", nargs=1, action="store",
           help="Enable support for Intel memkind library, needed for NVRAM block cache.")
 
 AddOption("--enable-java", dest="lang-java", type="string", nargs=1, action="store",
           help="Build java extension, specify location of swig.exe binary and Java JDK dir separated by comma")
 
+=======
+>>>>>>> develop
 AddOption("--enable-python", dest="lang-python", type="string", nargs=1, action="store",
           help="Build Python extension, specify location of swig.exe binary")
 
@@ -65,6 +72,8 @@ var.Add('CPPPATH', 'C Preprocessor include path', [
     "#/test/windows",
     "#/.",
 ])
+
+var.Add('LIBPATH', 'Adds paths to the linker search path', [])
 
 var.Add('CFLAGS', 'C Compiler Flags', [
     "/W3", # Warning level 3
@@ -186,6 +195,11 @@ if GetOption("lang-python"):
     env.Append(LIBPATH=[distutils.sysconfig.PREFIX + r"\libs"])
     env.Append(CPPPATH=[distutils.sysconfig.get_python_inc()])
 
+disableStandaloneBuild = GetOption("standalone-build")
+if disableStandaloneBuild:
+    print('Disable Standalone Build')
+else:
+    env.Append(CPPDEFINES = ["WT_STANDALONE_BUILD"])
 
 # Build WiredTiger.h file
 #
@@ -299,7 +313,6 @@ wtbin = env.Program("wt", [
     "src/utilities/util_downgrade.c",
     "src/utilities/util_drop.c",
     "src/utilities/util_dump.c",
-    "src/utilities/util_import.c",
     "src/utilities/util_list.c",
     "src/utilities/util_load.c",
     "src/utilities/util_load_json.c",
@@ -308,7 +321,6 @@ wtbin = env.Program("wt", [
     "src/utilities/util_misc.c",
     "src/utilities/util_printlog.c",
     "src/utilities/util_read.c",
-    "src/utilities/util_rebalance.c",
     "src/utilities/util_rename.c",
     "src/utilities/util_salvage.c",
     "src/utilities/util_stat.c",
@@ -329,7 +341,6 @@ if GetOption("lang-python"):
         print("The Python Interpreter must be 64-bit in order to build the python bindings")
         Exit(1)
 
-    pythonMajorVersion = sys.version_info.major
     pythonEnv = env.Clone()
     pythonEnv.Append(SWIGFLAGS=[
             "-python",
@@ -337,7 +348,6 @@ if GetOption("lang-python"):
             "-O",
             "-nodefaultctor",
             "-nodefaultdtor",
-            "-DPY_MAJOR_VERSION=" + str(pythonMajorVersion)
             ])
     # Ignore warnings in swig-generated code.
     pythonEnv['CFLAGS'].remove("/WX")
@@ -348,70 +358,22 @@ if GetOption("lang-python"):
                       SHLIBSUFFIX=".pyd",
                       LIBS=[wtlib] + wtlibs)
 
-    copySwig = pythonEnv.Command(
-        'lang/python/wiredtiger/__init__.py',
+    # Shuffle the wiredtiger __init__ into place.
+    copySwig1 = pythonEnv.Command(
+        'lang/python/wiredtiger/swig_wiredtiger.py',
         'lang/python/wiredtiger.py',
         Copy('$TARGET', '$SOURCE'))
-    pythonEnv.Depends(copySwig, swiglib)
+    pythonEnv.Depends(copySwig1, swiglib)
+
+    copySwig2 = pythonEnv.Command(
+        'lang/python/wiredtiger/__init__.py',
+        'lang/python/wiredtiger/init.py',
+        Copy('$TARGET', '$SOURCE'))
+    pythonEnv.Depends(copySwig2, swiglib)
 
     swiginstall = pythonEnv.Install('lang/python/wiredtiger/', swiglib)
 
-    Default(swiginstall, copySwig)
-
-# Javap SWIG wrapper for WiredTiger
-enableJava = GetOption("lang-java")
-if enableJava and enableJava.count(",") == 1:
-    enableJavaPaths = enableJava.split(',')
-
-    swigExe = enableJavaPaths[0]
-    javaPath = enableJavaPaths[1]
-    conf.env.Append(CPPPATH=[ javaPath + '/include'])
-    conf.env.Append(CPPPATH=[ javaPath + '/include/win32'])
-
-    swigJavaFiles = ["lang/java/src/com/wiredtiger/db/AsyncOp.java",
-    "lang/java/src/com/wiredtiger/db/AsyncOpType.java",
-    "lang/java/src/com/wiredtiger/db/Connection.java",
-    "lang/java/src/com/wiredtiger/db/Cursor.java",
-    "lang/java/src/com/wiredtiger/db/Modify.java",
-    "lang/java/src/com/wiredtiger/db/SearchStatus.java",
-    "lang/java/src/com/wiredtiger/db/Session.java",
-    "lang/java/src/com/wiredtiger/db/WT_ITEM_HOLD.java",
-    "lang/java/src/com/wiredtiger/db/WT_MODIFY_LIST.java",
-    "lang/java/src/com/wiredtiger/db/wiredtiger.java",
-    "lang/java/src/com/wiredtiger/db/wiredtigerConstants.java",
-    "lang/java/src/com/wiredtiger/db/wiredtigerJNI.java"]
-
-    swigCFile = "wiredtiger_wrap.c"
-
-    swigFiles = env.Command(
-        swigJavaFiles + [swigCFile], '',
-        '"' + swigExe + '" -Wall -v -java -nodefaultctor -nodefaultdtor -package com.wiredtiger.db -outdir lang/java/src/com/wiredtiger/db -o wiredtiger_wrap.c lang/java/wiredtiger.i')
-    env.Depends(swigFiles, wtheader)
-    objectJavaWrap = env.Object(swigCFile)
-    env.Depends(objectJavaWrap, swigCFile)
-
-    #
-    # Dynamically Loaded Library - wiredtiger_java.dll
-    wtjavadll = env.SharedLibrary(
-    target="wiredtiger_java",
-    source=wt_objs + [objectJavaWrap] + ['build_win/wiredtiger.def'], LIBS=wtlibs)
-
-    env.Depends(wtjavadll, [filelistfile, version_file])
-    Default(wtjavadll)
-
-    #
-    # wiredtiger.jar
-    env['JAVAC'] = '"' + javaPath + '/bin/javac.exe"'
-    env['JAR'] = '"' + javaPath + '/bin/jar.exe"'
-    # Build classes
-    wtClasses = env.Java('lang/java/build', 'lang/java/src/')
-    env.Depends(wtClasses, swigJavaFiles)
-    # Pack classes in jar
-    wtJar = env.Command( 'lang/java/wiredtiger.jar', 'lang/java/build', env['JAR'] + " -cf $TARGET -C $SOURCE .")
-    env.Depends(wtJar, wtClasses)
-    Default(wtJar)
-else:
-    print("Error using --enable-java, this option may contain two paths separated by comma, the first is the swig.exe binary and the second is the Java JDK directory. e.g. C:\Python27\python.exe C:\Python27\Scripts\scons.py --enable-java=\"C:\Program Files\swigwin-3.0.12\swig.exe\",\"C:\Program Files\Java\jdk1.8.0_151\"")
+    Default(swiginstall, copySwig1, copySwig2)
 
 # Shim library of functions to emulate POSIX on Windows
 shim = env.Library("window_shim",
@@ -423,7 +385,6 @@ examples = [
     "ex_access",
     # Temporarily disabled
     # "ex_all",
-    "ex_async",
     "ex_call_center",
     "ex_config_parse",
     "ex_cursor",

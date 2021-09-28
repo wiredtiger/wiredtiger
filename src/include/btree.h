@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -12,7 +12,13 @@
 #define WT_BTREE_MAJOR_VERSION_MIN 1 /* Oldest version supported */
 #define WT_BTREE_MINOR_VERSION_MIN 1
 
+/* Increase the version number for standalone build. */
+#ifdef WT_STANDALONE_BUILD
+#define WT_BTREE_MAJOR_VERSION_MAX 2 /* Newest version supported */
+#else
 #define WT_BTREE_MAJOR_VERSION_MAX 1 /* Newest version supported */
+#endif
+
 #define WT_BTREE_MINOR_VERSION_MAX 1
 
 #define WT_BTREE_MIN_ALLOC_SIZE 512
@@ -59,6 +65,32 @@
  */
 #define WT_BTREE_MIN_SPLIT_PCT 50
 
+typedef enum __wt_btree_type {
+    BTREE_COL_FIX = 1, /* Fixed-length column store */
+    BTREE_COL_VAR = 2, /* Variable-length column store */
+    BTREE_ROW = 3      /* Row-store */
+} WT_BTREE_TYPE;
+
+typedef enum __wt_btree_sync {
+    WT_BTREE_SYNC_OFF,
+    WT_BTREE_SYNC_WAIT,
+    WT_BTREE_SYNC_RUNNING
+} WT_BTREE_SYNC;
+
+typedef enum {
+    CKSUM_ON = 1,           /* On */
+    CKSUM_OFF = 2,          /* Off */
+    CKSUM_UNCOMPRESSED = 3, /* Uncompressed blocks only */
+    CKSUM_UNENCRYPTED = 4   /* Unencrypted blocks only */
+} WT_BTREE_CHECKSUM;
+
+typedef enum { /* Start position for eviction walk */
+    WT_EVICT_WALK_NEXT,
+    WT_EVICT_WALK_PREV,
+    WT_EVICT_WALK_RAND_NEXT,
+    WT_EVICT_WALK_RAND_PREV
+} WT_EVICT_WALK_TYPE;
+
 /*
  * An invalid btree file ID value. ID 0 is reserved for the metadata file.
  */
@@ -71,13 +103,10 @@
 struct __wt_btree {
     WT_DATA_HANDLE *dhandle;
 
-    WT_CKPT *ckpt; /* Checkpoint information */
+    WT_CKPT *ckpt;               /* Checkpoint information */
+    size_t ckpt_bytes_allocated; /* Checkpoint information array allocation size */
 
-    enum {
-        BTREE_COL_FIX = 1, /* Fixed-length column store */
-        BTREE_COL_VAR = 2, /* Variable-length column store */
-        BTREE_ROW = 3      /* Row-store */
-    } type;                /* Type */
+    WT_BTREE_TYPE type; /* Type */
 
     const char *key_format;   /* Key format */
     const char *value_format; /* Value format */
@@ -87,8 +116,6 @@ struct __wt_btree {
     int collator_owned;    /* The collator needs to be freed */
 
     uint32_t id; /* File ID, for logging */
-
-    uint32_t key_gap; /* Row-store prefix key gap */
 
     uint32_t allocsize;        /* Allocation size */
     uint32_t maxintlpage;      /* Internal page max size */
@@ -100,26 +127,9 @@ struct __wt_btree {
     uint32_t maxmempage_image; /* In-memory page image max size */
     uint64_t splitmempage;     /* In-memory split trigger size */
 
-/* AUTOMATIC FLAG VALUE GENERATION START */
-#define WT_ASSERT_COMMIT_TS_ALWAYS 0x01u
-#define WT_ASSERT_COMMIT_TS_KEYS 0x02u
-#define WT_ASSERT_COMMIT_TS_NEVER 0x04u
-#define WT_ASSERT_DURABLE_TS_ALWAYS 0x08u
-#define WT_ASSERT_DURABLE_TS_KEYS 0x10u
-#define WT_ASSERT_DURABLE_TS_NEVER 0x20u
-#define WT_ASSERT_READ_TS_ALWAYS 0x40u
-#define WT_ASSERT_READ_TS_NEVER 0x80u
-    /* AUTOMATIC FLAG VALUE GENERATION STOP */
-    uint32_t assert_flags; /* Debugging assertion information */
-
-    void *huffman_key;   /* Key huffman encoding */
     void *huffman_value; /* Value huffman encoding */
 
-    enum {
-        CKSUM_ON = 1,          /* On */
-        CKSUM_OFF = 2,         /* Off */
-        CKSUM_UNCOMPRESSED = 3 /* Uncompressed blocks only */
-    } checksum;                /* Checksum configuration */
+    WT_BTREE_CHECKSUM checksum; /* Checksum configuration */
 
     /*
      * Reconciliation...
@@ -146,6 +156,7 @@ struct __wt_btree {
     bool intlpage_compadjust;     /* Run-time compression adjustment */
     uint64_t maxintlpage_precomp; /* Internal page pre-compression size */
 
+    WT_BUCKET_STORAGE *bstorage;    /* Tiered storage source */
     WT_KEYED_ENCRYPTOR *kencryptor; /* Page encryptor */
 
     WT_RWLOCK ovfl_lock; /* Overflow lock */
@@ -166,17 +177,15 @@ struct __wt_btree {
     WT_BM *bm;          /* Block manager reference */
     u_int block_header; /* WT_PAGE_HEADER_BYTE_SIZE */
 
-    uint64_t write_gen;   /* Write generation */
-    uint64_t rec_max_txn; /* Maximum txn seen (clean trees) */
+    uint64_t write_gen;      /* Write generation */
+    uint64_t base_write_gen; /* Write generation on startup. */
+    uint64_t run_write_gen;  /* Runtime write generation. */
+    uint64_t rec_max_txn;    /* Maximum txn seen (clean trees) */
     wt_timestamp_t rec_max_timestamp;
 
     uint64_t checkpoint_gen;       /* Checkpoint generation */
     WT_SESSION_IMPL *sync_session; /* Syncing session */
-    volatile enum {
-        WT_BTREE_SYNC_OFF,
-        WT_BTREE_SYNC_WAIT,
-        WT_BTREE_SYNC_RUNNING
-    } syncing; /* Sync status */
+    WT_BTREE_SYNC syncing;         /* Sync status */
 
 /*
  * Helper macros: WT_BTREE_SYNCING indicates if a sync is active (either waiting to start or already
@@ -244,38 +253,33 @@ struct __wt_btree {
     int32_t evict_disabled;       /* Eviction disabled count */
     bool evict_disabled_open;     /* Eviction disabled on open */
     volatile uint32_t evict_busy; /* Count of threads in eviction */
-    enum {                        /* Start position for eviction walk */
-        WT_EVICT_WALK_NEXT,
-        WT_EVICT_WALK_PREV,
-        WT_EVICT_WALK_RAND_NEXT,
-        WT_EVICT_WALK_RAND_PREV
-    } evict_start_type;
+    WT_EVICT_WALK_TYPE evict_start_type;
 
 /*
- * Flag values up to 0xff are reserved for WT_DHANDLE_XXX. We don't automatically generate these
- * flag values for that reason, there's no way to start at an offset.
+ * Flag values up to 0xfff are reserved for WT_DHANDLE_XXX. See comment with dhandle flags for an
+ * explanation.
  */
-#define WT_BTREE_ALTER 0x000100u         /* Handle is for alter */
-#define WT_BTREE_BULK 0x000200u          /* Bulk-load handle */
-#define WT_BTREE_CLOSED 0x000400u        /* Handle closed */
-#define WT_BTREE_IGNORE_CACHE 0x000800u  /* Cache-resident object */
-#define WT_BTREE_IN_MEMORY 0x001000u     /* Cache-resident object */
-#define WT_BTREE_HS 0x002000u            /* History store table */
-#define WT_BTREE_NO_CHECKPOINT 0x004000u /* Disable checkpoints */
-#define WT_BTREE_NO_LOGGING 0x008000u    /* Disable logging */
-#define WT_BTREE_READONLY 0x010000u      /* Handle is readonly */
-#define WT_BTREE_REBALANCE 0x020000u     /* Handle is for rebalance */
-#define WT_BTREE_SALVAGE 0x040000u       /* Handle is for salvage */
-#define WT_BTREE_SKIP_CKPT 0x080000u     /* Handle skipped checkpoint */
-#define WT_BTREE_UPGRADE 0x100000u       /* Handle is for upgrade */
-#define WT_BTREE_VERIFY 0x200000u        /* Handle is for verify */
+/* AUTOMATIC FLAG VALUE GENERATION START 12 */
+#define WT_BTREE_ALTER 0x0001000u          /* Handle is for alter */
+#define WT_BTREE_BULK 0x0002000u           /* Bulk-load handle */
+#define WT_BTREE_CLOSED 0x0004000u         /* Handle closed */
+#define WT_BTREE_IGNORE_CACHE 0x0008000u   /* Cache-resident object */
+#define WT_BTREE_IN_MEMORY 0x0010000u      /* Cache-resident object */
+#define WT_BTREE_NO_CHECKPOINT 0x0020000u  /* Disable checkpoints */
+#define WT_BTREE_NO_LOGGING 0x0040000u     /* Disable logging */
+#define WT_BTREE_OBSOLETE_PAGES 0x0080000u /* Handle has obsolete pages */
+#define WT_BTREE_READONLY 0x0100000u       /* Handle is readonly */
+#define WT_BTREE_SALVAGE 0x0200000u        /* Handle is for salvage */
+#define WT_BTREE_SKIP_CKPT 0x0400000u      /* Handle skipped checkpoint */
+#define WT_BTREE_UPGRADE 0x0800000u        /* Handle is for upgrade */
+#define WT_BTREE_VERIFY 0x1000000u         /* Handle is for verify */
+                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 32 */
     uint32_t flags;
 };
 
 /* Flags that make a btree handle special (not for normal use). */
-#define WT_BTREE_SPECIAL_FLAGS                                                                   \
-    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_REBALANCE | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | \
-      WT_BTREE_VERIFY)
+#define WT_BTREE_SPECIAL_FLAGS \
+    (WT_BTREE_ALTER | WT_BTREE_BULK | WT_BTREE_SALVAGE | WT_BTREE_UPGRADE | WT_BTREE_VERIFY)
 
 /*
  * WT_SALVAGE_COOKIE --

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -42,7 +42,7 @@ __wt_schema_open_colgroups(WT_SESSION_IMPL *session, WT_TABLE *table)
     u_int i;
     char *cgconfig;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
     if (table->cg_complete)
         return (0);
@@ -393,7 +393,7 @@ __wt_schema_open_indices(WT_SESSION_IMPL *session, WT_TABLE *table)
  *     Open the data handle for a table (internal version).
  */
 static int
-__schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
+__schema_open_table(WT_SESSION_IMPL *session)
 {
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
@@ -406,8 +406,7 @@ __schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
     table_cfg = table->iface.cfg;
     tablename = table->iface.name;
 
-    WT_ASSERT(session, F_ISSET(session, WT_SESSION_LOCKED_TABLE));
-    WT_UNUSED(cfg);
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_TABLE));
 
     WT_RET(__wt_config_gets(session, table_cfg, "columns", &cval));
     WT_RET(__wt_config_gets(session, table_cfg, "key_format", &cval));
@@ -551,13 +550,12 @@ err:
  *     Open a named table.
  */
 int
-__wt_schema_open_table(WT_SESSION_IMPL *session, const char *cfg[])
+__wt_schema_open_table(WT_SESSION_IMPL *session)
 {
     WT_DECL_RET;
 
     WT_WITH_TABLE_WRITE_LOCK(session,
-      WT_WITH_TXN_ISOLATION(
-        session, WT_ISO_READ_UNCOMMITTED, ret = __schema_open_table(session, cfg)));
+      WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = __schema_open_table(session)));
 
     return (ret);
 }

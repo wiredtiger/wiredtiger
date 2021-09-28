@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -736,8 +736,7 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
      * caching fails, we'll decrement the statistics after reopening the cursor (and getting the
      * data handle back).
      */
-    WT_STAT_CONN_INCR(session, cursor_cache);
-    WT_STAT_DATA_INCR(session, cursor_cache);
+    WT_STAT_CONN_DATA_INCR(session, cursor_cache);
     WT_ERR(cursor->cache(cursor));
     WT_ASSERT(session, F_ISSET(cursor, WT_CURSTD_CACHED));
     *released = true;
@@ -751,11 +750,27 @@ __wt_cursor_cache_release(WT_SESSION_IMPL *session, WT_CURSOR *cursor, bool *rel
 err:
         WT_TRET(cursor->reopen(cursor, false));
         WT_ASSERT(session, !F_ISSET(cursor, WT_CURSTD_CACHED));
-        WT_STAT_CONN_DECR(session, cursor_cache);
-        WT_STAT_DATA_DECR(session, cursor_cache);
+        WT_STAT_CONN_DATA_DECR(session, cursor_cache);
     }
 
     return (ret);
+}
+
+/*
+ * __wt_cursor_get_hash --
+ *     Get hash value from the given uri.
+ */
+void
+__wt_cursor_get_hash(
+  WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup, uint64_t *hash_value)
+{
+    if (to_dup != NULL) {
+        WT_ASSERT(session, uri == NULL);
+        *hash_value = to_dup->uri_hash;
+    } else {
+        WT_ASSERT(session, uri != NULL);
+        *hash_value = __wt_hash_city64(uri, strlen(uri));
+    }
 }
 
 /*
@@ -763,14 +778,14 @@ err:
  *     Open a matching cursor from the cache.
  */
 int
-__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_dup,
-  const char *cfg[], WT_CURSOR **cursorp)
+__wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_value,
+  WT_CURSOR *to_dup, const char *cfg[], WT_CURSOR **cursorp)
 {
     WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_CURSOR_BTREE *cbt;
     WT_DECL_RET;
-    uint64_t bucket, hash_value;
+    uint64_t bucket;
     uint32_t overwrite_flag;
     bool have_config;
 
@@ -798,6 +813,10 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
         if (cval.val)
             return (WT_NOTFOUND);
 
+        WT_RET(__wt_config_gets_def(session, cfg, "debug", 0, &cval));
+        if (cval.len != 0)
+            return (WT_NOTFOUND);
+
         WT_RET(__wt_config_gets_def(session, cfg, "dump", 0, &cval));
         if (cval.len != 0)
             return (WT_NOTFOUND);
@@ -816,18 +835,8 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
             return (WT_NOTFOUND);
     }
 
-    /*
-     * Caller guarantees that exactly one of the URI and the duplicate cursor is non-NULL.
-     */
-    if (to_dup != NULL) {
-        WT_ASSERT(session, uri == NULL);
+    if (to_dup != NULL)
         uri = to_dup->uri;
-        hash_value = to_dup->uri_hash;
-    } else {
-        WT_ASSERT(session, uri != NULL);
-        hash_value = __wt_hash_city64(uri, strlen(uri));
-    }
-
     /*
      * Walk through all cursors, if there is a cached cursor that matches uri and configuration, use
      * it.
@@ -846,12 +855,13 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
              * For these configuration values, there is no difference in the resulting cursor other
              * than flag values, so fix them up according to the given configuration.
              */
-            F_CLR(cursor, WT_CURSTD_APPEND | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
+            F_CLR(cursor,
+              WT_CURSTD_APPEND | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
-            if (WT_PREFIX_MATCH(cursor->internal_uri, "file:")) {
+            if (WT_BTREE_PREFIX(cursor->internal_uri)) {
                 cbt = (WT_CURSOR_BTREE *)cursor;
                 F_CLR(cbt, WT_CBT_READ_ONCE);
             } else {
@@ -883,8 +893,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, WT_CURSOR *to_d
                 }
             }
 
-            WT_STAT_CONN_INCR(session, cursor_reopen);
-            WT_STAT_DATA_INCR(session, cursor_reopen);
+            /*
+             * A side effect of a cursor open is to leave the session's data handle set. Honor that
+             * for a "reopen".
+             */
+            if (cbt != NULL)
+                session->dhandle = cbt->dhandle;
 
             *cursorp = cursor;
             return (0);
@@ -979,6 +993,56 @@ err:
 }
 
 /*
+ * __cursor_config_debug --
+ *     Set configuration options for debug category.
+ */
+static int
+__cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
+{
+    WT_CONFIG_ITEM cval;
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+
+    session = (WT_SESSION_IMPL *)cursor->session;
+
+    /*
+     * Debug options. Special handling for options that aren't found - since reconfigure passes in
+     * just the single configuration string, not the stack.
+     */
+    if ((ret = __wt_config_gets_def(session, cfg, "debug.release_evict", 0, &cval)) == 0) {
+        if (cval.val)
+            F_SET(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
+        else
+            F_CLR(cursor, WT_CURSTD_DEBUG_RESET_EVICT);
+    } else
+        WT_RET_NOTFOUND_OK(ret);
+    return (0);
+}
+
+/*
+ * __check_prefix_format --
+ *     Check if the schema format is a fixed-length string, variable string or byte array.
+ */
+static int
+__check_prefix_format(const char *format)
+{
+    size_t len;
+    const char *p;
+
+    /* Early exit if prefix format is S or u. */
+    if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
+        return (0);
+    /*
+     * Now check for fixed-length string format through looking at the characters before the nul
+     * character.
+     */
+    for (p = format, len = strlen(format); len > 1; --len, p++)
+        if (!__wt_isdigit((u_char)*p))
+            break;
+    return ((len > 1 || *p != 's') ? EINVAL : 0);
+}
+
+/*
  * __wt_cursor_reconfigure --
  *     Set runtime-configurable settings.
  */
@@ -988,6 +1052,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    const char *cfg[] = {config, NULL};
 
     CURSOR_API_CALL(cursor, session, reconfigure, NULL);
 
@@ -1017,6 +1082,32 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
             F_CLR(cursor, WT_CURSTD_OVERWRITE);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
+
+    /* Set the prefix search near flag. */
+    if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+        if (cval.val) {
+            /* Prefix search near configuration can only be used for row-store. */
+            if (WT_CURSOR_RECNO(cursor))
+                WT_ERR_MSG(
+                  session, EINVAL, "cannot use prefix key search near for column store formats");
+            /*
+             * Prefix search near configuration can only be used for string or raw byte array
+             * formats.
+             */
+            if ((ret = __check_prefix_format(cursor->key_format)) != 0)
+                WT_ERR_MSG(session, ret,
+                  "prefix key search near can only be used with string, fixed-length string or raw "
+                  "byte array format types");
+            if (CUR2BT(cursor)->collator != NULL)
+                WT_ERR_MSG(
+                  session, EINVAL, "cannot use prefix key search near with a custom collator");
+            F_SET(cursor, WT_CURSTD_PREFIX_SEARCH);
+        } else
+            F_CLR(cursor, WT_CURSTD_PREFIX_SEARCH);
+    } else
+        WT_ERR_NOTFOUND_OK(ret, false);
+
+    WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
     API_END_RET(session, ret);
@@ -1077,8 +1168,11 @@ __wt_cursor_init(
 
     session = CUR2S(cursor);
 
-    if (cursor->internal_uri == NULL)
+    if (cursor->internal_uri == NULL) {
+        /* Various cursor code assumes there is an internal URI, so there better be one to set. */
+        WT_ASSERT(session, uri != NULL);
         WT_RET(__wt_strdup(session, uri, &cursor->internal_uri));
+    }
 
     /*
      * append The append flag is only relevant to column stores.
@@ -1110,6 +1204,7 @@ __wt_cursor_init(
         cursor->update = __wt_cursor_notsup;
         F_CLR(cursor, WT_CURSTD_CACHEABLE);
     }
+    WT_RET(__cursor_config_debug(cursor, cfg));
 
     /*
      * dump If an index cursor is opened with dump, then this function is called on the index files,
@@ -1125,6 +1220,8 @@ __wt_cursor_init(
             dump_flag = WT_CURSTD_DUMP_PRINT;
         else if (WT_STRING_MATCH("pretty", cval.str, cval.len))
             dump_flag = WT_CURSTD_DUMP_PRETTY;
+        else if (WT_STRING_MATCH("pretty_hex", cval.str, cval.len))
+            dump_flag = WT_CURSTD_DUMP_HEX | WT_CURSTD_DUMP_PRETTY;
         else
             dump_flag = WT_CURSTD_DUMP_HEX;
         F_SET(cursor, dump_flag);
@@ -1157,6 +1254,10 @@ __wt_cursor_init(
     if ((WT_STREQ(cursor->value_format, "S") || WT_STREQ(cursor->value_format, "u")) &&
       cursor->modify == __wt_cursor_modify_value_format_notsup)
         cursor->modify = __cursor_modify;
+
+    /* Tiered cursors are not yet candidates for caching. */
+    if (uri != NULL && WT_PREFIX_MATCH(uri, "tiered:"))
+        F_CLR(cursor, WT_CURSTD_CACHEABLE);
 
     /*
      * Cursors that are internal to some other cursor (such as file cursors inside a table cursor)

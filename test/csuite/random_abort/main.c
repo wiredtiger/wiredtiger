@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -162,15 +162,9 @@ thread_run(void *arg)
 
     testutil_check(td->conn->open_session(td->conn, NULL, NULL, &session));
 
-#if 0
-    /*
-     * Make sure that alternative threads operate on column-store table
-     *
-     * FIXME-WT-6125: temporarily turn off column store test.
-     */
+    /* Make alternate threads operate on the column-store table. */
     if (td->id % 2 != 0)
         columnar_table = true;
-#endif
 
     if (columnar_table)
         testutil_check(session->open_cursor(session, col_uri, NULL, NULL, &cursor));
@@ -384,7 +378,6 @@ recover_and_verify(uint32_t nthreads)
     fatal = false;
     for (i = 0; i < nthreads; ++i) {
 
-#if 0
         /*
          * Every alternative thread is operated on column-store table. Make sure that proper cursor
          * is used for verification of recovered records.
@@ -396,11 +389,6 @@ recover_and_verify(uint32_t nthreads)
             columnar_table = false;
             cursor = row_cursor;
         }
-#else
-        /* FIXME-WT-6125: temporarily turn off column store test. */
-        columnar_table = false;
-        cursor = row_cursor;
-#endif
 
         middle = 0;
         testutil_check(__wt_snprintf(fname[DELETE_RECORD_FILE_ID],
@@ -747,12 +735,8 @@ main(int argc, char *argv[])
     if (chdir(home) != 0)
         testutil_die(errno, "parent chdir: %s", home);
 
-    testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "rm -rf ../%s.SAVE; mkdir ../%s.SAVE; "
-      "cp -p WiredTigerLog.* ../%s.SAVE;",
-      home, home, home));
-    if ((status = system(buf)) < 0)
-        testutil_die(status, "system: %s", buf);
+    /* Copy the data to a separate folder for debugging purpose. */
+    testutil_copy_data(home);
 
     /*
      * Recover the database and verify whether all the records from all threads are present or not?

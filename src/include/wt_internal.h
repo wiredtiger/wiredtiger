@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -69,16 +69,6 @@ struct __wt_addr;
 typedef struct __wt_addr WT_ADDR;
 struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
-struct __wt_async;
-typedef struct __wt_async WT_ASYNC;
-struct __wt_async_cursor;
-typedef struct __wt_async_cursor WT_ASYNC_CURSOR;
-struct __wt_async_format;
-typedef struct __wt_async_format WT_ASYNC_FORMAT;
-struct __wt_async_op_impl;
-typedef struct __wt_async_op_impl WT_ASYNC_OP_IMPL;
-struct __wt_async_worker_state;
-typedef struct __wt_async_worker_state WT_ASYNC_WORKER_STATE;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
 struct __wt_blkcache_id;
@@ -93,6 +83,8 @@ struct __wt_block_ckpt;
 typedef struct __wt_block_ckpt WT_BLOCK_CKPT;
 struct __wt_block_desc;
 typedef struct __wt_block_desc WT_BLOCK_DESC;
+struct __wt_block_file_opener;
+typedef struct __wt_block_file_opener WT_BLOCK_FILE_OPENER;
 struct __wt_block_header;
 typedef struct __wt_block_header WT_BLOCK_HEADER;
 struct __wt_block_mods;
@@ -105,6 +97,8 @@ struct __wt_bm;
 typedef struct __wt_bm WT_BM;
 struct __wt_btree;
 typedef struct __wt_btree WT_BTREE;
+struct __wt_bucket_storage;
+typedef struct __wt_bucket_storage WT_BUCKET_STORAGE;
 struct __wt_cache;
 typedef struct __wt_cache WT_CACHE;
 struct __wt_cache_pool;
@@ -157,6 +151,8 @@ struct __wt_cursor_data_source;
 typedef struct __wt_cursor_data_source WT_CURSOR_DATA_SOURCE;
 struct __wt_cursor_dump;
 typedef struct __wt_cursor_dump WT_CURSOR_DUMP;
+struct __wt_cursor_hs;
+typedef struct __wt_cursor_hs WT_CURSOR_HS;
 struct __wt_cursor_index;
 typedef struct __wt_cursor_index WT_CURSOR_INDEX;
 struct __wt_cursor_join;
@@ -249,12 +245,12 @@ struct __wt_lsm_worker_args;
 typedef struct __wt_lsm_worker_args WT_LSM_WORKER_ARGS;
 struct __wt_lsm_worker_cookie;
 typedef struct __wt_lsm_worker_cookie WT_LSM_WORKER_COOKIE;
-struct __wt_modify_vector;
-typedef struct __wt_modify_vector WT_MODIFY_VECTOR;
 struct __wt_multi;
 typedef struct __wt_multi WT_MULTI;
 struct __wt_myslot;
 typedef struct __wt_myslot WT_MYSLOT;
+struct __wt_name_flag;
+typedef struct __wt_name_flag WT_NAME_FLAG;
 struct __wt_named_collator;
 typedef struct __wt_named_collator WT_NAMED_COLLATOR;
 struct __wt_named_compressor;
@@ -265,6 +261,8 @@ struct __wt_named_encryptor;
 typedef struct __wt_named_encryptor WT_NAMED_ENCRYPTOR;
 struct __wt_named_extractor;
 typedef struct __wt_named_extractor WT_NAMED_EXTRACTOR;
+struct __wt_named_storage_source;
+typedef struct __wt_named_storage_source WT_NAMED_STORAGE_SOURCE;
 struct __wt_optrack_header;
 typedef struct __wt_optrack_header WT_OPTRACK_HEADER;
 struct __wt_optrack_record;
@@ -325,6 +323,18 @@ struct __wt_thread;
 typedef struct __wt_thread WT_THREAD;
 struct __wt_thread_group;
 typedef struct __wt_thread_group WT_THREAD_GROUP;
+struct __wt_tiered;
+typedef struct __wt_tiered WT_TIERED;
+struct __wt_tiered_manager;
+typedef struct __wt_tiered_manager WT_TIERED_MANAGER;
+struct __wt_tiered_object;
+typedef struct __wt_tiered_object WT_TIERED_OBJECT;
+struct __wt_tiered_tiers;
+typedef struct __wt_tiered_tiers WT_TIERED_TIERS;
+struct __wt_tiered_tree;
+typedef struct __wt_tiered_tree WT_TIERED_TREE;
+struct __wt_tiered_work_unit;
+typedef struct __wt_tiered_work_unit WT_TIERED_WORK_UNIT;
 struct __wt_time_aggregate;
 typedef struct __wt_time_aggregate WT_TIME_AGGREGATE;
 struct __wt_time_window;
@@ -343,6 +353,8 @@ struct __wt_update;
 typedef struct __wt_update WT_UPDATE;
 struct __wt_update_value;
 typedef struct __wt_update_value WT_UPDATE_VALUE;
+struct __wt_update_vector;
+typedef struct __wt_update_vector WT_UPDATE_VECTOR;
 union __wt_lsn;
 typedef union __wt_lsn WT_LSN;
 union __wt_rand_state;
@@ -394,9 +406,7 @@ typedef uint64_t wt_timestamp_t;
 #include "timestamp.h" /* required by reconcile.h */
 
 #include "api.h"
-#include "async.h"
 #include "block.h"
-#include "block_cache.h"
 #include "bloom.h"
 #include "btmem.h"
 #include "btree.h"
@@ -416,6 +426,7 @@ typedef uint64_t wt_timestamp_t;
 #include "reconcile.h"
 #include "schema.h"
 #include "thread_group.h"
+#include "tiered.h"
 #include "txn.h"
 
 #include "session.h" /* required by connection.h */
@@ -429,31 +440,31 @@ typedef uint64_t wt_timestamp_t;
 #endif
 #include "verify_build.h"
 
-#include "cache.i"   /* required by misc.i */
-#include "ctype.i"   /* required by packing.i */
-#include "intpack.i" /* required by cell.i, packing.i */
-#include "misc.i"    /* required by mutex.i */
+#include "cache_inline.h"   /* required by misc_inline.h */
+#include "ctype_inline.h"   /* required by packing_inline.h */
+#include "intpack_inline.h" /* required by cell_inline.h, packing_inline.h */
+#include "misc_inline.h"    /* required by mutex_inline.h */
 
-#include "buf.i"       /* required by cell.i */
-#include "timestamp.i" /* required by btree.i */
-#include "cell.i"      /* required by btree.i */
-#include "mutex.i"     /* required by btree.i */
-#include "txn.i"       /* required by btree.i */
+#include "buf_inline.h"       /* required by cell_inline.h */
+#include "timestamp_inline.h" /* required by btree_inline.h */
+#include "cell_inline.h"      /* required by btree_inline.h */
+#include "mutex_inline.h"     /* required by btree_inline.h */
+#include "txn_inline.h"       /* required by btree_inline.h */
 
-#include "bitstring.i"
-#include "block.i"
-#include "btree.i" /* required by cursor.i */
-#include "btree_cmp.i"
-#include "column.i"
-#include "cursor.i"
-#include "log.i"
-#include "os_fhandle.i"
-#include "os_fs.i"
-#include "os_fstream.i"
-#include "packing.i"
-#include "reconcile.i"
-#include "serial.i"
-#include "time.i"
+#include "bitstring_inline.h"
+#include "block_inline.h"
+#include "btree_inline.h" /* required by cursor_inline.h */
+#include "btree_cmp_inline.h"
+#include "column_inline.h"
+#include "cursor_inline.h"
+#include "log_inline.h"
+#include "os_fhandle_inline.h"
+#include "os_fs_inline.h"
+#include "os_fstream_inline.h"
+#include "packing_inline.h"
+#include "reconcile_inline.h"
+#include "serial_inline.h"
+#include "time_inline.h"
 
 #if defined(__cplusplus)
 }

@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -359,8 +359,10 @@ restart:
              * done.
              */
             if (__wt_ref_is_root(ref)) {
-                if (!LF_ISSET(WT_READ_SKIP_INTL))
+                if (!LF_ISSET(WT_READ_SKIP_INTL)) {
                     *refp = ref;
+                    WT_ASSERT(session, ref != ref_orig);
+                }
                 goto done;
             }
 
@@ -372,9 +374,6 @@ restart:
                 __wt_page_evict_soon(session, ref);
                 empty_internal = false;
             }
-
-            /* Encourage races. */
-            __wt_timing_stress(session, WT_TIMING_STRESS_SPLIT_8);
 
             /* Optionally return internal pages. */
             if (LF_ISSET(WT_READ_SKIP_INTL))
@@ -392,6 +391,7 @@ restart:
                 /* Success, "couple" released. */
                 couple = NULL;
                 *refp = ref;
+                WT_ASSERT(session, ref != ref_orig);
                 goto done;
             }
 
@@ -464,6 +464,7 @@ descend:
                 /* Return leaf pages to our caller. */
                 if (F_ISSET(ref, WT_REF_FLAG_LEAF)) {
                     *refp = ref;
+                    WT_ASSERT(session, ref != ref_orig);
                     goto done;
                 }
 

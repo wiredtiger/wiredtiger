@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -26,11 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-try:
-    import Queue as queue  # python2
-except ImportError:
-    import queue
-import threading, time, wiredtiger, wttest
+import queue, threading, time, wiredtiger, wttest
 from wtthread import backup_thread, checkpoint_thread, op_thread
 
 # test_backup02.py

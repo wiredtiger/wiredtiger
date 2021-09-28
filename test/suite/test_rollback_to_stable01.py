@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -30,79 +30,121 @@ import time
 from helper import copy_wiredtiger_home
 import wiredtiger, wttest
 from wtdataset import SimpleDataSet
-from wiredtiger import stat
+from wiredtiger import stat, wiredtiger_strerror, WiredTigerError, WT_ROLLBACK
 from wtscenario import make_scenarios
-
-def timestamp_str(t):
-    return '%x' % t
+from time import sleep
 
 # test_rollback_to_stable01.py
 # Shared base class used by rollback to stable tests.
 class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
+    def retry_rollback(self, name, txn_session, code):
+        retry_limit = 100
+        retries = 0
+        completed = False
+        saved_exception = None
+        while not completed and retries < retry_limit:
+            if retries != 0:
+                self.pr("Retrying operation for " + name)
+                if txn_session:
+                    txn_session.rollback_transaction()
+                sleep(0.1)
+                if txn_session:
+                    txn_session.begin_transaction('isolation=snapshot')
+                    self.pr("Began new transaction for " + name)
+            try:
+                code()
+                completed = True
+            except WiredTigerError as e:
+                rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+                if rollback_str not in str(e):
+                    raise(e)
+                retries += 1
+                saved_exception = e
+        if not completed and saved_exception:
+            raise(saved_exception)
+
+    def large_updates(self, uri, value, ds, nrows, prepare, commit_ts):
         # Update a large number of records.
         session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
-            session.begin_transaction()
-            cursor[ds.key(i)] = value
-            if commit_ts == 0:
-                session.commit_transaction()
-            elif self.prepare:
-                session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
-                session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-                session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
-                session.commit_transaction()
-            else:
-                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
+        try:
+            cursor = session.open_cursor(uri)
+            for i in range(1, nrows + 1):
+                session.begin_transaction()
+                cursor[ds.key(i)] = value
+                if commit_ts == 0:
+                    session.commit_transaction()
+                elif prepare:
+                    session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
+                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
+                    session.commit_transaction()
+                else:
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            cursor.close()
+        except WiredTigerError as e:
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
+            raise(e)
 
-    def large_modifies(self, uri, value, ds, location, nbytes, nrows, commit_ts):
+    def large_modifies(self, uri, value, ds, location, nbytes, nrows, prepare, commit_ts):
         # Load a slight modification.
         session = self.session
-        cursor = session.open_cursor(uri)
-        session.begin_transaction()
-        for i in range(0, nrows):
-            cursor.set_key(i)
-            mods = [wiredtiger.Modify(value, location, nbytes)]
-            self.assertEqual(cursor.modify(mods), 0)
-
-        if commit_ts == 0:
-            session.commit_transaction()
-        elif self.prepare:
-            session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
-            session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-            session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
-            session.commit_transaction()
-        else:
-            session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
-
-    def large_removes(self, uri, ds, nrows, commit_ts):
-        # Remove a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        for i in range(0, nrows):
+        try:
+            cursor = session.open_cursor(uri)
             session.begin_transaction()
-            cursor.set_key(i)
-            cursor.remove()
+            for i in range(1, nrows + 1):
+                cursor.set_key(i)
+                mods = [wiredtiger.Modify(value, location, nbytes)]
+                self.assertEqual(cursor.modify(mods), 0)
+
             if commit_ts == 0:
                 session.commit_transaction()
-            elif self.prepare:
-                session.prepare_transaction('prepare_timestamp=' + timestamp_str(commit_ts-1))
-                session.timestamp_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-                session.timestamp_transaction('durable_timestamp=' + timestamp_str(commit_ts+1))
+            elif prepare:
+                session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
+                session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+                session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
                 session.commit_transaction()
             else:
-                session.commit_transaction('commit_timestamp=' + timestamp_str(commit_ts))
-        cursor.close()
+                session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            cursor.close()
+        except WiredTigerError as e:
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
+            raise(e)
+
+    def large_removes(self, uri, ds, nrows, prepare, commit_ts):
+        # Remove a large number of records.
+        session = self.session
+        try:
+            cursor = session.open_cursor(uri)
+            for i in range(1, nrows + 1):
+                session.begin_transaction()
+                cursor.set_key(i)
+                cursor.remove()
+                if commit_ts == 0:
+                    session.commit_transaction()
+                elif prepare:
+                    session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
+                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
+                    session.commit_transaction()
+                else:
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
+            cursor.close()
+        except WiredTigerError as e:
+            rollback_str = wiredtiger_strerror(WT_ROLLBACK)
+            if rollback_str in str(e):
+                session.rollback_transaction()
+            raise(e)
 
     def check(self, check_value, uri, nrows, read_ts):
         session = self.session
         if read_ts == 0:
             session.begin_transaction()
         else:
-            session.begin_transaction('read_timestamp=' + timestamp_str(read_ts))
+            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
         cursor = session.open_cursor(uri)
         count = 0
         for k, v in cursor:
@@ -110,10 +152,16 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
             count += 1
         session.commit_transaction()
         self.assertEqual(count, nrows)
+        cursor.close()
 
 # Test that rollback to stable clears the remove operation.
 class test_rollback_to_stable01(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
+
+    key_format_values = [
+        ('column', dict(key_format='r')),
+        ('integer_row', dict(key_format='i')),
+    ]
 
     in_memory_values = [
         ('no_inmem', dict(in_memory=False)),
@@ -125,7 +173,7 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         ('prepare', dict(prepare=True))
     ]
 
-    scenarios = make_scenarios(in_memory_values, prepare_values)
+    scenarios = make_scenarios(key_format_values, in_memory_values, prepare_values)
 
     def conn_config(self):
         config = 'cache_size=50MB,statistics=(all)'
@@ -141,28 +189,28 @@ class test_rollback_to_stable01(test_rollback_to_stable_base):
         # Create a table without logging.
         uri = "table:rollback_to_stable01"
         ds = SimpleDataSet(
-            self, uri, 0, key_format="i", value_format="S", config='log=(enabled=false)')
+            self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
 
         # Pin oldest and stable to timestamp 1.
-        self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(1) +
-            ',stable_timestamp=' + timestamp_str(1))
+        self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1) +
+            ',stable_timestamp=' + self.timestamp_str(1))
 
         valuea = "aaaaa" * 100
-        self.large_updates(uri, valuea, ds, nrows, 10)
+        self.large_updates(uri, valuea, ds, nrows, self.prepare, 10)
         # Check that all updates are seen.
         self.check(valuea, uri, nrows, 10)
 
         # Remove all keys with newer timestamp.
-        self.large_removes(uri, ds, nrows, 20)
+        self.large_removes(uri, ds, nrows, self.prepare, 20)
         # Check that the no keys should be visible.
         self.check(valuea, uri, 0, 20)
 
         # Pin stable to timestamp 20 if prepare otherwise 10.
         if self.prepare:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(20))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(20))
         else:
-            self.conn.set_timestamp('stable_timestamp=' + timestamp_str(10))
+            self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(10))
         # Checkpoint to ensure that all the updates are flushed to disk.
         if not self.in_memory:
             self.session.checkpoint()

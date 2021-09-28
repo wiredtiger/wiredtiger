@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -34,9 +34,6 @@ from suite_subprocess import suite_subprocess
 import wiredtiger, wttest
 from wtscenario import make_scenarios
 
-def timestamp_str(t):
-    return '%x' % t
-
 class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     conn_config = 'config_base=false,create,log=(enabled)'
     session_config = 'isolation=snapshot'
@@ -48,6 +45,10 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
     nentries = 10
     table_cnt = 3
 
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
     types = [
         ('all', dict(use_stable='false', run_wt=0)),
         ('all+wt', dict(use_stable='false', run_wt=1)),
@@ -59,7 +60,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         ('stable+wt', dict(use_stable='true', run_wt=1)),
         ('stable+wt2', dict(use_stable='true', run_wt=2)),
     ]
-    scenarios = make_scenarios(types)
+    scenarios = make_scenarios(key_format_values, types)
 
     def data_and_checkpoint(self):
         #
@@ -67,10 +68,11 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         # Add data to each of them separately and checkpoint so that each one
         # has a different stable timestamp.
         #
-        self.session.create(self.oplog_uri, 'key_format=i,value_format=i')
-        self.session.create(self.coll1_uri, 'key_format=i,value_format=i,log=(enabled=false)')
-        self.session.create(self.coll2_uri, 'key_format=i,value_format=i,log=(enabled=false)')
-        self.session.create(self.coll3_uri, 'key_format=i,value_format=i,log=(enabled=false)')
+        basecfg = 'key_format={},value_format=i'.format(self.key_format)
+        self.session.create(self.oplog_uri, basecfg)
+        self.session.create(self.coll1_uri, basecfg + ',log=(enabled=false)')
+        self.session.create(self.coll2_uri, basecfg + ',log=(enabled=false)')
+        self.session.create(self.coll3_uri, basecfg + ',log=(enabled=false)')
         c_op = self.session.open_cursor(self.oplog_uri)
         c = []
         c.append(self.session.open_cursor(self.coll1_uri))
@@ -90,16 +92,16 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
                 curs[i] = i
                 self.pr("i: " + str(i))
                 self.session.commit_transaction(
-                  'commit_timestamp=' + timestamp_str(i))
+                  'commit_timestamp=' + self.timestamp_str(i))
             # Set the oldest and stable timestamp a bit earlier than the data
             # we inserted. Take a checkpoint to the stable timestamp.
             self.pr("stable ts: " + str(ts))
-            self.conn.set_timestamp('oldest_timestamp=' + timestamp_str(ts) +
-                ',stable_timestamp=' + timestamp_str(ts))
+            self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(ts) +
+                ',stable_timestamp=' + self.timestamp_str(ts))
             # This forces a different checkpoint timestamp for each table.
             self.session.checkpoint()
             q = self.conn.query_timestamp('get=last_checkpoint')
-            self.assertTimestampsEqual(q, timestamp_str(ts))
+            self.assertTimestampsEqual(q, self.timestamp_str(ts))
         return ts
 
     def close_and_recover(self, expected_rec_ts):
@@ -124,7 +126,7 @@ class test_timestamp10(wttest.WiredTigerTestCase, suite_subprocess):
         self.open_conn()
         q = self.conn.query_timestamp('get=recovery')
         self.pr("query recovery ts: " + q)
-        self.assertTimestampsEqual(q, timestamp_str(expected_rec_ts))
+        self.assertTimestampsEqual(q, self.timestamp_str(expected_rec_ts))
 
     def test_timestamp_recovery(self):
         # Add some data and checkpoint at a stable timestamp.

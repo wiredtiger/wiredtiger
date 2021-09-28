@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -47,8 +47,12 @@
 #define URI_MAX_LEN 32
 #define URI_FORMAT "table:t%d-%d"
 #define KEY_FORMAT "key-%d-%d"
+#define TABLE_FORMAT "key_format=S,value_format=u"
 
 #define CONN_CONFIG_COMMON "timing_stress_for_test=[backup_rename]"
+
+#define NUM_ALLOC 5
+static const char *alloc_sizes[] = {"512B", "8K", "64K", "1M", "16M"};
 
 static int verbose_level = 0;
 static uint64_t seed = 0;
@@ -70,8 +74,8 @@ static bool do_rename = true;
     } while (0)
 
 /*
- * We keep an array of tables, each one may or may not be in use.
- * "In use" means it has been created, and will be updated from time to time.
+ * We keep an array of tables, each one may or may not be in use. "In use" means it has been
+ * created, and will be updated from time to time.
  */
 typedef struct {
     char *name;            /* non-null entries represent tables in use */
@@ -106,7 +110,9 @@ extern int __wt_optind;
 extern char *__wt_optarg;
 
 /*
- * The choices of operations we do to each table.
+ * The choices of operations we do to each table. Please do not initialize enum elements with custom
+ * values as there's an assumption that the first element has the default value of 0 and the last
+ * element is always reserved to check count on elements.
  */
 typedef enum { INSERT, MODIFY, REMOVE, UPDATE, _OPERATION_TYPE_COUNT } OPERATION_TYPE;
 
@@ -150,6 +156,20 @@ die(void)
 }
 
 /*
+ * Get operation type based on the number of changes
+ */
+static OPERATION_TYPE
+get_operation_type(uint64_t change_count)
+{
+    int32_t op_type;
+
+    op_type = ((change_count % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
+    testutil_assert(op_type <= _OPERATION_TYPE_COUNT);
+
+    return (OPERATION_TYPE)op_type;
+}
+
+/*
  * key_value --
  *     Return the key, value and operation type for a given change to a table. See "Cycle of changes
  *     to a table" above.
@@ -169,7 +189,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
     char ch;
 
     key_num = change_count % KEYS_PER_TABLE;
-    *typep = op_type = (OPERATION_TYPE)((change_count % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
+    *typep = op_type = get_operation_type(change_count);
 
     testutil_check(
       __wt_snprintf(key, key_size, KEY_FORMAT, (int)(key_num % 100), (int)(key_num / 100)));
@@ -185,8 +205,7 @@ key_value(uint64_t change_count, char *key, size_t key_size, WT_ITEM *item, OPER
      * is inserted, it is all the letter 'a'. When the value is updated, is it mostly 'b', with some
      * 'c' mixed in. When the value is to modified, we'll end up with a value with mostly 'b' and
      * 'M' mixed in, in different spots. Thus the modify operation will have both additions ('M')
-     * and
-     * subtractions ('c') from the previous version.
+     * and subtractions ('c') from the previous version.
      */
     if (op_type == INSERT)
         ch = 'a';
@@ -367,7 +386,11 @@ table_changes(WT_SESSION *session, TABLE *table)
             item.size = table->max_value_size;
             key_value(change_count, key, sizeof(key), &item, &op_type);
             cur->set_key(cur, key);
-            testutil_assert(op_type < _OPERATION_TYPE_COUNT);
+
+            /*
+             * To satisfy code analysis checks, we must handle all elements of the enum in the
+             * switch statement.
+             */
             switch (op_type) {
             case INSERT:
                 cur->set_value(cur, &item);
@@ -390,7 +413,7 @@ table_changes(WT_SESSION *session, TABLE *table)
                 testutil_check(cur->update(cur));
                 break;
             case _OPERATION_TYPE_COUNT:
-                break;
+                testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
             }
         }
         free(value);
@@ -404,17 +427,31 @@ table_changes(WT_SESSION *session, TABLE *table)
  *     Create a table for the given slot.
  */
 static void
-create_table(WT_SESSION *session, TABLE_INFO *tinfo, uint32_t slot)
+create_table(WT_SESSION *session, WT_RAND_STATE *rand, TABLE_INFO *tinfo, uint32_t slot)
 {
-    char *uri;
+    uint32_t alloc;
+    char buf[4096], *uri;
+    const char *allocstr;
 
     testutil_assert(!TABLE_VALID(&tinfo->table[slot]));
     uri = dcalloc(1, URI_MAX_LEN);
     testutil_check(
       __wt_snprintf(uri, URI_MAX_LEN, URI_FORMAT, (int)slot, (int)tinfo->table[slot].name_index++));
 
-    VERBOSE(3, "create %s\n", uri);
-    testutil_check(session->create(session, uri, "key_format=S,value_format=u"));
+    /*
+     * A quarter of the time use a non-default allocation size on the table. This is set
+     * independently of the granularity to stress mismatched values.
+     */
+    if (__wt_random(rand) % 4 == 0) {
+        alloc = __wt_random(rand) % NUM_ALLOC;
+        allocstr = alloc_sizes[alloc];
+        testutil_check(__wt_snprintf(buf, sizeof(buf),
+          "%s,allocation_size=%s,internal_page_max=%s,leaf_page_max=%s", TABLE_FORMAT, allocstr,
+          allocstr, allocstr));
+    } else
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "%s", TABLE_FORMAT));
+    VERBOSE(3, "create %s: %s\n", uri, buf);
+    testutil_check(session->create(session, uri, buf));
     tinfo->table[slot].name = uri;
     tinfo->tables_in_use++;
 }
@@ -482,6 +519,7 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const ch
     char buf[4096];
     char *filename;
     char granularity_unit;
+    const char *cons;
 
     nfiles = 0;
 
@@ -505,9 +543,13 @@ base_backup(WT_CONNECTION *conn, WT_RAND_STATE *rand, const char *home, const ch
         granularity_unit = 'M';
         granularity += 1;
     }
+    if (__wt_random(rand) % 2 == 0)
+        cons = ",consolidate=true";
+    else
+        cons = ",consolidate=false";
     testutil_check(__wt_snprintf(buf, sizeof(buf),
-      "incremental=(granularity=%" PRIu32 "%c,enabled=true,this_id=ID%" PRIu32 ")", granularity,
-      granularity_unit, tinfo->full_backup_number));
+      "incremental=(granularity=%" PRIu32 "%c,enabled=true,%s,this_id=ID%" PRIu32 ")", granularity,
+      granularity_unit, cons, tinfo->full_backup_number));
     VERBOSE(3, "open_cursor(session, \"backup:\", NULL, \"%s\", &cursor)\n", buf);
     testutil_check(session->open_cursor(session, "backup:", NULL, buf, &cursor));
 
@@ -660,11 +702,15 @@ check_table(WT_SESSION *session, TABLE *table)
     expect_records = 0;
     total_changes = table->change_count;
     boundary = total_changes % KEYS_PER_TABLE;
-    op_type = (OPERATION_TYPE)((total_changes % CHANGES_PER_CYCLE) / KEYS_PER_TABLE);
+    op_type = get_operation_type(total_changes);
     value = dcalloc(1, table->max_value_size);
 
     VERBOSE(3, "Checking: %s\n", table->name);
-    testutil_assert(op_type < _OPERATION_TYPE_COUNT);
+
+    /*
+     * To satisfy code analysis checks, we must handle all elements of the enum in the switch
+     * statement.
+     */
     switch (op_type) {
     case INSERT:
         expect_records = total_changes % KEYS_PER_TABLE;
@@ -677,7 +723,7 @@ check_table(WT_SESSION *session, TABLE *table)
         expect_records = KEYS_PER_TABLE - (total_changes % KEYS_PER_TABLE);
         break;
     case _OPERATION_TYPE_COUNT:
-        break;
+        testutil_die(0, "Unexpected OPERATION_TYPE: _OPERATION_TYPE_COUNT");
     }
 
     testutil_check(session->open_cursor(session, table->name, NULL, NULL, &cursor));
@@ -753,11 +799,11 @@ main(int argc, char *argv[])
     WT_RAND_STATE rnd;
     WT_SESSION *session;
     uint32_t file_max, iter, max_value_size, next_checkpoint, rough_size, slot;
-    int ch, ncheckpoints, status;
+    int ch, ncheckpoints, nreopens, status;
     const char *backup_verbose, *working_dir;
     char conf[1024], home[1024], backup_check[1024], backup_dir[1024], command[4096];
 
-    ncheckpoints = 0;
+    ncheckpoints = nreopens = 0;
     (void)testutil_set_progname(argv);
     custom_die = die; /* Set our own abort handler */
     WT_CLEAR(tinfo);
@@ -859,7 +905,7 @@ main(int argc, char *argv[])
                  */
                 slot = __wt_random(&rnd) % tinfo.table_count;
                 if (!TABLE_VALID(&tinfo.table[slot]))
-                    create_table(session, &tinfo, slot);
+                    create_table(session, &rnd, &tinfo, slot);
                 else if (__wt_random(&rnd) % 3 == 0 && do_rename)
                     rename_table(session, &tinfo, slot);
                 else if (do_drop)
@@ -875,6 +921,15 @@ main(int argc, char *argv[])
                 next_checkpoint = __wt_random(&rnd) % tinfo.table_count;
                 ncheckpoints++;
             }
+        }
+
+        /* Close and reopen the connection once in a while. */
+        if (__wt_random(&rnd) % 10 == 0) {
+            VERBOSE(2, "Close and reopen the connection %d\n", nreopens);
+            testutil_check(conn->close(conn, NULL));
+            testutil_check(wiredtiger_open(home, NULL, conf, &conn));
+            testutil_check(conn->open_session(conn, NULL, NULL, &session));
+            nreopens++;
         }
 
         if (iter == 0) {

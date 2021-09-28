@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -35,14 +35,43 @@
 
 #define EXTPATH "../../ext/" /* Extensions path */
 
+#ifndef LZ4_PATH
 #define LZ4_PATH EXTPATH "compressors/lz4/.libs/libwiredtiger_lz4.so"
+#endif
+
+#ifndef SNAPPY_PATH
 #define SNAPPY_PATH EXTPATH "compressors/snappy/.libs/libwiredtiger_snappy.so"
+#endif
+
+#ifndef ZLIB_PATH
 #define ZLIB_PATH EXTPATH "compressors/zlib/.libs/libwiredtiger_zlib.so"
+#endif
+
+#ifndef ZSTD_PATH
 #define ZSTD_PATH EXTPATH "compressors/zstd/.libs/libwiredtiger_zstd.so"
+#endif
 
+#ifndef REVERSE_PATH
 #define REVERSE_PATH EXTPATH "collators/reverse/.libs/libwiredtiger_reverse_collator.so"
+#endif
 
+#ifndef ROTN_PATH
 #define ROTN_PATH EXTPATH "encryptors/rotn/.libs/libwiredtiger_rotn.so"
+#endif
+
+#ifndef SODIUM_PATH
+#define SODIUM_PATH EXTPATH "encryptors/sodium/.libs/libwiredtiger_sodium.so"
+#endif
+
+/*
+ * To test the sodium encryptor, we use secretkey= rather than setting a keyid, because for a "real"
+ * (vs. test-only) encryptor, keyids require some kind of key server, and (a) setting one up for
+ * testing would be a nuisance and (b) currently the sodium encryptor doesn't support any anyway.
+ *
+ * It expects secretkey= to provide a hex-encoded 256-bit chacha20 key. This key will serve for
+ * testing purposes.
+ */
+#define SODIUM_TESTKEY "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 
 #undef M
 #define M(v) ((v)*WT_MILLION) /* Million */
@@ -53,6 +82,7 @@
 
 #define BACKUP_INFO_FILE "BACKUP_INFO"         /* Format's backup information for restart */
 #define BACKUP_INFO_FILE_TMP "BACKUP_INFO.TMP" /* Format's backup information for restart */
+#define BACKUP_MAX_COPY MEGABYTE(64)           /* Maximum size we'll read/write at a time */
 #define WT_NAME "wt"                           /* Object name */
 
 #define DATASOURCE(v) (strcmp(v, g.c_data_source) == 0 ? 1 : 0)
@@ -123,6 +153,12 @@ typedef struct {
      * that requires locking out transactional ops that set a timestamp.
      */
     RWLOCK ts_lock;
+    /*
+     * Lock to prevent the stable timestamp from moving during the commit of prepared transactions.
+     * Otherwise, it may panic if the stable timestamp is moved to greater than or equal to the
+     * prepared transaction's durable timestamp when it is committing.
+     */
+    RWLOCK prepare_commit_lock;
 
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
@@ -139,8 +175,8 @@ typedef struct {
 
     uint32_t c_abort; /* Config values */
     uint32_t c_alter;
-    uint32_t c_assert_commit_timestamp;
     uint32_t c_assert_read_timestamp;
+    uint32_t c_assert_write_timestamp;
     uint32_t c_auto_throttle;
     char *c_backup_incremental;
     uint32_t c_backup_incr_granularity;
@@ -170,15 +206,13 @@ typedef struct {
     char *c_file_type;
     uint32_t c_firstfit;
     uint32_t c_hs_cursor;
-    uint32_t c_huffman_key;
     uint32_t c_huffman_value;
+    uint32_t c_import;
     uint32_t c_in_memory;
     uint32_t c_independent_thread_rng;
     uint32_t c_insert_pct;
     uint32_t c_internal_key_truncation;
     uint32_t c_intl_page_max;
-    char *c_isolation;
-    uint32_t c_key_gap;
     uint32_t c_key_max;
     uint32_t c_key_min;
     uint32_t c_leaf_page_max;
@@ -196,13 +230,13 @@ typedef struct {
     uint32_t c_mmap_all;
     uint32_t c_modify_pct;
     uint32_t c_ops;
+    uint32_t c_prefix;
     uint32_t c_prefix_compression;
     uint32_t c_prefix_compression_min;
     uint32_t c_prepare;
     uint32_t c_quiet;
     uint32_t c_random_cursor;
     uint32_t c_read_pct;
-    uint32_t c_rebalance;
     uint32_t c_repeat_data_pct;
     uint32_t c_reverse;
     uint32_t c_rows;
@@ -215,7 +249,12 @@ typedef struct {
     uint32_t c_timer;
     uint32_t c_timing_stress_aggressive_sweep;
     uint32_t c_timing_stress_checkpoint;
+    uint32_t c_timing_stress_checkpoint_reserved_txnid_delay;
+    uint32_t c_timing_stress_failpoint_hs_delete_key_from_ts;
+    uint32_t c_timing_stress_failpoint_hs_insert_1;
+    uint32_t c_timing_stress_failpoint_hs_insert_2;
     uint32_t c_timing_stress_hs_checkpoint_delay;
+    uint32_t c_timing_stress_hs_search;
     uint32_t c_timing_stress_hs_sweep;
     uint32_t c_timing_stress_checkpoint_prepare;
     uint32_t c_timing_stress_split_1;
@@ -225,10 +264,8 @@ typedef struct {
     uint32_t c_timing_stress_split_5;
     uint32_t c_timing_stress_split_6;
     uint32_t c_timing_stress_split_7;
-    uint32_t c_timing_stress_split_8;
     uint32_t c_truncate;
-    uint32_t c_txn_freq;
-    uint32_t c_txn_rollback_to_stable;
+    uint32_t c_txn_implicit;
     uint32_t c_txn_timestamps;
     uint32_t c_value_max;
     uint32_t c_value_min;
@@ -255,6 +292,7 @@ typedef struct {
 #define CHECKSUM_OFF 1
 #define CHECKSUM_ON 2
 #define CHECKSUM_UNCOMPRESSED 3
+#define CHECKSUM_UNENCRYPTED 4
     u_int c_checksum_flag; /* Checksum flag value */
 
 #define COMPRESS_NONE 1
@@ -267,20 +305,17 @@ typedef struct {
 
 #define ENCRYPT_NONE 1
 #define ENCRYPT_ROTN_7 2
+#define ENCRYPT_SODIUM 3
     u_int c_encryption_flag; /* Encryption flag value */
 
-#define ISOLATION_NOT_SET 0
-#define ISOLATION_RANDOM 1
-#define ISOLATION_READ_UNCOMMITTED 2
-#define ISOLATION_READ_COMMITTED 3
-#define ISOLATION_SNAPSHOT 4
-    u_int c_isolation_flag; /* Isolation flag value */
-
+/* The page must be a multiple of the allocation size, and 512 always works. */
+#define BLOCK_ALLOCATION_SIZE 512
     uint32_t intl_page_max; /* Maximum page sizes */
     uint32_t leaf_page_max;
 
     uint64_t rows; /* Total rows */
 
+    uint32_t prefix_len;         /* Common key prefix length */
     uint32_t key_rand_len[1031]; /* Key lengths */
 } GLOBAL;
 extern GLOBAL g;
@@ -382,6 +417,7 @@ WT_THREAD_RET backup(void *);
 WT_THREAD_RET checkpoint(void *);
 WT_THREAD_RET compact(void *);
 WT_THREAD_RET hs_cursor(void *);
+WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
@@ -393,6 +429,7 @@ void config_final(void);
 void config_print(bool);
 void config_run(void);
 void config_single(const char *, bool);
+void create_database(const char *home, WT_CONNECTION **connp);
 void fclose_and_clear(FILE **);
 bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(WT_ITEM *, uint64_t, const char *);
@@ -414,8 +451,9 @@ void snap_repeat_single(WT_CURSOR *, TINFO *);
 int snap_repeat_txn(WT_CURSOR *, TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_track(TINFO *, thread_op);
-void timestamp_once(WT_SESSION *, bool);
-void timestamp_parse(WT_SESSION *, const char *, uint64_t *);
+void timestamp_init(void);
+void timestamp_once(WT_SESSION *, bool, bool);
+void timestamp_teardown(WT_SESSION *);
 int trace_config(const char *);
 void trace_init(void);
 void trace_ops_init(TINFO *);
@@ -432,10 +470,13 @@ void wts_dump(const char *, bool);
 void wts_load(void);
 void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(void);
-void wts_rebalance(void);
 void wts_reopen(void);
 void wts_salvage(void);
 void wts_stats(void);
 void wts_verify(WT_CONNECTION *, const char *);
+
+#if !defined(CUR2S)
+#define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
+#endif
 
 #include "format.i"

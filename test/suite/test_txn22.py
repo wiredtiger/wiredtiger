@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 #
-# Public Domain 2014-2020 MongoDB, Inc.
+# Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
 #
 # This is free and unencumbered software released into the public domain.
@@ -52,6 +52,11 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     base_config = 'cache_size=1GB'
     conn_config = base_config
 
+    key_format_values = [
+        ('integer-row', dict(key_format='i')),
+        ('column', dict(key_format='r')),
+    ]
+
     # File to be corrupted
     filename_scenarios = [
         ('WiredTiger', dict(filename='WiredTiger')),
@@ -75,9 +80,8 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
         "removal:WiredTiger.wt",
     ]
 
-    scenarios = make_scenarios(filename_scenarios)
+    scenarios = make_scenarios(key_format_values, filename_scenarios)
     uri = 'table:test_txn22'
-    create_params = 'key_format=i,value_format=S'
     nrecords = 1000                                  # records per table.
 
     def valuegen(self, i):
@@ -115,10 +119,11 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
     def test_corrupt_meta(self):
         newdir = "RESTART"
         newdir2 = "RESTART2"
-        expect = list(range(0, self.nrecords))
+        expect = list(range(1, self.nrecords + 1))
         salvage_config = self.base_config + ',salvage=true'
 
-        self.session.create(self.uri, self.create_params)
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(self.uri, create_params)
         self.inserts(expect)
 
         # Simulate a crash by copying the contents of the directory
@@ -152,10 +157,9 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
                     # Without salvage, they result in an error during the wiredtiger_open.
                     # But the nature of the messages produced during the error is variable
                     # by which case it is, and even variable from system to system.
-                    with self.expectedStdoutPattern('.'):
-                        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                            lambda: self.reopen_conn(salvagedir, self.base_config),
-                            '/.*/')
+                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                        lambda: self.reopen_conn(salvagedir, self.base_config),
+                        '/.*/')
 
                 self.reopen_conn(salvagedir, salvage_config)
                 if self.filename == 'test_txn22':
@@ -165,10 +169,13 @@ class test_txn22(wttest.WiredTigerTestCase, suite_subprocess):
                 # an error during the wiredtiger_open.  But the nature of the
                 # messages produced during the error is variable by which case
                 # it is, and even variable from system to system.
-                with self.expectedStdoutPattern('.'):
-                    self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                        lambda: self.reopen_conn(salvagedir, salvage_config),
-                        '/.*/')
+                self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                    lambda: self.reopen_conn(salvagedir, salvage_config),
+                    '/.*/')
+
+        # The test may output the following error message while opening a file that
+        # does not exist. Ignore that.
+        self.ignoreStderrPatternIfExists('No such file or directory')
 
 if __name__ == '__main__':
     wttest.run()

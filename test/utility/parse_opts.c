@@ -1,5 +1,5 @@
 /*-
- * Public Domain 2014-2020 MongoDB, Inc.
+ * Public Domain 2014-present MongoDB, Inc.
  * Public Domain 2008-2014 WiredTiger, Inc.
  *
  * This is free and unencumbered software released into the public domain.
@@ -49,7 +49,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
 
     testutil_print_command_line(argc, argv);
 
-    while ((ch = __wt_getopt(opts->progname, argc, argv, "A:dh:n:o:pR:T:t:vW:")) != EOF)
+    while ((ch = __wt_getopt(opts->progname, argc, argv, "A:dh:b:n:o:pR:T:t:vW:")) != EOF)
         switch (ch) {
         case 'A': /* Number of append threads */
             opts->n_append_threads = (uint64_t)atoll(__wt_optarg);
@@ -59,6 +59,9 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
             break;
         case 'h': /* Home directory */
             opts->home = dstrdup(__wt_optarg);
+            break;
+        case 'b': /* Build directory */
+            opts->build_dir = dstrdup(__wt_optarg);
             break;
         case 'n': /* Number of records */
             opts->nrecords = (uint64_t)atoll(__wt_optarg);
@@ -104,6 +107,7 @@ testutil_parse_opts(int argc, char *const *argv, TEST_OPTS *opts)
               "[-A append thread count] "
               "[-d add data] "
               "[-h home] "
+              "[-b build directory] "
               "[-n record count] "
               "[-o op count] "
               "[-p] "

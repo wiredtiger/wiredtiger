@@ -1,5 +1,5 @@
 /*-
- * Copyright (c) 2014-2020 MongoDB, Inc.
+ * Copyright (c) 2014-present MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
  *	All rights reserved.
  *
@@ -142,6 +142,8 @@ __compact_uri_analyze(WT_SESSION_IMPL *session, const char *uri, bool *skipp)
         *skipp = true;
     } else if (WT_PREFIX_MATCH(uri, "file:"))
         session->compact->file_count++;
+    if (WT_PREFIX_MATCH(uri, "tiered:"))
+        WT_RET(ENOTSUP);
 
     return (0);
 }
@@ -192,15 +194,11 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 
 /*
  * __compact_checkpoint --
- *     Perform a checkpoint for compaction.
+ *     This function does wait and force checkpoint.
  */
 static int
 __compact_checkpoint(WT_SESSION_IMPL *session)
 {
-    WT_DECL_RET;
-    WT_TXN_GLOBAL *txn_global;
-    uint64_t txn_gen;
-
     /*
      * Force compaction checkpoints: we don't want to skip it because the work we need to have done
      * is done in the underlying block manager.
@@ -211,29 +209,7 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
     /* Checkpoints take a lot of time, check if we've run out. */
     WT_RET(__wt_session_compact_check_timeout(session));
 
-    if ((ret = __wt_txn_checkpoint(session, checkpoint_cfg, false)) == 0)
-        return (0);
-    WT_RET_BUSY_OK(ret);
-
-    /*
-     * If there's a checkpoint running, wait for it to complete, checking if we're out of time. If
-     * there's no checkpoint running or the checkpoint generation number changes, the checkpoint
-     * blocking us has completed.
-     */
-    txn_global = &S2C(session)->txn_global;
-    for (txn_gen = __wt_gen(session, WT_GEN_CHECKPOINT);;) {
-        /*
-         * This loop only checks objects that are declared volatile, therefore no barriers are
-         * needed.
-         */
-        if (!txn_global->checkpoint_running || txn_gen != __wt_gen(session, WT_GEN_CHECKPOINT))
-            break;
-
-        WT_RET(__wt_session_compact_check_timeout(session));
-        __wt_sleep(2, 0);
-    }
-
-    return (0);
+    return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
 /*
@@ -362,7 +338,7 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     if (!WT_PREFIX_MATCH(uri, "colgroup:") && !WT_PREFIX_MATCH(uri, "file:") &&
       !WT_PREFIX_MATCH(uri, "index:") && !WT_PREFIX_MATCH(uri, "lsm:") &&
-      !WT_PREFIX_MATCH(uri, "table:")) {
+      !WT_PREFIX_MATCH(uri, "table:") && !WT_PREFIX_MATCH(uri, "tiered:")) {
         if ((dsrc = __wt_schema_get_source(session, uri)) != NULL)
             ret = dsrc->compact == NULL ?
               __wt_object_unsupported(session, uri) :
