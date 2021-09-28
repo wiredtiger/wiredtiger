@@ -2382,6 +2382,10 @@ tasks:
       - func: "random abort test"
         vars:
           random_abort_args: -t 40
+      # random-abort - run compaction
+      - func: "random abort test"
+        vars:
+          random_abort_args: -c -t 60
 
       # truncated-log
       - func: "truncated log test"
