@@ -419,7 +419,7 @@ __backup_find_id(WT_SESSION_IMPL *session, WT_CONFIG_ITEM *cval, WT_BLKINCR **in
  *     Append log files needed for backup.
  */
 static int
-__backup_log_append(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool active)
+__backup_log_append(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, uint32_t flags)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
@@ -432,7 +432,7 @@ __backup_log_append(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, bool active)
     ret = 0;
 
     if (conn->log) {
-        WT_ERR(__wt_log_get_backup_files(session, &logfiles, &logcount, &cb->maxid, active));
+        WT_ERR(__wt_log_get_backup_files(session, &logfiles, &logcount, &cb->maxid, flags));
         for (i = 0; i < logcount; i++)
             WT_ERR(__backup_list_append(session, cb, logfiles[i]));
     }
@@ -458,6 +458,7 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
     WT_CONNECTION_IMPL *conn;
     WT_DECL_ITEM(tmp);
     WT_DECL_RET;
+    uint32_t flags;
     const char *uri;
     bool consolidate, incremental_config, is_dup, log_config, target_list;
 
@@ -569,9 +570,12 @@ __backup_config(WT_SESSION_IMPL *session, WT_CURSOR_BACKUP *cb, const char *cfg[
          * function to append them. Set log_only only if it is our only URI target.
          */
         if (WT_PREFIX_MATCH(uri, "log:")) {
+            flags = 0;
             log_config = true;
             *log_only = !target_list;
-            WT_ERR(__backup_log_append(session, session->bkp_cursor, false));
+            if (WT_PREFIX_MATCH(uri, "log:switch"))
+                LF_SET(WT_LOG_BACKUP_SWITCH);
+            WT_ERR(__backup_log_append(session, session->bkp_cursor, flags));
         } else if (is_dup)
             WT_ERR_MSG(
               session, EINVAL, "duplicate backup cursor cannot be used for non-log target");
@@ -769,7 +773,7 @@ __backup_start(
          * It is also possible, and considered legal, to choose the new checkpoint, but not include
          * the log file that contains the log entry for taking the new checkpoint.
          */
-        WT_ERR(__backup_log_append(session, cb, true));
+        WT_ERR(__backup_log_append(session, cb, WT_LOG_BACKUP_ACTIVE | WT_LOG_BACKUP_SWITCH));
         WT_ERR(__backup_all(session));
     }
 

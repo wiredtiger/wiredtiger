@@ -844,7 +844,7 @@ extern int __wt_log_force_sync(WT_SESSION_IMPL *session, WT_LSN *min_lsn)
 extern int __wt_log_force_write(WT_SESSION_IMPL *session, bool retry, bool *did_work)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_get_backup_files(WT_SESSION_IMPL *session, char ***filesp, u_int *countp,
-  uint32_t *maxid, bool active_only) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint32_t *maxid, uint32_t flags) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_needs_recovery(WT_SESSION_IMPL *session, WT_LSN *ckp_lsn, bool *recp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_log_open(WT_SESSION_IMPL *session) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));

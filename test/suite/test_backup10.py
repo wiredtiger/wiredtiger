@@ -42,10 +42,17 @@ class test_backup10(backup_base):
 
     pfx = 'test_backup'
 
-    scenarios = make_scenarios([
+    arch_list = [
         ('archiving', dict(archive='true')),
         ('not-archiving', dict(archive='false')),
-    ])
+    ]
+
+    switch_list = [
+        ('no_switch', dict(switch='false')),
+        ('switching', dict(switch='true')),
+    ]
+
+    scenarios = make_scenarios(arch_list, switch_list)
 
     # Create a large cache, otherwise this test runs quite slowly.
     def conn_config(self):
@@ -78,7 +85,10 @@ class test_backup10(backup_base):
         orig_logs = [file for file in all_files if "WiredTigerLog" in file]
 
         # Now open a duplicate backup cursor.
-        config = 'target=("log:")'
+        if self.switch:
+            config = 'target=("log:switch")'
+        else:
+            config = 'target=("log:")'
         dupc = self.session.open_cursor(None, bkup_c, config)
         dup_logs = self.take_log_backup(bkup_c, self.dir, orig_logs, dupc)
 
@@ -92,6 +102,10 @@ class test_backup10(backup_base):
         self.assertEqual(len(diff), 1)
         self.assertTrue(log3 in dup_set)
         self.assertFalse(log3 in orig_set)
+        if self.switch:
+            self.assertEqual(4, len([x for x in os.listdir('.') if x.startswith('WiredTigerLog.')]))
+        else:
+            self.assertEqual(3, len([x for x in os.listdir('.') if x.startswith('WiredTigerLog.')]))
 
         # Test a few error cases now.
         # - We cannot make multiple duplcate backup cursors.
@@ -114,20 +128,21 @@ class test_backup10(backup_base):
             lambda:self.assertEquals(self.session.open_cursor(None,
             bkup_c, None), 0), msg)
 
-        # Open duplicate backup cursor again now that the first
-        # one is closed. Test every log file returned is the same
-        # as the first time.
-        dupc = self.session.open_cursor(None, bkup_c, config)
-        while True:
-            ret = dupc.next()
-            if ret != 0:
-                break
-            newfile = dupc.get_key()
-            self.assertTrue("WiredTigerLog" in newfile)
-            self.assertTrue(newfile in dup_logs)
-        self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+        if not self.switch:
+            # Open duplicate backup cursor again now that the first
+            # one is closed. Test every log file returned is the same
+            # as the first time.
+            dupc = self.session.open_cursor(None, bkup_c, config)
+            while True:
+                ret = dupc.next()
+                if ret != 0:
+                    break
+                newfile = dupc.get_key()
+                self.assertTrue("WiredTigerLog" in newfile)
+                self.assertTrue(newfile in dup_logs)
+            self.assertEqual(ret, wiredtiger.WT_NOTFOUND)
+            dupc.close()
 
-        dupc.close()
         bkup_c.close()
 
         # After the full backup, open and recover the backup database.
