@@ -231,8 +231,7 @@ main(int argc, char *argv[])
                 test_harness::logger::log_msg(
                   LOG_ERROR, "The test " + current_test_name + " was not found.");
                 error_code = -1;
-            }
-            else {
+            } else {
                 /* Configuration parsing. */
                 if (!config_filename.empty())
                     cfg = parse_configuration_from_file(config_filename);
