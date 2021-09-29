@@ -26,24 +26,49 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
-#include "test_harness/util/logger.h"
+#include "test_harness/connection_manager.h"
 #include "test_harness/thread_manager.h"
-
+#include "test_harness/util/api_const.h"
+#include "test_harness/util/logger.h"
+#include "test_harness/workload/random_generator.h"
 
 extern "C" {
 #include "wiredtiger.h"
 }
 
+using namespace test_harness;
+
+bool do_inserts = false;
+bool do_reads = false;
+
 void
-thread_op2()
+insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 {
-    test_harness::logger::log_msg(LOG_INFO, "called thread_op2");
+    logger::log_msg(LOG_INFO, "called insert_op");
+
+    /* Insert random data. */
+    std::string key, value;
+    while (do_inserts) {
+        key = random_generator::instance().generate_random_string(key_size);
+        value = random_generator::instance().generate_random_string(value_size);
+        cursor->set_key(cursor, key.c_str());
+        cursor->set_value(cursor, value.c_str());
+        testutil_check(cursor->insert(cursor));
+    }
 }
 
 void
-thread_op1()
+read_op(WT_CURSOR *cursor, int key_size)
 {
-    test_harness::logger::log_msg(LOG_INFO, "called thread_op1");
+    logger::log_msg(LOG_INFO, "called read_op");
+
+    /* Read random data. */
+    std::string key;
+    // while (do_reads) {
+    //     key = random_generator::instance().generate_random_string(key_size);
+    //     cursor->set_key(cursor, key.c_str());
+    //     cursor->search(cursor);
+    // }
 }
 
 int
@@ -53,18 +78,78 @@ main(int argc, char *argv[])
     (void)testutil_set_progname(argv);
 
     /* Set the tracing level for the logger component. */
-    test_harness::logger::trace_level = LOG_INFO;
-    test_harness::logger::log_msg(LOG_INFO, "Starting test basic_test.cxx");
+    logger::trace_level = LOG_INFO;
 
-    /* Create a thread_manager and spawn some threads. */
-    test_harness::thread_manager t;
+    /* Printing some messages. */
+    logger::log_msg(LOG_INFO, "Starting test basic_test.cxx.");
+    logger::log_msg(LOG_ERROR, "This could be an error.");
 
-    test_harness::connection_manager
+    /* Create a connection and set the cache size. */
+    const std::string conn_config = std::string(CONNECTION_CREATE) + ",cache_size=500MB";
+    WT_CONNECTION *conn = connection_manager::instance().create(conn_config, DEFAULT_DIR);
 
-    t.add_thread(thread_op1);
-    t.add_thread(thread_op2);
+    /* Open a session. */
+    WT_SESSION *session;
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
 
+    /* Create a collection. */
+    const std::string collection_name = "table:my_collection";
+    testutil_check(session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+
+    /* Open different cursors. */
+    WT_CURSOR *insert_cursor, *read_cursor;
+    const std::string cursor_config = "";
+    testutil_check(session->open_cursor(
+      session, collection_name.c_str(), nullptr, cursor_config.c_str(), &insert_cursor));
+    testutil_check(session->open_cursor(
+      session, collection_name.c_str(), nullptr, cursor_config.c_str(), &read_cursor));
+
+    /* Store cursors. */
+    std::vector<WT_CURSOR *> cursors;
+    cursors.push_back(insert_cursor);
+    cursors.push_back(read_cursor);
+
+    /* Insert some data. */
+    std::string key = "a";
+    const std::string value = "b";
+    insert_cursor->set_key(insert_cursor, key.c_str());
+    insert_cursor->set_value(insert_cursor, value.c_str());
+    testutil_check(insert_cursor->insert(insert_cursor));
+
+    /* Read some data. */
+    key = "b";
+    read_cursor->set_key(read_cursor, key.c_str());
+    testutil_assert(read_cursor->search(read_cursor) == WT_NOTFOUND);
+
+    key = "a";
+    read_cursor->set_key(read_cursor, key.c_str());
+    testutil_check(read_cursor->search(read_cursor));
+
+    /* Create a thread manager and spawn some threads that will work. */
+    thread_manager t;
+    int key_size = 1, value_size = 2;
+
+    do_inserts = true;
+    t.add_thread(insert_op, insert_cursor, key_size, value_size);
+
+    do_reads = true;
+    t.add_thread(read_op, read_cursor, key_size);
+
+    /* Sleep for the test duration. */
+    int test_duration_s = 5;
+    std::this_thread::sleep_for(std::chrono::seconds(test_duration_s));
+
+    /* Stop the threads. */
+    do_reads = false;
+    do_inserts = false;
     t.join();
+
+    /* Close cursors. */
+    for (auto c : cursors)
+        testutil_check(c->close(c));
+
+    /* Another message. */
+    logger::log_msg(LOG_INFO, "End of test.");
 
     return (0);
 }
