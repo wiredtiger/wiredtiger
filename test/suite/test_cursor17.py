@@ -70,13 +70,22 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.assertEqual(cursor.remove(), 0)
         self.session.commit_transaction()
 
+        # Verify the key is not visible.
+        self.session.begin_transaction()
+        cursor.set_key(100)
+        if self.valueformat != '8t':
+            self.assertEqual(cursor.search(), wiredtiger.WT_NOTFOUND)
+        else:
+            self.assertEqual(cursor.search(), 0)
+        self.session.rollback_transaction()
+
         # Verify the largest key.
         self.session.begin_transaction()
         self.assertEqual(cursor.largest_key(), 0)
         self.assertEqual(cursor.get_key(), 100)
         self.session.rollback_transaction()
 
-        # Verify the key is not visible.
+        # Verify the key is still not visible after the largest call.
         self.session.begin_transaction()
         cursor.set_key(100)
         if self.valueformat != '8t':

@@ -109,8 +109,9 @@ The WT_SESSION::largest_key \c gets the largest key in a table regardless of
 visibility. Therefore, it can return a key that may have been already deleted.
 
 It can only be called without a read timestamp, otherwise it returns an invalid
-argument error. The cursor is not positioned after calling largest_key. Any
-following prev or next calls starts from the start of the table.
+argument error. Any following prev or next calls will behave as if they were
+invoked on an unpositioned cursor. The call can race with concurrent insert so
+that the returned key may not be the largest at that point.
 
 @section cursor_error Cursor position after error
 
