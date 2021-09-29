@@ -1124,8 +1124,10 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     WT_TXN *txn;
+    bool ignore_tombstone;
 
     txn = NULL;
+    ignore_tombstone = F_ISSET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
 
     txn = session->txn;
@@ -1136,6 +1138,7 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
 
     /* Reset the cursor to give up the cursor position. */
     WT_ERR(cursor->reset(cursor));
+
     /* Ignore deletion */
     F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
 
@@ -1151,7 +1154,8 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
-    F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    if (!ignore_tombstone)
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
