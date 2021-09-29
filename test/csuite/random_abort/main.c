@@ -619,7 +619,7 @@ main(int argc, char *argv[])
 
     (void)testutil_set_progname(argv);
 
-    compat = compaction = inmem = false;
+    compaction = compat = inmem = false;
     nth = MIN_TH;
     rand_th = rand_time = true;
     timeout = MIN_TIME;
