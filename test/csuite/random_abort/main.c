@@ -626,7 +626,7 @@ main(int argc, char *argv[])
     verify_only = false;
     working_dir = "WT_TEST.random-abort";
 
-    while ((ch = __wt_getopt(progname, argc, argv, "cCh:mT:t:v")) != EOF)
+    while ((ch = __wt_getopt(progname, argc, argv, "Cch:mT:t:v")) != EOF)
         switch (ch) {
         case 'C':
             compat = true;
