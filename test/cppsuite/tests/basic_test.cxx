@@ -88,21 +88,23 @@ main(int argc, char *argv[])
     const std::string conn_config = std::string(CONNECTION_CREATE) + ",cache_size=500MB";
     WT_CONNECTION *conn = connection_manager::instance().create(conn_config, DEFAULT_DIR);
 
-    /* Open a session. */
-    WT_SESSION *session;
-    testutil_check(conn->open_session(conn, nullptr, nullptr, &session));
+    /* Open different sessions. */
+    WT_SESSION *insert_session, *read_session;
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &insert_session));
+    testutil_check(conn->open_session(conn, nullptr, nullptr, &read_session));
 
     /* Create a collection. */
     const std::string collection_name = "table:my_collection";
-    testutil_check(session->create(session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
+    testutil_check(
+      insert_session->create(insert_session, collection_name.c_str(), DEFAULT_FRAMEWORK_SCHEMA));
 
     /* Open different cursors. */
     WT_CURSOR *insert_cursor, *read_cursor;
     const std::string cursor_config = "";
-    testutil_check(session->open_cursor(
-      session, collection_name.c_str(), nullptr, cursor_config.c_str(), &insert_cursor));
-    testutil_check(session->open_cursor(
-      session, collection_name.c_str(), nullptr, cursor_config.c_str(), &read_cursor));
+    testutil_check(insert_session->open_cursor(
+      insert_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &insert_cursor));
+    testutil_check(read_session->open_cursor(
+      read_session, collection_name.c_str(), nullptr, cursor_config.c_str(), &read_cursor));
 
     /* Store cursors. */
     std::vector<WT_CURSOR *> cursors;
