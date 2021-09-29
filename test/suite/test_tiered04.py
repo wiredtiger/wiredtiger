@@ -35,10 +35,11 @@ StorageSource = wiredtiger.StorageSource  # easy access to constants
 class test_tiered04(wttest.WiredTigerTestCase):
 
     # If the 'uri' changes all the other names must change with it.
-    fileuri_base = 'file:test_tiered04-000000000'
-    objfile = 'test_tiered04-0000000001.wtobj'
-    obj2file = 'test_tiered04-0000000002.wtobj'
-    objuri = 'object:test_tiered04-0000000001.wtobj'
+    base = 'test_tiered04-000000000'
+    fileuri_base = 'file:' + base
+    obj1file = base + '1.wtobj'
+    obj2file = base + '2.wtobj'
+    objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered04"
     uri = "table:test_tiered04"
 
@@ -137,8 +138,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.flush_tier(None)
         self.pr("Check for ")
-        self.pr(self.objfile)
-        self.assertTrue(os.path.exists(self.objfile))
+        self.pr(self.obj1file)
+        self.assertTrue(os.path.exists(self.obj1file))
         self.assertTrue(os.path.exists(self.obj2file))
         self.pr("Sleep")
         time.sleep(self.retention + 1)
@@ -148,8 +149,8 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session.flush_tier(None)
         time.sleep(1)
         self.pr("Check removal of ")
-        self.pr(self.objfile)
-        self.assertFalse(os.path.exists(self.objfile))
+        self.pr(self.obj1file)
+        self.assertFalse(os.path.exists(self.obj1file))
 
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"

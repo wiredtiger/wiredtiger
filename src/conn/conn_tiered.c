@@ -20,6 +20,16 @@
 #endif
 
 /*
+ * __tiered_server_run_chk --
+ *     Check to decide if the tiered storage server should continue running.
+ */
+static bool
+__tiered_server_run_chk(WT_SESSION_IMPL *session)
+{
+    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED));
+}
+
+/*
  * __flush_tier_wait --
  *     Wait for all previous work units queued to be processed.
  */
@@ -133,6 +143,10 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
 
     entry = NULL;
     for (;;) {
+        /* Check if we're quitting or being reconfigured. */
+        if (!__tiered_server_run_chk(session))
+            break;
+
         __wt_seconds(session, &now);
         __wt_tiered_get_drop_local(session, now, &entry);
         if (entry == NULL)
@@ -163,8 +177,8 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
              * We are responsible for freeing the work unit when we're done with it.
              */
             __wt_tiered_work_free(session, entry);
-            entry = NULL;
         }
+        entry = NULL;
     }
 err:
     if (entry != NULL)
@@ -300,6 +314,10 @@ __tier_storage_copy(WT_SESSION_IMPL *session)
 
     entry = NULL;
     for (;;) {
+        /* Check if we're quitting or being reconfigured. */
+        if (!__tiered_server_run_chk(session))
+            break;
+
         /*
          * We probably need some kind of flush generation so that we don't process flush items for
          * tables that are added during an in-progress flush_tier. This thread could run due to a
@@ -449,16 +467,6 @@ __tiered_manager_config(WT_SESSION_IMPL *session, const char **cfg, bool *runp)
     mgr->workers_min = (uint32_t)cval.val;
     WT_ASSERT(session, mgr->workers_min <= mgr->workers_max);
     return (0);
-}
-
-/*
- * __tiered_server_run_chk --
- *     Check to decide if the tiered storage server should continue running.
- */
-static bool
-__tiered_server_run_chk(WT_SESSION_IMPL *session)
-{
-    return (FLD_ISSET(S2C(session)->server_flags, WT_CONN_SERVER_TIERED));
 }
 
 /*

@@ -331,7 +331,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         self.check_caches(['beagle'], [])
         self.check_objects(['beagle'], [])
 
-        # Do a some more in each file ssytem.
+        # Do a some more in each file system.
         local.ss_flush(session, fs1, 'bison.wt', 'bison.wtobj')
         local.ss_flush(session, fs2, 'cat.wt', 'cat.wtobj')
         local.ss_flush(session, fs1, 'bat.wt', 'bat.wtobj')

@@ -19,13 +19,11 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     WT_BUCKET_STORAGE *bstorage;
     WT_DECL_RET;
     WT_TIERED *tiered;
-    u_int open_flags;
     const char *object_name, *object_uri;
     bool local_only;
 
     tiered = opener->cookie;
     object_uri = NULL;
-    open_flags = flags;
     local_only = false;
 
     WT_ASSERT(session,
@@ -37,19 +35,18 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     if (object_id == tiered->current_id || object_id == WT_TIERED_CURRENT_ID) {
         bstorage = NULL;
         object_name = tiered->tiers[WT_TIERED_INDEX_LOCAL].name;
-        if (!WT_PREFIX_SKIP(object_name, "file:"))
-            WT_RET_MSG(session, EINVAL, "expected a 'file:' URI");
+        WT_PREFIX_SKIP_REQUIRED(session, object_name, "file:");
         local_only = true;
     } else {
         WT_ERR(
           __wt_tiered_name(session, &tiered->iface, object_id, WT_TIERED_NAME_OBJECT, &object_uri));
         object_name = object_uri;
         WT_PREFIX_SKIP_REQUIRED(session, object_name, "object:");
-        FLD_SET(open_flags, WT_FS_OPEN_READONLY);
-        WT_ASSERT(session, !FLD_ISSET(open_flags, WT_FS_OPEN_CREATE));
+        LF_SET(WT_FS_OPEN_READONLY);
+        WT_ASSERT(session, !FLD_ISSET(flags, WT_FS_OPEN_CREATE));
         F_SET(session, WT_SESSION_QUIET_TIERED);
     }
-    ret = __wt_open(session, object_name, type, open_flags, fhp);
+    ret = __wt_open(session, object_name, type, flags, fhp);
     F_CLR(session, WT_SESSION_QUIET_TIERED);
 
     /*
@@ -58,7 +55,7 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
      */
     if (!local_only && ret != 0) {
         bstorage = tiered->bstorage;
-        flags |= WT_FS_OPEN_READONLY;
+        LF_SET(WT_FS_OPEN_READONLY);
         WT_WITH_BUCKET_STORAGE(
           bstorage, session, { ret = __wt_open(session, object_name, type, flags, fhp); });
     }

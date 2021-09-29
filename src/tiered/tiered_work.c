@@ -16,26 +16,16 @@ static void
 __tiered_flush_state(WT_SESSION_IMPL *session, uint32_t type, bool incr)
 {
     WT_CONNECTION_IMPL *conn;
-    uint32_t new_state, old_state;
 
     if (type != WT_TIERED_WORK_FLUSH)
         return;
     conn = S2C(session);
-    for (;;) {
-        WT_BARRIER();
-        old_state = conn->flush_state;
-        if (incr)
-            new_state = old_state + 1;
-        else {
-            WT_ASSERT(session, old_state != 0);
-            new_state = old_state - 1;
-        }
-        if (__wt_atomic_casv32(&conn->flush_state, old_state, new_state))
-            break;
-        WT_STAT_CONN_INCR(session, flush_state_races);
-        __wt_yield();
-    }
+    if (incr)
+        (void)__wt_atomic_addv32(&conn->flush_state, 1);
+    else
+        (void)__wt_atomic_subv32(&conn->flush_state, 1);
 }
+
 /*
  * __wt_tiered_work_free --
  *     Free a work unit and account for it in the flush state.
