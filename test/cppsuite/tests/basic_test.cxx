@@ -64,11 +64,11 @@ read_op(WT_CURSOR *cursor, int key_size)
 
     /* Read random data. */
     std::string key;
-    // while (do_reads) {
-    //     key = random_generator::instance().generate_random_string(key_size);
-    //     cursor->set_key(cursor, key.c_str());
-    //     cursor->search(cursor);
-    // }
+    while (do_reads) {
+        key = random_generator::instance().generate_random_string(key_size);
+        cursor->set_key(cursor, key.c_str());
+        cursor->search(cursor);
+    }
 }
 
 int
