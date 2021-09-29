@@ -57,7 +57,7 @@ class connection_manager {
     connection_manager &operator=(connection_manager const &) = delete;
 
     void close();
-    void create(const std::string &config, const std::string &home = DEFAULT_DIR);
+    WT_CONNECTION *create(const std::string &config, const std::string &home = DEFAULT_DIR);
     scoped_session create_session();
 
     /*
