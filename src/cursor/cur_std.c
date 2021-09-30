@@ -1120,7 +1120,6 @@ err:
 int
 __wt_cursor_largest_key(WT_CURSOR *cursor)
 {
-    WT_CURFILE_STATE state;
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
@@ -1132,7 +1131,6 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
 
     txn = session->txn;
-    __cursor_state_save(cursor, &state);
     if (F_ISSET(txn, WT_TXN_SHARED_TS_READ))
         WT_ERR_MSG(session, EINVAL, "largest key cannot be called with a read timestamp");
 
@@ -1159,10 +1157,8 @@ err:
     if (!ignore_tombstone)
         F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     __wt_scr_free(session, &key);
-    if (ret != 0) {
+    if (ret != 0)
         WT_TRET(cursor->reset(cursor));
-        __cursor_state_restore(cursor, &state);
-    }
     API_END_RET(session, ret);
 }
 
