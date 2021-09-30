@@ -175,6 +175,7 @@ __wt_block_compact_page_skip(
 
     WT_UNUSED(addr_size);
     *skipp = true; /* Return a default skip. */
+    offset = 0;
 
     /* Crack the cookie. */
     WT_RET(__wt_block_addr_unpack(

@@ -200,6 +200,7 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     // locked = true;
     if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
+        addr_size = copy.size;
         WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
         if (!*skipp) {
             copy.size = (uint8_t)addr_size;
