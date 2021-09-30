@@ -98,16 +98,16 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
 
     def test_update_restore_evict_recovery(self):
         uri = 'table:test_debug_mode10'
-        nrows = 20000
+        nrows = 10000
 
         # Create our table.
         ds = SimpleDataSet(self, uri, 0, key_format='i', value_format='S',config='log=(enabled=false)')
         ds.populate()
 
-        value_a = 'a' * 200
-        value_b = 'b' * 200
-        value_c = 'c' * 200
-        value_d = 'd' * 200
+        value_a = 'a' * 500
+        value_b = 'b' * 500
+        value_c = 'c' * 500
+        value_d = 'd' * 500
 
         # Perform several updates.
         self.large_updates(uri, value_a, ds, nrows, 20)
