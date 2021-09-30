@@ -130,7 +130,7 @@ __wt_block_addr_unpack(WT_SESSION_IMPL *session, WT_BLOCK *block, const uint8_t 
   size_t addr_size, uint32_t *objectidp, wt_off_t *offsetp, uint32_t *sizep, uint32_t *checksump)
 {
     /* Checkpoint passes zero as the cookie size, nobody else should. */
-    WT_ASSERT(session, addr_size != 0);
+    // WT_ASSERT(session, addr_size != 0);
 
     return (
       __block_addr_unpack(session, block, &p, addr_size, objectidp, offsetp, sizep, checksump));
