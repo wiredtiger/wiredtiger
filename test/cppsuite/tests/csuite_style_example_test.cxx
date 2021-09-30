@@ -26,6 +26,13 @@
  * OTHER DEALINGS IN THE SOFTWARE.
  */
 
+/*
+ * This file provides an example of how to create a test in C++ using a few features from the
+ * framework if any. This file can be used as a template for quick testing and/or when stress
+ * testing is not required. For any stress testing, it is encouraged to use the framework, see
+ * example_test.cxx and create_script.sh.
+ */
+
 #include "test_harness/connection_manager.h"
 #include "test_harness/thread_manager.h"
 #include "test_harness/util/api_const.h"
