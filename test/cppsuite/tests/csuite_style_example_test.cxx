@@ -75,13 +75,13 @@ int
 main(int argc, char *argv[])
 {
     /* Set the program name for error messages. */
-    (void)testutil_set_progname(argv);
+    const std::string progname = testutil_set_progname(argv);
 
     /* Set the tracing level for the logger component. */
     logger::trace_level = LOG_INFO;
 
     /* Printing some messages. */
-    logger::log_msg(LOG_INFO, "Starting test basic_test.cxx.");
+    logger::log_msg(LOG_INFO, "Starting " + progname);
     logger::log_msg(LOG_ERROR, "This could be an error.");
 
     /* Create a connection and set the cache size. */

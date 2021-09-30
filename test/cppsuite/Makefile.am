@@ -32,9 +32,9 @@ test_harness = test_harness/core/component.cxx \
 
 # If you prefer to not use the run binary you can add a test via this
 # mechanism but it is generally frowned upon.
-basic_test_SOURCES = $(test_harness) tests/basic_test.cxx
-noinst_PROGRAMS += basic_test
-all_TESTS += basic_test
+csuite_style_example_test_SOURCES = $(test_harness) tests/csuite_style_example_test.cxx
+noinst_PROGRAMS += csuite_style_example_test
+all_TESTS += csuite_style_example_test
 
 run_SOURCES = $(test_harness) tests/run.cxx
 noinst_PROGRAMS += run
