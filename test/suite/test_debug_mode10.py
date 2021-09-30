@@ -149,9 +149,9 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         simulate_crash_restart(self, ".", "RESTART")
 
         # As we've created a new DB connection post-shutdown, the connection-wide
-        # base write gen should eventually initialise from the previous checkpoint's base 'write_gen' during the recovery process,
+        # base write gen should eventually initialise from the previous checkpoint's base 'write_gen' during the recovery process
         # ('write_gen'+1). This should be reflected in the initialisation of the 'run_write_gen' field of the newest
-        # checkpoint post-recovery. As the recovery/rts process updates our pages, we'd also expect the lastest checkpoint's
+        # checkpoint post-recovery. As the recovery/rts process updates our pages, we'd also expect the latest checkpoint's
         # 'write_gen' to again be greater than its 'run_write_gen'.
         recovery_write_gen, recovery_run_write_gen = self.parse_write_gen("file:test_debug_mode10.wt")
         self.assertGreater(recovery_run_write_gen, checkpoint_write_gen)
