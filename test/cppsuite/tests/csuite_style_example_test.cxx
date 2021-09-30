@@ -158,6 +158,9 @@ main(int argc, char *argv[])
     for (auto c : cursors)
         testutil_check(c->close(c));
 
+    /* Close the connection. */
+    connection_manager::instance().close();
+
     /* Another message. */
     logger::log_msg(LOG_INFO, "End of test.");
 
