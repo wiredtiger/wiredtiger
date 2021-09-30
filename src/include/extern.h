@@ -780,7 +780,7 @@ extern int __wt_hex_to_raw(WT_SESSION_IMPL *session, const char *from, WT_ITEM *
 extern int __wt_hs_config(WT_SESSION_IMPL *session, const char **cfg)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_delete_key_from_ts(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor,
-  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool checkpoint_running)
+  uint32_t btree_id, const WT_ITEM *key, wt_timestamp_t ts, bool reinsert, bool error_on_ooo_ts)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_hs_find_upd(WT_SESSION_IMPL *session, uint32_t btree_id, WT_ITEM *key,
   const char *value_format, uint64_t recno, WT_UPDATE_VALUE *upd_value, WT_ITEM *base_value_buf)
@@ -1365,8 +1365,6 @@ extern int __wt_scr_alloc_func(WT_SESSION_IMPL *session, size_t size, WT_ITEM **
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_search_insert(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt,
   WT_INSERT_HEAD *ins_head, WT_ITEM *srch_key) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_session_blocking_checkpoint(WT_SESSION_IMPL *session, bool force, uint64_t seconds)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_breakpoint(WT_SESSION *wt_session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_session_close_internal(WT_SESSION_IMPL *session)
@@ -1898,8 +1896,6 @@ static inline WT_IKEY *__wt_ref_key_instantiated(WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline WT_VISIBLE_TYPE __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-static inline bool __wt_btcur_skip_page(WT_CURSOR_BTREE *cbt)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_btree_can_evict_dirty(WT_SESSION_IMPL *session)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline bool __wt_btree_dominating_cache(WT_SESSION_IMPL *session, WT_BTREE *btree)
@@ -1989,6 +1985,8 @@ static inline int __wt_addr_cookie_btree_pack(void *addr, uint64_t row_count, ui
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_addr_cookie_btree_unpack(const void *addr, uint64_t *row_countp,
   uint64_t *byte_countp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+static inline int __wt_btcur_skip_page(WT_SESSION_IMPL *session, WT_REF *ref, void *context,
+  bool *skipp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_btree_block_free(WT_SESSION_IMPL *session, const uint8_t *addr,
   size_t addr_size) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 static inline int __wt_buf_extend(WT_SESSION_IMPL *session, WT_ITEM *buf, size_t size)

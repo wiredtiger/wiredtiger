@@ -40,6 +40,7 @@ extern WT_PROCESS __wt_process;
 struct __wt_bucket_storage {
     const char *bucket;                /* Bucket name */
     const char *bucket_prefix;         /* Bucket prefix */
+    const char *cache_directory;       /* Locally cached file location */
     int owned;                         /* Storage needs to be terminated */
     uint64_t object_size;              /* Tiered object size */
     uint64_t retain_secs;              /* Tiered period */
@@ -615,7 +616,6 @@ struct __wt_connection_impl {
 #define WT_TIMING_STRESS_SPLIT_5 0x08000u
 #define WT_TIMING_STRESS_SPLIT_6 0x10000u
 #define WT_TIMING_STRESS_SPLIT_7 0x20000u
-#define WT_TIMING_STRESS_SPLIT_8 0x40000u
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t timing_stress_flags;
 
