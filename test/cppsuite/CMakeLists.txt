@@ -54,6 +54,18 @@ create_test_executable(run
     CXX
 )
 
+create_test_executable(csuite_style_example_test
+    SOURCES test_harness/connection_manager.cxx
+            test_harness/thread_manager.cxx
+            test_harness/util/logger.cxx
+            test_harness/util/scoped_types.cxx
+            test_harness/workload/random_generator.cxx
+            tests/csuite_style_example_test.cxx
+    FLAGS -std=c++11
+    INCLUDES ${CMAKE_CURRENT_SOURCE_DIR}
+    CXX
+)
+
 if(ENABLE_SNAPPY)
     # We use Snappy compression to avoid excessive disk spage usage.
     target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
