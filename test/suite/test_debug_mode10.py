@@ -30,6 +30,7 @@ import os, shutil, re
 from wiredtiger import stat
 import wttest
 from wtdataset import SimpleDataSet
+from helper import simulate_crash_restart
 
 # test_debug_mode10.py
 # Test the debug mode setting for update_restore_evict during recovery.
@@ -42,7 +43,7 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
     # Recovery connection config: The debug mode is only effective on high cache pressure as WiredTiger can potentially decide
     # to do an update restore evict on a page when the cache pressure requirements are not met.
     # This means setting eviction target low and cache size high.
-    conn_recon = conn_config + ',eviction_updates_trigger=5,eviction_dirty_trigger=5,cache_size=15MB,' + \
+    conn_recon = ',eviction_updates_trigger=10,eviction_dirty_trigger=5,cache_size=10MB,' + \
             'debug_mode=(update_restore_evict=true),log=(recover=on)'
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
@@ -70,20 +71,6 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         session.commit_transaction()
         self.assertEqual(count, nrows)
         cursor.close()
-
-    def simulate_crash(self, olddir, newdir):
-        # Simulate a crash from olddir and restart in newdir.
-        shutil.rmtree(newdir, ignore_errors=True)
-        # With the connection still open, copy files to new directory.
-        os.mkdir(newdir)
-        for fname in os.listdir(olddir):
-            fullname = os.path.join(olddir, fname)
-            # Skip lock file on Windows since it is locked.
-            if os.path.isfile(fullname) and \
-                "WiredTiger.lock" not in fullname and \
-                "Tmplog" not in fullname and \
-                "Preplog" not in fullname:
-                shutil.copy(fullname, newdir)
 
     def parse_write_gen(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')
@@ -156,16 +143,10 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         self.assertEqual(checkpoint_run_write_gen, 1)
         self.assertGreater(checkpoint_write_gen, checkpoint_run_write_gen)
 
-        olddir = "."
-        newdir = "RESTART"
-        self.simulate_crash(olddir, newdir)
-        # Close out the original connection.
-        self.close_conn()
-
-        # Open our new DB in recovery, additionally using the 'update_restore_evict' debug option to
-        # trigger update restore eviction during recovery.
-        self.conn = self.wiredtiger_open(newdir, self.conn_recon)
-        self.session = self.setUpSessionOpen(self.conn)
+        # Simulate a crash/restart, opening our new DB in recovery. As we open in recovery we want to additionally
+        # use the 'update_restore_evict' debug option to trigger update restore eviction.
+        self.conn_config = self.conn_config + self.conn_recon
+        simulate_crash_restart(self, ".", "RESTART")
 
         # As we've created a new DB connection post-shutdown, the connection-wide
         # base write gen should eventually initialise from the previous checkpoint's base 'write_gen' during the recovery process,
