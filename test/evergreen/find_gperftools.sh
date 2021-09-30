@@ -1,31 +1,51 @@
 #!/bin/sh
-set -o errexit  # Exit the script with error if any of the commands fail
-if [ "$#" -ne 2 ]; then
-    echo $#
+set +o verbose
+set +o errexit
+if [ "$#" -ne 4 ]; then
     echo "Illegal number of parameters."
     exit 1
 fi
 
+dir=$(pwd)
 aws_key=$1
 aws_secret=$2
-echo ${aws_key}
+build_variant=$3
+is_cmake_build=$4
+
+export AWS_ACCESS_KEY_ID=$1
+export AWS_SECRET_ACCESS_KEY=$2
+echo "AWS KEY $1 $2"
 find_gperftools()
 {
-    curl -L https://s3.amazonaws.com/build_external/jiechenbo_build/test.tar.gz -o test.tar.gz
+    echo tcmalloc_${build_variant}.tgz
+    echo "-- FETCH GPERFTOOLS --"
+    aws s3 ls "s3://build_external/jiechenbo_build/tcmalloc_${build_variant}.tgz"
+    if [[ true ]]; then
+        echo "-- MAKE GPERFTOOLS --"
+        curl --retry 5 -L https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz -sS --max-time 120 --fail --output gperftools_${build_variant}.tgz
+        tar xzf gperftools_${build_variant}.tgz
+        cd gperftools-2.9.1
+        sh ./configure --prefix=${dir}/TCMALLOC_LIB
+        make install -j $(grep -c ^processor /proc/cpuinfo)
 
-    echo "-- MAKE GPERFTOOLS --"
-    curl --retry 5 -L https://github.com/gperftools/gperftools/releases/download/gperftools-2.9.1/gperftools-2.9.1.tar.gz -sS --max-time 120 --fail --output tcmalloc.tar.gz
-    tar xzf tcmalloc.tar.gz
-    cd gperftools-2.9.1
-    sh ./configure --prefix=$(pwd)/TCMALLOC_LIB 
-    make install -j $(grep -c ^processor /proc/cpuinfo)
+        tar czf tcmalloc_${build_variant}.tgz -C ${dir} TCMALLOC_LIB
+        aws s3 cp tcmalloc_${build_variant}.tgz s3://build_external/jiechenbo_build/tcmalloc_${build_variant}.tgz
+    else
+        aws s3 cp s3://build_external/jiechenbo_build/tcmalloc_${build_variant}.tgz tcmalloc_${build_variant}.tgz
+        tar xzf tcmalloc_${build_variant}.tgz --directory ${dir}
+    fi  
 
-    tar czf test.tar.gz $(pwd)/TCMALLOC_LIB 
-    s3put --access_key ${aws_key} --secret_key ${aws_secret} --grant public-read --bucket build_external --callback 5 --prefix /jiechenbo_build/test.tar.gz path test.tar.gz
+    if [ "$is_cmake_build" = false ]; then
+        export CPPFLAGS="$CPPFLAGS -I${dir}/TCMALLOC_LIB/include"
+        export LDFLAGS="$LDFLAGS -L${dir}/TCMALLOC_LIB/lib"
+    fi
+    export LD_LIBRARY_PATH="${dir}/TCMALLOC_LIB/lib:$LD_LIBRARY_PATH"
 
-    export CPPFLAGS='-I$(pwd)/TCMALLOC_LIB/include/'
-    export LDFLAGS='-L$(pwd)/TCMALLOC_LIB/lib/'
-    echo "-- DONE MAKING GPERFTOOLS --"
+    echo "testing flags ${CPPFLAGS} ${LDFLAGS}"
+    cd ${dir}
+    echo "-- DONE GPERFTOOLS --"
 }
 
 find_gperftools
+set -o errexit
+set -o verbose

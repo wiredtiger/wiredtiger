@@ -60,16 +60,14 @@ functions:
         path: "dbpath_100k_500.tgz"
         destination: "mongo-tests/largescale/many-collection/dbpath/."
 
-  "fetch tcmalloc": &fetch_tcmalloc
-    command: shell.exec
+  "fetch tcmalloc artifact":
+    command: s3.get
     params:
-      working_dir: "wiredtiger"
-      shell: bash
-      script: |
-        set -o errexit
-        set -o verbose
-
-        sh test/evergreen/find_gperftools.sh ${aws_key} ${aws_secret}
+      aws_key: ${aws_key}
+      aws_secret: ${aws_secret}
+      remote_file: jiechenbo_build/tcmalloc_${build_variant}.tgz
+      bucket: build_external
+      local_file: tcmalloc_${build_variant}.tgz
 
   "fetch mongo-tests repo" :
     command: shell.exec
@@ -114,6 +112,12 @@ functions:
       script: |
         set -o errexit
         set -o verbose
+
+        # Fetch the gperftools library.
+        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
+          . test/evergreen/find_gperftools.sh ${aws_key} ${aws_secret} ${build_variant} ${is_cmake_build|false}
+        fi
+        
         # Check if the build variant has specified a build type, always default to
         # Autoconf/Libtool if $is_cmake_build is not declared.
         if [ ${is_cmake_build|false} = true ]; then
@@ -136,7 +140,7 @@ functions:
           sh reconf
           ${configure_env_vars|CC=/opt/mongodbtoolchain/v3/bin/gcc CXX=/opt/mongodbtoolchain/v3/bin/g++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"} PYTHON="python3" \
             ../configure ${configure_python_setting|} \
-            ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --enable-tcmalloc --prefix=$(pwd)/LOCAL_INSTALL}
+            ${posix_configure_flags|--enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL}
         fi
   "make wiredtiger": &make_wiredtiger
     command: shell.exec
@@ -176,7 +180,6 @@ functions:
           fi
         fi
   "compile wiredtiger":
-    - *fetch_tcmalloc
     - *configure_wiredtiger
     - *make_wiredtiger
   "compile wiredtiger no linux ftruncate":
@@ -352,6 +355,7 @@ functions:
         else
           cd build_posix
         fi
+        echo testing... ${test_env_vars|}  $LD_LIBRARY_PATH
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
@@ -2446,7 +2450,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args}" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args}" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
     depends_on:
@@ -2460,7 +2464,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 1" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 1" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s2
     depends_on:
@@ -2474,7 +2478,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 2" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 2" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s3
     depends_on:
@@ -2488,7 +2492,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 3" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 3" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s4
     depends_on:
@@ -2502,7 +2506,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 4" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 4" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s5
     depends_on:
@@ -2516,7 +2520,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 5" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 5" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s6
     depends_on:
@@ -2530,7 +2534,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 6" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 6" WT_TEST.$t' 120
 
   - name: data-validation-stress-test-checkpoint-fp-hs-insert-s7
     depends_on:
@@ -2544,7 +2548,7 @@ tasks:
           script: |
             set -o errexit
             set -o verbose
-            ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 7" WT_TEST.$t' 120
+            ${test_env_vars|} ../../../tools/run_parallel.sh 'nice ../../../test/checkpoint/recovery-test.sh "${data_validation_stress_test_args} -s 7" WT_TEST.$t' 120
 
   - name: format-failure-configs-test
     depends_on:
@@ -2558,7 +2562,8 @@ tasks:
             set -o errexit
             set -o verbose
 
-            ./run_format_configs.sh
+            echo $LD_LIBRARY_PATH
+            ${test_env_vars|} ./run_format_configs.sh
 
   - name: static-wt-build-test
     commands:
@@ -2867,9 +2872,23 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
-    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags:
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     data_validation_stress_test_args: -t r -m -W 3 -D -p -x -n 100000 -k 100000 -C cache_size=100MB
@@ -2906,8 +2925,20 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
-    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    test_env_vars:
+      LD_LIBRARY_PATH=$(pwd):$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      WT_BUILDDIR=$(pwd)
+    posix_configure_flags:
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      -DCMAKE_C_FLAGS="-ggdb"
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_PYTHON=1
+      -DENABLE_ZLIB=1
+      -DENABLE_SNAPPY=1
+      -DENABLE_STRICT=1
+      -DENABLE_TCMALLOC=1
+      -DCMAKE_PREFIX_PATH="$(pwd)/../TCMALLOC_LIB"
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
@@ -2929,14 +2960,24 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       CFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
       CXXFLAGS="-fsanitize=address -fno-omit-frame-pointer -ggdb"
-    posix_configure_flags: --enable-silent-rules --enable-strict --enable-diagnostic --disable-static --prefix=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags:
+      --enable-silent-rules
+      --enable-strict
+      --enable-diagnostic
+      --disable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
       ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
       TESTUTIL_BYPASS_ASAN=1
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so 
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
     - name: examples-c-test
@@ -2952,15 +2993,21 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       CFLAGS="-fsanitize=memory -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
     posix_configure_flags:
-      --enable-silent-rules --enable-strict --enable-diagnostic
-      --disable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-strict
+      --enable-diagnostic
+      --disable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
       TESTUTIL_SLOW_MACHINE=1
   tasks:
     - name: clang-analyzer
@@ -2984,14 +3031,21 @@ buildvariants:
       CFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
       CXXFLAGS="-fsanitize=undefined -fno-omit-frame-pointer -fno-optimize-sibling-calls -O1 -ggdb"
     posix_configure_flags:
-      --enable-silent-rules --enable-strict --enable-diagnostic
-      --disable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-strict
+      --enable-diagnostic
+      --disable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:halt_on_error=1:print_stacktrace=1"
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -3009,7 +3063,16 @@ buildvariants:
   run_on:
   - ubuntu2004-wt-build
   expansions:
-    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-strict --enable-lz4 --enable-snappy --enable-zlib --enable-zstd --enable-python
+    posix_configure_flags: 
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-strict
+      --enable-lz4
+      --enable-snappy
+      --enable-zlib
+      --enable-zstd
+      --enable-python
+      --enable-tcmalloc
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -3024,11 +3087,21 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     posix_configure_flags:
-      --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy
-      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
     - name: ".stress-test-1"
@@ -3045,8 +3118,14 @@ buildvariants:
   expansions:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
-      --enable-silent-rules --enable-python --enable-zlib --enable-snappy
-      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --enable-tcmalloc
+      --prefix=$(pwd)/LOCAL_INSTALL
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     upload_source_dir: mongo-tests/largescale/many-collection/dbpath/diagnostic.data
@@ -3062,11 +3141,18 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd)/../../.libs PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    test_env_vars:
+      LD_LIBRARY_PATH=$(pwd)/../../.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
-      --enable-silent-rules --enable-python --enable-zlib --enable-snappy
-      --enable-strict --enable-static
+      --enable-silent-rules
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --enable-tcmalloc
   tasks:
     - name: compile
     - name: cppsuite-hs-cleanup-stress
@@ -3097,7 +3183,12 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3112,7 +3203,12 @@ buildvariants:
   run_on:
   - rhel80-test
   expansions:
-    test_env_vars: LD_PRELOAD=/usr/local/lib/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+      LD_PRELOAD=/usr/local/lib/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
@@ -3143,7 +3239,12 @@ buildvariants:
   run_on:
   - ubuntu2004-test
   expansions:
-    test_env_vars: LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+    PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+    LD_LIBRARY_PATH=$(pwd)/.libs
+    top_srcdir=$(pwd)/..
+    top_builddir=$(pwd)
   tasks:
     - name: coverage-report
     - name: cyclomatic-complexity
@@ -3198,11 +3299,22 @@ buildvariants:
   - macos-1014
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
-    posix_configure_flags: --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags:
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-python
+      --enable-zlib
+      --enable-strict
+      --enable-static
+      --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH DYLD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars: 
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      DYLD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
     - name: compile
     - name: make-check-test
@@ -3214,12 +3326,20 @@ buildvariants:
   run_on:
   - macos-1014
   expansions:
-    posix_configure_flags: -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags:
+      -DCMAKE_C_FLAGS="-ggdb"
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_PYTHON=1
+      -DENABLE_ZLIB=1
+      -DENABLE_STRICT=1 
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: 'python3'
     smp_command: -j $(sysctl -n hw.logicalcpu)
     cmake_generator: "Unix Makefiles"
     make_command: make
-    test_env_vars: DYLD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    test_env_vars: 
+      DYLD_LIBRARY_PATH=$(pwd)
+      WT_BUILDDIR=$(pwd)
     is_cmake_build: true
   tasks:
     - name: compile
@@ -3234,7 +3354,11 @@ buildvariants:
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: generate-datafile-little-endian
@@ -3251,7 +3375,11 @@ buildvariants:
   expansions:
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
-    test_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.lib top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+    test_env_vars:
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.lib
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
   - name: compile
   - name: generate-datafile-big-endian
@@ -3267,11 +3395,19 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs
-      top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     posix_configure_flags:
-      --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy
-      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
   - name: compile
@@ -3286,8 +3422,18 @@ buildvariants:
   - ubuntu1804-power8-test
   batchtime: 10080 # 7 days
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
-    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    test_env_vars:
+      LD_LIBRARY_PATH=$(pwd)
+      WT_BUILDDIR=$(pwd)
+    posix_configure_flags:
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
+      -DCMAKE_C_FLAGS="-ggdb"
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_PYTHON=1
+      -DENABLE_ZLIB=1
+      -DENABLE_SNAPPY=1
+      -DENABLE_STRICT=1
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
@@ -3306,11 +3452,19 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
-      PATH=/opt/mongodbtoolchain/v3/bin:$PATH LD_LIBRARY_PATH=$(pwd)/.libs:$(pwd)/lang/python
-      top_srcdir=$(pwd)/.. top_builddir=$(pwd)
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH 
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
     posix_configure_flags:
-      --enable-silent-rules --enable-diagnostic --enable-python --enable-zlib --enable-snappy
-      --enable-strict --enable-static --prefix=$(pwd)/LOCAL_INSTALL
+      --enable-silent-rules
+      --enable-diagnostic
+      --enable-python
+      --enable-zlib
+      --enable-snappy
+      --enable-strict
+      --enable-static
+      --prefix=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
   tasks:
   - name: compile
@@ -3325,8 +3479,18 @@ buildvariants:
   - ubuntu1804-zseries-test
   batchtime: 10080 # 7 days
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
-    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    test_env_vars:
+      LD_LIBRARY_PATH=$(pwd)
+      WT_BUILDDIR=$(pwd)
+    posix_configure_flags:
+      -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake 
+      -DCMAKE_C_FLAGS="-ggdb"
+      -DHAVE_DIAGNOSTIC=1
+      -DENABLE_PYTHON=1
+      -DENABLE_ZLIB=1 
+      -DENABLE_SNAPPY=1
+      -DENABLE_STRICT=1
+      -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     cmake_generator: Ninja
