@@ -91,9 +91,10 @@ main(int argc, char *argv[])
     logger::log_msg(LOG_INFO, "Starting " + progname);
     logger::log_msg(LOG_ERROR, "This could be an error.");
 
-    /* Create a connection and set the cache size. */
+    /* Create a connection, set the cache size and specify the home directory. */
     const std::string conn_config = std::string(CONNECTION_CREATE) + ",cache_size=500MB";
-    WT_CONNECTION *conn = connection_manager::instance().create(conn_config, DEFAULT_DIR);
+    const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
+    WT_CONNECTION *conn = connection_manager::instance().create(conn_config, home_dir);
 
     /* Open different sessions. */
     WT_SESSION *insert_session, *read_session;
