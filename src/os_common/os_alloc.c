@@ -15,10 +15,11 @@
  */
 #ifdef HAVE_LIBTCMALLOC
 /*
- * Include the tcmalloc header with the "-Wundef" diagnostic flag disabled. Compiling with strict
- * (where the 'Wundef' diagnostic flag is enabled), generates compilation errors where the '__cplusplus'
- * CPP macro is not defined. This being employed by the tcmalloc header to differentiate C & C++ compilation
- * environments. We don't want to define '__cplusplus' when compiling C sources.
+ * Include the TCMalloc header with the "-Wundef" diagnostic flag disabled. Compiling with strict
+ * (where the 'Wundef' diagnostic flag is enabled), generates compilation errors where the
+ * '__cplusplus' CPP macro is not defined. This being employed by the TCMalloc header to
+ * differentiate C & C++ compilation environments. We don't want to define '__cplusplus' when
+ * compiling C sources.
  */
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wundef"

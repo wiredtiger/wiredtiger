@@ -3240,11 +3240,11 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-    LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-    PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-    LD_LIBRARY_PATH=$(pwd)/.libs
-    top_srcdir=$(pwd)/..
-    top_builddir=$(pwd)
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
+      PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+      LD_LIBRARY_PATH=$(pwd)/.libs
+      top_srcdir=$(pwd)/..
+      top_builddir=$(pwd)
   tasks:
     - name: coverage-report
     - name: cyclomatic-complexity
