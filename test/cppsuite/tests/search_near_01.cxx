@@ -55,7 +55,6 @@ class search_near_01 : public test_harness::test {
         uint64_t collections_per_thread = tc->collection_count;
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollback_retries = 0;
-        int cmpp;
 
         /*
          * Generate a table of data with prefix keys aaa -> zzz. We have 26 threads from ids

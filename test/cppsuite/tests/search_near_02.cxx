@@ -268,7 +268,6 @@ class search_near_02 : public test_harness::test {
     {
         const char *k;
         std::string k_str;
-        int ret;
 
         /*
          * The prefix search near call cannot retrieve a key with a smaller value than the prefix we
