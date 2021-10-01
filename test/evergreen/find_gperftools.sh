@@ -14,7 +14,6 @@ is_cmake_build=$4
 
 export AWS_ACCESS_KEY_ID=$1
 export AWS_SECRET_ACCESS_KEY=$2
-echo "AWS KEY $1 $2"
 find_gperftools()
 {
     echo tcmalloc_${build_variant}.tgz
@@ -39,9 +38,6 @@ find_gperftools()
         export CPPFLAGS="$CPPFLAGS -I${dir}/TCMALLOC_LIB/include"
         export LDFLAGS="$LDFLAGS -L${dir}/TCMALLOC_LIB/lib"
     fi
-    export LD_LIBRARY_PATH="${dir}/TCMALLOC_LIB/lib:$LD_LIBRARY_PATH"
-
-    echo "testing flags ${CPPFLAGS} ${LDFLAGS}"
     cd ${dir}
     echo "-- DONE GPERFTOOLS --"
 }
