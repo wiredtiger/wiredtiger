@@ -93,7 +93,7 @@ class hs_cleanup : public test {
              */
             if (tc->update(cursor, coll.id, key_value_t(key_tmp))) {
                 if (tc->transaction.can_commit()) {
-                    tc->transaction.commit();
+                    testutil_assert(tc->transaction.commit() == true);
                 }
             } else {
                 tc->transaction.rollback();

@@ -111,7 +111,7 @@ class search_near_02 : public test_harness::test {
                 if (tc->insert(cc.cursor, cc.coll.id, key)) {
                     if (tc->transaction.can_commit())
                         /* We are not checking the result of commit as it is not necessary. */
-                        tc->transaction.commit();
+                        testutil_assert(tc->transaction.commit() == true);
                 } else {
                     tc->transaction.rollback();
                 }
