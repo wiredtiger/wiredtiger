@@ -30,7 +30,6 @@ project(cppsuite CXX)
 
 # Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
-    ../utility/test_util.h
     test_harness/core/component.cxx 
     test_harness/core/configuration.cxx 
     test_harness/core/throttle.cxx 
