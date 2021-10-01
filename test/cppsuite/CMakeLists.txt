@@ -28,7 +28,7 @@
 
 project(cppsuite CXX)
 
-# Create the cppsuite lib.
+# Create an intermediate static lib.
 add_library(cppsuite_test_harness STATIC
     ../utility/test_util.h
     test_harness/core/component.cxx 
