@@ -69,7 +69,6 @@ create_test_executable(csuite_style_example_test
     CXX
 )
 
-
 if(ENABLE_SNAPPY)
     # We use Snappy compression to avoid excessive disk spage usage.
     target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
