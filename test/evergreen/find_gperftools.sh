@@ -7,13 +7,11 @@ if [ "$#" -ne 4 ]; then
 fi
 
 dir=$(pwd)
-aws_key=$1
-aws_secret=$2
+export AWS_ACCESS_KEY_ID=$1
+export AWS_SECRET_ACCESS_KEY=$2
 build_variant=$3
 is_cmake_build=$4
 
-export AWS_ACCESS_KEY_ID=$1
-export AWS_SECRET_ACCESS_KEY=$2
 find_gperftools()
 {
     echo tcmalloc_${build_variant}.tgz

@@ -59,7 +59,6 @@ functions:
       params:
         path: "dbpath_100k_500.tgz"
         destination: "mongo-tests/largescale/many-collection/dbpath/."
-
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
