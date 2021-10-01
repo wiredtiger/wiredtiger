@@ -345,7 +345,6 @@ functions:
         else
           cd build_posix
         fi
-        echo testing... ${test_env_vars|}  $LD_LIBRARY_PATH
         ${test_env_vars|} ${python_binary|python3} ../test/suite/run.py ${unit_test_args|-v 2} ${smp_command|} 2>&1
   "format test":
     command: shell.exec
