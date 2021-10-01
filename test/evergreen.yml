@@ -60,15 +60,6 @@ functions:
         path: "dbpath_100k_500.tgz"
         destination: "mongo-tests/largescale/many-collection/dbpath/."
 
-  "fetch tcmalloc artifact":
-    command: s3.get
-    params:
-      aws_key: ${aws_key}
-      aws_secret: ${aws_secret}
-      remote_file: jiechenbo_build/tcmalloc_${build_variant}.tgz
-      bucket: build_external
-      local_file: tcmalloc_${build_variant}.tgz
-
   "fetch mongo-tests repo" :
     command: shell.exec
     params:
@@ -2562,7 +2553,6 @@ tasks:
             set -o errexit
             set -o verbose
 
-            echo $LD_LIBRARY_PATH
             ${test_env_vars|} ./run_format_configs.sh
 
   - name: static-wt-build-test

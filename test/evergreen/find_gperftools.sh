@@ -39,10 +39,11 @@ find_gperftools()
         export LDFLAGS="$LDFLAGS -L${dir}/TCMALLOC_LIB/lib"
         export LD_LIBRARY_PATH="${dir}/TCMALLOC_LIB/lib:$LD_LIBRARY_PATH"
     fi
-    cd ${dir}
     echo "-- DONE GPERFTOOLS --"
 }
 
 find_gperftools
+
+cd ${dir}
 set -o errexit
 set -o verbose
