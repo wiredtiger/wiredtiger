@@ -2965,7 +2965,6 @@ buildvariants:
       --enable-strict
       --enable-diagnostic
       --disable-static
-      --enable-tcmalloc
       --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -2975,7 +2974,7 @@ buildvariants:
       TESTUTIL_BYPASS_ASAN=1
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so 
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$(pwd)/.libs
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
   tasks:
@@ -2997,14 +2996,13 @@ buildvariants:
       --enable-strict
       --enable-diagnostic
       --disable-static
-      --enable-tcmalloc
       --prefix=$(pwd)/LOCAL_INSTALL
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       MSAN_OPTIONS="abort_on_error=1:disable_coredump=0:print_stacktrace=1"
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so LD_LIBRARY_PATH=$(pwd)/.libs
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
