@@ -37,6 +37,7 @@ find_gperftools()
     if [ "$is_cmake_build" = false ]; then
         export CPPFLAGS="$CPPFLAGS -I${dir}/TCMALLOC_LIB/include"
         export LDFLAGS="$LDFLAGS -L${dir}/TCMALLOC_LIB/lib"
+        export LD_LIBRARY_PATH="${dir}/TCMALLOC_LIB/lib:$LD_LIBRARY_PATH"
     fi
     cd ${dir}
     echo "-- DONE GPERFTOOLS --"
