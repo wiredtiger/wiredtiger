@@ -63,6 +63,8 @@ create_test_executable(run
     CXX
 )
 
+# If you prefer to not use the run binary you can add a test via this mechanism but it is generally
+# frowned upon.
 create_test_executable(csuite_style_example_test 
     SOURCES tests/csuite_style_example_test.cxx
     LIBS cppsuite_test_harness
