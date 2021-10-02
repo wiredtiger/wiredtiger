@@ -94,7 +94,8 @@ main(int argc, char *argv[])
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string conn_config = std::string(CONNECTION_CREATE) + ",cache_size=500MB";
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
-    WT_CONNECTION *conn = connection_manager::instance().create(conn_config, home_dir);
+    connection_manager::instance().create(conn_config, home_dir);
+    WT_CONNECTION *conn = connection_manager::instance().get_connection();
 
     /* Open different sessions. */
     WT_SESSION *insert_session, *read_session;

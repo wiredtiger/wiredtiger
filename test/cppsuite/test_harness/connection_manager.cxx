@@ -47,7 +47,7 @@ connection_manager::close()
     }
 }
 
-WT_CONNECTION *
+void
 connection_manager::create(const std::string &config, const std::string &home)
 {
     if (_conn != nullptr) {
@@ -61,8 +61,6 @@ connection_manager::create(const std::string &config, const std::string &home)
 
     /* Open conn. */
     testutil_check(wiredtiger_open(home.c_str(), nullptr, config.c_str(), &_conn));
-
-    return _conn;
 }
 
 scoped_session
@@ -80,6 +78,12 @@ connection_manager::create_session()
     _conn_mutex.unlock();
 
     return (session);
+}
+
+WT_CONNECTION *
+connection_manager::get_connection()
+{
+    return (_conn);
 }
 
 /*
