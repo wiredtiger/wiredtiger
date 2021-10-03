@@ -17,14 +17,11 @@ from perf_stat_collection import PerfStatCollection
 # (within the directory specified by the 'home' parameter)
 test_stats_file = 'test.stat'
 
-
 def create_test_home_path(home: str, test_run: int):
     return '{}_{}'.format(home, test_run)
 
-
 def create_test_stat_path(test_home_path: str):
     return os.path.join(test_home_path, test_stats_file)
-
 
 def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
     for line in open(test_stat_path):
@@ -32,7 +29,6 @@ def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
         if match:
             return line.split()[position_of_value]
     return 0
-
 
 def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
     command_line = []
@@ -47,7 +43,6 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
         command_line.append(home)
     return command_line
 
-
 def run_test(config: WTPerfConfig, test_run: int):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run)
     command_line = construct_wtperf_command_line(
@@ -57,7 +52,6 @@ def run_test(config: WTPerfConfig, test_run: int):
         home=test_home)
     # print('Command Line for test: {}'.format(command_line))
     subprocess.run(command_line)
-
 
 def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection):
     for test_run in range(config.run_max):
@@ -77,7 +71,6 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection):
                    'platform': platform.platform()}
                }
     return as_dict
-
 
 def setup_perf_stats():
     perf_stats = PerfStatCollection()
@@ -108,7 +101,6 @@ def setup_perf_stats():
                                  input_offset=1,
                                  output_label='Update count:'))
     return perf_stats
-
 
 def main():
     parser = argparse.ArgumentParser()
@@ -170,7 +162,6 @@ def main():
     if args.outfile:
         with open(args.outfile, 'w') as outfile:
             json.dump(perf_dict, outfile, indent=4, sort_keys=True)
-
 
 if __name__ == '__main__':
     main()
