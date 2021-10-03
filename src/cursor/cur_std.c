@@ -1123,15 +1123,12 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
-    WT_TXN *txn;
     bool ignore_tombstone;
 
-    txn = NULL;
     ignore_tombstone = F_ISSET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
     CURSOR_API_CALL(cursor, session, largest_key, NULL);
 
-    txn = session->txn;
-    if (F_ISSET(txn, WT_TXN_SHARED_TS_READ))
+    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
         WT_ERR_MSG(session, EINVAL, "largest key cannot be called with a read timestamp");
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
