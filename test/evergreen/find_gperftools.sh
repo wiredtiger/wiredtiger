@@ -22,6 +22,9 @@ export AWS_SECRET_ACCESS_KEY=$2
 build_variant=$3
 is_cmake_build=$4
 
+# Track the original directory, so we can build in the directory that calls this script.
+dir=$(pwd)
+
 # Fetch the gperftools library through either building the sources of gerftools 2.9.1 or directly
 # downloading the binaries from the S3 bucket.
 fetch_gperftools()
