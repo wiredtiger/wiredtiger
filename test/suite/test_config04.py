@@ -224,6 +224,12 @@ class test_config04(wttest.WiredTigerTestCase):
                                  'eviction_checkpoint_target=1G'),
             '/eviction checkpoint target should not exceed cache size/')
 
+    def test_eviction_updates_tgt_abs_too_large(self):
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.wiredtiger_open('.','create,cache_size=500MB,'
+                                 'eviction_updates_target=1G'),
+            '/eviction updates target should not exceed cache size/')
+
     def test_eviction_updates_trigger_abs_equal_to_updates_target(self):
         self.wiredtiger_open('.','create,eviction_updates_target=10MB,'
                              'eviction_updates_trigger=10MB')
