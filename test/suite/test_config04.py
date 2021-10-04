@@ -209,6 +209,15 @@ class test_config04(wttest.WiredTigerTestCase):
                                  'eviction_dirty_trigger=1G'),
             '/eviction dirty trigger should not exceed cache size/')
 
+    def test_eviction_dirty_trigger_abs_equal_to_dirty_target(self):
+        self.wiredtiger_open('.','create,eviction_dirty_trigger=10MB,eviction_dirty_target=10MB')
+
+    def test_eviction_dirty_trigger_abs_too_low(self):
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.wiredtiger_open('.','create,eviction_dirty_trigger=9MB,'
+                                 'eviction_dirty_target=10MB'),
+            '/eviction dirty target must be lower than or equal to the eviction dirty trigger/')
+
     def test_eviction_checkpoint_tgt_abs_too_large(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.wiredtiger_open('.','create,cache_size=500MB,'
