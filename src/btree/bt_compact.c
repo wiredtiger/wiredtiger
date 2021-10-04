@@ -36,7 +36,7 @@ __compact_leaf_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
      * merged into the parent.
      */
     mod = ref->page->modify;
-    if (mod->rec_result == WT_PM_REC_REPLACE)
+    if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.addr != NULL)
         return (
           bm->compact_page_skip(bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
 
@@ -181,9 +181,14 @@ __compact_leaf(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     // locked = false;
     addr_size = 0;
 
-    /* Skip deleted pages, we expect the next checkpoint to discard them. */
-    if (ref->state == WT_REF_DELETED)
+    /*
+     * Skip deleted pages but consider them progress (the on-disk block is discarded by the next
+     * checkpoint).
+     */
+    if (ref->state == WT_REF_DELETED) {
+        *skipp = false;
         return (0);
+    }
 
     /*
      * Lock the WT_REF.
@@ -265,7 +270,17 @@ __compact_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     }
     WT_INTL_FOREACH_END;
 
-    /* If we rewrote a page, mark the parent and tree dirty. */
+    /*
+     * If we moved a leaf page, we'll write the parent. If we didn't move a leaf page, check if we
+     * need to move the internal page itself.
+     */
+    if (!overall_progress) {
+        WT_ERR(__compact_leaf(session, parent, &skipp));
+        if (!skipp)
+            overall_progress = true;
+    }
+
+    /* If we found a page to compact, mark the parent and tree dirty. */
     if (overall_progress) {
         WT_TRET(__wt_page_parent_modify_set(session, ref, false));
         session->compact_state = WT_COMPACT_SUCCESS;
