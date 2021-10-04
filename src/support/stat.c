@@ -1051,7 +1051,6 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: block cache lookups",
   "block-manager: block cache number of blocks not evicted due to overhead",
   "block-manager: block cache number of bypasses because no-write-allocate setting was on",
-  "block-manager: block cache number of bypasses due to overhead on get",
   "block-manager: block cache number of bypasses due to overhead on put",
   "block-manager: block cache number of bypasses on get",
   "block-manager: block cache number of bypasses on put because file is too small",
@@ -1063,8 +1062,6 @@ static const char *const __stats_connection_desc[] = {
   "block-manager: block cache total blocks",
   "block-manager: block cache total blocks inserted on read path",
   "block-manager: block cache total blocks inserted on write path",
-  "block-manager: block cache total blocks whose timestamps were upgraded because they were "
-  "evicted from DRAM cache",
   "block-manager: block cache total bytes",
   "block-manager: block cache total bytes inserted on read path",
   "block-manager: block cache total bytes inserted on write path",
@@ -1622,7 +1619,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_data_refs = 0;
     stats->block_cache_not_evicted_overhead = 0;
     stats->block_cache_bypass_writealloc = 0;
-    stats->block_cache_bypass_overhead_get = 0;
     stats->block_cache_bypass_overhead_put = 0;
     stats->block_cache_bypass_get = 0;
     stats->block_cache_bypass_put = 0;
@@ -1634,7 +1630,6 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->block_cache_blocks = 0;
     stats->block_cache_blocks_insert_read = 0;
     stats->block_cache_blocks_insert_write = 0;
-    stats->block_cache_blocks_upgraded = 0;
     stats->block_cache_bytes = 0;
     stats->block_cache_bytes_insert_read = 0;
     stats->block_cache_bytes_insert_write = 0;
@@ -2151,7 +2146,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_data_refs += WT_STAT_READ(from, block_cache_data_refs);
     to->block_cache_not_evicted_overhead += WT_STAT_READ(from, block_cache_not_evicted_overhead);
     to->block_cache_bypass_writealloc += WT_STAT_READ(from, block_cache_bypass_writealloc);
-    to->block_cache_bypass_overhead_get += WT_STAT_READ(from, block_cache_bypass_overhead_get);
     to->block_cache_bypass_overhead_put += WT_STAT_READ(from, block_cache_bypass_overhead_put);
     to->block_cache_bypass_get += WT_STAT_READ(from, block_cache_bypass_get);
     to->block_cache_bypass_put += WT_STAT_READ(from, block_cache_bypass_put);
@@ -2163,7 +2157,6 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->block_cache_blocks += WT_STAT_READ(from, block_cache_blocks);
     to->block_cache_blocks_insert_read += WT_STAT_READ(from, block_cache_blocks_insert_read);
     to->block_cache_blocks_insert_write += WT_STAT_READ(from, block_cache_blocks_insert_write);
-    to->block_cache_blocks_upgraded += WT_STAT_READ(from, block_cache_blocks_upgraded);
     to->block_cache_bytes += WT_STAT_READ(from, block_cache_bytes);
     to->block_cache_bytes_insert_read += WT_STAT_READ(from, block_cache_bytes_insert_read);
     to->block_cache_bytes_insert_write += WT_STAT_READ(from, block_cache_bytes_insert_write);

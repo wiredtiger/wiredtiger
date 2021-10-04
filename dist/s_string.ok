@@ -312,6 +312,7 @@ OVFL
 ObWgfvgw
 Obama
 Opcode
+Optane
 Outfmt
 PARAM
 PFX
@@ -734,6 +735,7 @@ directio
 dirlist
 disjunction
 disjunctions
+disproportionally
 dlclose
 dlh
 dll
@@ -880,8 +882,9 @@ goutf
 gt
 handleops
 handlep
-hashtable
 hardcoded
+hashtable
+hashsize
 hashval
 havesize
 hdr
@@ -1063,6 +1066,7 @@ memcmp
 memcpy
 memdup
 memget
+memkind
 memmove
 memset
 memsize
@@ -1131,6 +1135,7 @@ notsup
 notused
 novalue
 nowait
+ns
 nsec
 nset
 nsnap
@@ -1179,6 +1184,7 @@ pcpu
 perf
 pfx
 pluggable
+pmem
 poc
 popen
 poptable
@@ -1247,6 +1253,7 @@ readv
 realloc
 rebalance
 rebalancing
+recency
 recno
 recnos
 reconfig

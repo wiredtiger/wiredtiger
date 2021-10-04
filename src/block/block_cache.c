@@ -86,6 +86,10 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
         blkcache->cache_references_evicted_blocks[bucket]++;
 }
 
+/*
+ * __blkcache_print_reference_hist --
+ *     Print a histogram showing how a type of block given in the header is reused.
+ */
 static void
 __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, uint32_t *hist)
 {
@@ -93,15 +97,19 @@ __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, ui
 
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s:\n", header);
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "Reuses \t Number of blocks");
-    __wt_verbose(session, WT_VERB_BLKCACHE,"%s\n", "-----------------------------");
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "-----------------------------");
     for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-        __wt_verbose(session, WT_VERB_BLKCACHE,
-		     "[%d - %d] \t %u \n",
-		     j * BLKCACHE_HIST_BOUNDARY, (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
+        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u \n", j * BLKCACHE_HIST_BOUNDARY,
+          (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
     }
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "\n");
 }
 
+/*
+ * __blkcache_high_overhead --
+ *     Estimate the overhead of using the cache. The overhead comes from block insertions and
+ *     removals, which produce writes. Writes disproportionally slow down the reads on Optane NVRAM.
+ */
 static inline bool
 __blkcache_high_overhead(WT_SESSION_IMPL *session)
 {
@@ -123,6 +131,10 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
 #define BLKCACHE_EVICT_OTHER 0
 #define BLKCACHE_NOT_EVICTION_CANDIDATE 1
 
+/*
+ * __blkcache_should_evict --
+ *     Decide if the block should be evicted.
+ */
 static bool
 __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_item, int *reason)
 {
@@ -168,7 +180,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
 }
 
 /*
- * __blkcache_eviction_thread
+ * __blkcache_eviction_thread --
  *     Periodically sweep the cache and evict unused blocks.
  */
 static WT_THREAD_RET
@@ -267,6 +279,10 @@ __blkcache_eviction_thread(void *arg)
  */
 #define BLKCACHE_FILESIZE_EST_FREQ 5000
 
+/*
+ * __blkcache_estimate_filesize --
+ *     Estimate the size of files used by this workload.
+ */
 static size_t
 __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 {
@@ -565,7 +581,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
 }
 
 /*
- * __wt_blkcache_init --
+ * __blkcache_init --
  *     Initialize the block cache.
  */
 static int
@@ -672,10 +688,10 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
             TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
-	    /* Some workloads crash on freeing arenas. If that
-	     * occurs the call to free can be removed and the
-	     * library/OS will clean up for us once the process exits.
-	     */
+            /* Some workloads crash on freeing arenas. If that
+             * occurs the call to free can be removed and the
+             * library/OS will clean up for us once the process exits.
+             */
             __blkcache_free(session, blkcache_item->data);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EXIT);
             blkcache->num_data_blocks--;
@@ -689,10 +705,10 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
 done:
     /* Print reference histograms */
     __blkcache_print_reference_hist(session, "All blocks", blkcache->cache_references);
-    __blkcache_print_reference_hist(session, "Removed blocks",
-				    blkcache->cache_references_removed_blocks);
-    __blkcache_print_reference_hist(session, "Evicted blocks",
-				    blkcache->cache_references_evicted_blocks);
+    __blkcache_print_reference_hist(
+      session, "Removed blocks", blkcache->cache_references_removed_blocks);
+    __blkcache_print_reference_hist(
+      session, "Evicted blocks", blkcache->cache_references_evicted_blocks);
 
 #ifdef HAVE_LIBMEMKIND
     if (blkcache->type == BLKCACHE_NVRAM) {
