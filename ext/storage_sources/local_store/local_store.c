@@ -695,7 +695,7 @@ err:
 
 /*
  * local_flush_finish --
- *     Move a file from the default file system to the cache in the new file system.
+ *     Cache a file in the new file system.
  */
 static int
 local_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
@@ -717,6 +717,10 @@ local_flush_finish(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
         goto err;
 
     local->op_count++;
+    /*
+     * Link the object with the original local object. The could be replaced by a file copy if
+     * portability is an issue.
+     */
     if ((ret = link(source, dest_path)) != 0) {
         ret = local_err(
           local, session, errno, "ss_flush_finish link %s to %s failed", source, dest_path);

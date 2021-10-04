@@ -167,7 +167,12 @@ __tier_storage_remove_local(WT_SESSION_IMPL *session)
              * object sweep to clean up block->ofh file handles. Another alternative would be to try
              * to sweep and then try the remove call below rather than pushing it back on the work
              * queue. NOTE: Remove 'ofh' from s_string.ok when removing this comment.
+             *
+             * Update the time on the entry before pushing it back on the queue so that we don't get
+             * into an infinite loop trying to drop an open file that may be in use a while.
              */
+            WT_ASSERT(session, entry->tiered != NULL && entry->tiered->bstorage != NULL);
+            entry->op_val = now + entry->tiered->bstorage->retain_secs;
             __wt_tiered_push_work(session, entry);
         } else {
             __wt_verbose(session, WT_VERB_TIERED, "REMOVE_LOCAL: actually remove %s", object);
