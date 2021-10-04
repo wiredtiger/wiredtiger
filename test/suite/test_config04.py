@@ -155,12 +155,12 @@ class test_config04(wttest.WiredTigerTestCase):
 
     def test_eviction_absolute(self):
         self.common_test('eviction_target=50MB,eviction_trigger=60MB,'
-            'eviction_dirty_target=20MB,eviction_dirty_trigger=15MB,'
+            'eviction_dirty_target=20MB,eviction_dirty_trigger=25MB,'
             'eviction_checkpoint_target=13MB')
 
     def test_eviction_abs_and_pct(self):
         self.common_test('eviction_target=50,eviction_trigger=60MB,'
-             'eviction_dirty_target=20,eviction_dirty_trigger=15MB')
+             'eviction_dirty_target=20,eviction_dirty_trigger=25MB')
 
     def test_eviction_abs_less_than_one_pct(self):
         self.wiredtiger_open('.','create,cache_size=8GB,eviction_target=70MB,'
