@@ -139,8 +139,10 @@ workload_tracking::do_work()
     free(sweep_key);
 
     /*
-     * If we get here and the test is running, we must have reached the end of the table. It is
-     * possible that the test ended while the cursor was still on a valid entry.
+     * If we get here and the test is still running, it means we must have reached the end of the
+     * table. We can also get here because the test is no longer running. In this case, the cursor
+     * can either be at the end of the table or still on a valid entry since we interrupted the
+     * work.
      */
     if (_running && ret != WT_NOTFOUND || (!_running && ret != WT_NOTFOUND && ret != 0))
         testutil_die(LOG_ERROR,
