@@ -31,46 +31,21 @@ from wiredtiger import stat
 import wttest
 from wtdataset import SimpleDataSet
 from helper import simulate_crash_restart
+from test_rollback_to_stable01 import test_rollback_to_stable_base
 
-# test_debug_mode10.py
+# test_rollback_to_stable28.py
 # Test the debug mode setting for update_restore_evict during recovery.
 # Force update restore eviction, whenever we evict a page. We want to
 # perform this in recovery to ensure that all the in-memory images have
 # the proper write generation number and we don't end up reading stale
 # transaction ID's stored on the page.
-class test_debug_mode10(wttest.WiredTigerTestCase):
+class test_rollback_to_stable28(test_rollback_to_stable_base):
     conn_config = 'log=(enabled=true),statistics=(all)'
     # Recovery connection config: The debug mode is only effective on high cache pressure as WiredTiger can potentially decide
     # to do an update restore evict on a page when the cache pressure requirements are not met.
     # This means setting eviction target low and cache size high.
     conn_recon = ',eviction_updates_trigger=10,eviction_dirty_trigger=5,cache_size=10MB,' + \
             'debug_mode=(update_restore_evict=true),log=(recover=on)'
-
-    def large_updates(self, uri, value, ds, nrows, commit_ts):
-        # Update a large number of records.
-        session = self.session
-        cursor = session.open_cursor(uri)
-        session.begin_transaction()
-        for i in range(1, nrows + 1):
-            cursor[ds.key(i)] = value
-        session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-        cursor.close()
-
-    def check(self, check_value, uri, nrows, read_ts):
-        # Scan our records at a given timestamp, asserting the values match our expected value.
-        session = self.session
-        if read_ts == 0:
-            session.begin_transaction()
-        else:
-            session.begin_transaction('read_timestamp=' + self.timestamp_str(read_ts))
-        cursor = session.open_cursor(uri)
-        count = 0
-        for k, v in cursor:
-            self.assertEqual(v, check_value)
-            count += 1
-        session.commit_transaction()
-        self.assertEqual(count, nrows)
-        cursor.close()
 
     def parse_write_gen(self, uri):
         meta_cursor = self.session.open_cursor('metadata:')
@@ -110,9 +85,9 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         value_d = 'd' * 500
 
         # Perform several updates.
-        self.large_updates(uri, value_a, ds, nrows, 20)
-        self.large_updates(uri, value_b, ds, nrows, 30)
-        self.large_updates(uri, value_c, ds, nrows, 40)
+        self.large_updates(uri, value_a, ds, nrows, False, 20)
+        self.large_updates(uri, value_b, ds, nrows, False, 30)
+        self.large_updates(uri, value_c, ds, nrows, False, 40)
         # Verify data is visible and correct.
         self.check(value_a, uri, nrows, 20)
         self.check(value_b, uri, nrows, 30)
@@ -123,9 +98,9 @@ class test_debug_mode10(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
 
         # Perform additional updates post-stable timestamp.
-        self.large_updates(uri, value_d, ds, nrows, 50)
-        self.large_updates(uri, value_a, ds, nrows, 60)
-        self.large_updates(uri, value_b, ds, nrows, 70)
+        self.large_updates(uri, value_d, ds, nrows, False, 50)
+        self.large_updates(uri, value_a, ds, nrows, False, 60)
+        self.large_updates(uri, value_b, ds, nrows, False, 70)
 
         # Verify additional updated data is visible and correct.
         self.check(value_d, uri, nrows, 50)
