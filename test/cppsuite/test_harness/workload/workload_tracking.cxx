@@ -144,7 +144,7 @@ workload_tracking::do_work()
      * can either be at the end of the table or still on a valid entry since we interrupted the
      * work.
      */
-    if (_running && ret != WT_NOTFOUND || (!_running && ret != WT_NOTFOUND && ret != 0))
+    if (ret != 0 && ret != WT_NOTFOUND)
         testutil_die(LOG_ERROR,
           "Tracking table sweep failed: cursor->next() returned an unexpected error %d.", ret);
 
