@@ -83,8 +83,8 @@ class search_near_01 : public test_harness::test {
                             --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            testutil_assert(tc->transaction.commit("commit_timestamp=" +
-                                              tc->tsm->decimal_to_hex(100)) == true);
+                            testutil_assert(tc->transaction.commit(
+                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
                     }
