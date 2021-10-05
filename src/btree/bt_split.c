@@ -1360,7 +1360,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     WT_UPDATE *prev_onpage, *upd;
     uint64_t recno;
     uint32_t i, slot;
-    bool prepare;
 
     /*
      * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
@@ -1381,16 +1380,16 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
      * Steal the disk image and link the page into the passed-in WT_REF to simplify error handling:
      * our caller will not discard the disk image when discarding the original page, and our caller
      * will discard the allocated page on error, when discarding the allocated WT_REF.
-     */
-    WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page, &prepare));
-    multi->disk_image = NULL;
-
-    /*
+     *
      * In-memory databases restore non-obsolete updates directly in this function, don't call the
      * underlying page functions to do it.
      */
-    if (prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
-        WT_RET(__wt_page_inmem_prepare(session, ref));
+    if (F_ISSET(S2C(session), WT_CONN_IN_MEMORY))
+        WT_RET(
+          __wt_page_inmem_readonly(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
+    else
+        WT_RET(__wt_page_inmem(session, ref, multi->disk_image, WT_PAGE_DISK_ALLOC, &page));
+    multi->disk_image = NULL;
 
     /*
      * Put the re-instantiated page in the same LRU queue location as the original page, unless this

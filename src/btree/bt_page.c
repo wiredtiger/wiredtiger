@@ -121,11 +121,28 @@ err:
 }
 
 /*
- * __page_inmem_prepare_update --
- *     Create the actual update for a prepared value.
+ * __restore_needed --
+ *     Check if an on-disk value needs to be restored into memory.
+ */
+static bool
+__restore_needed(WT_SESSION_IMPL *session, WT_CELL_UNPACK_KV *unpack)
+{
+    /* XXX it is not ideal to do a snapshot check for every value. */
+    if (unpack->tw.prepare)
+        return (true);
+    else if (!__txn_visible_id(session, unpack->tw.start_txn) &&
+      (WT_TIME_WINDOW_HAS_STOP(&unpack->tw) && !__txn_visible_id(session, unpack->tw.stop_txn)))
+        return (true);
+
+    return (false);
+}
+
+/*
+ * __page_inmem_restore_update --
+ *     Create an in-memory update for a prepared or uncommitted on-disk value.
  */
 static int
-__page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
+__page_inmem_restore_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UNPACK_KV *unpack,
   WT_UPDATE **updp, size_t *sizep)
 {
     WT_DECL_RET;
@@ -142,7 +159,7 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
     upd->durable_ts = unpack->tw.durable_start_ts;
     upd->start_ts = unpack->tw.start_ts;
     upd->txnid = unpack->tw.start_txn;
-    F_SET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+    F_SET(upd, WT_UPDATE_RESTORED_FROM_DS);
 
     /*
      * Instantiate both update and tombstone if the prepared update is a tombstone. This is required
@@ -155,8 +172,8 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
         tombstone->durable_ts = WT_TS_NONE;
         tombstone->start_ts = unpack->tw.stop_ts;
         tombstone->txnid = unpack->tw.stop_txn;
-        tombstone->prepare_state = WT_PREPARE_INPROGRESS;
-        F_SET(tombstone, WT_UPDATE_PREPARE_RESTORED_FROM_DS);
+        tombstone->prepare_state = unpack->tw.prepare ? WT_PREPARE_INPROGRESS : WT_PREPARE_INIT;
+        F_SET(tombstone, WT_UPDATE_RESTORED_FROM_DS);
 
         /*
          * Mark the update also as in-progress if the update and tombstone are from same transaction
@@ -167,14 +184,14 @@ __page_inmem_prepare_update(WT_SESSION_IMPL *session, WT_ITEM *value, WT_CELL_UN
           unpack->tw.durable_start_ts == unpack->tw.durable_stop_ts &&
           unpack->tw.start_txn == unpack->tw.stop_txn) {
             upd->durable_ts = WT_TS_NONE;
-            upd->prepare_state = WT_PREPARE_INPROGRESS;
+            upd->prepare_state = unpack->tw.prepare ? WT_PREPARE_INPROGRESS : WT_PREPARE_INIT;
         }
 
         tombstone->next = upd;
         *updp = tombstone;
     } else {
         upd->durable_ts = WT_TS_NONE;
-        upd->prepare_state = WT_PREPARE_INPROGRESS;
+        upd->prepare_state = unpack->tw.prepare ? WT_PREPARE_INPROGRESS : WT_PREPARE_INIT;
         *updp = upd;
     }
 
@@ -189,11 +206,11 @@ err:
 }
 
 /*
- * __wt_page_inmem_prepare --
- *     Instantiate prepared updates.
+ * __page_inmem_restore --
+ *     Instantiate prepared and uncommitted updates for a page.
  */
-int
-__wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
+static int
+__page_inmem_restore(WT_SESSION_IMPL *session, WT_REF *ref)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
@@ -231,7 +248,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
             cell = WT_COL_PTR(page, cip);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             rle = __wt_cell_rle(&unpack);
-            if (!unpack.tw.prepare) {
+            if (!__restore_needed(session, &unpack)) {
                 recno += rle;
                 continue;
             }
@@ -241,8 +258,7 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
 
             /* For each record, create an update to resolve the prepare. */
             for (; rle > 0; --rle, ++recno) {
-                /* Create an update to resolve the prepare. */
-                WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
+                WT_ERR(__page_inmem_restore_update(session, value, &unpack, &upd, &size));
                 total_size += size;
 
                 /* Search the page and apply the modification. */
@@ -260,13 +276,13 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         WT_ROW_FOREACH (page, rip, i) {
             /* Search for prepare records. */
             __wt_row_leaf_value_cell(session, page, rip, &unpack);
-            if (!unpack.tw.prepare)
+            if (!__restore_needed(session, &unpack))
                 continue;
 
             /* Get the key/value pair and create an update to resolve the prepare. */
             WT_ERR(__wt_row_leaf_key(session, page, rip, key, false));
             WT_ERR(__wt_page_cell_data_ref(session, page, &unpack, value));
-            WT_ERR(__page_inmem_prepare_update(session, value, &unpack, &upd, &size));
+            WT_ERR(__page_inmem_restore_update(session, value, &unpack, &upd, &size));
             total_size += size;
 
             /* Search the page and apply the modification. */
@@ -293,11 +309,11 @@ err:
 }
 
 /*
- * __wt_page_inmem --
+ * __page_inmem --
  *     Build in-memory page information.
  */
-int
-__wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
+static int
+__page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
   WT_PAGE **pagep, bool *preparedp)
 {
     WT_DECL_RET;
@@ -416,6 +432,51 @@ __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32
 err:
     __wt_page_out(session, &page);
     return (ret);
+}
+
+/*
+ * __wt_page_inmem --
+ *     Build in-memory page information.
+ */
+int
+__wt_page_inmem(
+  WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags, WT_PAGE **pagep)
+{
+    WT_DECL_RET;
+    uint64_t txnid;
+    bool local_snapshot, prepare;
+
+    /*
+     * XXX We need to perform visibility checks in order to restore uncommitted updates. Get a
+     * snapshot and temporarily clear our transaction ID: we need our own updates to be restored.
+     */
+    txnid = session->txn->id;
+    session->txn->id = WT_TXN_NONE;
+    local_snapshot = !F_ISSET(session->txn, WT_TXN_HAS_SNAPSHOT);
+    if (local_snapshot)
+        __wt_txn_get_snapshot(session);
+
+    WT_ERR(__page_inmem(session, ref, image, flags, pagep, &prepare));
+    if (prepare)
+        WT_ERR(__page_inmem_restore(session, ref));
+
+err:
+    session->txn->id = txnid;
+    if (local_snapshot)
+        __wt_txn_release_snapshot(session);
+
+    return (ret);
+}
+
+/*
+ * __wt_page_inmem_readonly --
+ *     Build in-memory page information without restoring updates.
+ */
+int
+__wt_page_inmem_readonly(
+  WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags, WT_PAGE **pagep)
+{
+    return (__page_inmem(session, ref, image, flags, pagep, NULL));
 }
 
 /*
@@ -539,7 +600,7 @@ __inmem_col_var(
         }
 
         /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (unpack.tw.prepare)
+        if (preparedp != NULL && __restore_needed(session, &unpack))
             prepare = true;
 
         indx++;
@@ -830,8 +891,9 @@ __inmem_row_leaf(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp)
             WT_ERR(__wt_illegal_value(session, unpack.type));
         }
 
-        /* If we find a prepare, we'll have to instantiate it in the update chain later. */
-        if (unpack.tw.prepare)
+        /* If we find a prepared or uncommitted update, we'll have to instantiate it in the update
+         * chain later. */
+        if (preparedp != NULL && __restore_needed(session, &unpack))
             prepare = true;
     }
     WT_CELL_FOREACH_END;

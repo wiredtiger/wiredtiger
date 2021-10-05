@@ -312,8 +312,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
      * prepared updates from the same transaction.
      */
     if (F_ISSET(select_upd,
-          WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
-            WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+          WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_PREPARED))
         return (0);
 
     /* Loop forward from update after the selected on-page update. */
@@ -343,7 +342,7 @@ __rec_validate_upd_chain(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_UPDATE *s
          */
         if (F_ISSET(upd,
               WT_UPDATE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_HS |
-                WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+                WT_UPDATE_RESTORED_PREPARED))
             return (0);
 
         prev_upd = upd;
@@ -471,8 +470,8 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          * scenario can happen if the current reconciliation has a limited visibility of updates
          * compared to one of the previous reconciliations.
          */
-        if (!F_ISSET(upd,
-              WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS) &&
+        if (!F_ISSET(
+              upd, WT_UPDATE_DS | WT_UPDATE_RESTORED_PREPARED | WT_UPDATE_RESTORED_FROM_DS) &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
@@ -523,7 +522,7 @@ prepare_check:
                 WT_ASSERT(session,
                   F_ISSET(r, WT_REC_EVICT) ||
                     (F_ISSET(r, WT_REC_VISIBILITY_ERR) &&
-                      F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS)));
+                      F_ISSET(upd, WT_UPDATE_RESTORED_PREPARED)));
                 WT_ASSERT(session, upd->prepare_state == WT_PREPARE_INPROGRESS);
             }
         }

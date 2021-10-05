@@ -785,7 +785,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
          * from reconciliation getting rid of the obsolete content. Hence mark the page dirty to
          * force it through reconciliation.
          */
-        if (page != NULL &&
+        if (page != NULL && !F_ISSET(S2BT(session), WT_BTREE_READONLY) &&
           (cbt->page_deleted_count > WT_BTREE_DELETE_THRESHOLD ||
             (newpage && cbt->page_deleted_count > 0))) {
             WT_ERR(__wt_page_dirty_and_evict_soon(session, cbt->ref));

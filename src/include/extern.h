@@ -287,7 +287,7 @@ extern int __wt_btcur_reset(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((wa
 extern int __wt_btcur_search(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_search_prepared(WT_CURSOR *cursor, WT_UPDATE **updp)
+extern int __wt_btcur_search_uncommitted(WT_CURSOR *cursor, WT_UPDATE **updp)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_update(WT_CURSOR_BTREE *cbt) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btree_close(WT_SESSION_IMPL *session)
@@ -1194,9 +1194,9 @@ extern int __wt_page_in_func(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t fla
 #endif
   ) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_inmem(WT_SESSION_IMPL *session, WT_REF *ref, const void *image, uint32_t flags,
-  WT_PAGE **pagep, bool *preparedp) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_page_inmem_readonly(WT_SESSION_IMPL *session, WT_REF *ref, const void *image,
+  uint32_t flags, WT_PAGE **pagep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_modify_alloc(WT_SESSION_IMPL *session, WT_PAGE *page)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_page_release_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)

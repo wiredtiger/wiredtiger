@@ -912,7 +912,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          */
         if ((prepare_state == WT_PREPARE_INPROGRESS || prepare_state == WT_PREPARE_LOCKED) &&
           prepare_updp != NULL && *prepare_updp == NULL &&
-          F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS))
+          F_ISSET(upd, WT_UPDATE_RESTORED_PREPARED))
             *prepare_updp = upd;
 
         /*
@@ -1069,7 +1069,7 @@ retry:
      * being updated to 30 and the reader not seeing it.
      */
     if (prepare_upd != NULL) {
-        WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS));
+        WT_ASSERT(session, F_ISSET(prepare_upd, WT_UPDATE_RESTORED_PREPARED));
         if (retry &&
           (prepare_upd->txnid == WT_TXN_ABORTED ||
             prepare_upd->prepare_state == WT_PREPARE_RESOLVED)) {

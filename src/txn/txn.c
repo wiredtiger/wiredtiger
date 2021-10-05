@@ -1159,7 +1159,7 @@ __txn_search_prepared_op(
     }
 
     F_CLR(txn, txn_flags);
-    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_prepared(cursor, updp));
+    WT_WITH_BTREE(session, op->btree, ret = __wt_btcur_search_uncommitted(cursor, updp));
     F_SET(txn, txn_flags);
     F_CLR(txn, WT_TXN_PREPARE_IGNORE_API_CHECK);
     WT_RET(ret);
@@ -1254,7 +1254,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
      * followed by the update is also from the same prepared transaction by either restoring the
      * previous update from history store or removing the key.
      */
-    prepare_on_disk = F_ISSET(upd, WT_UPDATE_PREPARE_RESTORED_FROM_DS) &&
+    prepare_on_disk = F_ISSET(upd, WT_UPDATE_RESTORED_PREPARED) &&
       (upd->type != WT_UPDATE_TOMBSTONE ||
         (upd->next != NULL && upd->durable_ts == upd->next->durable_ts &&
           upd->txnid == upd->next->txnid && upd->start_ts == upd->next->start_ts));
