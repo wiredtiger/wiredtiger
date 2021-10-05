@@ -210,13 +210,16 @@ class test_config04(wttest.WiredTigerTestCase):
             '/eviction dirty trigger should not exceed cache size/')
 
     def test_eviction_dirty_trigger_abs_equal_to_dirty_target(self):
-        self.wiredtiger_open('.','create,eviction_dirty_trigger=10MB,eviction_dirty_target=10MB')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.wiredtiger_open('.','create,eviction_dirty_trigger=10MB,'
+                                 'eviction_dirty_target=10MB'),
+            '/eviction dirty target must be lower than the eviction dirty trigger/')
 
     def test_eviction_dirty_trigger_abs_too_low(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.wiredtiger_open('.','create,eviction_dirty_trigger=9MB,'
                                  'eviction_dirty_target=10MB'),
-            '/eviction dirty target must be lower than or equal to the eviction dirty trigger/')
+            '/eviction dirty target must be lower than the eviction dirty trigger/')
 
     def test_eviction_checkpoint_tgt_abs_too_large(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
@@ -231,14 +234,16 @@ class test_config04(wttest.WiredTigerTestCase):
             '/eviction updates target should not exceed cache size/')
 
     def test_eviction_updates_trigger_abs_equal_to_updates_target(self):
-        self.wiredtiger_open('.','create,eviction_updates_target=10MB,'
-                             'eviction_updates_trigger=10MB')
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
+            self.wiredtiger_open('.','create,eviction_updates_target=10MB,'
+                                 'eviction_updates_trigger=10MB'),
+            '/eviction updates target must be lower than the eviction updates trigger/')
 
     def test_eviction_updates_trigger_abs_too_low(self):
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError, lambda:
             self.wiredtiger_open('.','create,eviction_updates_trigger=9MB,'
                                  'eviction_updates_target=10MB'),
-            '/eviction updates target must be lower than or equal to the eviction updates trigger/')
+            '/eviction updates target must be lower than the eviction updates trigger/')
 
     def test_invalid_config(self):
         msg = '/Unbalanced brackets/'
