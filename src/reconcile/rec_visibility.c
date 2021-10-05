@@ -443,13 +443,17 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (WT_TXNID_LT(max_txn, txnid))
             max_txn = txnid;
 
+        if (is_hs_page || (page->type == WT_PAGE_ROW_LEAF && !WT_IS_METADATA(session->dhandle)))
+            goto prepare_check;
+
         /*
          * Special handling for application threads evicting their own updates.
          */
-        if (!is_hs_page && F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
+        if (F_ISSET(r, WT_REC_APP_EVICTION_SNAPSHOT) && txnid == session_txnid) {
             has_newer_updates = true;
             continue;
         }
+
         /*
          * Check whether the update was committed before reconciliation started. The global commit
          * point can move forward during reconciliation so we use a cached copy to avoid races when
@@ -469,7 +473,6 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
          */
         if (!F_ISSET(upd,
               WT_UPDATE_DS | WT_UPDATE_PREPARE_RESTORED_FROM_DS | WT_UPDATE_RESTORED_FROM_DS) &&
-          !is_hs_page &&
           (F_ISSET(r, WT_REC_VISIBLE_ALL) ? WT_TXNID_LE(r->last_running, txnid) :
                                             !__txn_visible_id(session, txnid))) {
             /*
@@ -480,6 +483,16 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
             if (upd_select->upd != NULL)
                 return (__wt_set_return(session, EBUSY));
 
+            has_newer_updates = true;
+            continue;
+        }
+
+prepare_check:
+        /*
+         * TODO don't allow reserves to be evicted for now: we'd have no way to represent them on
+         * disk.
+         */
+        if (upd->type == WT_UPDATE_RESERVE) {
             has_newer_updates = true;
             continue;
         }
@@ -519,7 +532,7 @@ __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins, W
         if (upd->start_ts > max_ts)
             max_ts = upd->start_ts;
 
-        /* Always select the newest committed update to write to disk */
+        /* Always select the newest update to write to disk */
         if (upd_select->upd == NULL)
             upd_select->upd = upd;
 

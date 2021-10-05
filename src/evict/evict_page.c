@@ -153,6 +153,11 @@ __wt_evict(WT_SESSION_IMPL *session, WT_REF *ref, uint8_t previous_state, uint32
     }
 
     /*
+     * We have exclusive access, invalidate any weak hazard pointers.
+     */
+    __wt_hazard_weak_invalidate(session, ref);
+
+    /*
      * Review the page for conditions that would block its eviction. If the check fails (for
      * example, we find a page with active children), quit. Make this check for clean pages, too:
      * while unlikely eviction would choose an internal page with children, it's not disallowed.
