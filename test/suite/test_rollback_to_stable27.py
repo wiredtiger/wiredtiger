@@ -34,7 +34,7 @@ from wtscenario import make_scenarios
 # test_rollback_to_stable27.py
 #
 # Test mixing timestamped and non-timestamped updates on the same VLCS RLE cell.
-class test_rollback_to_stable28(test_rollback_to_stable_base):
+class test_rollback_to_stable27(test_rollback_to_stable_base):
     session_config = 'isolation=snapshot'
 
     # Run it all on row-store as well as a control group: if something odd arises from the
@@ -71,7 +71,7 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
         nrows = 10
 
         # Create a table without logging.
-        uri = "table:rollback_to_stable28"
+        uri = "table:rollback_to_stable27"
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
         ds.populate()
