@@ -393,14 +393,18 @@ __rec_root_write(WT_SESSION_IMPL *session, WT_PAGE *page, uint32_t flags)
 
     /*
      * If a single root page was written (either an empty page or there was a 1-for-1 page swap),
-     * we've written root and checkpoint, we're done. If the root page split, write the resulting
-     * WT_REF array. We already have an infrastructure for writing pages, create a fake root page
-     * and write it instead of adding code to write blocks based on the list of blocks resulting
-     * from a multiblock reconciliation.
+     * we've written root and checkpoint, we're done. Clear the result of the reconciliation, a root
+     * page never has the structures that would normally be associated with (at least), the
+     * replaced-object flag. If the root page split, write the resulting WT_REF array. We already
+     * have an infrastructure for writing pages, create a fake root page and write it instead of
+     * adding code to write blocks based on the list of blocks resulting from a multiblock
+     * reconciliation.
+     *
      */
     switch (mod->rec_result) {
     case WT_PM_REC_EMPTY:   /* Page is empty */
     case WT_PM_REC_REPLACE: /* 1-for-1 page swap */
+        mod->rec_result = 0;
         return (0);
     case WT_PM_REC_MULTIBLOCK: /* Multiple blocks */
         break;

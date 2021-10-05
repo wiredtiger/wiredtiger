@@ -36,7 +36,7 @@ __compact_leaf_inmem_check_addrs(WT_SESSION_IMPL *session, WT_REF *ref, bool *sk
      * merged into the parent.
      */
     mod = ref->page->modify;
-    if (mod->rec_result == WT_PM_REC_REPLACE && mod->mod_replace.addr != NULL)
+    if (mod->rec_result == WT_PM_REC_REPLACE)
         return (
           bm->compact_page_skip(bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
 
@@ -90,6 +90,7 @@ __compact_leaf_inmem(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
      */
     if (!__wt_page_is_modified(ref->page))
         WT_ERR(__compact_leaf_inmem_check_addrs(session, ref, skipp));
+
     if (!*skipp) {
         WT_ERR(__wt_page_modify_init(session, ref->page));
         __wt_page_modify_set(session, ref->page);
@@ -271,10 +272,11 @@ __compact_internal(WT_SESSION_IMPL *session, WT_REF *parent)
     WT_INTL_FOREACH_END;
 
     /*
-     * If we moved a leaf page, we'll write the parent. If we didn't move a leaf page, check if we
-     * need to move the internal page itself.
+     * If we moved a leaf page, we'll write the parent. If we didn't move a leaf page, check pages
+     * other than the root to see if we want to move the internal page itself. (Skip the root as a
+     * forced checkpoint will always rewrite it, and you can't just "move" a root page.)
      */
-    if (!overall_progress) {
+    if (!overall_progress && !__wt_ref_is_root(parent)) {
         WT_ERR(__compact_leaf(session, parent, &skipp));
         if (!skipp)
             overall_progress = true;
