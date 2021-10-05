@@ -28,6 +28,7 @@ dir=$(pwd)
 # Fetch the gperftools library through either building the sources of gerftools 2.9.1 or directly
 # downloading the binaries from the S3 bucket.
 fetch_gperftools()
+{
     echo "-- FETCH GPERFTOOLS --"
     aws s3 ls "s3://build_external/jiechenbo_build/tcmalloc_${build_variant}.tgz"
     # Check if the output of searching for the gperftools binaries was successful or not. If
