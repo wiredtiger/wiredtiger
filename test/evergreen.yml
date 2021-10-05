@@ -555,6 +555,7 @@ functions:
         done
 
   "generic-perf-test":
+    # Run a performance test
     # Parameterised using the 'perf-test-name' and 'maxruns' variables
     - command: shell.exec
       params:
@@ -563,10 +564,13 @@ functions:
         script: |
           set -o errexit
           set -o verbose
-          pip3 install psutil
-          python3 wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -v -ho WT_TEST -m ${maxruns} -o out.json
+          ${virtualenv_binary} -p ${python_binary} venv
+          source venv/bin/activate
+          ${pip3_binary} install psutil
+          ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -v -ho WT_TEST -m ${maxruns} -o out.json
 
   "generic-perf-test-push-results":
+    # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'perf-test-name' variable
     - command: s3.put
       params:
@@ -3187,18 +3191,21 @@ buildvariants:
     - ubuntu2004-test
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
-    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_PYTHON=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
+    posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
     python_binary: '/opt/mongodbtoolchain/v3/bin/python3'
+    pip3_binary: '/opt/mongodbtoolchain/v3/bin/pip3'
+    virtualenv_binary: '/opt/mongodbtoolchain/v3/bin/virtualenv'
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     cmake_generator: Ninja
     make_command: ninja
     is_cmake_build: true
   tasks:
-    - name: perf-test-small-btree
+    # btree tests
     - name: perf-test-small-btree
     - name: perf-test-small-btree-backup
     - name: perf-test-medium-btree
     - name: perf-test-medium-btree-backup
+    # lsm tests
     - name: perf-test-small-lsm
     - name: perf-test-medium-lsm
     - name: perf-test-medium-lsm-compact
