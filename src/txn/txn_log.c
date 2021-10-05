@@ -190,6 +190,7 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     op->type = WT_TXN_OP_NONE;
     op->flags = 0;
+    WT_ASSERT(session, op->whp == NULL);
 }
 
 /*
@@ -250,18 +251,13 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_DECL_RET;
     WT_ITEM *logrec;
     WT_TXN *txn;
-    WT_TXN_OP *op;
+    WT_TXN_OP *op, *prevop;
+    WT_UPDATE *upd;
 
     uint32_t fileid;
 
     conn = S2C(session);
     txn = session->txn;
-
-    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
-      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
-      (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
-        !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE)))
-        return (0);
 
     /* We'd better have a transaction. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING) && F_ISSET(txn, WT_TXN_HAS_ID));
@@ -269,6 +265,43 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     WT_ASSERT(session, txn->mod_count > 0);
     op = txn->mod + txn->mod_count - 1;
     fileid = op->btree->id;
+
+    /*
+     * If there are older updates to this key by the same transaction, set the repeated key flag on
+     * the previous operation. This is used in txn commit/prepare/rollback so we only resolve each
+     * set of updates once. The most recent update (which appears later in the modification array)
+     * is the one we need to resolve in order to find all the updates.
+     */
+    if ((op->type == WT_TXN_OP_BASIC_COL || op->type == WT_TXN_OP_INMEM_COL ||
+          op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+      (upd = op->u.op_upd) != NULL)
+        for (upd = upd->next; upd != NULL && upd->txnid == txn->id; upd = upd->next) {
+            if (!F_ISSET(upd, WT_UPDATE_RESTORED_FAST_TRUNCATE))
+                continue;
+
+            for (prevop = op - 1; prevop >= txn->mod; prevop--)
+                if (prevop->type == op->type && prevop->u.op_upd == upd) {
+                    F_SET(prevop, WT_TXN_OP_KEY_REPEATED);
+                    break;
+                }
+
+            /* Make sure we found the previous update operation. */
+            WT_ASSERT(session, prevop >= txn->mod);
+            break;
+        }
+
+    if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
+        if (!WT_IS_METADATA(op->btree->dhandle)) {
+            WT_ASSERT(session, cbt != NULL);
+            WT_RET(__wt_hazard_weak_set(session, cbt->ref, &op->whp));
+        }
+    }
+
+    if (!FLD_ISSET(conn->log_flags, WT_CONN_LOG_ENABLED) ||
+      F_ISSET(session, WT_SESSION_NO_LOGGING) ||
+      (F_ISSET(S2BT(session), WT_BTREE_NO_LOGGING) &&
+        !FLD_ISSET(conn->log_flags, WT_CONN_LOG_DEBUG_MODE)))
+        return (0);
 
     /*
      * If this operation is diagnostic only, set the ignore bit on the fileid so that recovery can
