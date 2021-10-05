@@ -856,7 +856,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * than flag values, so fix them up according to the given configuration.
              */
             F_CLR(cursor,
-              WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_PREFIX_KEY | WT_CURSTD_RAW);
+              WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1101,9 +1101,9 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
             if (CUR2BT(cursor)->collator != NULL)
                 WT_ERR_MSG(
                   session, EINVAL, "cannot use prefix key search near with a custom collator");
-            F_SET(cursor, WT_CURSTD_PREFIX_KEY);
+            F_SET(cursor, WT_CURSTD_PREFIX_SEARCH);
         } else
-            F_CLR(cursor, WT_CURSTD_PREFIX_KEY);
+            F_CLR(cursor, WT_CURSTD_PREFIX_SEARCH);
     } else
         WT_ERR_NOTFOUND_OK(ret, false);
 

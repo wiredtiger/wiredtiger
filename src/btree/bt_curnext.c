@@ -348,7 +348,7 @@ __cursor_row_next(
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_KEY);
+    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -756,7 +756,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                  * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
                  * positioned when traversing keys for prefix search near.
                  */
-                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_KEY))
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
                     return (WT_NOTFOUND);
                 break;
             default:

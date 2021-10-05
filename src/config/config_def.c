@@ -169,7 +169,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_set_timestamp[] = {
 
 static const WT_CONFIG_CHECK confchk_WT_CURSOR_reconfigure[] = {
   {"append", "boolean", NULL, NULL, NULL, 0}, {"overwrite", "boolean", NULL, NULL, NULL, 0},
-  {"prefix_key", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
+  {"prefix_search", "boolean", NULL, NULL, NULL, 0}, {NULL, NULL, NULL, NULL, NULL, 0}};
 
 static const WT_CONFIG_CHECK confchk_assert_subconfigs[] = {
   {"commit_timestamp", "string", NULL,
@@ -371,7 +371,7 @@ static const WT_CONFIG_CHECK confchk_WT_SESSION_open_cursor[] = {
   {"incremental", "category", NULL, NULL, confchk_WT_SESSION_open_cursor_incremental_subconfigs, 7},
   {"next_random", "boolean", NULL, NULL, NULL, 0},
   {"next_random_sample_size", "string", NULL, NULL, NULL, 0},
-  {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"prefix_key", "boolean", NULL, NULL, NULL, 0},
+  {"overwrite", "boolean", NULL, NULL, NULL, 0}, {"prefix_search", "boolean", NULL, NULL, NULL, 0},
   {"raw", "boolean", NULL, NULL, NULL, 0}, {"read_once", "boolean", NULL, NULL, NULL, 0},
   {"readonly", "boolean", NULL, NULL, NULL, 0}, {"skip_sort_check", "boolean", NULL, NULL, NULL, 0},
   {"statistics", "list", NULL,
@@ -1181,7 +1181,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "oldest_timestamp=,stable_timestamp=",
     confchk_WT_CONNECTION_set_timestamp, 5},
   {"WT_CURSOR.close", "", NULL, 0},
-  {"WT_CURSOR.reconfigure", "append=false,overwrite=true,prefix_key=false",
+  {"WT_CURSOR.reconfigure", "append=false,overwrite=true,prefix_search=false",
     confchk_WT_CURSOR_reconfigure, 3},
   {"WT_SESSION.alter",
     "access_pattern_hint=none,app_metadata=,"
@@ -1247,7 +1247,7 @@ static const WT_CONFIG_ENTRY config_entries[] = {{"WT_CONNECTION.add_collator", 
     "debug=(release_evict=false),dump=,incremental=(consolidate=false"
     ",enabled=false,file=,force_stop=false,granularity=16MB,src_id=,"
     "this_id=),next_random=false,next_random_sample_size=0,"
-    "overwrite=true,prefix_key=false,raw=false,read_once=false,"
+    "overwrite=true,prefix_search=false,raw=false,read_once=false,"
     "readonly=false,skip_sort_check=false,statistics=,target=",
     confchk_WT_SESSION_open_cursor, 17},
   {"WT_SESSION.prepare_transaction", "prepare_timestamp=", confchk_WT_SESSION_prepare_transaction,
