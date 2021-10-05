@@ -1084,7 +1084,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
         WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Set the prefix search near flag. */
-    if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+    if ((ret = __wt_config_getones(session, config, "prefix_search", &cval)) == 0) {
         if (cval.val) {
             /* Prefix search near configuration can only be used for row-store. */
             if (WT_CURSOR_RECNO(cursor))
