@@ -1403,7 +1403,9 @@ static const char *const __stats_connection_desc[] = {
   "session: table alter triggering checkpoint calls",
   "session: table alter unchanged and skipped",
   "session: table compact failed calls",
+  "session: table compact running",
   "session: table compact successful calls",
+  "session: table compact timeout",
   "session: table create failed calls",
   "session: table create successful calls",
   "session: table drop failed calls",
@@ -1937,7 +1939,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_alter_trigger_checkpoint */
     /* not clearing session_table_alter_skip */
     /* not clearing session_table_compact_fail */
+    /* not clearing session_table_compact_running */
     /* not clearing session_table_compact_success */
+    /* not clearing session_table_compact_timeout */
     /* not clearing session_table_create_fail */
     /* not clearing session_table_create_success */
     /* not clearing session_table_drop_fail */
@@ -2484,7 +2488,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, session_table_alter_trigger_checkpoint);
     to->session_table_alter_skip += WT_STAT_READ(from, session_table_alter_skip);
     to->session_table_compact_fail += WT_STAT_READ(from, session_table_compact_fail);
+    to->session_table_compact_running += WT_STAT_READ(from, session_table_compact_running);
     to->session_table_compact_success += WT_STAT_READ(from, session_table_compact_success);
+    to->session_table_compact_timeout += WT_STAT_READ(from, session_table_compact_timeout);
     to->session_table_create_fail += WT_STAT_READ(from, session_table_create_fail);
     to->session_table_create_success += WT_STAT_READ(from, session_table_create_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);
