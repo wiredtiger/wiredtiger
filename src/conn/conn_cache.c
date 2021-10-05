@@ -245,8 +245,8 @@ __wt_cache_create(WT_SESSION_IMPL *session, const char *cfg[])
     if (cache->eviction_target >= cache->eviction_trigger)
         WT_RET_MSG(session, EINVAL, "eviction target must be lower than the eviction trigger");
     if (cache->eviction_dirty_target >= cache->eviction_dirty_trigger)
-        WT_RET_MSG(session, EINVAL,
-          "eviction dirty target must be lower than the eviction dirty trigger");
+        WT_RET_MSG(
+          session, EINVAL, "eviction dirty target must be lower than the eviction dirty trigger");
     if (cache->eviction_updates_target >= cache->eviction_updates_trigger)
         WT_RET_MSG(session, EINVAL,
           "eviction updates target must be lower than the eviction updates trigger");
