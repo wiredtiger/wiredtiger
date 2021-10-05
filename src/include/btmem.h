@@ -929,7 +929,7 @@ struct __wt_ref {
  */
 #define WT_REF_CLEAR_SIZE (offsetof(WT_REF, hist))
 
-#define WT_REF_SAVE_STATE_MAX 3
+#define WT_REF_SAVE_STATE_MAX 5
 #ifdef HAVE_DIAGNOSTIC
     /* Capture history of ref state changes. */
     WT_REF_HIST hist[WT_REF_SAVE_STATE_MAX];

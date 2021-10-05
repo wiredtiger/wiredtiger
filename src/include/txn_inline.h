@@ -1360,8 +1360,12 @@ __wt_txn_modify_check(
     /*
      * Don't access the update from an uncommitted transaction as it can produce wrong timestamp
      * results.
+     *
+     * XXX I don't understand why this code needs the previous timestamp or what the assertion is
+     * checking, but this fires in hs09 when an uncommitted update is written to the page and read
+     * back in.
      */
-    if (!rollback && prev_tsp != NULL && upd != NULL) {
+    if (!rollback && prev_tsp != NULL && upd != NULL && !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_DS)) {
         /*
          * The durable timestamp must be greater than or equal to the commit timestamp unless it is
          * an in-progress prepared update.
