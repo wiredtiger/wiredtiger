@@ -1494,6 +1494,7 @@ __rollback_to_stable_btree_apply(
 
     /* Find out the max durable timestamp of the object from checkpoint. */
     newest_start_durable_ts = newest_stop_durable_ts = WT_TS_NONE;
+    newest_stop_txn = newest_txn = WT_TXN_NONE;
     durable_ts_found = prepared_updates = has_txn_updates_gt_than_ckpt_snap = false;
 
     WT_RET(__wt_config_getones(session, config, "checkpoint", &cval));
