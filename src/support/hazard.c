@@ -7,10 +7,21 @@
  */
 
 #include "wt_internal.h"
-
 #ifdef HAVE_DIAGNOSTIC
 static void __hazard_dump(WT_SESSION_IMPL *);
 #endif
+
+#define WT_HAZARD_WEAK_FORALL(s, wha, whp)                     \
+    for (wha = (s)->hazard_weak; wha != NULL; wha = wha->next) \
+        for (whp = wha->hazard; whp < wha->hazard + wha->hazard_inuse; whp++)
+
+#define WT_HAZARD_WEAK_FORALL_BARRIER(s, wha, whp)               \
+    for (wha = (s)->hazard_weak; wha != NULL; wha = wha->next) { \
+        uint32_t __hazard_inuse;                                 \
+        WT_ORDERED_READ(__hazard_inuse, wha->hazard_inuse);      \
+        for (whp = wha->hazard; whp < wha->hazard + __hazard_inuse; whp++)
+
+#define WT_HAZARD_WEAK_FORALL_BARRIER_END }
 
 /*
  * hazard_grow --
@@ -51,7 +62,8 @@ hazard_grow(WT_SESSION_IMPL *session)
      * leak the memory.
      */
     __wt_gen_next(session, WT_GEN_HAZARD, &hazard_gen);
-    WT_IGNORE_RET(__wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, ohazard, 0));
+    WT_IGNORE_RET(
+      __wt_stash_add(session, WT_GEN_HAZARD, hazard_gen, ohazard, size * sizeof(WT_HAZARD)));
 
     return (0);
 }
@@ -225,6 +237,9 @@ void
 __wt_hazard_close(WT_SESSION_IMPL *session)
 {
     WT_HAZARD *hp;
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+    uint32_t nhazard_weak;
     bool found;
 
     /*
@@ -237,7 +252,7 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
             break;
         }
     if (session->nhazard == 0 && !found)
-        return;
+        goto weak;
 
     __wt_errx(session, "session %p: close hazard pointer table: table not empty", (void *)session);
 
@@ -262,6 +277,34 @@ __wt_hazard_close(WT_SESSION_IMPL *session)
 
     if (session->nhazard != 0)
         __wt_errx(session, "session %p: close hazard pointer table: count didn't match entries",
+          (void *)session);
+
+weak:
+    /* Same for weak hazard pointers. */
+    for (found = false, nhazard_weak = 0, wha = session->hazard_weak; wha != NULL;
+         nhazard_weak += wha->nhazard, wha = wha->next)
+        for (whp = wha->hazard; whp < wha->hazard + wha->hazard_inuse; whp++)
+            if (whp->ref != NULL) {
+                found = true;
+                break;
+            }
+
+    if (nhazard_weak == 0 && !found)
+        return;
+
+    __wt_errx(
+      session, "session %p: close weak hazard pointer table: table not empty", (void *)session);
+
+    WT_HAZARD_WEAK_FORALL(session, wha, whp)
+    if (whp->ref != NULL) {
+        whp->ref = NULL;
+        --wha->nhazard;
+        --nhazard_weak;
+    }
+
+    if (nhazard_weak != 0)
+        __wt_errx(session,
+          "session %p: close weak hazard pointer table: count didn't match entries",
           (void *)session);
 }
 
@@ -361,13 +404,228 @@ __wt_hazard_count(WT_SESSION_IMPL *session, WT_REF *ref)
     uint32_t i, hazard_inuse;
     u_int count;
 
-    hazard_get_reference(session, &hp, &hazard_inuse);
+    hp = session->hazard;
+    hazard_inuse = session->hazard_inuse;
 
     for (count = 0, i = 0; i < hazard_inuse; ++hp, ++i)
         if (hp->ref == ref)
             ++count;
 
     return (count);
+}
+
+/*
+ * hazard_weak_grow --
+ *     Grow a weak hazard pointer array.
+ */
+static int
+hazard_weak_grow(WT_SESSION_IMPL *session)
+{
+    WT_HAZARD_WEAK_ARRAY *wha;
+    size_t size;
+
+    /*
+     * Allocate a new, larger hazard pointer array and link it into place.
+     */
+    size = session->hazard_weak->hazard_size;
+    WT_RET(__wt_calloc(
+      session, sizeof(WT_HAZARD_WEAK_ARRAY) + 2 * size * sizeof(WT_HAZARD_WEAK), 1, &wha));
+    wha->next = session->hazard_weak;
+    wha->hazard_size = (uint32_t)(size * 2);
+    WT_PUBLISH(session->hazard_weak, wha);
+
+    /*
+     * Swap the new hazard pointer array into place after initialization is complete (initialization
+     * must complete before eviction can see the new hazard pointer array).
+     */
+    WT_PUBLISH(session->hazard_weak, wha);
+
+    return (0);
+}
+
+/*
+ * __wt_hazard_weak_destroy --
+ *     Free all memory associated with weak hazard pointers
+ */
+void
+__wt_hazard_weak_destroy(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *s)
+{
+    WT_HAZARD_WEAK_ARRAY *wha, *next;
+
+    for (wha = s->hazard_weak; wha != NULL; wha = next) {
+        next = wha->next;
+        __wt_free(session_safe, wha);
+    }
+}
+
+/*
+ * __wt_hazard_weak_set --
+ *     Set a weak hazard pointer. A hazard pointer must be held on the ref.
+ */
+int
+__wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whpp)
+{
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+
+    WT_ASSERT(session, ref != NULL);
+
+    if (whpp != NULL)
+        *whpp = NULL;
+
+    /* If we have filled the current hazard pointer array, grow it. */
+    for (wha = session->hazard_weak; wha != NULL && wha->nhazard >= wha->hazard_size;
+         wha = wha->next)
+        WT_ASSERT(
+          session, wha->nhazard == wha->hazard_size && wha->hazard_inuse == wha->hazard_size);
+
+    if (wha == NULL) {
+        WT_RET(hazard_weak_grow(session));
+        wha = session->hazard_weak;
+    }
+
+    /*
+     * If there are no available hazard pointer slots, make another one visible.
+     */
+    if (wha->nhazard >= wha->hazard_inuse) {
+        WT_ASSERT(
+          session, wha->nhazard == wha->hazard_inuse && wha->hazard_inuse < wha->hazard_size);
+        whp = &wha->hazard[wha->hazard_inuse++];
+    } else {
+        WT_ASSERT(
+          session, wha->nhazard < wha->hazard_inuse && wha->hazard_inuse <= wha->hazard_size);
+
+        /*
+         * There must be an empty slot in the array, find it. Skip most of the active slots by
+         * starting after the active count slot; there may be a free slot before there, but checking
+         * is expensive. If we reach the end of the array, continue the search from the beginning of
+         * the array.
+         */
+        for (whp = wha->hazard + wha->nhazard;; ++whp) {
+            if (whp >= wha->hazard + wha->hazard_inuse)
+                whp = wha->hazard;
+            if (whp->ref == NULL)
+                break;
+        }
+    }
+
+    ++wha->nhazard;
+
+    WT_ASSERT(session, whp->ref == NULL && whp->count == 0);
+
+    /*
+     * We rely on a hazard pointer protecting the ref, so for weak hazard pointers this is much
+     * simpler than the regular hazard pointer case.
+     */
+    whp->ref = ref;
+    whp->valid = true;
+    whp->count = 1;
+
+    WT_ASSERT(session, whpp != NULL);
+    *whpp = whp;
+    return (0);
+}
+
+/*
+ * __wt_hazard_weak_try_upgrade --
+ *     Attempts to convert a weak hazard pointer into a full hazard pointer, failing if it has been
+ *     invalidated.
+ */
+int
+__wt_hazard_weak_try_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp, WT_REF **refp)
+{
+    bool busy;
+
+    WT_ASSERT(session, whp != NULL && whp->ref != NULL);
+
+    if (!whp->valid)
+        return (EBUSY);
+
+    WT_RET(__wt_hazard_set(session, whp->ref, &busy));
+    if (busy)
+        return (EBUSY);
+
+    *refp = whp->ref;
+    return (0);
+}
+
+/*
+ * __wt_hazard_weak_upgrade --
+ *     Attempts to convert a weak hazard pointer into a full hazard pointer, failing if it has been
+ *     invalidated. Destructor.
+ */
+int
+__wt_hazard_weak_upgrade(WT_SESSION_IMPL *session, WT_HAZARD_WEAK **whpp, WT_REF **refp)
+{
+    WT_DECL_RET;
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+    bool busy;
+
+    whp = *whpp;
+    *whpp = NULL;
+    WT_ASSERT(session, whp != NULL && whp->ref != NULL);
+
+    if (!whp->valid)
+        WT_ERR(EBUSY);
+
+    WT_ERR(__wt_hazard_set(session, whp->ref, &busy));
+    if (busy)
+        WT_ERR(EBUSY);
+
+    *refp = whp->ref;
+
+err:
+    if (--whp->count == 0)
+        whp->ref = NULL;
+    for (wha = session->hazard_weak; wha != NULL; wha = wha->next) {
+        if (whp >= wha->hazard && whp < wha->hazard + wha->hazard_size)
+            if (--wha->nhazard == 0)
+                WT_PUBLISH(wha->hazard_inuse, 0);
+    }
+    return (ret);
+}
+
+/*
+ * __wt_hazard_weak_invalidate --
+ *     Invalidate any weak hazard pointers on a page that is locked for eviction.
+ */
+void
+__wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+    WT_SESSION_IMPL *s;
+    uint32_t i, j, max, session_cnt, walk_cnt;
+
+    /* If a file can never be evicted, hazard pointers aren't required. */
+    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        return;
+
+    conn = S2C(session);
+
+    /*
+     * No lock is required because the session array is fixed size, but it may contain inactive
+     * entries. We must review any active session that might contain a hazard pointer, so insert a
+     * read barrier after reading the active session count. That way, no matter what sessions come
+     * or go, we'll check the slots for all of the sessions that could have been active when we
+     * started our check.
+     */
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (s = conn->sessions, i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+        if (!s->active)
+            continue;
+
+        WT_HAZARD_WEAK_FORALL_BARRIER(s, wha, whp)
+        {
+            ++walk_cnt;
+            if (whp->ref == ref)
+                whp->valid = false;
+        }
+        WT_HAZARD_WEAK_FORALL_BARRIER_END
+    }
+    WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
 }
 
 #ifdef HAVE_DIAGNOSTIC
