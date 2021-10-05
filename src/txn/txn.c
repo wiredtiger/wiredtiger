@@ -301,7 +301,7 @@ __txn_get_snapshot_int(WT_SESSION_IMPL *session, bool publish)
          *    this case, we ignore this transaction because it would
          *    not be visible to the current snapshot.
          */
-        while (s != txn_shared && (id = s->id) != WT_TXN_NONE && WT_TXNID_LE(prev_oldest_id, id) &&
+        while ((id = s->id) != WT_TXN_NONE && id != txn->id && WT_TXNID_LE(prev_oldest_id, id) &&
           WT_TXNID_LT(id, current_id)) {
             /*
              * If the transaction is still allocating its ID, then we spin here until it gets its
@@ -1099,11 +1099,11 @@ err:
 }
 
 /*
- * __txn_search_prepared_op --
- *     Search for an operation's prepared update.
+ * __txn_search_uncommitted_op --
+ *     Search for an operation's uncommitted update.
  */
 static int
-__txn_search_prepared_op(
+__txn_search_uncommitted_op(
   WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_CURSOR **cursorp, WT_UPDATE **updp)
 {
     WT_CURSOR *cursor;
@@ -1154,7 +1154,7 @@ __txn_search_prepared_op(
     case WT_TXN_OP_REF_DELETE:
     case WT_TXN_OP_TRUNCATE_COL:
     case WT_TXN_OP_TRUNCATE_ROW:
-        WT_RET_PANIC_ASSERT(session, false, WT_PANIC, "invalid prepared operation update type");
+        WT_RET_PANIC_ASSERT(session, false, WT_PANIC, "invalid uncommitted operation update type");
         break;
     }
 
@@ -1196,7 +1196,7 @@ __txn_resolve_prepared_op(WT_SESSION_IMPL *session, WT_TXN_OP *op, bool commit, 
     fix_upd = tombstone = NULL;
     upd_appended = false;
 
-    WT_RET(__txn_search_prepared_op(session, op, cursorp, &upd));
+    WT_RET(__txn_search_uncommitted_op(session, op, cursorp, &upd));
 
     if (commit)
         __wt_verbose(session, WT_VERB_TRANSACTION,
@@ -1482,7 +1482,7 @@ __txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
 
         /* Search for prepared updates. */
         if (F_ISSET(txn, WT_TXN_PREPARE))
-            WT_ERR(__txn_search_prepared_op(session, op, &cursor, &upd));
+            WT_ERR(__txn_search_uncommitted_op(session, op, &cursor, &upd));
         else
             upd = op->u.op_upd;
 
@@ -1596,6 +1596,51 @@ __txn_mod_compare(const void *a, const void *b)
 }
 
 /*
+ * __txn_op_commit --
+ *     Commit a single operation.
+ */
+static inline int
+__txn_op_commit(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, bool prepare, WT_CURSOR **cursorp)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (prepare)
+        WT_RET(__txn_resolve_prepared_op(session, op, true, cursorp));
+    else {
+        for (; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+            if (upd->txnid != txn->id)
+                break;
+
+            /*
+             * Switch reserved operations to abort to simplify obsolete update list truncation.
+             */
+            if (upd->type == WT_UPDATE_RESERVE) {
+                upd->txnid = WT_TXN_ABORTED;
+                continue;
+            }
+
+            /*
+             * Don't reset the timestamp of the history store records with history store transaction
+             * timestamp. Those records should already have the original time window when they are
+             * inserted into the history store.
+             */
+            if (op->btree->id != 0 && op->btree->id == S2C(session)->cache->hs_fileid)
+                continue;
+
+            __wt_txn_op_set_timestamp(session, op, upd);
+            WT_RET(__txn_commit_timestamps_usage_check(session, op, upd));
+        }
+    }
+
+    return (0);
+}
+
+/*
  * __wt_txn_commit --
  *     Commit the current transaction.
  */
@@ -1606,12 +1651,12 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
     wt_timestamp_t candidate_durable_timestamp, prev_durable_timestamp;
-    uint32_t fileid;
     uint8_t previous_state;
     u_int i, ft_resolution;
 #ifdef HAVE_DIAGNOSTIC
@@ -1621,6 +1666,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
 
     conn = S2C(session);
     cursor = NULL;
+    ref = NULL;
     txn = session->txn;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
@@ -1746,46 +1792,52 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     /* Process and free updates. */
     ft_resolution = 0;
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        fileid = op->btree->id;
+        /*
+         * If an operation has the key repeated flag set, skip resolving updates as the work will
+         * happen on a different modification in this txn.
+         */
+        if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
+            continue;
+
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
         case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
-        case WT_TXN_OP_INMEM_ROW:
-            upd = op->u.op_upd;
-
-            if (!prepare) {
-                /*
-                 * Switch reserved operations to abort to simplify obsolete update list truncation.
-                 */
-                if (upd->type == WT_UPDATE_RESERVE) {
-                    upd->txnid = WT_TXN_ABORTED;
-                    break;
-                }
-
-                /*
-                 * Don't reset the timestamp of the history store records with history store
-                 * transaction timestamp. Those records should already have the original time window
-                 * when they are inserted into the history store.
-                 */
-                if (conn->cache->hs_fileid != 0 && fileid == conn->cache->hs_fileid)
-                    break;
-
-                __wt_txn_op_set_timestamp(session, op);
-                WT_ERR(__txn_commit_timestamps_usage_check(session, op, upd));
-            } else {
-                /*
-                 * If an operation has the key repeated flag set, skip resolving prepared updates as
-                 * the work will happen on a different modification in this txn.
-                 */
-                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_ERR(__txn_resolve_prepared_op(session, op, true, &cursor));
 #ifdef HAVE_DIAGNOSTIC
+            if (prepare)
                 ++prepare_count;
 #endif
+            WT_ERR(__txn_op_commit(session, op, op->u.op_upd, prepare, &cursor));
+            break;
+
+        case WT_TXN_OP_BASIC_ROW:
+        case WT_TXN_OP_INMEM_ROW:
+            upd = op->u.op_upd;
+            WT_ASSERT(session,
+              op->whp != NULL || upd->type == WT_UPDATE_RESERVE ||
+                WT_IS_METADATA(op->btree->dhandle));
+            WT_WITH_BTREE(session, op->btree,
+              ret = (op->whp == NULL) ? 0 : __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+            if (ret == EBUSY) {
+                WT_SAVE_DHANDLE(
+                  session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+                op->u.op_upd = upd;
             }
+            WT_ERR(ret);
+
+#ifdef HAVE_DIAGNOSTIC
+            if (prepare)
+                ++prepare_count;
+#endif
+            ret = __txn_op_commit(session, op, upd, prepare, &cursor);
+
+            if (ref != NULL) {
+                WT_WITH_BTREE(session, op->btree, WT_TRET(__wt_hazard_clear(session, ref)));
+                ref = NULL;
+            }
+
+            WT_ERR(ret);
             break;
         case WT_TXN_OP_REF_DELETE:
             /*
@@ -1820,7 +1872,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     for (i = 0, op = txn->mod; ft_resolution > 0 && i < txn->mod_count; i++, op++)
         if (op->type == WT_TXN_OP_REF_DELETE) {
-            __wt_txn_op_set_timestamp(session, op);
+            __wt_txn_op_set_timestamp(session, op, NULL);
 
             WT_REF_LOCK(session, op->u.ref, &previous_state);
             if (previous_state == WT_REF_DELETED)
@@ -1931,17 +1983,71 @@ err:
 }
 
 /*
+ * __txn_op_prepare --
+ *     Prepare a single operation.
+ */
+static bool
+__txn_op_prepare(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd)
+{
+    WT_TXN *txn;
+    bool found;
+
+    found = false;
+    txn = session->txn;
+
+    WT_UNUSED(op);
+
+    for (; upd != NULL; upd = upd->next) {
+        if (upd->txnid == WT_TXN_ABORTED)
+            continue;
+        if (upd->txnid != txn->id)
+            break;
+
+        found = true;
+
+        /*
+         * Switch reserved operation to abort to simplify obsolete update list truncation. The
+         * object free function clears the operation type so we don't try to visit this update
+         * again: it can be discarded.
+         */
+        if (upd->type == WT_UPDATE_RESERVE) {
+            upd->txnid = WT_TXN_ABORTED;
+            continue;
+        }
+
+        /* Set prepare timestamp. */
+        upd->start_ts = session->txn->prepare_timestamp;
+
+        /*
+         * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign it
+         * with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be a
+         * problem.
+         */
+        upd->durable_ts = WT_TS_NONE;
+
+        WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
+    }
+
+    return (found);
+}
+
+/*
  * __wt_txn_prepare --
  *     Prepare the current transaction.
  */
 int
 __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
 {
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_OP *op;
-    WT_UPDATE *upd, *tmp;
+    WT_UPDATE *upd;
     u_int i, prepared_updates, prepared_updates_key_repeated;
 
+    cursor = NULL;
+    ref = NULL;
     txn = session->txn;
     prepared_updates = prepared_updates_key_repeated = 0;
 
@@ -1973,6 +2079,15 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        /*
+         * If an operation has the key repeated flag set, skip resolving updates as the work will
+         * happen on a different modification in this txn.
+         */
+        if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+            ++prepared_updates_key_repeated;
+            continue;
+        }
+
         /* Assert it's not an update to the history store file. */
         WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree->dhandle));
 
@@ -1987,57 +2102,39 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
          */
         if (FLD_ISSET(S2C(session)->log_flags, WT_CONN_LOG_ENABLED) &&
           !F_ISSET(op->btree, WT_BTREE_NO_LOGGING))
-            WT_RET_MSG(session, EINVAL, "transaction prepare is not supported with logged tables");
+            WT_ERR_MSG(session, EINVAL, "transaction prepare is not supported with logged tables");
         switch (op->type) {
         case WT_TXN_OP_NONE:
             break;
         case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
+            if (__txn_op_prepare(session, op, op->u.op_upd))
+                ++prepared_updates;
+            break;
+        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_ROW:
             upd = op->u.op_upd;
+            WT_ASSERT(session,
+              op->whp != NULL || upd->type == WT_UPDATE_RESERVE ||
+                WT_IS_METADATA(op->btree->dhandle));
+            WT_WITH_BTREE(session, op->btree,
+              ret = (op->whp == NULL) ? 0 : __wt_hazard_weak_try_upgrade(session, op->whp, &ref));
+            if (ret == EBUSY) {
+                WT_SAVE_DHANDLE(
+                  session, ret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+                op->u.op_upd = upd;
+            }
+            WT_ERR(ret);
 
-            /*
-             * Switch reserved operation to abort to simplify obsolete update list truncation. The
-             * object free function clears the operation type so we don't try to visit this update
-             * again: it can be discarded.
-             */
-            if (upd->type == WT_UPDATE_RESERVE) {
-                upd->txnid = WT_TXN_ABORTED;
-                __wt_txn_op_free(session, op);
-                break;
+            if (__txn_op_prepare(session, op, upd))
+                ++prepared_updates;
+
+            if (ref != NULL) {
+                WT_WITH_BTREE(session, op->btree, WT_TRET(__wt_hazard_clear(session, ref)));
+                ref = NULL;
             }
 
-            ++prepared_updates;
-
-            /* Set prepare timestamp. */
-            upd->start_ts = txn->prepare_timestamp;
-
-            /*
-             * By default durable timestamp is assigned with 0 which is same as WT_TS_NONE. Assign
-             * it with WT_TS_NONE to make sure in case if we change the macro value it shouldn't be
-             * a problem.
-             */
-            upd->durable_ts = WT_TS_NONE;
-
-            WT_PUBLISH(upd->prepare_state, WT_PREPARE_INPROGRESS);
-            op->u.op_upd = NULL;
-
-            /*
-             * If there are older updates to this key by the same transaction, set the repeated key
-             * flag on this operation. This is later used in txn commit/rollback so we only resolve
-             * each set of prepared updates once. Skip reserved updates, they're ignored as they're
-             * simply discarded when we find them. Also ignore updates created by instantiating fast
-             * truncation pages, they aren't linked into the transaction's modify list and so can't
-             * be considered.
-             */
-            for (tmp = upd->next; tmp != NULL && tmp->txnid == upd->txnid; tmp = tmp->next)
-                if (tmp->type != WT_UPDATE_RESERVE &&
-                  !F_ISSET(tmp, WT_UPDATE_RESTORED_FAST_TRUNCATE)) {
-                    F_SET(op, WT_TXN_OP_KEY_REPEATED);
-                    ++prepared_updates_key_repeated;
-                    break;
-                }
+            WT_ERR(ret);
             break;
         case WT_TXN_OP_REF_DELETE:
             __wt_txn_op_apply_prepare_state(session, op->u.ref, false);
@@ -2067,6 +2164,43 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
     if (F_ISSET(txn, WT_TXN_HAS_ID))
         __txn_remove_from_global_table(session);
 
+err:
+    if (cursor != NULL) {
+        WT_TRET(cursor->close(cursor));
+        cursor = NULL;
+    }
+
+    return (ret);
+}
+
+/*
+ * __txn_op_rollback --
+ *     Rollback a single operation.
+ */
+static inline int
+__txn_op_rollback(
+  WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_UPDATE *upd, bool prepare, WT_CURSOR **cursorp)
+{
+    WT_TXN *txn;
+
+    txn = session->txn;
+
+    if (prepare)
+        WT_RET(__txn_resolve_prepared_op(session, op, false, cursorp));
+    else {
+        if (S2C(session)->cache->hs_fileid != 0 && op->btree->id == S2C(session)->cache->hs_fileid)
+            return (0);
+        for (; upd != NULL; upd = upd->next) {
+            if (upd->txnid == WT_TXN_ABORTED)
+                continue;
+            if (upd->txnid != txn->id)
+                break;
+
+            WT_ASSERT(session, upd->txnid == session->txn->id);
+            upd->txnid = WT_TXN_ABORTED;
+        }
+    }
+
     return (0);
 }
 
@@ -2079,6 +2213,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    WT_REF *ref;
     WT_TXN *txn;
     WT_TXN_OP *op;
     WT_UPDATE *upd;
@@ -2086,9 +2221,11 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 #ifdef HAVE_DIAGNOSTIC
     u_int prepare_count;
 #endif
+    int tret;
     bool prepare, readonly;
 
     cursor = NULL;
+    ref = NULL;
     txn = session->txn;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
@@ -2114,6 +2251,15 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
 
     /* Rollback and free updates. */
     for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
+        /*
+         * If an operation has the key repeated flag set, skip resolving updates as the work will
+         * happen on a different modification in this txn.
+         */
+        if (F_ISSET(op, WT_TXN_OP_KEY_REPEATED)) {
+            __wt_txn_op_free(session, op);
+            continue;
+        }
+
         /* Assert it's not an update to the history store file. */
         WT_ASSERT(session, S2C(session)->cache->hs_fileid == 0 || !WT_IS_HS(op->btree->dhandle));
 
@@ -2126,27 +2272,39 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
         case WT_TXN_OP_NONE:
             break;
         case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_BASIC_ROW:
         case WT_TXN_OP_INMEM_COL:
-        case WT_TXN_OP_INMEM_ROW:
-            upd = op->u.op_upd;
-
-            if (!prepare) {
-                if (S2C(session)->cache->hs_fileid != 0 &&
-                  op->btree->id == S2C(session)->cache->hs_fileid)
-                    break;
-                WT_ASSERT(session, upd->txnid == txn->id || upd->txnid == WT_TXN_ABORTED);
-                upd->txnid = WT_TXN_ABORTED;
-            } else {
-                /*
-                 * If an operation has the key repeated flag set, skip resolving prepared updates as
-                 * the work will happen on a different modification in this txn.
-                 */
-                if (!F_ISSET(op, WT_TXN_OP_KEY_REPEATED))
-                    WT_TRET(__txn_resolve_prepared_op(session, op, false, &cursor));
+            WT_TRET(__txn_op_rollback(session, op, op->u.op_upd, prepare, &cursor));
 #ifdef HAVE_DIAGNOSTIC
+            if (prepare)
                 ++prepare_count;
 #endif
+            break;
+        case WT_TXN_OP_BASIC_ROW:
+        case WT_TXN_OP_INMEM_ROW:
+            upd = op->u.op_upd;
+            WT_ASSERT(session,
+              op->whp != NULL || upd->type == WT_UPDATE_RESERVE ||
+                WT_IS_METADATA(op->btree->dhandle));
+            WT_WITH_BTREE(session, op->btree,
+              tret = (op->whp == NULL) ? 0 : __wt_hazard_weak_upgrade(session, &op->whp, &ref));
+            if (tret == EBUSY)
+                WT_SAVE_DHANDLE(
+                  session, tret = __txn_search_uncommitted_op(session, op, &cursor, &upd));
+            if (tret != 0) {
+                WT_TRET(tret);
+                continue;
+            }
+
+            WT_TRET(__txn_op_rollback(session, op, upd, prepare, &cursor));
+
+#ifdef HAVE_DIAGNOSTIC
+            if (prepare)
+                ++prepare_count;
+#endif
+
+            if (ref != NULL) {
+                WT_WITH_BTREE(session, op->btree, WT_TRET(__wt_hazard_clear(session, ref)));
+                ref = NULL;
             }
             break;
         case WT_TXN_OP_REF_DELETE:
