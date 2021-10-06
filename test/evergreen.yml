@@ -2865,7 +2865,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
-      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$(pwd)/.libs:$top_srcdir/TCMALLOC_LIB/lib
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     posix_configure_flags:
       --enable-silent-rules
@@ -2916,7 +2916,7 @@ buildvariants:
     test_env_vars:
       WT_SRCDIR=$(pwd)/..
       WT_BUILDDIR=$(pwd)
-      LD_LIBRARY_PATH=$(pwd):${WT_SRCDIR}/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$(pwd):$WT_SRCDIR/TCMALLOC_LIB/lib
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
@@ -3032,7 +3032,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
-      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$(pwd)/.libs:$top_srcdir/TCMALLOC_LIB/lib
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -3078,7 +3078,7 @@ buildvariants:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
-      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=$(pwd)/.libs:$top_srcdir/TCMALLOC_LIB/lib
     posix_configure_flags:
       --enable-silent-rules
       --enable-diagnostic
@@ -3131,7 +3131,7 @@ buildvariants:
     test_env_vars:
       top_srcdir=$(pwd)/../../..
       top_builddir=$(pwd)/../..
-      LD_LIBRARY_PATH=${top_builddir}/.libs:${top_srcdir}/TCMALLOC_LIB/lib
+      LD_LIBRARY_PATH=${top_builddir}/.libs:$top_srcdir/TCMALLOC_LIB/lib
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
