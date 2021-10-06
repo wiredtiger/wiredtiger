@@ -48,7 +48,7 @@ static const char conn_config[] = "create,cache_size=2GB,statistics=(all)";
 static const char table_config[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=i,value_format=QQQS";
 static char data_str[1024] = "";
-pthread_t thread_compact;
+static pthread_t thread_compact;
 
 /* Structures definition. */
 struct thread_data {
