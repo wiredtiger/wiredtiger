@@ -51,9 +51,10 @@ class hs_cleanup : public test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         const char *key_tmp;
+        const uint64_t MAX_ROLLBACKS = 100;
+        uint32_t rollback_retries = 0;
 
         collection &coll = tc->db.get_collection(tc->id);
-
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.get_collection_count() == tc->thread_count);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
@@ -94,9 +95,15 @@ class hs_cleanup : public test {
             if (tc->update(cursor, coll.id, key_value_t(key_tmp))) {
                 if (tc->transaction.can_commit()) {
                     WT_IGNORE_RET(tc->transaction.commit());
+                    rollback_retries = 0;
+                } else {
+                    testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                    ++rollback_retries;
                 }
             } else {
                 tc->transaction.rollback();
+                testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                ++rollback_retries;
             }
         }
         /* Ensure our last transaction is resolved. */

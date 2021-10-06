@@ -95,7 +95,9 @@ class search_near_02 : public test_harness::test {
         }
 
         std::string key;
+        const uint64_t MAX_ROLLBACKS = 100;
         uint64_t counter = 0;
+        uint32_t rollback_retries = 0;
 
         while (tc->running()) {
 
@@ -109,11 +111,18 @@ class search_near_02 : public test_harness::test {
 
                 /* Insert a key value pair. */
                 if (tc->insert(cc.cursor, cc.coll.id, key)) {
-                    if (tc->transaction.can_commit())
+                    if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
                         WT_IGNORE_RET(tc->transaction.commit());
+                        rollback_retries = 0;
+                    } else {
+                      testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                      ++rollback_retries;
+                    }
                 } else {
                     tc->transaction.rollback();
+                    testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                    ++rollback_retries;
                 }
 
                 /* Sleep the duration defined by the configuration. */
