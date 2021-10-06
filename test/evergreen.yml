@@ -100,14 +100,14 @@ functions:
       working_dir: "wiredtiger"
       shell: bash
       script: |
+        # Fetch the gperftools library.
+        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
+          . test/evergreen/find_gperftools.sh ${s3_access_key} ${s3_secret_key} ${build_variant} ${is_cmake_build|false}
+        fi
+        
         set -o errexit
         set -o verbose
 
-        # Fetch the gperftools library.
-        if [[ "${posix_configure_flags|}" =~ (tcmalloc|TCMALLOC) ]]; then
-          . test/evergreen/find_gperftools.sh ${aws_key} ${aws_secret} ${build_variant} ${is_cmake_build|false}
-        fi
-        
         # Check if the build variant has specified a build type, always default to
         # Autoconf/Libtool if $is_cmake_build is not declared.
         if [ ${is_cmake_build|false} = true ]; then
