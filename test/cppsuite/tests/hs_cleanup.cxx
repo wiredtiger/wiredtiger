@@ -55,6 +55,7 @@ class hs_cleanup : public test {
         uint32_t rollback_retries = 0;
 
         collection &coll = tc->db.get_collection(tc->id);
+
         /* In this test each thread gets a single collection. */
         testutil_assert(tc->db.get_collection_count() == tc->thread_count);
         scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
