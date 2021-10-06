@@ -113,17 +113,16 @@ class search_near_02 : public test_harness::test {
                 if (tc->insert(cc.cursor, cc.coll.id, key)) {
                     if (tc->transaction.can_commit()) {
                         /* We are not checking the result of commit as it is not necessary. */
-                        WT_IGNORE_RET(tc->transaction.commit());
-                        rollback_retries = 0;
-                    } else {
-                        testutil_assert(rollback_retries < MAX_ROLLBACKS);
-                        ++rollback_retries;
+                        if (tc->transaction.commit())
+                          rollback_retries = 0;
+                        else
+                          ++rollback_retries;
                     }
                 } else {
                     tc->transaction.rollback();
-                    testutil_assert(rollback_retries < MAX_ROLLBACKS);
                     ++rollback_retries;
                 }
+                testutil_assert(rollback_retries < MAX_ROLLBACKS);
 
                 /* Sleep the duration defined by the configuration. */
                 tc->sleep();

@@ -95,17 +95,16 @@ class hs_cleanup : public test {
              */
             if (tc->update(cursor, coll.id, key_value_t(key_tmp))) {
                 if (tc->transaction.can_commit()) {
-                    WT_IGNORE_RET(tc->transaction.commit());
-                    rollback_retries = 0;
-                } else {
-                    testutil_assert(rollback_retries < MAX_ROLLBACKS);
-                    ++rollback_retries;
+                    if (tc->transaction.commit())
+                        rollback_retries = 0;
+                    else
+                        ++rollback_retries;
                 }
             } else {
                 tc->transaction.rollback();
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
                 ++rollback_retries;
             }
+            testutil_assert(rollback_retries < MAX_ROLLBACKS);
         }
         /* Ensure our last transaction is resolved. */
         if (tc->transaction.active())
