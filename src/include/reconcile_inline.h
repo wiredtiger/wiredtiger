@@ -20,6 +20,15 @@
 #define WT_REC_SPLIT_MIN_ITEMS_USE_MEM 10
 
 /*
+ * WT_REC_TW_START_VISIBLE_ALL
+ *     Check if the provided time window's start is globally visible as per the saved state on the
+ *     reconciliation structure.
+ */
+#define WT_REC_TW_START_VISIBLE_ALL(r, tw)                     \
+    (WT_TXNID_LT((tw)->start_txn, (r)->rec_start_oldest_id) && \
+      (tw)->start_ts < (r)->rec_start_pinned_ts)
+
+/*
  * __rec_cell_addr_stats --
  *     Track statistics for time values associated with an address.
  */
@@ -424,4 +433,39 @@ __wt_rec_dict_replace(
         val->buf.size = 0;
     }
     return (0);
+}
+
+/*
+ * __wt_rec_time_window_clear_obsolete --
+ *     Where possible modify time window values to avoid writing obsolete values to the cell later.
+ */
+static inline void
+__wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw, WT_RECONCILE *r)
+{
+    /*
+     * In memory database don't need to avoid writing values to the cell. If we remove this check we
+     * create an extra update on the end of the chain later in reconciliation as we'll re-append the
+     * disk image value to the update chain.
+     */
+    if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
+        /*
+         * Check if the start of the time window is globally visible, and if so remove unnecessary
+         * values. Additionally check against the durable timestamp as we are going to make data
+         * durable.
+         */
+        if (!WT_TIME_WINDOW_HAS_STOP(tw) && WT_REC_TW_START_VISIBLE_ALL(r, tw) &&
+          tw->durable_start_ts < r->rec_start_pinned_ts) {
+            /*
+             * The durable stop timestamp should be it's default value whenever the stop timestamp
+             * is.
+             */
+            WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
+
+            /* The durable timestamp should never be less than the start timestamp. */
+            WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
+
+            tw->start_ts = tw->durable_start_ts = WT_TS_NONE;
+            tw->start_txn = WT_TXN_NONE;
+        }
+    }
 }
