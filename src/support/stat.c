@@ -1402,6 +1402,7 @@ static const char *const __stats_connection_desc[] = {
   "session: table alter successful calls",
   "session: table alter triggering checkpoint calls",
   "session: table alter unchanged and skipped",
+  "session: table compact checkpoint calls",
   "session: table compact failed calls",
   "session: table compact running",
   "session: table compact successful calls",
@@ -1938,6 +1939,7 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_alter_success */
     /* not clearing session_table_alter_trigger_checkpoint */
     /* not clearing session_table_alter_skip */
+    /* not clearing session_table_compact_checkpoint */
     /* not clearing session_table_compact_fail */
     /* not clearing session_table_compact_running */
     /* not clearing session_table_compact_success */
@@ -2487,6 +2489,7 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->session_table_alter_trigger_checkpoint +=
       WT_STAT_READ(from, session_table_alter_trigger_checkpoint);
     to->session_table_alter_skip += WT_STAT_READ(from, session_table_alter_skip);
+    to->session_table_compact_checkpoint += WT_STAT_READ(from, session_table_compact_checkpoint);
     to->session_table_compact_fail += WT_STAT_READ(from, session_table_compact_fail);
     to->session_table_compact_running += WT_STAT_READ(from, session_table_compact_running);
     to->session_table_compact_success += WT_STAT_READ(from, session_table_compact_success);
