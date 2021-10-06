@@ -116,8 +116,8 @@ class search_near_02 : public test_harness::test {
                         WT_IGNORE_RET(tc->transaction.commit());
                         rollback_retries = 0;
                     } else {
-                      testutil_assert(rollback_retries < MAX_ROLLBACKS);
-                      ++rollback_retries;
+                        testutil_assert(rollback_retries < MAX_ROLLBACKS);
+                        ++rollback_retries;
                     }
                 } else {
                     tc->transaction.rollback();
