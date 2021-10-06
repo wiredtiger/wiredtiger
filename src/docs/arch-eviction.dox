@@ -83,6 +83,7 @@ at least this many bytes of updates
 The \c eviction_updates_trigger trigger application threads to perform eviction when the
 cache contains at least this many bytes of updates.
 
-It is worth noting that the target size must be lower than the trigger size.
+It is worth noting that for all eviction target and trigger sizes, the target size must be lower
+lower than its trigger size counterpart.
 
 */
