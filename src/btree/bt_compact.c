@@ -135,8 +135,10 @@ __wt_compact(WT_SESSION_IMPL *session)
      * source if we make no progress, set a flag if the block layer thinks compaction is possible.
      */
     WT_RET(bm->compact_skip(bm, session, &skip));
-    if (skip)
+    if (skip) {
+        WT_STAT_DATA_INCR(session, btree_compact_skipped);
         return (0);
+    }
 
     /* Walk the tree reviewing pages to see if they should be re-written. */
     for (i = 0;;) {
