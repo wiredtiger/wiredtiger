@@ -2863,9 +2863,9 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
+      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     posix_configure_flags:
       --enable-silent-rules
@@ -2914,8 +2914,9 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      LD_LIBRARY_PATH=$(pwd):$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      WT_SRCDIR=$(pwd)/..
       WT_BUILDDIR=$(pwd)
+      LD_LIBRARY_PATH=$(pwd):${WT_SRCDIR}/TCMALLOC_LIB/lib
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
@@ -3028,10 +3029,10 @@ buildvariants:
     test_env_vars:
       UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:halt_on_error=1:print_stacktrace=1"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
+      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -3074,10 +3075,10 @@ buildvariants:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
-      LD_LIBRARY_PATH=$(pwd)/.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
       top_srcdir=$(pwd)/..
       top_builddir=$(pwd)
+      LD_LIBRARY_PATH=$(pwd)/.libs:${top_srcdir}/TCMALLOC_LIB/lib
     posix_configure_flags:
       --enable-silent-rules
       --enable-diagnostic
@@ -3128,7 +3129,9 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      LD_LIBRARY_PATH=$(pwd)/../../.libs:$(git rev-parse --show-toplevel)/TCMALLOC_LIB/lib
+      top_srcdir=$(pwd)/../../..
+      top_builddir=$(pwd)/../..
+      LD_LIBRARY_PATH=${top_builddir}/.libs:${top_srcdir}/TCMALLOC_LIB/lib
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
