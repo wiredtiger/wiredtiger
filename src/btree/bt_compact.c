@@ -85,7 +85,7 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 /*
  * __compact_progress --
- *     Output a compact progress message.
+ *     Output a compact progress message and update stats.
  */
 static void
 __compact_progress(WT_SESSION_IMPL *session)
@@ -110,6 +110,13 @@ __compact_progress(WT_SESSION_IMPL *session)
           bm->block->compact_pages_written);
         session->compact->prog_msg_count++;
     }
+
+    WT_STAT_CONN_INCRV(
+      session, session_table_compact_pages_reviewed, bm->block->compact_pages_reviewed);
+    WT_STAT_CONN_INCRV(
+      session, session_table_compact_pages_skipped, bm->block->compact_pages_skipped);
+    WT_STAT_CONN_INCRV(
+      session, session_table_compact_pages_written, bm->block->compact_pages_written);
 }
 
 /*

@@ -698,6 +698,9 @@ struct __wt_connection_stats {
     int64_t session_table_compact_checkpoint;
     int64_t session_table_compact_fail;
     int64_t session_table_compact_fail_cache_pressure;
+    int64_t session_table_compact_pages_reviewed;
+    int64_t session_table_compact_pages_skipped;
+    int64_t session_table_compact_pages_written;
     int64_t session_table_compact_running;
     int64_t session_table_compact_skipped;
     int64_t session_table_compact_success;
