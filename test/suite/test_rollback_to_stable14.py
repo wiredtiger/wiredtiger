@@ -26,7 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import threading
+import threading, time
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
@@ -60,18 +60,6 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
     def conn_config(self):
         config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
-
-    def evict_cursor(self, uri, nrows, check_value):
-        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        self.session.begin_transaction("ignore_prepare=true")
-        for i in range (1, nrows + 1):
-            evict_cursor.set_key(i)
-            self.assertEqual(evict_cursor.search(), 0)
-            self.assertEqual(evict_cursor.get_value(), check_value)
-            evict_cursor.reset()
-        evict_cursor.close()
-        self.session.rollback_transaction()
 
     def test_rollback_to_stable(self):
         nrows = 100
@@ -125,6 +113,8 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
+            # Sleep for sometime so that checkpoint starts.
+            time.sleep(2)
 
             # Perform several modifies in parallel with checkpoint.
             # Rollbacks may occur when checkpoint is running, so retry as needed.
@@ -232,6 +222,8 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
+            # Sleep for sometime so that checkpoint starts.
+            time.sleep(2)
 
             # Perform several modifies in parallel with checkpoint.
             # Rollbacks may occur when checkpoint is running, so retry as needed.
@@ -337,6 +329,8 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
+            # Sleep for sometime so that checkpoint starts.
+            time.sleep(2)
 
             # Perform several modifies in parallel with checkpoint.
             # Rollbacks may occur when checkpoint is running, so retry as needed.
