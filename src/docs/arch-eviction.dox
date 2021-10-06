@@ -84,6 +84,6 @@ The \c eviction_updates_trigger trigger application threads to perform eviction 
 cache contains at least this many bytes of updates.
 
 It is worth noting that for all eviction target and trigger sizes, the target size must be lower
-lower than its trigger size counterpart.
+than its trigger size counterpart.
 
 */
