@@ -26,9 +26,8 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import os, shutil, re
+import re
 from wiredtiger import stat
-import wttest
 from wtdataset import SimpleDataSet
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
