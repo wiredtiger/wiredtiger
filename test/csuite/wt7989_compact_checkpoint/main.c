@@ -232,9 +232,9 @@ thread_func_checkpoint(void *arg)
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
     if (td->cond != NULL) {
-        /* 
-         * Spawn the compact thread here to make sure the both threads are ready for the
-         * synced start.
+        /*
+         * Spawn the compact thread here to make sure the both threads are ready for the synced
+         * start.
          */
         testutil_check(pthread_create(&thread_compact, NULL, thread_func_compact, td));
 
