@@ -26,13 +26,13 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import fnmatch, os, shutil, threading, time
+import threading
 from helper import copy_wiredtiger_home, simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 from wiredtiger import stat
 from wtdataset import SimpleDataSet
 from wtscenario import make_scenarios
-from wtthread import checkpoint_thread, op_thread
+from wtthread import checkpoint_thread
 
 # test_rollback_to_stable10.py
 # Test the rollback to stable operation performs sweeping history store.
@@ -52,8 +52,20 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     scenarios = make_scenarios(key_format_values, prepare_values)
 
     def conn_config(self):
-        config = 'cache_size=6MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
+        config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true),timing_stress_for_test=[history_store_checkpoint_delay]'
         return config
+
+    def evict_cursor(self, uri, nrows, check_value):
+        # Configure debug behavior on a cursor to evict the page positioned on when the reset API is used.
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        self.session.begin_transaction("ignore_prepare=true")
+        for i in range (1, nrows + 1):
+            evict_cursor.set_key(i)
+            self.assertEqual(evict_cursor.search(), 0)
+            self.assertEqual(evict_cursor.get_value(), check_value)
+            evict_cursor.reset()
+        evict_cursor.close()
+        self.session.rollback_transaction()
 
     def test_rollback_to_stable(self):
         nrows = 1000
@@ -125,10 +137,14 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
                            lambda: self.large_updates(uri_1, value_e, ds_1, nrows, self.prepare, 70))
             self.retry_rollback('update ds2, e', None,
                            lambda: self.large_updates(uri_2, value_e, ds_2, nrows, self.prepare, 70))
+            self.evict_cursor(uri_1, nrows, value_e)
+            self.evict_cursor(uri_2, nrows, value_e)
             self.retry_rollback('update ds1, f', None,
                            lambda: self.large_updates(uri_1, value_f, ds_1, nrows, self.prepare, 80))
             self.retry_rollback('update ds2, f', None,
                            lambda: self.large_updates(uri_2, value_f, ds_2, nrows, self.prepare, 80))
+            self.evict_cursor(uri_1, nrows, value_f)
+            self.evict_cursor(uri_2, nrows, value_f)
         finally:
             done.set()
             ckpt.join()
@@ -173,10 +189,6 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
     def test_rollback_to_stable_prepare(self):
         nrows = 1000
 
-        # FIXME-WT-7250 This test fails because of cache stuck on Windows.
-        if os.name == "nt":
-            self.skipTest('rollback_to_stable10 prepare test skipped on Windows')
-
         # Create a table without logging.
         self.pr("create/populate tables")
         uri_1 = "table:rollback_to_stable10_1"
@@ -199,7 +211,6 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         value_c = "ccccc" * 100
         value_d = "ddddd" * 100
         value_e = "eeeee" * 100
-        value_f = "fffff" * 100
 
         # Perform several updates.
         self.pr("large updates")
@@ -216,13 +227,11 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         # Verify data is visible and correct.
         self.check(value_d, uri_1, nrows, 20)
         self.check(value_c, uri_1, nrows, 30)
-        self.session.breakpoint()
         self.check(value_b, uri_1, nrows, 40)
         self.check(value_a, uri_1, nrows, 50)
 
         self.check(value_d, uri_2, nrows, 20)
         self.check(value_c, uri_2, nrows, 30)
-        self.session.breakpoint()
         self.check(value_b, uri_2, nrows, 40)
         self.check(value_a, uri_2, nrows, 50)
 
@@ -268,6 +277,8 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
                            lambda: prepare_range_updates(
                                session_p2, cursor_p2, ds_2, value_e, nrows,
                                'prepare_timestamp=' + self.timestamp_str(69)))
+            self.evict_cursor(uri_1, nrows, value_a)
+            self.evict_cursor(uri_2, nrows, value_a)
         finally:
             done.set()
             ckpt.join()
