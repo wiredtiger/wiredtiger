@@ -319,6 +319,9 @@ __wt_conn_dhandle_close(WT_SESSION_IMPL *session, bool final, bool mark_dead)
 
         /* Reset the tree's eviction priority (if any). */
         __wt_evict_priority_clear(session);
+
+        /* Mark the advisory bit that the tree has been evicted. */
+        F_SET(dhandle, WT_DHANDLE_EVICTED);
     }
 
     /*
@@ -989,6 +992,9 @@ __wt_dhandle_update_write_gens(WT_SESSION_IMPL *session)
         WT_WITH_HANDLE_LIST_WRITE_LOCK(session, WT_DHANDLE_NEXT(session, dhandle, &conn->dhqh, q));
         if (dhandle == NULL)
             break;
+        /* There can be other dhandle types such as tier: that do not have a btree. Skip those. */
+        if (!WT_BTREE_PREFIX(dhandle->name))
+            continue;
         btree = (WT_BTREE *)dhandle->handle;
 
         WT_ASSERT(session, btree != NULL);

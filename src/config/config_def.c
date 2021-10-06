@@ -143,7 +143,7 @@ static const WT_CONFIG_CHECK confchk_WT_CONNECTION_reconfigure[] = {
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"split_6\",\"split_7\"]",
     NULL, 0},
   {"verbose", "list", NULL,
     "choices=[\"api\",\"backup\",\"block\",\"checkpoint\","
@@ -873,7 +873,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open[] = {
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"split_6\",\"split_7\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -953,7 +953,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_all[] = {
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"split_6\",\"split_7\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1030,7 +1030,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_basecfg[] = {
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"split_6\",\"split_7\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
@@ -1105,7 +1105,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_usercfg[] = {
     "\"history_store_checkpoint_delay\",\"history_store_search\","
     "\"history_store_sweep_race\",\"prepare_checkpoint_delay\","
     "\"split_1\",\"split_2\",\"split_3\",\"split_4\",\"split_5\","
-    "\"split_6\",\"split_7\",\"split_8\"]",
+    "\"split_6\",\"split_7\"]",
     NULL, 0},
   {"transaction_sync", "category", NULL, NULL, confchk_wiredtiger_open_transaction_sync_subconfigs,
     2},
