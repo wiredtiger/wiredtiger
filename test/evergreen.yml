@@ -3286,7 +3286,7 @@ buildvariants:
 
 - name: macos-1014
   display_name: OS X 10.14
-  run_on:π
+  run_on:
   - macos-1014
   expansions:
     configure_env_vars: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ADD_CFLAGS="-ggdb -fPIC"
