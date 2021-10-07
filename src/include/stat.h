@@ -982,11 +982,11 @@ struct __wt_dsrc_stats {
     int64_t compress_write;
     int64_t compress_hist_ratio_max;
     int64_t compress_hist_ratio_16;
+    int64_t compress_hist_ratio_2;
     int64_t compress_hist_ratio_32;
+    int64_t compress_hist_ratio_4;
     int64_t compress_hist_ratio_64;
     int64_t compress_hist_ratio_8;
-    int64_t compress_hist_ratio_4;
-    int64_t compress_hist_ratio_2;
     int64_t compress_write_fail;
     int64_t compress_write_too_small;
     int64_t cursor_next_skip_total;

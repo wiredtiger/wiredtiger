@@ -6733,16 +6733,16 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_MAX		2129
 /*! compression: number of blocks with compress ratio smaller than 16 */
 #define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_16		2130
+/*! compression: number of blocks with compress ratio smaller than 2 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_2		2131
 /*! compression: number of blocks with compress ratio smaller than 32 */
-#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_32		2131
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_32		2132
+/*! compression: number of blocks with compress ratio smaller than 4 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_4		2133
 /*! compression: number of blocks with compress ratio smaller than 64 */
-#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_64		2132
-/*! compression: number of blocks with compress ratio smaller than eight */
-#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_8		2133
-/*! compression: number of blocks with compress ratio smaller than four */
-#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_4		2134
-/*! compression: number of blocks with compress ratio smaller than two */
-#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_2		2135
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_64		2134
+/*! compression: number of blocks with compress ratio smaller than 8 */
+#define	WT_STAT_DSRC_COMPRESS_HIST_RATIO_8		2135
 /*! compression: page written failed to compress */
 #define	WT_STAT_DSRC_COMPRESS_WRITE_FAIL		2136
 /*! compression: page written was too small to compress */
