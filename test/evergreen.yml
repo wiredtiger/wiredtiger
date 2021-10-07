@@ -3,7 +3,7 @@
 # MongoDB continuous integration system (see https://mci.mongodb.com).
 #
 
-functions:
+functions:    
   "get project" :
     command: git.get_project
     params:
@@ -644,6 +644,7 @@ variables:
           times: 25
 
 pre:
+  - func: "set env"
   - func: "cleanup"
 post:
   - func: "upload artifact"
@@ -2864,9 +2865,9 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs:$top_srcdir/TCMALLOC_LIB/lib
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
+      LD_LIBRARY_PATH=$top_builddir/.libs:$top_dir/TCMALLOC_LIB/lib
     smp_command: -j $(echo "`grep -c ^processor /proc/cpuinfo` * 2" | bc)
     posix_configure_flags:
       --enable-silent-rules
@@ -2915,9 +2916,9 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      WT_SRCDIR=$(git rev-parse --show-toplevel)
-      WT_BUILDDIR=$top_srcdir/cmake_build
-      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_SRCDIR/TCMALLOC_LIB/lib
+      WT_TOPDIR=$(git rev-parse --show-toplevel)
+      WT_BUILDDIR=$top_dir/cmake_build
+      LD_LIBRARY_PATH=$WT_BUILDDIR:$WT_TOPDIR/TCMALLOC_LIB/lib
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
@@ -2964,8 +2965,8 @@ buildvariants:
       TESTUTIL_BYPASS_ASAN=1
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so 
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
@@ -2994,8 +2995,8 @@ buildvariants:
       MSAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
       TESTUTIL_SLOW_MACHINE=1
   tasks:
@@ -3032,9 +3033,9 @@ buildvariants:
       UBSAN_OPTIONS="detect_leaks=1:disable_coredump=0:external_symbolizer_path=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer:halt_on_error=1:print_stacktrace=1"
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs:$top_srcdir/TCMALLOC_LIB/lib
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
+      LD_LIBRARY_PATH=$top_builddir/.libs:$top_dir/TCMALLOC_LIB/lib
   tasks:
     - name: clang-analyzer
     - name: compile
@@ -3078,9 +3079,9 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs:$top_srcdir/TCMALLOC_LIB/lib
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
+      LD_LIBRARY_PATH=$top_builddir/.libs:$top_dir/TCMALLOC_LIB/lib
     posix_configure_flags:
       --enable-silent-rules
       --enable-diagnostic
@@ -3131,9 +3132,9 @@ buildvariants:
   - ubuntu2004-test
   expansions:
     test_env_vars:
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
-      LD_LIBRARY_PATH=$top_builddir/.libs:$top_srcdir/TCMALLOC_LIB/lib
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
+      LD_LIBRARY_PATH=$top_builddir/.libs:$top_dir/TCMALLOC_LIB/lib
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     posix_configure_flags:
@@ -3177,8 +3178,8 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -3197,8 +3198,8 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/local/lib/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
@@ -3233,8 +3234,8 @@ buildvariants:
     test_env_vars:
       LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libeatmydata.so
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
     - name: coverage-report
@@ -3303,8 +3304,8 @@ buildvariants:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH ARCHFLAGS=-Wno-error=unused-command-line-argument-hard-error-in-future make
     test_env_vars: 
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       DYLD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
     - name: compile
@@ -3347,8 +3348,8 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
   tasks:
   - name: compile
@@ -3368,8 +3369,8 @@ buildvariants:
     smp_command: -j $(grep -c ^processor /proc/cpuinfo)
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.lib
   tasks:
   - name: compile
@@ -3387,8 +3388,8 @@ buildvariants:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
     posix_configure_flags:
       --enable-silent-rules
@@ -3444,8 +3445,8 @@ buildvariants:
     make_command: PATH=/opt/mongodbtoolchain/v3/bin:$PATH make
     test_env_vars:
       PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-      top_srcdir=$(git rev-parse --show-toplevel)
-      top_builddir=$top_srcdir/build_posix
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/build_posix
       LD_LIBRARY_PATH=$top_builddir/.libs
     posix_configure_flags:
       --enable-silent-rules
