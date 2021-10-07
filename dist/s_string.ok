@@ -883,8 +883,8 @@ gt
 handleops
 handlep
 hardcoded
-hashtable
 hashsize
+hashtable
 hashval
 havesize
 hdr
@@ -1435,7 +1435,6 @@ unbuffered
 uncacheable
 uncompressed
 uncompressing
-uncompressed
 unconfigured
 uncustomized
 undef

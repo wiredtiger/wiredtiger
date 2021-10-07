@@ -700,7 +700,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         }
         __wt_spin_unlock(session, &blkcache->hash_locks[i]);
     }
-    WT_ASSERT(session, blkcache->bytes_used == blkcache->num_data_blocks == 0);
+    WT_ASSERT(session, blkcache->bytes_used == 0 && blkcache->num_data_blocks == 0);
 
 done:
     /* Print reference histograms */

@@ -114,8 +114,6 @@ struct __wt_blkcache {
 #define BLKCACHE_DRAM 1
 #define BLKCACHE_NVRAM 2
 
-#define BLKCACHE_PERCENT_FILE_IN_DRAM 50
-
 #define BLKCACHE_RM_EXIT 1
 #define BLKCACHE_RM_FREE 2
 #define BLKCACHE_RM_EVICTION 3
