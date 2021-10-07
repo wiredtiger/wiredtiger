@@ -76,14 +76,12 @@ def main():
 
     databases = client.database_names()
     if database not in databases:
-        sys.exit('Database: {}, does not exist in Atlas Cluster',
-                 database)
+        sys.exit('Database: {}, does not exist in Atlas Cluster'.format(database))
     db = client[database]
 
     collections = db.collection_names()
     if args.collection not in collections:
-        sys.exit('Collection/Test: {}, does not exist in Atlas Cluster'
-                 , args.collection)
+        sys.exit('Collection/Test: {}, does not exist in Atlas Cluster'.format(args.collection))
     coll = db[args.collection]
 
     upload_results(coll, args.file, args.branch)
