@@ -988,8 +988,8 @@ typedef int int_void;
 
 SIDESTEP_METHOD(__wt_storage_source, ss_customize_file_system,
   (WT_SESSION *session, const char *bucket_name,
-    const char *auth_token, const char *config, WT_FILE_SYSTEM **file_systemp),
-  (self, session, bucket_name, auth_token, config, file_systemp))
+    const char *config, WT_FILE_SYSTEM **file_systemp),
+  (self, session, bucket_name, config, file_systemp))
 
 SIDESTEP_METHOD(__wt_storage_source, ss_flush,
   (WT_SESSION *session, WT_FILE_SYSTEM *file_system,

@@ -4845,8 +4845,7 @@ struct __wt_storage_source {
 	 * @param[out] file_system the customized file system returned
 	 */
 	int (*ss_customize_file_system)(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-	    const char *bucket_name, const char *auth_token, const char *config,
-	    WT_FILE_SYSTEM **file_system);
+	    const char *bucket_name, const char *config, WT_FILE_SYSTEM **file_system);
 
 	/*!
 	 * Copy a file from the default file system to an object name in shared object storage.

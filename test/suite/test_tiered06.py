@@ -62,7 +62,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         local = self.get_local_storage_source()
 
         os.mkdir("objects")
-        fs = local.ss_customize_file_system(session, "./objects", "Secret", None)
+        fs = local.ss_customize_file_system(session, "./objects", "auth_token=Secret")
 
         # The object doesn't exist yet.
         self.assertFalse(fs.fs_exist(session, 'foobar'))
@@ -128,7 +128,7 @@ class test_tiered06(wttest.WiredTigerTestCase):
         os.mkdir("objects")
         os.mkdir("objects_cache")
         fs = local.ss_customize_file_system(
-            session, "./objects", "Secret", "cache_directory=" + cachedir)
+            session, "./objects", "auth_token=Secret,cache_directory=" + cachedir)
 
         # We call these 4K chunks of data "blocks" for this test, but that doesn't
         # necessarily relate to WT block sizing.
@@ -261,19 +261,19 @@ class test_tiered06(wttest.WiredTigerTestCase):
         os.mkdir(self.objectdir2)
         os.mkdir(self.cachedir1)
         os.mkdir(self.cachedir2)
-        config1 = "cache_directory=" + self.cachedir1
-        config2 = "cache_directory=" + self.cachedir2
-        bad_config = "cache_directory=/BAD"
+        config1 = "auth_token=k1,cache_directory=" + self.cachedir1
+        config2 = "auth_token=k2,cache_directory=" + self.cachedir2
+        bad_config = "auth_token=k1,cache_directory=/BAD"
 
         # Create file system objects. First try some error cases.
         errmsg = '/No such file or directory/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: local.ss_customize_file_system(
-                session, "./objects1", "k1", bad_config), errmsg)
+                session, "./objects1", bad_config), errmsg)
 
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: local.ss_customize_file_system(
-                session, "./objects_BAD", "k1", config1), errmsg)
+                session, "./objects_BAD", config1), errmsg)
 
         # Create an empty file, try to use it as a directory.
         with open("some_file", "w"):
@@ -281,13 +281,13 @@ class test_tiered06(wttest.WiredTigerTestCase):
         errmsg = '/Invalid argument/'
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda: local.ss_customize_file_system(
-                session, "some_file", "k1", config1), errmsg)
+                session, "some_file", config1), errmsg)
 
         # Now create some file systems that should succeed.
         # Use either different bucket directories or different prefixes,
         # so activity that happens in the various file systems should be independent.
-        fs1 = local.ss_customize_file_system(session, "./objects1", "k1", config1)
-        fs2 = local.ss_customize_file_system(session, "./objects2", "k2", config2)
+        fs1 = local.ss_customize_file_system(session, "./objects1", config1)
+        fs2 = local.ss_customize_file_system(session, "./objects2", config2)
 
         # Create files in the wt home directory.
         for a in ['beagle', 'bird', 'bison', 'bat']:

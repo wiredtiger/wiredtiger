@@ -105,6 +105,7 @@ typedef struct {
 
     char *auth_token;     /* Identifier for key management system */
     char *bucket_dir;     /* Directory that stands in for cloud storage bucket */
+    char *bucket_prefix;  /* Prefix for all objects */
     char *cache_dir;      /* Directory for cached objects */
     const char *home_dir; /* Owned by the connection */
 } LOCAL_FILE_SYSTEM;
@@ -139,7 +140,7 @@ static int local_stat(
  */
 static int local_add_reference(WT_STORAGE_SOURCE *);
 static int local_customize_file_system(
-  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, const char *, WT_FILE_SYSTEM **);
+  WT_STORAGE_SOURCE *, WT_SESSION *, const char *, const char *, WT_FILE_SYSTEM **);
 static int local_flush(
   WT_STORAGE_SOURCE *, WT_SESSION *, WT_FILE_SYSTEM *, const char *, const char *, const char *);
 static int local_flush_finish(
@@ -362,11 +363,13 @@ local_cache_path(WT_FILE_SYSTEM *file_system, const char *name, char **pathp)
 static int
 local_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char **pathp)
 {
+    LOCAL_FILE_SYSTEM *local;
     size_t len;
     int ret;
     char *p;
 
     ret = 0;
+    local = (LOCAL_FILE_SYSTEM *)file_system;
 
     /* Skip over "./" and variations (".//", ".///./././//") at the beginning of the name. */
     while (*name == '.') {
@@ -376,10 +379,10 @@ local_path(WT_FILE_SYSTEM *file_system, const char *dir, const char *name, char 
         while (*name == '/')
             name++;
     }
-    len = strlen(dir) + strlen(name) + 2;
+    len = strlen(dir) + strlen(name) + strlen(local->bucket_prefix) + 2;
     if ((p = malloc(len)) == NULL)
         return (local_err(FS2LOCAL(file_system), NULL, ENOMEM, "local_path"));
-    if (snprintf(p, len, "%s/%s", dir, name) >= (int)len)
+    if (snprintf(p, len, "%s/%s%s", dir, local->bucket_prefix, name) >= (int)len)
         return (local_err(FS2LOCAL(file_system), NULL, EINVAL, "overflow sprintf"));
     *pathp = p;
     return (ret);
@@ -455,12 +458,11 @@ local_add_reference(WT_STORAGE_SOURCE *storage_source)
  */
 static int
 local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *session,
-  const char *bucket_name, const char *auth_token, const char *config,
-  WT_FILE_SYSTEM **file_systemp)
+  const char *bucket_name, const char *config, WT_FILE_SYSTEM **file_systemp)
 {
     LOCAL_STORAGE *local;
     LOCAL_FILE_SYSTEM *fs;
-    WT_CONFIG_ITEM cachedir;
+    WT_CONFIG_ITEM auth_token, bucket_prefix, cachedir;
     WT_FILE_SYSTEM *wt_fs;
     int ret;
     const char *p;
@@ -472,6 +474,26 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     ret = 0;
 
     /* Parse configuration string. */
+    if ((ret = local->wt_api->config_get_string(
+           local->wt_api, session, config, "auth_token", &auth_token)) != 0) {
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            auth_token.len = 0;
+        } else {
+            ret = local_err(local, session, ret, "customize_file_system: config parsing");
+            goto err;
+        }
+    }
+    if ((ret = local->wt_api->config_get_string(
+           local->wt_api, session, config, "bucket_prefix", &bucket_prefix)) != 0) {
+        if (ret == WT_NOTFOUND) {
+            ret = 0;
+            bucket_prefix.len = 0;
+        } else {
+            ret = local_err(local, session, ret, "customize_file_system: config parsing");
+            goto err;
+        }
+    }
     if ((ret = local->wt_api->config_get_string(
            local->wt_api, session, config, "cache_directory", &cachedir)) != 0) {
         if (ret == WT_NOTFOUND) {
@@ -495,8 +517,12 @@ local_customize_file_system(WT_STORAGE_SOURCE *storage_source, WT_SESSION *sessi
     fs->local_storage = local;
     fs->wt_fs = wt_fs;
 
-    if ((fs->auth_token = strdup(auth_token)) == NULL) {
+    if ((fs->auth_token = strndup(auth_token.str, auth_token.len)) == NULL) {
         ret = local_err(local, session, ENOMEM, "local_file_system.auth_token");
+        goto err;
+    }
+    if ((fs->bucket_prefix = strndup(bucket_prefix.str, bucket_prefix.len)) == NULL) {
+        ret = local_err(local, session, ENOMEM, "local_file_system.bucket_prefix");
         goto err;
     }
 
@@ -553,6 +579,7 @@ err:
     else if (fs != NULL) {
         free(fs->auth_token);
         free(fs->bucket_dir);
+        free(fs->bucket_prefix);
         free(fs->cache_dir);
         free(fs);
     }
@@ -901,6 +928,7 @@ local_fs_terminate(WT_FILE_SYSTEM *file_system, WT_SESSION *session)
     FS2LOCAL(file_system)->op_count++;
     free(local_fs->auth_token);
     free(local_fs->bucket_dir);
+    free(local_fs->bucket_prefix);
     free(local_fs->cache_dir);
     free(file_system);
 
