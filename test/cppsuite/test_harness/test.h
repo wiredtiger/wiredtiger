@@ -59,8 +59,8 @@ class test_args {
  */
 class test : public database_operation {
     public:
-    test(const test_args &args);
-    ~test();
+    explicit test(const test_args &args);
+    virtual ~test();
 
     /* Delete the copy constructor and the assignment operator. */
     test(const test &) = delete;
