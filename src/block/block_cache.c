@@ -69,7 +69,7 @@ __blkcache_update_ref_histogram(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkc
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
-    unsigned int bucket;
+    u_int bucket;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -585,9 +585,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  *     Initialize the block cache.
  */
 static int
-__blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, uint type,
-  char *nvram_device_path, size_t system_ram, uint percent_file_in_dram, bool write_allocate,
-  double overhead_pct, bool eviction_on, uint evict_aggressive, double full_target,
+__blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u_int type,
+  char *nvram_device_path, size_t system_ram, u_int percent_file_in_dram, bool write_allocate,
+  double overhead_pct, bool eviction_on, u_int evict_aggressive, double full_target,
   bool chkpt_write_bypass)
 {
     WT_BLKCACHE *blkcache;
@@ -734,12 +734,11 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_BLKCACHE *blkcache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-
-    bool chkpt_write_bypass, eviction_on, write_allocate;
-    char *nvram_device_path;
     double overhead_pct, full_target;
-    uint cache_type, evict_aggressive, percent_file_in_dram;
     size_t cache_size, hash_size, system_ram;
+    u_int cache_type, evict_aggressive, percent_file_in_dram;
+    char *nvram_device_path;
+    bool chkpt_write_bypass, eviction_on, write_allocate;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
@@ -789,7 +788,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     system_ram = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.percent_file_in_dram", &cval));
-    percent_file_in_dram = cval.val;
+    percent_file_in_dram = (u_int)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.checkpoint_write_bypass", &cval));
     if (cval.val == 1)
@@ -800,7 +799,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         eviction_on = false;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.eviction_aggression", &cval));
-    evict_aggressive = cval.val;
+    evict_aggressive = (u_int)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.full_target", &cval));
     full_target = (double)cval.val / (double)100;

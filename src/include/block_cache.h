@@ -83,7 +83,7 @@ struct __wt_blkcache {
     size_t num_data_blocks;
     size_t max_bytes;
     size_t system_ram;
-    uint type;
+    u_int type;
     uint32_t min_freq_counter;
 
     /*
