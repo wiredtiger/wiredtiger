@@ -644,7 +644,6 @@ variables:
           times: 25
 
 pre:
-  - func: "set env"
   - func: "cleanup"
 post:
   - func: "upload artifact"
