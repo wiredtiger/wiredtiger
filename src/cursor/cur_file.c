@@ -412,8 +412,11 @@ __curfile_remove(WT_CURSOR *cursor)
     __wt_stat_usecs_hist_incr_opwrite(session, WT_CLOCKDIFF_US(time_stop, time_start));
 
     /* If we've lost an initial position, we must fail. */
-    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT))
+    if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
+        WT_IGNORE_RET(__wt_msg(
+          session, "WT_ROLLBACK: rolling back cursor remove as initial position was lost"));
         WT_ERR(WT_ROLLBACK);
+    }
 
     /*
      * Remove with a search-key is fire-and-forget, no position and no key. Remove starting from a
@@ -668,6 +671,7 @@ __curfile_create(WT_SESSION_IMPL *session, WT_CURSOR *owner, const char *cfg[], 
       __curfile_remove,                               /* remove */
       __curfile_reserve,                              /* reserve */
       __wt_cursor_reconfigure,                        /* reconfigure */
+      __wt_cursor_largest_key,                        /* largest_key */
       __curfile_cache,                                /* cache */
       __curfile_reopen,                               /* reopen */
       __curfile_close);                               /* close */

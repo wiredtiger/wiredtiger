@@ -30,6 +30,7 @@ project(libtest C)
 
 set(sources
     misc.c
+    modify.c
     parse_opts.c
     thread.c
 )
@@ -44,8 +45,11 @@ add_library(test_util ${link_type} ${sources})
 
 target_include_directories(
     test_util
-    PUBLIC ${CMAKE_BINARY_DIR}/include
-    PRIVATE ${CMAKE_BINARY_DIR}/config ${CMAKE_SOURCE_DIR}/src/include
+    PUBLIC
+        ${CMAKE_BINARY_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${CMAKE_BINARY_DIR}/config
+        ${CMAKE_SOURCE_DIR}/src/include
 )
 target_link_libraries(test_util wiredtiger)
 
