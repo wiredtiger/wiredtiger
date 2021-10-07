@@ -121,11 +121,13 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             self.pr("modifies")
             self.retry_rollback('modify ds1, W', None,
                            lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70))
+            self.evict_cursor(uri, nrows, value_modW)
             self.retry_rollback('modify ds1, X', None,
                            lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80))
             self.evict_cursor(uri, nrows, value_modX)
             self.retry_rollback('modify ds1, Y', None,
                            lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90))
+            self.evict_cursor(uri, nrows, value_modY)
             self.retry_rollback('modify ds1, Z', None,
                            lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100))
             self.evict_cursor(uri, nrows, value_modZ)
@@ -230,11 +232,13 @@ class test_rollback_to_stable14(test_rollback_to_stable_base):
             self.pr("modifies")
             self.retry_rollback('modify ds1, W', None,
                            lambda: self.large_modifies(uri, 'W', ds, 4, 1, nrows, self.prepare, 70))
+            self.evict_cursor(uri, nrows, value_modW)
             self.retry_rollback('modify ds1, X', None,
                            lambda: self.large_modifies(uri, 'X', ds, 5, 1, nrows, self.prepare, 80))
             self.evict_cursor(uri, nrows, value_modX)
             self.retry_rollback('modify ds1, Y', None,
                            lambda: self.large_modifies(uri, 'Y', ds, 6, 1, nrows, self.prepare, 90))
+            self.evict_cursor(uri, nrows, value_modY)
             self.retry_rollback('modify ds1, Z', None,
                            lambda: self.large_modifies(uri, 'Z', ds, 7, 1, nrows, self.prepare, 100))
             self.evict_cursor(uri, nrows, value_modZ)
