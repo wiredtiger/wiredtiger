@@ -103,6 +103,7 @@ DIRECTIO
 DNE
 DOI
 DONTNEED
+DS
 DSK
 DUPLICATEV
 DataSet
@@ -113,6 +114,7 @@ Decrement
 Decrypt
 DeleteFileW
 Destructor
+Deterministically
 EACCES
 EAGAIN
 EB
@@ -331,6 +333,7 @@ Pre
 Preload
 Prepend
 Prev
+QQQS
 Qsort
 RCS
 RDNOLOCK
@@ -1133,6 +1136,7 @@ numSymbols
 numbare
 objs
 offpage
+ofh
 ok
 oldv
 ondisk
@@ -1485,6 +1489,7 @@ vsnprintf
 vtype
 vunpack
 vxr
+vz
 waitpid
 waker
 wakeup

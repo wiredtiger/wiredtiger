@@ -264,6 +264,8 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",checkpoint_slow");
     if (g.c_timing_stress_checkpoint_prepare)
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
+    if (g.c_timing_stress_checkpoint_reserved_txnid_delay)
+        CONFIG_APPEND(p, ",checkpoint_reserved_txnid_delay");
     if (g.c_timing_stress_failpoint_hs_delete_key_from_ts)
         CONFIG_APPEND(p, ",failpoint_history_store_delete_key_from_ts");
     if (g.c_timing_stress_failpoint_hs_insert_1)
@@ -290,8 +292,6 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",split_6");
     if (g.c_timing_stress_split_7)
         CONFIG_APPEND(p, ",split_7");
-    if (g.c_timing_stress_split_8)
-        CONFIG_APPEND(p, ",split_8");
     CONFIG_APPEND(p, "]");
 
     /* Extensions. */
@@ -521,8 +521,6 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         CONFIG_APPEND(p, ",split_6");
     if (g.c_timing_stress_split_7)
         CONFIG_APPEND(p, ",split_7");
-    if (g.c_timing_stress_split_8)
-        CONFIG_APPEND(p, ",split_8");
     CONFIG_APPEND(p, "]");
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */

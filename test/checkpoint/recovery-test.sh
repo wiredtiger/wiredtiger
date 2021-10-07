@@ -2,18 +2,31 @@
 
 set -x
 
-home=${1:-WT_TEST}
+usage () {
+    cat << EOF
+Usage: recovery_test.sh {config} {home directory}
+EOF
+}
+
+if [ "$#" -ne 2 ]; then
+    echo "Illegal number of parameters."
+    usage
+    exit 1
+fi
+
+config=$1
+home=$2
 backup=$home.backup
 recovery=$home.recovery
 
 #./t -t r -W 3 -D -X -n 100000 -k 100000 -C cache_size=100MB -h $home > $home.out 2>&1 &
-./t -t r -s 2 -W 3 -D -n 100000 -k 100000 -C cache_size=100MB -h $home > $home.out 2>&1 &
+./t ${config} -h ${home} > $home.out 2>&1 &
 pid=$!
 
 trap "kill -9 $pid" 0 1 2 3 13 15
 
 # Wait for the test to start running
-while ! grep -q "Finished a checkpoint" $home.out ; do
+while ! grep -q "Finished a checkpoint" $home.out && kill -0 $pid ; do
 	sleep 1
 done
 

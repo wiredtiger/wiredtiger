@@ -856,12 +856,12 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * than flag values, so fix them up according to the given configuration.
              */
             F_CLR(cursor,
-              WT_CURSTD_APPEND | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
+              WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
              */
-            if (WT_PREFIX_MATCH(cursor->internal_uri, "file:")) {
+            if (WT_BTREE_PREFIX(cursor->internal_uri)) {
                 cbt = (WT_CURSOR_BTREE *)cursor;
                 F_CLR(cbt, WT_CBT_READ_ONCE);
             } else {
@@ -1020,6 +1020,29 @@ __cursor_config_debug(WT_CURSOR *cursor, const char *cfg[])
 }
 
 /*
+ * __check_prefix_format --
+ *     Check if the schema format is a fixed-length string, variable string or byte array.
+ */
+static int
+__check_prefix_format(const char *format)
+{
+    size_t len;
+    const char *p;
+
+    /* Early exit if prefix format is S or u. */
+    if (WT_STREQ(format, "S") || WT_STREQ(format, "u"))
+        return (0);
+    /*
+     * Now check for fixed-length string format through looking at the characters before the nul
+     * character.
+     */
+    for (p = format, len = strlen(format); len > 1; --len, p++)
+        if (!__wt_isdigit((u_char)*p))
+            break;
+    return ((len > 1 || *p != 's') ? EINVAL : 0);
+}
+
+/*
  * __wt_cursor_reconfigure --
  *     Set runtime-configurable settings.
  */
@@ -1061,12 +1084,20 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
         WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Set the prefix search near flag. */
-    if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+    if ((ret = __wt_config_getones(session, config, "prefix_search", &cval)) == 0) {
         if (cval.val) {
             /* Prefix search near configuration can only be used for row-store. */
             if (WT_CURSOR_RECNO(cursor))
                 WT_ERR_MSG(
                   session, EINVAL, "cannot use prefix key search near for column store formats");
+            /*
+             * Prefix search near configuration can only be used for string or raw byte array
+             * formats.
+             */
+            if ((ret = __check_prefix_format(cursor->key_format)) != 0)
+                WT_ERR_MSG(session, ret,
+                  "prefix key search near can only be used with string, fixed-length string or raw "
+                  "byte array format types");
             if (CUR2BT(cursor)->collator != NULL)
                 WT_ERR_MSG(
                   session, EINVAL, "cannot use prefix key search near with a custom collator");
@@ -1079,6 +1110,52 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __wt_cursor_largest_key --
+ *     WT_CURSOR->largest_key default implementation..
+ */
+int
+__wt_cursor_largest_key(WT_CURSOR *cursor)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    bool ignore_tombstone;
+
+    ignore_tombstone = F_ISSET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    CURSOR_API_CALL(cursor, session, largest_key, NULL);
+
+    if (F_ISSET(session->txn, WT_TXN_SHARED_TS_READ))
+        WT_ERR_MSG(session, EINVAL, "largest key cannot be called with a read timestamp");
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key));
+
+    /* Reset the cursor to give up the cursor position. */
+    WT_ERR(cursor->reset(cursor));
+
+    /* Ignore deletion */
+    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+
+    /* Call cursor prev with read uncommitted isolation level. */
+    WT_WITH_TXN_ISOLATION(session, WT_ISO_READ_UNCOMMITTED, ret = cursor->prev(cursor));
+    WT_ERR(ret);
+
+    /* Copy the key as we will reset the cursor after that. */
+    WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
+    WT_ERR(cursor->reset(cursor));
+    WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
+    /* Set the key as external. */
+    F_SET(cursor, WT_CURSTD_KEY_EXT);
+
+err:
+    if (!ignore_tombstone)
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    __wt_scr_free(session, &key);
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 

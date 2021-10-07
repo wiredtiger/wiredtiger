@@ -301,6 +301,10 @@ static CONFIG c[] = {
   {"stress.checkpoint", "stress checkpoints", C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint, NULL},
 
   /* 2% */
+  {"stress.checkpoint_reserved_txnid_delay", "stress checkpoint invisible transaction id delay",
+    C_BOOL, 2, 0, 0, &g.c_timing_stress_checkpoint_reserved_txnid_delay, NULL},
+
+  /* 2% */
   {"stress.checkpoint_prepare", "stress checkpoint prepare", C_BOOL, 2, 0, 0,
     &g.c_timing_stress_checkpoint_prepare, NULL},
 
@@ -348,9 +352,6 @@ static CONFIG c[] = {
 
   /* 2% */
   {"stress.split_7", "stress splits (#7)", C_BOOL, 2, 0, 0, &g.c_timing_stress_split_7, NULL},
-
-  /* 2% */
-  {"stress.split_8", "stress splits (#8)", C_BOOL, 2, 0, 0, &g.c_timing_stress_split_8, NULL},
 
   {"transaction.implicit", "implicit, without timestamps, transactions (percentage)", 0x0, 0, 100,
     100, &g.c_txn_implicit, NULL},
