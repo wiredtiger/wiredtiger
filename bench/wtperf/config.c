@@ -200,10 +200,8 @@ config_threads(WTPERF *wtperf, const char *config, size_t len)
 
         /* Move to the next workload slot. */
         if (wtperf->workload_cnt == WORKLOAD_MAX) {
-            fprintf(stderr,
-              "too many workloads configured, only %d workloads "
-              "supported\n",
-              WORKLOAD_MAX);
+            fprintf(
+              stderr, "too many workloads configured, only %d workloads supported\n", WORKLOAD_MAX);
             return (EINVAL);
         }
         workp = &wtperf->workload[wtperf->workload_cnt++];
@@ -394,10 +392,7 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
             break;
         }
     if (desc == NULL) {
-        fprintf(stderr,
-          "wtperf: Error: "
-          "unknown option \'%.*s\'\n",
-          (int)k->len, k->str);
+        fprintf(stderr, "wtperf: Error: unknown option \'%.*s\'\n", (int)k->len, k->str);
         fprintf(stderr, "Options:\n");
         for (i = 0; i < WT_ELEMENTS(config_opts_desc); i++)
             fprintf(stderr, "\t%s\n", config_opts_desc[i].name);
@@ -407,26 +402,20 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
     switch (desc->type) {
     case BOOL_TYPE:
         if (v->type != WT_CONFIG_ITEM_BOOL) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "bad bool value for \'%.*s=%.*s\'\n",
-              (int)k->len, k->str, (int)v->len, v->str);
+            fprintf(stderr, "wtperf: Error: bad bool value for \'%.*s=%.*s\'\n", (int)k->len,
+              k->str, (int)v->len, v->str);
             return (EINVAL);
         }
         *(int *)valueloc = (int)v->val;
         break;
     case INT_TYPE:
         if (v->type != WT_CONFIG_ITEM_NUM) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "bad int value for \'%.*s=%.*s\'\n",
-              (int)k->len, k->str, (int)v->len, v->str);
+            fprintf(stderr, "wtperf: Error: bad int value for \'%.*s=%.*s\'\n", (int)k->len, k->str,
+              (int)v->len, v->str);
             return (EINVAL);
         }
         if (v->val > INT_MAX) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "int value out of range for \'%.*s=%.*s\'\n",
+            fprintf(stderr, "wtperf: Error: int value out of range for \'%.*s=%.*s\'\n",
               (int)k->len, k->str, (int)v->len, v->str);
             return (EINVAL);
         }
@@ -434,16 +423,12 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
         break;
     case UINT32_TYPE:
         if (v->type != WT_CONFIG_ITEM_NUM) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "bad uint32 value for \'%.*s=%.*s\'\n",
-              (int)k->len, k->str, (int)v->len, v->str);
+            fprintf(stderr, "wtperf: Error: bad uint32 value for \'%.*s=%.*s\'\n", (int)k->len,
+              k->str, (int)v->len, v->str);
             return (EINVAL);
         }
         if (v->val < 0 || v->val > UINT_MAX) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "uint32 value out of range for \'%.*s=%.*s\'\n",
+            fprintf(stderr, "wtperf: Error: uint32 value out of range for \'%.*s=%.*s\'\n",
               (int)k->len, k->str, (int)v->len, v->str);
             return (EINVAL);
         }
@@ -454,10 +439,8 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
          * Configuration parsing uses string/ID to distinguish between quoted and unquoted values.
          */
         if (v->type != WT_CONFIG_ITEM_STRING && v->type != WT_CONFIG_ITEM_ID) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "bad string value for \'%.*s=%.*s\'\n",
-              (int)k->len, k->str, (int)v->len, v->str);
+            fprintf(stderr, "wtperf: Error: bad string value for \'%.*s=%.*s\'\n", (int)k->len,
+              k->str, (int)v->len, v->str);
             return (EINVAL);
         }
         strp = (char **)valueloc;
@@ -485,10 +468,8 @@ config_opt(WTPERF *wtperf, WT_CONFIG_ITEM *k, WT_CONFIG_ITEM *v)
             return (config_threads(wtperf, v->str, v->len));
 
         if (v->type != WT_CONFIG_ITEM_STRING && v->type != WT_CONFIG_ITEM_ID) {
-            fprintf(stderr,
-              "wtperf: Error: "
-              "bad string value for \'%.*s=%.*s\'\n",
-              (int)k->len, k->str, (int)v->len, v->str);
+            fprintf(stderr, "wtperf: Error: bad string value for \'%.*s=%.*s\'\n", (int)k->len,
+              k->str, (int)v->len, v->str);
             return (EINVAL);
         }
         strp = (char **)valueloc;
@@ -814,14 +795,11 @@ config_sanity(WTPERF *wtperf)
               (workp->insert != 0 || workp->modify != 0 || workp->truncate != 0 ||
                 workp->update != 0)) {
                 fprintf(stderr,
-                  "Invalid workload: insert, modify, truncate or update specified with "
-                  "readonly\n");
+                  "Invalid workload: insert, modify, truncate or update specified with readonly\n");
                 return (EINVAL);
             }
             if (workp->insert != 0 && workp->table_index != INT32_MAX) {
-                fprintf(stderr,
-                  "Invalid workload: Cannot insert into "
-                  "specific table only\n");
+                fprintf(stderr, "Invalid workload: Cannot insert into specific table only\n");
                 return (EINVAL);
             }
             if (workp->table_index != INT32_MAX &&
@@ -915,8 +893,7 @@ config_opt_log(CONFIG_OPTS *opts, const char *path)
     config_consolidate(opts);
 
     fprintf(fp,
-      "# Warning: This config includes "
-      "unwritten, implicit configuration defaults.\n"
+      "# Warning: This config includes unwritten, implicit configuration defaults.\n"
       "# Changes to those values may cause differences in behavior.\n");
     TAILQ_FOREACH (config_line, &opts->config_head, q)
         fprintf(fp, "%s\n", config_line->string);
@@ -1041,12 +1018,10 @@ config_opt_usage(void)
     const char *defaultval, *typestr;
 
     pretty_print(
-      "The following are options settable using -o or -O, showing the "
-      "type and default value.\n",
+      "The following are options settable using -o or -O, showing the type and default value.\n",
       NULL);
     pretty_print(
-      "String values must be enclosed in \" quotes, boolean values must "
-      "be either true or false.\n",
+      "String values must be enclosed in \" quotes, boolean values must be either true or false.\n",
       NULL);
 
     for (i = 0; i < WT_ELEMENTS(config_opts_desc); i++) {
