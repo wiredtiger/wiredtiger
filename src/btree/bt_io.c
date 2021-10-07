@@ -28,8 +28,7 @@ __wt_bt_read(WT_SESSION_IMPL *session, WT_ITEM *buf, const uint8_t *addr, size_t
     WT_ENCRYPTOR *encryptor;
     WT_ITEM *ip;
     const WT_PAGE_HEADER *dsk;
-    size_t compression_ratio;
-    size_t result_len;
+    size_t compression_ratio, result_len;
     const char *fail_msg;
 
     btree = S2BT(session);
