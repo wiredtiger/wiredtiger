@@ -32,15 +32,9 @@ AddOption("--enable-diagnostic", dest="diagnostic", action="store_true", default
 AddOption("--enable-lz4", dest="lz4", type="string", nargs=1, action="store",
           help="Use LZ4 compression")
 
-<<<<<<< HEAD
 AddOption("--enable-memkind", dest="memkind", type="string", nargs=1, action="store",
           help="Enable support for Intel memkind library, needed for NVRAM block cache.")
 
-AddOption("--enable-java", dest="lang-java", type="string", nargs=1, action="store",
-          help="Build java extension, specify location of swig.exe binary and Java JDK dir separated by comma")
-
-=======
->>>>>>> develop
 AddOption("--enable-python", dest="lang-python", type="string", nargs=1, action="store",
           help="Build Python extension, specify location of swig.exe binary")
 
