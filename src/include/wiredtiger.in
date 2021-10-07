@@ -2296,15 +2296,15 @@ struct __wt_connection {
 	 * @config{ ),,}
 	 * @config{verbose, enable messages for various events.  Options are given as a list\, such
 	 * as <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the
-	 * following options: \c "api"\, \c "backup"\, \c "block_cache"\, \c "block"\, \c
+	 * following options: \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c
 	 * "checkpoint"\, \c "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "compact"\, \c
 	 * "compact_progress"\, \c "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c
-	 * "evictserver"\, \c "fileops"\, \c "handleops"\, \c "log"\, \c "history_store"\, \c
-	 * "history_store_activity"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c
-	 * "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c "recovery_progress"\, \c
-	 * "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c "temporary"\, \c
-	 * "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c "verify"\, \c
-	 * "version"\, \c "write"; default \c [].}
+	 * "evictserver"\, \c "fileops"\, \c "handleops"\, \c "history_store"\, \c
+	 * "history_store_activity"\, \c "log"\, \c "lsm"\, \c "lsm_manager"\, \c "metadata"\, \c
+	 * "mutex"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c "recovery"\, \c
+	 * "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\, \c
+	 * "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
+	 * "verify"\, \c "version"\, \c "write"; default \c [].}
 	 * @configend
 	 * @errors
 	 */
@@ -3091,10 +3091,10 @@ struct __wt_connection {
  * information., a boolean flag; default \c false.}
  * @config{verbose, enable messages for various events.  Options are given as a list\, such as
  * <code>"verbose=[evictserver\,read]"</code>., a list\, with values chosen from the following
- * options: \c "api"\, \c "backup"\, \c "block_cache"\, \c "block"\, \c "checkpoint"\, \c
+ * options: \c "api"\, \c "backup"\, \c "block"\, \c "block_cache"\, \c "checkpoint"\, \c
  * "checkpoint_cleanup"\, \c "checkpoint_progress"\, \c "compact"\, \c "compact_progress"\, \c
  * "error_returns"\, \c "evict"\, \c "evict_stuck"\, \c "evictserver"\, \c "fileops"\, \c
- * "handleops"\, \c "log"\, \c "history_store"\, \c "history_store_activity"\, \c "lsm"\, \c
+ * "handleops"\, \c "history_store"\, \c "history_store_activity"\, \c "log"\, \c "lsm"\, \c
  * "lsm_manager"\, \c "metadata"\, \c "mutex"\, \c "overflow"\, \c "read"\, \c "reconcile"\, \c
  * "recovery"\, \c "recovery_progress"\, \c "rts"\, \c "salvage"\, \c "shared_cache"\, \c "split"\,
  * \c "temporary"\, \c "thread_group"\, \c "tiered"\, \c "timestamp"\, \c "transaction"\, \c
