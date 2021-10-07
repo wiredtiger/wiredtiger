@@ -46,12 +46,11 @@ struct __wt_blkcache_item {
     void *data;
     uint32_t num_references;
 
-    /* This counter is incremented every time a block is referenced
-     * and decremented every time the eviction threads sweeps through
-     * the cache. This counter will be low for blocks that have not
-     * been reused or for blocks that were reused in the past but lost
-     * their appeal. In this sense, this counter is a metric combining
-     * frequency and recency, and hence its name.
+    /*
+     * This counter is incremented every time a block is referenced and decremented every time the
+     * eviction threads sweeps through the cache. This counter will be low for blocks that have not
+     * been reused or for blocks that were reused in the past but lost their appeal. In this sense,
+     * this counter is a metric combining frequency and recency, and hence its name.
      */
     int32_t freq_rec_counter;
 };
