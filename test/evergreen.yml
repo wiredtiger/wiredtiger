@@ -566,8 +566,9 @@ functions:
           set -o verbose
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil
+          ${pip3_binary} install psutil pymongo[srv]
           ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -v -ho WT_TEST -m ${maxruns} -o out.json
+          ${python_binary} upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -c ${perf-test-name} -f out.json -b ${branch_name}
 
   "generic-perf-test-push-results":
     # Push the json results to the 'Files' tab of the task in Evergreen
