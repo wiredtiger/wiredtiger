@@ -120,7 +120,7 @@ class test_compact02(wttest.WiredTigerTestCase):
 
         self.ConnectionOpen(self.cacheSize)
 
-        # Set the leaf_key_max to ensure we never create overflow items.
+        # Set the leaf_value_max to ensure we never create overflow items.
         # FIXME: WT-2298
         params = 'key_format=i,value_format=S,leaf_value_max=10MB,' + self.fileConfig
 
