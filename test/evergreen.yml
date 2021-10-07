@@ -3,7 +3,7 @@
 # MongoDB continuous integration system (see https://mci.mongodb.com).
 #
 
-functions:    
+functions:
   "get project" :
     command: git.get_project
     params:
