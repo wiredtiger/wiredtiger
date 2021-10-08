@@ -22,12 +22,12 @@ __blkcache_alloc(WT_SESSION_IMPL *session, size_t size, void **retp)
     blkcache = &conn->blkcache;
 
     if (blkcache->type == BLKCACHE_DRAM)
-        return __wt_malloc(session, size, retp);
+        return (__wt_malloc(session, size, retp));
     else if (blkcache->type == BLKCACHE_NVRAM) {
 #ifdef HAVE_LIBMEMKIND
         *retp = memkind_malloc(blkcache->pmem_kind, size);
         if (*retp == NULL)
-            return WT_BLKCACHE_FULL;
+            return (WT_BLKCACHE_FULL);
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache type requires libmemkind.");
 #endif
@@ -121,9 +121,9 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
 
     if ((double)(blkcache->inserts + blkcache->removals) / (double)(blkcache->lookups) >
       blkcache->overhead_pct)
-        return true;
+        return (true);
 
-    return false;
+    return (false);
 }
 
 #define BLKCACHE_MINFREQ_INCREMENT 20
@@ -154,7 +154,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
 
     /* Don't evict if there is plenty of free space */
     if ((double)blkcache->bytes_used / (double)blkcache->max_bytes < blkcache->full_target)
-        return false;
+        return (false);
 
     /*
      * Don't evict if there is high overhead due to blocks being inserted/removed. Churn kills
@@ -162,7 +162,7 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
      */
     if (__blkcache_high_overhead(session)) {
         WT_STAT_CONN_INCR(session, block_cache_not_evicted_overhead);
-        return false;
+        return (false);
     }
 
     /*
@@ -172,10 +172,10 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
      */
     if (blkcache_item->freq_rec_counter < blkcache->evict_aggressive &&
       blkcache_item->num_references < (blkcache->min_freq_counter + BLKCACHE_MINFREQ_INCREMENT))
-        return true;
+        return (true);
     else {
         *reason = BLKCACHE_NOT_EVICTION_CANDIDATE;
-        return false;
+        return (false);
     }
 }
 
@@ -297,7 +297,7 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 
     /* This is a deliberate race condition */
     if (blkcache->refs_since_filesize_estimated++ < BLKCACHE_FILESIZE_EST_FREQ)
-        return blkcache->estimated_file_size;
+        return (blkcache->estimated_file_size);
 
     blkcache->refs_since_filesize_estimated = 0;
 
@@ -313,7 +313,7 @@ __blkcache_estimate_filesize(WT_SESSION_IMPL *session)
 
     WT_STAT_CONN_SET(session, block_cache_bypass_filesize, blkcache->estimated_file_size);
 
-    return blkcache->estimated_file_size;
+    return (blkcache->estimated_file_size);
 }
 
 /*
@@ -328,7 +328,6 @@ __wt_blkcache_get_or_check(
     WT_BLKCACHE_ID id;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     uint64_t bucket, hash;
 
     conn = S2C(session);
@@ -336,7 +335,7 @@ __wt_blkcache_get_or_check(
     blkcache_item = NULL;
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
-        return -1;
+        return (-1);
 
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
     blkcache->lookups++;
@@ -347,7 +346,7 @@ __wt_blkcache_get_or_check(
     if (blkcache->system_ram >=
       __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_get);
-        return WT_BLKCACHE_BYPASS;
+        return (WT_BLKCACHE_BYPASS);
     }
 
     id.checksum = (uint64_t)checksum;
@@ -358,7 +357,7 @@ __wt_blkcache_get_or_check(
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
+        if (memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID)) == 0) {
             if (data_ptr != NULL)
                 memcpy(data_ptr, blkcache_item->data, size);
 
@@ -414,17 +413,17 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     data_ptr = NULL;
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
-        return -1;
+        return (-1);
 
     /* Bypass on write if the no-write-allocate setting is on */
     if (write && blkcache->write_allocate == false) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_writealloc);
-        return -1;
+        return (-1);
     }
 
     /* Are we within cache size limits? */
     if (blkcache->bytes_used >= blkcache->max_bytes)
-        return WT_BLKCACHE_FULL;
+        return (WT_BLKCACHE_FULL);
 
     /* If more than the configured fraction of the file is likely
      * to fit in the buffer cache, don't use the cache.
@@ -432,7 +431,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     if (blkcache->system_ram >=
       __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_put);
-        return WT_BLKCACHE_BYPASS;
+        return (WT_BLKCACHE_BYPASS);
     }
 
     /*
@@ -445,13 +444,13 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
      */
     if (blkcache->chkpt_write_bypass && checkpoint_io) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_chkpt);
-        return WT_BLKCACHE_BYPASS;
+        return (WT_BLKCACHE_BYPASS);
     }
 
     /* Bypass on high overhead */
     if (__blkcache_high_overhead(session) == true) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_overhead_put);
-        return WT_BLKCACHE_BYPASS;
+        return (WT_BLKCACHE_BYPASS);
     }
     /*
      * Allocate space in the cache outside of the critical section. In the unlikely event that we
@@ -508,6 +507,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
       "checksum=%" PRIu32 ", hash=%" PRIu64,
       (uintmax_t)offset, (uint32_t)size, checksum, hash);
     return (0);
+
 item_exists:
     if (write) {
         memcpy(blkcache_item->data, data, size);
@@ -538,7 +538,6 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
     WT_BLKCACHE_ID id;
     WT_BLKCACHE_ITEM *blkcache_item;
     WT_CONNECTION_IMPL *conn;
-    WT_DECL_RET;
     uint64_t bucket, hash;
 
     conn = S2C(session);
@@ -556,7 +555,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if ((ret = memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) == 0) {
+        if (memcmp(&blkcache_item->id, &id, sizeof(WT_BLKCACHE_ID))) {
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             blkcache->num_data_blocks--;
             blkcache->bytes_used -= size;
@@ -756,7 +755,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.enabled", &cval));
     if (cval.val == 0)
-        return 0;
+        return (0);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.size", &cval));
     if ((cache_size = (uint64_t)cval.val) <= 0)
@@ -811,7 +810,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_RET(__wt_config_gets(session, cfg, "block_cache.max_percent_overhead", &cval));
     overhead_pct = (double)cval.val / (double)100;
 
-    return __blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path,
+    return (__blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path,
       system_ram, percent_file_in_dram, write_allocate, overhead_pct, eviction_on, evict_aggressive,
-      full_target, chkpt_write_bypass);
+      full_target, chkpt_write_bypass));
 }
