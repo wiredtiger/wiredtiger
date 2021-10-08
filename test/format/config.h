@@ -77,6 +77,24 @@ static CONFIG c[] = {
   {"backup.incr_granularity", "incremental backup block granularity (KB)", 0x0, 4, 16384, 16384,
     &g.c_backup_incr_granularity, NULL},
 
+  /* 10% */
+  {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0, &g.c_block_cache, NULL},
+
+  /* 30 */
+  {"block_cache.checkpoint_write_bypass", "block cache: don't cache checkpoint writes", C_BOOL, 30,
+    0, 0, &g.c_block_cache_checkpoint_write_bypass, NULL},
+
+  /* 80% */
+  {"block_cache.eviction_on", "block cache: evict blocks", C_BOOL, 80, 0, 0,
+    &g.c_block_cache_eviction_on, NULL},
+
+  {"block_cache.size", "block cache size (MB)", 0x0, 1, 100, 100 * 1024, &g.c_block_cache_size,
+    NULL},
+
+  /* 60% */
+  {"block_cache.write_allocate", "block cache: populate the cache on writes", C_BOOL, 60, 0, 0,
+    &g.c_block_cache_write_allocate, NULL},
+
   {"btree.bitcnt", "fixed-length column-store object size (number of bits)", 0x0, 1, 8, 8,
     &g.c_bitcnt, NULL},
 

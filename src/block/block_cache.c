@@ -95,14 +95,13 @@ __blkcache_print_reference_hist(WT_SESSION_IMPL *session, const char *header, ui
 {
     int j;
 
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s:\n", header);
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "Reuses \t Number of blocks");
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "-----------------------------");
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s:", header);
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "Reuses \t Number of blocks");
+    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "-----------------------------");
     for (j = 0; j < BLKCACHE_HIST_BUCKETS; j++) {
-        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u \n", j * BLKCACHE_HIST_BOUNDARY,
+        __wt_verbose(session, WT_VERB_BLKCACHE, "[%d - %d] \t %u", j * BLKCACHE_HIST_BOUNDARY,
           (j + 1) * BLKCACHE_HIST_BOUNDARY, hist[j]);
     }
-    __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "\n");
 }
 
 /*
@@ -198,7 +197,7 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "Block cache eviction thread starting... Aggressive target = %d, full target = %f\n",
+      "Block cache eviction thread starting... Aggressive target = %d, full target = %f",
       blkcache->evict_aggressive, blkcache->full_target);
 
     while (!blkcache->blkcache_exiting) {
@@ -663,7 +662,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         blkcache->blkcache_exiting = true;
         __wt_cond_signal(session, blkcache->blkcache_cond);
         WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
-        __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "block cache eviction thread exited...");
+        __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited...");
         __wt_cond_destroy(session, &blkcache->blkcache_cond);
     }
 
