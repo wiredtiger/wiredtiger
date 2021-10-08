@@ -520,7 +520,7 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
         }
 
-        /* Skip if we having nothing to insert to the history store. */
+        /* Skip if we have nothing to insert to the history store. */
         if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
             /* The onpage value is squashed. */
             if (newest_hs == NULL && squashed)
