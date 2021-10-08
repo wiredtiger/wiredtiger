@@ -481,7 +481,8 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
      */
     blkcache_item->freq_rec_counter = 1;
 
-    memcpy(blkcache_item->data, data, size);
+    if (data != NULL) /* This is unexpected, but makes static analyzers happier. */
+        memcpy(blkcache_item->data, data, size);
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
 
     blkcache->num_data_blocks++;
