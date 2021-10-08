@@ -198,8 +198,7 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "Block cache eviction thread starting... Aggressive target = %d, "
-      "full target = %f.\n",
+      "Block cache eviction thread starting... Aggressive target = %d, full target = %f\n",
       blkcache->evict_aggressive, blkcache->full_target);
 
     while (!blkcache->blkcache_exiting) {
@@ -369,22 +368,18 @@ __wt_blkcache_get_or_check(
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             WT_STAT_CONN_INCR(session, block_cache_hits);
             __wt_verbose(session, WT_VERB_BLKCACHE,
-              "block found in cache: "
-              "offset=%" PRIuMAX ", size=%" PRIu32
-              ", "
-              "checksum=%" PRIu32 ", hash=%" PRIu64,
-              (uintmax_t)offset, (uint32_t)size, checksum, hash);
+              "block found in cache: offset=%" PRIuMAX ", size=%" WT_SIZET_FMT ", checksum=%" PRIu32
+              ", hash=%" PRIu64,
+              (uintmax_t)offset, size, checksum, hash);
             return (0);
         }
     }
 
     /* Block not found */
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block not found in cache: "
-      "offset=%" PRIuMAX ", size=%" PRIu32
-      ", "
-      "checksum=%" PRIu32 ", hash=%" PRIu64,
-      (uintmax_t)offset, (uint32_t)size, checksum, hash);
+      "block not found in cache: offset=%" PRIuMAX ", size=%" WT_SIZET_FMT ", checksum=%" PRIu32
+      ", hash=%" PRIu64,
+      (uintmax_t)offset, size, checksum, hash);
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
     WT_STAT_CONN_INCR(session, block_cache_misses);
@@ -502,11 +497,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     }
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block inserted in cache: "
-      "offset=%" PRIuMAX ", size=%" PRIu32
-      ", "
-      "checksum=%" PRIu32 ", hash=%" PRIu64,
-      (uintmax_t)offset, (uint32_t)size, checksum, hash);
+      "block inserted in cache: offset=%" PRIuMAX ", size=%" WT_SIZET_FMT ", checksum=%" PRIu32
+      ", hash=%" PRIu64,
+      (uintmax_t)offset, size, checksum, hash);
     return (0);
 
 item_exists:
@@ -517,11 +510,10 @@ item_exists:
     }
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block exists during put: "
-      "offset=%" PRIuMAX ", size=%" PRIu32
+      "block exists during put: offset=%" PRIuMAX ", size=%" WT_SIZET_FMT
       ", "
       "checksum=%" PRIu32 ", hash=%" PRIu64,
-      (uintmax_t)offset, (uint32_t)size, checksum, hash);
+      (uintmax_t)offset, size, checksum, hash);
 err:
     __blkcache_free(session, data_ptr);
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
@@ -569,11 +561,9 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
             WT_STAT_CONN_INCR(session, block_cache_blocks_removed);
             blkcache->removals++;
             __wt_verbose(session, WT_VERB_BLKCACHE,
-              "block removed from cache: "
-              "offset=%" PRIuMAX ", size=%" PRIu32
-              ", "
-              "checksum=%" PRIu32 ", hash=%" PRIu64,
-              (uintmax_t)offset, (uint32_t)size, checksum, hash);
+              "block removed from cache: offset=%" PRIuMAX ", size=%" WT_SIZET_FMT
+              ", checksum=%" PRIu32 ", hash=%" PRIu64,
+              (uintmax_t)offset, size, checksum, hash);
             return;
         }
     }
@@ -641,10 +631,9 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
     blkcache->type = type;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block cache initialized: "
-      "type=%s, size=%" PRIu32 " path=%s",
+      "block cache initialized: type=%s, size=%" WT_SIZET_FMT " path=%s",
       (type == BLKCACHE_NVRAM) ? "nvram" : (type == BLKCACHE_DRAM) ? "dram" : "unconfigured",
-      (uint32_t)cache_size, (nvram_device_path == NULL) ? "--" : nvram_device_path);
+      cache_size, (nvram_device_path == NULL) ? "--" : nvram_device_path);
 
     return (ret);
 }
@@ -667,7 +656,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     blkcache_item = NULL;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block cache with %" PRIu32 " bytes used to be destroyed", (uint32_t)blkcache->bytes_used);
+      "block cache with %" WT_SIZET_FMT " bytes used to be destroyed", blkcache->bytes_used);
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return;
@@ -676,7 +665,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         blkcache->blkcache_exiting = true;
         __wt_cond_signal(session, blkcache->blkcache_cond);
         WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
-        __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "Block cache eviction thread exited...");
+        __wt_verbose(session, WT_VERB_BLKCACHE, "%s\n", "block cache eviction thread exited...");
         __wt_cond_destroy(session, &blkcache->blkcache_cond);
     }
 
