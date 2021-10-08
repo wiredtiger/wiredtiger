@@ -213,24 +213,18 @@ __blkcache_eviction_thread(void *arg)
             return (0);
 
         /*
-         * Walk the cache, gathering statistics and evicting blocks
-         * that are within our target. We sweep the cache every second,
-         * decrementing the frequency/recency counter of each block.
-         * Blocks whose counter goes below the threshold will get
-         * evicted. The threshold is set according to how soon
-         * we expect the blocks to become irrelevant. For example,
-         * if the threshold is set to 1800 seconds (=30 minutes),
-         * blocks that were used once but then weren't referenced for
-         * 30 minutes will be evicted. Blocks that were referenced
-         * a lot in the past but weren't referenced in the past 30
-         * minutes will stay in the cache a bit longer, until their
-         * frequency/recency counter drops below the threshold.
+         * Walk the cache, gathering statistics and evicting blocks that are within our target. We
+         * sweep the cache every second, decrementing the frequency/recency counter of each block.
+         * Blocks whose counter goes below the threshold will get evicted. The threshold is set
+         * according to how soon we expect the blocks to become irrelevant. For example, if the
+         * threshold is set to 1800 seconds (=30 minutes), blocks that were used once but then
+         * weren't referenced for 30 minutes will be evicted. Blocks that were referenced a lot in
+         * the past but weren't referenced in the past 30 minutes will stay in the cache a bit
+         * longer, until their frequency/recency counter drops below the threshold.
          *
-         * As we cycle through the blocks, we keep track of the minimum
-         * number of references observed for blocks whose frequency/recency
-         * counter has gone below the threshold. We will evict blocks
-         * with the smallest counter before evicting those with a larger
-         * one.
+         * As we cycle through the blocks, we keep track of the minimum number of references
+         * observed for blocks whose frequency/recency counter has gone below the threshold. We will
+         * evict blocks with the smallest counter before evicting those with a larger one.
          */
         no_eviction_candidates = true;
         for (i = 0; i < (int)blkcache->hash_size; i++) {

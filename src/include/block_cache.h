@@ -17,7 +17,7 @@
 
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
-#define BLKCACHE_HASHSIZE_MAX 1024 * 1024 * 1024
+#define BLKCACHE_HASHSIZE_MAX WT_GIGABYTE
 
 #define BLKCACHE_TRACE 0
 
@@ -48,7 +48,7 @@ struct __wt_blkcache_item {
 
     /*
      * This counter is incremented every time a block is referenced and decremented every time the
-     * eviction threads sweeps through the cache. This counter will be low for blocks that have not
+     * eviction thread sweeps through the cache. This counter will be low for blocks that have not
      * been reused or for blocks that were reused in the past but lost their appeal. In this sense,
      * this counter is a metric combining frequency and recency, and hence its name.
      */
@@ -57,8 +57,8 @@ struct __wt_blkcache_item {
 
 /*
  * WT_BLKCACHE --
- *     Block cache metadata includes the hashtable of cached items, number
- *     of cached data blocks and the total amount of space they occupy.
+ *     Block cache metadata includes the hashtable of cached items, number of cached data blocks
+ * and the total amount of space they occupy.
  */
 struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
