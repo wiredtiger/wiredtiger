@@ -182,6 +182,11 @@ typedef struct {
     uint32_t c_backup_incr_granularity;
     uint32_t c_backups;
     uint32_t c_bitcnt;
+    uint32_t c_block_cache;
+    uint32_t c_block_cache_checkpoint_write_bypass;
+    uint32_t c_block_cache_eviction_on;
+    uint32_t c_block_cache_size;
+    uint32_t c_block_cache_write_allocate;
     uint32_t c_bloom;
     uint32_t c_bloom_bit_count;
     uint32_t c_bloom_hash_count;
