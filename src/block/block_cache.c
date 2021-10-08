@@ -741,8 +741,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
-    cache_type = BLKCACHE_UNCONFIGURED;
-    cache_size = hash_size = 0;
     chkpt_write_bypass = false;
     eviction_on = write_allocate = true;
     nvram_device_path = NULL;
