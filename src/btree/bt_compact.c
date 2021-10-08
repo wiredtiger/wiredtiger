@@ -85,7 +85,7 @@ __compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
 
 /*
  * __compact_progress --
- *     Output a compact progress message and update stats.
+ *     Output a compact progress message.
  */
 static void
 __compact_progress(WT_SESSION_IMPL *session)
