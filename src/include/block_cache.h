@@ -13,7 +13,7 @@
 
 #ifdef HAVE_LIBMEMKIND
 #include <memkind.h>
-#endif /* HAVE_LIBMEMKIND */
+#endif
 
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
@@ -40,7 +40,6 @@ struct __wt_blkcache_id {
  *     Block cache item. It links with other items in the same hash bucket.
  */
 struct __wt_blkcache_item {
-
     struct __wt_blkcache_id id;
     TAILQ_ENTRY(__wt_blkcache_item) hashq;
     void *data;
@@ -64,27 +63,38 @@ struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
     WT_SPINLOCK *hash_locks;
-    WT_CONDVAR *blkcache_cond;
-    wt_thread_t evict_thread_tid;
 
-    volatile bool blkcache_exiting;
-    bool chkpt_write_bypass;
-    bool eviction_on;
-    int32_t evict_aggressive;
-    bool write_allocate;
-    char *nvram_device_path;
-    double full_target;
-    double overhead_pct;
-    float fraction_in_dram;
-    int refs_since_filesize_estimated;
-    volatile size_t bytes_used;
-    size_t estimated_file_size;
-    size_t hash_size;
-    size_t num_data_blocks;
-    size_t max_bytes;
-    size_t system_ram;
-    u_int type;
-    uint32_t min_freq_counter;
+    wt_thread_t evict_thread_tid;
+    bool eviction_on;          /* If an eviction thread is configured */
+    WT_CONDVAR *blkcache_cond; /* Eviction thread wait */
+
+    volatile bool blkcache_exiting; /* If destroying the cache */
+    int32_t evict_aggressive;       /* Seconds an unused block stays in the cache */
+
+    bool chkpt_write_bypass; /* Don't cache blocks written by checkpoints */
+    bool write_allocate;     /* Cache blocks on writes */
+
+#ifdef HAVE_LIBMEMKIND
+    struct memkind *pmem_kind; /* NVRAM connection */
+#endif
+    char *nvram_device_path; /* If NVRAM configured, the system path for the memkind file */
+
+    double full_target;  /* Percent of the block cache at which point we start eviction */
+    double overhead_pct; /* Overhead percentage that suppresses population and eviction */
+
+    /* Suppress population if a percentage of the workload size fits into system RAM */
+    size_t estimated_file_size;        /* Estimated workload size */
+    float fraction_in_dram;            /* Workload percentage */
+    int refs_since_filesize_estimated; /* Counter for recalculating the workload size */
+
+    volatile size_t bytes_used; /* Bytes in the block cache */
+    size_t hash_size;           /* Number of block cache hash buckets */
+    size_t num_data_blocks;     /* Number of blocks in the block cache */
+    size_t max_bytes;           /* Block cache size */
+    size_t system_ram;          /* Configured size of system RAM */
+    u_int type;                 /* Type of block cache (NVRAM or DRAM) */
+
+    uint32_t min_freq_counter; /* XXX?? */
 
     /*
      * Various metrics helping us measure the overhead and decide if to bypass the cache. We access
@@ -96,10 +106,6 @@ struct __wt_blkcache {
     size_t lookups;
     size_t inserts;
     size_t removals;
-
-#ifdef HAVE_LIBMEMKIND
-    struct memkind *pmem_kind;
-#endif /* HAVE_LIBMEMKIND */
 
     /* Histograms keeping track of number of references to each block */
 #define BLKCACHE_HIST_BUCKETS 11

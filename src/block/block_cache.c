@@ -203,12 +203,13 @@ __blkcache_eviction_thread(void *arg)
 
     while (!blkcache->blkcache_exiting) {
 
-        /* Sweep the cache every second to ensure time-based decay of
-         * frequency/recency counters of resident blocks.
+        /*
+         * Sweep the cache every second to ensure time-based decay of frequency/recency counters of
+         * resident blocks.
          */
         __wt_cond_wait(session, blkcache->blkcache_cond, WT_MILLION, NULL);
 
-        /* Check if we were awaken because the cache is being destroyed */
+        /* Check if we were awakened because the cache is being destroyed */
         if (blkcache->blkcache_exiting)
             return (0);
 
@@ -238,9 +239,10 @@ __blkcache_eviction_thread(void *arg)
                     blkcache->num_data_blocks--;
                     blkcache->bytes_used -= blkcache_item->id.size;
 
-                    /* Update the number of removals because it is used to
-                     * estimate the overhead, and we want the overhead
-                     * contributed by eviction to be part of that calculation.
+                    /*
+                     * Update the number of removals because it is used to estimate the overhead,
+                     * and we want the overhead contributed by eviction to be part of that
+                     * calculation.
                      */
                     blkcache->removals++;
 
@@ -333,8 +335,9 @@ __wt_blkcache_get_or_check(
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
     blkcache->lookups++;
 
-    /* If more than the configured fraction of the file is likely
-     * to fit in the buffer cache, don't use the cache.
+    /*
+     * If more than the configured fraction of the file is likely to fit in the buffer cache, don't
+     * use the cache.
      */
     if (blkcache->system_ram >=
       __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
@@ -414,8 +417,9 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     if (blkcache->bytes_used >= blkcache->max_bytes)
         return (WT_BLKCACHE_FULL);
 
-    /* If more than the configured fraction of the file is likely
-     * to fit in the buffer cache, don't use the cache.
+    /*
+     * If more than the configured fraction of the file is likely to fit in the buffer cache, don't
+     * use the cache.
      */
     if (blkcache->system_ram >=
       __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
@@ -671,9 +675,9 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
         while (!TAILQ_EMPTY(&blkcache->hash[i])) {
             blkcache_item = TAILQ_FIRST(&blkcache->hash[i]);
             TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
-            /* Some workloads crash on freeing arenas. If that
-             * occurs the call to free can be removed and the
-             * library/OS will clean up for us once the process exits.
+            /*
+             * Some workloads crash on freeing NVRAM arenas. If that occurs the call to free can be
+             * removed and the library/OS will clean up for us once the process exits.
              */
             __blkcache_free(session, blkcache_item->data);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EXIT);
