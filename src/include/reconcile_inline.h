@@ -20,13 +20,21 @@
 #define WT_REC_SPLIT_MIN_ITEMS_USE_MEM 10
 
 /*
+ * WT_REC_TS_VISIBLE_ALL
+ *     Check if the provided timestamp is less or equal to the saved pinned timestamp on the
+ *     reconciliation structure.
+ */
+#define WT_REC_TS_VISIBLE_ALL(r, ts) \
+    ((r)->rec_start_pinned_ts != WT_TS_NONE && (ts) <= (r)->rec_start_pinned_ts)
+
+/*
  * WT_REC_TW_START_VISIBLE_ALL
  *     Check if the provided time window's start is globally visible as per the saved state on the
  *     reconciliation structure.
  */
 #define WT_REC_TW_START_VISIBLE_ALL(r, tw)                     \
     (WT_TXNID_LT((tw)->start_txn, (r)->rec_start_oldest_id) && \
-      (tw)->start_ts < (r)->rec_start_pinned_ts)
+      WT_REC_TS_VISIBLE_ALL(r, tw->start_ts))
 
 /*
  * __rec_cell_addr_stats --
@@ -454,7 +462,7 @@ __wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
          * durable.
          */
         if (!WT_TIME_WINDOW_HAS_STOP(tw) && WT_REC_TW_START_VISIBLE_ALL(r, tw) &&
-          tw->durable_start_ts < r->rec_start_pinned_ts) {
+          WT_REC_TS_VISIBLE_ALL(r, tw->durable_start_ts)) {
             /*
              * The durable stop timestamp should be it's default value whenever the stop timestamp
              * is.
