@@ -491,16 +491,8 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
                 break;
         }
 
-        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
-            /* The onpage value is squashed. */
-            if (newest_hs == NULL && squashed)
-                WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
-            continue;
-        }
-
         prev_upd = upd = NULL;
 
-        /* Construct the oldest full update. */
         WT_ASSERT(session, updates.size > 0);
 
         __wt_update_vector_peek(&updates, &oldest_upd);
@@ -528,6 +520,15 @@ __wt_hs_insert_updates(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_MULTI *mult
             }
         }
 
+        /* Skip if we having nothing to insert to the history store. */
+        if (newest_hs == NULL || F_ISSET(newest_hs, WT_UPDATE_HS)) {
+            /* The onpage value is squashed. */
+            if (newest_hs == NULL && squashed)
+                WT_STAT_CONN_DATA_INCR(session, cache_hs_write_squash);
+            continue;
+        }
+
+        /* Construct the oldest full update. */
         WT_ERR(__hs_next_upd_full_value(session, &updates, NULL, full_value, &upd));
 
         hs_inserted = false;
