@@ -34,9 +34,10 @@ import argparse
 from pymongo import MongoClient
 import json
 import datetime
+from pymongo.collection import Collection
 
 
-def upload_results(coll, file, branch):
+def upload_results(coll: Collection, file: str, branch: str):
     with open(file, 'r') as file:
         file_data = json.load(file)
         file_data['Branch'] = branch
