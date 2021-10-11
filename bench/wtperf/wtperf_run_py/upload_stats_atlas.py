@@ -82,7 +82,7 @@ def main():
 
     collections = db.collection_names()
     if args.collection not in collections:
-        sys.exit('Collection/Test: {}, does not exist in Atlas Cluster'.format(args.collection))
+        sys.exit('Collection/Test: {}, does not exist in Database: {} in Atlas Cluster'.format(args.collection, DATABASE))
     coll = db[args.collection]
 
     upload_results(coll, args.file, args.branch)
