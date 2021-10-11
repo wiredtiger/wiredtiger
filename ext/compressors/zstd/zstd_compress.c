@@ -132,7 +132,6 @@ zstd_get_context(
         ctx_pool = zcompressor->dctx_pool;
 
     *contextp = NULL;
-
     if (ctx_pool->free_ctx_list == NULL)
         return;
 
