@@ -1,9 +1,44 @@
 /* WiredTiger-specific styling. */ 
+html {
+    font-size: small;
+}
+
 body, table, div, p, dl {
-	font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+	font-family: "Calibri", Helvetica, "Calibri","Helvetica Neue", Helvetica, Arial, sans-serif;
 	color: #373737;
-	font-size: 13px;
-	line-height: 1.3;
+	line-height: 1.5;
+}
+
+ul, ol {
+    line-height: 1.2;
+}
+
+li {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+ul li:first-child {
+    margin-top:0;
+}
+
+li li {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    line-height: 1.2;
+}
+
+li li a {
+    font-weight: normal !important;
+}
+
+div.arch_title {
+    font-weight: bold;
+    font-size: 110%;
+}
+
+div.contents {
+    max-width: 960px;
 }
 
 h1 {
@@ -30,6 +65,8 @@ div.arch_diagram {
     display: block;
     background: #FFFFFF;
     background: radial-gradient(#FFDDAA,#FFFFFF);
+    margin-top: 2em;
+    margin-bottom: 2em;
 }
 
 /* match just one image */
