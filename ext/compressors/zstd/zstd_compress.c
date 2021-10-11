@@ -132,10 +132,12 @@ zstd_get_context(
         ctx_pool = zcompressor->dctx_pool;
 
     *contextp = NULL;
-    if (ctx_pool->free_ctx_list == NULL)
-        return;
-
     wt_api->spin_lock(wt_api, session, &(ctx_pool->list_lock));
+    if (ctx_pool->free_ctx_list == NULL) {
+        wt_api->spin_unlock(wt_api, session, &(ctx_pool->list_lock));
+        return;
+    }
+
     *contextp = ctx_pool->free_ctx_list;
     ctx_pool->free_ctx_list = (*contextp)->next;
     wt_api->spin_unlock(wt_api, session, &(ctx_pool->list_lock));
