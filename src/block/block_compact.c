@@ -68,8 +68,13 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * we need some metrics to decide if it's worth doing. Ignore small files, and files where we
      * are unlikely to recover 10% of the file.
      */
-    if (block->size <= WT_MEGABYTE)
+    if (block->size <= WT_MEGABYTE) {
+        if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT))
+            __wt_verbose(session, WT_VERB_COMPACT,
+              "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
+              block->name, (uintmax_t)block->size);
         return (0);
+    }
 
     __wt_spin_lock(session, &block->live_lock);
 
@@ -108,6 +113,7 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
         block->compact_pct_tenths = 1;
     }
 
+    /* AAA: TODO add compact_blocks_moved and compact_cache_evictions after WT-6001 is committed! */
     __wt_verbose(session, WT_VERB_COMPACT,
       "%s: total reviewed %" PRIu64 " pages, total skipped %" PRIu64 " pages, total wrote %" PRIu64
       " pages",
