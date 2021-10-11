@@ -65,19 +65,19 @@ def main():
     if args.collection is None:
         sys.exit('The name of the Atlas collection is required')
 
-    cluster = 'wtperf.5bfc8.mongodb.net'
-    database = 'PerformanceTests'
+    CLUSTER = 'wtperf.5bfc8.mongodb.net'
+    DATABASE = 'PerformanceTests'
 
     client_str = 'mongodb+srv://' + args.username + ':' + args.password \
-        + '@' + cluster + '/' + database \
+        + '@' + CLUSTER + '/' + DATABASE \
         + '?retryWrites=true&w=majority'
 
     client = MongoClient(client_str)
 
     databases = client.database_names()
-    if database not in databases:
-        sys.exit('Database: {}, does not exist in Atlas Cluster'.format(database))
-    db = client[database]
+    if DATABASE not in databases:
+        sys.exit('Database: {}, does not exist in Atlas Cluster'.format(DATABASE))
+    db = client[DATABASE]
 
     collections = db.collection_names()
     if args.collection not in collections:
