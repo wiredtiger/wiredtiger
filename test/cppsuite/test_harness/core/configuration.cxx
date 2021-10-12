@@ -260,11 +260,11 @@ configuration::split_config(const std::string &config)
         if (cut_config[i] == '=' && !in_subconfig) {
             if (expect_value) {
                 testutil_die(EINVAL,
-                  "error parsing config: syntax error parsing value for key ['%s']: '%s'\n",
+                  "error parsing config: syntax error parsing value for key ['%s']: '%s'",
                   key.c_str(), cut_config.substr(start, len + 1).c_str());
             }
             if (len == 0) {
-                testutil_die(EINVAL, "error parsing config: detected empty key\n");
+                testutil_die(EINVAL, "error parsing config: detected empty key");
             }
             expect_value = true;
             key = cut_config.substr(start, len);
@@ -275,12 +275,12 @@ configuration::split_config(const std::string &config)
         if (cut_config[i] == ',' && !in_subconfig) {
             if (!expect_value) {
                 testutil_die(EINVAL,
-                  "error parsing config: syntax error parsing key value pair: '%s'\n",
+                  "error parsing config: syntax error parsing key value pair: '%s'",
                   cut_config.substr(start, len).c_str());
             }
             if (len == 0) {
                 testutil_die(
-                  EINVAL, "error parsing config: detected empty value for key:'%s'\n", key.c_str());
+                  EINVAL, "error parsing config: detected empty value for key:'%s'", key.c_str());
             }
             expect_value = false;
             if (start + len >= cut_config.size())
