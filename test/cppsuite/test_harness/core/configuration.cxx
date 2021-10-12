@@ -258,6 +258,11 @@ configuration::split_config(const std::string &config)
             in_subconfig = !parens.empty();
         }
         if (cut_config[i] == '=' && !in_subconfig) {
+            if (expect_value) {
+                testutil_die(EINVAL,
+                  "error parsing config: syntax error parsing value for key ['%s']: '%s'\n",
+                  key.c_str(), cut_config.substr(start, len + 1).c_str());
+            }
             expect_value = true;
             key = cut_config.substr(start, len);
             start += len + 1;
