@@ -261,7 +261,7 @@ configuration::split_config(const std::string &config)
             if (expect_value) {
                 testutil_die(EINVAL,
                   "error parsing config: syntax error parsing value for key ['%s']: '%s'",
-                  key.c_str(), cut_config.substr(start, len + 1).c_str());
+                  key.c_str(), cut_config.substr(start, len).c_str());
             }
             if (len == 0) {
                 testutil_die(EINVAL, "error parsing config: detected empty key");
