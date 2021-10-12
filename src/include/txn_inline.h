@@ -1042,8 +1042,10 @@ retry:
         }
 
         /*
-         * If the start time point is visible, it is the history store, or we want to ignore the
-         * visibility, then we need to return the ondisk value.
+         * We return the onpage value in the following cases:
+         * 1. The record is from the history store.
+         * 2. It has the WT_CURSTD_VISIBLE_ALL flag set.
+         * 3. It is visible to the reader.
          */
         if (WT_IS_HS(session->dhandle) || F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL) ||
           __wt_txn_tw_start_visible(session, &tw)) {
