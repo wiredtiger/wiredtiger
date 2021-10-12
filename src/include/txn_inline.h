@@ -766,9 +766,9 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
-          upd->type == WT_UPDATE_STANDARD)
-            /* Entries in the history store are always visible. */
+        /* Entries in the history store are always visible. */
+        if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
+              upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
@@ -901,7 +901,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             continue;
         }
 
-        upd_visible = __wt_txn_upd_visible_type(session, upd);
+        if (F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL))
+            upd_visible = WT_VISIBLE_TRUE;
+        else
+            upd_visible = __wt_txn_upd_visible_type(session, upd);
 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
@@ -1038,8 +1041,12 @@ retry:
             cbt->upd_value->tw.prepare = tw.prepare;
         }
 
-        /* If the start time point is visible then we need to return the ondisk value. */
-        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+        /*
+         * If the start time point is visible, it is the history store, or we want to ignore the
+         * visibility, then we need to return the ondisk value.
+         */
+        if (WT_IS_HS(session->dhandle) || F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL) ||
+          __wt_txn_tw_start_visible(session, &tw)) {
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
