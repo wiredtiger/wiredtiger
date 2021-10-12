@@ -55,7 +55,6 @@ class search_near_01 : public test_harness::test {
         uint64_t collections_per_thread = tc->collection_count;
         const uint64_t MAX_ROLLBACKS = 100;
         uint32_t rollback_retries = 0;
-        int cmpp;
 
         /*
          * Generate a table of data with prefix keys aaa -> zzz. We have 26 threads from ids
@@ -84,8 +83,8 @@ class search_near_01 : public test_harness::test {
                             --count;
                         } else {
                             /* Commit txn at commit timestamp 100. */
-                            tc->transaction.commit(
-                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100));
+                            testutil_assert(tc->transaction.commit(
+                              "commit_timestamp=" + tc->tsm->decimal_to_hex(100)));
                             rollback_retries = 0;
                         }
                     }
@@ -206,7 +205,7 @@ class search_near_01 : public test_harness::test {
             collection &coll = tc->db.get_random_collection();
             if (cursors.find(coll.id) == cursors.end()) {
                 scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
-                cursor->reconfigure(cursor.get(), "prefix_key=true");
+                cursor->reconfigure(cursor.get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
 
@@ -254,7 +253,6 @@ class search_near_01 : public test_harness::test {
             /* Reset our cursor to avoid pinning content. */
             testutil_check(cursor->reset(cursor.get()));
         }
-        tc->transaction.commit();
         /* Make sure the last transaction is rolled back now the work is finished. */
         if (tc->transaction.active())
             tc->transaction.rollback();

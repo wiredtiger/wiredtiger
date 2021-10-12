@@ -108,6 +108,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages seen by eviction walk",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
+  "cache: the number of times full update inserted to history store",
+  "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
   "cache: unmodified pages evicted",
   "cache_walk: Average difference between current eviction generation when the page was last "
@@ -371,6 +373,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
+    stats->cache_hs_insert_full_update = 0;
+    stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
     stats->cache_eviction_clean = 0;
     /* not clearing cache_state_gen_avg_gap */
@@ -621,6 +625,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
+    to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
+    to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
     to->cache_eviction_clean += from->cache_eviction_clean;
     to->cache_state_gen_avg_gap += from->cache_state_gen_avg_gap;
@@ -872,6 +878,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
+    to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
+    to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
     to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
     to->cache_state_gen_avg_gap += WT_STAT_READ(from, cache_state_gen_avg_gap);
@@ -1172,6 +1180,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
   "cache: percentage overhead",
+  "cache: the number of times full update inserted to history store",
+  "cache: the number of times reverse modify inserted to history store",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to leaf pages in the cache",
   "cache: tracked dirty bytes in the cache",
@@ -1393,8 +1403,9 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
-  "session: flush state races",
+  "session: attempts to remove a local object and the object is in use",
   "session: flush_tier operation calls",
+  "session: local objects removed",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -1706,6 +1717,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
+    stats->cache_hs_insert_full_update = 0;
+    stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_leaf */
     /* not clearing cache_bytes_dirty */
@@ -1926,8 +1939,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
-    stats->flush_state_races = 0;
+    stats->local_objects_inuse = 0;
     stats->flush_tier = 0;
+    stats->local_objects_removed = 0;
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -2242,6 +2256,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
     to->cache_overhead += WT_STAT_READ(from, cache_overhead);
+    to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
+    to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
     to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
@@ -2471,8 +2487,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
-    to->flush_state_races += WT_STAT_READ(from, flush_state_races);
+    to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
+    to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
     to->session_open += WT_STAT_READ(from, session_open);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_READ(from, session_table_alter_fail);
