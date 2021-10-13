@@ -47,7 +47,8 @@ namespace test_harness {
 
 class scoped_connection {
     public:
-    explicit scoped_connection(const std::string &db_conn_config);
+    explicit scoped_connection(
+      const std::string &db_conn_config, const std::string &home = DEFAULT_DIR);
     ~scoped_connection();
 };
 

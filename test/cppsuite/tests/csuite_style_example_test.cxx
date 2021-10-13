@@ -95,10 +95,11 @@ main(int argc, char *argv[])
     /* Create a connection, set the cache size and specify the home directory. */
     const std::string conn_config = std::string(CONNECTION_CREATE) + ",cache_size=500MB";
     const std::string home_dir = std::string(DEFAULT_DIR) + '_' + progname;
-    /* A smart pointer is used here so that the connection can automatically be closed by the
+    /*
+     * A smart pointer is used here so that the connection can automatically be closed by the
      * scoped_connection's destructor when the test finishes and the pointer goes out of scope.
      */
-    std::unique_ptr<scoped_connection> scoped_conn(new scoped_connection(conn_config));
+    std::unique_ptr<scoped_connection> scoped_conn(new scoped_connection(conn_config, home_dir));
     WT_CONNECTION *conn = connection_manager::instance().get_connection();
 
     /* Open different sessions. */

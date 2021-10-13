@@ -33,9 +33,9 @@
 
 namespace test_harness {
 
-scoped_connection::scoped_connection(const std::string &db_conn_config)
+scoped_connection::scoped_connection(const std::string &db_conn_config, const std::string &home)
 {
-    connection_manager::instance().create(db_conn_config);
+    connection_manager::instance().create(db_conn_config, home);
 }
 
 scoped_connection::~scoped_connection()
