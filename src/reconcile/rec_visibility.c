@@ -246,13 +246,16 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
      */
     WT_ASSERT(session, select_tw->stop_txn >= select_tw->start_txn);
 
-    if (select_tw->stop_ts < select_tw->start_ts) {
+    if (select_tw->stop_ts < select_tw->start_ts ||
+      select_tw->stop_ts < select_tw->durable_start_ts) {
         __wt_verbose(session, WT_VERB_TIMESTAMP,
           "Warning: fixing out-of-order timestamps remove earlier than value; time window %s",
           __wt_time_window_to_string(select_tw, time_string));
 
         select_tw->durable_start_ts = select_tw->durable_stop_ts;
-        select_tw->start_ts = select_tw->stop_ts;
+        if (select_tw->stop_ts < select_tw->start_ts)
+            select_tw->start_ts = select_tw->stop_ts;
+
         return (true);
     }
     return (false);
