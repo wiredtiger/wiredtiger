@@ -118,14 +118,14 @@ class test_cursor17(wttest.WiredTigerTestCase):
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(self.type + self.tablename, None)
         session2.begin_transaction()
-        cursor2[101] = self.ds.value(101)
+        cursor2[200] = self.ds.value(200)
 
         cursor = self.session.open_cursor(self.type + self.tablename, None)
 
         # Verify the largest key.
         self.session.begin_transaction()
         self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), 101)
+        self.assertEqual(cursor.get_key(), 200)
         self.session.rollback_transaction()
 
         session2.rollback_transaction()
@@ -135,13 +135,13 @@ class test_cursor17(wttest.WiredTigerTestCase):
 
         cursor = self.session.open_cursor(self.type + self.tablename, None)
         self.session.begin_transaction()
-        cursor[101] = self.ds.value(101)
+        cursor[200] = self.ds.value(200)
         self.session.commit_transaction("commit_timestamp=" + self.timestamp_str(10))
 
         # Verify the largest key.
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(5))
         self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), 101)
+        self.assertEqual(cursor.get_key(), 200)
         self.session.rollback_transaction()
     
     def test_prepared_update(self):
@@ -150,7 +150,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         session2 = self.setUpSessionOpen(self.conn)
         cursor2 = session2.open_cursor(self.type + self.tablename, None)
         session2.begin_transaction()
-        cursor2[101] = self.ds.value(101)
+        cursor2[200] = self.ds.value(200)
         session2.prepare_transaction("prepare_timestamp=" + self.timestamp_str(10))
 
         cursor = self.session.open_cursor(self.type + self.tablename, None)
@@ -158,7 +158,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         # Verify the largest key.
         self.session.begin_transaction("read_timestamp=" + self.timestamp_str(20))
         self.assertEqual(cursor.largest_key(), 0)
-        self.assertEqual(cursor.get_key(), 101)
+        self.assertEqual(cursor.get_key(), 200)
         self.session.rollback_transaction()
 
     def test_not_positioned(self):
