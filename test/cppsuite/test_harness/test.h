@@ -94,7 +94,7 @@ class test : public database_operation {
     workload_generator *_workload_generator = nullptr;
     workload_tracking *_workload_tracking = nullptr;
 
-    std::shared_ptr<scoped_connection> scoped_conn;
+    std::shared_ptr<scoped_connection> _scoped_conn;
     database _database;
 };
 } // namespace test_harness
