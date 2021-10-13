@@ -68,6 +68,8 @@ static void populate(WT_SESSION *, const char *);
 static void remove_records(WT_SESSION *, const char *);
 static void get_db_size(WT_SESSION *, const char *, uint64_t *, uint64_t *);
 static void set_timing_stress_checkpoint(WT_CONNECTION *);
+static bool check_db_size(WT_SESSION *, const char *);
+
 
 /* Methods implementation. */
 int
@@ -131,7 +133,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     WT_CONNECTION *conn;
     WT_SESSION *session;
     pthread_t thread_checkpoint;
-    uint64_t file_sz, checkpoint_sz, uncompressed_pct;
+    bool size_check_res;
 
     testutil_make_work_dir(home);
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
@@ -179,7 +181,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     (void)pthread_join(thread_checkpoint, NULL);
     (void)pthread_join(thread_compact, NULL);
 
-    get_db_size(session, uri, &file_sz, &checkpoint_sz);
+    size_check_res = check_db_size(session, uri);
 
     /* Cleanup */
     if (!stress_test) {
@@ -193,14 +195,11 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     testutil_check(conn->close(conn, NULL));
     conn = NULL;
 
-    /* Check if there's maximum of 10% space available after compaction. */
-    uncompressed_pct = (checkpoint_sz * 100) / file_sz;
-    printf(" - Compressed file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Checkpoint size: %" PRIu64
-           "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
-      file_sz / WT_MEGABYTE, file_sz, checkpoint_sz / WT_MEGABYTE, checkpoint_sz,
-      100 - uncompressed_pct);
-
-    testutil_assert(uncompressed_pct >= 90);
+    /* 
+     * Check if there's more than 10% available space in the file. Checking result here to allow
+     * connection to close properly.
+     */
+    testutil_assert(size_check_res);
 }
 
 static void *
@@ -306,7 +305,7 @@ populate(WT_SESSION *session, const char *uri)
 
     str_len = sizeof(data_str) / sizeof(data_str[0]);
     for (i = 0; i < str_len - 1; i++)
-        data_str[i] = 'a' + __wt_random(&rnd) % 26;
+        data_str[i] = 'a' + (uint32_t)__wt_random(&rnd) % 26;
 
     data_str[str_len - 1] = '\0';
 
@@ -370,4 +369,21 @@ set_timing_stress_checkpoint(WT_CONNECTION *conn)
 
     conn_impl = (WT_CONNECTION_IMPL *)conn;
     conn_impl->timing_stress_flags |= WT_TIMING_STRESS_CHECKPOINT_SLOW;
+}
+
+static bool
+check_db_size(WT_SESSION *session, const char *uri)
+{
+    uint64_t file_sz, checkpoint_sz, uncompressed_pct;
+
+    get_db_size(session, uri, &file_sz, &checkpoint_sz);
+
+    /* Check if there's maximum of 10% space available after compaction. */
+    uncompressed_pct = (checkpoint_sz * 100) / file_sz;
+    printf(" - Compressed file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Checkpoint size: %" PRIu64
+           "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
+      file_sz / WT_MEGABYTE, file_sz, checkpoint_sz / WT_MEGABYTE, checkpoint_sz,
+      100 - uncompressed_pct);
+
+    return (uncompressed_pct >= 90);
 }
