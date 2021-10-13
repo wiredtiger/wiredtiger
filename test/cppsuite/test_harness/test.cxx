@@ -120,7 +120,7 @@ test::run()
     db_create_config += _args.wt_open_config;
 
     /* Set up the test environment. */
-    connection_manager::instance().create(db_create_config);
+    scoped_conn = std::make_shared<scoped_connection>(db_create_config);
 
     /* Initiate the load stage of each component. */
     for (const auto &it : _components)
