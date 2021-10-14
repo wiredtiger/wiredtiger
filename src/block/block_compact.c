@@ -25,7 +25,7 @@ __wt_block_compact_start(WT_SESSION_IMPL *session, WT_BLOCK *block)
     /* Reset the compaction state information. */
     block->compact_pct_tenths = 0;
     block->compact_blocks_moved = 0;
-    block->compact_cache_evictions = 0;
+    block->compact_cache_pages_dealt = 0;
     block->compact_pages_reviewed = 0;
     block->compact_pages_skipped = 0;
 
@@ -51,6 +51,32 @@ __wt_block_compact_end(WT_SESSION_IMPL *session, WT_BLOCK *block)
     return (0);
 }
 
+/*
+ * __wt_block_compact_progress --
+ *     Output compact progress message.
+ */
+void
+__wt_block_compact_progress(WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *msg_countp)
+{
+    struct timespec cur_time;
+    uint64_t time_diff;
+
+    if (!WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
+        return;
+
+    __wt_epoch(session, &cur_time);
+
+    /* Log one progress message every twenty seconds. */
+    time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
+    if (time_diff / WT_PROGRESS_MSG_PERIOD > *msg_countp) {
+        ++*msg_countp;
+        __wt_verbose(session, WT_VERB_COMPACT_PROGRESS,
+          " compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, skipped %" PRIu64
+          " pages, cache pages evicted %" PRIu64 ", on-disk pages moved %" PRIu64,
+          block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_skipped,
+          block->compact_cache_pages_dealt, block->compact_blocks_moved);
+    }
+}
 /*
  * __wt_block_compact_skip --
  *     Return if compaction will shrink the file.
@@ -189,7 +215,7 @@ __wt_block_compact_page_skip(
         if (*skipp)
             ++block->compact_pages_skipped;
         else
-            ++block->compact_cache_evictions;
+            ++block->compact_cache_pages_dealt;
     }
 
     return (0);
@@ -296,8 +322,8 @@ __block_dump_avail(WT_SESSION_IMPL *session, WT_BLOCK *block, bool start)
           session, WT_VERB_COMPACT, "pages reviewed: %" PRIu64, block->compact_pages_reviewed);
         __wt_verbose(
           session, WT_VERB_COMPACT, "pages skipped: %" PRIu64, block->compact_pages_skipped);
-        __wt_verbose(session, WT_VERB_COMPACT, "cache pages evicted: %" PRIu64,
-          block->compact_cache_evictions);
+        __wt_verbose(session, WT_VERB_COMPACT,
+          "cache pages read/flushed out of the cache: %" PRIu64, block->compact_cache_pages_dealt);
         __wt_verbose(
           session, WT_VERB_COMPACT, "blocks moved : %" PRIu64, block->compact_blocks_moved);
     }

@@ -273,6 +273,16 @@ __bm_compact_page_skip_readonly(
 }
 
 /*
+ * __bm_compact_progress --
+ *     Output compact progress message.
+ */
+static void
+__bm_compact_progress(WT_BM *bm, WT_SESSION_IMPL *session, u_int *msg_countp)
+{
+    __wt_block_compact_progress(session, bm->block, msg_countp);
+}
+
+/*
  * __bm_compact_skip --
  *     Return if a file can be compacted.
  */
@@ -612,6 +622,7 @@ __bm_method_set(WT_BM *bm, bool readonly)
     bm->compact_end = __bm_compact_end;
     bm->compact_page_rewrite = __bm_compact_page_rewrite;
     bm->compact_page_skip = __bm_compact_page_skip;
+    bm->compact_progress = __bm_compact_progress;
     bm->compact_skip = __bm_compact_skip;
     bm->compact_start = __bm_compact_start;
     bm->corrupt = __wt_bm_corrupt;

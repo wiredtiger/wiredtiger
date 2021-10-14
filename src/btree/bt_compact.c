@@ -157,7 +157,6 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     uint8_t previous_state;
 
     *skipp = true; /* Default skip. */
-    addr_size = 0;
 
     /* Lock the WT_REF. */
     WT_REF_LOCK(session, ref, &previous_state);
@@ -276,35 +275,6 @@ err:
 }
 
 /*
- * __compact_progress --
- *     Output a compact progress message.
- */
-static void
-__compact_progress(WT_SESSION_IMPL *session, u_int *msg_countp)
-{
-    struct timespec cur_time;
-    WT_BLOCK *block;
-    uint64_t time_diff;
-
-    if (!WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS))
-        return;
-
-    block = S2BT(session)->bm->block;
-    __wt_epoch(session, &cur_time);
-
-    /* Log one progress message every twenty seconds. */
-    time_diff = WT_TIMEDIFF_SEC(cur_time, session->compact->begin);
-    if (time_diff / WT_PROGRESS_MSG_PERIOD > *msg_countp) {
-        ++*msg_countp;
-        __wt_verbose(session, WT_VERB_COMPACT_PROGRESS,
-          "compacting %s for %" PRIu64 " seconds; reviewed %" PRIu64 " pages, skipped %" PRIu64
-          " pages, cache pages evicted %" PRIu64 ", on-disk pages moved %" PRIu64,
-          block->name, time_diff, block->compact_pages_reviewed, block->compact_pages_skipped,
-          block->compact_cache_evictions, block->compact_blocks_moved);
-    }
-}
-
-/*
  * __compact_walk_page_skip --
  *     Skip leaf pages, all we want are internal pages.
  */
@@ -352,7 +322,7 @@ __wt_compact(WT_SESSION_IMPL *session)
          * we're making the problem worse.
          */
         if (++i > 100) {
-            __compact_progress(session, &msg_count);
+            bm->compact_progress(bm, session, &msg_count);
             WT_ERR(__wt_session_compact_check_timeout(session));
 
             if (__wt_cache_stuck(session))
