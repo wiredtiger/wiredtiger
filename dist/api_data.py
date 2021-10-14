@@ -814,7 +814,9 @@ connection_runtime_config = [
         'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
     Config('verbose', '[]', r'''
         enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[evictserver,read]"</code>''',
+        list, where each event can optionally define an associated verbosity
+        level, such as <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity
+        levels that can be provided include <code>0</code> (INFO) and <code>1</code> (DEBUG).''',
         type='list', choices=[
             'api',
             'backup',
