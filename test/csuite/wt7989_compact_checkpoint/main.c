@@ -46,7 +46,7 @@
  */
 static const char conn_config[] = "create,cache_size=2GB,statistics=(all)";
 static const char table_config_row[] =
-  "allocation_size=4KB,leaf_page_max=4KB,key_format=i,value_format=QQQS";
+  "allocation_size=4KB,leaf_page_max=4KB,key_format=Q,value_format=QQQS";
 static const char table_config_col[] =
   "allocation_size=4KB,leaf_page_max=4KB,key_format=r,value_format=QQQS";
 static char data_str[1024] = "";
@@ -69,7 +69,6 @@ static void remove_records(WT_SESSION *, const char *);
 static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
 static void set_timing_stress_checkpoint(WT_CONNECTION *);
 static bool check_db_size(WT_SESSION *, const char *);
-
 
 /* Methods implementation. */
 int
@@ -195,7 +194,7 @@ run_test(bool stress_test, bool column_store, const char *home, const char *uri)
     testutil_check(conn->close(conn, NULL));
     conn = NULL;
 
-    /* 
+    /*
      * Check if there's more than 10% available space in the file. Checking result here to allow
      * connection to close properly.
      */
@@ -298,8 +297,7 @@ populate(WT_SESSION *session, const char *uri)
 {
     WT_CURSOR *cursor;
     WT_RAND_STATE rnd;
-    uint64_t val;
-    int i, str_len;
+    uint64_t i, str_len, val;
 
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
 
@@ -325,7 +323,7 @@ static void
 remove_records(WT_SESSION *session, const char *uri)
 {
     WT_CURSOR *cursor;
-    int i;
+    uint64_t i;
 
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
@@ -353,7 +351,7 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, file_sz));
 
-    /* Get bytes availabe for reuse. */
+    /* Get bytes available for reuse. */
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, avail_bytes));
@@ -380,7 +378,7 @@ check_db_size(WT_SESSION *session, const char *uri)
 
     /* Check if there's maximum of 10% space available after compaction. */
     available_pct = (avail_bytes * 100) / file_sz;
-    printf(" - Compressed file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
+    printf(" - Compacted file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
            "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
       file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
 
