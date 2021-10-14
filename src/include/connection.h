@@ -211,6 +211,19 @@ struct __wt_name_flag {
     } while (0)
 
 /*
+ * Permitted verbosity levels; to be used when defining verbose messages. The levels define a range
+ * of severity categories, with WT_VERBOSE_ERROR being the lowest, most critical level (used by
+ * messages on critical error paths) and WT_VERBOSE_DEBUG being the highest verbosity/informational
+ * level (mostly adopted for debugging).
+ */
+typedef enum {
+    WT_VERBOSE_ERROR = -2,
+    WT_VERBOSE_WARNING,
+    WT_VERBOSE_INFO,
+    WT_VERBOSE_DEBUG
+} WT_VERBOSE_LEVEL;
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */
