@@ -1483,8 +1483,9 @@ __rollback_to_stable_btree_apply(
 
     /*
      * Perform rollback to stable when the newest written transaction of the btree is greater than
-     * the checkpoint snapshot minimum. The snapshot comparison is valid only when the btree write
-     * generation number is greater than the last checkpoint connection base write generation.
+     * or equal to the checkpoint snapshot. The snapshot comparison is valid only when the btree
+     * write generation number is greater than the last checkpoint connection base write generation
+     * to confirm that the btree is modified in the previous restart cycle.
      */
     if (WT_CHECK_RECOVERY_FLAG_TXNID(session, rollback_txnid) &&
       (write_gen >= S2C(session)->last_ckpt_base_write_gen)) {
