@@ -74,4 +74,3 @@ class test_prepare17(wttest.WiredTigerTestCase):
 
         # Time window validation occurs as part of checkpoint.
         self.session.checkpoint()
-        
