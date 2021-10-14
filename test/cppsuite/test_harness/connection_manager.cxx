@@ -28,8 +28,8 @@
 
 #include "connection_manager.h"
 #include "util/api_const.h"
-#include "util/scoped_connection.h"
 #include "util/logger.h"
+#include "util/scoped_connection.h"
 
 namespace test_harness {
 connection_manager &

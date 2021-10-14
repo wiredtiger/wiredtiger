@@ -36,8 +36,8 @@
 #include "test_harness/connection_manager.h"
 #include "test_harness/thread_manager.h"
 #include "test_harness/util/api_const.h"
-#include "test_harness/util/scoped_connection.h"
 #include "test_harness/util/logger.h"
+#include "test_harness/util/scoped_connection.h"
 #include "test_harness/workload/random_generator.h"
 
 extern "C" {
