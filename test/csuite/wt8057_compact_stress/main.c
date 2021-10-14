@@ -132,7 +132,7 @@ run_test(bool column_store, bool preserve)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
-    char ckpt_file[1024], home[1024];
+    char ckpt_file[2048], home[1024];
     int status;
     pid_t pid;
     struct sigaction sa;
