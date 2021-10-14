@@ -66,7 +66,7 @@ static void *thread_func_compact(void *);
 static void *thread_func_checkpoint(void *);
 static void populate(WT_SESSION *, const char *);
 static void remove_records(WT_SESSION *, const char *);
-static void get_db_size(WT_SESSION *, const char *, uint64_t *, uint64_t *);
+static void get_file_stats(WT_SESSION *, const char *, uint64_t *, uint64_t *);
 static void set_timing_stress_checkpoint(WT_CONNECTION *);
 static bool check_db_size(WT_SESSION *, const char *);
 
@@ -340,7 +340,7 @@ remove_records(WT_SESSION *session, const char *uri)
 }
 
 static void
-get_db_size(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *checkpoint_sz)
+get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *avail_bytes)
 {
     WT_CURSOR *cur_stat;
     char *descr, *str_val, stat_uri[128];
@@ -353,10 +353,10 @@ get_db_size(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t *c
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, file_sz));
 
-    /* Get checkpoint size. */
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_CHECKPOINT_SIZE);
+    /* Get bytes availabe for reuse. */
+    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BLOCK_REUSE_BYTES);
     testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, checkpoint_sz));
+    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, avail_bytes));
 
     testutil_check(cur_stat->close(cur_stat));
     cur_stat = NULL;
@@ -374,16 +374,15 @@ set_timing_stress_checkpoint(WT_CONNECTION *conn)
 static bool
 check_db_size(WT_SESSION *session, const char *uri)
 {
-    uint64_t file_sz, checkpoint_sz, uncompressed_pct;
+    uint64_t file_sz, avail_bytes, available_pct;
 
-    get_db_size(session, uri, &file_sz, &checkpoint_sz);
+    get_file_stats(session, uri, &file_sz, &avail_bytes);
 
     /* Check if there's maximum of 10% space available after compaction. */
-    uncompressed_pct = (checkpoint_sz * 100) / file_sz;
-    printf(" - Compressed file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Checkpoint size: %" PRIu64
+    available_pct = (avail_bytes * 100) / file_sz;
+    printf(" - Compressed file size: %" PRIu64 "MB (%" PRIu64 "B)\n - Available for reuse: %" PRIu64
            "MB (%" PRIu64 "B)\n - %" PRIu64 "%% space available in the file.\n",
-      file_sz / WT_MEGABYTE, file_sz, checkpoint_sz / WT_MEGABYTE, checkpoint_sz,
-      100 - uncompressed_pct);
+      file_sz / WT_MEGABYTE, file_sz, avail_bytes / WT_MEGABYTE, avail_bytes, available_pct);
 
-    return (uncompressed_pct >= 90);
+    return (available_pct <= 10);
 }
