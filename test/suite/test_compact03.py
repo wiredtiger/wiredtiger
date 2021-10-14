@@ -79,6 +79,7 @@ class test_compact03(wttest.WiredTigerTestCase):
     expectedTableSize = 20 # Mbytes
     nOverflowRecords = 5000
 
+    # Return stats that track the progress of compaction.
     def getCompactProgressStats(self):
         cstat = self.session.open_cursor(
             'statistics:' + self.uri, None, 'statistics=(all)')
