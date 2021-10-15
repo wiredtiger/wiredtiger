@@ -185,8 +185,8 @@
  *     additional argument, there's no portable way to remove the comma before an empty __VA_ARGS__
  *     value.
  */
-#define __wt_verbose(session, flag, fmt, ...)                              \
-    do {                                                                   \
-        if (WT_VERBOSE_ISSET(session, flag))                               \
-            __wt_verbose_worker(session, "[" #flag "] " fmt, __VA_ARGS__); \
+#define __wt_verbose(session, event, fmt, ...)                              \
+    do {                                                                    \
+        if (WT_VERBOSE_ISSET(session, event))                               \
+            __wt_verbose_worker(session, "[" #event "] " fmt, __VA_ARGS__); \
     } while (0)
