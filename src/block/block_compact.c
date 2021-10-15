@@ -195,16 +195,24 @@ static void
 __block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_t file_free,
   uintmax_t bucket_size, uintmax_t bucket_free, u_int bucket_pct)
 {
-    uintmax_t bucket_used;
+    uintmax_t bucket_used, free_pct, used_pct;
+
+    free_pct = used_pct = 0;
 
     /* Handle rounding error in which case bucket used size can be negative. */
     bucket_used = (bucket_size > bucket_free) ? (bucket_size - bucket_free) : 0;
 
+    if (file_free != 0)
+        free_pct = (bucket_free * 100) / file_free;
+
+    if (file_size > file_free)
+        used_pct = (bucket_used * 100) / (file_size - file_free);
+
     __wt_verbose(session, WT_VERB_COMPACT,
       "%2u%%: %12" PRIuMAX "MB, (free: %" PRIuMAX "B, %" PRIuMAX "%%), (used: %" PRIuMAX
       "MB, %" PRIuMAX "B, %" PRIuMAX "%%)",
-      bucket_pct, bucket_free / WT_MEGABYTE, bucket_free, (bucket_free * 100) / file_free,
-      bucket_used / WT_MEGABYTE, bucket_used, (bucket_used * 100) / (file_size - file_free));
+      bucket_pct, bucket_free / WT_MEGABYTE, bucket_free, free_pct, bucket_used / WT_MEGABYTE,
+      bucket_used, used_pct);
 }
 
 /*
