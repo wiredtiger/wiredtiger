@@ -209,7 +209,7 @@ workload_compact(const char *home, const char *table_config)
     WT_SESSION *session;
 
     bool first_ckpt;
-    char ckpt_file[1024];
+    char ckpt_file[2048];
     uint32_t i;
     uint64_t key_range_start;
 
