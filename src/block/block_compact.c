@@ -69,10 +69,10 @@ __wt_block_compact_skip(WT_SESSION_IMPL *session, WT_BLOCK *block, bool *skipp)
      * are unlikely to recover 10% of the file.
      */
     if (block->size <= WT_MEGABYTE) {
-        if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT))
-            __wt_verbose(session, WT_VERB_COMPACT,
-              "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
-              block->name, (uintmax_t)block->size);
+        __wt_verbose(session, WT_VERB_COMPACT,
+          "%s: skipping because the file size must be greater than 1MB: %" PRIuMAX "B.",
+          block->name, (uintmax_t)block->size);
+
         return (0);
     }
 
@@ -198,14 +198,14 @@ __block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_
 {
     uintmax_t bucket_used;
 
-    /* Handle rounding error in which case bucket size can be negative. */
+    /* Handle rounding error in which case bucket used size can be negative. */
     bucket_used = (bucket_size > bucket_free) ? (bucket_size - bucket_free) : 0;
 
     __wt_verbose(session, WT_VERB_COMPACT,
       "%2u%%: %12" PRIuMAX "MB, (free: %" PRIuMAX "B, %" PRIuMAX "%%), (used: %" PRIuMAX
-      "B, %" PRIuMAX "%%)",
+      "MB, %" PRIuMAX "B, %" PRIuMAX "%%)",
       bucket_pct, bucket_free / WT_MEGABYTE, bucket_free, (bucket_free * 100) / file_free,
-      bucket_used, bucket_used * 100 / (file_size - file_free));
+      bucket_used / WT_MEGABYTE, bucket_used, (bucket_used * 100) / (file_size - file_free));
 }
 
 /*
