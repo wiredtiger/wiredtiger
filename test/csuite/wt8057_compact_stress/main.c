@@ -246,8 +246,8 @@ run_test(const char *home)
         if (file_sz_after < file_sz_before) {
             get_compact_progress(session, uri1, &pages_reviewed, &pages_rewritten, &pages_selected);
             printf(" - Pages reviewed: %lu \n", pages_reviewed);
-            printf(" - Pages selected for being rewritten: %lu \n", pages_reviewed);
-            printf(" - Pages actually rewritten: %lu \n", pages_selected);
+            printf(" - Pages selected for being rewritten: %lu \n", pages_selected);
+            printf(" - Pages actually rewritten: %lu \n", pages_rewritten);
         }
 
         /* Put the deleted records back. */
