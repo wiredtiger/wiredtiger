@@ -169,8 +169,13 @@
     } while (0)
 #endif
 
-/* Verbose messages. */
-#define WT_VERBOSE_ISSET(session, flag) (FLD_ISSET(S2C(session)->verbose, flag))
+/*
+ * Verbose messages. Given this verbosity check is without an explicit verbosity level, the macro
+ * will check whether the given event satisfies the WT_VERBOSE_DEBUG verbosity level.
+ * WT_VERBOSE_DEBUG being the default level assigned to verbose messages prior to the introduction
+ * of verbosity levels.
+ */
+#define WT_VERBOSE_ISSET(session, event) (WT_VERBOSE_DEBUG <= S2C(session)->verbose[event])
 
 /*
  * __wt_verbose --
