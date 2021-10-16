@@ -209,14 +209,11 @@ __wt_block_compact_page_skip(
 
     __compact_page_skip(session, block, offset, size, skipp);
 
-    if (WT_VERBOSE_ISSET(session, WT_VERB_COMPACT) ||
-      WT_VERBOSE_ISSET(session, WT_VERB_COMPACT_PROGRESS)) {
-        ++block->compact_pages_reviewed;
-        if (*skipp)
-            ++block->compact_pages_skipped;
-        else
-            ++block->compact_cache_pages_dealt;
-    }
+    ++block->compact_pages_reviewed;
+    if (*skipp)
+        ++block->compact_pages_skipped;
+    else
+        ++block->compact_cache_pages_dealt;
 
     return (0);
 }
