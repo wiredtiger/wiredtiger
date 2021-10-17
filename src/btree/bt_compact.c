@@ -325,7 +325,7 @@ __wt_compact(WT_SESSION_IMPL *session)
         WT_STAT_DATA_SET(session, btree_compact_pages_reviewed, bm->block->compact_pages_reviewed);
         WT_STAT_DATA_SET(session, btree_compact_pages_skipped, bm->block->compact_pages_skipped);
         WT_STAT_DATA_SET(
-          session, btree_compact_pages_write_selected, bm->block->compact_pages_written);
+          session, btree_compact_pages_write_selected, bm->block->compact_cache_pages_dealt);
 
         /*
          * Periodically check if we've timed out or eviction is stuck. Quit if eviction is stuck,
