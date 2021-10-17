@@ -2042,7 +2042,7 @@ __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
              * We only support verbosity values in the form of positive numbers (representing
              * verbosity levels e.g. [checkpoint:1,rts:0]) and boolean expressions (e.g.
              * [checkpoint,rts]). Return error for all other unsupported verbosity values e.g
-             * negative numbers,
+             * negative numbers and strings.
              */
             WT_RET_MSG(session, EINVAL, "Failed to parse verbose option '%s'", ft->name);
     }
