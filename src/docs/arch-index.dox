@@ -261,7 +261,7 @@ The format of the data file is given by structures in \c block.h .
 
 */
 
-/*! @page arch-toc-on-disk On Disk Concepts 
+/*! @page arch-toc-on-disk On Disk Concepts
 
 @subpage arch-checkpoint
 
