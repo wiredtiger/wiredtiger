@@ -1323,7 +1323,7 @@ __wt_txn_modify_check(
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set, rollback, tw_found;
 
-    rollback = false;
+    rollback = tw_found = false;
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
