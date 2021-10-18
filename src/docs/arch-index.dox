@@ -130,9 +130,10 @@ much of the architecture-specific terminology explained in the @ref arch-glossar
 For an application level view of WiredTiger, head over to the @ref basic_api section
 of the documentation.
 
-<div class="arch_title"> Table of Contents </div>
+<div class="arch_toc">
+<h1>Table of Contents</h1>
 
-- @subpage arch-a
+- @subpage arch-toc-fundamentals
     - @ref arch-connection
     - @ref arch-session
     - @ref arch-cursor
@@ -140,44 +141,46 @@ of the documentation.
     - @ref arch-snapshot
     - @ref arch-rts
 
-- @subpage arch-b
+- @subpage arch-toc-data-org
     - @ref arch-schema
     - @ref arch-metadata
 
-- @subpage arch-c
+- @subpage arch-toc-data-src
     - @ref arch-dhandle
     - @ref arch-btree
     - @ref arch-row-column
 
-- @subpage arch-d
+- @subpage arch-toc-in-mem
     - @ref arch-cache
     - @ref arch-eviction
 
-- @subpage arch-e
+- @subpage arch-toc-mem-disk
     - @ref arch-block
     - @ref arch-data-file
 
-- @subpage arch-f
+- @subpage arch-toc-on-disk
     - @ref arch-checkpoint
     - @ref arch-hs
     - @ref arch-backup
 
-- @subpage arch-g
+- @subpage arch-toc-recovery
     - @ref arch-logging
     - @ref arch-log-file
 
-- @subpage arch-h
+- @subpage arch-toc-tools
     - @ref arch-python
     - @ref command_line
 
-- @subpage arch-i
+- @subpage arch-toc-platform
     - @ref arch-fs-os
 
 - @subpage arch-glossary
 
+</div>
+
 */
 
-/*! @page arch-a Fundamentals
+/*! @page arch-toc-fundamentals Fundamentals
 
 @subpage arch-connection
 - A connection is a handle to a WiredTiger database instance.
@@ -202,7 +205,7 @@ stable timestamp.
 
 */
 
-/*! @page arch-b Data Organization
+/*! @page arch-toc-data-org Data Organization
 
 @subpage arch-schema
 
@@ -214,7 +217,7 @@ Metadata is stored as <code>uri, config</code> key/value pairs in a designated t
 
 */
 
-/*! @page arch-c Data Sources
+/*! @page arch-toc-data-src Data Sources
 
 @subpage arch-btree
 
@@ -232,7 +235,7 @@ and data while column stores have as their key a record id.
 
 */
 
-/*! @page arch-d In Memory Concepts
+/*! @page arch-toc-in-mem In Memory Concepts
 
 @subpage arch-cache
 
@@ -246,7 +249,7 @@ writing it to disk if it is dirty.
 
 */
 
-/*! @page arch-e Moving Data Between Memory and Disk
+/*! @page arch-toc-mem-disk Moving Data Between Memory and Disk
 
 @subpage arch-block
 
@@ -258,7 +261,7 @@ The format of the data file is given by structures in \c block.h .
 
 */
 
-/*! @page arch-f On Disk Concepts 
+/*! @page arch-toc-on-disk On Disk Concepts 
 
 @subpage arch-checkpoint
 
@@ -274,7 +277,7 @@ Hot backup uses a type of cursor to backup the database.
 
 */
 
-/*! @page arch-g Recovery
+/*! @page arch-toc-recovery Recovery
 
 @subpage arch-logging
 
@@ -286,7 +289,7 @@ The format of a log file is defined in \c log.h .
 
 */
 
-/*! @page arch-h Tools
+/*! @page arch-toc-tools Tools
 
 @subpage arch-python
 
@@ -299,7 +302,7 @@ of the WiredTiger functionality.
 
 */
 
-/*! @page arch-i Cross-Platform Support
+/*! @page arch-toc-platform Cross-Platform Support
 
 @subpage arch-fs-os
 

@@ -3,42 +3,15 @@ html {
     font-size: small;
 }
 
-body, table, div, p, dl {
-	font-family: "Calibri", Helvetica, "Calibri","Helvetica Neue", Helvetica, Arial, sans-serif;
-	color: #373737;
-	line-height: 1.5;
-}
-
-ul, ol {
-    line-height: 1.2;
-}
-
-li {
-    margin-top: 5px;
-    margin-bottom: 5px;
-}
-
-ul li:first-child {
-    margin-top:0;
-}
-
-li li {
-    margin-top: 0px;
-    margin-bottom: 0px;
-    line-height: 1.2;
-}
-
-li li a {
-    font-weight: normal !important;
-}
-
-div.arch_title {
-    font-weight: bold;
-    font-size: 110%;
-}
-
+/* Set a max page width for readability on large monitors. */
 div.contents {
     max-width: 960px;
+}
+
+body, table, div, p, dl {
+	font-family: "Calibri","Helvetica Neue", Helvetica, Arial, sans-serif;
+	color: #373737;
+	line-height: 1.5;
 }
 
 h1 {
@@ -47,6 +20,35 @@ h1 {
 
 h2 {
 	font-size: 110%;
+}
+
+/* Architecture guide TOC styling. */
+div.arch_toc ul, ol {
+    line-height: 1.2;
+}
+
+div.arch_toc li {
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+div.arch_toc ul li:first-child {
+    margin-top:0;
+}
+
+div.arch_toc li li {
+    margin-top: 0px;
+    margin-bottom: 0px;
+    line-height: 1.2;
+}
+
+div.arch_toc li li a {
+    font-weight: normal !important;
+}
+
+div.arch_toc h1 {
+    font-weight: bold;
+    font-size: 110%;
 }
 
 /* @group Link Styling */
