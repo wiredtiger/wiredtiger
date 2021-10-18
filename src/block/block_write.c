@@ -220,13 +220,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     uint8_t *file_sizep;
     bool local_locked;
 
-#if BLKCACHE_TRACE == 1
-    WT_BLKCACHE_ID id;
-    uint64_t hash, time_start, time_stop;
-
-    time_start = time_stop = 0;
-#endif
-
     *offsetp = 0;   /* -Werror=maybe-uninitialized */
     *sizep = 0;     /* -Werror=maybe-uninitialized */
     *checksump = 0; /* -Werror=maybe-uninitialized */
@@ -330,14 +323,6 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
     blk->checksum = __wt_bswap32(blk->checksum);
 #endif
 
-#if BLKCACHE_TRACE == 1
-    id.checksum = checksum;
-    id.offset = offset;
-    id.size = align_size;
-    hash = __wt_hash_city64(&id, sizeof(id));
-
-    time_start = __wt_clock(session);
-#endif
     /* Write the block. */
     if ((ret = __wt_write(session, fh, offset, align_size, buf->mem)) != 0) {
         if (!caller_locked)
@@ -348,33 +333,10 @@ __block_write_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uint3
         WT_RET(ret);
     }
 
-#if BLKCACHE_TRACE == 1
-    time_stop = __wt_clock(session);
-
-    __wt_verbose(session, WT_VERB_BLKCACHE,
-      "file system write latency: "
-      "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64
-      ", "
-      "latency=%" PRIu64 " ns.",
-      (uintmax_t)offset, (uint32_t)align_size, hash, WT_CLOCKDIFF_NS(time_stop, time_start));
-#endif
-
     if (block->fh->file_type == WT_FS_OPEN_FILE_TYPE_DATA) {
-#if BLKCACHE_TRACE == 1
-        time_start = __wt_clock(session);
-#endif
         WT_TRET_ERROR_OK(
           __wt_blkcache_put(session, offset, align_size, checksum, buf->mem, checkpoint_io, true),
           WT_BLKCACHE_FULL);
-#if BLKCACHE_TRACE == 1
-        time_stop = __wt_clock(session);
-        __wt_verbose(session, WT_VERB_BLKCACHE,
-          "put latency: "
-          "offset=%" PRIuMAX ", size=%" PRIu32 ", hash=%" PRIu64
-          ", "
-          "latency=%" PRIu64 " ns.",
-          (uintmax_t)offset, (uint32_t)align_size, hash, WT_CLOCKDIFF_NS(time_stop, time_start));
-#endif
     }
     /*
      * Optionally schedule writes for dirty pages in the system buffer cache, but only if the

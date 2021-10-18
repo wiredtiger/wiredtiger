@@ -222,13 +222,6 @@ __wt_block_read_off(WT_SESSION_IMPL *session, WT_BLOCK *block, WT_ITEM *buf, uin
     size_t bufsize;
     int cret;
 
-#if BLKCACHE_TRACE == 1
-    WT_BLKCACHE_ID id;
-    uint64_t hash, time_start, time_stop;
-
-    time_start = time_stop = 0;
-#endif
-
     __wt_verbose(session, WT_VERB_READ, "off %" PRIuMAX ", size %" PRIu32 ", checksum %#" PRIx32,
       (uintmax_t)offset, size, checksum);
 

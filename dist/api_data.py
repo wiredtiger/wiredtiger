@@ -512,49 +512,44 @@ table_meta = format_meta + table_only_config
 connection_runtime_config = [
     Config('block_cache', '', r'''block cache configuration options''',
            type='category', subconfig=[
+               Config('cache_on_checkpoint', 'true', r'''
+                      Cache blocks that are written by a checkpoint''',
+                      type='boolean'),
+               Config('cache_on_writes', 'true', r'''
+                      cache newly generated blocks''',
+                      type='boolean'),
                Config('enabled', 'false', r'''
                       enable block cache''',
                       type='boolean'),
-               Config('checkpoint_write_bypass', 'false', r'''
-                      Do not allocate blocks that are written by a checkpoint''',
-                      type='boolean'),
-               Config('eviction_on', 'true', r'''
-                      Turn on eviction''',
-                      type='boolean'),
-               Config('eviction_aggression', '1800', r'''
-                      a value indicating how many seconds an unused block
-                      would stay in the cache before it is evicted''',
+               Config('blkcache_eviction_aggression', '1800', r'''
+               how many seconds an unused block remains in the cache before it is evicted''',
                       min='1', max='7200'),
                Config('full_target', '95', r'''
                       a fraction of cache that must be full before eviction
                       will remove unused blocks''',
                       min='30', max='100'),
                Config('size', '0', r'''
-                   maximum memory to allocate for the block cache.''',
-                   min='0', max='1024GB'),
+                   maximum memory to allocate for the block cache''',
+                   min='0', max='6155GB'),
                Config('hashsize', '0', r'''
                    size of the hashtable that keeps track of blocks.''',
                    min='512', max='1073741824'),
                Config('max_percent_overhead', '10', r'''
                    maximum tolerated overhead expressed as the number of
-                   blocks added and removed as percent of blocks looked up.
-                   Cache population will be suppressed if the overhead
-                   exceeds the supplied threshold.''',
+                   blocks added and removed as percent of blocks looked up;
+                   cache population and eviction will be suppressed if the overhead
+                   exceeds the supplied threshold''',
                    min='1', max='500'),
-               Config('path', '', r'''
-                   the file path for the NVRAM that will be used as a cache
-                   if cache type NVRAM is chosen.'''),
+               Config('nvram_path', '', r'''
+                   the absoulte path to the file system mounted on the NVRAM device''',),
                Config('percent_file_in_dram', '50', r'''
-                   bypass cache if that percent of file fits in DRAM.''',
+                   bypass cache if that percent of file fits in DRAM''',
                    min='0', max='100'),
                Config('system_ram', '0', r'''
-                      amount of DRAM expected to be available on the system.''',
+                      amount of DRAM expected to be available on the system''',
                       min='0', max='1024GB'),
                Config('type', '', r'''
-                   cache location: DRAM or NVRAM.'''),
-               Config('write_allocate', 'true', r'''
-                      allocate cache blocks on write''',
-                      type='boolean'),
+                      cache location: DRAM or NVRAM'''),
            ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should

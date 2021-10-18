@@ -15,14 +15,23 @@
 #include <memkind.h>
 #endif
 
+/*
+ * Determines now often we compute the total size of the files open in the block manager.
+ */
+#define BLKCACHE_FILESIZE_EST_FREQ 5000
+
 #define BLKCACHE_HASHSIZE_DEFAULT 32768
 #define BLKCACHE_HASHSIZE_MIN 512
 #define BLKCACHE_HASHSIZE_MAX WT_GIGABYTE
 
-#define BLKCACHE_TRACE 0
-
 #define WT_BLKCACHE_FULL -2
 #define WT_BLKCACHE_BYPASS -3
+
+
+#define BLKCACHE_MINREF_INCREMENT 20
+#define BLKCACHE_EVICT_OTHER 0
+#define BLKCACHE_NOT_EVICTION_CANDIDATE 1
+
 
 /*
  * WT_BLKCACHE_ID --
@@ -30,9 +39,9 @@
  *    These are the same items used to compute the cookie.
  */
 struct __wt_blkcache_id {
-    uint64_t checksum;
-    uint64_t offset;
-    uint64_t size;
+    uint32_t checksum;
+    off_t offset;
+    uint32_t size;
 };
 
 /*
@@ -65,21 +74,18 @@ struct __wt_blkcache {
     WT_SPINLOCK *hash_locks;
 
     wt_thread_t evict_thread_tid;
-    bool eviction_on;          /* If an eviction thread is configured */
-    WT_CONDVAR *blkcache_cond; /* Eviction thread wait */
-
     volatile bool blkcache_exiting; /* If destroying the cache */
     int32_t evict_aggressive;       /* Seconds an unused block stays in the cache */
 
-    bool chkpt_write_bypass; /* Don't cache blocks written by checkpoints */
-    bool write_allocate;     /* Cache blocks on writes */
+    bool cache_on_checkpoint; /* Don't cache blocks written by checkpoints */
+    bool cache_on_writes;     /* Cache blocks on writes */
 
 #ifdef HAVE_LIBMEMKIND
     struct memkind *pmem_kind; /* NVRAM connection */
 #endif
-    char *nvram_device_path; /* If NVRAM configured, the system path for the memkind file */
+    char *nvram_device_path; /* The absolute path of the file system on NVRAM device */
 
-    double full_target;  /* Percent of the block cache at which point we start eviction */
+    uint64_t full_target;  /* Number of bytes in the block cache that triggers eviction */
     double overhead_pct; /* Overhead percentage that suppresses population and eviction */
 
     /* Suppress population if a percentage of the workload size fits into system RAM */
@@ -88,13 +94,13 @@ struct __wt_blkcache {
     int refs_since_filesize_estimated; /* Counter for recalculating the workload size */
 
     volatile size_t bytes_used; /* Bytes in the block cache */
-    size_t hash_size;           /* Number of block cache hash buckets */
-    size_t num_data_blocks;     /* Number of blocks in the block cache */
-    size_t max_bytes;           /* Block cache size */
-    size_t system_ram;          /* Configured size of system RAM */
+    int hash_size;              /* Number of block cache hash buckets */
+    uint64_t num_data_blocks;   /* Number of blocks in the block cache */
+    uint64_t max_bytes;         /* Block cache size */
+    uint64_t system_ram;        /* Configured size of system RAM */
     u_int type;                 /* Type of block cache (NVRAM or DRAM) */
 
-    uint32_t min_freq_counter; /* XXX?? */
+    uint32_t min_num_references;/* The per-block number of references triggering eviction. */
 
     /*
      * Various metrics helping us measure the overhead and decide if to bypass the cache. We access
@@ -103,9 +109,9 @@ struct __wt_blkcache {
      * values, assuming that we lose them at the same rate for all variables, the ratio should
      * remain roughly accurate. We care about the ratio.
      */
-    size_t lookups;
-    size_t inserts;
-    size_t removals;
+    uint64_t lookups;
+    uint64_t inserts;
+    uint64_t removals;
 
     /* Histograms keeping track of number of references to each block */
 #define BLKCACHE_HIST_BUCKETS 11
