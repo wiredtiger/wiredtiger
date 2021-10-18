@@ -228,7 +228,7 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
 
     testutil_assert(snap->op != TRUNCATE);
 
-    table = tables[snap->id];
+    table = tables[ntables == 0 ? 0 : snap->id];
     cursor = table_cursor(tinfo, snap->id);
     keyno = snap->keyno;
     key = tinfo->key;

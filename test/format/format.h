@@ -121,6 +121,10 @@ typedef struct {
     table_type type;            /* table type */
     CONFIGV v[V_ELEMENT_COUNT]; /* table configuration */
 
+    uint32_t max_intl_page; /* page size configurations converted to bytes */
+    uint32_t max_leaf_page;
+    uint32_t max_mem_page;
+
     uint32_t prefix_len;         /* key: common prefix length */
     uint32_t key_rand_len[1031]; /* key: lengths */
     char *val_base;              /* value: base/original */
@@ -243,6 +247,7 @@ typedef struct {
     bool column_store_config;           /* At least one column-store table configured */
     bool lsm_config;                    /* At least one LSM data source configured */
     bool transaction_timestamps_config; /* If transaction timestamps configured on any table */
+    bool version2_config;               /* Version 2 configuration */
 
 #define CHECKPOINT_OFF 1
 #define CHECKPOINT_ON 2

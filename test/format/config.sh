@@ -26,6 +26,7 @@ typedef struct {
 #define C_TYPE_LSM 0x020u /* Value is only relevant to LSM */
 #define C_TYPE_ROW 0x040u /* Value is only relevant to RS */
 #define C_TYPE_VAR 0x080u /* Value is only relevant to VLCS */
+#define C_VERSION2 0x100u /* Ignore in version 2 configurations */
     uint32_t flags;
 
     uint32_t min;     /* Minimum value */
@@ -106,7 +107,7 @@ CONFIG configuration_list[] = {
 
 {"btree.prefix_compression_min", "minimum gain before prefix compression is used (bytes)", C_TABLE | C_TYPE_ROW, 0, 8, 256}
 
-{"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 90, 90}
+{"btree.repeat_data_pct", "duplicate values (percentage)", C_TABLE | C_TYPE_VAR, 0, 90, 90}
 
 {"btree.reverse", "reverse order collation", C_BOOL | C_TABLE | C_TYPE_ROW, 10, 0, 0}
 
@@ -179,7 +180,7 @@ CONFIG configuration_list[] = {
 
 {"lsm.merge_max", "maximum number of chunks to include in an LSM merge operation", C_TABLE | C_TYPE_LSM, 4, 20, 100}
 
-{"lsm.worker_threads", "number of LSM worker threads", 0x0, 3, 4, 20}
+{"lsm.worker_threads", "number of LSM worker threads", C_TYPE_LSM, 3, 4, 20}
 
 {"ops.alter", "configure table alterations", C_BOOL, 10, 0, 0}
 
@@ -217,7 +218,7 @@ CONFIG configuration_list[] = {
 
 {"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
-{"runs.tables", "number of tables", 0x0, 1, 32, V_MAX_TABLES_CONFIG}
+{"runs.tables", "number of tables", C_VERSION2, 1, 32, V_MAX_TABLES_CONFIG}
 
 {"runs.threads", "number of worker threads", 0x0, 1, 32, 128}
 

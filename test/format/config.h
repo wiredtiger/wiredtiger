@@ -17,6 +17,7 @@ typedef struct {
 #define C_TYPE_LSM 0x020u /* Value is only relevant to LSM */
 #define C_TYPE_ROW 0x040u /* Value is only relevant to RS */
 #define C_TYPE_VAR 0x080u /* Value is only relevant to VLCS */
+#define C_VERSION2 0x100u /* Ignore in version 2 configurations */
     uint32_t flags;
 
     uint32_t min;     /* Minimum value */

@@ -70,6 +70,8 @@ config_remain(TABLE *table, bool table_only)
     for (cp = configuration_list; cp->name != NULL; ++cp) {
         if (F_ISSET(cp, C_IGNORE))
             continue;
+        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
+            continue;
         if (table_only && !F_ISSET(cp, C_TABLE))
             continue;
         if (!table_only && F_ISSET(cp, C_TABLE))
@@ -201,7 +203,7 @@ config_table(TABLE *table, void *arg)
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
      * objects are "tables", but files are tested as well.
      */
-    if (ntables == 1)
+    if (ntables == 0)
         testutil_check(__wt_snprintf(table->uri, sizeof(table->uri), "%s",
           DATASOURCE(table, "file") ? "file:wt" : "table:wt"));
     else
@@ -211,14 +213,10 @@ config_table(TABLE *table, void *arg)
     /* Fill in random values for the rest of the run. */
     config_remain(table, true);
 
-    /* Page sizes are configured using powers-of-two, convert them. */
-    if (TV(BTREE_INTERNAL_PAGE_MAX) <= 30)
-        TV(BTREE_INTERNAL_PAGE_MAX) = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
-    if (TV(BTREE_LEAF_PAGE_MAX) <= 30)
-        TV(BTREE_LEAF_PAGE_MAX) = 1U << TV(BTREE_LEAF_PAGE_MAX);
-    /* Maximum memory pages are in megabytes, convert them. */
-    if (TV(BTREE_MEMORY_PAGE_MAX) <= 30)
-        TV(BTREE_MEMORY_PAGE_MAX) = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
+    /* Page sizes are configured using powers-of-two or megabytes, convert them. */
+    table->max_intl_page = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
+    table->max_leaf_page = 1U << TV(BTREE_LEAF_PAGE_MAX);
+    table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
     /* Key/value minimum/maximum are related, correct unless specified by the configuration. */
     if (!config_explicit(table, "btree.key_min") && TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
@@ -472,16 +470,25 @@ config_cache(void)
     /*
      * If it's an in-memory run, size the cache relative to the initial data set, use 2x the base
      * size as a minimum.
+     *
+     * This calculation is done in bytes, convert to megabytes before testing against the cache.
      */
     if (GV(RUNS_IN_MEMORY)) {
         cache = table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache += table_sumv(V_TABLE_BTREE_KEY_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
         cache *= 2;
-        cache /= WT_MEGABYTE;
+        cache /= WT_MEGABYTE; /* NOT in MB units, convert for cache test */
         if (GV(CACHE) < cache)
             GV(CACHE) = cache;
     }
+
+    /* Sum the number of workers. */
+    workers = GV(RUNS_THREADS);
+    if (GV(OPS_HS_CURSOR))
+        ++workers;
+    if (GV(OPS_RANDOM_CURSOR))
+        ++workers;
 
     /*
      * Maximum internal/leaf page size sanity.
@@ -493,15 +500,9 @@ config_cache(void)
      * This code is what dramatically increases the cache size when there are lots of threads, it
      * grows the cache to several megabytes per thread.
      */
-    workers = GV(RUNS_THREADS);
-    if (GV(OPS_HS_CURSOR))
-        ++workers;
-    if (GV(OPS_RANDOM_CURSOR))
-        ++workers;
-    cache = table_sumv(V_TABLE_BTREE_MEMORY_PAGE_MAX);
+    cache = table_sumv(V_TABLE_BTREE_MEMORY_PAGE_MAX); /* in MB units, no conversion to cache */
     cache *= workers;
     cache *= 2;
-    cache /= WT_MEGABYTE;
     if (GV(CACHE) < cache)
         GV(CACHE) = cache;
 
@@ -515,7 +516,7 @@ config_cache(void)
     if (g.lsm_config) {
         cache = WT_LSM_TREE_MINIMUM_SIZE(table_sumv(V_TABLE_LSM_CHUNK_SIZE) * WT_MEGABYTE,
           workers * table_sumv(V_TABLE_LSM_MERGE_MAX),
-          workers * table_sumv(V_TABLE_BTREE_LEAF_PAGE_MAX));
+          workers * table_sumv(V_TABLE_BTREE_LEAF_PAGE_MAX) * WT_MEGABYTE);
         cache = (cache + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
         if (GV(CACHE) < cache)
             GV(CACHE) = cache;
@@ -974,7 +975,7 @@ config_transaction(void)
     bool any_prepare;
 
     /* Transaction prepare requires timestamps and is incompatible with logging. */
-    any_prepare = config_explicit(NULL, "ops.prepare");
+    any_prepare = table_sumv(V_GLOBAL_OPS_PREPARE) != 0;
     if (any_prepare) {
         if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps"))
             testutil_die(EINVAL, "prepare requires transaction timestamps");
@@ -1077,19 +1078,20 @@ config_print_table(FILE *fp, TABLE *table)
     char buf[128];
     bool lsm;
 
-    buf[0] = '\0';
-    if (ntables != 0) {
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "table%u.", table->id));
-        fprintf(fp, "############################################\n");
-        fprintf(fp, "#  TABLE PARAMETERS: table %u\n", table->id);
-        fprintf(fp, "############################################\n");
-    }
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "table%u.", table->id));
+    fprintf(fp, "############################################\n");
+    fprintf(fp, "#  TABLE PARAMETERS: table %u\n", table->id);
+    fprintf(fp, "############################################\n");
 
     lsm = DATASOURCE(table, "lsm");
     for (cp = configuration_list; cp->name != NULL; ++cp) {
-        /* Skip global entries, and configuration that doesn't match the table type. */
+        /* Skip items from different versions of the configuration file. */
+        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
+            continue;
+        /* Skip global items. */
         if (!F_ISSET(cp, C_TABLE))
             continue;
+        /* Skip mismatched objects and configurations. */
         if (!lsm && F_ISSET(cp, C_TYPE_LSM))
             continue;
         if (!C_TYPE_MATCH(cp, table->type))
@@ -1135,15 +1137,20 @@ config_print(bool error_display)
 
     /* Display global configuration values. */
     for (cp = configuration_list; cp->name != NULL; ++cp) {
+        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
+            continue;
+
+        /*
+         * Print everything else if we never configured any tables, or individually if the global it
+         * was explicitly configured, or this isn't a table option.
+         */
         gv = &tables[0]->v[cp->off];
-        if (gv->set || !F_ISSET(cp, C_TABLE))
+        if (ntables == 0 || gv->set || !F_ISSET(cp, C_TABLE))
             config_print_one(fp, cp, gv);
     }
 
     /* Display per-table configuration values. */
-    if (ntables == 0)
-        config_print_table(fp, tables[0]);
-    else
+    if (ntables != 0)
         for (i = 1; i <= ntables; ++i)
             config_print_table(fp, tables[i]);
 
@@ -1180,10 +1187,9 @@ config_file(const char *name)
             }
             if (*p == '#') { /* Comment */
                 /* Version 1 or 2 configuration files imply a single table. */
-                if (strcmp(p, "#  RUN PARAMETERS") == 0)
-                    config_single(NULL, "runs.tables=1", false);
-                if (strcmp(p, "#  RUN PARAMETERS: V2") == 0)
-                    config_single(NULL, "runs.tables=1", false);
+                if (strcmp(p, "#  RUN PARAMETERS\n") == 0 ||
+                  strcmp(p, "#  RUN PARAMETERS: V2\n") == 0)
+                    g.version2_config = true;
                 t = p;
                 break;
             }
@@ -1268,8 +1274,7 @@ config_table_extend(u_int ntable)
 {
     u_int i;
 
-    /* If there's only a single table, we use the base structure. */
-    if (ntable == 1 || ntable <= ntables)
+    if (ntable <= ntables)
         return;
 
     /*
@@ -1278,14 +1283,14 @@ config_table_extend(u_int ntable)
      * likely holding pointers into the current list of tables. Reallocating the whole array would
      * require handling reallocation in our caller, and it's not worth the effort.)
      *
-     * This might be the first extension, fix up the base table's ID. This is really for debugging,
-     * we should never be using a table with ID 0.
+     * This might be the first extension, reset the base table's ID (for debugging, we should never
+     * be using a table with ID 0).
      */
-    for (i = 0; i <= ntable; ++i)
-        if (tables[i] == NULL) {
+    for (i = 0; i <= ntable; ++i) {
+        if (tables[i] == NULL)
             tables[i] = dcalloc(1, sizeof(TABLE));
-            tables[i]->id = i;
-        }
+        tables[i]->id = i;
+    }
     ntables = ntable;
 }
 
@@ -1309,9 +1314,9 @@ config_single(TABLE *table, const char *s, bool explicit)
         ++s;
 
     /*
-     * If configuring a single table, the table argument will be non-NULL.
-     *
-     * Extend the table as necessary and select the configuration table.
+     * If configuring a single table, the table argument will be non-NULL. The configuration itself
+     * may include a table reference, in which case we extend the table as necessary and select the
+     * table.
      */
     if (table == NULL) {
         table = tables[0];
@@ -1332,6 +1337,7 @@ config_single(TABLE *table, const char *s, bool explicit)
     if ((equalp = strchr(s, '=')) == NULL)
         testutil_die(EINVAL, "%s: %s: configuration missing \'=\' character", progname, s);
 
+    /* Find the configuration value, and assert it's not a table/global mismatch. */
     if ((cp = config_find(s, (size_t)(equalp - s), false)) == NULL)
         return;
     testutil_assert(F_ISSET(cp, C_TABLE) || table == tables[0]);

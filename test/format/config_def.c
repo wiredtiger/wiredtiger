@@ -58,7 +58,7 @@ CONFIG configuration_list[] = {
     C_TABLE | C_TYPE_ROW, 0, 8, 256, V_TABLE_BTREE_PREFIX_COMPRESSION_MIN},
 
   {"btree.repeat_data_pct", "duplicate values (percentage)",
-    C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 0, 90, 90, V_TABLE_BTREE_REPEAT_DATA_PCT},
+    C_TABLE | C_TYPE_VAR, 0, 90, 90, V_TABLE_BTREE_REPEAT_DATA_PCT},
 
   {"btree.reverse", "reverse order collation",
     C_BOOL | C_TABLE | C_TYPE_ROW, 10, 0, 0, V_TABLE_BTREE_REVERSE},
@@ -165,7 +165,7 @@ CONFIG configuration_list[] = {
     C_TABLE | C_TYPE_LSM, 4, 20, 100, V_TABLE_LSM_MERGE_MAX},
 
   {"lsm.worker_threads", "number of LSM worker threads",
-    0x0, 3, 4, 20, V_GLOBAL_LSM_WORKER_THREADS},
+    C_TYPE_LSM, 3, 4, 20, V_GLOBAL_LSM_WORKER_THREADS},
 
   {"ops.alter", "configure table alterations",
     C_BOOL, 10, 0, 0, V_GLOBAL_OPS_ALTER},
@@ -222,7 +222,7 @@ CONFIG configuration_list[] = {
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_RUNS_SOURCE},
 
   {"runs.tables", "number of tables",
-    0x0, 1, 32, V_MAX_TABLES_CONFIG, V_GLOBAL_RUNS_TABLES},
+    C_VERSION2, 1, 32, V_MAX_TABLES_CONFIG, V_GLOBAL_RUNS_TABLES},
 
   {"runs.threads", "number of worker threads",
     0x0, 1, 32, 128, V_GLOBAL_RUNS_THREADS},

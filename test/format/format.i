@@ -201,7 +201,7 @@ table_sumv(u_int off)
 
 /*
  * table_select --
- *     Select a table, optionally of a specific type.
+ *     Randomly select a table.
  */
 static inline TABLE *
 table_select(TINFO *tinfo)
@@ -214,7 +214,7 @@ table_select(TINFO *tinfo)
 
 /*
  * table_select_type --
- *     Select a table of a specific type.
+ *     Randomly select a table of a specific type.
  */
 static inline TABLE *
 table_select_type(table_type type)
@@ -225,7 +225,7 @@ table_select_type(table_type type)
         return (tables[0]->type == type ? tables[0] : NULL);
 
     for (i = mmrand(NULL, 1, ntables);; ++i) {
-        if (i == ntables + 1)
+        if (i > ntables)
             i = 0;
         if (tables[i]->type == type)
             break;
@@ -247,7 +247,7 @@ table_cursor(TINFO *tinfo, u_int id)
     const char *config;
 
     /* The table ID is 1-based, the cursor array is 0-based. */
-    table = tables[id];
+    table = tables[ntables == 0 ? 0 : id];
     --id;
 
     if ((cursor = tinfo->cursors[id]) == NULL) {

@@ -69,24 +69,28 @@ corrupt(TABLE *table)
     char buf[4096], *object_name, path[MAX_FORMAT_PATH];
     const char *smash;
 
-    /*
-     * If it's a single Btree file (not LSM), open the file, and corrupt roughly 2% of the file at a
-     * random spot, including the beginning of the file and overlapping the end.
-     */
     uri_path(table, &object_name, path, sizeof(path));
 
+    fd = open(path, O_RDWR);
+    testutil_assert(fd != -1);
+
+    /*
+     * Corrupt a chunk of the file at a random spot, including the first bytes of the file and
+     * possibly overlapping the end. The length of the corruption is roughly 2% of the file, not
+     * exceeding a megabyte (so we aren't just corrupting the whole file).
+     */
+    testutil_check(fstat(fd, &sb));
+    offset = mmrand(NULL, 0, (u_int)sb.st_size - 1024);
+    len = (size_t)(sb.st_size * 2) / 100;
+    len += 4 * 1024;
+    len = WT_MIN(len, WT_MEGABYTE);
+
     /* Log the corruption offset and length. */
-    offset = mmrand(NULL, 0, (u_int)sb.st_size);
-    len = (size_t)(20 + (sb.st_size / 100) * 2);
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s/SALVAGE.corrupt", g.home));
     testutil_assert((fp = fopen(buf, "w")) != NULL);
     (void)fprintf(fp, "salvage-corrupt: offset %" PRIuMAX ", length %" WT_SIZET_FMT "\n",
       (uintmax_t)offset, len);
     fclose_and_clear(&fp);
-
-    fd = open(path, O_RDWR);
-    testutil_assert(fd != -1);
-    testutil_check(fstat(fd, &sb));
 
     testutil_assert(lseek(fd, offset, SEEK_SET) != -1);
     smash = "!!! memory corrupted by format to test salvage ";

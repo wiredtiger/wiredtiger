@@ -301,20 +301,20 @@ create_object(TABLE *table, void *arg)
       "key_format=%s,allocation_size=%d,%s,internal_page_max=%" PRIu32 ",leaf_page_max=%" PRIu32
       ",memory_page_max=%" PRIu32,
       (table->type == ROW) ? "u" : "r", BLOCK_ALLOCATION_SIZE,
-      TV(DISK_FIRSTFIT) ? "block_allocation=first" : "", TV(BTREE_INTERNAL_PAGE_MAX),
-      TV(BTREE_LEAF_PAGE_MAX), TV(BTREE_MEMORY_PAGE_MAX));
+      TV(DISK_FIRSTFIT) ? "block_allocation=first" : "", table->max_intl_page, table->max_leaf_page,
+      table->max_mem_page);
 
     /*
      * Configure the maximum key/value sizes, but leave it as the default if we come up with
      * something crazy.
      */
-    maxintlkey = mmrand(NULL, TV(BTREE_INTERNAL_PAGE_MAX) / 50, TV(BTREE_INTERNAL_PAGE_MAX) / 40);
+    maxintlkey = mmrand(NULL, table->max_intl_page / 50, table->max_intl_page / 40);
     if (maxintlkey > 20)
         CONFIG_APPEND(p, ",internal_key_max=%" PRIu32, maxintlkey);
-    maxleafkey = mmrand(NULL, TV(BTREE_LEAF_PAGE_MAX) / 50, TV(BTREE_LEAF_PAGE_MAX) / 40);
+    maxleafkey = mmrand(NULL, table->max_leaf_page / 50, table->max_leaf_page / 40);
     if (maxleafkey > 20)
         CONFIG_APPEND(p, ",leaf_key_max=%" PRIu32, maxleafkey);
-    maxleafvalue = mmrand(NULL, TV(BTREE_LEAF_PAGE_MAX) * 10, TV(BTREE_LEAF_PAGE_MAX) / 40);
+    maxleafvalue = mmrand(NULL, table->max_leaf_page * 10, table->max_leaf_page / 40);
     if (maxleafvalue > 40 && maxleafvalue < 100 * 1024)
         CONFIG_APPEND(p, ",leaf_value_max=%" PRIu32, maxleafvalue);
 
