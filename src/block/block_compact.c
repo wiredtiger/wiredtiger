@@ -189,7 +189,8 @@ __wt_block_compact_page_skip(
 
 /*
  * __block_dump_bucket_stat --
- *     Dump out the avail/used for the given bucket (part of the file).
+ *     Dump out the information about available and used blocks in the given bucket (part of the
+ *     file).
  */
 static void
 __block_dump_bucket_stat(WT_SESSION_IMPL *session, uintmax_t file_size, uintmax_t file_free,
