@@ -179,9 +179,9 @@ run_test(bool stress_test, const char *home, const char *uri)
     printf(" - Compressed file size MB: %f\n - Original file size MB: %f\n",
       file_sz_after / (1024.0 * 1024), file_sz_before / (1024.0 * 1024));
 
-    printf(" - Pages reviewed: %lu \n", pages_reviewed);
-    printf(" - Pages selected for being rewritten: %lu \n", pages_selected);
-    printf(" - Pages actually rewritten: %lu \n", pages_rewritten);
+    printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
+    printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_selected);
+    printf(" - Pages actually rewritten: %" PRIu64 "\n", pages_rewritten);
 
     /* Make sure the compact operation has reduced the file size by at least 20%. */
     testutil_assert((file_sz_before / 100) * 80 > file_sz_after);
