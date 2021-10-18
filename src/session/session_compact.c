@@ -183,20 +183,24 @@ int
 __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
 {
     struct timespec end;
+    WT_DECL_RET;
 
     if (session->compact->max_time == 0)
         return (0);
 
     __wt_epoch(session, &end);
-    if (session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin)) {
-        return (0);
-    } else {
+
+    ret =
+      session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT;
+    if (ret != 0) {
+        WT_STAT_CONN_INCR(session, session_table_compact_timeout);
+
         __wt_verbose(session, WT_VERB_COMPACT,
           "Compact has timed out! The operation has been running for %" PRIu64
           " second(s). Configured timeout is %" PRIu64 " second(s).",
           WT_TIMEDIFF_SEC(end, session->compact->begin), session->compact->max_time);
-        return (ETIMEDOUT);
     }
+    return (ret);
 }
 
 /*
@@ -215,7 +219,6 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 
     /* Checkpoints take a lot of time, check if we've run out. */
     WT_RET(__wt_session_compact_check_timeout(session));
-
     return (__wt_txn_checkpoint(session, checkpoint_cfg, true));
 }
 
@@ -278,6 +281,7 @@ __compact_worker(WT_SESSION_IMPL *session)
              */
             if (ret == EBUSY) {
                 if (__wt_cache_stuck(session)) {
+                    WT_STAT_CONN_INCR(session, session_table_compact_fail_cache_pressure);
                     WT_ERR_MSG(session, EBUSY, "compaction halted by eviction pressure");
                 }
                 ret = 0;
@@ -323,6 +327,8 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     session = (WT_SESSION_IMPL *)wt_session;
     SESSION_API_CALL(session, compact, config, cfg);
+
+    WT_STAT_CONN_SET(session, session_table_compact_running, 1);
 
     /*
      * The compaction thread should not block when the cache is full: it is holding locks blocking
@@ -411,6 +417,7 @@ err:
         WT_STAT_CONN_INCR(session, session_table_compact_fail);
     else
         WT_STAT_CONN_INCR(session, session_table_compact_success);
+    WT_STAT_CONN_SET(session, session_table_compact_running, 0);
     API_END_RET_NOTFOUND_MAP(session, ret);
 }
 

@@ -34,6 +34,7 @@ add_library(cppsuite_test_harness STATIC
     test_harness/core/configuration.cxx 
     test_harness/core/throttle.cxx 
     test_harness/util/logger.cxx
+    test_harness/util/scoped_connection.cxx 
     test_harness/util/scoped_types.cxx 
     test_harness/workload/database_model.cxx 
     test_harness/workload/database_operation.cxx 
