@@ -188,8 +188,15 @@ __wt_session_compact_check_timeout(WT_SESSION_IMPL *session)
         return (0);
 
     __wt_epoch(session, &end);
-    return (
-      session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin) ? 0 : ETIMEDOUT);
+    if (session->compact->max_time > WT_TIMEDIFF_SEC(end, session->compact->begin)) {
+        return (0);
+    } else {
+        __wt_verbose(session, WT_VERB_COMPACT,
+          "Compact has timed out! The operation has been running for %" PRIu64
+          " second(s). Configured timeout is %" PRIu64 " second(s).",
+          WT_TIMEDIFF_SEC(end, session->compact->begin), session->compact->max_time);
+        return (ETIMEDOUT);
+    }
 }
 
 /*
