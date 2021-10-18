@@ -92,7 +92,7 @@ main(int argc, char *argv[])
     run_test_clean(false, false, opts->preserve, opts->home, "NR", opts->uri);
 
     /*
-     * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store store case.
+     * Next, run test with WT_TIMING_STRESS_CHECKPOINT_SLOW. Column store case.
      */
     run_test_clean(true, true, opts->preserve, opts->home, "SC", opts->uri);
 
