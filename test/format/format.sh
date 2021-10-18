@@ -498,7 +498,7 @@ format()
 		live_record_binary="$live_record_binary --save-on=error"
 	fi
 
-	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" -1 $args quiet=1"
+	cmd="$live_record_binary $format_binary -c "$config" -h "$dir" $args quiet=1"
 	echo "$name: $cmd"
 
 	# Disassociate the command from the shell script so we can exit and let the command
