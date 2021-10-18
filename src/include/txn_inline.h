@@ -1373,14 +1373,17 @@ __wt_txn_modify_check(
      * Don't access the update from an uncommitted transaction as it can produce wrong timestamp
      * results.
      */
-    if (!rollback && prev_tsp != NULL && upd != NULL) {
-        /*
-         * The durable timestamp must be greater than or equal to the commit timestamp unless it is
-         * an in-progress prepared update.
-         */
-        WT_ASSERT(
-          session, upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
-        *prev_tsp = upd->durable_ts;
+    if (!rollback && prev_tsp != NULL && (upd != NULL || tw_found)) {
+        if (upd != NULL) {
+            /*
+             * The durable timestamp must be greater than or equal to the commit timestamp unless it
+             * is an in-progress prepared update.
+             */
+            WT_ASSERT(session,
+              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
+            *prev_tsp = upd->durable_ts;
+        } else
+            *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
     }
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
