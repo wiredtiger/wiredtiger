@@ -196,12 +196,13 @@
  *     Display a verbose message, given a set of multiple verbose events. A verbose message will be
  *     displayed if at least one event in the set satisfies the required verbosity level.
  */
-#define __wt_verbose_with_events(session, events, fmt, ...)                      \
+#define __wt_verbose_with_events(session, events, nevents, fmt, ...)             \
     do {                                                                         \
-        int __verb_size = sizeof(events) / sizeof(WT_VERBOSE_EVENT);             \
-        int __v_idx;                                                             \
-        for (__v_idx = 0; __v_idx < __verb_size; __v_idx++) {                    \
-            if (WT_VERBOSE_ISSET(session, events[__v_idx])) {                    \
+        uint32_t __v_idx;                                                        \
+        WT_VERBOSE_EVENT *__verb_events = events;                                \
+        uint32_t __v_nevents = (uint32_t)nevents;                                \
+        for (__v_idx = 0; __v_idx < __v_nevents; __v_idx++) {                    \
+            if (WT_VERBOSE_ISSET(session, __verb_events[__v_idx])) {             \
                 __wt_verbose_worker(session, "[" #events "] " fmt, __VA_ARGS__); \
                 break;                                                           \
             }                                                                    \

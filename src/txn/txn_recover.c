@@ -10,6 +10,7 @@
 
 /* Enable all recovery-related verbose messaging events. */
 #define WT_VERB_RECOVERY_ALL ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS})
+#define WT_VERB_RECOVERY_ALL_NUM_EVENTS 2
 
 /* State maintained during recovery. */
 typedef struct {
@@ -416,7 +417,8 @@ __recovery_set_checkpoint_timestamp(WT_RECOVERY *r)
      */
     conn->txn_global.meta_ckpt_timestamp = conn->txn_global.recovery_timestamp = ckpt_timestamp;
 
-    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, "Set global recovery timestamp: %s",
+    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, WT_VERB_RECOVERY_ALL_NUM_EVENTS,
+      "Set global recovery timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.recovery_timestamp, ts_string));
 
     return (0);
@@ -447,7 +449,8 @@ __recovery_set_oldest_timestamp(WT_RECOVERY *r)
     conn->txn_global.oldest_timestamp = oldest_timestamp;
     conn->txn_global.has_oldest_timestamp = oldest_timestamp != WT_TS_NONE;
 
-    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, "Set global oldest timestamp: %s",
+    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, WT_VERB_RECOVERY_ALL_NUM_EVENTS,
+      "Set global oldest timestamp: %s",
       __wt_timestamp_to_string(conn->txn_global.oldest_timestamp, ts_string));
 
     return (0);
@@ -902,7 +905,7 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
      * get truncated.
      */
     r.metadata_only = false;
-    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL,
+    __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, WT_VERB_RECOVERY_ALL_NUM_EVENTS,
       "Main recovery loop: starting at %" PRIu32 "/%" PRIu32 " to %" PRIu32 "/%" PRIu32,
       r.ckpt_lsn.l.file, r.ckpt_lsn.l.offset, r.max_rec_lsn.l.file, r.max_rec_lsn.l.offset);
     WT_ERR(__wt_log_needs_recovery(session, &r.ckpt_lsn, &needs_rec));
@@ -923,7 +926,8 @@ __wt_txn_recover(WT_SESSION_IMPL *session, const char *cfg[])
     }
 
     if (!hs_exists) {
-        __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, "%s",
+        __wt_verbose_with_events(session, WT_VERB_RECOVERY_ALL, WT_VERB_RECOVERY_ALL_NUM_EVENTS,
+          "%s",
           "Creating the history store before applying log records. Likely recovering after an"
           "unclean shutdown on an earlier version");
         /*
@@ -998,7 +1002,7 @@ done:
         if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
             conn->txn_global.has_stable_timestamp = true;
 
-        __wt_verbose_with_events(session, ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RTS}),
+        __wt_verbose_with_events(session, ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RTS}), 2,
           "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),

@@ -47,6 +47,7 @@ __hs_verbose_cache_stats(WT_SESSION_IMPL *session, WT_BTREE *btree)
         WT_IGNORE_RET_BOOL(__wt_eviction_dirty_needed(session, &pct_dirty));
 
         __wt_verbose_with_events(session, ((WT_VERBOSE_EVENT[]){WT_VERB_HS, WT_VERB_HS_ACTIVITY}),
+          2,
           "Page reconciliation triggered history store write: file ID %" PRIu32
           ". Current history store file size: %" PRId64
           ", cache dirty: %2.3f%% , cache use: %2.3f%%",
