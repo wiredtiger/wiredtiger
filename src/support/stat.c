@@ -27,6 +27,10 @@ static const char *const __stats_dsrc_desc[] = {
   "block-manager: minor version number",
   "btree: btree checkpoint generation",
   "btree: btree clean tree checkpoint expiration time",
+  "btree: btree compact pages reviewed",
+  "btree: btree compact pages selected to be rewritten",
+  "btree: btree compact pages skipped",
+  "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
   "btree: column-store internal pages",
   "btree: column-store variable-size RLE encoded values",
@@ -108,6 +112,8 @@ static const char *const __stats_dsrc_desc[] = {
   "cache: pages seen by eviction walk",
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
+  "cache: the number of times full update inserted to history store",
+  "cache: the number of times reverse modify inserted to history store",
   "cache: tracked dirty bytes in the cache",
   "cache: unmodified pages evicted",
   "cache_walk: Average difference between current eviction generation when the page was last "
@@ -297,6 +303,10 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->block_minor = 0;
     /* not clearing btree_checkpoint_generation */
     /* not clearing btree_clean_checkpoint_timer */
+    /* not clearing btree_compact_pages_reviewed */
+    /* not clearing btree_compact_pages_write_selected */
+    /* not clearing btree_compact_pages_skipped */
+    stats->btree_compact_skipped = 0;
     stats->btree_column_fix = 0;
     stats->btree_column_internal = 0;
     stats->btree_column_rle = 0;
@@ -311,7 +321,7 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->btree_maximum_depth = 0;
     stats->btree_entries = 0;
     stats->btree_overflow = 0;
-    stats->btree_compact_rewrite = 0;
+    stats->btree_compact_pages_rewritten = 0;
     stats->btree_row_empty_values = 0;
     stats->btree_row_internal = 0;
     stats->btree_row_leaf = 0;
@@ -371,6 +381,8 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     stats->cache_eviction_pages_seen = 0;
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
+    stats->cache_hs_insert_full_update = 0;
+    stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_dirty */
     stats->cache_eviction_clean = 0;
     /* not clearing cache_state_gen_avg_gap */
@@ -536,6 +548,10 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
         to->block_minor = from->block_minor;
     to->btree_checkpoint_generation += from->btree_checkpoint_generation;
     to->btree_clean_checkpoint_timer += from->btree_clean_checkpoint_timer;
+    to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
+    to->btree_compact_pages_write_selected += from->btree_compact_pages_write_selected;
+    to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
+    to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
     to->btree_column_internal += from->btree_column_internal;
     to->btree_column_rle += from->btree_column_rle;
@@ -557,7 +573,7 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
         to->btree_maximum_depth = from->btree_maximum_depth;
     to->btree_entries += from->btree_entries;
     to->btree_overflow += from->btree_overflow;
-    to->btree_compact_rewrite += from->btree_compact_rewrite;
+    to->btree_compact_pages_rewritten += from->btree_compact_pages_rewritten;
     to->btree_row_empty_values += from->btree_row_empty_values;
     to->btree_row_internal += from->btree_row_internal;
     to->btree_row_leaf += from->btree_row_leaf;
@@ -621,6 +637,8 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += from->cache_eviction_pages_seen;
     to->cache_write += from->cache_write;
     to->cache_write_restore += from->cache_write_restore;
+    to->cache_hs_insert_full_update += from->cache_hs_insert_full_update;
+    to->cache_hs_insert_reverse_modify += from->cache_hs_insert_reverse_modify;
     to->cache_bytes_dirty += from->cache_bytes_dirty;
     to->cache_eviction_clean += from->cache_eviction_clean;
     to->cache_state_gen_avg_gap += from->cache_state_gen_avg_gap;
@@ -780,6 +798,11 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
         to->block_minor = v;
     to->btree_checkpoint_generation += WT_STAT_READ(from, btree_checkpoint_generation);
     to->btree_clean_checkpoint_timer += WT_STAT_READ(from, btree_clean_checkpoint_timer);
+    to->btree_compact_pages_reviewed += WT_STAT_READ(from, btree_compact_pages_reviewed);
+    to->btree_compact_pages_write_selected +=
+      WT_STAT_READ(from, btree_compact_pages_write_selected);
+    to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
+    to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
     to->btree_column_internal += WT_STAT_READ(from, btree_column_internal);
     to->btree_column_rle += WT_STAT_READ(from, btree_column_rle);
@@ -801,7 +824,7 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
         to->btree_maximum_depth = v;
     to->btree_entries += WT_STAT_READ(from, btree_entries);
     to->btree_overflow += WT_STAT_READ(from, btree_overflow);
-    to->btree_compact_rewrite += WT_STAT_READ(from, btree_compact_rewrite);
+    to->btree_compact_pages_rewritten += WT_STAT_READ(from, btree_compact_pages_rewritten);
     to->btree_row_empty_values += WT_STAT_READ(from, btree_row_empty_values);
     to->btree_row_internal += WT_STAT_READ(from, btree_row_internal);
     to->btree_row_leaf += WT_STAT_READ(from, btree_row_leaf);
@@ -872,6 +895,8 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->cache_eviction_pages_seen += WT_STAT_READ(from, cache_eviction_pages_seen);
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
+    to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
+    to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
     to->cache_eviction_clean += WT_STAT_READ(from, cache_eviction_clean);
     to->cache_state_gen_avg_gap += WT_STAT_READ(from, cache_state_gen_avg_gap);
@@ -1172,6 +1197,8 @@ static const char *const __stats_connection_desc[] = {
   "cache: pages written from cache",
   "cache: pages written requiring in-memory restoration",
   "cache: percentage overhead",
+  "cache: the number of times full update inserted to history store",
+  "cache: the number of times reverse modify inserted to history store",
   "cache: tracked bytes belonging to internal pages in the cache",
   "cache: tracked bytes belonging to leaf pages in the cache",
   "cache: tracked dirty bytes in the cache",
@@ -1393,8 +1420,9 @@ static const char *const __stats_connection_desc[] = {
   "reconciliation: records written including a stop transaction ID",
   "reconciliation: split bytes currently awaiting free",
   "reconciliation: split objects currently awaiting free",
-  "session: flush state races",
+  "session: attempts to remove a local object and the object is in use",
   "session: flush_tier operation calls",
+  "session: local objects removed",
   "session: open session count",
   "session: session query timestamp calls",
   "session: table alter failed calls",
@@ -1402,7 +1430,11 @@ static const char *const __stats_connection_desc[] = {
   "session: table alter triggering checkpoint calls",
   "session: table alter unchanged and skipped",
   "session: table compact failed calls",
+  "session: table compact failed calls due to cache pressure",
+  "session: table compact running",
+  "session: table compact skipped as process would not reduce file size",
   "session: table compact successful calls",
+  "session: table compact timeout",
   "session: table create failed calls",
   "session: table create successful calls",
   "session: table drop failed calls",
@@ -1706,6 +1738,8 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->cache_write = 0;
     stats->cache_write_restore = 0;
     /* not clearing cache_overhead */
+    stats->cache_hs_insert_full_update = 0;
+    stats->cache_hs_insert_reverse_modify = 0;
     /* not clearing cache_bytes_internal */
     /* not clearing cache_bytes_leaf */
     /* not clearing cache_bytes_dirty */
@@ -1926,8 +1960,9 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     stats->rec_time_window_stop_txn = 0;
     /* not clearing rec_split_stashed_bytes */
     /* not clearing rec_split_stashed_objects */
-    stats->flush_state_races = 0;
+    stats->local_objects_inuse = 0;
     stats->flush_tier = 0;
+    stats->local_objects_removed = 0;
     /* not clearing session_open */
     stats->session_query_ts = 0;
     /* not clearing session_table_alter_fail */
@@ -1935,7 +1970,11 @@ __wt_stat_connection_clear_single(WT_CONNECTION_STATS *stats)
     /* not clearing session_table_alter_trigger_checkpoint */
     /* not clearing session_table_alter_skip */
     /* not clearing session_table_compact_fail */
+    /* not clearing session_table_compact_fail_cache_pressure */
+    /* not clearing session_table_compact_running */
+    /* not clearing session_table_compact_skipped */
     /* not clearing session_table_compact_success */
+    /* not clearing session_table_compact_timeout */
     /* not clearing session_table_create_fail */
     /* not clearing session_table_create_success */
     /* not clearing session_table_drop_fail */
@@ -2242,6 +2281,8 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->cache_write += WT_STAT_READ(from, cache_write);
     to->cache_write_restore += WT_STAT_READ(from, cache_write_restore);
     to->cache_overhead += WT_STAT_READ(from, cache_overhead);
+    to->cache_hs_insert_full_update += WT_STAT_READ(from, cache_hs_insert_full_update);
+    to->cache_hs_insert_reverse_modify += WT_STAT_READ(from, cache_hs_insert_reverse_modify);
     to->cache_bytes_internal += WT_STAT_READ(from, cache_bytes_internal);
     to->cache_bytes_leaf += WT_STAT_READ(from, cache_bytes_leaf);
     to->cache_bytes_dirty += WT_STAT_READ(from, cache_bytes_dirty);
@@ -2471,8 +2512,9 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
     to->rec_time_window_stop_txn += WT_STAT_READ(from, rec_time_window_stop_txn);
     to->rec_split_stashed_bytes += WT_STAT_READ(from, rec_split_stashed_bytes);
     to->rec_split_stashed_objects += WT_STAT_READ(from, rec_split_stashed_objects);
-    to->flush_state_races += WT_STAT_READ(from, flush_state_races);
+    to->local_objects_inuse += WT_STAT_READ(from, local_objects_inuse);
     to->flush_tier += WT_STAT_READ(from, flush_tier);
+    to->local_objects_removed += WT_STAT_READ(from, local_objects_removed);
     to->session_open += WT_STAT_READ(from, session_open);
     to->session_query_ts += WT_STAT_READ(from, session_query_ts);
     to->session_table_alter_fail += WT_STAT_READ(from, session_table_alter_fail);
@@ -2481,7 +2523,12 @@ __wt_stat_connection_aggregate(WT_CONNECTION_STATS **from, WT_CONNECTION_STATS *
       WT_STAT_READ(from, session_table_alter_trigger_checkpoint);
     to->session_table_alter_skip += WT_STAT_READ(from, session_table_alter_skip);
     to->session_table_compact_fail += WT_STAT_READ(from, session_table_compact_fail);
+    to->session_table_compact_fail_cache_pressure +=
+      WT_STAT_READ(from, session_table_compact_fail_cache_pressure);
+    to->session_table_compact_running += WT_STAT_READ(from, session_table_compact_running);
+    to->session_table_compact_skipped += WT_STAT_READ(from, session_table_compact_skipped);
     to->session_table_compact_success += WT_STAT_READ(from, session_table_compact_success);
+    to->session_table_compact_timeout += WT_STAT_READ(from, session_table_compact_timeout);
     to->session_table_create_fail += WT_STAT_READ(from, session_table_create_fail);
     to->session_table_create_success += WT_STAT_READ(from, session_table_create_success);
     to->session_table_drop_fail += WT_STAT_READ(from, session_table_drop_fail);

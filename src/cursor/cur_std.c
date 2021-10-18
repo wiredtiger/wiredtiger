@@ -856,7 +856,7 @@ __wt_cursor_cache_get(WT_SESSION_IMPL *session, const char *uri, uint64_t hash_v
              * than flag values, so fix them up according to the given configuration.
              */
             F_CLR(cursor,
-              WT_CURSTD_APPEND | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW | WT_CURSTD_OVERWRITE);
+              WT_CURSTD_APPEND | WT_CURSTD_OVERWRITE | WT_CURSTD_PREFIX_SEARCH | WT_CURSTD_RAW);
             F_SET(cursor, overwrite_flag);
             /*
              * If this is a btree cursor, clear its read_once flag.
@@ -1084,7 +1084,7 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
         WT_ERR_NOTFOUND_OK(ret, false);
 
     /* Set the prefix search near flag. */
-    if ((ret = __wt_config_getones(session, config, "prefix_key", &cval)) == 0) {
+    if ((ret = __wt_config_getones(session, config, "prefix_search", &cval)) == 0) {
         if (cval.val) {
             /* Prefix search near configuration can only be used for row-store. */
             if (WT_CURSOR_RECNO(cursor))
@@ -1110,6 +1110,55 @@ __wt_cursor_reconfigure(WT_CURSOR *cursor, const char *config)
     WT_ERR(__cursor_config_debug(cursor, cfg));
 
 err:
+    API_END_RET(session, ret);
+}
+
+/*
+ * __wt_cursor_largest_key --
+ *     WT_CURSOR->largest_key default implementation..
+ */
+int
+__wt_cursor_largest_key(WT_CURSOR *cursor)
+{
+    WT_DECL_ITEM(key);
+    WT_DECL_RET;
+    WT_SESSION_IMPL *session;
+    bool ignore_tombstone;
+    bool visible_all;
+
+    ignore_tombstone = F_ISSET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    visible_all = F_ISSET(cursor, WT_CURSTD_VISIBLE_ALL);
+    CURSOR_API_CALL(cursor, session, largest_key, NULL);
+
+    WT_ERR(__wt_scr_alloc(session, 0, &key));
+
+    /* Reset the cursor to give up the cursor position. */
+    WT_ERR(cursor->reset(cursor));
+
+    /* Ignore deletion. */
+    F_SET(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    /* Ignore visibility. */
+    F_SET(cursor, WT_CURSTD_VISIBLE_ALL);
+
+    /* Call cursor prev to get the largest key. */
+    WT_ERR(cursor->prev(cursor));
+    WT_ERR(ret);
+
+    /* Copy the key as we will reset the cursor after that. */
+    WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
+    WT_ERR(cursor->reset(cursor));
+    WT_ERR(__wt_buf_set(session, &cursor->key, key->data, key->size));
+    /* Set the key as external. */
+    F_SET(cursor, WT_CURSTD_KEY_EXT);
+
+err:
+    if (!ignore_tombstone)
+        F_CLR(cursor, WT_CURSTD_IGNORE_TOMBSTONE);
+    if (!visible_all)
+        F_CLR(cursor, WT_CURSTD_VISIBLE_ALL);
+    __wt_scr_free(session, &key);
+    if (ret != 0)
+        WT_TRET(cursor->reset(cursor));
     API_END_RET(session, ret);
 }
 
