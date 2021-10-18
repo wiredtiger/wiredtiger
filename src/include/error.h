@@ -199,10 +199,9 @@
 #define __wt_verbose_with_events(session, events, nevents, fmt, ...)             \
     do {                                                                         \
         uint32_t __v_idx;                                                        \
-        WT_VERBOSE_EVENT *__verb_events = events;                                \
         uint32_t __v_nevents = (uint32_t)nevents;                                \
         for (__v_idx = 0; __v_idx < __v_nevents; __v_idx++) {                    \
-            if (WT_VERBOSE_ISSET(session, __verb_events[__v_idx])) {             \
+            if (WT_VERBOSE_ISSET(session, events[__v_idx])) {                    \
                 __wt_verbose_worker(session, "[" #events "] " fmt, __VA_ARGS__); \
                 break;                                                           \
             }                                                                    \
