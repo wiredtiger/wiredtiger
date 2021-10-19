@@ -150,24 +150,24 @@ class TestRaisesBaseTypes(TestCase):
         matcher = Raises(MatchesException(KeyboardInterrupt))
         self.assertThat(self.raiser, matcher)
 
-    def test_KeyboardInterrupt_propogates(self):
-        # The default 'it raised' propogates KeyboardInterrupt.
+    def test_KeyboardInterrupt_propagates(self):
+        # The default 'it raised' propagates KeyboardInterrupt.
         match_keyb = Raises(MatchesException(KeyboardInterrupt))
         def raise_keyb_from_match():
             matcher = Raises()
             matcher.match(self.raiser)
         self.assertThat(raise_keyb_from_match, match_keyb)
 
-    def test_KeyboardInterrupt_match_Exception_propogates(self):
+    def test_KeyboardInterrupt_match_Exception_propagates(self):
         # If the raised exception isn't matched, and it is not a subclass of
-        # Exception, it is propogated.
+        # Exception, it is propagated.
         match_keyb = Raises(MatchesException(KeyboardInterrupt))
         def raise_keyb_from_match():
             if sys.version_info > (2, 5):
                 matcher = Raises(MatchesException(Exception))
             else:
                 # On Python 2.4 KeyboardInterrupt is a StandardError subclass
-                # but should propogate from less generic exception matchers
+                # but should propagate from less generic exception matchers
                 matcher = Raises(MatchesException(EnvironmentError))
             matcher.match(self.raiser)
         self.assertThat(raise_keyb_from_match, match_keyb)
