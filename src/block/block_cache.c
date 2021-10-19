@@ -8,6 +8,31 @@
 
 #include "wt_internal.h"
 
+
+/*
+ * __blkcache_aggregate_metadata --
+ *    Sum the metadata for all buckets and write it into the
+ *    cache wide variables.
+ */
+static void
+__blkcache_aggregate_metadata(WT_BLKCACHE *blkcache)
+{
+    int i;
+    uint64_t bytes_used, num_data_blocks;
+
+    bytes_used = num_data_blocks = 0;
+
+    for (i = 0; i < blkcache->hash_size; i++) {
+	bytes_used += blkcache->bucket_metadata[i].bucket_bytes_used;
+	num_data_blocks += blkcache->bucket_metadata[i].bucket_num_data_blocks;
+    }
+
+    blkcache->bytes_used = bytes_used;
+    blkcache->num_data_blocks = num_data_blocks;
+}
+
+
+
 /*
  * __blkcache_alloc --
  *     Allocate a block of memory in the cache.
@@ -193,8 +218,9 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "Block cache eviction thread starting... Aggressive target = %d, full target = %f",
-      blkcache->evict_aggressive, blkcache->full_target);
+		 "Block cache eviction thread starting... "
+		 "Aggressive target = %d, full target = %" PRIu64 ":",
+		 blkcache->evict_aggressive, blkcache->full_target);
 
     while (!blkcache->blkcache_exiting) {
 
@@ -204,9 +230,12 @@ __blkcache_eviction_thread(void *arg)
          */
 	__wt_sleep(1, 0);
 
-        /* Check if we were awakened because the cache is being destroyed */
+        /* Check if the cache is being destroyed */
         if (blkcache->blkcache_exiting)
             return (0);
+
+	/* Aggregate per bucket metadata into cache wide variables. */
+	__blkcache_aggregate_metadata(blkcache);
 
         /*
          * Walk the cache, gathering statistics and evicting blocks that are within our target. We
@@ -231,8 +260,8 @@ __blkcache_eviction_thread(void *arg)
                     TAILQ_REMOVE(&blkcache->hash[i], blkcache_item, hashq);
                     __blkcache_free(session, blkcache_item->data);
                     __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EVICTION);
-                    blkcache->num_data_blocks--;
-                    blkcache->bytes_used -= blkcache_item->id.size;
+                    blkcache->bucket_metadata[i].bucket_num_data_blocks--;
+                    blkcache->bucket_metadata[i].bucket_bytes_used -= blkcache_item->id.size;
 
                     /*
                      * Update the number of removals because it is used to estimate the overhead,
@@ -335,7 +364,7 @@ __wt_blkcache_get_or_check(
      * cache, don't use this cache.
      */
     if (blkcache->system_ram >=
-      __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
+      __blkcache_estimate_filesize(session) * blkcache->fraction_in_os_cache) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_get);
         return (WT_BLKCACHE_BYPASS);
     }
@@ -424,11 +453,11 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
         return (WT_BLKCACHE_FULL);
 
     /*
-     * If more than the configured fraction of the file is likely to fit in the buffer cache, don't
-     * use the cache.
+     * If more than the configured fraction of the file is likely to fit into the
+     * OS buffer cache, don't use this cache.
      */
     if (blkcache->system_ram >=
-      __blkcache_estimate_filesize(session) * blkcache->fraction_in_dram) {
+      __blkcache_estimate_filesize(session) * blkcache->fraction_in_os_cache) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_put);
         return (WT_BLKCACHE_BYPASS);
     }
@@ -494,8 +523,8 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
         memcpy(blkcache_item->data, data, size);
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
 
-    blkcache->num_data_blocks++;
-    blkcache->bytes_used += size;
+    blkcache->bucket_metadata[bucket].bucket_num_data_blocks++;
+    blkcache->bucket_metadata[bucket].bucket_bytes_used += size;
     blkcache->inserts++;
 
     __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
@@ -574,8 +603,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
 	    blkcache_item->id.offset == id.offset &&
 	    blkcache_item->id.size == id.size) {
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
-            blkcache->num_data_blocks--;
-            blkcache->bytes_used -= size;
+            blkcache->bucket_metadata[bucket].bucket_num_data_blocks--;
+            blkcache->bucket_metadata[bucket].bucket_bytes_used -= size;
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_FREE);
             __wt_spin_unlock(session, &blkcache->hash_locks[bucket]);
             __blkcache_free(session, blkcache_item->data);
@@ -600,7 +629,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  */
 static int
 __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u_int type,
-  char *nvram_device_path, size_t system_ram, u_int percent_file_in_dram, bool cache_on_writes,
+  char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache, bool cache_on_writes,
   double overhead_pct, u_int evict_aggressive, uint64_t full_target,
   bool cache_on_checkpoint)
 {
@@ -614,7 +643,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
     blkcache->cache_on_checkpoint = cache_on_checkpoint;
     blkcache->cache_on_writes = cache_on_writes;
     blkcache->hash_size = hash_size;
-    blkcache->fraction_in_dram = (float)percent_file_in_dram / 100;
+    blkcache->fraction_in_os_cache = (float)percent_file_in_os_cache / 100;
     blkcache->full_target = full_target;
     blkcache->max_bytes = cache_size;
     blkcache->overhead_pct = overhead_pct;
@@ -636,6 +665,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
 
     WT_RET(__wt_calloc_def(session, blkcache->hash_size, &blkcache->hash));
     WT_RET(__wt_calloc_def(session, blkcache->hash_size, &blkcache->hash_locks));
+    WT_RET(__wt_calloc_def(session, blkcache->hash_size, &blkcache->bucket_metadata));
 
     for (i = 0; i < blkcache->hash_size; i++) {
         TAILQ_INIT(&blkcache->hash[i]); /* Block cache hash lists */
@@ -676,7 +706,7 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     blkcache_item = NULL;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-      "block cache with %" WT_SIZET_FMT " bytes used to be destroyed", blkcache->bytes_used);
+      "block cache with %" PRIu64 " bytes used to be destroyed", blkcache->bytes_used);
 
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return;
@@ -684,6 +714,8 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
     blkcache->blkcache_exiting = true;
     WT_TRET(__wt_thread_join(session, &blkcache->evict_thread_tid));
     __wt_verbose(session, WT_VERB_BLKCACHE, "%s", "block cache eviction thread exited...");
+
+    __blkcache_aggregate_metadata(blkcache);
 
     if (blkcache->bytes_used == 0)
         goto done;
@@ -699,12 +731,13 @@ __wt_block_cache_destroy(WT_SESSION_IMPL *session)
              */
             __blkcache_free(session, blkcache_item->data);
             __blkcache_update_ref_histogram(session, blkcache_item, BLKCACHE_RM_EXIT);
-            blkcache->num_data_blocks--;
-            blkcache->bytes_used -= blkcache_item->id.size;
+            blkcache->bucket_metadata[i].bucket_num_data_blocks--;
+            blkcache->bucket_metadata[i].bucket_bytes_used -= blkcache_item->id.size;
             __wt_free(session, blkcache_item);
         }
         __wt_spin_unlock(session, &blkcache->hash_locks[i]);
     }
+    __blkcache_aggregate_metadata(blkcache);
     WT_ASSERT(session, blkcache->bytes_used == 0 && blkcache->num_data_blocks == 0);
 
 done:
@@ -723,6 +756,7 @@ done:
 #endif
     __wt_free(session, blkcache->hash);
     __wt_free(session, blkcache->hash_locks);
+    __wt_free(session, blkcache->bucket_metadata);
     /*
      * Zeroing the structure has the effect of setting the block cache type to unconfigured.
      */
@@ -740,7 +774,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     double overhead_pct;
-    u_int cache_type, evict_aggressive, percent_file_in_dram;
+    u_int cache_type, evict_aggressive, percent_file_in_os_cache;
     uint32_t hash_size;
     uint64_t cache_size, full_target, system_ram;
     char *nvram_device_path;
@@ -781,6 +815,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         cache_type = BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
+	WT_ASSERT(__wt_absolute_path(nvram_device_path));
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache requires libmemkind");
 #endif
@@ -791,7 +826,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     system_ram = (uint64_t)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.percent_file_in_dram", &cval));
-    percent_file_in_dram = (u_int)cval.val;
+    percent_file_in_os_cache = (u_int)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.cache_on_checkpoint", &cval));
     if (cval.val == 0)
@@ -802,7 +837,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.full_target", &cval));
     full_target = (uint64_t)((double)cache_size * (double)cval.val / (double)100);
-    printf("Full target is %ld bytes.\n", full_target);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.cache_on_writes", &cval));
     if (cval.val == 0)
@@ -812,6 +846,6 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     overhead_pct = (double)cval.val / (double)100;
 
     return (__blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path,
-      system_ram, percent_file_in_dram, cache_on_writes, overhead_pct, evict_aggressive,
+      system_ram, percent_file_in_os_cache, cache_on_writes, overhead_pct, evict_aggressive,
       full_target, cache_on_checkpoint));
 }

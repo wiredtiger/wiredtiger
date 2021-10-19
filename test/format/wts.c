@@ -212,15 +212,13 @@ create_database(const char *home, WT_CONNECTION **connp)
     /* Block cache */
     CONFIG_APPEND(p,
       ",block_cache=(enabled=%s,type=\"dram\""
-      ",checkpoint_write_bypass=%s"
-      ",eviction_on=%s"
-      ",size=%" PRIu32
-      "MB"
-      ",write_allocate=%s)",
+      ",cache_on_checkpoint=%s"
+      ",cache_on_writes=%s"
+      ",size=%" PRIu32 "MB)",
       g.c_block_cache == 0 ? "false" : "true",
-      g.c_block_cache_checkpoint_write_bypass == 0 ? "false" : "true",
-      g.c_block_cache_eviction_on == 0 ? "false" : "true", g.c_block_cache_size,
-      g.c_block_cache_write_allocate == 0 ? "false" : "true");
+      g.c_block_cache_cache_on_checkpoint == 0 ? "false" : "true",
+		  g.c_block_cache_cache_on_writes == 0 ? "false" : "true",
+		  g.c_block_cache_size);
 
     /* Eviction worker configuration. */
     if (g.c_evict_max != 0)

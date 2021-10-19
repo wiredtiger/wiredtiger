@@ -71,6 +71,8 @@ struct __wt_addr_copy;
 typedef struct __wt_addr_copy WT_ADDR_COPY;
 struct __wt_blkcache;
 typedef struct __wt_blkcache WT_BLKCACHE;
+struct __wt_blkcache_bucket_metadata;
+typedef struct __wt_blkcache_bucket_metadata WT_BLKCACHE_BUCKET_METADATA;
 struct __wt_blkcache_id;
 typedef struct __wt_blkcache_id WT_BLKCACHE_ID;
 struct __wt_blkcache_item;

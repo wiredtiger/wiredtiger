@@ -64,6 +64,21 @@ struct __wt_blkcache_item {
 };
 
 /*
+ * WT_BLKCACHE_BUCKET_METADATA --
+ *     The metadata indicating the number of bytes in cache is accumulated per
+ *     bucket, because we do locking per bucket. Then the eviction thread accumulates
+ *     per-bucket data into a global metadata value that is stored in the block
+ *     cache structure.
+ */
+
+struct __wt_blkcache_bucket_metadata {
+    WT_CACHE_LINE_PAD_BEGIN
+    volatile uint64_t bucket_num_data_blocks;   /* Number of blocks in the bucket */
+    volatile uint64_t bucket_bytes_used; /* Bytes in the bucket */
+    WT_CACHE_LINE_PAD_END
+};
+
+/*
  * WT_BLKCACHE --
  *     Block cache metadata includes the hashtable of cached items, number of cached data blocks
  * and the total amount of space they occupy.
@@ -72,6 +87,7 @@ struct __wt_blkcache {
     /* Locked: Block manager cache. Locks are per-bucket. */
     TAILQ_HEAD(__wt_blkcache_hash, __wt_blkcache_item) * hash;
     WT_SPINLOCK *hash_locks;
+    WT_BLKCACHE_BUCKET_METADATA *bucket_metadata;
 
     wt_thread_t evict_thread_tid;
     volatile bool blkcache_exiting; /* If destroying the cache */
@@ -88,17 +104,28 @@ struct __wt_blkcache {
     uint64_t full_target;  /* Number of bytes in the block cache that triggers eviction */
     double overhead_pct; /* Overhead percentage that suppresses population and eviction */
 
-    /* Suppress population if a percentage of the workload size fits into system RAM */
-    size_t estimated_file_size;        /* Estimated workload size */
-    float fraction_in_dram;            /* Workload percentage */
-    int refs_since_filesize_estimated; /* Counter for recalculating the workload size */
+    size_t estimated_file_size;        /* Estimated size of all files used by the workload. */
+    int refs_since_filesize_estimated; /* Counter for recalculating the aggregate file size */
 
-    volatile size_t bytes_used; /* Bytes in the block cache */
-    int hash_size;              /* Number of block cache hash buckets */
-    uint64_t num_data_blocks;   /* Number of blocks in the block cache */
+    /*
+     * This fraction tells us the good enough ratio of file data cached in the DRAM
+     * resident OS buffer cache, which makes the use of this block cache unnecessary.
+     * Suppose we set that fraction to 50%. Then if half of our file data fits into
+     * system DRAM, we consider this block cache unhepful.
+     *
+     * E.g., if the fraction is set to 50%, our aggregate file size is
+     * 500GB, and we have 300GB of RAM, then we will not use this block cache,
+     * because we know that half of our files (250GB) must be cached by the OS in DRAM.
+     */
+    float fraction_in_os_cache;
+
+    u_int hash_size;             /* Number of block cache hash buckets */
+    u_int type;                 /* Type of block cache (NVRAM or DRAM) */
+    volatile uint64_t bytes_used; /* Bytes in the block cache */
+    volatile uint64_t num_data_blocks;   /* Number of blocks in the block cache */
     uint64_t max_bytes;         /* Block cache size */
     uint64_t system_ram;        /* Configured size of system RAM */
-    u_int type;                 /* Type of block cache (NVRAM or DRAM) */
+
 
     uint32_t min_num_references;/* The per-block number of references triggering eviction. */
 

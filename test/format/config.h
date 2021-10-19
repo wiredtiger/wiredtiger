@@ -81,19 +81,15 @@ static CONFIG c[] = {
   {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0, &g.c_block_cache, NULL},
 
   /* 30 */
-  {"block_cache.checkpoint_write_bypass", "block cache: don't cache checkpoint writes", C_BOOL, 30,
-    0, 0, &g.c_block_cache_checkpoint_write_bypass, NULL},
-
-  /* 80% */
-  {"block_cache.eviction_on", "block cache: evict blocks", C_BOOL, 80, 0, 0,
-    &g.c_block_cache_eviction_on, NULL},
+  {"block_cache.cache_on_checkpoint", "block cache: cache checkpoint writes", C_BOOL, 30,
+    0, 0, &g.c_block_cache_cache_on_checkpoint, NULL},
 
   {"block_cache.size", "block cache size (MB)", 0x0, 1, 100, 100 * 1024, &g.c_block_cache_size,
     NULL},
 
   /* 60% */
-  {"block_cache.write_allocate", "block cache: populate the cache on writes", C_BOOL, 60, 0, 0,
-    &g.c_block_cache_write_allocate, NULL},
+  {"block_cache.cache_on_writes", "block cache: populate the cache on writes", C_BOOL, 60, 0, 0,
+    &g.c_block_cache_cache_on_writes, NULL},
 
   {"btree.bitcnt", "fixed-length column-store object size (number of bits)", 0x0, 1, 8, 8,
     &g.c_bitcnt, NULL},
