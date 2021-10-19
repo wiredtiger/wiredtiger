@@ -49,6 +49,7 @@ using namespace test_harness;
 bool do_inserts = false;
 bool do_reads = false;
 
+void insert_op(WT_CURSOR *cursor, int key_size, int value_size);
 void
 insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 {
@@ -65,6 +66,7 @@ insert_op(WT_CURSOR *cursor, int key_size, int value_size)
     }
 }
 
+void read_op(WT_CURSOR *cursor, int key_size);
 void
 read_op(WT_CURSOR *cursor, int key_size)
 {

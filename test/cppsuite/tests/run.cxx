@@ -40,7 +40,8 @@
 #include "search_near_01.cxx"
 #include "search_near_02.cxx"
 
-std::string
+const std::string parse_configuration_from_file(const std::string &filename);
+const std::string
 parse_configuration_from_file(const std::string &filename)
 {
     std::string cfg, line, error;
@@ -63,6 +64,7 @@ parse_configuration_from_file(const std::string &filename)
     return (cfg);
 }
 
+void print_help();
 void
 print_help()
 {
@@ -104,6 +106,8 @@ print_help()
  * - test_name: specifies which test to run.
  * - config: defines the configuration used for the test.
  */
+int64_t run_test(
+  const std::string &test_name, const std::string &config, const std::string &wt_open_config);
 int64_t
 run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config)
 {
