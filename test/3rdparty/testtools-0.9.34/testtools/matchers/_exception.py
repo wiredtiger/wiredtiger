@@ -72,7 +72,7 @@ class MatchesException(Matcher):
 class Raises(Matcher):
     """Match if the matchee raises an exception when called.
 
-    Exceptions which are not subclasses of Exception propogate out of the
+    Exceptions which are not subclasses of Exception propagate out of the
     Raises.match call unless they are explicitly matched.
     """
 
@@ -104,7 +104,7 @@ class Raises(Matcher):
                 mismatch = None
             # The exception did not match, or no explicit matching logic was
             # performed. If the exception is a non-user exception (that is, not
-            # a subclass of Exception on Python 2.5+) then propogate it.
+            # a subclass of Exception on Python 2.5+) then propagate it.
             if isbaseexception(exc_info[1]):
                 del exc_info
                 raise

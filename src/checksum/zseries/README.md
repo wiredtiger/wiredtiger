@@ -41,7 +41,7 @@ errors.
 Performance
 -----------
 
-The performance of the hardware-accelerated implemention is compared
+The performance of the hardware-accelerated implementation is compared
 with the slicing-by-8 algorithm. Testing 500000 iterations of a CRC
 of 32kB of data showed a 70-times speed-up:
 
