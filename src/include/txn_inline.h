@@ -901,7 +901,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             continue;
         }
 
-        if (F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL))
+        if (upd->txnid != WT_TXN_ABORTED && F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL))
             upd_visible = WT_VISIBLE_TRUE;
         else
             upd_visible = __wt_txn_upd_visible_type(session, upd);

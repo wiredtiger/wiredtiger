@@ -1142,7 +1142,6 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
 
     /* Call cursor prev to get the largest key. */
     WT_ERR(cursor->prev(cursor));
-    WT_ERR(ret);
 
     /* Copy the key as we will reset the cursor after that. */
     WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));

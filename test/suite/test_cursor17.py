@@ -129,6 +129,23 @@ class test_cursor17(wttest.WiredTigerTestCase):
         self.session.rollback_transaction()
 
         session2.rollback_transaction()
+
+    def test_arborted_insert(self):
+        self.populate(100)
+
+        cursor = self.session.open_cursor(self.type + self.tablename, None)
+        self.session.begin_transaction()
+        cursor[200] = self.ds.value(200)
+        self.session.rollback_transaction()
+
+        # Verify the largest key.
+        self.session.begin_transaction()
+        self.assertEqual(cursor.largest_key(), 0)
+        if self.valueformat != '8t':
+            self.assertEqual(cursor.get_key(), 100)
+        else:
+            self.assertEquals(cursor.get_key(), 200)
+        self.session.rollback_transaction()
     
     def test_invisible_timestamp(self):
         self.populate(100)
