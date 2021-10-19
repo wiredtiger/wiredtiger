@@ -766,9 +766,9 @@ __wt_txn_upd_visible_type(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (prepare_state == WT_PREPARE_LOCKED)
             continue;
 
-        if (WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
-          upd->type == WT_UPDATE_STANDARD)
-            /* Entries in the history store are always visible. */
+        /* Entries in the history store are always visible. */
+        if ((WT_IS_HS(session->dhandle) && upd->txnid != WT_TXN_ABORTED &&
+              upd->type == WT_UPDATE_STANDARD))
             return (WT_VISIBLE_TRUE);
 
         upd_visible = __wt_txn_visible(session, upd->txnid, upd->start_ts);
@@ -901,7 +901,10 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
             continue;
         }
 
-        upd_visible = __wt_txn_upd_visible_type(session, upd);
+        if (F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL))
+            upd_visible = WT_VISIBLE_TRUE;
+        else
+            upd_visible = __wt_txn_upd_visible_type(session, upd);
 
         if (upd_visible == WT_VISIBLE_TRUE)
             break;
@@ -1038,8 +1041,14 @@ retry:
             cbt->upd_value->tw.prepare = tw.prepare;
         }
 
-        /* If the start time point is visible then we need to return the ondisk value. */
-        if (WT_IS_HS(session->dhandle) || __wt_txn_tw_start_visible(session, &tw)) {
+        /*
+         * We return the onpage value in the following cases:
+         * 1. The record is from the history store.
+         * 2. It has the WT_CURSTD_VISIBLE_ALL flag set.
+         * 3. It is visible to the reader.
+         */
+        if (WT_IS_HS(session->dhandle) || F_ISSET(&cbt->iface, WT_CURSTD_VISIBLE_ALL) ||
+          __wt_txn_tw_start_visible(session, &tw)) {
             if (cbt->upd_value->skip_buf) {
                 cbt->upd_value->buf.data = NULL;
                 cbt->upd_value->buf.size = 0;
@@ -1314,7 +1323,7 @@ __wt_txn_modify_check(
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set, rollback, tw_found;
 
-    rollback = false;
+    rollback = tw_found = false;
     txn = session->txn;
     txn_global = &S2C(session)->txn_global;
 
@@ -1364,14 +1373,17 @@ __wt_txn_modify_check(
      * Don't access the update from an uncommitted transaction as it can produce wrong timestamp
      * results.
      */
-    if (!rollback && prev_tsp != NULL && upd != NULL) {
-        /*
-         * The durable timestamp must be greater than or equal to the commit timestamp unless it is
-         * an in-progress prepared update.
-         */
-        WT_ASSERT(
-          session, upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
-        *prev_tsp = upd->durable_ts;
+    if (!rollback && prev_tsp != NULL) {
+        if (upd != NULL) {
+            /*
+             * The durable timestamp must be greater than or equal to the commit timestamp unless it
+             * is an in-progress prepared update.
+             */
+            WT_ASSERT(session,
+              upd->durable_ts >= upd->start_ts || upd->prepare_state == WT_PREPARE_INPROGRESS);
+            *prev_tsp = upd->durable_ts;
+        } else if (tw_found)
+            *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
     }
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);

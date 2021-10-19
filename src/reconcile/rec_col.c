@@ -292,9 +292,16 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
             addr_byte_count = addr->byte_count;
         } else {
             __wt_cell_unpack_addr(session, page->dsk, ref->addr, vpack);
-            WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, false, ref->ref_recno));
-
             /* Track accumulated time window, row count and memory usage. */
+            if (F_ISSET(vpack, WT_CELL_UNPACK_TIME_WINDOW_CLEARED)) {
+                /* Need to rebuild the cell with the updated time info. */
+                WT_ERR(__wt_rec_cell_build_addr(session, r, NULL, vpack, false, ref->ref_recno));
+            } else {
+                val->buf.data = ref->addr;
+                val->buf.size = __wt_cell_total_len(vpack);
+                val->cell_len = 0;
+                val->len = val->buf.size;
+            }
             WT_TIME_AGGREGATE_COPY(&ta, &vpack->ta);
             addr_row_count = vpack->row_count;
             addr_byte_count = vpack->byte_count;
@@ -305,7 +312,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
         if (__wt_rec_need_split(r, val->len))
             WT_ERR(__wt_rec_split_crossing_bnd(session, r, val->len, false));
 
-        /* Copy the value onto the page. */
+        /* Copy the value (which is in val, val == r->v) onto the page. */
         __wt_rec_image_copy(session, r, val);
 
         /* Track accumulated time window, row count and memory usage. */
