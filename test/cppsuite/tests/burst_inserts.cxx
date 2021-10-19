@@ -58,8 +58,9 @@ class burst_inserts : public test {
         struct collection_cursor {
             collection_cursor(
               collection &coll, scoped_cursor &&write_cursor, scoped_cursor &&read_cursor)
-                : coll(coll), write_cursor(std::move(write_cursor)),
-                  read_cursor(std::move(read_cursor))
+                : coll(coll), read_cursor(std::move(read_cursor)),
+                  write_cursor(std::move(write_cursor))
+
             {
             }
             collection &coll;

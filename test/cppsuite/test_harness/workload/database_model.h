@@ -108,13 +108,13 @@ class database {
     void set_create_config(bool use_compression);
 
     private:
-    std::string _collection_create_config = "";
     scoped_session _session;
-    timestamp_manager *_tsm = nullptr;
-    workload_tracking *_tracking = nullptr;
-    uint64_t _next_collection_id = 0;
     std::map<uint64_t, collection> _collections;
     std::mutex _mtx;
+    std::string _collection_create_config;
+    timestamp_manager *_tsm = nullptr;
+    uint64_t _next_collection_id = 0;
+    workload_tracking *_tracking = nullptr;
 };
 } // namespace test_harness
 

@@ -42,7 +42,7 @@
 namespace test_harness {
 /* operation_config class implementation */
 operation_config::operation_config(configuration *config, thread_type type)
-    : config(config), type(type), thread_count(config->get_int(THREAD_COUNT))
+    : thread_count(config->get_int(THREAD_COUNT)), type(type), config(config)
 {
 }
 
@@ -64,10 +64,10 @@ operation_config::get_func(database_operation *dbo)
 
 /* workload_generator class implementation */
 workload_generator::workload_generator(configuration *configuration,
-  database_operation *db_operation, timestamp_manager *timestamp_manager,
-  workload_tracking *tracking, database &database)
+  database_operation *db_operation, timestamp_manager *tsm, workload_tracking *tracking,
+  database &database)
     : component("workload_generator", configuration), _database(database),
-      _database_operation(db_operation), _timestamp_manager(timestamp_manager), _tracking(tracking)
+      _database_operation(db_operation), _tsm(tsm), _tracking(tracking)
 {
 }
 
@@ -94,7 +94,7 @@ workload_generator::run()
     populate_config = _config->get_subconfig(POPULATE_CONFIG);
 
     /* Populate the database. */
-    _database_operation->populate(_database, _timestamp_manager, populate_config, _tracking);
+    _database_operation->populate(_database, _tsm, populate_config, _tracking);
     _db_populated = true;
     delete populate_config;
 
@@ -106,8 +106,7 @@ workload_generator::run()
                 type_string(it.type) + " threads.");
         for (size_t i = 0; i < it.thread_count && _running; ++i) {
             thread_context *tc = new thread_context(thread_id++, it.type, it.config,
-              connection_manager::instance().create_session(), _timestamp_manager, _tracking,
-              _database);
+              connection_manager::instance().create_session(), _tsm, _tracking, _database);
             _workers.push_back(tc);
             _thread_manager.add_thread(it.get_func(_database_operation), tc);
         }

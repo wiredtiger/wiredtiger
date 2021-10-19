@@ -237,7 +237,7 @@ runtime_monitor::get_stat(scoped_cursor &cursor, int stat_field, int64_t *valuep
 }
 
 runtime_monitor::runtime_monitor(configuration *config, database &database)
-    : component("runtime_monitor", config), _postrun_stats(config), _database(database)
+    : component("runtime_monitor", config), _database(database), _postrun_stats(config)
 {
 }
 

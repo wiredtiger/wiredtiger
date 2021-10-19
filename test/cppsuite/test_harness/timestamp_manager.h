@@ -71,12 +71,12 @@ class timestamp_manager : public component {
     std::atomic<wt_timestamp_t> _increment_ts{0};
     /* The tracking table sweep needs to read the oldest timestamp. */
     std::atomic<wt_timestamp_t> _oldest_ts{0U};
-    wt_timestamp_t _stable_ts = 0U;
     /*
      * _oldest_lag is the time window between the stable and oldest timestamps.
      * _stable_lag is the time window between the latest and stable timestamps.
      */
     uint64_t _oldest_lag = 0U, _stable_lag = 0U;
+    wt_timestamp_t _stable_ts = 0U;
 };
 } // namespace test_harness
 

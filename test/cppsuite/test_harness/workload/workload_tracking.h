@@ -104,14 +104,14 @@ class workload_tracking : public component {
     }
 
     private:
-    scoped_session _session;
-    scoped_cursor _schema_track_cursor;
-    scoped_cursor _sweep_cursor;
+    const bool _use_compression;
     const std::string _operation_table_config;
     const std::string _operation_table_name;
     const std::string _schema_table_config;
     const std::string _schema_table_name;
-    const bool _use_compression;
+    scoped_session _session;
+    scoped_cursor _schema_track_cursor;
+    scoped_cursor _sweep_cursor;
     timestamp_manager &_tsm;
 };
 } // namespace test_harness

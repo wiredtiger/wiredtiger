@@ -53,14 +53,14 @@ type_string(thread_type type)
 
 /* transaction_context class implementation */
 transaction_context::transaction_context(
-  configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
-    : _timestamp_manager(timestamp_manager), _session(session)
+  configuration *config, timestamp_manager *tsm, WT_SESSION *session)
+    : _tsm(tsm), _session(session)
 {
     /* Use optional here as our populate threads don't define this configuration. */
     configuration *transaction_config = config->get_optional_subconfig(OPS_PER_TRANSACTION);
     if (transaction_config != nullptr) {
-        _min_op_count = transaction_config->get_optional_int(MIN, 1);
         _max_op_count = transaction_config->get_optional_int(MAX, 1);
+        _min_op_count = transaction_config->get_optional_int(MIN, 1);
         delete transaction_config;
     }
 }
@@ -139,7 +139,7 @@ void
 transaction_context::set_commit_timestamp(wt_timestamp_t ts)
 {
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
-    if (!_timestamp_manager->enabled())
+    if (!_tsm->enabled())
         return;
     const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
     testutil_check(_session->timestamp_transaction(_session, config.c_str()));
@@ -165,17 +165,16 @@ transaction_context::can_rollback()
 
 /* thread_context class implementation */
 thread_context::thread_context(uint64_t id, thread_type type, configuration *config,
-  scoped_session &&created_session, timestamp_manager *timestamp_manager,
-  workload_tracking *tracking, database &dbase)
-    : id(id), type(type), db(dbase), tsm(timestamp_manager), tracking(tracking),
-      session(std::move(created_session)),
-      transaction(transaction_context(config, timestamp_manager, session.get())),
+  scoped_session &&created_session, timestamp_manager *tsm, workload_tracking *tracking,
+  database &dbase)
+    : db(dbase),
       /* These won't exist for certain threads which is why we use optional here. */
       collection_count(config->get_optional_int(COLLECTION_COUNT, 1)),
       key_count(config->get_optional_int(KEY_COUNT_PER_COLLECTION, 1)),
-      key_size(config->get_optional_int(KEY_SIZE, 1)),
-      value_size(config->get_optional_int(VALUE_SIZE, 1)),
-      thread_count(config->get_int(THREAD_COUNT))
+      key_size(config->get_optional_int(KEY_SIZE, 1)), thread_count(config->get_int(THREAD_COUNT)),
+      value_size(config->get_optional_int(VALUE_SIZE, 1)), type(type), id(id),
+      session(std::move(created_session)), tsm(tsm),
+      transaction(transaction_context(config, tsm, session.get())), tracking(tracking)
 {
     _throttle = throttle(config);
     if (tracking->enabled())

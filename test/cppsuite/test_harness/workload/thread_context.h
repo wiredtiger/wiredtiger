@@ -51,7 +51,7 @@ const std::string type_string(thread_type type);
 class transaction_context {
     public:
     explicit transaction_context(
-      configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session);
+      configuration *config, timestamp_manager *tsm, WT_SESSION *session);
 
     bool active() const;
     void add_op();
@@ -82,33 +82,31 @@ class transaction_context {
     bool can_rollback();
 
     private:
-    /*
-     * op_count is the current number of operations that have been executed in the current
-     * transaction.
-     */
-    int64_t _op_count = 0;
-
+    bool _in_txn = false;
+    bool _needs_rollback = false;
     /*
      * _min_op_count and _max_op_count are the minimum and maximum number of operations within one
      * transaction. is the current maximum number of operations that can be executed in the current
      * transaction.
      */
-    int64_t _min_op_count = 0;
     int64_t _max_op_count = INT64_MAX;
+    int64_t _min_op_count = 0;
+    /*
+     * op_count is the current number of operations that have been executed in the current
+     * transaction.
+     */
+    int64_t _op_count = 0;
     int64_t _target_op_count = 0;
-    bool _in_txn = false;
-    bool _needs_rollback = false;
-
+    timestamp_manager *_tsm = nullptr;
     WT_SESSION *_session = nullptr;
-    timestamp_manager *_timestamp_manager = nullptr;
 };
 
 /* Container class for a thread and any data types it may need to interact with the database. */
 class thread_context {
     public:
     thread_context(uint64_t id, thread_type type, configuration *config,
-      scoped_session &&created_session, timestamp_manager *timestamp_manager,
-      workload_tracking *tracking, database &dbase);
+      scoped_session &&created_session, timestamp_manager *tsm, workload_tracking *tracking,
+      database &dbase);
 
     virtual ~thread_context() = default;
 
@@ -144,24 +142,24 @@ class thread_context {
     bool running() const;
 
     public:
-    scoped_session session;
-    scoped_cursor op_track_cursor;
-    scoped_cursor stat_cursor;
-    transaction_context transaction;
-    timestamp_manager *tsm;
-    workload_tracking *tracking;
     database &db;
     const int64_t collection_count;
     const int64_t key_count;
     const int64_t key_size;
-    const int64_t value_size;
     const int64_t thread_count;
-    const uint64_t id;
+    const int64_t value_size;
     const thread_type type;
+    const uint64_t id;
+    scoped_cursor op_track_cursor;
+    scoped_session session;
+    scoped_cursor stat_cursor;
+    timestamp_manager *tsm;
+    transaction_context transaction;
+    workload_tracking *tracking;
 
     private:
-    throttle _throttle;
     bool _running = true;
+    throttle _throttle;
 };
 } // namespace test_harness
 
