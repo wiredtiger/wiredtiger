@@ -89,7 +89,6 @@ class burst_inserts : public test {
         while (tc->running()) {
             uint64_t start_key = ccv[counter].coll.get_key_count();
             uint64_t added_count = 0;
-            bool committed = true;
             auto &cc = ccv[counter];
             auto burst_start = std::chrono::system_clock::now();
             while (tc->running() &&
@@ -139,9 +138,7 @@ class burst_inserts : public test {
                     logger::log_msg(LOG_TRACE,
                       "Committed an insertion of " + std::to_string(added_count) + " keys.");
                     cc.coll.increase_key_count(added_count);
-                    start_key = cc.coll.get_key_count();
                 }
-                added_count = 0;
             }
 
             testutil_check(cc.write_cursor->reset(cc.write_cursor.get()));

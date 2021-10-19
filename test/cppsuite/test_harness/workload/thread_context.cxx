@@ -35,6 +35,22 @@
 #include "thread_context.h"
 
 namespace test_harness {
+
+const std::string
+type_string(thread_type type)
+{
+    switch (type) {
+    case thread_type::INSERT:
+        return ("insert");
+    case thread_type::READ:
+        return ("read");
+    case thread_type::UPDATE:
+        return ("update");
+    default:
+        testutil_die(EINVAL, "unexpected thread_type: %d", static_cast<int>(type));
+    }
+}
+
 /* transaction_context class implementation */
 transaction_context::transaction_context(
   configuration *config, timestamp_manager *timestamp_manager, WT_SESSION *session)
