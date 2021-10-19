@@ -43,12 +43,12 @@ uri_path(TABLE *table, char **object_namep, char *buf, size_t len)
 
     testutil_check(__wt_snprintf(buf, len, "%s/%s", g.home, p));
     if (object_namep != NULL)
-        *object_namep = strchr(buf, '/') + 1;
+        *object_namep = strrchr(buf, '/') + 1;
     if (!access(buf, F_OK))
         return;
     testutil_check(__wt_snprintf(buf, len, "%s/%s.wt", g.home, p));
     if (object_namep != NULL)
-        *object_namep = strchr(buf, '/') + 1;
+        *object_namep = strrchr(buf, '/') + 1;
     if (!access(buf, F_OK))
         return;
     testutil_die(0, "%s: unable to find file for salvage", table->uri);
