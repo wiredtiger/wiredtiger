@@ -130,7 +130,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
 
         session2.rollback_transaction()
 
-    def test_arborted_insert(self):
+    def test_aborted_insert(self):
         self.populate(100)
 
         cursor = self.session.open_cursor(self.type + self.tablename, None)
