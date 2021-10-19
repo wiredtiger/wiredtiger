@@ -618,6 +618,10 @@ functions:
           git clone git@github.com:wiredtiger/automation-scripts.git
           ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -c ${perf-test-name} -f out.json -b ${branch_name}
 
+    - command: perf.send
+      params:
+        file: ./wiredtiger/bench/wtperf/wtperf_run_py/out.json
+
   "generic-perf-test-push-results":
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'perf-test-name' variable

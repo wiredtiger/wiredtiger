@@ -64,6 +64,15 @@ class PerfStatCollection:
             })
         return as_list
 
+    def stats_evergreen_format(self):
+        as_list = []
+        for stat in self.perf_stats.values():
+            as_list.append({
+                'name': stat.output_label,
+                'value': stat.get_core_average(),
+            })
+        return as_list
+
     def to_dict(self):
         as_dict = {'metrics': self.to_value_list()}
         return as_dict

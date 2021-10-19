@@ -36,6 +36,7 @@ import subprocess
 import sys
 import platform
 import psutil
+import ntpath
 
 from wtperf_config import WTPerfConfig
 from perf_stat import PerfStat
@@ -76,6 +77,32 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
     return command_line
 
 
+def evergreen_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
+    as_list = []
+    as_list.append(
+        {
+            "info": {
+                "test_name": ntpath.basename(config.test)
+            },
+            "metrics": perf_stats.stats_evergreen_format()
+        }
+    )
+    return as_list
+
+
+def dump_logs(config: WTPerfConfig, perf_stats: PerfStatCollection):
+    total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
+    as_dict = {'config': config.to_value_dict(),
+               'metrics': perf_stats.to_value_list(),
+               'system': {
+                   'cpu_physical_cores': psutil.cpu_count(logical=False),
+                   'cpu_logical_cores': psutil.cpu_count(),
+                   'total_physical_memory_gb': total_memory_gb,
+                   'platform': platform.platform()}
+               }
+    return as_dict
+
+
 def run_test(config: WTPerfConfig, test_run: int):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run)
     command_line = construct_wtperf_command_line(
@@ -95,46 +122,35 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection):
             print('Reading test stats file: {}'.format(test_stats_path))
         perf_stats.find_stats(test_stat_path=test_stats_path)
 
-    total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
-    as_dict = {'config': config.to_value_dict(),
-               'metrics': perf_stats.to_value_list(),
-               'system': {
-                   'cpu_physical_cores': psutil.cpu_count(logical=False),
-                   'cpu_logical_cores': psutil.cpu_count(),
-                   'total_physical_memory_gb': total_memory_gb,
-                   'platform': platform.platform()}
-               }
-    return as_dict
-
 
 def setup_perf_stats():
     perf_stats = PerfStatCollection()
     perf_stats.add_stat(PerfStat(short_label="load",
                                  pattern='Load time:',
                                  input_offset=2,
-                                 output_label='Load time:',
+                                 output_label='Load time',
                                  output_precision=2,
                                  conversion_function=float))
     perf_stats.add_stat(PerfStat(short_label="insert",
                                  pattern=r'Executed \d+ insert operations',
                                  input_offset=1,
-                                 output_label='Insert count:'))
+                                 output_label='Insert count'))
     perf_stats.add_stat(PerfStat(short_label="modify",
                                  pattern=r'Executed \d+ modify operations',
                                  input_offset=1,
-                                 output_label='Modify count:'))
+                                 output_label='Modify count'))
     perf_stats.add_stat(PerfStat(short_label="read",
                                  pattern=r'Executed \d+ read operations',
                                  input_offset=1,
-                                 output_label='Read count:'))
+                                 output_label='Read count'))
     perf_stats.add_stat(PerfStat(short_label="truncate",
                                  pattern=r'Executed \d+ truncate operations',
                                  input_offset=1,
-                                 output_label='Truncate count:'))
+                                 output_label='Truncate count'))
     perf_stats.add_stat(PerfStat(short_label="update",
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
-                                 output_label='Update count:'))
+                                 output_label='Update count'))
     return perf_stats
 
 
@@ -188,16 +204,18 @@ def main():
             run_test(config=config, test_run=test_run)
             print("Completed test {}".format(test_run))
 
-    # Process results
-    perf_dict = process_results(config, perf_stats)
-    perf_json = json.dumps(perf_dict, indent=4, sort_keys=True)
+    process_results(config, perf_stats)
 
     if args.verbose:
-        print("JSON: {}".format(perf_json))
+        perf_dict = dump_logs(config, perf_stats)
+        perf_json = json.dumps(perf_dict, indent=4, sort_keys=True)
+        print("{}".format(perf_json))
 
+    # Generate performace data in the format accepted by Evergreen
+    perf_list = evergreen_perf_stats(config, perf_stats)
     if args.outfile:
         with open(args.outfile, 'w') as outfile:
-            json.dump(perf_dict, outfile, indent=4, sort_keys=True)
+            json.dump(perf_list, outfile, indent=4, sort_keys=True)
 
 
 if __name__ == '__main__':
