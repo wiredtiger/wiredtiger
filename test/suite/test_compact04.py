@@ -85,7 +85,8 @@ class test_compact04(wttest.WiredTigerTestCase):
         
         blocks_after = os.stat(self.file_name).st_blocks
 
-        print("Blocks :%d|%d" % (blocks_before, blocks_after))
+        self.pr("Blocks before: %d; blocs after: %d" % (blocks_before, blocks_after))
+        self.assertGreater(blocks_before / 10, blocks_after)
 
 if __name__ == '__main__':
     wttest.run()
