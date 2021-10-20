@@ -192,11 +192,11 @@
     } while (0)
 
 /*
- * __wt_verbose_with_events --
- *     Display a verbose message, given a set of multiple verbose events. A verbose message will be
- *     displayed if at least one event in the set satisfies the required verbosity level.
+ * __wt_verbose_multi --
+ *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
+ *     be displayed if at least one category in the set satisfies the required verbosity level.
  */
-#define __wt_verbose_with_events(session, events, nevents, fmt, ...)             \
+#define __wt_verbose_multi(session, events, nevents, fmt, ...)                   \
     do {                                                                         \
         uint32_t __v_idx;                                                        \
         uint32_t __v_nevents = (uint32_t)nevents;                                \
