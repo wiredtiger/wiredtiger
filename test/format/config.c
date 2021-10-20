@@ -1058,12 +1058,12 @@ config_error(void)
 }
 
 static void
-config_print_one(FILE *fp, CONFIG *cp, CONFIGV *v)
+config_print_one(FILE *fp, CONFIG *cp, CONFIGV *v, const char *prefix)
 {
     if (F_ISSET(cp, C_STRING))
-        fprintf(fp, "%s=%s\n", cp->name, v->vstr == NULL ? "" : v->vstr);
+        fprintf(fp, "%s%s=%s\n", prefix, cp->name, v->vstr == NULL ? "" : v->vstr);
     else
-        fprintf(fp, "%s=%" PRIu32 "\n", cp->name, v->v);
+        fprintf(fp, "%s%s=%" PRIu32 "\n", prefix, cp->name, v->v);
 }
 
 /*
@@ -1106,7 +1106,7 @@ config_print_table(FILE *fp, TABLE *table)
             (v->vstr != NULL && gv->vstr != NULL && strcmp(v->vstr, gv->vstr) == 0)))
             continue;
 
-        config_print_one(fp, cp, v);
+        config_print_one(fp, cp, v, buf);
     }
 }
 
@@ -1146,7 +1146,7 @@ config_print(bool error_display)
          */
         gv = &tables[0]->v[cp->off];
         if (ntables == 0 || gv->set || !F_ISSET(cp, C_TABLE))
-            config_print_one(fp, cp, gv);
+            config_print_one(fp, cp, gv, "");
     }
 
     /* Display per-table configuration values. */
