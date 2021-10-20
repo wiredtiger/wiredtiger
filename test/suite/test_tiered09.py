@@ -36,19 +36,23 @@ class test_tiered09(wttest.WiredTigerTestCase):
 
     # If the 'uri' changes all the other names must change with it.
     base = 'test_tiered09-000000000'
+    base2 = 'test_second09-000000000'
     fileuri_base = 'file:' + base
     obj1file = base + '1.wtobj'
+    obj1second = base2 + '1.wtobj'
     obj2file = base + '2.wtobj'
     obj3file = base + '3.wtobj'
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered09"
     uri = "table:test_tiered09"
+    uri2 = "table:test_second09"
 
     auth_token = "test_token"
     bucket = "mybucket"
     extension_name = "local_store"
     prefix1 = "1_"
     prefix2 = "2_"
+    prefix3 = "3_"
     retention = 1
     saved_conn = ''
     def conn_config(self):
@@ -99,8 +103,8 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.close_conn()
         self.assertTrue(os.path.exists(self.obj1file))
         self.assertTrue(os.path.exists(self.obj2file))
-        bucket_obj1 = self.bucket + '/' + self.prefix1 + self.obj1file
-        self.assertTrue(os.path.exists(bucket_obj1))
+        bucket_obj = self.bucket + '/' + self.prefix1 + self.obj1file
+        self.assertTrue(os.path.exists(bucket_obj))
         # Since we've closed and reopened the connection we lost the work units
         # to drop the local objects. Clean them up now to make sure we can open
         # the correct object in the bucket.
@@ -111,11 +115,15 @@ class test_tiered09(wttest.WiredTigerTestCase):
         conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
         self.conn = self.wiredtiger_open('.', conn_params)
         self.session = self.conn.open_session()
-        # Check original data.
-        c = self.session.open_cursor(self.uri)
+        # Add a second table created while the second prefix is used for the connection.
+        self.session.create(self.uri2, 'key_format=S,value_format=S,')
+        # Add first data. Checkpoint, flush and close the connection.
+        c = self.session.open_cursor(self.uri2)
+        c["0"] = "0"
         self.check(c, 1)
         c.close()
-        # Add second data. Checkpoint, flush and close the connection.
+        # Add more data to original table.
+        # Checkpoint, flush and close the connection.
         c = self.session.open_cursor(self.uri)
         c["1"] = "1"
         self.check(c, 2)
@@ -123,45 +131,29 @@ class test_tiered09(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         self.session.flush_tier(None)
         self.close_conn()
-        bucket_obj2 = self.bucket + '/' + self.prefix2 + self.obj2file
-        self.assertTrue(os.path.exists(bucket_obj2))
+        # Check each table was created with the correct prefix.
+        bucket_obj = self.bucket + '/' + self.prefix2 + self.obj1second
+        self.assertTrue(os.path.exists(bucket_obj))
+        bucket_obj = self.bucket + '/' + self.prefix1 + self.obj2file
+        self.assertTrue(os.path.exists(bucket_obj))
         # Since we've closed and reopened the connection we lost the work units
         # to drop the local objects. Clean them up now to make sure we can open
         # the correct object in the bucket.
         localobj = './' + self.obj2file
         os.remove(localobj)
-
-        # Reuse the original bucket prefix.
-        self.conn = self.wiredtiger_open('.', self.saved_conn)
-        self.session = self.conn.open_session()
-        # Check original data.
-        c = self.session.open_cursor(self.uri)
-        self.check(c, 2)
-        c.close()
-        # Add third data. Checkpoint, flush and close the connection.
-        c = self.session.open_cursor(self.uri)
-        c["2"] = "2"
-        self.check(c, 3)
-        c.close()
-        self.session.checkpoint()
-        self.session.flush_tier(None)
-        self.close_conn()
-        bucket_obj3 = self.bucket + '/' + self.prefix1 + self.obj3file
-        self.assertTrue(os.path.exists(bucket_obj3))
-        # Since we've closed and reopened the connection we lost the work units
-        # to drop the local objects. Clean them up now to make sure we can open
-        # the correct object in the bucket.
-        localobj = './' + self.obj3file
-        os.remove(localobj)
+        localobj = './' + self.obj1second
 
         # Reopen with the other prefix and check all data. Even though we're using the
         # other prefix, we should find all the data in the object with the original
         # prefix.
-        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
+        conn_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix3
         self.conn = self.wiredtiger_open('.', conn_params)
         self.session = self.conn.open_session()
         c = self.session.open_cursor(self.uri)
-        self.check(c, 3)
+        self.check(c, 2)
+        c.close()
+        c = self.session.open_cursor(self.uri2)
+        self.check(c, 1)
         c.close()
 
 if __name__ == '__main__':

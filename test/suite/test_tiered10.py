@@ -47,6 +47,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
 
     auth_token = "test_token"
     bucket = "mybucket"
+    bucket1 = "../" + bucket
     bucket2 = "../" + bucket
     conn1_dir = "first_dir"
     conn2_dir = "second_dir"
@@ -64,7 +65,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
         self.saved_conn = \
           'create,statistics=(all),' + \
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
-          'bucket=%s,' % self.bucket + \
+          'bucket=../%s,' % self.bucket + \
           'local_retention=%d,' % self.retention + \
           'name=%s)' % self.extension_name 
         return dummy_conn

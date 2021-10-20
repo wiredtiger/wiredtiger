@@ -252,12 +252,13 @@ int
 __wt_tier_do_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, const char *local_uri,
   const char *obj_uri)
 {
+    WT_CONFIG_ITEM pfx;
     WT_DECL_RET;
     WT_FILE_SYSTEM *bucket_fs;
     WT_STORAGE_SOURCE *storage_source;
     size_t len;
     char *tmp;
-    const char *local_name, *obj_name;
+    const char *cfg[2], *local_name, *obj_name;
 
     tmp = NULL;
     storage_source = tiered->bstorage->storage_source;
@@ -267,9 +268,13 @@ __wt_tier_do_flush(WT_SESSION_IMPL *session, WT_TIERED *tiered, uint32_t id, con
     WT_PREFIX_SKIP_REQUIRED(session, local_name, "file:");
     obj_name = obj_uri;
     WT_PREFIX_SKIP_REQUIRED(session, obj_name, "object:");
-    len = strlen(obj_name) + strlen(tiered->bstorage->bucket_prefix) + 1;
+    cfg[0] = tiered->obj_config;
+    cfg[1] = NULL;
+    WT_RET(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &pfx));
+    WT_ASSERT(session, pfx.len != 0);
+    len = strlen(obj_name) + pfx.len + 1;
     WT_RET(__wt_calloc_def(session, len, &tmp));
-    WT_ERR(__wt_snprintf(tmp, len, "%s%s", tiered->bstorage->bucket_prefix, obj_name));
+    WT_ERR(__wt_snprintf(tmp, len, "%.*s%s", (int)pfx.len, pfx.str, obj_name));
 
     /* This call make take a while, and may fail due to network timeout. */
     WT_ERR(
