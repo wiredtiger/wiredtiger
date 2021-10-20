@@ -1137,7 +1137,11 @@ config_print(bool error_display)
 
     /* Display global configuration values. */
     for (cp = configuration_list; cp->name != NULL; ++cp) {
+        /* Skip items from different versions of the configuration file. */
         if (F_ISSET(cp, C_VERSION2) && g.version2_config)
+            continue;
+        /* Skip mismatched objects and configurations. */
+        if (!g.lsm_config && F_ISSET(cp, C_TYPE_LSM))
             continue;
 
         /*
