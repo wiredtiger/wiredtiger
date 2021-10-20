@@ -85,7 +85,7 @@ CONFIG configuration_list[] = {
 
 {"btree.compression", "data compression (none | lz4 | snappy | zlib | zstd)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
-{"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_VAR, 20, 0, 0}
+{"btree.dictionary", "configure dictionary compressed values", C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0}
 
 {"btree.huffman_value", "configure huffman encoded values", C_BOOL | C_TABLE | C_TYPE_ROW | C_TYPE_VAR, 20, 0, 0}
 
