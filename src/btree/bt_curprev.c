@@ -120,7 +120,7 @@ restart:
  *     Return the previous fixed-length entry on the append list.
  */
 static inline int
-__cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
+__cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool key_only)
 {
     WT_SESSION_IMPL *session;
 
@@ -197,7 +197,11 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
         cbt->iface.value.data = &cbt->v;
     } else {
 restart_read:
+        if (key_only)
+            return (0);
+
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -215,7 +219,7 @@ restart_read:
  *     Move to the previous, fixed-length column-store item.
  */
 static inline int
-__cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
+__cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool key_only)
 {
     WT_BTREE *btree;
     WT_PAGE *page;
@@ -254,9 +258,14 @@ new_page:
      * in durable history. Review this when we have a plan for fixed-length column store.
      */
     __wt_upd_value_clear(cbt->upd_value);
-    if (cbt->ins != NULL)
+    if (cbt->ins != NULL) {
 restart_read:
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd));
+        if (key_only)
+            return (0);
+
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+    }
+
     if (cbt->upd_value->type == WT_UPDATE_INVALID) {
         cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
         cbt->iface.value.data = &cbt->v;
@@ -273,7 +282,8 @@ restart_read:
  *     Return the previous variable-length entry on the append list.
  */
 static inline int
-__cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_append_prev(
+  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool key_only)
 {
     WT_SESSION_IMPL *session;
 
@@ -297,6 +307,9 @@ new_page:
 
         __cursor_set_recno(cbt, WT_INSERT_RECNO(cbt->ins));
 restart_read:
+        if (key_only)
+            return (0);
+
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             ++*skippedp;
@@ -319,7 +332,7 @@ restart_read:
  *     Move to the previous, variable-length column-store item.
  */
 static inline int
-__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
+__cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, bool key_only)
 {
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
@@ -372,8 +385,12 @@ restart_read:
         cbt->ins_head = WT_COL_UPDATE_SLOT(page, cbt->slot);
         cbt->ins = __col_insert_search_match(cbt->ins_head, cbt->recno);
         __wt_upd_value_clear(cbt->upd_value);
-        if (cbt->ins != NULL)
+        if (cbt->ins != NULL) {
+            if (key_only)
+                return (0);
+
             WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        }
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
             if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
                 if (cbt->upd_value->tw.stop_txn != WT_TXN_NONE &&
@@ -434,6 +451,9 @@ restart_read:
             continue;
         }
 
+        if (key_only)
+            return (0);
+
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type == WT_UPDATE_INVALID ||
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
@@ -475,8 +495,8 @@ restart_read:
  *     search near.
  */
 static inline int
-__cursor_row_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, WT_ITEM *prefix)
+__cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
+  WT_ITEM *prefix, bool key_only)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
@@ -551,6 +571,10 @@ restart_read_insert:
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
+
+            if (key_only)
+                return (0);
+
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -598,6 +622,10 @@ restart_read_page:
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
+
+        if (key_only)
+            return (0);
+
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -621,7 +649,7 @@ restart_read_page:
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
+__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating, bool key_only)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -674,10 +702,10 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
             WT_ASSERT(session, page != NULL);
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_append_prev(cbt, newpage, restart);
+                ret = __cursor_fix_append_prev(cbt, newpage, restart, key_only);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_append_prev(cbt, newpage, restart, &skipped, key_only);
                 total_skipped += skipped;
                 break;
             default:
@@ -693,14 +721,14 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
         if (page != NULL) {
             switch (page->type) {
             case WT_PAGE_COL_FIX:
-                ret = __cursor_fix_prev(cbt, newpage, restart);
+                ret = __cursor_fix_prev(cbt, newpage, restart, key_only);
                 break;
             case WT_PAGE_COL_VAR:
-                ret = __cursor_var_prev(cbt, newpage, restart, &skipped);
+                ret = __cursor_var_prev(cbt, newpage, restart, &skipped, key_only);
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix, key_only);
                 total_skipped += skipped;
                 /*
                  * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
@@ -743,7 +771,7 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
          * information to determine if something is visible on the page. If nothing is, the page is
          * skipped.
          */
-        if (session->txn->isolation == WT_ISO_SNAPSHOT &&
+        if (!key_only && session->txn->isolation == WT_ISO_SNAPSHOT &&
           !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE))
             WT_ERR(
               __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
@@ -762,7 +790,10 @@ err:
 
     switch (ret) {
     case 0:
-        F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
+        if (key_only)
+            F_SET(cursor, WT_CURSTD_KEY_INT);
+        else
+            F_SET(cursor, WT_CURSTD_KEY_INT | WT_CURSTD_VALUE_INT);
 #ifdef HAVE_DIAGNOSTIC
         /*
          * Skip key order check, if next is called after a prev returned a prepare conflict error,
@@ -798,5 +829,5 @@ err:
 int
 __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
-    return (__wt_btcur_prev_prefix(cbt, NULL, truncating));
+    return (__wt_btcur_prev_prefix(cbt, NULL, truncating, false));
 }

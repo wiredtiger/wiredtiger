@@ -141,10 +141,7 @@ class test_cursor17(wttest.WiredTigerTestCase):
         # Verify the largest key.
         self.session.begin_transaction()
         self.assertEqual(cursor.largest_key(), 0)
-        if self.valueformat != '8t':
-            self.assertEqual(cursor.get_key(), 100)
-        else:
-            self.assertEquals(cursor.get_key(), 200)
+        self.assertEquals(cursor.get_key(), 200)
         self.session.rollback_transaction()
     
     def test_invisible_timestamp(self):
