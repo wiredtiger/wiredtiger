@@ -18,8 +18,8 @@ static int __rec_split_discard(WT_SESSION_IMPL *, WT_PAGE *);
 static int __rec_split_row_promote(WT_SESSION_IMPL *, WT_RECONCILE *, WT_ITEM *, uint8_t);
 static int __rec_split_write(WT_SESSION_IMPL *, WT_RECONCILE *, WT_REC_CHUNK *, WT_ITEM *, bool);
 static void __rec_write_page_status(WT_SESSION_IMPL *, WT_RECONCILE *);
+static int __rec_write_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int __rec_write_wrapup(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
-static int __rec_write_wrapup_err(WT_SESSION_IMPL *, WT_RECONCILE *, WT_PAGE *);
 static int __reconcile(WT_SESSION_IMPL *, WT_REF *, WT_SALVAGE_COOKIE *, uint32_t, bool *);
 
 /*
@@ -222,14 +222,21 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
 #ifdef HAVE_DIAGNOSTIC
     addr = ref->addr;
 #endif
+
+    /*
+     * If we fail the reconciliation prior to calling __rec_write_wrapup then we can clean up our
+     * state and return an error.
+     *
+     * If we fail the reconciliation after calling __rec_write_wrapup then we must panic as
+     * inserting updates to the history store and then failing can leave us in a bad state.
+     */
     if (ret != 0) {
         /* Make sure that reconciliation doesn't free the page that has been written to disk. */
         WT_ASSERT(session, addr == NULL || ref->addr != NULL);
-        WT_TRET(__rec_write_wrapup_err(session, r, page));
+        WT_TRET(__rec_write_err(session, r, page));
     } else {
-        /* Wrap up the page reconciliation. */
-        ret = __rec_write_wrapup(session, r, page);
-        if (ret != 0)
+        /* Wrap up the page reconciliation. Panic on failure. */
+        if ((ret = __rec_write_wrapup(session, r, page)) != 0)
             goto panic;
         __rec_write_page_status(session, r);
     }
@@ -274,16 +281,18 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
          * well, and there's no obvious place to do that.
          */
         if (session->block_manager_cleanup != NULL) {
-            if (ret == 0) {
-                WT_TRET(session->block_manager_cleanup(session));
-                if (ret != 0)
-                    goto panic;
+            if (ret == 0 && (ret = session->block_manager_cleanup(session)) != 0) {
+                goto panic;
             } else
                 WT_TRET(session->block_manager_cleanup(session));
         }
 
         __rec_destroy_session(session);
     }
+    /*
+     * This return statement covers non-panic error scenarios, any failure beyond this point is a
+     * panic.
+     */
     WT_RET(ret);
 
     /*
@@ -302,8 +311,7 @@ __reconcile(WT_SESSION_IMPL *session, WT_REF *ref, WT_SALVAGE_COOKIE *salvage, u
      * in service of a checkpoint, it's cleared the tree's dirty flag, and we don't want to set it
      * again as part of that walk.
      */
-    ret = __wt_page_parent_modify_set(session, ref, true);
-    if (ret == 0)
+    if ((ret = __wt_page_parent_modify_set(session, ref, true)) == 0)
         return (0);
 
 panic:
@@ -2272,11 +2280,11 @@ split:
 }
 
 /*
- * __rec_write_wrapup_err --
+ * __rec_write_err --
  *     Finish the reconciliation on error.
  */
 static int
-__rec_write_wrapup_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
+__rec_write_err(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 {
     WT_DECL_RET;
     WT_MULTI *multi;
