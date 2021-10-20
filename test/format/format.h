@@ -116,23 +116,24 @@ typedef struct {
 
 typedef enum { FIX, ROW, VAR } table_type;
 typedef struct {
-    u_int id;                   /* table ID */
-    char uri[32];               /* table name */
-    table_type type;            /* table type */
-    CONFIGV v[V_ELEMENT_COUNT]; /* table configuration */
+    u_int id;        /* table ID */
+    char uri[32];    /* table name */
+    table_type type; /* table type */
 
     uint32_t max_intl_page; /* page size configurations converted to bytes */
     uint32_t max_leaf_page;
     uint32_t max_mem_page;
+
+    uint32_t rows_current; /* current row count */
+
+    uint64_t truncate_cnt; /* truncation operation counter */
 
     uint32_t prefix_len;         /* key: common prefix length */
     uint32_t key_rand_len[1031]; /* key: lengths */
     char *val_base;              /* value: base/original */
     uint32_t val_dup_data_len;   /* value: length of duplicate data items */
 
-    uint32_t rows_current; /* current row count */
-
-    uint64_t truncate_cnt; /* truncation operation counter */
+    CONFIGV v[V_ELEMENT_COUNT]; /* table configuration */
 } TABLE;
 
 /*
