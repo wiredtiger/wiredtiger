@@ -201,7 +201,6 @@ restart_read:
             return (0);
 
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
@@ -263,7 +262,7 @@ restart_read:
         if (key_only)
             return (0);
 
-        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd));
     }
 
     if (cbt->upd_value->type == WT_UPDATE_INVALID) {
