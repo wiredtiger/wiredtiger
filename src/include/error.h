@@ -171,7 +171,7 @@
 
 /*
  * Verbose messages. Given this verbosity check is without an explicit verbosity level, the macro
- * will check whether the given event satisfies the WT_VERBOSE_DEBUG verbosity level.
+ * will check whether the given category satisfies the WT_VERBOSE_DEBUG verbosity level.
  * WT_VERBOSE_DEBUG being the default level assigned to verbose messages prior to the introduction
  * of verbosity levels.
  */
