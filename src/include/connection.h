@@ -252,7 +252,7 @@ typedef enum {
     WT_VERB_WRITE,
     /* This entry needs to be the last in order to track the number of event items. */
     WT_VERB_NUM_EVENTS,
-} WT_VERBOSE_EVENT;
+} WT_VERBOSE_CATEGORY;
 
 /*
  * Permitted verbosity levels; to be used when defining verbose messages. The levels define a range

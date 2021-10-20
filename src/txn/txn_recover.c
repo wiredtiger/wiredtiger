@@ -9,7 +9,7 @@
 #include "wt_internal.h"
 
 /* Enable all recovery-related verbose messaging events. */
-#define WT_VERB_RECOVERY_ALL ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS})
+#define WT_VERB_RECOVERY_ALL ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RECOVERY_PROGRESS})
 #define WT_VERB_RECOVERY_ALL_NUM_EVENTS 2
 
 /* State maintained during recovery. */
@@ -1002,7 +1002,8 @@ done:
         if (conn->txn_global.recovery_timestamp != WT_TS_NONE)
             conn->txn_global.has_stable_timestamp = true;
 
-        __wt_verbose_with_events(session, ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RTS}), 2,
+        __wt_verbose_with_events(session, ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}),
+          2,
           "performing recovery rollback_to_stable with stable timestamp: %s and oldest timestamp: "
           "%s",
           __wt_timestamp_to_string(conn->txn_global.stable_timestamp, ts_string[0]),

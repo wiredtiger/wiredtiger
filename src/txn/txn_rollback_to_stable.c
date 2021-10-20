@@ -12,10 +12,10 @@
     (F_ISSET(S2C(session), WT_CONN_RECOVERING) && (txnid) >= S2C(session)->recovery_ckpt_snap_min)
 
 /* Enable rollback to stable verbose messaging during recovery. */
-#define WT_VERB_RECOVERY_RTS(session)                           \
-    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                \
-        ((WT_VERBOSE_EVENT[]){WT_VERB_RECOVERY, WT_VERB_RTS}) : \
-        ((WT_VERBOSE_EVENT[]){WT_VERB_RTS}))
+#define WT_VERB_RECOVERY_RTS(session)                              \
+    (F_ISSET(S2C(session), WT_CONN_RECOVERING) ?                   \
+        ((WT_VERBOSE_CATEGORY[]){WT_VERB_RECOVERY, WT_VERB_RTS}) : \
+        ((WT_VERBOSE_CATEGORY[]){WT_VERB_RTS}))
 
 #define WT_VERB_RECOVERY_RTS_NUM_EVENTS(session) (F_ISSET(S2C(session), WT_CONN_RECOVERING) ? 2 : 1)
 
