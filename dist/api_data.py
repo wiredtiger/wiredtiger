@@ -1316,6 +1316,9 @@ methods = {
         actual amount of time spent in compact may exceed the configured
         value. A value of zero disables the timeout''',
         type='int'),
+    Config('punch_holes', 'false', r'''
+        punch holes in the file''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +

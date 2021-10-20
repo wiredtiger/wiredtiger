@@ -223,6 +223,77 @@ __compact_checkpoint(WT_SESSION_IMPL *session)
 }
 
 /*
+ * __punch_holes --
+ *     Function to alternate between checkpoints and compaction calls.
+ */
+static int
+__punch_holes(WT_SESSION_IMPL *session)
+{
+    WT_BLOCK *block;
+    WT_BM *bm;
+    WT_DECL_RET;
+    WT_EXT *ext;
+    WT_EXTLIST *el;
+    WT_FILE_HANDLE_POSIX *pfh;
+    wt_off_t holes;
+
+    holes = 0;
+    bm = S2BT(session)->bm;
+    block = bm->block;
+    pfh = (WT_FILE_HANDLE_POSIX *)block->fh->handle;
+
+    __wt_spin_lock(session, &block->live_lock);
+
+    el = &block->live.avail;
+    WT_EXT_FOREACH (ext, el->off) {
+        WT_ERR(fallocate(pfh->fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, ext->off, ext->size));
+        holes += ext->size;
+    }
+err:
+    __wt_spin_unlock(session, &block->live_lock);
+
+    return (ret);
+}
+
+/*
+ * __compact_punch_holes --
+ *     Function to alternate between checkpoints and compaction calls.
+ */
+static int
+__compact_punch_holes(WT_SESSION_IMPL *session)
+{
+    WT_DECL_RET;
+    u_int i;
+
+    /*
+     * Reset the handles' compaction skip flag (we don't bother setting or resetting it when we
+     * finish compaction, it's simpler to do it once, here).
+     */
+    for (i = 0; i < session->op_handle_next; ++i)
+        session->op_handle[i]->compact_skip = false;
+
+    WT_ERR(__compact_checkpoint(session));
+
+    /* Step through the list of files being compacted. */
+    for (i = 0; i < session->op_handle_next; ++i) {
+        /* Skip objects where there's no more work. */
+        if (session->op_handle[i]->compact_skip)
+            continue;
+
+        session->compact_state = WT_COMPACT_RUNNING;
+        WT_WITH_DHANDLE(session, session->op_handle[i], ret = __punch_holes(session));
+    }
+
+    WT_ERR(__compact_checkpoint(session));
+    WT_ERR(__compact_checkpoint(session));
+
+err:
+    session->compact_state = WT_COMPACT_NONE;
+
+    return (ret);
+}
+
+/*
  * __compact_worker --
  *     Function to alternate between checkpoints and compaction calls.
  */
@@ -377,6 +448,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
 
+    /* Do hole punching instead of full-scale compaction. */
+    WT_ERR(__wt_config_gets(session, cfg, "punch_holes", &cval));
+    session->compact->punch_holes = (cval.val != 0);
+
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a
      * table, so acquire the table lock in write mode.
@@ -389,8 +464,13 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
 
     if (session->compact->lsm_count != 0)
         WT_ERR(__wt_schema_worker(session, uri, NULL, __wt_lsm_compact, cfg, 0));
-    if (session->compact->file_count != 0)
-        WT_ERR(__compact_worker(session));
+
+    if (session->compact->file_count != 0) {
+        if (session->compact->punch_holes)
+            WT_ERR(__compact_punch_holes(session));
+        else
+            WT_ERR(__compact_worker(session));
+    }
 
 err:
     session->compact = NULL;
