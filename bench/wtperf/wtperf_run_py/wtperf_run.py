@@ -84,16 +84,16 @@ def evergreen_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
             "info": {
                 "test_name": ntpath.basename(config.test)
             },
-            "metrics": perf_stats.stats_evergreen_format()
+            "metrics": perf_stats.to_value_list_evergreen()
         }
     )
     return as_list
 
 
-def dump_logs(config: WTPerfConfig, perf_stats: PerfStatCollection):
+def atlas_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
     as_dict = {'config': config.to_value_dict(),
-               'metrics': perf_stats.to_value_list(),
+               'metrics': perf_stats.to_value_list_atlas(),
                'system': {
                    'cpu_physical_cores': psutil.cpu_count(logical=False),
                    'cpu_logical_cores': psutil.cpu_count(),
@@ -159,7 +159,8 @@ def main():
     parser.add_argument('-p', '--wtperf', help='path of the wtperf executable')
     parser.add_argument('-e', '--env', help='any environment variables that need to be set for running wtperf')
     parser.add_argument('-t', '--test', help='path of the wtperf test to execute')
-    parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
+    parser.add_argument('-oe', '--outfile_evergreen', help='path of the file to write test output(evergreen format) to')
+    parser.add_argument('-oa', '--outfile_atlas', help='path of the file to write test output(atlas format) to')
     parser.add_argument('-m', '--runmax', type=int, default=1, help='maximum number of times to run the test')
     parser.add_argument('-ho', '--home', help='path of the "home" directory that wtperf will use')
     parser.add_argument('-re',
@@ -173,13 +174,14 @@ def main():
         print('WTPerfPy')
         print('========')
         print("Configuration:")
-        print("  WtPerf path:   {}".format(args.wtperf))
-        print("  Environment:   {}".format(args.env))
-        print("  Test path:     {}".format(args.test))
-        print("  Home base:     {}".format(args.home))
-        print("  Outfile:       {}".format(args.outfile))
-        print("  Runmax:        {}".format(args.runmax))
-        print("  Reuse results: {}".format(args.reuse))
+        print("  WtPerf path:         {}".format(args.wtperf))
+        print("  Environment:         {}".format(args.env))
+        print("  Test path:           {}".format(args.test))
+        print("  Home base:           {}".format(args.home))
+        print("  Outfile (Evergreen): {}".format(args.outfile_evergreen))
+        print("  Outfile (Atlas):     {}".format(args.outfile_atlas))
+        print("  Runmax:              {}".format(args.runmax))
+        print("  Reuse results:       {}".format(args.reuse))
 
     if args.wtperf is None:
         sys.exit('The path to the wtperf executable is required')
@@ -206,16 +208,22 @@ def main():
 
     process_results(config, perf_stats)
 
-    if args.verbose:
-        perf_dict = dump_logs(config, perf_stats)
-        perf_json = json.dumps(perf_dict, indent=4, sort_keys=True)
-        print("{}".format(perf_json))
+    # Generate performace data in the format accepted by Atlas.
+    atlas_perf = atlas_perf_stats(config, perf_stats)
+    if args.outfile_atlas:
+        with open(args.outfile_atlas, 'w') as outfile:
+            json.dump(atlas_perf, outfile, indent=4, sort_keys=True)
 
-    # Generate performace data in the format accepted by Evergreen
-    perf_list = evergreen_perf_stats(config, perf_stats)
-    if args.outfile:
-        with open(args.outfile, 'w') as outfile:
-            json.dump(perf_list, outfile, indent=4, sort_keys=True)
+    # Generate performace data in the format accepted by Evergreen.
+    evergreen_perf = evergreen_perf_stats(config, perf_stats)
+    if args.outfile_evergreen:
+        with open(args.outfile_evergreen, 'w') as outfile:
+            json.dump(evergreen_perf, outfile, indent=4, sort_keys=True)
+
+    # Dump logs.
+    if args.verbose:
+        perf_json = json.dumps(atlas_perf, indent=4, sort_keys=True)
+        print("{}".format(perf_json))
 
 
 if __name__ == '__main__':

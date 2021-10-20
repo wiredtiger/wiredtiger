@@ -54,7 +54,7 @@ class PerfStatCollection:
                               position_of_value=stat.input_offset)
             stat.add_value(value=value)
 
-    def to_value_list(self):
+    def to_value_list_atlas(self):
         as_list = []
         for stat in self.perf_stats.values():
             as_list.append({
@@ -64,7 +64,7 @@ class PerfStatCollection:
             })
         return as_list
 
-    def stats_evergreen_format(self):
+    def to_value_list_evergreen(self):
         as_list = []
         for stat in self.perf_stats.values():
             as_list.append({
