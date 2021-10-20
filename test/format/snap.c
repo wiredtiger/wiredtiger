@@ -291,7 +291,14 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
             return (0);
     }
 
-    /* Things went pear-shaped. */
+    /*
+     * Things went pear-shaped.
+     *
+     * Dump the WiredTiger handle ID, it's useful in selecting trace records from the log. We have
+     * an open cursor on the handle, so while this is pretty ugly, I don't think it's unsafe.
+     */
+    fprintf(stderr, "%s: WiredTiger trace ID: %u\n", table->uri,
+      (u_int)((WT_BTREE *)((WT_CURSOR_BTREE *)cursor)->dhandle->handle)->id);
     switch (table->type) {
     case FIX:
         fprintf(stderr,
@@ -325,9 +332,6 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
             print_item_data(table, "   found", value->data, value->size);
         break;
     }
-
-    fprintf(
-      stderr, "== id: %u\n", (u_int)((WT_BTREE *)((WT_CURSOR_BTREE *)cursor)->dhandle->handle)->id);
 
     g.page_dump_cursor = cursor;
     testutil_assert(0);
