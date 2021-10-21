@@ -548,7 +548,6 @@ restart_read_insert:
              * visiting is before our prefix.
              */
             if (prefix_search && __wt_prefix_match(prefix, key) > 0) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
@@ -595,7 +594,6 @@ restart_read_page:
          * visiting is before our prefix.
          */
         if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
         WT_RET(

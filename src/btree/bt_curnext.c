@@ -756,7 +756,8 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                  * We can directly return WT_NOTFOUND here as the caller expects the cursor to be
                  * positioned when traversing keys for prefix search near.
                  */
-                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH))
+                if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) &&
+                  prefix != NULL && __wt_prefix_match(prefix, &cbt->iface.key) != 0)
                     return (WT_NOTFOUND);
                 break;
             default:
