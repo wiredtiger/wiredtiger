@@ -43,7 +43,6 @@ endif()
 
 if(${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL 5)
     list(APPEND gcc_base_flags "-Wformat-signedness")
-    list(APPEND gcc_base_flags "-Wjump-misses-init")
     list(APPEND gcc_base_flags "-Wredundant-decls")
     list(APPEND gcc_base_flags "-Wunused-macros")
     list(APPEND gcc_base_flags "-Wvariadic-macros")
