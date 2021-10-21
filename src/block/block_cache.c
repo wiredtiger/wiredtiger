@@ -17,7 +17,7 @@
 static void
 __blkcache_aggregate_metadata(WT_BLKCACHE *blkcache)
 {
-    int i;
+    uint i;
     uint64_t bytes_used, num_data_blocks;
 
     bytes_used = num_data_blocks = 0;
