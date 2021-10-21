@@ -21,8 +21,8 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     WT_DECL_RET;
     WT_TIERED *tiered;
     size_t len;
-    const char *cfg[2], *object_name, *object_uri, *object_val;
     char *tmp;
+    const char *cfg[2], *object_name, *object_uri, *object_val;
     bool local_only;
 
     tiered = opener->cookie;
