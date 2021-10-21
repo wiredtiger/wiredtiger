@@ -28,18 +28,22 @@
 
 import wiredtiger, wttest
 from wtscenario import make_scenarios
+from helper import simulate_crash_restart
 
 class test_prepare17(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
-    uri= 'table:test_prepare17'
+    uri = 'table:test_prepare17'
+    nrows = 1000
+    value1 = 'aaaaa'
+    value2 = 'bbbbb'
 
     key_format_values = [
         ('integer-row', dict(key_format='i')),
         ('column', dict(key_format='r')),
     ]
     update = [
-        ('non-prepared', dict(non_prepared=True)),
-        ('prepared', dict(non_prepared=False)),
+        ('prepare', dict(prepare=True)),
+        ('non-prepare', dict(prepare=False)),
     ]
     scenarios = make_scenarios(key_format_values, update)
 
@@ -50,7 +54,8 @@ class test_prepare17(wttest.WiredTigerTestCase):
 
         # Transaction one
         self.session.begin_transaction()
-        cursor[1] = 'a' 
+        for i in range(1, self.nrows + 1):
+            cursor[i] = self.value1
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(2))
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(3)+ ',durable_timestamp=' + self.timestamp_str(6))
 
@@ -62,15 +67,52 @@ class test_prepare17(wttest.WiredTigerTestCase):
         #
         # Note: The scenario where commit timestamp lies between the previous commit and durable timestamps
         # is not expected from MongoDB, but WiredTiger API can allow it.
-        if self.non_prepared:
+        if self.prepare:
             self.session.begin_transaction()
-            cursor[1] = 'c'
-            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
-        else: 
-            self.session.begin_transaction()
-            cursor[1] = 'c'
+            for i in range(1, self.nrows + 1):
+                cursor[i] = self.value2
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4) + ',durable_timestamp=' + self.timestamp_str(7))
+        else:
+            self.session.begin_transaction()
+            for i in range(1, self.nrows + 1):
+                cursor[i] = self.value2
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4))
 
         # Time window validation occurs as part of checkpoint.
         self.session.checkpoint()
+
+    def test_prepare_insert_remove(self):
+
+        if not self.prepare:
+            return
+
+        create_params = 'key_format={},value_format=S'.format(self.key_format)
+        self.session.create(self.uri, create_params)
+        cursor = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        for i in range(1, self.nrows + 1):
+            cursor[i] = self.value1
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
+
+        self.session.begin_transaction()
+        for i in range(1, self.nrows + 1):
+            cursor[i] = self.value2
+            cursor.set_key(i)
+            cursor.remove()
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(3))
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(4) + ',durable_timestamp=' + self.timestamp_str(7))
+
+        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(6))
+        self.session.checkpoint()
+        simulate_crash_restart(self, ".", "RESTART")
+
+        # All the keys with the update as value2 should be removed as the stable timestamp (6) is less than the durable timestamp (7).
+        cursor = self.session.open_cursor(self.uri)
+        self.session.begin_transaction()
+        for i in range(1, self.nrows+1):
+            cursor.set_key(1)
+            cursor.search()
+            self.assertEqual(cursor.get_value(), self.value1)
+        self.session.rollback_transaction()
