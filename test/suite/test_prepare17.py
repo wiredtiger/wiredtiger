@@ -112,7 +112,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, self.nrows+1):
-            cursor.set_key(1)
+            cursor.set_key(i)
             cursor.search()
             self.assertEqual(cursor.get_value(), self.value1)
         self.session.rollback_transaction()
