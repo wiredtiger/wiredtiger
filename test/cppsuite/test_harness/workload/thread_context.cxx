@@ -125,7 +125,7 @@ transaction_context::set_commit_timestamp(wt_timestamp_t ts)
     /* We don't want to set zero timestamps on transactions if we're not using timestamps. */
     if (!_timestamp_manager->enabled())
         return;
-    std::string config = std::string(COMMIT_TS) + "=" + timestamp_manager::decimal_to_hex(ts);
+    const std::string config = COMMIT_TS + "=" + timestamp_manager::decimal_to_hex(ts);
     testutil_check(_session->timestamp_transaction(_session, config.c_str()));
 }
 

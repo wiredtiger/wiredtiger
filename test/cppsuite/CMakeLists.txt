@@ -33,6 +33,7 @@ add_library(cppsuite_test_harness STATIC
     test_harness/core/component.cxx 
     test_harness/core/configuration.cxx 
     test_harness/core/throttle.cxx 
+    test_harness/util/api_const.cxx
     test_harness/util/logger.cxx
     test_harness/util/scoped_connection.cxx 
     test_harness/util/scoped_types.cxx 
