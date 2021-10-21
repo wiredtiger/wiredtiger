@@ -1130,13 +1130,13 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
     CURSOR_API_CALL(cursor, session, largest_key, CUR2BT(cbt));
 
-    /* Set the flag to bypass value read. */
-    F_SET(cursor, WT_CURSTD_KEY_ONLY);
-
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
     /* Reset the cursor to give up the cursor position. */
     WT_ERR(cursor->reset(cursor));
+
+    /* Set the flag to bypass value read. */
+    F_SET(cursor, WT_CURSTD_KEY_ONLY);
 
     /* Call btree cursor prev to get the largest key. */
     WT_ERR(__wt_btcur_prev(cbt, NULL));
