@@ -175,7 +175,7 @@
  * WT_VERBOSE_DEBUG being the default level assigned to verbose messages prior to the introduction
  * of verbosity levels.
  */
-#define WT_VERBOSE_ISSET(session, event) (WT_VERBOSE_DEBUG <= S2C(session)->verbose[event])
+#define WT_VERBOSE_ISSET(session, category) (WT_VERBOSE_DEBUG <= S2C(session)->verbose[category])
 
 /*
  * __wt_verbose --
@@ -185,10 +185,10 @@
  *     additional argument, there's no portable way to remove the comma before an empty __VA_ARGS__
  *     value.
  */
-#define __wt_verbose(session, event, fmt, ...)                              \
-    do {                                                                    \
-        if (WT_VERBOSE_ISSET(session, event))                               \
-            __wt_verbose_worker(session, "[" #event "] " fmt, __VA_ARGS__); \
+#define __wt_verbose(session, category, fmt, ...)                              \
+    do {                                                                       \
+        if (WT_VERBOSE_ISSET(session, category))                               \
+            __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
     } while (0)
 
 /*
