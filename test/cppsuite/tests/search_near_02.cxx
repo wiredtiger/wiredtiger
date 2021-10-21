@@ -163,8 +163,7 @@ class search_near_02 : public test_harness::test {
 
             /* Find a cached cursor or create one if none exists. */
             if (cursors.find(coll.id) == cursors.end()) {
-                cursors.emplace(
-                  coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
+                cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
                 auto &cursor_prefix = cursors[coll.id];
                 /* The cached cursors have the prefix configuration enabled. */
                 testutil_check(
