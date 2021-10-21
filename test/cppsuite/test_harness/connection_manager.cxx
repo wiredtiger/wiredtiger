@@ -29,6 +29,7 @@
 #include "connection_manager.h"
 #include "util/api_const.h"
 #include "util/logger.h"
+#include "util/scoped_connection.h"
 
 namespace test_harness {
 connection_manager &
@@ -73,11 +74,16 @@ connection_manager::create_session()
         testutil_die(EINVAL, "Connection is NULL");
     }
 
-    _conn_mutex.lock();
+    std::lock_guard<std::mutex> lg(_conn_mutex);
     scoped_session session(_conn);
-    _conn_mutex.unlock();
 
     return (session);
+}
+
+WT_CONNECTION *
+connection_manager::get_connection()
+{
+    return (_conn);
 }
 
 /*
@@ -86,9 +92,8 @@ connection_manager::create_session()
 void
 connection_manager::set_timestamp(const std::string &config)
 {
-    _conn_mutex.lock();
+    std::lock_guard<std::mutex> lg(_conn_mutex);
     testutil_check(_conn->set_timestamp(_conn, config.c_str()));
-    _conn_mutex.unlock();
 }
 
 connection_manager::connection_manager() {}
