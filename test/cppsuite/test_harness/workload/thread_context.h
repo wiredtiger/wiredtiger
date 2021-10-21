@@ -107,8 +107,8 @@ class transaction_context {
 class thread_context {
     public:
     thread_context(uint64_t id, thread_type type, configuration *config,
-      scoped_session &&created_session, timestamp_manager *timestamp_manager, workload_tracking *tracking,
-      database &dbase);
+      scoped_session &&created_session, timestamp_manager *timestamp_manager,
+      workload_tracking *tracking, database &dbase);
 
     virtual ~thread_context() = default;
 
