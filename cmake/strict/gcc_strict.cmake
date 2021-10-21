@@ -37,6 +37,8 @@ if(${CMAKE_C_COMPILER_VERSION} VERSION_EQUAL 4.7)
     list(APPEND gcc_base_flags "-Wunsafe-loop-optimizations")
 elseif(${CMAKE_C_COMPILER_VERSION} VERSION_EQUAL 5)
     list(APPEND gcc_base_flags "-Wunsafe-loop-optimizations")
+elseif(${CMAKE_C_COMPILER_VERSION} VERSION_EQUAL 6)
+    list(APPEND gcc_base_flags "-Wunsafe-loop-optimizations")
 endif()
 
 if(${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL 5)
