@@ -176,7 +176,7 @@ table_maxv(u_int off)
     if (ntables == 0)
         return (tables[0]->v[off].v);
 
-    for (v = 0, i = 1; i < ntables; ++i)
+    for (v = 0, i = 1; i <= ntables; ++i)
         v = WT_MAX(v, tables[i]->v[off].v);
     return (v);
 }
@@ -194,7 +194,7 @@ table_sumv(u_int off)
     if (ntables == 0)
         return (tables[0]->v[off].v);
 
-    for (v = 0, i = 1; i < ntables; ++i)
+    for (v = 0, i = 1; i <= ntables; ++i)
         v += tables[i]->v[off].v;
     return (v);
 }
