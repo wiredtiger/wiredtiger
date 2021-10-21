@@ -28,7 +28,7 @@
 
 # create_test_executable(target SOURCES <source files> [EXECUTABLE_NAME <name>] [BINARY_DIR <dir>] [INCLUDES <includes>]
 #    [ADDITIONAL_FILES <files>] [ADDITIONAL_DIRECTORIES <dirs>] [LIBS <libs>] [FLAGS <flags>])
-# Defines a C test executable binary. This helper does the necessary initialisation to ensure the correct flags and libraries
+# Defines a C/CPP test executable binary. This helper does the necessary initialisation to ensure the correct flags and libraries
 # are used when compiling the test executable.
 #   target - Target name of the test.
 #   SOURCES <source files> - Sources to compile for the given test.
@@ -79,16 +79,16 @@ function(create_test_executable target)
 
     # Append the necessary compiler flags.
     if(NOT CREATE_TEST_CXX)
-        set(test_c_flags "${COMPILER_DIAGNOSTIC_FLAGS}")
+        set(test_flags "${COMPILER_DIAGNOSTIC_FLAGS}")
     else()
-        set(test_c_flags "${COMPILER_DIAGNOSTIC_CPP_FLAGS}")
+        set(test_flags "${COMPILER_DIAGNOSTIC_CPP_FLAGS}")
     endif()
     if(NOT "${CREATE_TEST_FLAGS}" STREQUAL "")
-        list(APPEND test_c_flags ${CREATE_TEST_FLAGS})
+        list(APPEND test_flags ${CREATE_TEST_FLAGS})
     endif()
-    target_compile_options(${target} PRIVATE ${test_c_flags})
+    target_compile_options(${target} PRIVATE ${test_flags})
 
-    # Include the base set of directories for a wiredtiger C test.
+    # Include the base set of directories for a wiredtiger C/CPP test.
     target_include_directories(${target}
         PRIVATE
             ${CMAKE_SOURCE_DIR}/src/include
@@ -99,7 +99,7 @@ function(create_test_executable target)
         target_include_directories(${target} PRIVATE ${CREATE_TEST_INCLUDES})
     endif()
 
-    # Link the base set of libraries for a wiredtiger C test.
+    # Link the base set of libraries for a wiredtiger C/CPP test.
     target_link_libraries(${target} wiredtiger test_util)
     if(NOT "${CREATE_TEST_LIBS}" STREQUAL "")
         target_link_libraries(${target} ${CREATE_TEST_LIBS})
