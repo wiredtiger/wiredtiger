@@ -804,7 +804,7 @@ ops(void *arg)
          * Select a row. Column-store extends the object, explicitly read the maximum row count and
          * then use a local variable so the value won't change inside the loop.
          */
-        max_rows = (volatile uint32_t)table->rows_current;
+        WT_ORDERED_READ(max_rows, table->rows_current);
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
         /*
@@ -1130,7 +1130,7 @@ wts_read_scan(TABLE *table, void *arg)
     testutil_check(ret);
 
     /* Check a random subset of the records using the key. */
-    max_rows = table->rows_current;
+    WT_ORDERED_READ(max_rows, table->rows_current);
     for (keyno = 0; keyno < max_rows;) {
         keyno += mmrand(NULL, 1, 1000);
         if (keyno > max_rows)
@@ -1253,11 +1253,11 @@ nextprev(TINFO *tinfo, bool next)
     WT_CURSOR *cursor;
     WT_DECL_RET;
     WT_ITEM key, value;
-    uint64_t keyno, keyno_prev;
+    uint64_t keyno;
     uint8_t bitfield;
     int cmp;
     const char *which;
-    bool incrementing, record_gaps;
+    bool incrementing;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
@@ -1286,8 +1286,9 @@ nextprev(TINFO *tinfo, bool next)
         if (ret != 0)
             testutil_die(ret, "nextprev: get_key/get_value");
 
-        /* Check that keys are never returned out-of-order. */
         /*
+         * Check that keys are never returned out-of-order.
+         *
          * LSM has a bug that prevents cursor order checks from working, skip the test for now.
          * FIXME WT-3889
          */
@@ -1296,29 +1297,14 @@ nextprev(TINFO *tinfo, bool next)
 
         /*
          * Compare the returned key with the previously returned key, and assert the order is
-         * correct. If not deleting keys, and the rows aren't in the column-store insert name space,
-         * also assert we don't skip groups of records (that's a page-split bug symptom). Note a
-         * previous run that performed salvage might have corrupted a chunk of space such that
-         * records were removed. If this is a reopen of an existing database, assume salvage might
-         * have happened.
+         * correct.
          */
-        record_gaps = TV(OPS_PCT_DELETE) != 0 || g.reopen;
         switch (table->type) {
         case FIX:
         case VAR:
-            if (tinfo->keyno > table->rows_current || keyno > table->rows_current)
-                record_gaps = true;
-            if (!next) {
-                if (tinfo->keyno < keyno || (!record_gaps && keyno != tinfo->keyno - 1))
-                    goto order_error_col;
-            } else if (tinfo->keyno > keyno || (!record_gaps && keyno != tinfo->keyno + 1))
-                goto order_error_col;
-            if (0) {
-order_error_col:
+            if ((next && tinfo->keyno > keyno) || (!next && tinfo->keyno < keyno))
                 testutil_die(
                   0, "%s returned %" PRIu64 " then %" PRIu64, which, tinfo->keyno, keyno);
-            }
-
             tinfo->keyno = keyno;
             break;
         case ROW:
@@ -1329,21 +1315,6 @@ order_error_col:
                     goto order_error_row;
             } else if (cmp < 0 || (cmp == 0 && tinfo->key->size > key.size))
                 goto order_error_row;
-            if (!record_gaps) {
-                /*
-                 * Convert the keys to record numbers and then compare less-than-or-equal. (It's not
-                 * less-than, row-store inserts new rows in-between rows by appending a new suffix
-                 * to the row's key.) Keys are strings with terminating '/' values, so absent key
-                 * corruption, we can simply do the underlying string conversion on the key string.
-                 */
-                keyno_prev = strtoul((char *)tinfo->key->data + TV(BTREE_PREFIX), NULL, 10);
-                keyno = strtoul((char *)key.data + TV(BTREE_PREFIX), NULL, 10);
-                if (incrementing) {
-                    if (keyno_prev != keyno && keyno_prev + 1 != keyno)
-                        goto order_error_row;
-                } else if (keyno_prev != keyno && keyno_prev - 1 != keyno)
-                    goto order_error_row;
-            }
             if (0) {
 order_error_row:
 #ifdef HAVE_DIAGNOSTIC
@@ -1358,12 +1329,11 @@ order_error_row:
         }
         break;
     case WT_NOTFOUND:
-        break;
     default:
         return (ret);
     }
 
-    if (g.trace_all && ret == 0)
+    if (g.trace_all)
         switch (table->type) {
         case FIX:
             trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
@@ -1722,7 +1692,7 @@ col_insert_resolve(TABLE *table, void *arg)
 {
     struct col_insert *cip;
     TINFO *tinfo;
-    uint32_t v, *p;
+    uint32_t max_rows, *p;
     u_int i;
 
     tinfo = arg;
@@ -1745,15 +1715,15 @@ col_insert_resolve(TABLE *table, void *arg)
      * Process the existing records and advance the last row count until we can't go further.
      */
     do {
-        WT_ORDERED_READ(v, table->rows_current);
+        WT_ORDERED_READ(max_rows, table->rows_current);
         for (i = 0, p = cip->insert_list; i < WT_ELEMENTS(cip->insert_list); ++i, ++p) {
-            if (*p == v + 1) {
-                testutil_assert(__wt_atomic_casv32(&table->rows_current, v, v + 1));
+            if (*p == max_rows + 1) {
+                testutil_assert(__wt_atomic_casv32(&table->rows_current, max_rows, max_rows + 1));
                 *p = 0;
                 --cip->insert_list_cnt;
                 break;
             }
-            testutil_assert(*p == 0 || *p > v);
+            testutil_assert(*p == 0 || *p > max_rows);
         }
     } while (cip->insert_list_cnt > 0 && i < WT_ELEMENTS(cip->insert_list));
 }
@@ -1789,11 +1759,13 @@ col_insert(TINFO *tinfo)
     TABLE *table;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    uint64_t max_rows;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
 
-    val_gen(table, &tinfo->rnd, tinfo->value, table->rows_current + 1);
+    WT_ORDERED_READ(max_rows, table->rows_current);
+    val_gen(table, &tinfo->rnd, tinfo->value, max_rows + 1);
     if (table->type == FIX)
         cursor->set_value(cursor, *(uint8_t *)tinfo->value->data);
     else
