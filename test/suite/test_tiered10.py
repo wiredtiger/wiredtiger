@@ -67,7 +67,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
           'tiered_storage=(auth_token=%s,' % self.auth_token + \
           'bucket=../%s,' % self.bucket + \
           'local_retention=%d,' % self.retention + \
-          'name=%s)' % self.extension_name 
+          'name=%s),' % self.extension_name 
         return dummy_conn
 
     # Load the local store extension.
@@ -85,9 +85,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
 
     # Test calling the flush_tier API.
     def test_tiered(self):
-        #
-        # For now return because wiredtiger_open in a subdir does not work with
-        # having an extension.
         self.skipTest('Cannot load extensions in python in subdirectories')
 
         # Have two connections running in different directories, but sharing
@@ -100,10 +97,11 @@ class test_tiered10(wttest.WiredTigerTestCase):
         #
         # We open two connections manually so that they both have the same relative
         # pathnames. The standard connection is just a dummy for this test.
-        conn1_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix1
+        ext = self.extensionsConfig()
+        conn1_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.prefix1
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
         session1 = conn1.open_session()
-        conn2_params = self.saved_conn + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
+        conn2_params = self.saved_conn + ext + ',tiered_storage=(bucket_prefix=%s)' % self.prefix2
         conn2 = self.wiredtiger_open(self.conn2_dir, conn2_params)
         session2 = conn2.open_session()
 
