@@ -75,11 +75,11 @@ class component {
     protected:
     bool _enabled = false;
     volatile bool _running = false;
-    configuration *_config;
     throttle _throttle;
+    configuration *_config;
 
     private:
-    const std::string _name;
+    std::string _name;
 };
 } // namespace test_harness
 #endif

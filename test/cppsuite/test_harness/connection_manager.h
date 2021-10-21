@@ -75,8 +75,8 @@ class connection_manager {
     connection_manager();
 
     private:
-    std::mutex _conn_mutex;
     WT_CONNECTION *_conn = nullptr;
+    std::mutex _conn_mutex;
 };
 } // namespace test_harness
 

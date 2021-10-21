@@ -129,11 +129,11 @@ class runtime_monitor : public component {
     void finish() override final;
 
     private:
-    database &_database;
-    postrun_statistic_check _postrun_stats;
     scoped_session _session;
     scoped_cursor _cursor;
     std::vector<runtime_statistic *> _stats;
+    postrun_statistic_check _postrun_stats;
+    database &_database;
 };
 } // namespace test_harness
 

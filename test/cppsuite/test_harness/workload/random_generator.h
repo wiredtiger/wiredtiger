@@ -75,14 +75,14 @@ class random_generator {
 
     private:
     random_generator();
-    const std::string &get_characters(characters_type type);
     std::uniform_int_distribution<> &get_distribution(characters_type type);
+    const std::string &get_characters(characters_type type);
 
+    std::mt19937 _generator;
+    std::uniform_int_distribution<> _alphanum_distrib, _alpha_distrib;
     const std::string _alphabet = "abcdefghijklmnopqrstuvwxyz";
     const std::string _pseudo_alphanum =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
-    std::mt19937 _generator;
-    std::uniform_int_distribution<> _alphanum_distrib, _alpha_distrib;
 };
 } // namespace test_harness
 

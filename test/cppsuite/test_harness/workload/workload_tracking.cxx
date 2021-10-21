@@ -36,9 +36,9 @@ workload_tracking::workload_tracking(configuration *_config,
   const std::string &operation_table_config, const std::string &operation_table_name,
   const std::string &schema_table_config, const std::string &schema_table_name,
   const bool use_compression, timestamp_manager &tsm)
-    : component("workload_tracking", _config), _use_compression(use_compression),
-      _operation_table_config(operation_table_config), _operation_table_name(operation_table_name),
-      _schema_table_config(schema_table_config), _schema_table_name(schema_table_name), _tsm(tsm)
+    : component("workload_tracking", _config), _operation_table_config(operation_table_config),
+      _operation_table_name(operation_table_name), _schema_table_config(schema_table_config),
+      _schema_table_name(schema_table_name), _use_compression(use_compression), _tsm(tsm)
 {
 }
 

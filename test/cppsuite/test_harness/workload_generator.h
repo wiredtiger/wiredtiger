@@ -54,9 +54,9 @@ class operation_config {
     std::function<void(test_harness::thread_context *)> get_func(database_operation *dbo);
 
     public:
-    const int64_t thread_count;
-    const thread_type type;
     configuration *config;
+    const thread_type type;
+    const int64_t thread_count;
 };
 
 /*
@@ -65,7 +65,7 @@ class operation_config {
 class workload_generator : public component {
     public:
     explicit workload_generator(configuration *configuration, database_operation *db_operation,
-      timestamp_manager *tsm, workload_tracking *tracking, database &database);
+      timestamp_manager *timestamp_manager, workload_tracking *tracking, database &database);
 
     ~workload_generator();
 
@@ -84,7 +84,7 @@ class workload_generator : public component {
     database &_database;
     database_operation *_database_operation;
     thread_manager _thread_manager;
-    timestamp_manager *_tsm;
+    timestamp_manager *_timestamp_manager;
     workload_tracking *_tracking;
     std::vector<thread_context *> _workers;
     bool _db_populated = false;
