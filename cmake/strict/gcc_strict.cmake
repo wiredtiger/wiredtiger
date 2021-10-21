@@ -6,9 +6,10 @@
 # See the file LICENSE for redistribution information.
 #
 
-list(APPEND gcc_base_flags "-Werror")
+# List of common C/CPP flags.
 list(APPEND gcc_base_flags "-Wcast-align")
 list(APPEND gcc_base_flags "-Wdouble-promotion")
+list(APPEND gcc_base_flags "-Werror")
 list(APPEND gcc_base_flags "-Wfloat-equal")
 list(APPEND gcc_base_flags "-Wformat-nonliteral")
 list(APPEND gcc_base_flags "-Wformat-security")
