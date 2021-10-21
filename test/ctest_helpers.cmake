@@ -79,8 +79,9 @@ function(create_test_executable target)
 
     # Append the necessary compiler flags.
     if(NOT CREATE_TEST_CXX)
-        # Don't append the strict diagnostic flags to C++ targets (as these are chosen for C targets).
         set(test_c_flags "${COMPILER_DIAGNOSTIC_FLAGS}")
+    else()
+        set(test_c_flags "${COMPILER_DIAGNOSTIC_CPP_FLAGS}")
     endif()
     if(NOT "${CREATE_TEST_FLAGS}" STREQUAL "")
         list(APPEND test_c_flags ${CREATE_TEST_FLAGS})
