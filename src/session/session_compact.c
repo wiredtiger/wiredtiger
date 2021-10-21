@@ -235,9 +235,11 @@ __punch_holes(WT_SESSION_IMPL *session)
     WT_EXT *ext;
     WT_EXTLIST *el;
     WT_FILE_HANDLE_POSIX *pfh;
-    wt_off_t holes;
+    wt_off_t holes_size;
+    uint64_t num_holes;
 
-    holes = 0;
+    holes_size = 0;
+    num_holes = 0;
     bm = S2BT(session)->bm;
     block = bm->block;
     pfh = (WT_FILE_HANDLE_POSIX *)block->fh->handle;
@@ -247,8 +249,14 @@ __punch_holes(WT_SESSION_IMPL *session)
     el = &block->live.avail;
     WT_EXT_FOREACH (ext, el->off) {
         WT_ERR(fallocate(pfh->fd, FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, ext->off, ext->size));
-        holes += ext->size;
+        holes_size += ext->size;
+        num_holes++;
     }
+
+    __wt_verbose(session, WT_VERB_COMPACT,
+      "Punched %" PRIu64 " hole(s). Total size of all holes is %" PRIdMAX " bytes.", num_holes,
+      holes_size);
+
 err:
     __wt_spin_unlock(session, &block->live_lock);
 

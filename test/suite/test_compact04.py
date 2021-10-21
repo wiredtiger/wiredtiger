@@ -72,7 +72,7 @@ class test_compact04(wttest.WiredTigerTestCase):
         c = self.session.open_cursor(self.uri, None)
         removed = list(range(self.nrecords))
         random.shuffle(removed)
-        removed = removed[:int(self.nrecords * 0.9)]
+        removed = removed[:int(self.nrecords * 0.25)]
         removed.sort()
 
         for i in removed:
