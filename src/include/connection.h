@@ -268,6 +268,18 @@ typedef enum {
 } WT_VERBOSE_LEVEL;
 
 /*
+ * WT_VERBOSE_MULTI_CATEGORY --
+ *  Simple structure to represent a set of verbose categories.
+ */
+struct __wt_verbose_multi_category {
+    WT_VERBOSE_CATEGORY *categories;
+    uint32_t cnt;
+};
+
+#define WT_DECL_VERBOSE_MULTI_CATEGORY(items) \
+    ((WT_VERBOSE_MULTI_CATEGORY){.categories = (items), .cnt = WT_ELEMENTS(items)})
+
+/*
  * WT_CONNECTION_IMPL --
  *	Implementation of WT_CONNECTION
  */

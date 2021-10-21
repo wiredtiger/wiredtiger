@@ -196,14 +196,13 @@
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
  *     be displayed if at least one category in the set satisfies the required verbosity level.
  */
-#define __wt_verbose_multi(session, events, nevents, fmt, ...)                   \
-    do {                                                                         \
-        uint32_t __v_idx;                                                        \
-        uint32_t __v_nevents = (uint32_t)nevents;                                \
-        for (__v_idx = 0; __v_idx < __v_nevents; __v_idx++) {                    \
-            if (WT_VERBOSE_ISSET(session, events[__v_idx])) {                    \
-                __wt_verbose_worker(session, "[" #events "] " fmt, __VA_ARGS__); \
-                break;                                                           \
-            }                                                                    \
-        }                                                                        \
+#define __wt_verbose_multi(session, multi_category, fmt, ...)                            \
+    do {                                                                                 \
+        uint32_t __v_idx;                                                                \
+        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                     \
+            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) {         \
+                __wt_verbose_worker(session, "[" #multi_category "] " fmt, __VA_ARGS__); \
+                break;                                                                   \
+            }                                                                            \
+        }                                                                                \
     } while (0)
