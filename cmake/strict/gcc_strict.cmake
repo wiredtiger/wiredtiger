@@ -6,10 +6,7 @@
 # See the file LICENSE for redistribution information.
 #
 
-list(APPEND gcc_base_flags "-Wall")
-list(APPEND gcc_base_flags "-Wextra")
 list(APPEND gcc_base_flags "-Werror")
-list(APPEND gcc_base_flags "-Waggregate-return")
 list(APPEND gcc_base_flags "-Wcast-align")
 list(APPEND gcc_base_flags "-Wdouble-promotion")
 list(APPEND gcc_base_flags "-Wfloat-equal")
@@ -22,8 +19,6 @@ list(APPEND gcc_base_flags "-Wmissing-field-initializers")
 list(APPEND gcc_base_flags "-Wpacked")
 list(APPEND gcc_base_flags "-Wpointer-arith")
 list(APPEND gcc_base_flags "-Wredundant-decls")
-list(APPEND gcc_base_flags "-Wshadow")
-list(APPEND gcc_base_flags "-Wsign-conversion")
 list(APPEND gcc_base_flags "-Wswitch-enum")
 list(APPEND gcc_base_flags "-Wundef")
 list(APPEND gcc_base_flags "-Wuninitialized")
@@ -69,6 +64,13 @@ endif()
 
 set(gcc_c_flags ${gcc_base_flags})
 set(gcc_cpp_flags ${gcc_base_flags})
+
+# FIX-ME-WT-8247: Add those flags to gcc_base_flags if we want them for the CPP compilation too.
+list(APPEND gcc_c_flags "-Waggregate-return")
+list(APPEND gcc_c_flags "-Wall")
+list(APPEND gcc_c_flags "-Wextra")
+list(APPEND gcc_c_flags "-Wshadow")
+list(APPEND gcc_c_flags "-Wsign-conversion")
 
 # Specific C flags.
 list(APPEND gcc_c_flags "-Wbad-function-cast")
