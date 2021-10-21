@@ -1124,9 +1124,14 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_DECL_ITEM(key);
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    bool key_only;
 
     cbt = (WT_CURSOR_BTREE *)cursor;
+    key_only = F_ISSET(cursor, WT_CURSTD_KEY_ONLY);
     CURSOR_API_CALL(cursor, session, largest_key, CUR2BT(cbt));
+
+    /* Set the flag to bypass value read. */
+    F_SET(cursor, WT_CURSTD_KEY_ONLY);
 
     WT_ERR(__wt_scr_alloc(session, 0, &key));
 
@@ -1134,7 +1139,7 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     WT_ERR(cursor->reset(cursor));
 
     /* Call btree cursor prev to get the largest key. */
-    WT_ERR(__wt_btcur_prev_prefix(cbt, NULL, false, true));
+    WT_ERR(__wt_btcur_prev(cbt, NULL));
 
     /* Copy the key as we will reset the cursor after that. */
     WT_ERR(__wt_buf_set(session, key, cursor->key.data, cursor->key.size));
@@ -1144,6 +1149,8 @@ __wt_cursor_largest_key(WT_CURSOR *cursor)
     F_SET(cursor, WT_CURSTD_KEY_EXT);
 
 err:
+    if (!key_only)
+        F_CLR(cursor, WT_CURSTD_KEY_ONLY);
     __wt_scr_free(session, &key);
     if (ret != 0)
         WT_TRET(cursor->reset(cursor));
