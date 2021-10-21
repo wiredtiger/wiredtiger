@@ -763,6 +763,45 @@ done:
     memset((void *)blkcache, 0, sizeof(WT_BLKCACHE));
 }
 
+
+/*
+ * __blckcache_reconfig
+ *    We currently disallow reconfiguration. If and when we do, this function will destroy
+ *    the block cache, making it ready for clean initiaization.
+ */
+static inline int
+__blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, size_t hash_size,
+		     u_int type, char *nvram_device_path, size_t system_ram,
+		     u_int percent_file_in_os_cache, bool cache_on_writes,
+		     double overhead_pct, u_int evict_aggressive, uint64_t full_target,
+		     bool cache_on_checkpoint)
+{
+    WT_BLKCACHE *blkcache;
+    WT_CONNECTION_IMPL *conn;
+
+    conn = S2C(session);
+    blkcache = &conn->blkcache;
+
+    if (!reconfig || blkcache->type == BLKCACHE_UNCONFIGURED)
+	return (0);
+
+    if (blkcache->cache_on_checkpoint != cache_on_checkpoint ||
+	blkcache->cache_on_writes != cache_on_writes ||
+	blkcache->hash_size != hash_size ||
+	blkcache->fraction_in_os_cache != (float)percent_file_in_os_cache / 100 ||
+	blkcache->full_target != full_target ||
+	blkcache->max_bytes != cache_size ||
+	blkcache->overhead_pct != overhead_pct ||
+	blkcache->system_ram != system_ram ||
+	blkcache->evict_aggressive != -((int)evict_aggressive) ||
+	blkcache->type != type)
+	{
+	    __wt_err(session, EINVAL, "block cache reconfiguration not supported");
+	    return (WT_ERROR);
+	}
+    return (0);
+}
+
 /*
  * __wt_block_cache_setup --
  *     Set up the block cache.
@@ -785,10 +824,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     cache_on_checkpoint = cache_on_writes = true;
     nvram_device_path = NULL;
 
-    if (reconfig)
-        __wt_block_cache_destroy(session);
-
-    if (blkcache->type != BLKCACHE_UNCONFIGURED)
+    if (blkcache->type != BLKCACHE_UNCONFIGURED && !reconfig)
         WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.enabled", &cval));
@@ -845,7 +881,11 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_RET(__wt_config_gets(session, cfg, "block_cache.max_percent_overhead", &cval));
     overhead_pct = (double)cval.val / (double)100;
 
-    return (__blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path,
-      system_ram, percent_file_in_os_cache, cache_on_writes, overhead_pct, evict_aggressive,
-      full_target, cache_on_checkpoint));
+    WT_RET(__blkcache_reconfig(session, reconfig, cache_size, hash_size, cache_type,
+	      nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes,
+	      overhead_pct, evict_aggressive, full_target, cache_on_checkpoint));
+
+    return (__blkcache_init(session, cache_size, hash_size, cache_type,
+		  nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes,
+		  overhead_pct, evict_aggressive, full_target, cache_on_checkpoint));
 }
