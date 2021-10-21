@@ -218,13 +218,19 @@ config_table(TABLE *table, void *arg)
     table->max_leaf_page = 1U << TV(BTREE_LEAF_PAGE_MAX);
     table->max_mem_page = MEGABYTE(TV(BTREE_MEMORY_PAGE_MAX));
 
-    /* Key/value minimum/maximum are related, correct unless specified by the configuration. */
-    if (!config_explicit(table, "btree.key_min") && TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
-        TV(BTREE_KEY_MIN) = TV(BTREE_KEY_MAX);
-    if (!config_explicit(table, "btree.key_max") && TV(BTREE_KEY_MAX) < TV(BTREE_KEY_MIN))
-        TV(BTREE_KEY_MAX) = TV(BTREE_KEY_MIN);
-    if (TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
-        testutil_die(EINVAL, "btree.key_min may not be larger than btree.key_max");
+    /*
+     * Key/value minimum/maximum are related, correct unless specified by the configuration. Key
+     * sizes are a row-store thing, column-store has a relatively small fixed-size object.
+     */
+    if (table->type == ROW) {
+        if (!config_explicit(table, "btree.key_min") && TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
+            TV(BTREE_KEY_MIN) = TV(BTREE_KEY_MAX);
+        if (!config_explicit(table, "btree.key_max") && TV(BTREE_KEY_MAX) < TV(BTREE_KEY_MIN))
+            TV(BTREE_KEY_MAX) = TV(BTREE_KEY_MIN);
+        if (TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
+            testutil_die(EINVAL, "btree.key_min may not be larger than btree.key_max");
+    } else
+        TV(BTREE_KEY_MIN) = TV(BTREE_KEY_MAX) = 15;
     if (!config_explicit(table, "btree.value_min") && TV(BTREE_VALUE_MIN) > TV(BTREE_VALUE_MAX))
         TV(BTREE_VALUE_MIN) = TV(BTREE_VALUE_MAX);
     if (!config_explicit(table, "btree.value_max") && TV(BTREE_VALUE_MAX) < TV(BTREE_VALUE_MIN))
@@ -474,8 +480,7 @@ config_cache(void)
      * This calculation is done in bytes, convert to megabytes before testing against the cache.
      */
     if (GV(RUNS_IN_MEMORY)) {
-        cache = table_sumv(V_TABLE_BTREE_VALUE_MAX);
-        cache += table_sumv(V_TABLE_BTREE_KEY_MAX);
+        cache = table_sumv(V_TABLE_BTREE_KEY_MAX) + table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
         cache *= 2;
         cache /= WT_MEGABYTE; /* NOT in MB units, convert for cache test */
