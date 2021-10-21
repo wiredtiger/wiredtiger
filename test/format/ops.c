@@ -171,6 +171,9 @@ tinfo_teardown(void)
     for (i = 0; i < GV(RUNS_THREADS); ++i) {
         tinfo = tinfo_list[i];
 
+        free(tinfo->cursors);
+        free(tinfo->col_insert);
+
         __wt_buf_free(NULL, &tinfo->vprint);
         __wt_buf_free(NULL, &tinfo->moda);
         __wt_buf_free(NULL, &tinfo->modb);

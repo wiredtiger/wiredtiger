@@ -1227,6 +1227,8 @@ config_clear(void)
     /* Clear all allocated configuration data in the tables array. */
     slots = ntables == 0 ? 1 : ntables;
     for (i = 0; i < slots; ++i) {
+        free(tables[i]->val_base);
+
         for (j = 0; j < V_ELEMENT_COUNT; ++j)
             free(tables[i]->v[j].vstr);
         free(tables[i]);
