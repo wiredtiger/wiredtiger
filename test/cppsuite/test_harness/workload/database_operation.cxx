@@ -142,6 +142,7 @@ database_operation::insert_operation(thread_context *tc)
     /* Collection cursor vector. */
     std::vector<collection_cursor> ccv;
     uint64_t collection_count = tc->db.get_collection_count();
+    testutil_assert(collection_count != 0);
     uint64_t collections_per_thread = collection_count / tc->thread_count;
     /* Must have unique collections for each thread. */
     testutil_assert(collection_count % tc->thread_count == 0);
