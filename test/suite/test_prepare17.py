@@ -31,7 +31,7 @@ from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 
 # test_prepare17.py
-# The folllwing test is to verify that if the out of order commit timestamp(for a transaction, say T2) lies between
+# The following test is to verify that if the out of order commit timestamp(for a transaction, say T2) lies between
 # previous commit and durable timestamps(for a transaction, say T1), the durable timestamp of T1 changes to
 # the commit timestamp of T2.
 class test_prepare17(wttest.WiredTigerTestCase):
