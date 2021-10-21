@@ -48,7 +48,7 @@ populate_worker(thread_context *tc)
          * WiredTiger lets you open a cursor on a collection using the same pointer. When a session
          * is closed, WiredTiger APIs close the cursors too.
          */
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         uint64_t j = 0;
         while (j < tc->key_count) {
             tc->transaction.begin();
@@ -148,7 +148,7 @@ database_operation::insert_operation(thread_context *tc)
     for (int i = tc->id * collections_per_thread;
          i < (tc->id * collections_per_thread) + collections_per_thread && tc->running(); ++i) {
         collection &coll = tc->db.get_collection(i);
-        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
         ccv.push_back({coll, std::move(cursor)});
     }
 
@@ -208,7 +208,7 @@ database_operation::read_operation(thread_context *tc)
         collection &coll = tc->db.get_random_collection();
 
         if (cursors.find(coll.id) == cursors.end())
-            cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name.c_str())));
+            cursors.emplace(coll.id, std::move(tc->session.open_scoped_cursor(coll.name)));
 
         /* Do a second lookup now that we know it exists. */
         auto &cursor = cursors[coll.id];
@@ -265,7 +265,7 @@ database_operation::update_operation(thread_context *tc)
               "Thread {" + std::to_string(tc->id) +
                 "} Creating cursor for collection: " + coll.name);
             /* Open a cursor for the chosen collection. */
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name.c_str());
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             cursors.emplace(coll.id, std::move(cursor));
         }
 

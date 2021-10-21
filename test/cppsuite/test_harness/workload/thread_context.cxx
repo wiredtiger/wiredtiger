@@ -178,7 +178,7 @@ thread_context::thread_context(uint64_t id, thread_type type, configuration *con
 {
     _throttle = throttle(config);
     if (tracking->enabled())
-        op_track_cursor = session.open_scoped_cursor(tracking->get_operation_table_name().c_str());
+        op_track_cursor = session.open_scoped_cursor(tracking->get_operation_table_name());
 
     testutil_assert(key_size > 0 && value_size > 0);
 }
