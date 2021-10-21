@@ -83,6 +83,6 @@ list(APPEND gcc_c_flags "-Wold-style-definition")
 list(APPEND gcc_c_flags "-Wpointer-sign")
 list(APPEND gcc_c_flags "-Wstrict-prototypes")
 
-# Set our gcc flags that can be used by the rest of our build.
+# Set our compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_FLAGS ${gcc_c_flags})
 set(COMPILER_DIAGNOSTIC_CPP_FLAGS ${gcc_cpp_flags})

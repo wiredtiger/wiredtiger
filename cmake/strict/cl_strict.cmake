@@ -7,15 +7,16 @@
 #
 
 # Warning level 3.
-list(APPEND win_c_flags "/WX")
+list(APPEND win_base_flags "/WX")
 # Ignore warning about mismatched const qualifiers.
-list(APPEND win_c_flags "/wd4090")
+list(APPEND win_base_flags "/wd4090")
 # Ignore deprecated functions.
-list(APPEND win_c_flags "/wd4996")
+list(APPEND win_base_flags "/wd4996")
 # Complain about unreferenced format parameter.
-list(APPEND win_c_flags "/we4100")
+list(APPEND win_base_flags "/we4100")
 # Enable security check.
-list(APPEND win_c_flags "/GS")
+list(APPEND win_base_flags "/GS")
 
-# Set our base compiler flags that can be used by the rest of our build.
-set(COMPILER_DIAGNOSTIC_FLAGS "${COMPILER_DIAGNOSTIC_FLAGS};${win_c_flags}" CACHE INTERNAL "" FORCE)
+# Set our compiler flags that can be used by the rest of our build.
+set(COMPILER_DIAGNOSTIC_FLAGS ${win_base_flags})
+set(COMPILER_DIAGNOSTIC_CPP_FLAGS ${win_base_flags})
