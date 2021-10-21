@@ -260,9 +260,6 @@ __timestamp_out_of_order_fix(WT_SESSION_IMPL *session, WT_TIME_WINDOW *select_tw
      * As per the time window validation the durable_start_ts must not be greater than the stop_ts.
      * Hence, if the stop_ts is less than durable_start_ts and greater than start_ts, make
      * durable_start_ts equal to stop_ts.
-     *
-     * The scenario where stop_ts is in between start_ts and durable_start_ts is not expected from
-     * MongoDB, but WiredTiger API can allow it.
      */
     if ((select_tw->start_ts != select_tw->stop_ts) &&
       (select_tw->stop_ts < select_tw->durable_start_ts)) {

@@ -30,6 +30,10 @@ import wiredtiger, wttest
 from wtscenario import make_scenarios
 from helper import simulate_crash_restart
 
+# test_prepare17.py
+# The folllwing test is to verify that if the out of order commit timestamp(for a transaction, say T2) lies between
+# previous commit and durable timestamps(for a transaction, say T1), the durable timestamp of T1 changes to
+# the commit timestamp of T2.
 class test_prepare17(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
     uri = 'table:test_prepare17'
@@ -111,7 +115,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
         # Update in Transaction2 should be removed as the stable timestamp (6) is less than the durable timestamp (7).
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
-        for i in range(1, self.nrows+1):
+        for i in range(1, self.nrows + 1):
             cursor.set_key(i)
             cursor.search()
             self.assertEqual(cursor.get_value(), self.value1)
