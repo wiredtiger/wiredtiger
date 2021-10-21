@@ -21,7 +21,8 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
     WT_DECL_RET;
     WT_TIERED *tiered;
     size_t len;
-    const char *cfg[2], *object_name, *object_uri, *object_val, *tmp;
+    const char *cfg[2], *object_name, *object_uri, *object_val;
+    char *tmp;
     bool local_only;
 
     tiered = opener->cookie;
@@ -62,9 +63,11 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
         cfg[0] = object_val;
         cfg[1] = NULL;
         WT_ERR(__wt_config_gets(session, cfg, "tiered_storage.bucket_prefix", &pfx));
+        /* We expect a prefix. */
+        WT_ASSERT(session, pfx.len != 0);
         len = strlen(object_name) + pfx.len + 1;
         WT_ERR(__wt_calloc_def(session, len, &tmp));
-        WT_ERR(__wt_snprintf((char *)tmp, len, "%.*s%s", (int)pfx.len, pfx.str, object_name));
+        WT_ERR(__wt_snprintf(tmp, len, "%.*s%s", (int)pfx.len, pfx.str, object_name));
         bstorage = tiered->bstorage;
         LF_SET(WT_FS_OPEN_READONLY);
         WT_WITH_BUCKET_STORAGE(

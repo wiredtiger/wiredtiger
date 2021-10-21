@@ -88,7 +88,7 @@ class test_tiered10(wttest.WiredTigerTestCase):
         #
         # For now return because wiredtiger_open in a subdir does not work with
         # having an extension.
-        return
+        self.skipTest('Cannot load extensions in python in subdirectories')
 
         # Have two connections running in different directories, but sharing
         # the same bucket directory with different prefixes. Each database
