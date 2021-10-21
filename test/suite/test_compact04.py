@@ -32,6 +32,7 @@
 #
 
 import os
+import random
 import time, wiredtiger, wttest
 from wiredtiger import stat
 from wtscenario import make_scenarios
@@ -50,14 +51,12 @@ class test_compact04(wttest.WiredTigerTestCase):
     scenarios = make_scenarios(fileConfig)
 
     # Enable stats and use a cache size that can fit table in the memory.
-    conn_config = 'statistics=(all),cache_size=100MB'
+    conn_config = 'statistics=(all),cache_size=500MB'
 
     normalValue = "abcde" * 20
-    nrecords = 100000 # To create ~25 MB table
+    nrecords = 100000
 
-    # Create a table, add keys with both big and small values.
     def test_compact04(self):
-
         # 1. Create a table with relatively small page size.
         params = 'key_format=Q,value_format=QSQS,' + self.fileConfig
         self.session.create(self.uri, params)
@@ -69,11 +68,17 @@ class test_compact04(wttest.WiredTigerTestCase):
         # 2. Checkpoint and get stats on the table to confirm the size.
         self.session.checkpoint()
 
-        # 3. Delete middle ~90% of the normal values in the table.
+        # 3. Delete 90% of random records from the table.
         c = self.session.open_cursor(self.uri, None)
-        for i in range((self.nrecords // 100) * 5, (self.nrecords // 100) * 95):
+        removed = list(range(self.nrecords))
+        random.shuffle(removed)
+        removed = removed[:int(self.nrecords * 0.9)]
+        removed.sort()
+
+        for i in removed:
             c.set_key(i)
             self.assertEqual(c.remove(), 0)
+
         c.close()
 
         # 4. Checkpoint and get stats on the table to confirm the size.
@@ -86,7 +91,38 @@ class test_compact04(wttest.WiredTigerTestCase):
         blocks_after = os.stat(self.file_name).st_blocks
 
         self.pr("Blocks before: %d; blocs after: %d" % (blocks_before, blocks_after))
-        self.assertGreater(blocks_before / 10, blocks_after)
+        self.assertGreater(blocks_before, blocks_after)
+
+        # 6. Restart
+        self.pr("Restarting...")
+        self.simulate_restart()
+        self.pr("Restart complete")
+
+        # 7. Validate data after restart
+        self.validate(removed)
+
+    # Simulate a restart.
+    def simulate_restart(self):
+        self.close_conn()
+        self.conn = self.setUpConnectionOpen(".")
+        self.session = self.setUpSessionOpen(self.conn)
+
+    def validate(self, removed):
+        c = self.session.open_cursor(self.uri, None)
+        idx = 0
+        arr_len = len(removed)
+        for i in range(self.nrecords):
+            if idx < arr_len and removed[idx] == i:
+                idx += 1
+            else:
+                (i_val1, str_val1, i_val2, str_val2) = c[i]
+                self.assertEqual(i_val1, i)
+                self.assertEqual(i_val2, i)
+                self.assertEqual(str_val1, self.normalValue)
+                self.assertEqual(str_val2, self.normalValue)
+                
+        c.close()
+
 
 if __name__ == '__main__':
     wttest.run()
