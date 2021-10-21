@@ -740,6 +740,10 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
                 goto done;
         }
 
+        /* It is not necessary to go backwards when search_near is used with a prefix. */
+        if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
+            goto done;
+
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
