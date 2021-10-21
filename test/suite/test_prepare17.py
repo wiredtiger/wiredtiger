@@ -83,7 +83,6 @@ class test_prepare17(wttest.WiredTigerTestCase):
         self.session.checkpoint()
 
     def test_prepare_insert_remove(self):
-
         if not self.prepare:
             return
 
@@ -96,6 +95,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
             cursor[i] = self.value1
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(2))
 
+        # Transaction 2
         self.session.begin_transaction()
         for i in range(1, self.nrows + 1):
             cursor[i] = self.value2
@@ -108,7 +108,7 @@ class test_prepare17(wttest.WiredTigerTestCase):
         self.session.checkpoint()
         simulate_crash_restart(self, ".", "RESTART")
 
-        # All the keys with the update as value2 should be removed as the stable timestamp (6) is less than the durable timestamp (7).
+        # Update in Transaction2 should be removed as the stable timestamp (6) is less than the durable timestamp (7).
         cursor = self.session.open_cursor(self.uri)
         self.session.begin_transaction()
         for i in range(1, self.nrows+1):
