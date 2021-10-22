@@ -226,7 +226,7 @@ table_select_type(table_type type)
 
     for (i = mmrand(NULL, 1, ntables);; ++i) {
         if (i > ntables)
-            i = 0;
+            i = 1;
         if (tables[i]->type == type)
             break;
     }
