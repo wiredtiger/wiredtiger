@@ -286,8 +286,12 @@ database_operation::update_operation(thread_context *tc)
         testutil_check(cursor->reset(cursor.get()));
 
         /* Commit the current transaction if we're able to. */
-        if (tc->transaction.can_commit())
-            WT_IGNORE_RET(tc->transaction.commit());
+        if (tc->transaction.can_commit()) {
+            int ret = tc->transaction.commit();
+            if (ret != 0)
+                logger::log_msg(
+                  LOG_WARN, "Failed to commit the transaction: " + std::to_string(ret));
+        }
     }
 
     /* Make sure the last operation is rolled back now the work is finished. */
