@@ -356,35 +356,40 @@ snap_ts_clear(TINFO *tinfo, uint64_t ts)
 }
 
 /*
- * snap_repeat_ok_match --
- *     Compare two operations and see if they modified the same record.
+ * snap_repeat_match --
+ *     Compare two operations and return if they modified the same record.
  */
 static bool
-snap_repeat_ok_match(TINFO *tinfo, SNAP_OPS *current, SNAP_OPS *a)
+snap_repeat_match(SNAP_OPS *current, SNAP_OPS *a)
 {
     TABLE *table;
-
-    table = tinfo->table;
+    bool reverse;
 
     /* Reads are never a problem, there's no modification. */
     if (a->op == READ)
-        return (true);
-
-    /* Check for a matching single record modification. */
-    if (a->keyno == current->keyno)
         return (false);
 
+    /* Check if the operations were in the same table. */
+    if (a->id != current->id)
+        return (false);
+
+    /* Check for a matching single record insert, modify, remove or update. */
+    if (a->keyno == current->keyno)
+        return (true);
+
     /* Truncates are slightly harder, make sure the ranges don't overlap. */
+    table = tables[ntables == 0 ? 0 : a->id];
+    reverse = TV(BTREE_REVERSE) != 0;
     if (a->op == TRUNCATE) {
-        if (TV(BTREE_REVERSE) && (a->keyno == 0 || a->keyno >= current->keyno) &&
+        if (reverse && (a->keyno == 0 || a->keyno >= current->keyno) &&
           (a->last == 0 || a->last <= current->keyno))
-            return (false);
-        if (!TV(BTREE_REVERSE) && (a->keyno == 0 || a->keyno <= current->keyno) &&
+            return (true);
+        if (!reverse && (a->keyno == 0 || a->keyno <= current->keyno) &&
           (a->last == 0 || a->last >= current->keyno))
-            return (false);
+            return (true);
     }
 
-    return (true);
+    return (false);
 }
 
 /*
@@ -417,7 +422,7 @@ snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(tinfo, current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
 
@@ -430,7 +435,7 @@ snap_repeat_ok_commit(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(tinfo, current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
     return (true);
@@ -460,7 +465,7 @@ snap_repeat_ok_rollback(TINFO *tinfo, SNAP_OPS *current)
         if (p->opid != tinfo->opid)
             break;
 
-        if (!snap_repeat_ok_match(tinfo, current, p))
+        if (snap_repeat_match(current, p))
             return (false);
     }
     return (true);
