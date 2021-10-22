@@ -316,10 +316,6 @@ main(int argc, char *argv[])
 
     trace_teardown();
 
-    lock_destroy(g.wts_session, &g.backup_lock);
-    lock_destroy(g.wts_session, &g.ts_lock);
-    lock_destroy(g.wts_session, &g.prepare_commit_lock);
-
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))
         printf("\r%78s\r", " ");
@@ -328,6 +324,10 @@ main(int argc, char *argv[])
     fflush(stdout);
 
     config_clear();
+
+    lock_destroy(g.wts_session, &g.backup_lock);
+    lock_destroy(g.wts_session, &g.ts_lock);
+    lock_destroy(g.wts_session, &g.prepare_commit_lock);
 
     return (EXIT_SUCCESS);
 }

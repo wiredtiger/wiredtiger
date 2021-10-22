@@ -170,8 +170,6 @@ extern u_int ntables;
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
 typedef struct {
-    char tidbuf[128]; /* thread ID in printable form */
-
     WT_CONNECTION *wts_conn;
     WT_CONNECTION *wts_conn_inmemory;
     WT_SESSION *wts_session;
@@ -196,6 +194,7 @@ typedef struct {
     bool trace;                /* trace operations  */
     bool trace_all;            /* trace all operations  */
     bool trace_local;          /* write trace to the primary database */
+    char tidbuf[128];          /* thread ID in printable form */
     WT_CONNECTION *trace_conn; /* optional tracing database */
     WT_SESSION *trace_session;
 
@@ -233,6 +232,9 @@ typedef struct {
     pthread_rwlock_t death_lock;
 
     WT_CURSOR *page_dump_cursor; /* Snapshot isolation read failed, modifies failure handling. */
+
+    /* Any runs.type configuration. */
+    char runs_type[64];
 
     /*
      * The minimum key size: A minimum key size of 11 is necessary, row-store keys have a leading

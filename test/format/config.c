@@ -51,17 +51,11 @@ static void config_pct(TABLE *);
 static void config_transaction(void);
 
 /*
- * We currently disable random LSM testing, that is, it can be specified explicitly but we won't
- * randomly choose LSM as a data_source configuration.
- */
-#define DISABLE_RANDOM_LSM_TESTING 1
-
-/*
- * config_remain --
+ * config_random --
  *     Do random configuration on the remaining global or table space.
  */
 static void
-config_remain(TABLE *table, bool table_only)
+config_random(TABLE *table, bool table_only)
 {
     CONFIG *cp;
     CONFIGV *v;
@@ -112,29 +106,30 @@ config_promote(TABLE *table, CONFIG *cp, CONFIGV *v)
 }
 
 /*
- * config_tables --
- *     Finish initialization of a single table.
+ * We currently disable random LSM testing, that is, it can be specified explicitly but we won't
+ * randomly choose LSM as a data_source configuration.
+ */
+#define DISABLE_RANDOM_LSM_TESTING 1
+
+/*
+ * config_table_am --
+ *     Configure the table's access methods (type and source).
  */
 static void
-config_table(TABLE *table, void *arg)
+config_table_am(TABLE *table)
 {
-    CONFIG *cp;
-
-    (void)arg; /* unused argument */
+    char buf[128];
 
     /*
-     * For any values set in the base configuration, export them to this table (where this table
-     * doesn't already have a value set).
+     * The runs.type configuration allows more than a single type, for example, choosing from either
+     * RS and VLCS but not FLCS. If there's no table value but there was a global value, re-evaluate
+     * the original global specification, not the choice set for the global table.
      */
-    if (ntables != 0)
-        for (cp = configuration_list; cp->name != NULL; ++cp)
-            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
-                config_promote(table, cp, &tables[0]->v[cp->off]);
+    if (!table->v[V_TABLE_RUNS_TYPE].set && tables[0]->v[V_TABLE_RUNS_TYPE].set) {
+        testutil_check(__wt_snprintf(buf, sizeof(buf), "runs.type=%s", g.runs_type));
+        config_single(table, buf, true);
+    }
 
-    /*
-     * Choose a file format and a data source: they're interrelated (LSM is only compatible with
-     * row-store) and other items depend on them.
-     */
     if (!config_explicit(table, "runs.type")) {
         if (config_explicit(table, "runs.source") && DATASOURCE(table, "lsm"))
             config_single(table, "runs.type=row", false);
@@ -162,8 +157,7 @@ config_table(TABLE *table, void *arg)
             }
     }
 
-    if (!config_explicit(table, "runs.source")) {
-        config_single(table, "runs.source=table", false);
+    if (!config_explicit(table, "runs.source"))
         switch (mmrand(NULL, 1, 5)) {
         case 1: /* 20% */
             config_single(table, "runs.source=file", false);
@@ -187,17 +181,35 @@ config_table(TABLE *table, void *arg)
                 break;
             config_single(table, "runs.source=lsm", false);
 #endif
-            break;
+            /* FALLTHROUGH */
         case 3:
         case 4:
         case 5: /* 60% */
+            config_single(table, "runs.source=table", false);
             break;
         }
-    }
 
     /* If data_source and file_type were both set explicitly, we may still have a mismatch. */
     if (DATASOURCE(table, "lsm") && table->type != ROW)
         testutil_die(EINVAL, "%s: lsm data_source is only compatible with row file_type", progname);
+}
+
+/*
+ * config_tables --
+ *     Finish initialization of a single table.
+ */
+static void
+config_table(TABLE *table, void *arg)
+{
+    CONFIG *cp;
+
+    (void)arg; /* unused argument */
+
+    /*
+     * Choose a file format and a data source: they're interrelated (LSM is only compatible with
+     * row-store) and other items depend on them.
+     */
+    config_table_am(table);
 
     /*
      * Build the top-level object name: we're overloading data_source in our configuration, LSM
@@ -212,8 +224,17 @@ config_table(TABLE *table, void *arg)
     testutil_check(
       __wt_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id));
 
+    /*
+     * For any values set in the base configuration, export them to this table (where this table
+     * doesn't already have a value set).
+     */
+    if (ntables != 0)
+        for (cp = configuration_list; cp->name != NULL; ++cp)
+            if (F_ISSET(cp, C_TABLE) && !table->v[cp->off].set && tables[0]->v[cp->off].set)
+                config_promote(table, cp, &tables[0]->v[cp->off]);
+
     /* Fill in random values for the rest of the run. */
-    config_remain(table, true);
+    config_random(table, true);
 
     /* Page sizes are configured using powers-of-two or megabytes, convert them. */
     table->max_intl_page = 1U << TV(BTREE_INTERNAL_PAGE_MAX);
@@ -263,7 +284,7 @@ config_table(TABLE *table, void *arg)
     if (table->type != ROW)
         config_single(table, "btree.reverse=off", false);
 
-    /* Give LSM a final review and set the global flag there's at least one LSM data source. */
+    /* Give LSM a final review and flag if there's at least one LSM data source. */
     if (DATASOURCE(table, "lsm")) {
         g.lsm_config = true;
         config_lsm_reset(table);
@@ -279,7 +300,7 @@ config_run(void)
 {
     config_in_memory(); /* Periodically run in-memory. */
 
-    config_remain(tables[0], false); /* Configure the remaining global name space. */
+    config_random(tables[0], false); /* Configure the remaining global name space. */
 
     table_wrapper(config_table, NULL); /* Configure the tables. */
 
@@ -1369,6 +1390,10 @@ config_single(TABLE *table, const char *s, bool explicit)
           strncmp("table", equalp, strlen("table")) != 0) {
             testutil_die(EINVAL, "Invalid data source option: %s", equalp);
         } else if (strncmp(s, "runs.type", strlen("runs.type")) == 0) {
+            /* Save any global configuration for later table configuration. */
+            if (table == tables[0])
+                testutil_check(__wt_snprintf(g.runs_type, sizeof(g.runs_type), "%s", equalp));
+
             config_map_file_type(equalp, &table->type);
             equalp = config_file_type(table->type);
         }
