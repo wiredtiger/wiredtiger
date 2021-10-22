@@ -36,7 +36,6 @@ import subprocess
 import sys
 import platform
 import psutil
-import ntpath
 
 from wtperf_config import WTPerfConfig
 from perf_stat import PerfStat
@@ -77,29 +76,31 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
     return command_line
 
 
-def evergreen_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
+def brief_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     as_list = []
     as_list.append(
         {
             "info": {
-                "test_name": ntpath.basename(config.test)
+                "test_name": os.path.basename(config.test)
             },
-            "metrics": perf_stats.to_value_list_evergreen()
+            "metrics": perf_stats.to_value_list(brief=True)
         }
     )
     return as_list
 
 
-def atlas_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
+def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     total_memory_gb = psutil.virtual_memory().total / (1024 * 1024 * 1024)
-    as_dict = {'config': config.to_value_dict(),
-               'metrics': perf_stats.to_value_list_atlas(),
-               'system': {
+    as_dict = {
+                'config': config.to_value_dict(),
+                'metrics': perf_stats.to_value_list(brief=False),
+                'system': {
                    'cpu_physical_cores': psutil.cpu_count(logical=False),
                    'cpu_logical_cores': psutil.cpu_count(),
                    'total_physical_memory_gb': total_memory_gb,
-                   'platform': platform.platform()}
-               }
+                   'platform': platform.platform()
+                }
+            }
     return as_dict
 
 
@@ -159,8 +160,8 @@ def main():
     parser.add_argument('-p', '--wtperf', help='path of the wtperf executable')
     parser.add_argument('-e', '--env', help='any environment variables that need to be set for running wtperf')
     parser.add_argument('-t', '--test', help='path of the wtperf test to execute')
-    parser.add_argument('-oe', '--outfile_evergreen', help='path of the file to write test output(evergreen format) to')
-    parser.add_argument('-oa', '--outfile_atlas', help='path of the file to write test output(atlas format) to')
+    parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
+    parser.add_argument('-b', '--brief_output', action="store_true", help='brief(not detailed) test output')
     parser.add_argument('-m', '--runmax', type=int, default=1, help='maximum number of times to run the test')
     parser.add_argument('-ho', '--home', help='path of the "home" directory that wtperf will use')
     parser.add_argument('-re',
@@ -174,14 +175,13 @@ def main():
         print('WTPerfPy')
         print('========')
         print("Configuration:")
-        print("  WtPerf path:         {}".format(args.wtperf))
-        print("  Environment:         {}".format(args.env))
-        print("  Test path:           {}".format(args.test))
-        print("  Home base:           {}".format(args.home))
-        print("  Outfile (Evergreen): {}".format(args.outfile_evergreen))
-        print("  Outfile (Atlas):     {}".format(args.outfile_atlas))
-        print("  Runmax:              {}".format(args.runmax))
-        print("  Reuse results:       {}".format(args.reuse))
+        print("  WtPerf path:   {}".format(args.wtperf))
+        print("  Environment:   {}".format(args.env))
+        print("  Test path:     {}".format(args.test))
+        print("  Home base:     {}".format(args.home))
+        print("  Outfile:       {}".format(args.outfile))
+        print("  Runmax:        {}".format(args.runmax))
+        print("  Reuse results: {}".format(args.reuse))
 
     if args.wtperf is None:
         sys.exit('The path to the wtperf executable is required')
@@ -206,24 +206,30 @@ def main():
             run_test(config=config, test_run=test_run)
             print("Completed test {}".format(test_run))
 
+    if not args.verbose and not args.outfile:
+        sys.exit("Enable verbosity (or provide a file path) to dump the stats. Try 'python3 wtperf_run.py --help' for more information.")
+
     process_results(config, perf_stats)
 
-    # Generate performace data in the format accepted by Atlas.
-    atlas_perf = atlas_perf_stats(config, perf_stats)
-    if args.outfile_atlas:
-        with open(args.outfile_atlas, 'w') as outfile:
-            json.dump(atlas_perf, outfile, indent=4, sort_keys=True)
+    if args.brief_output:
+        if args.verbose:
+            print("Brief stats output (Evergreen compatible format):")
+        perf_results = brief_perf_stats(config, perf_stats)
+    else:
+        if args.verbose:
+            print("Detailed stats output (Atlas compatible format):")
+        perf_results = detailed_perf_stats(config, perf_stats)
 
-    # Generate performace data in the format accepted by Evergreen.
-    evergreen_perf = evergreen_perf_stats(config, perf_stats)
-    if args.outfile_evergreen:
-        with open(args.outfile_evergreen, 'w') as outfile:
-            json.dump(evergreen_perf, outfile, indent=4, sort_keys=True)
-
-    # Dump logs.
     if args.verbose:
-        perf_json = json.dumps(atlas_perf, indent=4, sort_keys=True)
+        perf_json = json.dumps(perf_results, indent=4, sort_keys=True)
         print("{}".format(perf_json))
+
+    if args.outfile:
+        dir_name = os.path.dirname(args.outfile)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
+        with open(args.outfile, 'w') as outfile:
+            json.dump(perf_results, outfile, indent=4, sort_keys=True)
 
 
 if __name__ == '__main__':
