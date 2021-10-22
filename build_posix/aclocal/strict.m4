@@ -85,7 +85,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w_c="$w"
 	w_cxx="$w"
 
-	# FIX-ME-WT-8247: Add those flags to w if we want them for the compilation of the c++ files too.
+	# FIX-ME-WT-8247: Add those flags to the common ones if we want them for the compilation of the c++ files too.
 	w_c="$w_c -Waggregate-return"
 	w_c="$w_c -Wall"
 	w_c="$w_c -Wextra"
