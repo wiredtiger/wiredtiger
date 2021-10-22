@@ -304,7 +304,7 @@ class TestCase(unittest.TestCase):
         the exception has caused.
 
         Handlers are called in first-added, first-called order, and if they
-        raise an exception, that will propagate out of the test running
+        raise an exception, that will propogate out of the test running
         machinery, halting test processing. As a result, do not call code that
         may unreasonably fail.
         """
@@ -494,7 +494,7 @@ class TestCase(unittest.TestCase):
         return '%s-%d' % (prefix, self.getUniqueInteger())
 
     def onException(self, exc_info, tb_label='traceback'):
-        """Called when an exception propagates from test code.
+        """Called when an exception propogates from test code.
 
         :seealso addOnException:
         """
