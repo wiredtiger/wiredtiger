@@ -46,8 +46,10 @@ scoped_cursor::scoped_cursor(scoped_cursor &&other)
 
 scoped_cursor::~scoped_cursor()
 {
-    if (_cursor != nullptr)
+    if (_cursor != nullptr) {
         testutil_check(_cursor->close(_cursor));
+        _cursor = nullptr;
+    }
 }
 
 /*
@@ -106,8 +108,10 @@ scoped_session::scoped_session(WT_CONNECTION *conn)
 
 scoped_session::~scoped_session()
 {
-    if (_session != nullptr)
+    if (_session != nullptr) {
         testutil_check(_session->close(_session, nullptr));
+        _session = nullptr;
+    }
 }
 
 scoped_session::scoped_session(scoped_session &&other)
