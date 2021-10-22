@@ -999,11 +999,8 @@ config_pct(TABLE *table)
 static void
 config_transaction(void)
 {
-    bool any_prepare;
-
     /* Transaction prepare requires timestamps and is incompatible with logging. */
-    any_prepare = table_sumv(V_GLOBAL_OPS_PREPARE) != 0;
-    if (any_prepare) {
+    if (GV(OPS_PREPARE) && config_explicit(NULL, "ops.prepare")) {
         if (!GV(TRANSACTION_TIMESTAMPS) && config_explicit(NULL, "transaction.timestamps"))
             testutil_die(EINVAL, "prepare requires transaction timestamps");
         if (GV(LOGGING) && config_explicit(NULL, "logging"))
@@ -1029,7 +1026,7 @@ config_transaction(void)
      * time we check logging, logging must have been required by the run if both logging and prepare
      * are still set, so we can just turn off prepare in that case).
      */
-    if (any_prepare) {
+    if (GV(OPS_PREPARE)) {
         if (!config_explicit(NULL, "logging"))
             config_single(NULL, "logging=off", false);
         if (!config_explicit(NULL, "transaction.timestamps"))
