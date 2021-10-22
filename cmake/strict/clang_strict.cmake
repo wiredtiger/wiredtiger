@@ -6,7 +6,7 @@
 # See the file LICENSE for redistribution information.
 #
 
-# List of common C/CPP flags.
+# List of common C/CXX flags.
 list(APPEND clang_base_flags "-Werror")
 list(APPEND clang_base_flags "-Wno-cast-align")
 list(APPEND clang_base_flags "-Wno-documentation-unknown-command")
@@ -62,7 +62,7 @@ if(WT_DARWIN AND NOT CMAKE_CROSSCOMPILING)
 endif()
 
 set(clang_c_flags ${clang_base_flags})
-set(clang_cpp_flags ${clang_base_flags})
+set(clang_cxx_flags ${clang_base_flags})
 
 # Specific C flags.
 # The -Weverything flag is not recommended, we only keep it for C files as it was already enabled.
@@ -70,4 +70,4 @@ list(APPEND clang_c_flags "-Weverything")
 
 # Set our compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_FLAGS ${clang_c_flags})
-set(COMPILER_DIAGNOSTIC_CPP_FLAGS ${clang_cpp_flags})
+set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${clang_cxx_flags})

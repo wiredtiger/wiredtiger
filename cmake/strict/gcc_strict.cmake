@@ -6,7 +6,7 @@
 # See the file LICENSE for redistribution information.
 #
 
-# List of common C/CPP flags.
+# List of common C/CXX flags.
 list(APPEND gcc_base_flags "-Wcast-align")
 list(APPEND gcc_base_flags "-Wdouble-promotion")
 list(APPEND gcc_base_flags "-Werror")
@@ -64,9 +64,9 @@ if(${CMAKE_C_COMPILER_VERSION} VERSION_GREATER_EQUAL 8)
 endif()
 
 set(gcc_c_flags ${gcc_base_flags})
-set(gcc_cpp_flags ${gcc_base_flags})
+set(gcc_cxx_flags ${gcc_base_flags})
 
-# FIX-ME-WT-8247: Add those flags to gcc_base_flags if we want them for the CPP compilation too.
+# FIX-ME-WT-8247: Add those flags to the common ones if we want them for the compilation of the c++ files too.
 list(APPEND gcc_c_flags "-Waggregate-return")
 list(APPEND gcc_c_flags "-Wall")
 list(APPEND gcc_c_flags "-Wextra")
@@ -85,4 +85,4 @@ list(APPEND gcc_c_flags "-Wstrict-prototypes")
 
 # Set our compiler flags that can be used by the rest of our build.
 set(COMPILER_DIAGNOSTIC_FLAGS ${gcc_c_flags})
-set(COMPILER_DIAGNOSTIC_CPP_FLAGS ${gcc_cpp_flags})
+set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${gcc_cxx_flags})

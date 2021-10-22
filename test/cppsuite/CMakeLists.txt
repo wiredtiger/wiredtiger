@@ -56,7 +56,7 @@ target_include_directories(cppsuite_test_harness PUBLIC ${CMAKE_CURRENT_SOURCE_D
 target_compile_options(
     cppsuite_test_harness
     PUBLIC -std=c++11
-    PRIVATE ${COMPILER_DIAGNOSTIC_CPP_FLAGS}
+    PRIVATE ${COMPILER_DIAGNOSTIC_CXX_FLAGS}
 )
 target_link_libraries(cppsuite_test_harness PRIVATE test_util)
 

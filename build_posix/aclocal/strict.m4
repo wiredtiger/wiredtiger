@@ -4,7 +4,7 @@
 # GCC warnings.
 AC_DEFUN([AM_GCC_WARNINGS], [
 
-	# List of common C/CPP flags.
+	# List of common C/CXX flags.
 	w="$w -Wcast-align"
 	w="$w -Wdouble-promotion"
 	w="$w -Werror"
@@ -83,9 +83,9 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	fi
 
 	w_c="$w"
-	w_cpp="$w"
+	w_cxx="$w"
 
-	# FIX-ME-WT-8247: Add those flags to w if we want them for the CPP compilation too.
+	# FIX-ME-WT-8247: Add those flags to w if we want them for the compilation of the c++ files too.
 	w_c="$w_c -Waggregate-return"
 	w_c="$w_c -Wall"
 	w_c="$w_c -Wextra"
@@ -103,13 +103,13 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w_c="$w_c -Wstrict-prototypes"
 
 	wt_c_strict_warnings="$w_c"
-	wt_cpp_strict_warnings="$w_cpp"
+	wt_cxx_strict_warnings="$w_cxx"
 ])
 
 # Clang warnings.
 AC_DEFUN([AM_CLANG_WARNINGS], [
 
-	# List of common C/CPP flags.
+	# List of common C/CXX flags.
 	w="$w -Werror"
 	w="$w -Wno-cast-align"
 	w="$w -Wno-documentation-unknown-command"
@@ -157,12 +157,12 @@ AC_DEFUN([AM_CLANG_WARNINGS], [
 	w="$w -Wno-unknown-warning-option"
 
 	w_c="$w"
-	w_cpp="$w"
+	w_cxx="$w"
 
 	# Specific C flags.
 	# The -Weverything flag is not recommended, we only keep it for C files as it was already enabled.
 	w_c="$w_c -Weverything"
 
 	wt_c_strict_warnings="$w_c"
-	wt_cpp_strict_warnings="$w_cpp"
+	wt_cxx_strict_warnings="$w_cxx"
 ])
