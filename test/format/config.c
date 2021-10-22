@@ -209,6 +209,8 @@ config_table(TABLE *table, void *arg)
     else
         testutil_check(__wt_snprintf(table->uri, sizeof(table->uri),
           DATASOURCE(table, "file") ? "file:F%05u" : "table:T%05u", table->id));
+    testutil_check(
+      __wt_snprintf(table->track_prefix, sizeof(table->track_prefix), "table %u", table->id));
 
     /* Fill in random values for the rest of the run. */
     config_remain(table, true);

@@ -116,9 +116,10 @@ typedef struct {
 
 typedef enum { FIX, ROW, VAR } table_type;
 typedef struct {
-    u_int id;        /* table ID */
-    char uri[32];    /* table name */
-    table_type type; /* table type */
+    u_int id;              /* table ID */
+    char uri[32];          /* table URI */
+    table_type type;       /* table type */
+    char track_prefix[32]; /* table track message prefix */
 
     uint32_t max_intl_page; /* page size configurations converted to bytes */
     uint32_t max_leaf_page;

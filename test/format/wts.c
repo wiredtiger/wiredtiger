@@ -544,7 +544,6 @@ wts_verify(TABLE *table, void *arg)
     WT_CONNECTION *conn;
     WT_DECL_RET;
     WT_SESSION *session;
-    char track_buf[128];
 
     conn = (WT_CONNECTION *)arg;
 
@@ -556,8 +555,7 @@ wts_verify(TABLE *table, void *arg)
      * LSM, the handle may not be available for a long time.
      */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    testutil_check(__wt_snprintf(track_buf, sizeof(track_buf), "table %u", table->id));
-    session->app_private = track_buf;
+    session->app_private = table->track_prefix;
     ret = session->verify(session, table->uri, "strict");
     testutil_assert(ret == 0 || ret == EBUSY);
     testutil_check(session->close(session, NULL));

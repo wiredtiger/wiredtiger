@@ -127,17 +127,15 @@ wts_salvage(TABLE *table, void *arg)
     if (GV(OPS_SALVAGE) == 0 || DATASOURCE(table, "lsm"))
         return;
 
-    track("salvage", 0ULL); /* XXX KEITH SET APP-PRIVATE */
-
     /* Save a copy of the interesting files so we can replay the salvage step as necessary. */
     uri_path(table, NULL, path, sizeof(path));
     testutil_check(
       __wt_snprintf(buf, sizeof(buf), SALVAGE_COPY_CMD, g.home, g.home, g.home, path, g.home));
     testutil_check(system(buf));
 
-    wts_open(g.home, &conn, &session, true);
-
     /* Salvage, then verify. */
+    wts_open(g.home, &conn, &session, true);
+    session->app_private = table->track_prefix;
     testutil_check(session->salvage(session, table->uri, "force=true"));
     wts_verify(table, conn);
     wts_close(&conn, &session);
