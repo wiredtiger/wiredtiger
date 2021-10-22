@@ -66,13 +66,14 @@ scoped_cursor::operator=(scoped_cursor &&other)
 void
 scoped_cursor::reinit(WT_SESSION *session, const std::string &uri, const std::string &cfg)
 {
+    testutil_assert(!uri.empty());
     if (_cursor != nullptr) {
         testutil_check(_cursor->close(_cursor));
         _cursor = nullptr;
     }
     if (session != nullptr)
-        testutil_check(session->open_cursor(session, uri.empty() ? nullptr : uri.c_str(), nullptr,
-          cfg.empty() ? nullptr : cfg.c_str(), &_cursor));
+        testutil_check(session->open_cursor(
+          session, uri.c_str(), nullptr, cfg.empty() ? nullptr : cfg.c_str(), &_cursor));
 }
 
 /*
