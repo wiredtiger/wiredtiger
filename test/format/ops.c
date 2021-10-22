@@ -1125,12 +1125,7 @@ wts_read_scan(TABLE *table, void *arg)
 
     /* Open a session and cursor pair. */
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    /*
-     * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-     */
-    while ((ret = session->open_cursor(session, table->uri, NULL, NULL, &cursor)) == EBUSY)
-        __wt_yield();
-    testutil_check(ret);
+    wiredtiger_open_cursor(session, table->uri, NULL, &cursor);
 
     /* Check a random subset of the records using the key. */
     WT_ORDERED_READ(max_rows, table->rows_current);

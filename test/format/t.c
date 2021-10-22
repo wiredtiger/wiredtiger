@@ -286,11 +286,12 @@ main(int argc, char *argv[])
         trace_init();
     }
 
-    /* Load and verify initial records */
+    /* Load and verify initial records (at least a brief scan if not doing a full verify). */
     if (!g.reopen)
         TIMED_MAJOR_OP(table_wrapper(wts_load, NULL));
     TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
-    TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
+    if (GV(OPS_VERIFY) == 0)
+	TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
 
     /* Optionally start checkpoints. */
     wts_checkpoints();

@@ -68,14 +68,9 @@ random_kv(void *arg)
         config = simple ? "next_random=true" : "next_random=true,next_random_sample_size=37";
         simple = !simple;
 
-        /*
-         * Select a table and open a cursor. WT_SESSION.open_cursor can return EBUSY if concurrent
-         * with a metadata operation, retry in that case.
-         */
+        /* Select a table and open a cursor. */
         table = table_select_type(ROW);
-        while ((ret = session->open_cursor(session, table->uri, NULL, config, &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_check(ret);
+	wiredtiger_open_cursor(session, table->uri, config, &cursor);
 
         /* This is just a smoke-test, get some key/value pairs. */
         for (i = mmrand(NULL, 0, 1000); i > 0; --i) {

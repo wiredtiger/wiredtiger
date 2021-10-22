@@ -234,6 +234,22 @@ table_select_type(table_type type)
 }
 
 /*
+ * wiredtiger_open_cursor --
+ *     Open a WiredTiger cursor.
+ */
+static inline void
+wiredtiger_open_cursor(
+  WT_SESSION *session, const char *uri, const char *config, WT_CURSOR **cursorp)
+{
+    WT_DECL_RET;
+
+    /* WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry. */
+    while ((ret = session->open_cursor(session, uri, NULL, config, cursorp)) == EBUSY)
+        __wt_yield();
+    testutil_checkfmt(ret, "%s", uri);
+}
+
+/*
  * table_cursor --
  *     Return the cursor for a table, opening a new one if necessary.
  */
@@ -241,31 +257,24 @@ static inline WT_CURSOR *
 table_cursor(TINFO *tinfo, u_int id)
 {
     TABLE *table;
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_SESSION *session;
     const char *config;
 
     /* The table ID is 1-based, the cursor array is 0-based. */
     table = tables[ntables == 0 ? 0 : id];
     --id;
 
-    if ((cursor = tinfo->cursors[id]) == NULL) {
-        /*
-         * Configure "append", in the case of column stores, we append when inserting new rows.
-         *
-         * WT_SESSION.open_cursor can return EBUSY if concurrent with a metadata operation, retry.
-         */
-        session = tinfo->session;
+    if (tinfo->cursors[id] == NULL) {
+        /* Configure "append", in the case of column stores, we append when inserting new rows. */
         config = table->type == ROW ? NULL : "append";
-        while ((ret = session->open_cursor(session, table->uri, NULL, config, &cursor)) == EBUSY)
-            __wt_yield();
-        testutil_checkfmt(ret, "%s", table->uri);
-        tinfo->cursors[id] = cursor;
+        wiredtiger_open_cursor(tinfo->session, table->uri, config, &tinfo->cursors[id]);
     }
     return (tinfo->cursors[id]);
 }
 
+/*
+ * wiredtiger_begin_transaction --
+ *     Start a WiredTiger transaction.
+ */
 static inline void
 wiredtiger_begin_transaction(WT_SESSION *session, const char *config)
 {
