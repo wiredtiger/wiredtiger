@@ -484,7 +484,8 @@ config_backward_compatible(void)
 static void
 config_cache(void)
 {
-    uint32_t cache, workers;
+    uint64_t cache;
+    uint32_t workers;
 
     /* Check if both min and max cache sizes have been specified and if they're consistent. */
     if (config_explicit(NULL, "cache")) {
@@ -497,14 +498,13 @@ config_cache(void)
     GV(CACHE) = GV(CACHE_MINIMUM);
 
     /*
-     * If it's an in-memory run, size the cache at 3x the maximum initial data set. (That may look
-     * pessimistic, but lower values fail with depressing regularity.) This calculation is done in
-     * bytes, convert to megabytes before testing against the cache.
+     * If it's an in-memory run, size the cache at 2x the maximum initial data set. This calculation
+     * is done in bytes, convert to megabytes before testing against the cache.
      */
     if (GV(RUNS_IN_MEMORY)) {
         cache = table_sumv(V_TABLE_BTREE_KEY_MAX) + table_sumv(V_TABLE_BTREE_VALUE_MAX);
         cache *= table_sumv(V_TABLE_RUNS_ROWS);
-        cache *= 3;
+        cache *= 2;
         cache /= WT_MEGABYTE; /* NOT in MB units, convert for cache test */
         if (GV(CACHE) < cache)
             GV(CACHE) = cache;
