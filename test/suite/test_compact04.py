@@ -43,6 +43,9 @@ class test_compact04(wttest.WiredTigerTestCase):
     uri='table:test_compact04'
     file_name='test_compact04.wt'
 
+    uri_holes='table:test_compact04_holes'
+    file_name_holes='test_compact04_holes.wt'
+
     fileConfig = [
         #('1KB', dict(fileConfig='allocation_size=1KB,leaf_page_max=1KB')),
         ('4KB', dict(fileConfig='allocation_size=4KB,leaf_page_max=4KB')),
@@ -57,49 +60,75 @@ class test_compact04(wttest.WiredTigerTestCase):
     nrecords = 100000
 
     def test_compact04(self):
-        # 1. Create a table with relatively small page size.
+        # 1. Create two tables with same content.
         params = 'key_format=Q,value_format=QSQS,' + self.fileConfig
         self.session.create(self.uri, params)
+        self.session.create(self.uri_holes, params)
         c = self.session.open_cursor(self.uri, None)
+        c_holes = self.session.open_cursor(self.uri_holes, None)
         for i in range(self.nrecords):
             c[i] = (i, self.normalValue, i, self.normalValue)
+            c_holes[i] = (i, self.normalValue, i, self.normalValue)
         c.close()
+        c_holes.close()
 
-        # 2. Checkpoint and get stats on the table to confirm the size.
+        # 2. Checkpoint the database.
         self.session.checkpoint()
 
-        # 3. Delete 90% of random records from the table.
-        c = self.session.open_cursor(self.uri, None)
+        # 3. Delete 90% of random records from the tables.
         removed = list(range(self.nrecords))
         random.shuffle(removed)
         removed = removed[:int(self.nrecords * 0.25)]
         removed.sort()
 
+        c = self.session.open_cursor(self.uri, None)
+        c_holes = self.session.open_cursor(self.uri_holes, None)
         for i in removed:
             c.set_key(i)
+            c_holes.set_key(i)
             self.assertEqual(c.remove(), 0)
+            self.assertEqual(c_holes.remove(), 0)
 
         c.close()
+        c_holes.close()
 
-        # 4. Checkpoint and get stats on the table to confirm the size.
+        # 4. Checkpoint the database.
         self.session.checkpoint()
 
-        # 5. Call compact with punch_holes.
+        # 5. Call compact with punch_holes on one table and normal compact on the other.
+        # Get number of blocks before compact
         blocks_before = os.stat(self.file_name).st_blocks
-        self.session.compact(self.uri, "punch_holes=1")
+        blocks_before_holes = os.stat(self.file_name_holes).st_blocks
         
+        self.session.compact(self.uri, None)
+        self.session.compact(self.uri_holes, "punch_holes=1")
+        
+        # Get number of blocks after compact
         blocks_after = os.stat(self.file_name).st_blocks
+        blocks_after_holes = os.stat(self.file_name_holes).st_blocks
 
-        self.pr("Blocks before: %d; blocs after: %d" % (blocks_before, blocks_after))
+        self.pr("Compact: blocks before: %d; blocs after: %d" % (blocks_before, blocks_after))
+        self.pr("Compact with hole punching: blocks before: %d; blocs after: %d" % (blocks_before_holes, blocks_after_holes))
+        
+        # 6. Check blocks number
+        # Test that compact reduced number of occupied blocks.
         self.assertGreater(blocks_before, blocks_after)
+        self.assertGreater(blocks_before_holes, blocks_after_holes)
+        
+        # Test that number of blocks before the two compact calls are the same.
+        self.assertEqual(blocks_before, blocks_before_holes)
+        
+        # Test that the number of blocks after the two compact calls are within 10% difference.
+        self.assertGreater(min(blocks_after, blocks_after_holes) * 0.1, abs(blocks_after - blocks_after_holes))
 
-        # 6. Restart
+        # 7. Restart
         self.pr("Restarting...")
         self.simulate_restart()
         self.pr("Restart complete")
 
-        # 7. Validate data after restart
-        self.validate(removed)
+        # 8. Validate data after restart
+        self.validate(self.uri, removed)
+        self.validate(self.uri_holes, removed)
 
     # Simulate a restart.
     def simulate_restart(self):
@@ -107,8 +136,8 @@ class test_compact04(wttest.WiredTigerTestCase):
         self.conn = self.setUpConnectionOpen(".")
         self.session = self.setUpSessionOpen(self.conn)
 
-    def validate(self, removed):
-        c = self.session.open_cursor(self.uri, None)
+    def validate(self, uri, removed):
+        c = self.session.open_cursor(uri, None)
         idx = 0
         arr_len = len(removed)
         for i in range(self.nrecords):
