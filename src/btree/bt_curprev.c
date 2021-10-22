@@ -229,11 +229,8 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     btree = S2BT(session);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
-    if (restart) {
-        /* Calls with key only flag should never restart. */
-        WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY));
+    if (restart)
         goto restart_read;
-    }
 
     /* Initialize for each new page. */
     if (newpage) {
@@ -291,11 +288,8 @@ __cursor_var_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
-    if (restart) {
-        /* Calls with key only flag should never restart. */
-        WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY));
+    if (restart)
         goto restart_read;
-    }
 
     if (newpage) {
         cbt->ins = WT_SKIP_LAST(cbt->ins_head);
@@ -353,11 +347,8 @@ __cursor_var_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skip
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
-    if (restart) {
-        /* Calls with key only flag should never restart. */
-        WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY));
+    if (restart)
         goto restart_read;
-    }
 
     /* Initialize for each new page. */
     if (newpage) {
@@ -521,8 +512,6 @@ __cursor_row_prev(
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart) {
-        /* Calls with key only flag should never restart. */
-        WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY));
         if (cbt->iter_retry == WT_CBT_RETRY_INSERT)
             goto restart_read_insert;
         if (cbt->iter_retry == WT_CBT_RETRY_PAGE)
@@ -696,6 +685,8 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     restart = F_ISSET(cbt, WT_CBT_ITERATE_RETRY_PREV);
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_PREV);
     for (newpage = false;; newpage = true, restart = false) {
+        /* Calls with key only flag should never restart. */
+        WT_ASSERT(session, !F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) || !restart);
         page = cbt->ref == NULL ? NULL : cbt->ref->page;
 
         /*
