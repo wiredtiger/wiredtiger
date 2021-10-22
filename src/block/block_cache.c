@@ -8,30 +8,26 @@
 
 #include "wt_internal.h"
 
-
 /*
  * __blkcache_aggregate_metadata --
- *    Sum the metadata for all buckets and write it into the
- *    cache wide variables.
+ *     Sum the metadata for all buckets and write it into the cache wide variables.
  */
 static void
 __blkcache_aggregate_metadata(WT_BLKCACHE *blkcache)
 {
-    uint i;
     uint64_t bytes_used, num_data_blocks;
+    u_int i;
 
     bytes_used = num_data_blocks = 0;
 
     for (i = 0; i < blkcache->hash_size; i++) {
-	bytes_used += blkcache->bucket_metadata[i].bucket_bytes_used;
-	num_data_blocks += blkcache->bucket_metadata[i].bucket_num_data_blocks;
+        bytes_used += blkcache->bucket_metadata[i].bucket_bytes_used;
+        num_data_blocks += blkcache->bucket_metadata[i].bucket_num_data_blocks;
     }
 
     blkcache->bytes_used = bytes_used;
     blkcache->num_data_blocks = num_data_blocks;
 }
-
-
 
 /*
  * __blkcache_alloc --
@@ -165,8 +161,8 @@ __blkcache_should_evict(WT_SESSION_IMPL *session, WT_BLKCACHE_ITEM *blkcache_ite
     *reason = BLKCACHE_EVICT_OTHER;
 
     /*
-     * Keep track of the smallest number of references for blocks that have
-     * not been recently accessed.
+     * Keep track of the smallest number of references for blocks that have not been recently
+     * accessed.
      */
     if ((blkcache_item->freq_rec_counter < blkcache->evict_aggressive) &&
       (blkcache_item->num_references < blkcache->min_num_references))
@@ -218,9 +214,9 @@ __blkcache_eviction_thread(void *arg)
     blkcache = &conn->blkcache;
 
     __wt_verbose(session, WT_VERB_BLKCACHE,
-		 "Block cache eviction thread starting... "
-		 "Aggressive target = %d, full target = %" PRIu64 ":",
-		 blkcache->evict_aggressive, blkcache->full_target);
+      "Block cache eviction thread starting... "
+      "Aggressive target = %d, full target = %" PRIu64 ":",
+      blkcache->evict_aggressive, blkcache->full_target);
 
     while (!blkcache->blkcache_exiting) {
 
@@ -228,14 +224,14 @@ __blkcache_eviction_thread(void *arg)
          * Sweep the cache every second to ensure time-based decay of frequency/recency counters of
          * resident blocks.
          */
-	__wt_sleep(1, 0);
+        __wt_sleep(1, 0);
 
         /* Check if the cache is being destroyed */
         if (blkcache->blkcache_exiting)
             return (0);
 
-	/* Aggregate per bucket metadata into cache wide variables. */
-	__blkcache_aggregate_metadata(blkcache);
+        /* Aggregate per bucket metadata into cache wide variables. */
+        __blkcache_aggregate_metadata(blkcache);
 
         /*
          * Walk the cache, gathering statistics and evicting blocks that are within our target. We
@@ -354,8 +350,8 @@ __wt_blkcache_get_or_check(
     WT_STAT_CONN_INCR(session, block_cache_data_refs);
 
     /*
-     * We race to avoid using synchronization. We only care about an approximate value, so we
-     * accept inaccuary for the sake of avoiding synchronization on the critical path.
+     * We race to avoid using synchronization. We only care about an approximate value, so we accept
+     * inaccuracy for the sake of avoiding synchronization on the critical path.
      */
     blkcache->lookups++;
 
@@ -385,9 +381,8 @@ __wt_blkcache_get_or_check(
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if (blkcache_item->id.checksum == id.checksum &&
-	    blkcache_item->id.offset == id.offset &&
-	    blkcache_item->id.size == id.size) {
+        if (blkcache_item->id.checksum == id.checksum && blkcache_item->id.offset == id.offset &&
+          blkcache_item->id.size == id.size) {
             if (data_ptr != NULL)
                 memcpy(data_ptr, blkcache_item->data, size);
 
@@ -438,7 +433,6 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     blkcache_item = NULL;
     data_ptr = NULL;
 
-
     if (blkcache->type == BLKCACHE_UNCONFIGURED)
         return (-1);
 
@@ -453,8 +447,8 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
         return (WT_BLKCACHE_FULL);
 
     /*
-     * If more than the configured fraction of the file is likely to fit into the
-     * OS buffer cache, don't use this cache.
+     * If more than the configured fraction of the file is likely to fit into the OS buffer cache,
+     * don't use this cache.
      */
     if (blkcache->system_ram >=
       __blkcache_estimate_filesize(session) * blkcache->fraction_in_os_cache) {
@@ -503,9 +497,8 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if (blkcache_item->id.checksum == id.checksum &&
-	    blkcache_item->id.offset == id.offset &&
-	    blkcache_item->id.size == id.size)
+        if (blkcache_item->id.checksum == id.checksum && blkcache_item->id.offset == id.offset &&
+          blkcache_item->id.size == id.size)
             goto item_exists;
     }
 
@@ -599,9 +592,8 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
     bucket = hash % blkcache->hash_size;
     __wt_spin_lock(session, &blkcache->hash_locks[bucket]);
     TAILQ_FOREACH (blkcache_item, &blkcache->hash[bucket], hashq) {
-        if (blkcache_item->id.checksum == id.checksum &&
-	    blkcache_item->id.offset == id.offset &&
-	    blkcache_item->id.size == id.size) {
+        if (blkcache_item->id.checksum == id.checksum && blkcache_item->id.offset == id.offset &&
+          blkcache_item->id.size == id.size) {
             TAILQ_REMOVE(&blkcache->hash[bucket], blkcache_item, hashq);
             blkcache->bucket_metadata[bucket].bucket_num_data_blocks--;
             blkcache->bucket_metadata[bucket].bucket_bytes_used -= size;
@@ -630,8 +622,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
 static int
 __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u_int type,
   char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache, bool cache_on_writes,
-  double overhead_pct, u_int evict_aggressive, uint64_t full_target,
-  bool cache_on_checkpoint)
+  double overhead_pct, u_int evict_aggressive, uint64_t full_target, bool cache_on_checkpoint)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -674,7 +665,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
 
     /* Create the eviction thread */
     WT_RET(__wt_thread_create(
-	       session, &blkcache->evict_thread_tid, __blkcache_eviction_thread, (void *)session));
+      session, &blkcache->evict_thread_tid, __blkcache_eviction_thread, (void *)session));
     blkcache->evict_aggressive = -((int)evict_aggressive);
     blkcache->min_num_references = 1000; /* initialize to a large value */
 
@@ -763,18 +754,16 @@ done:
     memset((void *)blkcache, 0, sizeof(WT_BLKCACHE));
 }
 
-
 /*
- * __blckcache_reconfig
- *    We currently disallow reconfiguration. If and when we do, this function will destroy
- *    the block cache, making it ready for clean initiaization.
+ * __blkcache_reconfig --
+ *     We currently disallow reconfiguration. If and when we do, this function will destroy the
+ *     block cache, making it ready for clean initialization.
  */
-static inline int
+static int
 __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, size_t hash_size,
-		     u_int type, char *nvram_device_path, size_t system_ram,
-		     u_int percent_file_in_os_cache, bool cache_on_writes,
-		     double overhead_pct, u_int evict_aggressive, uint64_t full_target,
-		     bool cache_on_checkpoint)
+  u_int type, char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache,
+  bool cache_on_writes, double overhead_pct, u_int evict_aggressive, uint64_t full_target,
+  bool cache_on_checkpoint)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -783,22 +772,20 @@ __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, 
     blkcache = &conn->blkcache;
 
     if (!reconfig || blkcache->type == BLKCACHE_UNCONFIGURED)
-	return (0);
+        return (0);
 
     if (blkcache->cache_on_checkpoint != cache_on_checkpoint ||
-	blkcache->cache_on_writes != cache_on_writes ||
-	blkcache->hash_size != hash_size ||
-	blkcache->fraction_in_os_cache != (float)percent_file_in_os_cache / 100 ||
-	blkcache->full_target != full_target ||
-	blkcache->max_bytes != cache_size ||
-	blkcache->overhead_pct != overhead_pct ||
-	blkcache->system_ram != system_ram ||
-	blkcache->evict_aggressive != -((int)evict_aggressive) ||
-	blkcache->type != type)
-	{
-	    __wt_err(session, EINVAL, "block cache reconfiguration not supported");
-	    return (WT_ERROR);
-	}
+      blkcache->cache_on_writes != cache_on_writes || blkcache->hash_size != hash_size ||
+      __wt_floatcmp(blkcache->fraction_in_os_cache, (float)percent_file_in_os_cache / 100) != 0 ||
+      blkcache->full_target != full_target || blkcache->max_bytes != cache_size ||
+      __wt_floatcmp(blkcache->overhead_pct, overhead_pct) != 0 ||
+      blkcache->system_ram != system_ram ||
+      blkcache->evict_aggressive != -((int)evict_aggressive) || blkcache->type != type ||
+      strlen(nvram_device_path) != strlen(blkcache->nvram_device_path) ||
+      strncmp(nvram_device_path, blkcache->nvram_device_path, strlen(nvram_device_path)) != 0) {
+        __wt_err(session, EINVAL, "block cache reconfiguration not supported");
+        return (WT_ERROR);
+    }
     return (0);
 }
 
@@ -813,16 +800,16 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
     double overhead_pct;
-    u_int cache_type, evict_aggressive, percent_file_in_os_cache;
-    uint32_t hash_size;
     uint64_t cache_size, full_target, system_ram;
+    uint32_t hash_size;
+    u_int cache_type, evict_aggressive, percent_file_in_os_cache;
     char *nvram_device_path;
     bool cache_on_checkpoint, cache_on_writes;
 
     conn = S2C(session);
     blkcache = &conn->blkcache;
     cache_on_checkpoint = cache_on_writes = true;
-    nvram_device_path = NULL;
+    nvram_device_path = (char *)"";
 
     if (blkcache->type != BLKCACHE_UNCONFIGURED && !reconfig)
         WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
@@ -851,7 +838,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         cache_type = BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
-	WT_ASSERT(__wt_absolute_path(nvram_device_path));
+        WT_ASSERT(__wt_absolute_path(nvram_device_path));
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache requires libmemkind");
 #endif
@@ -882,10 +869,10 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     overhead_pct = (double)cval.val / (double)100;
 
     WT_RET(__blkcache_reconfig(session, reconfig, cache_size, hash_size, cache_type,
-	      nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes,
-	      overhead_pct, evict_aggressive, full_target, cache_on_checkpoint));
+      nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes, overhead_pct,
+      evict_aggressive, full_target, cache_on_checkpoint));
 
-    return (__blkcache_init(session, cache_size, hash_size, cache_type,
-		  nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes,
-		  overhead_pct, evict_aggressive, full_target, cache_on_checkpoint));
+    return (__blkcache_init(session, cache_size, hash_size, cache_type, nvram_device_path,
+      system_ram, percent_file_in_os_cache, cache_on_writes, overhead_pct, evict_aggressive,
+      full_target, cache_on_checkpoint));
 }

@@ -541,7 +541,7 @@ connection_runtime_config = [
                    exceeds the supplied threshold''',
                    min='1', max='500'),
                Config('nvram_path', '', r'''
-                   the absoulte path to the file system mounted on the NVRAM device''',),
+                   the absolute path to the file system mounted on the NVRAM device''',),
                Config('percent_file_in_dram', '50', r'''
                    bypass cache if that percent of file fits in DRAM''',
                    min='0', max='100'),

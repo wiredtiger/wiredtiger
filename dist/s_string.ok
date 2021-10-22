@@ -828,6 +828,7 @@ filesystems
 fillms
 firstfit
 fixup
+floatcmp
 floatnum
 fmt
 fmterr

@@ -81,8 +81,8 @@ static CONFIG c[] = {
   {"block_cache", "enable the block cache", C_BOOL, 10, 0, 0, &g.c_block_cache, NULL},
 
   /* 30 */
-  {"block_cache.cache_on_checkpoint", "block cache: cache checkpoint writes", C_BOOL, 30,
-    0, 0, &g.c_block_cache_cache_on_checkpoint, NULL},
+  {"block_cache.cache_on_checkpoint", "block cache: cache checkpoint writes", C_BOOL, 30, 0, 0,
+    &g.c_block_cache_cache_on_checkpoint, NULL},
 
   {"block_cache.size", "block cache size (MB)", 0x0, 1, 100, 100 * 1024, &g.c_block_cache_size,
     NULL},

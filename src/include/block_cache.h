@@ -27,11 +27,9 @@
 #define WT_BLKCACHE_FULL -2
 #define WT_BLKCACHE_BYPASS -3
 
-
 #define BLKCACHE_MINREF_INCREMENT 20
 #define BLKCACHE_EVICT_OTHER 0
 #define BLKCACHE_NOT_EVICTION_CANDIDATE 1
-
 
 /*
  * WT_BLKCACHE_ID --
@@ -40,7 +38,7 @@
  */
 struct __wt_blkcache_id {
     uint32_t checksum;
-    off_t offset;
+    wt_off_t offset;
     uint32_t size;
 };
 
@@ -73,8 +71,8 @@ struct __wt_blkcache_item {
 
 struct __wt_blkcache_bucket_metadata {
     WT_CACHE_LINE_PAD_BEGIN
-    volatile uint64_t bucket_num_data_blocks;   /* Number of blocks in the bucket */
-    volatile uint64_t bucket_bytes_used; /* Bytes in the bucket */
+    volatile uint64_t bucket_num_data_blocks; /* Number of blocks in the bucket */
+    volatile uint64_t bucket_bytes_used;      /* Bytes in the bucket */
     WT_CACHE_LINE_PAD_END
 };
 
@@ -101,8 +99,8 @@ struct __wt_blkcache {
 #endif
     char *nvram_device_path; /* The absolute path of the file system on NVRAM device */
 
-    uint64_t full_target;  /* Number of bytes in the block cache that triggers eviction */
-    double overhead_pct; /* Overhead percentage that suppresses population and eviction */
+    uint64_t full_target; /* Number of bytes in the block cache that triggers eviction */
+    double overhead_pct;  /* Overhead percentage that suppresses population and eviction */
 
     size_t estimated_file_size;        /* Estimated size of all files used by the workload. */
     int refs_since_filesize_estimated; /* Counter for recalculating the aggregate file size */
@@ -111,7 +109,7 @@ struct __wt_blkcache {
      * This fraction tells us the good enough ratio of file data cached in the DRAM
      * resident OS buffer cache, which makes the use of this block cache unnecessary.
      * Suppose we set that fraction to 50%. Then if half of our file data fits into
-     * system DRAM, we consider this block cache unhepful.
+     * system DRAM, we consider this block cache unhelpful.
      *
      * E.g., if the fraction is set to 50%, our aggregate file size is
      * 500GB, and we have 300GB of RAM, then we will not use this block cache,
@@ -119,15 +117,14 @@ struct __wt_blkcache {
      */
     float fraction_in_os_cache;
 
-    u_int hash_size;             /* Number of block cache hash buckets */
-    u_int type;                 /* Type of block cache (NVRAM or DRAM) */
-    volatile uint64_t bytes_used; /* Bytes in the block cache */
-    volatile uint64_t num_data_blocks;   /* Number of blocks in the block cache */
-    uint64_t max_bytes;         /* Block cache size */
-    uint64_t system_ram;        /* Configured size of system RAM */
+    u_int hash_size;                   /* Number of block cache hash buckets */
+    u_int type;                        /* Type of block cache (NVRAM or DRAM) */
+    volatile uint64_t bytes_used;      /* Bytes in the block cache */
+    volatile uint64_t num_data_blocks; /* Number of blocks in the block cache */
+    uint64_t max_bytes;                /* Block cache size */
+    uint64_t system_ram;               /* Configured size of system RAM */
 
-
-    uint32_t min_num_references;/* The per-block number of references triggering eviction. */
+    uint32_t min_num_references; /* The per-block number of references triggering eviction. */
 
     /*
      * Various metrics helping us measure the overhead and decide if to bypass the cache. We access

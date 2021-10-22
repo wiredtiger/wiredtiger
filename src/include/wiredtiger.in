@@ -2031,7 +2031,7 @@ struct __wt_connection {
 	 * expressed as the number of blocks added and removed as percent of blocks looked up; cache
 	 * population and eviction will be suppressed if the overhead exceeds the supplied
 	 * threshold., an integer between 1 and 500; default \c 10.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;nvram_path, the absoulte path to the file system mounted
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;nvram_path, the absolute path to the file system mounted
 	 * on the NVRAM device., a string; default empty.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;
 	 * percent_file_in_dram, bypass cache if that percent of file fits in DRAM., an integer
@@ -2710,7 +2710,7 @@ struct __wt_connection {
  * max_percent_overhead, maximum tolerated overhead expressed as the number of blocks added and
  * removed as percent of blocks looked up; cache population and eviction will be suppressed if the
  * overhead exceeds the supplied threshold., an integer between 1 and 500; default \c 10.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;nvram_path, the absoulte path to the file system mounted on the
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;nvram_path, the absolute path to the file system mounted on the
  * NVRAM device., a string; default empty.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;percent_file_in_dram,
  * bypass cache if that percent of file fits in DRAM., an integer between 0 and 100; default \c 50.}
