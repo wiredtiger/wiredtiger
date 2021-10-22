@@ -57,7 +57,7 @@ class test_compact04(wttest.WiredTigerTestCase):
     conn_config = 'statistics=(all),cache_size=500MB'
 
     normalValue = "abcde" * 20
-    nrecords = 100000
+    nrecords = 500000
 
     def test_compact04(self):
         # 1. Create two tables with same content.
@@ -100,26 +100,28 @@ class test_compact04(wttest.WiredTigerTestCase):
         blocks_before = os.stat(self.file_name).st_blocks
         blocks_before_holes = os.stat(self.file_name_holes).st_blocks
         
+        start = time.time()
         self.session.compact(self.uri, None)
+        duration = time.time() - start
+
+        start = time.time()
         self.session.compact(self.uri_holes, "punch_holes=1")
+        duration_holes = time.time() - start
         
         # Get number of blocks after compact
         blocks_after = os.stat(self.file_name).st_blocks
         blocks_after_holes = os.stat(self.file_name_holes).st_blocks
 
-        self.pr("Compact: blocks before: %d; blocs after: %d" % (blocks_before, blocks_after))
-        self.pr("Compact with hole punching: blocks before: %d; blocs after: %d" % (blocks_before_holes, blocks_after_holes))
+        self.pr("Compact: duration: %f sec; blocks before: %d; blocs after: %d" % (duration, blocks_before, blocks_after))
+        self.pr("Compact with hole punching: duration: %f sec; blocks before: %d; blocs after: %d" % (duration_holes, blocks_before_holes, blocks_after_holes))
         
         # 6. Check blocks number
         # Test that compact reduced number of occupied blocks.
         self.assertGreater(blocks_before, blocks_after)
         self.assertGreater(blocks_before_holes, blocks_after_holes)
         
-        # Test that number of blocks before the two compact calls are the same.
-        self.assertEqual(blocks_before, blocks_before_holes)
-        
-        # Test that the number of blocks after the two compact calls are within 10% difference.
-        self.assertGreater(min(blocks_after, blocks_after_holes) * 0.1, abs(blocks_after - blocks_after_holes))
+        # Test that the number of blocks after the two compact calls are within 30% difference.
+        self.assertGreater(min(blocks_after, blocks_after_holes) * 0.3, abs(blocks_after - blocks_after_holes))
 
         # 7. Restart
         self.pr("Restarting...")
