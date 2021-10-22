@@ -291,7 +291,7 @@ main(int argc, char *argv[])
         TIMED_MAJOR_OP(table_wrapper(wts_load, NULL));
     TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
     if (GV(OPS_VERIFY) == 0)
-	TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
+        TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
 
     /* Optionally start checkpoints. */
     wts_checkpoints();
