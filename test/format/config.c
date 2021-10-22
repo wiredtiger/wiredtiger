@@ -507,7 +507,7 @@ config_cache(void)
         cache *= 2;
         cache /= WT_MEGABYTE; /* NOT in MB units, convert for cache test */
         if (GV(CACHE) < cache)
-            GV(CACHE) = cache;
+            GV(CACHE) = (uint32_t)cache;
     }
 
     /* Sum the number of workers. */
@@ -531,7 +531,7 @@ config_cache(void)
     cache *= workers;
     cache *= 2;
     if (GV(CACHE) < cache)
-        GV(CACHE) = cache;
+        GV(CACHE) = (uint32_t)cache;
 
     /*
      * Ensure cache size sanity for LSM runs. An LSM tree open requires 3 chunks plus a page for
@@ -546,7 +546,7 @@ config_cache(void)
           workers * table_sumv(V_TABLE_BTREE_LEAF_PAGE_MAX) * WT_MEGABYTE);
         cache = (cache + (WT_MEGABYTE - 1)) / WT_MEGABYTE;
         if (GV(CACHE) < cache)
-            GV(CACHE) = cache;
+            GV(CACHE) = (uint32_t)cache;
     }
 }
 
