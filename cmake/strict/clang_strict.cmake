@@ -69,5 +69,5 @@ set(clang_cxx_flags ${clang_base_flags})
 list(APPEND clang_c_flags "-Weverything")
 
 # Set our compiler flags that can be used by the rest of our build.
-set(COMPILER_DIAGNOSTIC_FLAGS ${clang_c_flags})
+set(COMPILER_DIAGNOSTIC_C_FLAGS ${clang_c_flags})
 set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${clang_cxx_flags})

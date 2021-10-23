@@ -18,5 +18,5 @@ list(APPEND win_base_flags "/we4100")
 list(APPEND win_base_flags "/GS")
 
 # Set our compiler flags that can be used by the rest of our build.
-set(COMPILER_DIAGNOSTIC_FLAGS ${win_base_flags})
+set(COMPILER_DIAGNOSTIC_C_FLAGS ${win_base_flags})
 set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${win_base_flags})

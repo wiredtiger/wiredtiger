@@ -84,5 +84,5 @@ list(APPEND gcc_c_flags "-Wpointer-sign")
 list(APPEND gcc_c_flags "-Wstrict-prototypes")
 
 # Set our compiler flags that can be used by the rest of our build.
-set(COMPILER_DIAGNOSTIC_FLAGS ${gcc_c_flags})
+set(COMPILER_DIAGNOSTIC_C_FLAGS ${gcc_c_flags})
 set(COMPILER_DIAGNOSTIC_CXX_FLAGS ${gcc_cxx_flags})

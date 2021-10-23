@@ -79,7 +79,7 @@ function(create_test_executable target)
 
     # Append the necessary compiler flags.
     if(NOT CREATE_TEST_CXX)
-        set(test_flags "${COMPILER_DIAGNOSTIC_FLAGS}")
+        set(test_flags "${COMPILER_DIAGNOSTIC_C_FLAGS}")
     else()
         set(test_flags "${COMPILER_DIAGNOSTIC_CXX_FLAGS}")
     endif()
