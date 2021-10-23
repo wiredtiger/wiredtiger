@@ -341,7 +341,8 @@ timestamp(void *arg)
     WT_CONNECTION *conn;
     WT_SESSION *session;
 
-    (void)(arg);
+    (void)arg; /* Unused argument */
+
     conn = g.wts_conn;
 
     /* Locks need session */
@@ -432,10 +433,9 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
+    else
         testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
-    }
     lock->lock_type = LOCK_NONE;
 }

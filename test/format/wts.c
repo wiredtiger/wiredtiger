@@ -82,8 +82,8 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     WT_DECL_RET;
     int nw;
 
-    (void)(handler);
-    (void)(session);
+    (void)handler;
+    (void)session;
 
     /*
      * WiredTiger logs a verbose message when the read timestamp is set to a value older than the
@@ -105,8 +105,8 @@ handle_progress(
 {
     char buf[256];
 
-    (void)(handler);
-    (void)(session);
+    (void)handler;
+    (void)session;
 
     if (session->app_private == NULL)
         track(operation, progress);
