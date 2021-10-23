@@ -64,11 +64,16 @@ config_random(TABLE *table, bool table_only)
     for (cp = configuration_list; cp->name != NULL; ++cp) {
         if (F_ISSET(cp, C_IGNORE))
             continue;
-        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
-            continue;
         if (table_only && !F_ISSET(cp, C_TABLE))
             continue;
         if (!table_only && F_ISSET(cp, C_TABLE))
+            continue;
+
+        /*
+         * Don't randomly configure runs.tables if we read a CONFIG file. (This prevents us from
+         * turning old-style CONFIG files into multi-table tests.)
+         */
+        if (cp->off == V_GLOBAL_RUNS_TABLES && !g.multi_table_config)
             continue;
 
         v = &table->v[cp->off];
@@ -1109,9 +1114,6 @@ config_print_table(FILE *fp, TABLE *table)
 
     lsm = DATASOURCE(table, "lsm");
     for (cp = configuration_list; cp->name != NULL; ++cp) {
-        /* Skip items from different versions of the configuration file. */
-        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
-            continue;
         /* Skip global items. */
         if (!F_ISSET(cp, C_TABLE))
             continue;
@@ -1161,16 +1163,16 @@ config_print(bool error_display)
 
     /* Display global configuration values. */
     for (cp = configuration_list; cp->name != NULL; ++cp) {
-        /* Skip items from different versions of the configuration file. */
-        if (F_ISSET(cp, C_VERSION2) && g.version2_config)
-            continue;
         /* Skip mismatched objects and configurations. */
         if (!g.lsm_config && F_ISSET(cp, C_TYPE_LSM))
             continue;
+        /* Skip table count if tables not configured (implying an old-style CONFIG file). */
+        if (ntables == 0 && cp->off == V_GLOBAL_RUNS_TABLES)
+            continue;
 
         /*
-         * Print everything else if we never configured any tables, or individually if the global it
-         * was explicitly configured, or this isn't a table option.
+         * Otherwise, print if we never configured any tables, if the global item was explicitly
+         * configured, or this isn't a table option.
          */
         gv = &tables[0]->v[cp->off];
         if (ntables == 0 || gv->set || !F_ISSET(cp, C_TABLE))
@@ -1199,6 +1201,16 @@ config_file(const char *name)
     FILE *fp;
     char buf[256], *p, *t;
 
+    /*
+     * Turn off multi-table configuration for all configuration files, for backward compatibility.
+     * This doesn't stop multiple table configurations, using either "runs.tables" or an explicit
+     * mention of a table, it only prevents CONFIG files without a table reference from configuring
+     * tables. This should only affect putting some non-table-specific configurations into a file
+     * and running that file as a CONFIG, expecting a multi-table test, and means old-style CONFIG
+     * files don't suddenly turn into multiple table tests.
+     */
+    g.multi_table_config = false;
+
     if ((fp = fopen(name, "r")) == NULL)
         testutil_die(errno, "fopen: %s", name);
 
@@ -1214,10 +1226,6 @@ config_file(const char *name)
                 break;
             }
             if (*p == '#') { /* Comment */
-                /* Version 1 or 2 configuration files imply a single table. */
-                if (strcmp(p, "#  RUN PARAMETERS\n") == 0 ||
-                  strcmp(p, "#  RUN PARAMETERS: V2\n") == 0)
-                    g.version2_config = true;
                 t = p;
                 break;
             }

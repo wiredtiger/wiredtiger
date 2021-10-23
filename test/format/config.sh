@@ -26,7 +26,6 @@ typedef struct {
 #define C_TYPE_LSM 0x020u /* Value is only relevant to LSM */
 #define C_TYPE_ROW 0x040u /* Value is only relevant to RS */
 #define C_TYPE_VAR 0x080u /* Value is only relevant to VLCS */
-#define C_VERSION2 0x100u /* Ignore in version 2 configurations */
     uint32_t flags;
 
     uint32_t min;     /* Minimum value */
@@ -218,7 +217,7 @@ CONFIG configuration_list[] = {
 
 {"runs.source", "data source type (file | lsm | table)", C_IGNORE | C_STRING | C_TABLE, 0, 0, 0}
 
-{"runs.tables", "number of tables", C_VERSION2, 1, 32, V_MAX_TABLES_CONFIG}
+{"runs.tables", "number of tables", 0x0, 1, 32, V_MAX_TABLES_CONFIG}
 
 {"runs.threads", "number of worker threads", 0x0, 1, 32, 128}
 

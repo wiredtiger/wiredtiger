@@ -210,9 +210,10 @@ main(int argc, char *argv[])
     /* Initialize lock to ensure single threading during failure handling */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
 
-    /* Initialize the tables array. */
+    /* Initialize the tables array, and default to multi-table testing. */
     tables[0] = dcalloc(1, sizeof(TABLE));
     tables[0]->id = 1;
+    g.multi_table_config = true;
 
     /* Set up paths, create or clean the home directory. */
     path_setup(home);

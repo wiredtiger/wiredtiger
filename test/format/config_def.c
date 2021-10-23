@@ -222,7 +222,7 @@ CONFIG configuration_list[] = {
     C_IGNORE | C_STRING | C_TABLE, 0, 0, 0, V_TABLE_RUNS_SOURCE},
 
   {"runs.tables", "number of tables",
-    C_VERSION2, 1, 32, V_MAX_TABLES_CONFIG, V_GLOBAL_RUNS_TABLES},
+    0x0, 1, 32, V_MAX_TABLES_CONFIG, V_GLOBAL_RUNS_TABLES},
 
   {"runs.threads", "number of worker threads",
     0x0, 1, 32, 128, V_GLOBAL_RUNS_THREADS},
