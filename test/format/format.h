@@ -200,6 +200,10 @@ typedef struct {
 
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
+#define INCREMENTAL_BLOCK 1
+#define INCREMENTAL_LOG 2
+#define INCREMENTAL_OFF 3
+    u_int backup_incr_flag; /* Incremental backup configuration */
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
@@ -257,11 +261,6 @@ typedef struct {
 #define CHECKPOINT_ON 2
 #define CHECKPOINT_WIREDTIGER 3
     u_int checkpoint_config; /* Checkpoint configuration */
-
-#define INCREMENTAL_BLOCK 1
-#define INCREMENTAL_LOG 2
-#define INCREMENTAL_OFF 3
-    u_int backup_incr_config; /* Incremental backup configuration */
 } GLOBAL;
 extern GLOBAL g;
 

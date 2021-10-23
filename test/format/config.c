@@ -36,9 +36,9 @@ static void config_cache(void);
 static void config_checkpoint(void);
 static void config_checksum(TABLE *);
 static void config_compression(TABLE *, const char *);
-static const char *config_file_type(u_int);
 static void config_directio(void);
 static void config_encryption(void);
+static const char *config_file_type(u_int);
 static bool config_explicit(TABLE *, const char *);
 static bool config_fix(TABLE *);
 static void config_in_memory(void);
@@ -175,7 +175,7 @@ config_table_am(TABLE *table)
             if (config_explicit(table, "transaction.timestamps") && TV(TRANSACTION_TIMESTAMPS))
                 break;
             if (GV(BACKUP) && config_explicit(table, "backup.incremental") &&
-              g.backup_incr_config == INCREMENTAL_BLOCK)
+              g.backup_incr_flag == INCREMENTAL_BLOCK)
                 break;
             if (config_explicit(table, "ops.truncate") && TV(OPS_TRUNCATE))
                 break;
@@ -349,10 +349,10 @@ static void
 config_backup_incr(void)
 {
     /* Incremental backup requires backup. */
-    if (GV(BACKUP)) {
+    if (GV(BACKUP) == 0) {
         if (!config_explicit(NULL, "backup.incremental"))
             config_single(NULL, "backup.incremental=off", false);
-        if (g.backup_incr_config != INCREMENTAL_OFF)
+        if (g.backup_incr_flag != INCREMENTAL_OFF)
             testutil_die(EINVAL, "backup.incremental requires backups be configured");
         return;
     }
@@ -362,9 +362,9 @@ config_backup_incr(void)
      * archival doesn't seem as useful as testing backup, let the backup configuration override.
      */
     if (config_explicit(NULL, "backup.incremental")) {
-        if (g.backup_incr_config == INCREMENTAL_LOG)
+        if (g.backup_incr_flag == INCREMENTAL_LOG)
             config_backup_incr_log_compatibility_check();
-        if (g.backup_incr_config == INCREMENTAL_BLOCK)
+        if (g.backup_incr_flag == INCREMENTAL_BLOCK)
             config_backup_incr_granularity();
         return;
     }
@@ -439,7 +439,7 @@ config_backup_incr_granularity(void)
     }
 
     testutil_check(
-      __wt_snprintf(confbuf, sizeof(confbuf), "backup.incr_granularity=%u", granularity));
+      __wt_snprintf(confbuf, sizeof(confbuf), "backup.incr_granularity=%" PRIu32, granularity));
     config_single(NULL, confbuf, false);
 }
 
@@ -1377,7 +1377,7 @@ config_single(TABLE *table, const char *s, bool explicit)
 
     if (F_ISSET(cp, C_STRING)) {
         if (strncmp(s, "backup.incremental", strlen("backup.incremental")) == 0)
-            config_map_backup_incr(equalp, &g.backup_incr_config);
+            config_map_backup_incr(equalp, &g.backup_incr_flag);
         else if (strncmp(s, "checkpoint", strlen("checkpoint")) == 0)
             config_map_checkpoint(equalp, &g.checkpoint_config);
         else if (strncmp(s, "runs.source", strlen("runs.source")) == 0 &&
