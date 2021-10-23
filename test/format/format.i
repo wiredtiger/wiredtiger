@@ -321,11 +321,9 @@ lock_try_writelock(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         return (__wt_try_writelock((WT_SESSION_IMPL *)session, &lock->l.wt));
-    } else {
-        return (pthread_rwlock_trywrlock(&lock->l.pthread));
-    }
+    return (pthread_rwlock_trywrlock(&lock->l.pthread));
 }
 
 /*
@@ -337,11 +335,10 @@ lock_writelock(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         __wt_writelock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
+    else
         testutil_check(pthread_rwlock_wrlock(&lock->l.pthread));
-    }
 }
 
 /*
@@ -353,11 +350,10 @@ lock_writeunlock(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         __wt_writeunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
+    else
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
-    }
 }
 
 /*
@@ -369,11 +365,10 @@ lock_readlock(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         __wt_readlock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
+    else
         testutil_check(pthread_rwlock_rdlock(&lock->l.pthread));
-    }
 }
 
 /*
@@ -385,11 +380,10 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
 {
     testutil_assert(LOCK_INITIALIZED(lock));
 
-    if (lock->lock_type == LOCK_WT) {
+    if (lock->lock_type == LOCK_WT)
         __wt_readunlock((WT_SESSION_IMPL *)session, &lock->l.wt);
-    } else {
+    else
         testutil_check(pthread_rwlock_unlock(&lock->l.pthread));
-    }
 }
 
 #define trace_msg(fmt, ...)                                                                        \
