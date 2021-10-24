@@ -196,8 +196,8 @@ tinfo_teardown(void)
 static void
 rollback_to_stable(void)
 {
-    /* Rollback-to-stable only makes sense for timestamps and on-disk stores. */
-    if (!g.transaction_timestamps_config || GV(RUNS_IN_MEMORY) != 0)
+    /* Rollback-to-stable only makes sense for timestamps. */
+    if (!g.transaction_timestamps_config)
         return;
 
     trace_msg("%-10s ts=%" PRIu64, "rts", g.stable_timestamp);
