@@ -1527,10 +1527,6 @@ __rollback_to_stable_btree_apply(
 
     if (perform_rts || max_durable_ts > rollback_timestamp || prepared_updates ||
       !durable_ts_found || has_txn_updates_gt_than_ckpt_snap) {
-        /*
-         * MongoDB does not close all open handles before calling rollback-to-stable; otherwise,
-         * don't permit that behavior, the application is likely making a mistake.
-         */
         ret = __wt_session_get_dhandle(session, uri, NULL, NULL, 0);
         if (ret != 0)
             WT_ERR_MSG(session, ret, "%s: unable to open handle%s", uri,
