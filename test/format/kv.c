@@ -92,8 +92,8 @@ key_gen_init(WT_ITEM *key)
     size_t i, len;
     char *p;
 
-    len =
-      WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + table_maxv(V_TABLE_BTREE_PREFIX_LEN));
+    len = WT_MAX(
+      KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + table_maxv(V_TABLE_BTREE_PREFIX_LEN));
     p = dmalloc(len);
     for (i = 0; i < len; ++i)
         p[i] = "abcdefghijklmnopqrstuvwxyz"[i % 26];
@@ -125,8 +125,8 @@ void
 key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suffix)
 {
     size_t i;
-    uint32_t prefix_len;
     uint64_t n;
+    uint32_t prefix_len;
     char *p;
     const char *bucket;
 
