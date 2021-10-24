@@ -190,8 +190,8 @@ class search_near_01 : public test_harness::test {
          * per search near function call. The key we search near can be different in length, which
          * will increase the number of entries search by a factor of 26.
          */
-        expected_entries = tc->thread_count * keys_per_prefix * 2 *
-          pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
+        expected_entries =
+          tc->thread_count * keys_per_prefix * pow(ALPHABET.size(), PREFIX_KEY_LEN - srchkey_len);
 
         /*
          * Read at timestamp 10, so that no keys are visible to this transaction. This allows prefix
@@ -245,7 +245,7 @@ class search_near_01 : public test_harness::test {
                  */
                 testutil_assert(
                   (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
-                testutil_assert(prefix_stat > prev_prefix_stat);
+                testutil_assert(prefix_stat >= prev_prefix_stat);
 
                 tc->transaction.add_op();
                 tc->sleep();
