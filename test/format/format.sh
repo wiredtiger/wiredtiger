@@ -45,17 +45,16 @@ smoke_base_2="$smoke_base_1 leaf_page_max=9 internal_page_max=9"
 smoke_list=(
 	# Three access methods.
 	"$smoke_base_1 file_type=row"
-    # Temporarily disabled
+    # Temporarily disabled: FIXME FLCS
 	# "$smoke_base_1 file_type=fix"
-	# "$smoke_base_1 file_type=var"
+	"$smoke_base_1 file_type=var"
 
 	# Huffman value encoding.
 	"$smoke_base_1 file_type=row huffman_value=1"
-    # Temporarily disabled
-	# "$smoke_base_1 file_type=var huffman_value=1"
+	"$smoke_base_1 file_type=var huffman_value=1"
 
 	# LSM
-    # Temporarily disabled
+    # Temporarily disabled: FIXME LSM
 	# "$smoke_base_1 file_type=row runs.source=lsm"
 
 	# Force the statistics server.
@@ -64,8 +63,7 @@ smoke_list=(
 	# Overflow testing.
 	"$smoke_base_2 file_type=row key_min=256"
 	"$smoke_base_2 file_type=row key_min=256 value_min=256"
-    # Temporarily disabled
-	# "$smoke_base_2 file_type=var value_min=256"
+	"$smoke_base_2 file_type=var value_min=256"
 )
 smoke_next=0
 
