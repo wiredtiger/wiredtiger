@@ -250,8 +250,8 @@ typedef enum {
     WT_VERB_VERIFY,
     WT_VERB_VERSION,
     WT_VERB_WRITE,
-    /* This entry needs to be the last in order to track the number of event items. */
-    WT_VERB_NUM_EVENTS,
+    /* This entry needs to be the last in order to track the number of category items. */
+    WT_VERB_NUM_CATEGORIES,
 } WT_VERBOSE_CATEGORY;
 
 /*
@@ -619,7 +619,8 @@ struct __wt_connection_impl {
     /* AUTOMATIC FLAG VALUE GENERATION STOP 64 */
     uint64_t debug_flags;
 
-    WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_EVENTS]; /* Verbose settings for our various events. */
+    /* Verbose settings for our various categories. */
+    WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
 
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
