@@ -80,6 +80,10 @@ config_random(TABLE *table, bool table_only)
         if (v->set)
             continue;
 
+        /* Configure key prefixes only rarely, 5% if the length isn't set explicitly. */
+        if (cp->off == V_TABLE_BTREE_PREFIX_LEN && mmrand(NULL, 1, 100) > 5)
+            continue;
+
         /*
          * Boolean flags are 0 or 1, where the variable's "min" value is the percent chance the flag
          * is "on" (so "on" if random rolled <= N, otherwise "off").
@@ -267,7 +271,7 @@ config_table(TABLE *table, void *arg)
         testutil_die(EINVAL, "btree.value_min may not be larger than btree.value_max");
 
     /* Add prefix compression if prefixes are configured and no explicit choice was made. */
-    if (TV(BTREE_PREFIX) != 0 && TV(BTREE_PREFIX_COMPRESSION) == 0 &&
+    if (TV(BTREE_PREFIX_LEN) != 0 && TV(BTREE_PREFIX_COMPRESSION) == 0 &&
       !config_explicit(table, "btree.prefix_compression"))
         config_single(table, "btree.prefix_compression=on", false);
 
@@ -277,9 +281,6 @@ config_table(TABLE *table, void *arg)
 
     /* The number of rows in the table can change, get a local copy of the starting value. */
     table->rows_current = TV(RUNS_ROWS);
-
-    key_init(table); /* Initialize key/value information. */
-    val_init(table);
 
     /* Column-store tables require special row insert resolution. */
     if (table->type != ROW)
@@ -294,6 +295,9 @@ config_table(TABLE *table, void *arg)
         g.lsm_config = true;
         config_lsm_reset(table);
     }
+
+    /* Track the largest key prefix in the run. */
+    g.prefix_len_max = WT_MAX(g.prefix_len_max, TV(BTREE_PREFIX_LEN));
 }
 
 /*
@@ -449,6 +453,25 @@ config_backup_incr_granularity(void)
 }
 
 /*
+ * config_backward_compatible_table --
+ *     Backward compatibility configuration, per table.
+ */
+static void
+config_backward_compatible_table(TABLE *table, void *arg)
+{
+    (void)arg; /* unused argument */
+
+#undef BC_CHECK
+#define BC_CHECK(name, flag)                                                               \
+    if (TV(flag)) {                                                                        \
+        if (config_explicit(table, name))                                                  \
+            testutil_die(EINVAL, "%s not supported in backward compatibility mode", name); \
+        config_single(table, #name "=off", false);                                         \
+    }
+    BC_CHECK("btree.prefix_len", BTREE_PREFIX_LEN);
+}
+
+/*
  * config_backward_compatible --
  *     Backward compatibility configuration.
  */
@@ -468,6 +491,7 @@ config_backward_compatible(void)
     if (!backward_compatible)
         return;
 
+#undef BC_CHECK
 #define BC_CHECK(name, flag)                                                               \
     if (GV(flag)) {                                                                        \
         if (config_explicit(NULL, name))                                                   \
@@ -480,6 +504,8 @@ config_backward_compatible(void)
     BC_CHECK("stress.hs_checkpoint_delay", STRESS_HS_CHECKPOINT_DELAY);
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
+
+    table_wrapper(config_backward_compatible_table, NULL);
 }
 
 /*

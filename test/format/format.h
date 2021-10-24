@@ -129,7 +129,6 @@ typedef struct {
 
     uint64_t truncate_cnt; /* truncation operation counter */
 
-    uint32_t prefix_len;         /* key: common prefix length */
     uint32_t key_rand_len[1031]; /* key: lengths */
     char *val_base;              /* value: base/original */
     uint32_t val_dup_data_len;   /* value: length of duplicate data items */
@@ -248,7 +247,6 @@ typedef struct {
      * Range of key prefix selection and the maximum table prefix length.
      */
 #define KEY_LEN_CONFIG_MIN 11
-#define PREFIX_LEN_CONFIG_MIN 15
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 
@@ -384,7 +382,7 @@ bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
-void key_init(TABLE *);
+void key_init(TABLE *, void *);
 void lock_destroy(WT_SESSION *, RWLOCK *);
 void lock_init(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
@@ -412,7 +410,7 @@ void track_ops(TINFO *);
 void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
-void val_init(TABLE *);
+void val_init(TABLE *, void *);
 void wts_checkpoints(void);
 void wts_close(WT_CONNECTION **, WT_SESSION **);
 void wts_create_database(void);

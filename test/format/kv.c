@@ -33,12 +33,14 @@
  *     Initialize the keys for a run.
  */
 void
-key_init(TABLE *table)
+key_init(TABLE *table, void *arg)
 {
     FILE *fp;
     size_t i;
     uint32_t max;
     char buf[MAX_FORMAT_PATH];
+
+    (void)arg; /* unused argument */
 
     testutil_check(__wt_snprintf(buf, sizeof(buf), "%s.%u", g.home_key, table->id));
 
@@ -78,15 +80,6 @@ key_init(TABLE *table)
     for (i = 0; i < WT_ELEMENTS(table->key_rand_len); ++i)
         fprintf(fp, "%" PRIu32 "\n", table->key_rand_len[i]);
     fclose_and_clear(&fp);
-
-    /*
-     * Fill in the common key prefix length (which is added to the key min/max), and track the
-     * largest prefix in the run.
-     */
-    if (TV(BTREE_PREFIX) != 0) {
-        table->prefix_len = mmrand(NULL, PREFIX_LEN_CONFIG_MIN, PREFIX_LEN_CONFIG_MAX);
-        g.prefix_len_max = WT_MAX(g.prefix_len_max, table->prefix_len);
-    }
 }
 
 /*
@@ -100,7 +93,7 @@ key_gen_init(WT_ITEM *key)
     char *p;
 
     len =
-      WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + table_maxv(V_TABLE_BTREE_PREFIX));
+      WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + table_maxv(V_TABLE_BTREE_PREFIX_LEN));
     p = dmalloc(len);
     for (i = 0; i < len; ++i)
         p[i] = "abcdefghijklmnopqrstuvwxyz"[i % 26];
@@ -132,6 +125,7 @@ void
 key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suffix)
 {
     size_t i;
+    uint32_t prefix_len;
     uint64_t n;
     char *p;
     const char *bucket;
@@ -149,6 +143,7 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
      * number increments, which is a good thing for testing.
      */
     p = key->mem;
+    prefix_len = TV(BTREE_PREFIX_LEN);
     if (g.prefix_len_max != 0) {
         /*
          * Not all tables have prefixes and prefixes may be of different lengths. If any table has a
@@ -162,7 +157,7 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
                 p[i] = "abcdefghijklmnopqrstuvwxyz"[i % 26];
             p = key->mem;
         }
-        if (table->prefix_len != 0) {
+        if (prefix_len != 0) {
             bucket = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
             for (n = keyno; n > 0; n >>= 1) {
                 if (*bucket == 'z')
@@ -170,8 +165,8 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
                 ++bucket;
             }
             p[0] = *bucket;
-            memset(p + 1, COMMON_PREFIX_CHAR, table->prefix_len - 1);
-            p += table->prefix_len;
+            memset(p + 1, COMMON_PREFIX_CHAR, prefix_len - 1);
+            p += prefix_len;
         }
     }
 
@@ -191,7 +186,7 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
      * the cache. Handle that here, use a really big key 1 in 2500 times.
      */
     key->data = key->mem;
-    key->size = table->prefix_len;
+    key->size = prefix_len;
     key->size += keyno % 2500 == 0 && TV(BTREE_KEY_MAX) < KILOBYTE(80) ?
       KILOBYTE(80) :
       table->key_rand_len[keyno % WT_ELEMENTS(table->key_rand_len)];
@@ -215,10 +210,12 @@ value_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
 }
 
 void
-val_init(TABLE *table)
+val_init(TABLE *table, void *arg)
 {
     size_t i;
     uint32_t val_len;
+
+    (void)arg; /* unused argument */
 
     /* Discard any previous value initialization. */
     free(table->val_base);

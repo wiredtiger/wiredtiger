@@ -210,20 +210,21 @@ main(int argc, char *argv[])
     /* Initialize lock to ensure single threading during failure handling */
     testutil_check(pthread_rwlock_init(&g.death_lock, NULL));
 
-    /* Initialize the tables array, and default to multi-table testing. */
+    /*
+     * Initialize the tables array and default to multi-table testing if not in backward-compatible
+     * mode.
+     */
     tables[0] = dcalloc(1, sizeof(TABLE));
     tables[0]->id = 1;
-    g.multi_table_config = true;
+    g.multi_table_config = !g.backward_compatible;
 
-    /* Set up paths, create or clean the home directory. */
+    /* Set up paths. */
     path_setup(home);
-    wts_create_home();
 
     /*
-     * If it's a reopen, use the already existing home directory's CONFIG file.
-     *
-     * If we weren't given a configuration file, set values from "CONFIG", if it exists. Small hack
-     * to ignore any CONFIG file named ".", that just makes it possible to ignore any local CONFIG
+     * If it's a reopen, use the already existing home directory's CONFIG file. Otherwise, if we
+     * weren't given a configuration file, set values from "CONFIG", if it exists. Small hack to
+     * ignore any CONFIG file named ".", that just makes it possible to ignore any local CONFIG
      * file, used when running checks.
      */
     if (g.reopen) {
@@ -251,6 +252,50 @@ main(int argc, char *argv[])
     if (quiet_flag || !isatty(1))
         GV(QUIET) = 1;
 
+    /* Configure the run. */
+    config_run();
+    g.configured = true;
+
+    /* Initialize locks to single-thread backups and timestamps. */
+    lock_init(g.wts_session, &g.backup_lock);
+    lock_init(g.wts_session, &g.ts_lock);
+    lock_init(g.wts_session, &g.prepare_commit_lock);
+
+    __wt_seconds(NULL, &start);
+    track("starting up", 0ULL);
+
+    /* Create and open, or reopen the database. */
+    if (g.reopen) {
+        if (GV(RUNS_IN_MEMORY))
+            testutil_die(0, "reopen impossible after in-memory run");
+        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        timestamp_init();
+        set_oldest_timestamp();
+    } else {
+        wts_create_home();
+        config_print(false);
+        wts_create_database();
+        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
+        timestamp_init();
+    }
+
+    trace_init(); /* Initialize operation tracing. */
+
+    /*
+     * Initialize key/value information. Load and verify initial records (at least a brief scan if
+     * not doing a full verify).
+     */
+    table_wrapper(key_init, NULL);
+    table_wrapper(val_init, NULL);
+    if (!g.reopen)
+        TIMED_MAJOR_OP(table_wrapper(wts_load, NULL));
+    TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
+    if (GV(OPS_VERIFY) == 0)
+        TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
+
+    /* Optionally start checkpoints. */
+    wts_checkpoints();
+
     /*
      * Calculate how long each operations loop should run. Take any timer value and convert it to
      * seconds, then allocate 15 seconds to do initialization, verification and/or salvage tasks
@@ -261,43 +306,6 @@ main(int argc, char *argv[])
      * time and then don't check for timer expiration once the main operations loop completes.
      */
     ops_seconds = GV(RUNS_TIMER) == 0 ? 0 : ((GV(RUNS_TIMER) * 60) - 15) / FORMAT_OPERATION_REPS;
-
-    /* Configure the run. */
-    config_run();
-    g.configured = true;
-    config_print(false);
-
-    /* Initialize locks to single-thread backups, failures, and timestamp updates. */
-    lock_init(g.wts_session, &g.backup_lock);
-    lock_init(g.wts_session, &g.ts_lock);
-    lock_init(g.wts_session, &g.prepare_commit_lock);
-
-    __wt_seconds(NULL, &start);
-    track("starting up", 0ULL);
-
-    /* Create or reopen the database. */
-    if (g.reopen) {
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
-        timestamp_init();
-        set_oldest_timestamp();
-    } else {
-        wts_create_database();
-        wts_open(g.home, &g.wts_conn, &g.wts_session, true);
-        timestamp_init();
-        trace_init();
-    }
-
-    /* Load and verify initial records (at least a brief scan if not doing a full verify). */
-    if (!g.reopen)
-        TIMED_MAJOR_OP(table_wrapper(wts_load, NULL));
-    TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
-    if (GV(OPS_VERIFY) == 0)
-        TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
-
-    /* Optionally start checkpoints. */
-    wts_checkpoints();
-
-    /* Operations. */
     for (reps = 1; reps <= FORMAT_OPERATION_REPS; ++reps)
         operations(ops_seconds, reps == FORMAT_OPERATION_REPS);
 
