@@ -388,31 +388,16 @@ create_object(TABLE *table, void *arg)
 }
 
 /*
- * Home directory initialize command: create the directory if it doesn't exist, else remove
- * everything except the RNG log file.
- *
- * Redirect the "cd" command to /dev/null so chatty cd implementations don't add the new working
- * directory to our output.
- */
-#define FORMAT_HOME_INIT_CMD   \
-    "test -e %s || mkdir %s; " \
-    "cd %s > /dev/null && rm -rf `ls | sed /CONFIG.rand/d`"
-
-/*
  * wts_create_home --
- *     Create or clean the database home.
+ *     Remove and re-create the directory.
  */
 void
 wts_create_home(void)
 {
-    size_t len;
-    char *cmd;
+    char buf[MAX_FORMAT_PATH * 2];
 
-    len = strlen(g.home) * 3 + strlen(FORMAT_HOME_INIT_CMD) + 1;
-    cmd = dmalloc(len);
-    testutil_check(__wt_snprintf(cmd, len, FORMAT_HOME_INIT_CMD, g.home, g.home, g.home));
-    testutil_checkfmt(system(cmd), "database home initialization (\"%s\") failed", cmd);
-    free(cmd);
+    testutil_check(__wt_snprintf(buf, sizeof(buf), "rm -rf %s && mkdir %s", g.home, g.home));
+    testutil_checkfmt(system(buf), "database home creation (\"%s\") failed", buf);
 }
 
 /*

@@ -186,12 +186,6 @@ path_setup(const char *home)
     g.home_key = dmalloc(len);
     testutil_check(__wt_snprintf(g.home_key, len, "%s/%s", g.home, name));
 
-    /* RNG log file. */
-    name = "CONFIG.rand";
-    len = strlen(g.home) + strlen(name) + 2;
-    g.home_rand = dmalloc(len);
-    testutil_check(__wt_snprintf(g.home_rand, len, "%s/%s", g.home, name));
-
     /* History store dump file. */
     name = "FAIL.HSdump";
     len = strlen(g.home) + strlen(name) + 2;
