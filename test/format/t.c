@@ -165,6 +165,14 @@ main(int argc, char *argv[])
 
     format_process_env();
 
+    /*
+     * If built in a branch that doesn't support all current options, configure for backward
+     * compatibility.
+     */
+#if WIREDTIGER_VERSION_MAJOR < 10
+    g.backward_compatible = true;
+#endif
+
     /* Set values from the command line. */
     home = NULL;
     quiet_flag = false;

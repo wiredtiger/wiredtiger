@@ -313,7 +313,7 @@ config_run(void)
 
     table_wrapper(config_table, NULL); /* Configure the tables. */
 
-    /* Order is important, don't shuffle without careful consideration. */
+    /* Order can be important, don't shuffle without careful consideration. */
     config_transaction();                            /* Transactions */
     config_backup_incr();                            /* Incremental backup */
     config_checkpoint();                             /* Checkpoints */
@@ -321,11 +321,18 @@ config_run(void)
     config_directio();                               /* Direct I/O */
     config_encryption();
 
+    /* If doing an in-memory run, make sure we haven't configured something that won't work. */
     if (GV(RUNS_IN_MEMORY))
         config_in_memory_reset();
 
-    config_cache();               /* Cache */
-    config_backward_compatible(); /* The -B option */
+    /*
+     * If built in a branch that doesn't support all current options, or creating a database for
+     * such an environment, strip out configurations that won't work.
+     */
+    if (g.backward_compatible)
+        config_backward_compatible();
+
+    config_cache(); /* Cache */
 
     /*
      * Run-length is configured by a number of operations and a timer.
@@ -478,19 +485,6 @@ config_backward_compatible_table(TABLE *table, void *arg)
 static void
 config_backward_compatible(void)
 {
-    bool backward_compatible;
-
-    /*
-     * If built in a branch that doesn't support all current options, or creating a database for
-     * such an environment, strip out configurations that won't work.
-     */
-    backward_compatible = g.backward_compatible;
-#if WIREDTIGER_VERSION_MAJOR < 10
-    backward_compatible = true;
-#endif
-    if (!backward_compatible)
-        return;
-
 #undef BC_CHECK
 #define BC_CHECK(name, flag)                                                               \
     if (GV(flag)) {                                                                        \
