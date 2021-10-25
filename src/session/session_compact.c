@@ -244,6 +244,10 @@ __punch_holes(WT_SESSION_IMPL *session)
     block = bm->block;
     pfh = (WT_FILE_HANDLE_POSIX *)block->fh->handle;
 
+    /* 
+     * TODO: profile how long it takes to punch all the holes. Maybe we need to use other type of
+     * lock here, like WT_RWLOCK?
+     */
     __wt_spin_lock(session, &block->live_lock);
 
     el = &block->live.avail;
