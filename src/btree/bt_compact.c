@@ -181,11 +181,24 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
         addr_size = copy.size;
-        WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
-        if (!*skipp) {
-            copy.size = (uint8_t)addr_size;
-            WT_ERR(__compact_page_replace_addr(session, ref, &copy));
-            WT_STAT_DATA_INCR(session, btree_compact_pages_rewritten);
+
+        /* Let reconciliation handle the page if it has overflow items. */
+        if (copy.type == WT_ADDR_LEAF) {
+            /* Check if the block is worth rewriting. */
+            bm->compact_page_skip(bm, session, copy.addr, copy.size, skipp);
+            if (!*skipp && ref->page != NULL) {
+                WT_RET(__wt_page_modify_init(session, ref->page));
+                __wt_page_modify_set(session, ref->page);
+                F_SET_ATOMIC(ref->page, WT_PAGE_COMPACTION_WRITE);
+                ref->page.compact_rewrite_ovfl = true;
+            }
+        } else {
+            WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
+            if (!*skipp) {
+                copy.size = (uint8_t)addr_size;
+                WT_ERR(__compact_page_replace_addr(session, ref, &copy));
+                WT_STAT_DATA_INCR(session, btree_compact_pages_rewritten);
+            }
         }
     }
 

@@ -353,6 +353,9 @@ struct __wt_page_modify {
     size_t bytes_dirty;
     size_t bytes_updates;
 
+    /* Track request from compact to rewrite overflow items. */
+    bool compact_rewrite_ovfl;
+
     /*
      * When pages are reconciled, the result is one or more replacement blocks. A replacement block
      * can be in one of two states: it was written to disk, and so we have a block address, or it
