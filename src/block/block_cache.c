@@ -1,7 +1,7 @@
 /*-
  * Copyright (c) 2014-2020 MongoDB, Inc.
  * Copyright (c) 2008-2014 WiredTiger, Inc.
- *	All rights reserved.
+ *  All rights reserved.
  *
  * See the file LICENSE for redistribution information.
  */
@@ -674,7 +674,7 @@ __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u
     __wt_verbose(session, WT_VERB_BLKCACHE,
       "block cache initialized: type=%s, size=%" WT_SIZET_FMT " path=%s",
       (type == BLKCACHE_NVRAM) ? "nvram" : (type == BLKCACHE_DRAM) ? "dram" : "unconfigured",
-      cache_size, (nvram_device_path == NULL) ? "--" : nvram_device_path);
+      cache_size, (blkcache->nvram_device_path == NULL) ? "--" : blkcache->nvram_device_path);
 
     return (ret);
 }
@@ -838,7 +838,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         cache_type = BLKCACHE_NVRAM;
         WT_RET(__wt_config_gets(session, cfg, "block_cache.nvram_path", &cval));
         WT_RET(__wt_strndup(session, cval.str, cval.len, &nvram_device_path));
-        WT_ASSERT(__wt_absolute_path(nvram_device_path));
+        WT_ASSERT(session, __wt_absolute_path(nvram_device_path));
 #else
         WT_RET_MSG(session, EINVAL, "NVRAM block cache requires libmemkind");
 #endif
