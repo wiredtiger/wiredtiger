@@ -212,6 +212,7 @@ def main():
         print("  Environment:   {}".format(args.env))
         print("  Test path:     {}".format(args.test))
         print("  Home base:     {}".format(args.home))
+        print("  Git root:      {}".format(args.git_root))
         print("  Outfile:       {}".format(args.outfile))
         print("  Runmax:        {}".format(args.runmax))
         print("  Reuse results: {}".format(args.reuse))
