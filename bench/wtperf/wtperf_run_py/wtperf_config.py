@@ -35,13 +35,15 @@ class WTPerfConfig:
                  test: str,
                  environment: str = None,
                  run_max: int = 1,
-                 verbose: bool = False):
+                 verbose: bool = False,
+                 git_root: str = None):
         self.wtperf_path: str = wtperf_path
         self.home_dir: str = home_dir
         self.test: str = test
         self.environment: str = environment
         self.run_max: int = run_max
         self.verbose: bool = verbose
+        self.git_root: str = git_root
 
     def to_value_dict(self):
         as_dict = {'wt_perf_path': self.wtperf_path,
@@ -49,5 +51,6 @@ class WTPerfConfig:
                    'home_dir': self.home_dir,
                    'environment': self.environment,
                    'run_max': self.run_max,
-                   'verbose': self.verbose}
+                   'verbose': self.verbose,
+                   'git_root': self.git_root}
         return as_dict

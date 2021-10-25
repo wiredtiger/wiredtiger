@@ -36,6 +36,8 @@ import subprocess
 import sys
 import platform
 import psutil
+from pygit2 import discover_repository, Repository
+from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
 
 from wtperf_config import WTPerfConfig
 from perf_stat import PerfStat
@@ -62,6 +64,35 @@ def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
     return 0
 
 
+def get_git_info(git_working_tree_dir):
+    repository_path = discover_repository(git_working_tree_dir)
+    assert repository_path is not None
+
+    repo = Repository(repository_path)
+    commits = list(repo.walk(repo.head.target, GIT_SORT_NONE))
+    # print("Num commits found: {}".format(len(commits)))
+    latest_commit = commits[0]
+    # print("Latest commit found: {}".format(latest_commit.hex))
+    diff = repo.diff()
+
+    git_info = {
+        'commit': {
+            'hash': latest_commit.hex,
+            'message': latest_commit.message,
+            'author': latest_commit.author.name
+            },
+        'branch': {
+            'name': repo.head.shorthand
+        },
+        'stats': {
+            'files_changed': diff.stats.files_changed,
+        },
+        'num_commits': len(commits)
+    }
+
+    return git_info
+
+
 def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
     command_line = []
     if env is not None:
@@ -77,15 +108,12 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str):
 
 
 def brief_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
-    as_list = []
-    as_list.append(
-        {
-            "info": {
-                "test_name": os.path.basename(config.test)
-            },
-            "metrics": perf_stats.to_value_list(brief=True)
-        }
-    )
+    as_list = [{
+        "info": {
+            "test_name": os.path.basename(config.test)
+        },
+        "metrics": perf_stats.to_value_list(brief=True)
+    }]
     return as_list
 
 
@@ -101,6 +129,10 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
                    'platform': platform.platform()
                 }
             }
+
+    if config.git_root:
+        as_dict['git'] = get_git_info(config.git_root)
+
     return as_dict
 
 
@@ -168,6 +200,7 @@ def main():
                         '--reuse',
                         action="store_true",
                         help='reuse and reanalyse results from previous tests rather than running tests again')
+    parser.add_argument('-g', '--git_root', help='path of the Git working directory')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -182,6 +215,7 @@ def main():
         print("  Outfile:       {}".format(args.outfile))
         print("  Runmax:        {}".format(args.runmax))
         print("  Reuse results: {}".format(args.reuse))
+        print("  Brief output:  {}".format(args.brief_output))
 
     if args.wtperf is None:
         sys.exit('The path to the wtperf executable is required')
@@ -195,7 +229,8 @@ def main():
                           test=args.test,
                           environment=args.env,
                           run_max=args.runmax,
-                          verbose=args.verbose)
+                          verbose=args.verbose,
+                          git_root=args.git_root)
 
     perf_stats: PerfStatCollection = setup_perf_stats()
 
