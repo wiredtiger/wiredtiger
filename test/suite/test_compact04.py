@@ -181,6 +181,9 @@ class test_compact04(test_rollback_to_stable_base):
         # Perform several removes.
         self.large_removes(uri, ds, nrows//2, nrows, self.prepare, 90)
 
+        # Checkpoint to ensure the data is flushed to disk.
+        self.session.checkpoint()
+
         sizeAfterRemove = self.getSize(uri)
         self.pr('After Remove ' + str(sizeAfterRemove // mb) + 'MB')
 
@@ -191,6 +194,11 @@ class test_compact04(test_rollback_to_stable_base):
         simulate_crash_restart(self, ".", "RESTART")
         
         if not self.before_crash:
+            # Check that the correct data is seen at and after the stable timestamp and before compact.
+            self.check(value_b, uri, nrows, 40)
+            self.check(value_b, uri, nrows, 80)
+            self.check(value_c, uri, nrows, 30)
+            self.check(value_d, uri, nrows, 20)
             self.call_compact(uri)
 
         # Check that the correct data is seen at and after the stable timestamp.
