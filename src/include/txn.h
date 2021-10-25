@@ -287,6 +287,8 @@ struct __wt_txn {
     u_int prepare_count;
 #endif
 
+    bool in_commit_phase;
+
     /* Scratch buffer for in-memory log records. */
     WT_ITEM *logrec;
 

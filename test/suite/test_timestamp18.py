@@ -42,6 +42,8 @@ class test_timestamp18(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
+    uri = 'table:test_timestamp18'
+
     key_format_values = [
         ('string-row', dict(key_format='S', usestrings=True)),
         ('column', dict(key_format='r', usestrings=False)),
@@ -56,10 +58,9 @@ class test_timestamp18(wttest.WiredTigerTestCase):
         return str(i) if self.usestrings else i
 
     def test_ts_writes_with_non_ts_write(self):
-        uri = 'table:test_timestamp18'
-        self.session.create(uri, 'key_format={},value_format=S'.format(self.key_format))
+        self.session.create(self.uri, 'key_format={},value_format=S'.format(self.key_format))
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(1))
-        cursor = self.session.open_cursor(uri)
+        cursor = self.session.open_cursor(self.uri)
 
         value1 = 'a' * 500
         value2 = 'b' * 500
@@ -115,3 +116,20 @@ class test_timestamp18(wttest.WiredTigerTestCase):
                     else:
                         self.assertEqual(cursor[self.get_key(i)], value3)
             self.session.rollback_transaction()
+
+    # check that updates with no timestamp at commit time use first_commit_timestamp
+    def test_timestamp_backfilling(self):
+        self.session.create(self.uri, 'key_format=S, value_format=i'.format(self.key_format))
+        c = self.session.open_cursor(self.uri)
+
+        self.session.begin_transaction()
+        c["k1"] = 1
+        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(2))        
+        c["k2"] = 2
+        self.session.commit_transaction('commit_timestamp=5')
+
+        # The update to k1 is un-timestamped at commit time and uses first_commit_timestamp (2) instead of commit_timestamp (5)
+        self.session.begin_transaction('read_timestamp=2')
+        c.set_key("k1")
+        self.assertEqual(c.search(), 0)
+        self.session.commit_transaction()

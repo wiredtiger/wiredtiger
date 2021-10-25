@@ -1637,6 +1637,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
 
+    txn->in_commit_phase = true;
+
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_ERROR) || txn->mod_count == 0);
