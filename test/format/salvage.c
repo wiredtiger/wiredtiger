@@ -70,7 +70,7 @@ corrupt(TABLE *table)
     wt_off_t offset;
     size_t len, nw;
     int fd;
-    char buf[4096], *object_name, path[MAX_FORMAT_PATH];
+    char buf[MAX_FORMAT_PATH * 2], *object_name, path[MAX_FORMAT_PATH];
     const char *smash;
 
     uri_path(table, &object_name, path, sizeof(path));
@@ -124,7 +124,7 @@ wts_salvage(TABLE *table, void *arg)
 {
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char buf[4096], path[MAX_FORMAT_PATH];
+    char buf[MAX_FORMAT_PATH * 5], path[MAX_FORMAT_PATH];
 
     (void)arg; /* unused argument */
 

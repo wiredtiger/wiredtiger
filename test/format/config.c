@@ -70,8 +70,8 @@ config_random(TABLE *table, bool table_only)
             continue;
 
         /*
-         * Don't randomly configure runs.tables if we read a CONFIG file. (This prevents us from
-         * turning old-style CONFIG files into multi-table tests.)
+         * Don't randomly configure runs.tables if we read a CONFIG file, that prevents us from
+         * turning old-style CONFIG files into multi-table tests.
          */
         if (cp->off == V_GLOBAL_RUNS_TABLES && !g.multi_table_config)
             continue;
@@ -174,8 +174,8 @@ config_table_am(TABLE *table)
         case 2: /* 20% */
 #if !defined(DISABLE_RANDOM_LSM_TESTING)
             /*
-             * LSM requires a row-store and backing disk. Configuring in-memory, timestamps or
-             * truncation results in LSM cache problems, don't configure LSM if those set.
+             * LSM requires a row-store and backing disk. Don't configure LSM if in-memory,
+             * timestamps or truncation are configured, they result in cache problems.
              *
              * FIXME WT-4162: Remove the timestamp test when WT-4162 resolved.
              */
@@ -795,11 +795,7 @@ config_encryption(void)
 static bool
 config_fix(TABLE *table)
 {
-    /*
-     * Fixed-length column stores don't support the history store table, so no modify operations.
-     *
-     * FIXME: FLCS
-     */
+    /* Fixed-length column stores don't support modify operations. */
     return (!config_explicit(table, "ops.pct.modify"));
 }
 
