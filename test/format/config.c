@@ -1299,8 +1299,7 @@ config_find(const char *s, size_t len, bool fatal)
         if (strncmp(s, cp->name, len) == 0 && cp->name[len] == '\0')
             return (cp);
 
-    /* Optionally ignore unknown keywords, it makes it easier to run old CONFIG files.
-     */
+    /* Optionally ignore unknown keywords, it makes it easier to run old CONFIG files. */
     if (fatal)
         testutil_die(EINVAL, "%s: %s: unknown required configuration keyword", progname, s);
 
