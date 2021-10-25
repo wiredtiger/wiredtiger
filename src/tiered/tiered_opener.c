@@ -59,6 +59,7 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
      * This can be called at any time, because we are opening the objects lazily.
      */
     if (!local_only && ret != 0) {
+        /* Get the prefix from the object's metadata, not the connection. */
         WT_ERR(__wt_metadata_search(session, object_uri, (char **)&object_val));
         cfg[0] = object_val;
         cfg[1] = NULL;
