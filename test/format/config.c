@@ -204,7 +204,7 @@ config_table_am(TABLE *table)
 }
 
 /*
- * config_tables --
+ * config_table --
  *     Finish initialization of a single table.
  */
 static void
@@ -699,7 +699,7 @@ config_compression(TABLE *table, const char *conf_name)
 }
 
 /*
- * config_directio
+ * config_directio --
  *     Direct I/O configuration.
  */
 static void
@@ -876,7 +876,7 @@ config_in_memory_reset(void)
 }
 
 /*
- * config_backup_incr_compatibility_check --
+ * config_backup_incr_log_compatibility_check --
  *     Backup incremental log compatibility check.
  */
 static void
@@ -1106,6 +1106,10 @@ config_error(void)
         fprintf(stderr, "%*s: %s\n", (int)max_name, cp->name, cp->desc);
 }
 
+/*
+ * config_print_one --
+ *     Print out a single configuration setting.
+ */
 static void
 config_print_one(FILE *fp, CONFIG *cp, CONFIGV *v, const char *prefix)
 {
@@ -1283,8 +1287,8 @@ config_clear(void)
 }
 
 /*
- * config_find
- *	Find a specific configuration entry.
+ * config_find --
+ *     Find a specific configuration entry.
  */
 static CONFIG *
 config_find(const char *s, size_t len, bool fatal)
@@ -1595,8 +1599,8 @@ config_map_checkpoint(const char *s, u_int *vp)
 }
 
 /*
- * config_explicit
- *	Return if a configuration entry is explicitly set (as opposed to being randomly set).
+ * config_explicit --
+ *     Return if a configuration entry is explicitly set (as opposed to being randomly set).
  */
 static bool
 config_explicit(TABLE *table, const char *s)

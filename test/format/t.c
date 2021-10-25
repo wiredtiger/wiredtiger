@@ -39,11 +39,13 @@ static void usage(void) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 extern int __wt_optind;
 extern char *__wt_optarg;
 
+static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+static void signal_timer(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
+
 /*
  * signal_handler --
  *     Generic signal handler, report the signal and exit.
  */
-static void signal_handler(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 signal_handler(int signo)
 {
@@ -56,7 +58,6 @@ signal_handler(int signo)
  * signal_timer --
  *     Alarm signal handler.
  */
-static void signal_timer(int signo) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 static void
 signal_timer(int signo)
 {
@@ -351,7 +352,7 @@ main(int argc, char *argv[])
 }
 
 /*
- * die --
+ * format_die --
  *     Report an error, dumping the configuration.
  */
 static void

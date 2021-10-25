@@ -73,6 +73,10 @@ bulk_rollback_transaction(WT_SESSION *session)
     testutil_check(session->rollback_transaction(session, NULL));
 }
 
+/*
+ * wts_load --
+ *     Bulk load a table.
+ */
 void
 wts_load(TABLE *table, void *arg)
 {

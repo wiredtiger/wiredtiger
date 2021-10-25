@@ -31,6 +31,10 @@
 #define TRACE_DIR "OPS.TRACE"
 #define TRACE_INIT_CMD "rm -rf %s/" TRACE_DIR " && mkdir %s/" TRACE_DIR
 
+/*
+ * trace_config --
+ *     Configure operation tracing.
+ */
 void
 trace_config(const char *config)
 {
@@ -58,6 +62,10 @@ trace_config(const char *config)
     free(copy);
 }
 
+/*
+ * trace_init --
+ *     Initialize operation tracing.
+ */
 void
 trace_init(void)
 {
@@ -103,6 +111,10 @@ trace_init(void)
     g.trace_session = session;
 }
 
+/*
+ * trace_teardown --
+ *     Close operation tracing.
+ */
 void
 trace_teardown(void)
 {
@@ -115,6 +127,10 @@ trace_teardown(void)
         testutil_check(conn->close(conn, NULL));
 }
 
+/*
+ * trace_ops_init --
+ *     Per thread operation tracing setup.
+ */
 void
 trace_ops_init(TINFO *tinfo)
 {

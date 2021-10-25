@@ -77,7 +77,7 @@ track_write(char *msg, size_t len)
 }
 
 /*
- * track --
+ * track_ops --
  *     Show a status line of operations and time stamp progress.
  */
 void
@@ -257,7 +257,7 @@ timestamp_parse(const char *p, uint64_t *tsp)
 }
 
 /*
- * timestamp_stable --
+ * timestamp_init --
  *     Set the stable timestamp on open.
  */
 void

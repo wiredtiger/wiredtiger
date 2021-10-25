@@ -29,7 +29,7 @@
 #include "format.h"
 
 /*
- * compaction --
+ * compact --
  *     Periodically do a compaction operation.
  */
 WT_THREAD_RET

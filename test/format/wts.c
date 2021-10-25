@@ -76,6 +76,10 @@ encryptor_at_open(void)
     return (p);
 }
 
+/*
+ * handle_message --
+ *     Event handler for verbose and error messages.
+ */
 static int
 handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *message)
 {
@@ -99,6 +103,10 @@ handle_message(WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *messa
     return (nw < 0 ? EIO : (ret == EOF ? errno : 0));
 }
 
+/*
+ * handle_progress --
+ *     Event handler for progress messages.
+ */
 static int
 handle_progress(
   WT_EVENT_HANDLER *handler, WT_SESSION *session, const char *operation, uint64_t progress)
@@ -499,6 +507,10 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     *connp = conn;
 }
 
+/*
+ * wts_close --
+ *     Close the open database.
+ */
 void
 wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
 {
@@ -523,6 +535,10 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
     testutil_check(conn->close(conn, GV(WIREDTIGER_LEAK_MEMORY) ? "leak_memory" : NULL));
 }
 
+/*
+ * wts_verify --
+ *     Verify a table.
+ */
 void
 wts_verify(TABLE *table, void *arg)
 {

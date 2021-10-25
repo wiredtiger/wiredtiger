@@ -193,8 +193,12 @@ key_gen_common(TABLE *table, WT_ITEM *key, uint64_t keyno, const char *const suf
     testutil_assert(key->size <= key->memsize);
 }
 
+/*
+ * val_len --
+ *     Select and return the length for a value.
+ */
 static inline uint32_t
-value_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
+val_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
 {
     /*
      * Focus on relatively small items, admitting the possibility of larger items. Pick a size close
@@ -209,11 +213,15 @@ value_len(WT_RAND_STATE *rnd, uint64_t keyno, uint32_t min, uint32_t max)
     return (mmrand(rnd, min, max));
 }
 
+/*
+ * val_init --
+ *     Initialize the value structures for a table.
+ */
 void
 val_init(TABLE *table, void *arg)
 {
     size_t i;
-    uint32_t val_len;
+    uint32_t len;
 
     (void)arg; /* unused argument */
 
@@ -228,27 +236,35 @@ val_init(TABLE *table, void *arg)
      * Add a few extra bytes in order to guarantee we can always offset into the buffer by a few
      * extra bytes, used to generate different data for column-store run-length encoded files.
      */
-    val_len = WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_VALUE_MAX)) + 20;
-    table->val_base = dmalloc(val_len);
-    for (i = 0; i < val_len; ++i)
+    len = WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_VALUE_MAX)) + 20;
+    table->val_base = dmalloc(len);
+    for (i = 0; i < len; ++i)
         table->val_base[i] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i % 26];
 
     table->val_dup_data_len =
-      value_len(NULL, (uint64_t)mmrand(NULL, 1, 20), TV(BTREE_VALUE_MIN), TV(BTREE_VALUE_MAX));
+      val_len(NULL, (uint64_t)mmrand(NULL, 1, 20), TV(BTREE_VALUE_MIN), TV(BTREE_VALUE_MAX));
 }
 
+/*
+ * val_gen_init --
+ *     Initialize a single value structure.
+ */
 void
 val_gen_init(WT_ITEM *value)
 {
-    uint32_t val_len;
+    uint32_t len;
 
-    val_len = WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_VALUE_MAX)) + 20;
-    value->mem = dmalloc(val_len);
-    value->memsize = val_len;
+    len = WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_VALUE_MAX)) + 20;
+    value->mem = dmalloc(len);
+    value->memsize = len;
     value->data = value->mem;
     value->size = 0;
 }
 
+/*
+ * val_gen_teardown --
+ *     Discard a single value structure.
+ */
 void
 val_gen_teardown(WT_ITEM *value)
 {
@@ -256,6 +272,10 @@ val_gen_teardown(WT_ITEM *value)
     memset(value, 0, sizeof(*value));
 }
 
+/*
+ * val_gen --
+ *     Generate a new value.
+ */
 void
 val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint64_t keyno)
 {
@@ -318,7 +338,7 @@ val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint64_t keyno)
         (void)strcpy(p, "DUPLICATEV");
         p[10] = '/';
     } else {
-        value->size = value_len(rnd, keyno, TV(BTREE_VALUE_MIN), TV(BTREE_VALUE_MAX));
+        value->size = val_len(rnd, keyno, TV(BTREE_VALUE_MIN), TV(BTREE_VALUE_MAX));
         memcpy(p, table->val_base, value->size);
         u64_to_string_zf(keyno, p, 11);
         p[10] = '/';

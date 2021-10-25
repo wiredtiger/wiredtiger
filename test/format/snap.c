@@ -77,7 +77,7 @@ snap_teardown(TINFO *tinfo)
 }
 
 /*
- * snap_clear --
+ * snap_clear_one --
  *     Clear a single snap entry.
  */
 static void

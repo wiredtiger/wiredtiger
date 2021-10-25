@@ -28,6 +28,10 @@
 
 #include "format.h"
 
+/*
+ * uri_path --
+ *     Return the path to an object file, and optionally, the object name.
+ */
 static void
 uri_path(TABLE *table, char **object_namep, char *buf, size_t len)
 {
