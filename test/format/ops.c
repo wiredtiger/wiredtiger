@@ -880,8 +880,10 @@ ops(void *arg)
             ++tinfo->update;
             switch (table->type) {
             case FIX:
-                testutil_assert(0);
-                break;
+                testutil_die(
+                  0, "%s", "fixed-length column-store does not support modify operations");
+                /* NOTREACHED */
+		break;
             case ROW:
                 ret = row_modify(tinfo, positioned);
                 break;
