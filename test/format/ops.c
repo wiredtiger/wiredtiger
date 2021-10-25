@@ -883,7 +883,6 @@ ops(void *arg)
                 testutil_die(
                   0, "%s", "fixed-length column-store does not support modify operations");
                 /* NOTREACHED */
-                break;
             case ROW:
                 ret = row_modify(tinfo, positioned);
                 break;
