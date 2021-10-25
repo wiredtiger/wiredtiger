@@ -1286,17 +1286,8 @@ nextprev(TINFO *tinfo, bool next)
             testutil_die(ret, "nextprev: get_key/get_value");
 
         /*
-         * Check that keys are never returned out-of-order.
-         *
-         * LSM has a bug that prevents cursor order checks from working, skip the test for now.
-         * FIXME WT-3889
-         */
-        if (DATASOURCE(table, "lsm"))
-            break;
-
-        /*
-         * Compare the returned key with the previously returned key, and assert the order is
-         * correct.
+         * Check that keys are never returned out-of-order by comparing the returned key with the
+         * previously returned key, and assert the order is correct.
          */
         switch (table->type) {
         case FIX:
