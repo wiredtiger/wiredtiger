@@ -50,7 +50,6 @@ include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
-set(COMPILER_DIAGNOSTIC_C_FLAGS "" CACHE INTERNAL "" FORCE)
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
