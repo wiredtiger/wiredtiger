@@ -28,7 +28,7 @@
 
 # create_test_executable(target SOURCES <source files> [EXECUTABLE_NAME <name>] [BINARY_DIR <dir>] [INCLUDES <includes>]
 #    [ADDITIONAL_FILES <files>] [ADDITIONAL_DIRECTORIES <dirs>] [LIBS <libs>] [FLAGS <flags>])
-# Defines a C/CPP test executable binary. This helper does the necessary initialisation to ensure the correct flags and libraries
+# Defines a C/CXX test executable binary. This helper does the necessary initialisation to ensure the correct flags and libraries
 # are used when compiling the test executable.
 #   target - Target name of the test.
 #   SOURCES <source files> - Sources to compile for the given test.
@@ -88,7 +88,7 @@ function(create_test_executable target)
     endif()
     target_compile_options(${target} PRIVATE ${test_flags})
 
-    # Include the base set of directories for a wiredtiger C/CPP test.
+    # Include the base set of directories for a wiredtiger C/CXX test.
     target_include_directories(${target}
         PRIVATE
             ${CMAKE_SOURCE_DIR}/src/include
@@ -99,7 +99,7 @@ function(create_test_executable target)
         target_include_directories(${target} PRIVATE ${CREATE_TEST_INCLUDES})
     endif()
 
-    # Link the base set of libraries for a wiredtiger C/CPP test.
+    # Link the base set of libraries for a wiredtiger C/CXX test.
     target_link_libraries(${target} wiredtiger test_util)
     if(NOT "${CREATE_TEST_LIBS}" STREQUAL "")
         target_link_libraries(${target} ${CREATE_TEST_LIBS})
