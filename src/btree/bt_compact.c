@@ -190,7 +190,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
                 WT_RET(__wt_page_modify_init(session, ref->page));
                 __wt_page_modify_set(session, ref->page);
                 F_SET_ATOMIC(ref->page, WT_PAGE_COMPACTION_WRITE);
-                ref->page.compact_rewrite_ovfl = true;
+                ref->page->modify->compact_rewrite_ovfl = true;
             }
         } else {
             WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
