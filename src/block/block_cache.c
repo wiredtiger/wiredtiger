@@ -622,7 +622,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
 static int
 __blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, u_int hash_size, u_int type,
   char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache, bool cache_on_writes,
-  double overhead_pct, u_int evict_aggressive, uint64_t full_target, bool cache_on_checkpoint)
+  float overhead_pct, u_int evict_aggressive, uint64_t full_target, bool cache_on_checkpoint)
 {
     WT_BLKCACHE *blkcache;
     WT_CONNECTION_IMPL *conn;
@@ -762,7 +762,7 @@ done:
 static int
 __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, size_t hash_size,
   u_int type, char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache,
-  bool cache_on_writes, double overhead_pct, u_int evict_aggressive, uint64_t full_target,
+  bool cache_on_writes, float overhead_pct, u_int evict_aggressive, uint64_t full_target,
   bool cache_on_checkpoint)
 {
     WT_BLKCACHE *blkcache;
