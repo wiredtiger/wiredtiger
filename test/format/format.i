@@ -148,11 +148,11 @@ random_sleep(WT_RAND_STATE *rnd, u_int max_seconds)
 }
 
 /*
- * table_apply -
+ * tables_apply -
  *	Call an underlying function on all tables.
  */
 static inline void
-table_apply(void (*func)(TABLE *, void *), void *arg)
+tables_apply(void (*func)(TABLE *, void *), void *arg)
 {
     u_int i;
 

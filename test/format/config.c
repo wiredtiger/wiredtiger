@@ -312,7 +312,7 @@ config_run(void)
 
     config_random(tables[0], false); /* Configure the remaining global name space. */
 
-    table_apply(config_table, NULL); /* Configure the tables. */
+    tables_apply(config_table, NULL); /* Configure the tables. */
 
     /* Order can be important, don't shuffle without careful consideration. */
     config_transaction();                            /* Transactions */
@@ -500,7 +500,7 @@ config_backward_compatible(void)
     BC_CHECK("stress.hs_search", STRESS_HS_SEARCH);
     BC_CHECK("stress.hs_sweep", STRESS_HS_SWEEP);
 
-    table_apply(config_backward_compatible_table, NULL);
+    tables_apply(config_backward_compatible_table, NULL);
 }
 
 /*

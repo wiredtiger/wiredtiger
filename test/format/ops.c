@@ -1014,7 +1014,7 @@ update_instead_of_chosen_op:
 
         /* If we have pending inserts, try and update the total rows. */
         if (g.column_store_config)
-            table_apply(col_insert_resolve, tinfo);
+            tables_apply(col_insert_resolve, tinfo);
 
         /*
          * The cursor is positioned if we did any operation other than insert, do a small number of
