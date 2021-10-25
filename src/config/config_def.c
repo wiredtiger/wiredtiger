@@ -38,7 +38,7 @@ static const WT_CONFIG_CHECK confchk_wiredtiger_open_block_cache_subconfigs[] = 
   {"cache_on_checkpoint", "boolean", NULL, NULL, NULL, 0},
   {"cache_on_writes", "boolean", NULL, NULL, NULL, 0}, {"enabled", "boolean", NULL, NULL, NULL, 0},
   {"full_target", "int", NULL, "min=30,max=100", NULL, 0},
-  {"hashsize", "int", NULL, "min=512,max=1073741824", NULL, 0},
+  {"hashsize", "int", NULL, "min=512,max=256K", NULL, 0},
   {"max_percent_overhead", "int", NULL, "min=1,max=500", NULL, 0},
   {"nvram_path", "string", NULL, NULL, NULL, 0},
   {"percent_file_in_dram", "int", NULL, "min=0,max=100", NULL, 0},

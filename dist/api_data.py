@@ -532,8 +532,8 @@ connection_runtime_config = [
                    maximum memory to allocate for the block cache''',
                    min='0', max='6155GB'),
                Config('hashsize', '0', r'''
-                   size of the hashtable that keeps track of blocks.''',
-                   min='512', max='1073741824'),
+                   number of buckets in the hashtable that keeps track of blocks.''',
+                   min='512', max='256K'),
                Config('max_percent_overhead', '10', r'''
                    maximum tolerated overhead expressed as the number of
                    blocks added and removed as percent of blocks looked up;

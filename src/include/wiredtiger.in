@@ -2025,8 +2025,8 @@ struct __wt_connection {
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;full_target, a fraction of cache that must be
 	 * full before eviction will remove unused blocks., an integer between 30 and 100; default
 	 * \c 95.}
-	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the hashtable that keeps track
-	 * of blocks., an integer between 512 and 1073741824; default \c 0.}
+	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that
+	 * keeps track of blocks., an integer between 512 and 256K; default \c 0.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;max_percent_overhead, maximum tolerated overhead
 	 * expressed as the number of blocks added and removed as percent of blocks looked up; cache
 	 * population and eviction will be suppressed if the overhead exceeds the supplied
@@ -2704,8 +2704,8 @@ struct __wt_connection {
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;enabled, enable block cache., a boolean flag; default \c false.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;full_target, a fraction of cache that must be full before
  * eviction will remove unused blocks., an integer between 30 and 100; default \c 95.}
- * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, size of the hashtable that keeps track of blocks., an
- * integer between 512 and 1073741824; default \c 0.}
+ * @config{&nbsp;&nbsp;&nbsp;&nbsp;hashsize, number of buckets in the hashtable that keeps track of
+ * blocks., an integer between 512 and 256K; default \c 0.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;
  * max_percent_overhead, maximum tolerated overhead expressed as the number of blocks added and
  * removed as percent of blocks looked up; cache population and eviction will be suppressed if the
