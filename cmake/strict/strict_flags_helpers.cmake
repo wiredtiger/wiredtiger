@@ -20,7 +20,7 @@ function(get_gnu_base_flags flags)
     )
 
     if (NOT "${GNU_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to assert_type: ${GNU_FLAGS_UNPARSED_ARGUMENTS}")
+        message(FATAL_ERROR "Unknown arguments to get_gnu_base_flags: ${GNU_FLAGS_UNPARSED_ARGUMENTS}")
     endif()
 
     set(cmake_compiler_version)
@@ -114,7 +114,7 @@ function(get_clang_base_flags flags)
     )
 
     if (NOT "${CLANG_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to assert_type: ${CLANG_FLAGS_UNPARSED_ARGUMENTS}")
+        message(FATAL_ERROR "Unknown arguments to get_clang_base_flags: ${CLANG_FLAGS_UNPARSED_ARGUMENTS}")
     endif()
 
     set(cmake_compiler_version)
@@ -203,7 +203,7 @@ function(get_cl_base_flags flags)
     )
 
     if (NOT "${CL_FLAGS_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to assert_type: ${CL_FLAGS_UNPARSED_ARGUMENTS}")
+        message(FATAL_ERROR "Unknown arguments to get_cl_base_flags: ${CL_FLAGS_UNPARSED_ARGUMENTS}")
     endif()
 
     set(cmake_compiler_version)
