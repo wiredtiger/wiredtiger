@@ -554,7 +554,7 @@ endfunction()
 # assert_type_size(type size)
 # Wrapper function around 'test_type_size' that additionally asserts whether the given types meets an expected size.
 # Throws a fatal error if the type is not found or doesn't equal the expected size.
-#   type - eame of the type to test.
+#   type - name of the type to test.
 #   size - expected size of the type.
 #   EXTRA_INCLUDES - extra/optional include files to access the given type e.g. a custom typedef in an include header.
 function(assert_type_size type size)
@@ -582,7 +582,7 @@ function(assert_type_size type size)
         message(FATAL_ERROR "Type assertion failed: ${type} does not exists")
     endif()
 
-    if((NOT ${size} EQUAL 0) AND  (NOT ${output_type_size} EQUAL ${size}))
+    if((NOT ${size} EQUAL 0) AND (NOT ${output_type_size} EQUAL ${size}))
         # Type does not meet size assertion.
         message(FATAL_ERROR "Type assertion failed: ${type} does not equal size ${size}")
     endif()
