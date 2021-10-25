@@ -139,7 +139,7 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     conn = S2C(session);
     blkcache = &conn->blkcache;
 
-    if ((double)(blkcache->inserts + blkcache->removals) / (double)(blkcache->lookups) >
+    if ((float)(blkcache->inserts + blkcache->removals) / (float)(blkcache->lookups) >
       blkcache->overhead_pct)
         return (true);
 
@@ -620,7 +620,7 @@ __wt_blkcache_remove(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uin
  *     Initialize the block cache.
  */
 static int
-__blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, size_t hash_size, u_int type,
+__blkcache_init(WT_SESSION_IMPL *session, size_t cache_size, u_int hash_size, u_int type,
   char *nvram_device_path, size_t system_ram, u_int percent_file_in_os_cache, bool cache_on_writes,
   double overhead_pct, u_int evict_aggressive, uint64_t full_target, bool cache_on_checkpoint)
 {
@@ -799,10 +799,9 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_BLKCACHE *blkcache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
-    double overhead_pct;
+    float overhead_pct;
     uint64_t cache_size, full_target, system_ram;
-    uint32_t hash_size;
-    u_int cache_type, evict_aggressive, percent_file_in_os_cache;
+    u_int cache_type, evict_aggressive, hash_size, percent_file_in_os_cache;
     char *nvram_device_path;
     bool cache_on_checkpoint, cache_on_writes;
 
@@ -823,7 +822,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
         WT_RET_MSG(session, EINVAL, "block cache size must be greater than zero");
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.hashsize", &cval));
-    if ((hash_size = (uint64_t)cval.val) == 0)
+    if ((hash_size = (u_int)cval.val) == 0)
         hash_size = BLKCACHE_HASHSIZE_DEFAULT;
     else if (hash_size < BLKCACHE_HASHSIZE_MIN || hash_size > BLKCACHE_HASHSIZE_MAX)
         WT_RET_MSG(session, EINVAL, "block cache hash size must be between %d and %d entries",
@@ -859,14 +858,14 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     evict_aggressive = (u_int)cval.val;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.full_target", &cval));
-    full_target = (uint64_t)((double)cache_size * (double)cval.val / (double)100);
+    full_target = (uint64_t)((float)cache_size * (float)cval.val / (float)100);
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.cache_on_writes", &cval));
     if (cval.val == 0)
         cache_on_writes = false;
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.max_percent_overhead", &cval));
-    overhead_pct = (double)cval.val / (double)100;
+    overhead_pct = (float)cval.val / (float)100;
 
     WT_RET(__blkcache_reconfig(session, reconfig, cache_size, hash_size, cache_type,
       nvram_device_path, system_ram, percent_file_in_os_cache, cache_on_writes, overhead_pct,

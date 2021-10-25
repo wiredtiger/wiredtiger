@@ -100,7 +100,7 @@ struct __wt_blkcache {
     char *nvram_device_path; /* The absolute path of the file system on NVRAM device */
 
     uint64_t full_target; /* Number of bytes in the block cache that triggers eviction */
-    double overhead_pct;  /* Overhead percentage that suppresses population and eviction */
+    float overhead_pct;   /* Overhead percentage that suppresses population and eviction */
 
     size_t estimated_file_size;        /* Estimated size of all files used by the workload. */
     int refs_since_filesize_estimated; /* Counter for recalculating the aggregate file size */
