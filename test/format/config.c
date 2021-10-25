@@ -252,8 +252,8 @@ config_table(TABLE *table, void *arg)
 
     /*
      * Key/value minimum/maximum are related, correct unless specified by the configuration. Key
-     * sizes are a row-store thing, column-store has a relatively small fixed-size object, use a
-     * constant of 15.
+     * sizes are a row-store consideration: column-store doesn't store keys, a constant of 8 will
+     * reserve a small amount of additional space.
      */
     if (table->type == ROW) {
         if (!config_explicit(table, "btree.key_min") && TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
@@ -263,7 +263,7 @@ config_table(TABLE *table, void *arg)
         if (TV(BTREE_KEY_MIN) > TV(BTREE_KEY_MAX))
             testutil_die(EINVAL, "btree.key_min may not be larger than btree.key_max");
     } else
-        TV(BTREE_KEY_MIN) = TV(BTREE_KEY_MAX) = 15;
+        TV(BTREE_KEY_MIN) = TV(BTREE_KEY_MAX) = 8;
     if (!config_explicit(table, "btree.value_min") && TV(BTREE_VALUE_MIN) > TV(BTREE_VALUE_MAX))
         TV(BTREE_VALUE_MIN) = TV(BTREE_VALUE_MAX);
     if (!config_explicit(table, "btree.value_max") && TV(BTREE_VALUE_MAX) < TV(BTREE_VALUE_MIN))
