@@ -320,7 +320,7 @@ config_run(void)
     config_checkpoint();                             /* Checkpoints */
     config_compression(NULL, "logging.compression"); /* Logging compression */
     config_directio();                               /* Direct I/O */
-    config_encryption();
+    config_encryption();                             /* Encryption */
 
     /* If doing an in-memory run, make sure we haven't configured something that won't work. */
     if (GV(RUNS_IN_MEMORY))
