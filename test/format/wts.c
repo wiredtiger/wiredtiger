@@ -420,7 +420,7 @@ wts_create_database(void)
     create_database(g.home, &conn);
 
     g.wts_conn = conn;
-    table_wrapper(create_object, g.wts_conn);
+    table_apply(create_object, g.wts_conn);
     if (GV(RUNS_IN_MEMORY) != 0)
         g.wts_conn_inmemory = g.wts_conn;
     else
@@ -642,7 +642,7 @@ wts_stats(void)
     /* Data source statistics. */
     args.fp = fp;
     args.session = session;
-    table_wrapper(stats_data_source, &args);
+    table_apply(stats_data_source, &args);
 
     fclose_and_clear(&fp);
 

@@ -294,13 +294,13 @@ main(int argc, char *argv[])
      * Initialize key/value information. Load and verify initial records (at least a brief scan if
      * not doing a full verify).
      */
-    table_wrapper(key_init, NULL);
-    table_wrapper(val_init, NULL);
+    table_apply(key_init, NULL);
+    table_apply(val_init, NULL);
     if (!g.reopen)
-        TIMED_MAJOR_OP(table_wrapper(wts_load, NULL));
-    TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
+        TIMED_MAJOR_OP(table_apply(wts_load, NULL));
+    TIMED_MAJOR_OP(table_apply(wts_verify, g.wts_conn));
     if (GV(OPS_VERIFY) == 0)
-        TIMED_MAJOR_OP(table_wrapper(wts_read_scan, g.wts_conn));
+        TIMED_MAJOR_OP(table_apply(wts_read_scan, g.wts_conn));
 
     /* Optionally start checkpoints. */
     wts_checkpoints();
@@ -325,13 +325,13 @@ main(int argc, char *argv[])
      * Verify the objects. Verify closes the underlying handle and discards the statistics, read
      * them first.
      */
-    TIMED_MAJOR_OP(table_wrapper(wts_verify, g.wts_conn));
+    TIMED_MAJOR_OP(table_apply(wts_verify, g.wts_conn));
 
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn, &g.wts_session);
 
     /* Salvage testing. */
-    TIMED_MAJOR_OP(table_wrapper(wts_salvage, NULL));
+    TIMED_MAJOR_OP(table_apply(wts_salvage, NULL));
 
     trace_teardown();
 

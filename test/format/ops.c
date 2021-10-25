@@ -883,7 +883,7 @@ ops(void *arg)
                 testutil_die(
                   0, "%s", "fixed-length column-store does not support modify operations");
                 /* NOTREACHED */
-		break;
+                break;
             case ROW:
                 ret = row_modify(tinfo, positioned);
                 break;
@@ -1015,7 +1015,7 @@ update_instead_of_chosen_op:
 
         /* If we have pending inserts, try and update the total rows. */
         if (g.column_store_config)
-            table_wrapper(col_insert_resolve, tinfo);
+            table_apply(col_insert_resolve, tinfo);
 
         /*
          * The cursor is positioned if we did any operation other than insert, do a small number of
