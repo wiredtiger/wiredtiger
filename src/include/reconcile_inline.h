@@ -31,10 +31,15 @@
  * WT_REC_TW_START_VISIBLE_ALL
  *     Check if the provided time window's start is globally visible as per the saved state on the
  *     reconciliation structure.
+ *
+ *     An update is considered to be globally visible when its transaction id is less than the
+ *     pinned id, and when its start timestamp is less than or equal to the pinned timestamp.
+ *     Due to a difference in transaction id based visibility and timestamp visibility the timestamp
+ *     comparison is inclusive whereas the transaction id comparison isn't.
  */
 #define WT_REC_TW_START_VISIBLE_ALL(r, tw)                     \
     (WT_TXNID_LT((tw)->start_txn, (r)->rec_start_oldest_id) && \
-      WT_REC_TS_VISIBLE_ALL(r, tw->start_ts))
+      WT_REC_TS_VISIBLE_ALL(r, tw->durable_start_ts))
 
 /*
  * __rec_cell_addr_stats --
@@ -458,17 +463,9 @@ __wt_rec_time_window_clear_obsolete(WT_SESSION_IMPL *session, WT_TIME_WINDOW *tw
     if (!tw->prepare && !F_ISSET(S2C(session), WT_CONN_IN_MEMORY)) {
         /*
          * Check if the start of the time window is globally visible, and if so remove unnecessary
-         * values. Additionally check against the durable timestamp as we are going to make data
-         * durable.
+         * values.
          */
-        if (!WT_TIME_WINDOW_HAS_STOP(tw) && WT_REC_TW_START_VISIBLE_ALL(r, tw) &&
-          WT_REC_TS_VISIBLE_ALL(r, tw->durable_start_ts)) {
-            /*
-             * The durable stop timestamp should be it's default value whenever the stop timestamp
-             * is.
-             */
-            WT_ASSERT(session, tw->durable_stop_ts == WT_TS_NONE);
-
+        if (WT_REC_TW_START_VISIBLE_ALL(r, tw)) {
             /* The durable timestamp should never be less than the start timestamp. */
             WT_ASSERT(session, tw->start_ts <= tw->durable_start_ts);
 
