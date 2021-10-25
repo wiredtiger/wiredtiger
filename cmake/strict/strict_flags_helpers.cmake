@@ -100,10 +100,10 @@ function(get_gnu_base_flags flags)
 
 endfunction()
 
-# get_clang_flags(flags)
+# get_clang_base_flags(flags)
 # Helper function that generates a set of common CLANG flags for a given language.
 #   flags - list of flags.
-function(get_clang_flags flags)
+function(get_clang_base_flags flags)
     cmake_parse_arguments(
         PARSE_ARGV
         1
@@ -189,10 +189,10 @@ function(get_clang_flags flags)
 
 endfunction()
 
-# get_cl_flags(flags)
+# get_cl_base_flags(flags)
 # Helper function that generates a set of common CL flags for a given language.
 #   flags - list of flags.
-function(get_cl_flags flags)
+function(get_cl_base_flags flags)
     cmake_parse_arguments(
         PARSE_ARGV
         1
