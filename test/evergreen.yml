@@ -602,7 +602,7 @@ functions:
           set -o verbose
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${pip3_binary} install psutil
+          ${pip3_binary} install psutil pygit2
           ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -b -v -o test_stats/evergreen_out.json
           ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -re -v -o test_stats/atlas_out.json
 
