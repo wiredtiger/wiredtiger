@@ -259,6 +259,8 @@ table_cursor(TINFO *tinfo, u_int id)
     TABLE *table;
     const char *config;
 
+    testutil_assert(id > 0);
+
     /* The table ID is 1-based, the cursor array is 0-based. */
     table = tables[ntables == 0 ? 0 : id];
     --id;
