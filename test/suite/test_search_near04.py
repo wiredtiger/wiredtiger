@@ -106,8 +106,6 @@ class test_search_near04(wttest.WiredTigerTestCase):
         # Enable prefix search.
         cursor3.reconfigure("prefix_search=true")
         
-        # cursor3.reconfigure("abc=true")
-
         # The only visible key is aaz.
         # It fails if we try look for a prefix that matches keys that are on the first page.
         # Keys that are on the first page start with "aa". Hence if we look for the prefix "a" or

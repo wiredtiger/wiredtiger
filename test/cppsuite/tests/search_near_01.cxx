@@ -245,7 +245,16 @@ class search_near_01 : public test_harness::test {
                  */
                 testutil_assert(
                   (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
-                testutil_assert(prefix_stat >= prev_prefix_stat);
+                /*
+                 * There is an edge case where we may not early exit the prefix search near call
+                 * because the prefix matches the rest of the entries in the tree. In this case,
+                 * nothing comes after z alphabetically.
+                 */
+                if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz") {
+                    testutil_assert(prefix_stat == prev_prefix_stat);
+                } else {
+                    testutil_assert(prefix_stat > prev_prefix_stat);
+                }
 
                 tc->transaction.add_op();
                 tc->sleep();

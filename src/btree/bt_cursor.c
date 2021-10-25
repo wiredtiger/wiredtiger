@@ -740,14 +740,17 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
                 goto done;
         }
 
-        /* It is not necessary to go backwards when search_near is used with a prefix. */
+        /*
+         * It is not necessary to go backwards when search_near is used with a prefix, as cursor row
+         * search places us on the first key of the prefix range.
+         */
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
             goto done;
 
         /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev_prefix(cbt, &state.key, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev_prefix(cbt, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
