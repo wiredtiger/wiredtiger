@@ -712,6 +712,7 @@ __wt_rec_row_leaf(
     WT_CELL_UNPACK_KV *kpack, _kpack, *vpack, _vpack;
     WT_CURSOR *hs_cursor;
     WT_CURSOR_BTREE *cbt;
+    WT_DECL_ITEM(tmp_ovfl_val);
     WT_DECL_ITEM(tmpkey);
     WT_DECL_RET;
     WT_IKEY *ikey;
@@ -773,6 +774,8 @@ __wt_rec_row_leaf(
      */
     WT_ERR(__wt_scr_alloc(session, 0, &tmpkey));
 
+    WT_ERR(__wt_scr_alloc(session, 0, &tmp_ovfl_val));
+
     /* For each entry in the page... */
     WT_ROW_FOREACH (page, rip, i) {
         /*
@@ -831,7 +834,20 @@ __wt_rec_row_leaf(
              *
              * Repack the cell if we clear the transaction ids in the cell.
              */
-            if (vpack->raw == WT_CELL_VALUE_COPY) {
+
+            /* If requested, rewrite the overflow value. */
+            if (page->modify->compact_rewrite_ovfl && F_ISSET(vpack, WT_CELL_UNPACK_OVERFLOW) &&
+              vpack->raw == WT_CELL_VALUE_OVFL) {
+                r->ovfl_items = true;
+                /* Read the value from disk. */
+                WT_ERR(__wt_dsk_cell_data_ref(session, WT_PAGE_ROW_LEAF, vpack, tmp_ovfl_val));
+                /* Rebuild the cell */
+                WT_ERR(__wt_rec_cell_build_val(
+                  session, r, tmp_ovfl_val->data, tmp_ovfl_val->size, twp, 0));
+                dictionary = true;
+                /* Remove the original disk block for the overflow value. */
+                WT_ERR(__wt_ovfl_remove(session, page, vpack));
+            } else if (vpack->raw == WT_CELL_VALUE_COPY) {
                 WT_ERR(__rec_cell_repack(session, btree, r, vpack, twp));
 
                 dictionary = true;
@@ -1077,5 +1093,6 @@ err:
     if (hs_cursor != NULL)
         WT_TRET(hs_cursor->close(hs_cursor));
     __wt_scr_free(session, &tmpkey);
+    __wt_scr_free(session, &tmp_ovfl_val);
     return (ret);
 }
