@@ -44,7 +44,7 @@ if(NOT libclangfuzzer)
     return()
 endif()
 
-set(fuzz_c_flags "${COMPILER_DIAGNOSTIC_FLAGS};-fsanitize=fuzzer-no-link")
+set(fuzz_c_flags "${COMPILER_DIAGNOSTIC_C_FLAGS};-fsanitize=fuzzer-no-link")
 
 # Compile the fuzz util library.
 add_library(fuzz_util SHARED fuzz_util.c)
