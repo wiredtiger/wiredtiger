@@ -70,7 +70,7 @@ __tiered_opener_open(WT_BLOCK_FILE_OPENER *opener, WT_SESSION_IMPL *session, uin
         WT_ERR(__wt_calloc_def(session, len, &tmp));
         WT_ERR(__wt_snprintf(tmp, len, "%.*s%s", (int)pfx.len, pfx.str, object_name));
         bstorage = tiered->bstorage;
-        LF_SET(WT_FS_OPEN_READONLY);
+        LF_SET(WT_FS_OPEN_FIXED | WT_FS_OPEN_READONLY);
         WT_WITH_BUCKET_STORAGE(
           bstorage, session, { ret = __wt_open(session, tmp, type, flags, fhp); });
     }
