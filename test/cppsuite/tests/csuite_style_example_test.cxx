@@ -46,10 +46,13 @@ extern "C" {
 
 using namespace test_harness;
 
+/* Declarations to avoid the error raised by -Werror=missing-prototypes. */
+void insert_op(WT_CURSOR *cursor, int key_size, int value_size);
+void read_op(WT_CURSOR *cursor, int key_size);
+
 bool do_inserts = false;
 bool do_reads = false;
 
-void insert_op(WT_CURSOR *cursor, int key_size, int value_size);
 void
 insert_op(WT_CURSOR *cursor, int key_size, int value_size)
 {
@@ -66,7 +69,6 @@ insert_op(WT_CURSOR *cursor, int key_size, int value_size)
     }
 }
 
-void read_op(WT_CURSOR *cursor, int key_size);
 void
 read_op(WT_CURSOR *cursor, int key_size)
 {

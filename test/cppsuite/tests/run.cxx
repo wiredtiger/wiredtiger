@@ -40,7 +40,12 @@
 #include "search_near_01.cxx"
 #include "search_near_02.cxx"
 
+/* Declarations to avoid the error raised by -Werror=missing-prototypes. */
 const std::string parse_configuration_from_file(const std::string &filename);
+void print_help();
+int64_t run_test(
+  const std::string &test_name, const std::string &config, const std::string &wt_open_config);
+
 const std::string
 parse_configuration_from_file(const std::string &filename)
 {
@@ -64,7 +69,6 @@ parse_configuration_from_file(const std::string &filename)
     return (cfg);
 }
 
-void print_help();
 void
 print_help()
 {
@@ -106,8 +110,6 @@ print_help()
  * - test_name: specifies which test to run.
  * - config: defines the configuration used for the test.
  */
-int64_t run_test(
-  const std::string &test_name, const std::string &config, const std::string &wt_open_config);
 int64_t
 run_test(const std::string &test_name, const std::string &config, const std::string &wt_open_config)
 {
