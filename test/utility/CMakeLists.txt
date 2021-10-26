@@ -63,5 +63,5 @@ endif()
 
 target_compile_options(
     test_util
-    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
