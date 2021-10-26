@@ -597,11 +597,11 @@ restart_read_page:
 }
 
 /*
- * __wt_btcur_prev_prefix --
+ * __wt_btcur_prev --
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, bool truncating)
+__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -769,14 +769,4 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     return (ret);
-}
-
-/*
- * __wt_btcur_prev --
- *     Move to the previous record in the tree.
- */
-int
-__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
-{
-    return (__wt_btcur_prev_prefix(cbt, truncating));
 }

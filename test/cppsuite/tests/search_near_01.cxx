@@ -248,13 +248,10 @@ class search_near_01 : public test_harness::test {
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
                  * because the prefix matches the rest of the entries in the tree. In this case,
-                 * nothing comes after z alphabetically.
+                 * nothing comes after z alphabetically, and the value of prefix_stat will be the
+                 * same.
                  */
-                if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz") {
-                    testutil_assert(prefix_stat == prev_prefix_stat);
-                } else {
-                    testutil_assert(prefix_stat > prev_prefix_stat);
-                }
+                testutil_assert(prefix_stat >= prev_prefix_stat);
 
                 tc->transaction.add_op();
                 tc->sleep();
