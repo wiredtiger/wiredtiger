@@ -173,12 +173,12 @@
 #define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
 
 /*
- * Verbose messages. Given this verbosity check is without an explicit verbosity level, the macro
- * will check whether the given category satisfies the WT_VERBOSE_DEBUG verbosity level.
- * WT_VERBOSE_DEBUG being the default level assigned to verbose messages prior to the introduction
- * of verbosity levels.
+ * Given this verbosity check is without an explicit verbosity level, the macro checks whether the
+ * given category satisfies the WT_VERBOSE_DEBUG verbosity level. WT_VERBOSE_DEBUG being the default
+ * level assigned to verbose messages prior to the introduction of verbosity levels.
  */
-#define WT_VERBOSE_ISSET(session, category) (WT_VERBOSE_DEBUG <= S2C(session)->verbose[category])
+#define WT_VERBOSE_ISSET(session, category) \
+    WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEBUG)
 
 /*
  * __wt_verbose --
