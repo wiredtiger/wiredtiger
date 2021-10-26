@@ -39,8 +39,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
     base = 'test_tiered10-000000000'
     fileuri_base = 'file:' + base
     obj1file = base + '1.wtobj'
-    obj2file = base + '2.wtobj'
-    obj3file = base + '3.wtobj'
     objuri = 'object:' + base + '1.wtobj'
     tiereduri = "tiered:test_tiered10"
     uri = "table:test_tiered10"
@@ -123,10 +121,14 @@ class test_tiered10(wttest.WiredTigerTestCase):
         conn2_obj1 = self.bucket + '/' + self.prefix2 + self.obj1file
         self.assertTrue(os.path.exists(conn1_obj1))
         self.assertTrue(os.path.exists(conn2_obj1))
-        time.sleep(self.retention * 2)
-        self.assertFalse(os.path.exists(self.obj1file))
         conn1.close()
         conn2.close()
+
+        # Remove the local copies of the objects before we reopen
+        local = self.conn1_dir + '/' + self.obj1file
+        os.remove(local)
+        local = self.conn2_dir + '/' + self.obj1file
+        os.remove(local)
 
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
         session1 = conn1.open_session()
