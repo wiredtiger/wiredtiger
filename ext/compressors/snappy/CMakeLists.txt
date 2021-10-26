@@ -61,7 +61,7 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
         )
     target_compile_options(
         wiredtiger_snappy
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
     set_property(TARGET wiredtiger_snappy PROPERTY POSITION_INDEPENDENT_CODE ON)
 endif()
