@@ -182,17 +182,13 @@
 
 /*
  * __wt_verbose --
- *     Display a verbose message. Not an inlined function because you can't inline functions taking
- *     variadic arguments and we don't want to make a function call in production systems just to
- *     find out a verbose flag isn't set. The macro must take a format string and at least one
- *     additional argument, there's no portable way to remove the comma before an empty __VA_ARGS__
- *     value.
+ *     Display a verbose message using the default WT_VERBOSE_DEBUG verbosity level. Not an inlined
+ * function because you can't inline functions taking variadic arguments and we don't want to make a
+ * function call in production systems just to find out a verbose flag isn't set. The macro must
+ * take a format string and at least one additional argument, there's no portable way to remove the
+ * comma before an empty __VA_ARGS__ value.
  */
-#define __wt_verbose(session, category, fmt, ...)                              \
-    do {                                                                       \
-        if (WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEBUG))       \
-            __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
-    } while (0)
+#define __wt_verbose(session, category, fmt, ...) __wt_verbose_debug(session, category, fmt, ...)
 
 /*
  * __wt_verbose_level --
