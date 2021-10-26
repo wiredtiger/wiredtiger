@@ -176,7 +176,7 @@ static WT_EVENT_HANDLER event_handler = {
 
 /*
  * configure_stress_settings --
- *     Configure stress settings.
+ *     Configure stressing settings.
  */
 static void
 configure_stress_settings(char *p, size_t max)
@@ -301,7 +301,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     } else
         CONFIG_APPEND(p, ",statistics=(%s)", g.c_statistics ? "fast" : "none");
 
-    /* Optional stress operations. */
+    /* Optional stressing operations. */
     configure_stress_settings(p, max);
 
     /* Extensions. */
@@ -490,11 +490,17 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     max = sizeof(config);
     config[0] = '\0';
 
+    /* Configuration settings that are not persistent between open calls. */
     enc = encryptor_at_open(g.c_encryption_flag);
     if (enc != NULL)
         CONFIG_APPEND(p, ",encryption=(name=%s)", enc);
 
-    /* Optional stress operations. */
+    CONFIG_APPEND(p, "error_prefix=\"%s\"", progname);
+
+    if (g.c_mmap_all)
+        CONFIG_APPEND(p, ",mmap_all=1");
+
+    /* Optional stressing operations. */
     configure_stress_settings(p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
