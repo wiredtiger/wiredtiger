@@ -512,7 +512,7 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
      */
     blkcache_item->freq_rec_counter = 1;
 
-    if (data != NULL) /* This is unexpected, but makes static analyzers happier. */
+    if (data != NULL && blkcache_item->data != NULL) /* This makes static analyzers happier. */
         memcpy(blkcache_item->data, data, size);
     TAILQ_INSERT_HEAD(&blkcache->hash[bucket], blkcache_item, hashq);
 
@@ -781,8 +781,12 @@ __blkcache_reconfig(WT_SESSION_IMPL *session, bool reconfig, size_t cache_size, 
       __wt_floatcmp(blkcache->overhead_pct, overhead_pct) != 0 ||
       blkcache->system_ram != system_ram ||
       blkcache->evict_aggressive != -((int)evict_aggressive) || blkcache->type != type ||
-      strlen(nvram_device_path) != strlen(blkcache->nvram_device_path) ||
-      strncmp(nvram_device_path, blkcache->nvram_device_path, strlen(nvram_device_path)) != 0) {
+      (nvram_device_path != NULL && blkcache->nvram_device_path == NULL) ||
+      (nvram_device_path == NULL && blkcache->nvram_device_path != NULL) ||
+      (nvram_device_path != NULL && blkcache->nvram_device_path != NULL &&
+        (strlen(nvram_device_path) != strlen(blkcache->nvram_device_path))) ||
+      (nvram_device_path != NULL &&
+        strncmp(nvram_device_path, blkcache->nvram_device_path, strlen(nvram_device_path)) != 0)) {
         __wt_err(session, EINVAL, "block cache reconfiguration not supported");
         return (WT_ERROR);
     }
