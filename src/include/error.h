@@ -181,16 +181,6 @@
     WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEBUG)
 
 /*
- * __wt_verbose --
- *     Display a verbose message using the default WT_VERBOSE_DEBUG verbosity level. Not an inlined
- * function because you can't inline functions taking variadic arguments and we don't want to make a
- * function call in production systems just to find out a verbose flag isn't set. The macro must
- * take a format string and at least one additional argument, there's no portable way to remove the
- * comma before an empty __VA_ARGS__ value.
- */
-#define __wt_verbose(session, category, fmt, ...) __wt_verbose_debug(session, category, fmt, ...)
-
-/*
  * __wt_verbose_level --
  *     Display a verbose message considering a category and a verbosity level.
  */
@@ -205,28 +195,39 @@
  *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_ERROR.
  */
 #define __wt_verbose_error(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_ERROR, fmt, ...)
+    __wt_verbose_level(session, category, WT_VERBOSE_ERROR, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_warning --
  *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_WARNING.
  */
 #define __wt_verbose_warning(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, ...)
+    __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_info --
  *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_INFO.
  */
 #define __wt_verbose_info(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, ...)
+    __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_debug --
  *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_DEBUG.
  */
 #define __wt_verbose_debug(session, category, fmt, ...) \
-    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, ...)
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, __VA_ARGS__)
+
+/*
+ * __wt_verbose --
+ *     Display a verbose message using the default WT_VERBOSE_DEBUG verbosity level. Not an inlined
+ *     function because you can't inline functions taking variadic arguments and we don't want to
+ *     make a function call in production systems just to find out a verbose flag isn't set. The
+ *     macro must take a format string and at least one additional argument, there's no portable way
+ *     to remove the comma before an empty __VA_ARGS__ value.
+ */
+#define __wt_verbose(session, category, fmt, ...) \
+    __wt_verbose_debug(session, category, fmt, __VA_ARGS__)
 
 /*
  * __wt_verbose_multi --
