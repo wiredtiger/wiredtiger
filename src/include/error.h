@@ -169,6 +169,9 @@
     } while (0)
 #endif
 
+/* Check if a given verbosity level satisfies the verbosity level of a category. */
+#define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
+
 /*
  * Verbose messages. Given this verbosity check is without an explicit verbosity level, the macro
  * will check whether the given category satisfies the WT_VERBOSE_DEBUG verbosity level.
