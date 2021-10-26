@@ -803,6 +803,7 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     WT_BLKCACHE *blkcache;
     WT_CONFIG_ITEM cval;
     WT_CONNECTION_IMPL *conn;
+    WT_DECL_RET;
     float overhead_pct;
     uint64_t cache_size, full_target, system_ram;
     u_int cache_type, evict_aggressive, hash_size, percent_file_in_os_cache;
@@ -815,7 +816,14 @@ __wt_block_cache_setup(WT_SESSION_IMPL *session, const char *cfg[], bool reconfi
     nvram_device_path = (char *)"";
 
     if (blkcache->type != BLKCACHE_UNCONFIGURED && !reconfig)
-        WT_RET_MSG(session, -1, "block cache setup requested for a configured cache");
+        WT_RET_MSG(session, EINVAL, "block cache setup requested for a configured cache");
+
+    /* When reconfiguring, check if there are any modifications that we care about. */
+    if (blkcache->type != BLKCACHE_UNCONFIGURED && reconfig) {
+        if ((ret = __wt_config_gets(session, cfg + 1, "block_cache", &cval)) == WT_NOTFOUND)
+            return (0);
+        WT_RET(ret);
+    }
 
     WT_RET(__wt_config_gets(session, cfg, "block_cache.enabled", &cval));
     if (cval.val == 0)
