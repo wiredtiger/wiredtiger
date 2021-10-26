@@ -3396,6 +3396,13 @@ buildvariants:
   tasks:
     - name: ".btree-perf"
     - name: ".lsm-perf"
+  display_tasks:
+    - name: Wiredtiger-perf-btree-jobs
+      execution_tasks:
+      - ".btree-perf"
+    - name: Wiredtiger-perf-lsm-jobs
+      execution_tasks:
+      - ".lsm-perf"
 
 
 - name: large-scale-tests
