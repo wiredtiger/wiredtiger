@@ -603,8 +603,8 @@ functions:
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
           ${pip3_binary} install psutil
-          ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -b -v -o test_stats/evergreen_out.json
-          ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -re -v -o test_stats/atlas_out.json
+          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -b -v -o test_stats/evergreen_out.json
+          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -re -v -o test_stats/atlas_out.json
 
     - command: shell.exec
       params:
@@ -2958,9 +2958,10 @@ tasks:
 
   - name: perf-test-small-lsm
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: small-lsm
@@ -2968,9 +2969,10 @@ tasks:
 
   - name: perf-test-medium-lsm
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: medium-lsm
@@ -2978,9 +2980,10 @@ tasks:
 
   - name: perf-test-medium-lsm-compact
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: medium-lsm-compact
@@ -2988,9 +2991,10 @@ tasks:
 
   - name: perf-test-medium-multi-lsm
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: medium-multi-lsm
@@ -2998,9 +3002,10 @@ tasks:
 
   - name: perf-test-parallel-pop-lsm
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: parallel-pop-lsm
@@ -3008,9 +3013,10 @@ tasks:
 
   - name: perf-test-update-lsm
     tags: ["lsm-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: update-lsm
@@ -3022,9 +3028,10 @@ tasks:
 
   - name: perf-test-small-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: small-btree
@@ -3032,9 +3039,10 @@ tasks:
 
   - name: perf-test-small-btree-backup
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: small-btree-backup
@@ -3042,9 +3050,10 @@ tasks:
 
   - name: perf-test-medium-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: medium-btree
@@ -3052,9 +3061,10 @@ tasks:
 
   - name: perf-test-medium-btree-backup
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: medium-btree-backup
@@ -3062,9 +3072,10 @@ tasks:
 
   - name: perf-test-parallel-pop-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: parallel-pop-btree
@@ -3072,9 +3083,10 @@ tasks:
 
   - name: perf-test-update-only-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: update-only-btree
@@ -3082,9 +3094,10 @@ tasks:
 
   - name: perf-test-update-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: update-btree
@@ -3092,9 +3105,10 @@ tasks:
 
   - name: perf-test-update-large-record-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: update-large-record-btree
@@ -3102,9 +3116,10 @@ tasks:
 
   - name: perf-test-modify-large-record-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: modify-large-record-btree
@@ -3112,9 +3127,10 @@ tasks:
 
   - name: perf-test-modify-force-update-large-record-btree
     tags: ["btree-perf"]
+    depends_on:
+      - name: compile
     commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
+      - func: "fetch artifacts"
       - func: "generic-perf-test"
         vars:
           perf-test-name: modify-force-update-large-record-btree
@@ -3377,7 +3393,10 @@ buildvariants:
   run_on:
     - ubuntu2004-test
   expansions:
-    test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
+    test_env_vars:
+      top_dir=$(git rev-parse --show-toplevel)
+      top_builddir=$top_dir/cmake_build
+      LD_LIBRARY_PATH=$top_builddir/test/utility/:$top_builddir
     posix_configure_flags:
       -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake
       -DCMAKE_C_FLAGS="-ggdb"
@@ -3394,6 +3413,7 @@ buildvariants:
     make_command: ninja
     is_cmake_build: true
   tasks:
+    - name: compile
     - name: ".btree-perf"
     - name: ".lsm-perf"
   display_tasks:
@@ -3403,7 +3423,6 @@ buildvariants:
     - name: Wiredtiger-perf-lsm-jobs
       execution_tasks:
       - ".lsm-perf"
-
 
 - name: large-scale-tests
   display_name: "Large scale tests"
