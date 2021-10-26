@@ -213,7 +213,7 @@ def main():
         print("  Git root:      {}".format(args.git_root))
         print("  Outfile:       {}".format(args.outfile))
         print("  Runmax:        {}".format(args.runmax))
-        print("  JSON info      {}",format(args.json_info))
+        print("  JSON info      {}".format(args.json_info))
         print("  Reuse results: {}".format(args.reuse))
         print("  Brief output:  {}".format(args.brief_output))
 
@@ -224,9 +224,7 @@ def main():
     if args.home is None:
         sys.exit('The path to the "home" directory is required')
 
-    json_info = {}
-    if args.json_info:
-        json_info = json.loads(args.json_info)
+    json_info = json.loads(args.json_info) if args.json_info else {}
 
     config = WTPerfConfig(wtperf_path=args.wtperf,
                           home_dir=args.home,
