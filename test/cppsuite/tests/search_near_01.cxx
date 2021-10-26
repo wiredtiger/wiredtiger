@@ -251,7 +251,11 @@ class search_near_01 : public test_harness::test {
                  * nothing comes after z alphabetically, and the value of prefix_stat will be the
                  * same.
                  */
-                testutil_assert(prefix_stat >= prev_prefix_stat);
+                if (srch_key[0] == 'z') {
+                    testutil_assert(prefix_stat >= prev_prefix_stat);
+                } else {
+                    testutil_assert(prefix_stat > prev_prefix_stat);
+                }
 
                 tc->transaction.add_op();
                 tc->sleep();

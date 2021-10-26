@@ -3,7 +3,7 @@
 # - threads that continuously insert random keys and values.
 # - threads that continuously perform prefix search_near calls on random keys.
 duration_seconds=180,
-cache_size_mb=50,
+cache_size_mb=500,
 timestamp_manager=
 (
     # This will let us randomly pick a read timestamp in a bigger range to trigger visibility

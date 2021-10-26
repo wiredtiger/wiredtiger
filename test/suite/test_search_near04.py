@@ -31,6 +31,9 @@ import wttest
 from wtscenario import make_scenarios
 
 # test_search_near04.py
+# This test checks that a search_near call with the prefix key
+# configuration will correctly find a key even in cases where the key
+# range is split across multiple pages.
 class test_search_near04(wttest.WiredTigerTestCase):
     key_format_values = [
         ('var_string', dict(key_format='S')),
@@ -107,16 +110,22 @@ class test_search_near04(wttest.WiredTigerTestCase):
         cursor3.reconfigure("prefix_search=true")
         
         # The only visible key is aaz.
-        # It fails if we try look for a prefix that matches keys that are on the first page.
-        # Keys that are on the first page start with "aa". Hence if we look for the prefix "a" or
-        # "aa", we will need to traverse the first page and we will reach the end of the page before
-        # getting to the only visible one which is on another page.
-        # If we try to look for "aaz", in our case, we will be on the correct page and we will be
-        # able to find the visible key.
+        # If we try to do a search_near() with the prefixes "a" or "aa" without the changes
+        # introduced in WT-7912, we fail to find the key aaz although it is a valid result.
+        # This is because we traverse off the page and early exit before seeing the visible
+        # key that is on another page. However, if we specify "aaz" as a prefix, we are
+        # able to find that as we are traversing on the same page.
+        # All three of the prefixes "a", "aa" and "aaz" should lead us to find "aaz".
         cursor3.set_key("a")
-        # cursor3.set_key("aa")
-        # cursor3.set_key("aaz")
         self.assertEqual(cursor3.search_near(), 1)
+        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
+
+        cursor3.set_key("aa")
+        self.assertEqual(cursor3.search_near(), 1)
+        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
+
+        cursor3.set_key("aaz")
+        self.assertEqual(cursor3.search_near(), 0)
         self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
 
         cursor3.close()
