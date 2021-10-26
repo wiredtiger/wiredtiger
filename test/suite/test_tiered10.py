@@ -85,8 +85,6 @@ class test_tiered10(wttest.WiredTigerTestCase):
 
     # Test calling the flush_tier API.
     def test_tiered(self):
-        self.skipTest('Cannot load extensions in python in subdirectories')
-
         # Have two connections running in different directories, but sharing
         # the same bucket directory with different prefixes. Each database
         # creates an identically named table with different data. Each then
@@ -125,15 +123,15 @@ class test_tiered10(wttest.WiredTigerTestCase):
         conn2_obj1 = self.bucket + '/' + self.prefix2 + self.obj1file
         self.assertTrue(os.path.exists(conn1_obj1))
         self.assertTrue(os.path.exists(conn2_obj1))
-        time.sleep(retention * 2)
+        time.sleep(self.retention * 2)
         self.assertFalse(os.path.exists(self.obj1file))
         conn1.close()
         conn2.close()
 
         conn1 = self.wiredtiger_open(self.conn1_dir, conn1_params)
-        session1 = self.conn1.open_session()
+        session1 = conn1.open_session()
         conn2 = self.wiredtiger_open(self.conn2_dir, conn2_params)
-        session2 = self.conn2.open_session()
+        session2 = conn2.open_session()
 
         c1 = session1.open_cursor(self.uri)
         c2 = session2.open_cursor(self.uri)
