@@ -366,8 +366,11 @@ __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op)
              */
             upd = op->u.op_upd;
             if (upd->start_ts == WT_TS_NONE) {
-                /* timestamps set at commit time should use first_commit_timestamp to prevent
-                 * out-of-order timestamps */
+                /*
+                 * If we are committing a transaction and the update doesn't have a timestamp, we
+                 * will apply the first commit timestamp used in the transaction to prevent
+                 * timestamp ordering issues from occurring.
+                 */
                 upd->start_ts =
                   txn->in_commit_phase ? txn->first_commit_timestamp : txn->commit_timestamp;
                 upd->durable_ts = txn->durable_timestamp;

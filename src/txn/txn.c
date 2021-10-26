@@ -1629,6 +1629,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     conn = S2C(session);
     cursor = NULL;
     txn = session->txn;
+    txn->in_commit_phase = true;
     txn_global = &conn->txn_global;
 #ifdef HAVE_DIAGNOSTIC
     prepare_count = 0;
@@ -1636,8 +1637,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
     locked = false;
     prepare = F_ISSET(txn, WT_TXN_PREPARE);
     readonly = txn->mod_count == 0;
-
-    txn->in_commit_phase = true;
 
     /* Permit the commit if the transaction failed, but was read-only. */
     WT_ASSERT(session, F_ISSET(txn, WT_TXN_RUNNING));
