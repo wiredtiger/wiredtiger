@@ -70,16 +70,14 @@ def get_git_info(git_working_tree_dir):
 
     repo = Repository(repository_path)
     commits = list(repo.walk(repo.head.target, GIT_SORT_NONE))
-    # print("Num commits found: {}".format(len(commits)))
-    latest_commit = commits[0]
-    # print("Latest commit found: {}".format(latest_commit.hex))
+    head_commit = commits[0]
     diff = repo.diff()
 
     git_info = {
-        'commit': {
-            'hash': latest_commit.hex,
-            'message': latest_commit.message,
-            'author': latest_commit.author.name
+        'head_commit': {
+            'hash': head_commit.hex,
+            'message': head_commit.message,
+            'author': head_commit.author.name
             },
         'branch': {
             'name': repo.head.shorthand
@@ -143,7 +141,6 @@ def run_test(config: WTPerfConfig, test_run: int):
         env=config.environment,
         test=config.test,
         home=test_home)
-    # print('Command Line for test: {}'.format(command_line))
     subprocess.run(command_line)
 
 
@@ -193,7 +190,7 @@ def main():
     parser.add_argument('-e', '--env', help='any environment variables that need to be set for running wtperf')
     parser.add_argument('-t', '--test', help='path of the wtperf test to execute')
     parser.add_argument('-o', '--outfile', help='path of the file to write test output to')
-    parser.add_argument('-b', '--brief_output', action="store_true", help='brief(not detailed) test output')
+    parser.add_argument('-b', '--brief_output', action="store_true", help='brief (not detailed) test output')
     parser.add_argument('-m', '--runmax', type=int, default=1, help='maximum number of times to run the test')
     parser.add_argument('-ho', '--home', help='path of the "home" directory that wtperf will use')
     parser.add_argument('-re',
@@ -201,6 +198,7 @@ def main():
                         action="store_true",
                         help='reuse and reanalyse results from previous tests rather than running tests again')
     parser.add_argument('-g', '--git_root', help='path of the Git working directory')
+    parser.add_argument('-i', '--json_info', help='additional test information in a json format string')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -215,6 +213,7 @@ def main():
         print("  Git root:      {}".format(args.git_root))
         print("  Outfile:       {}".format(args.outfile))
         print("  Runmax:        {}".format(args.runmax))
+        print("  JSON info      {}",format(args.json_info))
         print("  Reuse results: {}".format(args.reuse))
         print("  Brief output:  {}".format(args.brief_output))
 
@@ -225,13 +224,18 @@ def main():
     if args.home is None:
         sys.exit('The path to the "home" directory is required')
 
+    json_info = {}
+    if args.json_info:
+        json_info = json.loads(args.json_info)
+
     config = WTPerfConfig(wtperf_path=args.wtperf,
                           home_dir=args.home,
                           test=args.test,
                           environment=args.env,
                           run_max=args.runmax,
                           verbose=args.verbose,
-                          git_root=args.git_root)
+                          git_root=args.git_root,
+                          json_info=json_info)
 
     perf_stats: PerfStatCollection = setup_perf_stats()
 
@@ -243,7 +247,8 @@ def main():
             print("Completed test {}".format(test_run))
 
     if not args.verbose and not args.outfile:
-        sys.exit("Enable verbosity (or provide a file path) to dump the stats. Try 'python3 wtperf_run.py --help' for more information.")
+        sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
+                 "Try 'python3 wtperf_run.py --help' for more information.")
 
     process_results(config, perf_stats)
 
