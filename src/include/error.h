@@ -190,7 +190,7 @@
  */
 #define __wt_verbose(session, category, fmt, ...)                              \
     do {                                                                       \
-        if (WT_VERBOSE_ISSET(session, category))                               \
+        if (WT_VERBOSE_LEVEL_ISSET(session, category, WT_VERBOSE_DEBUG))       \
             __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
     } while (0)
 
