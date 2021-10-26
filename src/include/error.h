@@ -192,7 +192,7 @@
 
 /*
  * __wt_verbose_level --
- *     Identical to __wt_verbose but considers a verbosity level.
+ *     Display a verbose message considering a category and a verbosity level.
  */
 #define __wt_verbose_level(session, category, level, fmt, ...)                 \
     do {                                                                       \
@@ -216,14 +216,14 @@
 
 /*
  * __wt_verbose_info --
- *     Wrapper to __wt_verbose_info defaulting the verbosity level to WT_VERBOSE_INFO.
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_INFO.
  */
 #define __wt_verbose_info(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, ...)
 
 /*
  * __wt_verbose_debug --
- *     Wrapper to __wt_verbose_debug defaulting the verbosity level to WT_VERBOSE_DEBUG.
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_DEBUG.
  */
 #define __wt_verbose_debug(session, category, fmt, ...) \
     __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, ...)
