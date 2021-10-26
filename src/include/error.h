@@ -195,6 +195,44 @@
     } while (0)
 
 /*
+ * __wt_verbose_level --
+ *     Identical to __wt_verbose but considers a verbosity level.
+ */
+#define __wt_verbose_level(session, category, level, fmt, ...)                 \
+    do {                                                                       \
+        if (WT_VERBOSE_LEVEL_ISSET(session, category, level))                  \
+            __wt_verbose_worker(session, "[" #category "] " fmt, __VA_ARGS__); \
+    } while (0)
+
+/*
+ * __wt_verbose_error --
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_ERROR.
+ */
+#define __wt_verbose_error(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_ERROR, fmt, ...)
+
+/*
+ * __wt_verbose_warning --
+ *     Wrapper to __wt_verbose_level defaulting the verbosity level to WT_VERBOSE_WARNING.
+ */
+#define __wt_verbose_warning(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_WARNING, fmt, ...)
+
+/*
+ * __wt_verbose_info --
+ *     Wrapper to __wt_verbose_info defaulting the verbosity level to WT_VERBOSE_INFO.
+ */
+#define __wt_verbose_info(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_INFO, fmt, ...)
+
+/*
+ * __wt_verbose_debug --
+ *     Wrapper to __wt_verbose_debug defaulting the verbosity level to WT_VERBOSE_DEBUG.
+ */
+#define __wt_verbose_debug(session, category, fmt, ...) \
+    __wt_verbose_level(session, category, WT_VERBOSE_DEBUG, fmt, ...)
+
+/*
  * __wt_verbose_multi --
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
  *     be displayed if at least one category in the set satisfies the required verbosity level.
