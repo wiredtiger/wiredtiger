@@ -1118,6 +1118,7 @@ __wt_txn_begin(WT_SESSION_IMPL *session, const char *cfg[])
     txn = session->txn;
     txn->isolation = session->isolation;
     txn->txn_logsync = S2C(session)->txn_logsync;
+    txn->in_commit_phase = false;
 
     WT_ASSERT(session, !F_ISSET(txn, WT_TXN_RUNNING));
 
