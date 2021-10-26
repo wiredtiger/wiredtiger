@@ -61,7 +61,7 @@ if(HAVE_BUILTIN_EXTENSION_ZSTD OR ENABLE_ZSTD)
         )
     target_compile_options(
         wiredtiger_zstd
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
 
     set_property(TARGET wiredtiger_zstd PROPERTY POSITION_INDEPENDENT_CODE ON)

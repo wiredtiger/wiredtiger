@@ -36,7 +36,7 @@ set(sources
 )
 
 add_executable(wt ${sources})
-target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS})
+target_compile_options(wt PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS})
 target_include_directories(wt
     PRIVATE ${CMAKE_SOURCE_DIR}/src/include  ${CMAKE_BINARY_DIR}/config
 )
