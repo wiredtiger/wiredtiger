@@ -390,18 +390,36 @@ resolve()
 			 echo "$name: original directory copied into $dir.RECOVER"
 			 echo) >> $log
 
-			# Everything is a table unless explicitly a file.
-			uri="table:wt"
-			grep 'runs.source=file' $dir/CONFIG > /dev/null && uri="file:wt"
+			# Verify the objects. In current format, it's a list of files named with a
+			# leading F or tables named with a leading T. Historically, it was a file
+			# or table named "wt".
+			verify_failed=0
+			for i in $(ls $dir | sed -e 's/.*\///'); do
+			    case $i in
+			    F*) uri="file:$i";;
+			    T*) uri="table:${i%.wt}";;
+			    wt) uri="file:wt";;
+			    wt.wt) uri="table:wt";;
+			    *) continue;;
+			    esac
 
-			# Use the wt utility to recover & verify the object.
-			if  $($wt_binary -m -R -h $dir verify $uri >> $log 2>&1); then
-				rm -rf $dir $dir.RECOVER $log
-				success=$(($success + 1))
-				verbose "$name: job in $dir successfully completed"
+			    # Use the wt utility to recover & verify the object.
+			    echo "verify: $wt_binary -m -R -h $dir verify $uri" >> $log
+			    if  $($wt_binary -m -R -h $dir verify $uri >> $log 2>&1); then
+				continue
+			    fi
+
+			    verify_failed=1
+			    break
+			done
+
+			if [[ $verify_failed -eq 0 ]]; then
+			    rm -rf $dir $dir.RECOVER $log
+			    success=$(($success + 1))
+			    verbose "$name: job in $dir successfully completed"
 			else
-				echo "$name: job in $dir failed abort/recovery testing"
-				report_failure $dir
+			    echo "$name: job in $dir failed abort/recovery testing"
+			    report_failure $dir
 			fi
 			continue
 		}
