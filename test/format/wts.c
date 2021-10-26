@@ -497,9 +497,6 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
 
     CONFIG_APPEND(p, "error_prefix=\"%s\"", progname);
 
-    if (g.c_mmap_all)
-        CONFIG_APPEND(p, ",mmap_all=1");
-
     /* Optional timing stress. */
     configure_timing_stress(p, max);
 
