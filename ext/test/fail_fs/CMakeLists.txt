@@ -40,5 +40,5 @@ target_include_directories(
 )
 target_compile_options(
     wiredtiger_fail_fs
-    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
