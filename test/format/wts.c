@@ -175,11 +175,11 @@ static WT_EVENT_HANDLER event_handler = {
     } while (0)
 
 /*
- * configure_stress_settings --
+ * configure_timing_stress --
  *     Configure stressing settings.
  */
 static void
-configure_stress_settings(char *p, size_t max)
+configure_timing_stress(char *p, size_t max)
 {
     CONFIG_APPEND(p, ",timing_stress_for_test=[");
     if (g.c_timing_stress_aggressive_sweep)
@@ -301,8 +301,8 @@ create_database(const char *home, WT_CONNECTION **connp)
     } else
         CONFIG_APPEND(p, ",statistics=(%s)", g.c_statistics ? "fast" : "none");
 
-    /* Optional stressing operations. */
-    configure_stress_settings(p, max);
+    /* Optional timing stress. */
+    configure_timing_stress(p, max);
 
     /* Extensions. */
     CONFIG_APPEND(p, ",extensions=[\"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\", \"%s\"],",
@@ -500,8 +500,8 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
     if (g.c_mmap_all)
         CONFIG_APPEND(p, ",mmap_all=1");
 
-    /* Optional stressing operations. */
-    configure_stress_settings(p, max);
+    /* Optional timing stress. */
+    configure_timing_stress(p, max);
 
     /* If in-memory, there's only a single, shared WT_CONNECTION handle. */
     if (g.c_in_memory != 0)
