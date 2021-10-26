@@ -61,7 +61,7 @@ if(HAVE_BUILTIN_EXTENSION_SODIUM OR ENABLE_SODIUM)
         )
     target_compile_options(
         wiredtiger_sodium
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
 
     set_property(TARGET wiredtiger_sodium PROPERTY POSITION_INDEPENDENT_CODE ON)

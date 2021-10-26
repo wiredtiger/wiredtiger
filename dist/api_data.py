@@ -510,6 +510,47 @@ table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
+    Config('block_cache', '', r'''block cache configuration options''',
+           type='category', subconfig=[
+               Config('cache_on_checkpoint', 'true', r'''
+                      Cache blocks that are written by a checkpoint''',
+                      type='boolean'),
+               Config('cache_on_writes', 'true', r'''
+                      cache newly generated blocks''',
+                      type='boolean'),
+               Config('enabled', 'false', r'''
+                      enable block cache''',
+                      type='boolean'),
+               Config('blkcache_eviction_aggression', '1800', r'''
+               how many seconds an unused block remains in the cache before it is evicted''',
+                      min='1', max='7200'),
+               Config('full_target', '95', r'''
+                      a fraction of cache that must be full before eviction
+                      will remove unused blocks''',
+                      min='30', max='100'),
+               Config('size', '0', r'''
+                   maximum memory to allocate for the block cache''',
+                   min='0', max='6155GB'),
+               Config('hashsize', '0', r'''
+                   number of buckets in the hashtable that keeps track of blocks.''',
+                   min='512', max='256K'),
+               Config('max_percent_overhead', '10', r'''
+                   maximum tolerated overhead expressed as the number of
+                   blocks added and removed as percent of blocks looked up;
+                   cache population and eviction will be suppressed if the overhead
+                   exceeds the supplied threshold''',
+                   min='1', max='500'),
+               Config('nvram_path', '', r'''
+                   the absolute path to the file system mounted on the NVRAM device''',),
+               Config('percent_file_in_dram', '50', r'''
+                   bypass cache if that percent of file fits in DRAM''',
+                   min='0', max='100'),
+               Config('system_ram', '0', r'''
+                      amount of DRAM expected to be available on the system''',
+                      min='0', max='1024GB'),
+               Config('type', '', r'''
+                      cache location: DRAM or NVRAM'''),
+           ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
@@ -813,12 +854,15 @@ connection_runtime_config = [
         'history_store_search', 'history_store_sweep_race', 'prepare_checkpoint_delay', 'split_1',
         'split_2', 'split_3', 'split_4', 'split_5', 'split_6', 'split_7']),
     Config('verbose', '[]', r'''
-        enable messages for various events. Options are given as a
-        list, such as <code>"verbose=[evictserver,read]"</code>''',
+        enable messages for various subsystems and operations. Options are given as a list,
+        where each message type can optionally define an associated verbosity level, such as
+        <code>"verbose=[evictserver,read:1,rts:0]"</code>. Verbosity levels that can be provided
+        include <code>0</code> (INFO) and <code>1</code> (DEBUG).''',
         type='list', choices=[
             'api',
             'backup',
             'block',
+            'block_cache',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -830,9 +874,9 @@ connection_runtime_config = [
             'evictserver',
             'fileops',
             'handleops',
-            'log',
             'history_store',
             'history_store_activity',
+            'log',
             'lsm',
             'lsm_manager',
             'metadata',
