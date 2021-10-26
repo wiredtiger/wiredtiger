@@ -495,6 +495,8 @@ wts_open(const char *home, WT_CONNECTION **connp, WT_SESSION **sessionp, bool al
         CONFIG_APPEND(p, ",checkpoint_slow");
     if (g.c_timing_stress_checkpoint_prepare)
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
+    if (g.c_timing_stress_checkpoint_reserved_txnid_delay)
+        CONFIG_APPEND(p, ",checkpoint_reserved_txnid_delay");
     if (g.c_timing_stress_failpoint_hs_delete_key_from_ts)
         CONFIG_APPEND(p, ",failpoint_history_store_delete_key_from_ts");
     if (g.c_timing_stress_failpoint_hs_insert_1)
