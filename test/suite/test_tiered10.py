@@ -124,7 +124,8 @@ class test_tiered10(wttest.WiredTigerTestCase):
         conn1.close()
         conn2.close()
 
-        # Remove the local copies of the objects before we reopen
+        # Remove the local copies of the objects before we reopen so that we force
+        # the system to read from the bucket or bucket cache.
         local = self.conn1_dir + '/' + self.obj1file
         os.remove(local)
         local = self.conn2_dir + '/' + self.obj1file
