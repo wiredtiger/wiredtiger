@@ -241,9 +241,10 @@ typedef struct {
      * 10-digit number and the 11 guarantees we never see a key we can't immediately convert to a
      * numeric value without modification (there's a trailing non-digit character after every key).
      *
-     * Range of key prefix selection and the maximum table prefix length.
+     * Range of common key prefix selection and the maximum table prefix length.
      */
 #define KEY_LEN_CONFIG_MIN 11
+#define PREFIX_LEN_CONFIG_MIN 15
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
 

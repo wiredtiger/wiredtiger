@@ -271,10 +271,16 @@ config_table(TABLE *table, void *arg)
     if (TV(BTREE_VALUE_MIN) > TV(BTREE_VALUE_MAX))
         testutil_die(EINVAL, "btree.value_min may not be larger than btree.value_max");
 
-    /* Add prefix compression if prefixes are configured and no explicit choice was made. */
-    if (TV(BTREE_PREFIX_LEN) != 0 && TV(BTREE_PREFIX_COMPRESSION) == 0 &&
-      !config_explicit(table, "btree.prefix_compression"))
-        config_single(table, "btree.prefix_compression=on", false);
+    /*
+     * If common key prefixes are configured, add prefix compression if no explicit choice was made
+     * and track the largest common key prefix in the run.
+     */
+    if (TV(BTREE_PREFIX_LEN) != 0) {
+        if (TV(BTREE_PREFIX_COMPRESSION) == 0 &&
+          !config_explicit(table, "btree.prefix_compression"))
+            config_single(table, "btree.prefix_compression=on", false);
+        g.prefix_len_max = WT_MAX(g.prefix_len_max, TV(BTREE_PREFIX_LEN));
+    }
 
     config_checksum(table);
     config_compression(table, "btree.compression");
@@ -296,9 +302,6 @@ config_table(TABLE *table, void *arg)
         g.lsm_config = true;
         config_lsm_reset(table);
     }
-
-    /* Track the largest key prefix in the run. */
-    g.prefix_len_max = WT_MAX(g.prefix_len_max, TV(BTREE_PREFIX_LEN));
 }
 
 /*
@@ -1462,9 +1465,13 @@ config_single(TABLE *table, const char *s, bool explicit)
     }
 
     v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
-    if (v1 < cp->min || v1 > cp->maxset)
+    /* Zero may be an out-of-band "don't set this variable" value. */
+    if (v1 == 0 && F_ISSET(cp, C_ZERO_NOTSET))
+        return;
+    if (v1 < cp->min || v1 > cp->maxset) {
         testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
           progname, s, cp->min, cp->maxset);
+    }
 
     if (range != RANGE_NONE) {
         v2 = config_value(s, vp2, '\0');

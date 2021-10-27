@@ -92,8 +92,7 @@ key_gen_init(WT_ITEM *key)
     size_t i, len;
     char *p;
 
-    len = WT_MAX(
-      KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + table_maxv(V_TABLE_BTREE_PREFIX_LEN));
+    len = WT_MAX(KILOBYTE(100), table_maxv(V_TABLE_BTREE_KEY_MAX) + g.prefix_len_max + 10);
     p = dmalloc(len);
     for (i = 0; i < len; ++i)
         p[i] = "abcdefghijklmnopqrstuvwxyz"[i % 26];

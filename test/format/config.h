@@ -9,14 +9,15 @@ typedef struct {
     const char *name; /* Configuration item */
     const char *desc; /* Configuration description */
 
-#define C_BOOL 0x001u     /* Boolean (true if roll of 1-to-100 is <= CONFIG->min) */
-#define C_IGNORE 0x002u   /* Not a simple randomization, configured specially */
-#define C_STRING 0x004u   /* String (rather than integral) */
-#define C_TABLE 0x008u    /* Value is per table, not global */
-#define C_TYPE_FIX 0x010u /* Value is only relevant to FLCS */
-#define C_TYPE_LSM 0x020u /* Value is only relevant to LSM */
-#define C_TYPE_ROW 0x040u /* Value is only relevant to RS */
-#define C_TYPE_VAR 0x080u /* Value is only relevant to VLCS */
+#define C_BOOL 0x001u        /* Boolean (true if roll of 1-to-100 is <= CONFIG->min) */
+#define C_IGNORE 0x002u      /* Not a simple randomization, configured specially */
+#define C_STRING 0x004u      /* String (rather than integral) */
+#define C_TABLE 0x008u       /* Value is per table, not global */
+#define C_TYPE_FIX 0x010u    /* Value is only relevant to FLCS */
+#define C_TYPE_LSM 0x020u    /* Value is only relevant to LSM */
+#define C_TYPE_ROW 0x040u    /* Value is only relevant to RS */
+#define C_TYPE_VAR 0x080u    /* Value is only relevant to VLCS */
+#define C_ZERO_NOTSET 0x100u /* Ignore zero values */
     uint32_t flags;
 
     uint32_t min;     /* Minimum value */

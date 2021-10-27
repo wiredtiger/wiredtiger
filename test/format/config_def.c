@@ -49,7 +49,7 @@ CONFIG configuration_list[] = {
     C_TABLE, 1, 10, 128, V_TABLE_BTREE_MEMORY_PAGE_MAX},
 
   {"btree.prefix_len", "common key prefix",
-    C_TABLE | C_TYPE_ROW, 0, PREFIX_LEN_CONFIG_MAX, PREFIX_LEN_CONFIG_MAX, V_TABLE_BTREE_PREFIX_LEN},
+    C_TABLE | C_TYPE_ROW | C_ZERO_NOTSET, PREFIX_LEN_CONFIG_MIN, PREFIX_LEN_CONFIG_MAX, PREFIX_LEN_CONFIG_MAX, V_TABLE_BTREE_PREFIX_LEN},
 
   {"btree.prefix_compression", "configure prefix compressed keys",
     C_BOOL | C_TABLE | C_TYPE_ROW, 80, 0, 0, V_TABLE_BTREE_PREFIX_COMPRESSION},
