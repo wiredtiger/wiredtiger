@@ -42,10 +42,6 @@ target_include_directories(wt
 )
 target_link_libraries(wt wiredtiger)
 
-if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-    target_link_libraries(wt ${HAVE_LIBTCMALLOC})
-endif()
-
 # Our test suite expects `wt` to sit at the top level build directory.
 # Set the output binary location to the top level directory for backwards
 # compatibility.
