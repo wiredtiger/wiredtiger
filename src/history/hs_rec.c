@@ -875,8 +875,12 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         WT_ERR(__wt_compare(session, NULL, &hs_key, key, &cmp));
         WT_ASSERT(session, cmp == 0);
 #endif
-        /* We find a key that is larger or equal to the specified timestamp*/
-        if (twp->start_ts >= ts || twp->stop_ts >= ts)
+        /*
+         * We find a key that is larger or equal to the specified timestamp. Always use the start
+         * timestamp retrieved from the key instead of the start timestamp from the cell. The cell
+         * start timestamp can be cleared during reconciliation if it is globally visible.
+         */
+        if (hs_ts >= ts || twp->stop_ts >= ts)
             break;
     }
     if (ret == WT_NOTFOUND)
@@ -941,9 +945,12 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * Our strategy to rectify this is to remove all records for the same key with a timestamp
          * higher or equal than the specified timestamp and reinsert them at the smaller timestamp,
          * which is the timestamp of the update we are about to insert to the history store.
+         *
+         * It is possible that the cursor next can find an update that is reinserted when it has an
+         * out of order tombstone to the new update. Continue the search by ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
-        if (twp->start_ts < ts && twp->stop_ts < ts)
+        if (hs_ts < ts && twp->stop_ts < ts)
             continue;
 
         if (reinsert) {
@@ -974,8 +981,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               __wt_timestamp_to_string(ts, ts_string[4]));
 
             /*
-             * Use the original timestamps only when the start time window is an out of order to the
-             * new update.
+             * Use original start time window timestamps if it is not out of order to the new
+             * update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
                 hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts - 1;

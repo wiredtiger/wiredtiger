@@ -36,7 +36,7 @@ from helper import copy_wiredtiger_home, simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
 
 # test_rollback_to_stable29.py
-# Test that the rollback to stable to verify the history store order when an out of order timestamp is inserted.
+# Test that the rollback to stable to verify the history store order when an out of order to a tombstone.
 class test_rollback_to_stable29(test_rollback_to_stable_base):
     conn_config = 'cache_size=25MB,statistics=(all),statistics_log=(json,on_close,wait=1),log=(enabled=true)'
 
