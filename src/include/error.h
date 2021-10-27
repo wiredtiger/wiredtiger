@@ -244,3 +244,18 @@
             }                                                                            \
         }                                                                                \
     } while (0)
+
+/*
+ * __wt_verbose_level_multi --
+ *     Identical to __wt_verbose_multi but considering a verbosity level.
+ */
+#define __wt_verbose_level_multi(session, multi_category, fmt, ...)                      \
+    do {                                                                                 \
+        uint32_t __v_idx;                                                                \
+        for (__v_idx = 0; __v_idx < multi_category.cnt; __v_idx++) {                     \
+            if (WT_VERBOSE_ISSET(session, multi_category.categories[__v_idx])) {         \
+                __wt_verbose_worker(session, "[" #multi_category "] " fmt, __VA_ARGS__); \
+                break;                                                                   \
+            }                                                                            \
+        }                                                                                \
+    } while (0)
