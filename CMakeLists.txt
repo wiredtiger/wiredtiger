@@ -15,7 +15,7 @@ if(CCACHE_FOUND)
     set_property(GLOBAL PROPERTY RULE_LAUNCH_LINK ccache)
 endif(CCACHE_FOUND)
 
-project(WiredTiger C ASM)
+project(WiredTiger C CXX ASM)
 
 # Import our available build types prior to initialing the
 # project.
@@ -50,7 +50,6 @@ include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
 
-set(COMPILER_DIAGNOSTIC_FLAGS "" CACHE INTERNAL "" FORCE)
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
         include(cmake/strict/gcc_strict.cmake)
@@ -58,6 +57,13 @@ if(ENABLE_STRICT)
         include(cmake/strict/clang_strict.cmake)
     elseif("${CMAKE_C_COMPILER_ID}" STREQUAL "MSVC")
         include(cmake/strict/cl_strict.cmake)
+    endif()
+    if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+        include(cmake/strict/gxx_strict.cmake)
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang" OR "${CMAKE_C_COMPILER_ID}" STREQUAL "AppleClang")
+        include(cmake/strict/clangxx_strict.cmake)
+    elseif("${CMAKE_CXX_COMPILER_ID}" STREQUAL "MSVC")
+        include(cmake/strict/clxx_strict.cmake)
     endif()
 endif()
 
@@ -115,7 +121,7 @@ target_include_directories(
 )
 target_compile_options(
     wiredtiger
-    PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+    PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
 
 if(ENABLE_STATIC AND NOT ENABLE_PYTHON)

@@ -61,7 +61,7 @@ if(HAVE_BUILTIN_EXTENSION_ZLIB OR ENABLE_ZLIB)
         )
     target_compile_options(
         wiredtiger_zlib
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
 
     set_property(TARGET wiredtiger_zlib PROPERTY POSITION_INDEPENDENT_CODE ON)
