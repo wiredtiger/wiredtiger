@@ -247,9 +247,12 @@ class search_near_01 : public test_harness::test {
                   (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
-                 * because the prefix matches the rest of the entries in the tree. In this case,
-                 * nothing comes after z alphabetically, and the value of prefix_stat will be the
-                 * same.
+                 * because the specified prefix matches the rest of the entries in the tree.
+                 *
+                 * In this test, the keys in our database start with prefixes aaa -> zzz. If we
+                 * search with a prefix such as "z", we will not early exit the search near call
+                 * because the rest of the keys will also start with "z" and match the prefix. The
+                 * statistic will stay the same if we do not early exit search near.
                  */
                 if (srch_key[0] == 'z') {
                     testutil_assert(prefix_stat >= prev_prefix_stat);
