@@ -125,6 +125,10 @@ class test_search_near04(wttest.WiredTigerTestCase):
         self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
 
         cursor3.set_key("aaz")
+        self.assertEqual(cursor3.search_near(), 1)
+        self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
+
+        cursor3.set_key("aaz" * key_size)
         self.assertEqual(cursor3.search_near(), 0)
         self.assertEqual(cursor3.get_key(), self.check_key(expected_key))
 
