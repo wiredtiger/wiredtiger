@@ -68,9 +68,7 @@ static int
 __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree, const WT_ITEM *key,
   const uint8_t type, const WT_ITEM *hs_value, WT_TIME_WINDOW *tw, bool error_on_ooo_ts)
 {
-#ifdef HAVE_DIAGNOSTIC
     WT_CURSOR_BTREE *hs_cbt;
-#endif
     WT_DECL_ITEM(hs_key);
 #ifdef HAVE_DIAGNOSTIC
     WT_DECL_ITEM(existing_val);
@@ -87,7 +85,7 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
     uint64_t counter, hs_counter;
     uint32_t hs_btree_id;
 
-    counter = 0;
+    counter = hs_counter = 0;
 
     /*
      * We might be entering this code from application thread's context. We should make sure that we
@@ -114,8 +112,9 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
 #ifdef HAVE_DIAGNOSTIC
     /* Allocate buffer for the existing history store value for the same key. */
     WT_ERR(__wt_scr_alloc(session, 0, &existing_val));
-    hs_cbt = __wt_curhs_get_cbt(cursor);
 #endif
+
+    hs_cbt = __wt_curhs_get_cbt(cursor);
 
     /* Sanity check that the btree is not a history store btree. */
     WT_ASSERT(session, !WT_IS_HS(btree));
