@@ -580,7 +580,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
                 /* For now at least, check that the entries are in ascending order. */
                 WT_ASSERT(session, tmp < UINT32_MAX);
                 WT_ASSERT(session, (recno_offset == 0 && tmp == 0) || tmp > recno_offset);
-                recno_offset = tmp;
+                recno_offset = (uint32_t)tmp;
             } else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw)) {
                 /* Only index entries that are not already obsolete. */
                 page->pg_fix_tws[entry_num].recno_offset = (uint32_t)recno_offset;
