@@ -20,8 +20,14 @@ project(WiredTiger C CXX ASM)
 # Import our available build types prior to initialing the
 # project.
 include(cmake/configs/modes.cmake)
-
 include(cmake/helpers.cmake)
+# Import third party library definitions.
+include(cmake/third_party/gperftools.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/sodium.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
 # we will infer the target from the host.
@@ -148,30 +154,30 @@ if(HAVE_LIBDL)
     target_link_libraries(wiredtiger "dl")
 endif()
 
-if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-    target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
+if(ENABLE_TCMALLOC)
+    target_link_libraries(wiredtiger gperftools_tcmalloc)
 endif()
 
 # We want to capture any transitive dependencies associated with the builtin library
 # target and ensure we are explicitly linking the 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
+    target_link_libraries(wiredtiger lz4)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
+    target_link_libraries(wiredtiger snappy)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
+    target_link_libraries(wiredtiger sodium)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger ${HAVE_LIBZ})
+    target_link_libraries(wiredtiger zlib)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
+    target_link_libraries(wiredtiger zstd)
 endif()
 
 # Build the wt utility.
