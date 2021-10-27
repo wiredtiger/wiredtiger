@@ -268,6 +268,12 @@ typedef enum {
 } WT_VERBOSE_LEVEL;
 
 /*
+ * Default verbosity level. WT_VERBOSE_DEBUG being the default level assigned to verbose messages
+ * prior to the introduction of verbosity levels.
+ */
+#define WT_VERBOSE_DEFAULT WT_VERBOSE_DEBUG
+
+/*
  * WT_VERBOSE_MULTI_CATEGORY --
  *  Simple structure to represent a set of verbose categories.
  */
