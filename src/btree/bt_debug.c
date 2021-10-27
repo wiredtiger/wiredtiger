@@ -717,7 +717,7 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
         WT_RET(ds->f(ds, "page version 1, %" PRIu32 " time windows\n", auxhdr.entries));
         break;
     default:
-        WT_RET(ds->f(ds, "unknown page version %" PRIu64 "\n", dsk->version));
+        WT_RET(ds->f(ds, "unknown page version %" PRIu32 "\n", auxhdr.version));
         break;
     }
 

@@ -618,7 +618,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
         break;
     default:
         WT_IGNORE_RET(
-          __wt_panic(session, EFTYPE, "unknown FLCS page version %" PRIu32, auxhdr.version));
+          __wt_panic(session, EINVAL, "unknown FLCS page version %" PRIu32, auxhdr.version));
     }
 
     /* Report back whether we found a prepared value. */
