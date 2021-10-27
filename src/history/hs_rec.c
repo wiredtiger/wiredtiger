@@ -185,9 +185,16 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      * would have received WT_NOT_FOUND. In that case we need to search again with a higher
      * timestamp.
      */
-    if (ret == 0)
-        WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
-    else {
+    if (ret == 0) {
+        /*
+         * Check the current history store update stop timestamp is out of order with the new insert
+         * before moving into the next record.
+         */
+        if (hs_cbt->upd_value->tw.stop_ts <= tw->start_ts)
+            WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
+        else
+            counter = hs_counter + 1;
+    } else {
         cursor->set_key(cursor, 3, btree->id, key, tw->start_ts + 1);
         WT_ERR_NOTFOUND_OK(__wt_curhs_search_near_after(session, cursor), true);
     }
@@ -870,7 +877,7 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         WT_ASSERT(session, cmp == 0);
 #endif
         /* We find a key that is larger or equal to the specified timestamp*/
-        if (hs_ts >= ts)
+        if (twp->start_ts >= ts || twp->stop_ts >= ts)
             break;
     }
     if (ret == WT_NOTFOUND)
@@ -936,7 +943,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * higher or equal than the specified timestamp and reinsert them at the smaller timestamp,
          * which is the timestamp of the update we are about to insert to the history store.
          */
-        WT_ASSERT(session, hs_ts >= ts);
+        __wt_hs_upd_time_window(hs_cursor, &twp);
+        if (twp->start_ts < ts && twp->stop_ts < ts)
+            continue;
 
         if (reinsert) {
             /*
@@ -965,7 +974,16 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               __wt_timestamp_to_string(hs_cbt->upd_value->tw.durable_stop_ts, ts_string[3]),
               __wt_timestamp_to_string(ts, ts_string[4]));
 
-            hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts - 1;
+            /*
+             * Use the original timestamps only when the start time window is an out of order to the
+             * new update.
+             */
+            if (hs_cbt->upd_value->tw.start_ts >= ts)
+                hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts - 1;
+            else {
+                hs_insert_tw.start_ts = hs_cbt->upd_value->tw.start_ts;
+                hs_insert_tw.durable_start_ts = hs_cbt->upd_value->tw.durable_start_ts;
+            }
             hs_insert_tw.start_txn = hs_cbt->upd_value->tw.start_txn;
 
             /*
