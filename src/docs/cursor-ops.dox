@@ -70,6 +70,13 @@ WT_CURSOR::search_near method:
 
 @snippet ex_cursor.c cursor search near
 
+The WT_CURSOR::search_near method can also be used with a prefix key by
+setting \c prefix_search=true in the cursor configuration options. This 
+optimization  allows search_near to exit early if the cursor leaves the 
+key range defined by the given prefix key, and is particularly useful 
+when there are a larger number of records present which are not necessarily 
+visible to the search_near caller.
+
 Cursor positions do not survive transactions: cursors that are open during
 WT_SESSION::begin_transaction, WT_SESSION::commit_transaction or
 WT_SESSION::rollback_transaction will lose their position as if
