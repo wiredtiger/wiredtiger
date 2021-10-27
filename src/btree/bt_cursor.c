@@ -746,8 +746,8 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
          * were placed on will not match the prefix.
          *
          * For example, if we search with the prefix "b", the cursor will be positioned at the first
-         * key starting with "b". All the entries before this one will start with "a" or some other
-         * value that comes before "b", hence not matching the prefix.
+         * key starting with "b". All the entries before this one will start with "a", hence not
+         * matching the prefix.
          */
         if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
             goto done;
