@@ -6,6 +6,12 @@
  * See the file LICENSE for redistribution information.
  */
 
+/*
+ * Default verbosity level. WT_VERBOSE_DEBUG being the default level assigned to verbose messages
+ * prior to the introduction of verbosity levels.
+ */
+#define WT_VERBOSE_DEFAULT WT_VERBOSE_DEBUG
+
 /* Check if a given verbosity level satisfies the verbosity level of a category. */
 #define WT_VERBOSE_LEVEL_ISSET(session, category, level) (level <= S2C(session)->verbose[category])
 
