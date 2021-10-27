@@ -94,7 +94,7 @@ class test_rollback_to_stable29(test_rollback_to_stable_base):
         hs_removed = stat_cursor[stat.conn.txn_rts_hs_removed][2]
         stat_cursor.close()
 
-        self.assertGreaterEqual(hs_removed, nrows)
+        self.assertGreaterEqual(hs_removed, 3 * nrows)
 
 if __name__ == '__main__':
     wttest.run()
