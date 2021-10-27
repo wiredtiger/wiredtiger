@@ -230,16 +230,9 @@
     __wt_verbose_debug(session, category, fmt, __VA_ARGS__)
 
 /*
- * __wt_verbose_multi --
+ * __wt_verbose_level_multi --
  *     Display a verbose message, given a set of multiple verbose categories. A verbose message will
  *     be displayed if at least one category in the set satisfies the required verbosity level.
- */
-#define __wt_verbose_multi(session, multi_category, fmt, ...) \
-    __wt_verbose_level_multi(session, multi_category, WT_VERBOSE_DEBUG, fmt, __VA_ARGS__)
-
-/*
- * __wt_verbose_level_multi --
- *     Identical to __wt_verbose_multi but considering a verbosity level.
  */
 #define __wt_verbose_level_multi(session, multi_category, level, fmt, ...)                    \
     do {                                                                                      \
@@ -251,3 +244,11 @@
             }                                                                                 \
         }                                                                                     \
     } while (0)
+
+/*
+ * __wt_verbose_multi --
+ *     Display a verbose message, given a set of multiple verbose categories using the default
+ *     verbosity level.
+ */
+#define __wt_verbose_multi(session, multi_category, fmt, ...) \
+    __wt_verbose_level_multi(session, multi_category, WT_VERBOSE_DEBUG, fmt, __VA_ARGS__)
