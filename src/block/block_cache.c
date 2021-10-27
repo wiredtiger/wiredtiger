@@ -140,7 +140,7 @@ __blkcache_high_overhead(WT_SESSION_IMPL *session)
     blkcache = &conn->blkcache;
 
     if ((float)(blkcache->inserts + blkcache->removals) / (float)(blkcache->lookups) >
-      blkcache->overhead_pct)
+      (float)blkcache->overhead_pct)
         return (true);
 
     return (false);
