@@ -246,7 +246,7 @@ class search_near_01 : public test_harness::test {
                 testutil_assert(
                   (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
                 /* FIXME-WT-8286: Temporarily disable prefix statistics assert. */
-                //testutil_assert(prefix_stat > prev_prefix_stat);
+                // testutil_assert(prefix_stat > prev_prefix_stat);
 
                 tc->transaction.add_op();
                 tc->sleep();
