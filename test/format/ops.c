@@ -644,13 +644,13 @@ ops_session_open(TINFO *tinfo)
 
 /* Isolation configuration. */
 typedef enum {
+    ISOLATION_IMPLICIT,
     ISOLATION_READ_COMMITTED,
     ISOLATION_READ_UNCOMMITTED,
     ISOLATION_SNAPSHOT
 } iso_level_t;
 
-/* When in an explicit snapshot isolation transaction, track operations for later
- * repetition. */
+/* When in an explicit snapshot isolation transaction, track operations for later repetition. */
 #define SNAP_TRACK(tinfo, op)                         \
     do {                                              \
         if (intxn && iso_level == ISOLATION_SNAPSHOT) \
@@ -740,15 +740,18 @@ ops(void *arg)
         tinfo->cursor = table_cursor(tinfo, table->id);
 
         /*
-         * If not in a transaction and in a timestamp world, occasionally repeat a timestamped
-         * operation.
+         * If not in a transaction and in a timestamp world, occasionally repeat timestamped
+         * operations.
          */
         if (!intxn && g.transaction_timestamps_config && mmrand(&tinfo->rnd, 1, 15) == 1) {
             ++tinfo->search;
             snap_repeat_single(tinfo);
         }
 
-        /* If not in a transaction and in a timestamp world, start a transaction. */
+        /*
+         * If not in a transaction and in a timestamp world, start a transaction (which is always at
+         * snapshot-isolation).
+         */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
             begin_transaction_ts(tinfo);
@@ -757,35 +760,38 @@ ops(void *arg)
 
         /*
          * If not in a transaction and not in a timestamp world, start a transaction some percentage
-         * of the time.
+         * of the time, otherwise it's an implicit transaction.
          */
-        if (!intxn && !g.transaction_timestamps_config &&
-          mmrand(&tinfo->rnd, 1, 100) < GV(TRANSACTION_IMPLICIT)) {
-            iso_level = ISOLATION_SNAPSHOT;
-            iso_config = "isolation=snapshot";
+        if (!intxn && !g.transaction_timestamps_config) {
+            iso_level = ISOLATION_IMPLICIT;
 
-            /* Occasionally do reads at an isolation level lower than snapshot. */
-            switch (mmrand(NULL, 1, 20)) {
-            case 1:
-                iso_level = ISOLATION_READ_COMMITTED; /* 5% */
-                iso_config = "isolation=read-committed";
-                break;
-            case 2:
-                iso_level = ISOLATION_READ_UNCOMMITTED; /* 5% */
-                iso_config = "isolation=read-uncommitted";
-                break;
+            if (mmrand(&tinfo->rnd, 1, 100) < GV(TRANSACTION_IMPLICIT)) {
+                iso_level = ISOLATION_SNAPSHOT;
+                iso_config = "isolation=snapshot";
+
+                /* Occasionally do reads at an isolation level lower than snapshot. */
+                switch (mmrand(NULL, 1, 20)) {
+                case 1:
+                    iso_level = ISOLATION_READ_COMMITTED; /* 5% */
+                    iso_config = "isolation=read-committed";
+                    break;
+                case 2:
+                    iso_level = ISOLATION_READ_UNCOMMITTED; /* 5% */
+                    iso_config = "isolation=read-uncommitted";
+                    break;
+                }
+
+                begin_transaction(tinfo, iso_config);
+                intxn = true;
             }
-
-            begin_transaction(tinfo, iso_config);
-            intxn = true;
         }
 
         /*
-         * Select an operation: all updates must be in snapshot isolation, modify must be in an
-         * explicit transaction.
+         * Select an operation: updates cannot happen at lower isolation levels and modify must be
+         * in an explicit transaction.
          */
         op = READ;
-        if (iso_level == ISOLATION_SNAPSHOT) {
+        if (iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) {
             i = mmrand(&tinfo->rnd, 1, 100);
             if (TV(OPS_TRUNCATE) && i < TV(OPS_PCT_DELETE) && tinfo->ops > truncate_op) {
                 op = TRUNCATE;
@@ -827,8 +833,9 @@ ops(void *arg)
         }
 
         /*
-         * Optionally reserve a row, it's an update so it requires snapshot isolation. Reserving a
-         * row before a read isn't all that sensible, but not unexpected, either.
+         * If we're in a transaction, optionally reserve a row: it's an update so cannot be done at
+         * lower isolation levels. Reserving a row in an implicit transaction will work, but doesn't
+         * make sense. Reserving a row before a read isn't sensible either, but it's not unexpected.
          */
         if (intxn && iso_level == ISOLATION_SNAPSHOT && mmrand(&tinfo->rnd, 0, 20) == 1) {
             switch (table->type) {
@@ -1043,8 +1050,8 @@ update_instead_of_chosen_op:
             continue;
 
         /*
-         * Ending a transaction. If the transaction was configured for snapshot isolation, repeat
-         * the operations and confirm the results are unchanged.
+         * Ending a transaction. If an explicit transaction was configured for snapshot isolation,
+         * repeat the operations and confirm the results are unchanged.
          */
         if (intxn && iso_level == ISOLATION_SNAPSHOT) {
             __wt_yield(); /* Encourage races */
@@ -1055,7 +1062,10 @@ update_instead_of_chosen_op:
                 goto rollback;
         }
 
-        /* If prepare configured, prepare the transaction 10% of the time. */
+        /*
+         * If prepare configured, prepare the transaction 10% of the time. Note prepare requires a
+         * timestamped world, which means we're in a snapshot-isolation transaction by definition.
+         */
         prepared = false;
         if (GV(OPS_PREPARE) && mmrand(&tinfo->rnd, 1, 10) == 1) {
             if ((ret = prepare_transaction(tinfo)) != 0)
