@@ -143,41 +143,50 @@ endif()
 
 # Ensure we link any available library dependencies to our wiredtiger target.
 if(HAVE_LIBPTHREAD)
-    target_link_libraries(wiredtiger "pthread")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBPTHREAD})
+    if(HAVE_LIBPTHREAD_INCLUDES)
+        include_directories(wiredtiger PUBLIC ${HAVE_LIBPTHREAD_INCLUDES})
+    endif()
 endif()
 
 if(HAVE_LIBRT)
-    target_link_libraries(wiredtiger "rt")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBRT})
+    if(HAVE_LIBRT_INCLUDES)
+        include_directories(wiredtiger PUBLIC ${HAVE_LIBRT_INCLUDES})
+    endif()
 endif()
 
 if(HAVE_LIBDL)
-    target_link_libraries(wiredtiger "dl")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBDL})
+    if(HAVE_LIBDL_INCLUDES)
+        include_directories(wiredtiger PUBLIC ${HAVE_LIBDL_INCLUDES})
+    endif()
 endif()
 
 if(ENABLE_TCMALLOC)
-    target_link_libraries(wiredtiger gperftools_tcmalloc)
+    target_link_libraries(wiredtiger PRIVATE gperftools_tcmalloc)
 endif()
 
 # We want to capture any transitive dependencies associated with the builtin library
 # target and ensure we are explicitly linking the 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger lz4)
+    target_link_libraries(wiredtiger PRIVATE lz4)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger snappy)
+    target_link_libraries(wiredtiger PRIVATE snappy)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger sodium)
+    target_link_libraries(wiredtiger PRIVATE sodium)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger zlib)
+    target_link_libraries(wiredtiger PRIVATE zlib)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger zstd)
+    target_link_libraries(wiredtiger PRIVATE zstd)
 endif()
 
 # Build the wt utility.
