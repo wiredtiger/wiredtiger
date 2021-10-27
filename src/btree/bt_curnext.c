@@ -753,10 +753,13 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 ret = __cursor_row_next(cbt, newpage, restart, &skipped, prefix);
                 total_skipped += skipped;
                 /*
-                 * If we have finished traversing the keys on the current page and the prefix no
-                 * longer matches, we don't need to move to the next page and we can early exit
-                 * here. This logic is correct as the previous key will have been loaded into the
-                 * cbt->iface before the cursor traverses off the page.
+                 * We need to check against the prefix here as well as inside the call to cursor
+                 * row next as we cannot differentiate between exiting that function as a result
+                 * of a prefix mismatch or walking off the end of the page. If we have walked off
+                 * the end of the page we compare again to make sure that the key range is no
+                 * longer relevant before returning not found to the caller. This relies on the
+                 * assumption that the cursor key is always set to the last entry on the page
+                 * before walking off it.
                  */
                 if (ret == WT_NOTFOUND && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH) &&
                   prefix != NULL && __wt_prefix_match(prefix, &cbt->iface.key) != 0)
