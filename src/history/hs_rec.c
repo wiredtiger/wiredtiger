@@ -186,8 +186,8 @@ __hs_insert_record(WT_SESSION_IMPL *session, WT_CURSOR *cursor, WT_BTREE *btree,
      */
     if (ret == 0) {
         /*
-         * Check the current history store update stop timestamp is out of order with the new insert
-         * before moving into the next record.
+         * Check if the current history store update's stop timestamp is out of order with respect
+         * to the update to be inserted before before moving onto the next record.
          */
         if (hs_cbt->upd_value->tw.stop_ts <= tw->start_ts)
             WT_ERR_NOTFOUND_OK(cursor->next(cursor), true);
@@ -876,9 +876,10 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
         WT_ASSERT(session, cmp == 0);
 #endif
         /*
-         * We find a key that is larger or equal to the specified timestamp. Always use the start
-         * timestamp retrieved from the key instead of the start timestamp from the cell. The cell
-         * start timestamp can be cleared during reconciliation if it is globally visible.
+         * We have found a key with a timestamp larger than or equal to the specified timestamp.
+         * Always use the start timestamp retrieved from the key instead of the start timestamp from
+         * the cell. The cell's start timestamp can be cleared during reconciliation if it is
+         * globally visible.
          */
         if (hs_ts >= ts || twp->stop_ts >= ts)
             break;
@@ -946,8 +947,9 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
          * higher or equal than the specified timestamp and reinsert them at the smaller timestamp,
          * which is the timestamp of the update we are about to insert to the history store.
          *
-         * It is possible that the cursor next can find an update that is reinserted when it has an
-         * out of order tombstone to the new update. Continue the search by ignoring them.
+         * It is possible that the cursor next call can find an update that was reinserted when it
+         * had an out of order tombstone with respect to the new update. Continue the search by
+         * ignoring them.
          */
         __wt_hs_upd_time_window(hs_cursor, &twp);
         if (hs_ts < ts && twp->stop_ts < ts)
@@ -981,8 +983,8 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
               __wt_timestamp_to_string(ts, ts_string[4]));
 
             /*
-             * Use original start time window timestamps if it is not out of order to the new
-             * update.
+             * Use the original start time window's timestamps if it isn't out of order with respect
+             * to the new update.
              */
             if (hs_cbt->upd_value->tw.start_ts >= ts)
                 hs_insert_tw.start_ts = hs_insert_tw.durable_start_ts = ts - 1;
