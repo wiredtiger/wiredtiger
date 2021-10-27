@@ -148,39 +148,39 @@ static void
 configure_timing_stress(char *p, size_t max)
 {
     CONFIG_APPEND(p, ",timing_stress_for_test=[");
-    if (g.c_timing_stress_aggressive_sweep)
+    if (GV(STRESS_AGGRESSIVE_SWEEP))
         CONFIG_APPEND(p, ",aggressive_sweep");
-    if (g.c_timing_stress_checkpoint)
+    if (GV(STRESS_CHECKPOINT))
         CONFIG_APPEND(p, ",checkpoint_slow");
-    if (g.c_timing_stress_checkpoint_prepare)
+    if (GV(STRESS_CHECKPOINT_PREPARE))
         CONFIG_APPEND(p, ",prepare_checkpoint_delay");
-    if (g.c_timing_stress_checkpoint_reserved_txnid_delay)
+    if (GV(STRESS_CHECKPOINT_RESERVED_TXNID_DELAY))
         CONFIG_APPEND(p, ",checkpoint_reserved_txnid_delay");
-    if (g.c_timing_stress_failpoint_hs_delete_key_from_ts)
+    if (GV(STRESS_FAILPOINT_HS_DELETE_KEY_FROM_TS))
         CONFIG_APPEND(p, ",failpoint_history_store_delete_key_from_ts");
-    if (g.c_timing_stress_failpoint_hs_insert_1)
+    if (GV(STRESS_FAILPOINT_HS_INSERT_1))
         CONFIG_APPEND(p, ",failpoint_history_store_insert_1");
-    if (g.c_timing_stress_failpoint_hs_insert_2)
+    if (GV(STRESS_FAILPOINT_HS_INSERT_2))
         CONFIG_APPEND(p, ",failpoint_history_store_insert_2");
-    if (g.c_timing_stress_hs_checkpoint_delay)
+    if (GV(STRESS_HS_CHECKPOINT_DELAY))
         CONFIG_APPEND(p, ",history_store_checkpoint_delay");
-    if (g.c_timing_stress_hs_search)
+    if (GV(STRESS_HS_SEARCH))
         CONFIG_APPEND(p, ",history_store_search");
-    if (g.c_timing_stress_hs_sweep)
+    if (GV(STRESS_HS_SWEEP))
         CONFIG_APPEND(p, ",history_store_sweep_race");
-    if (g.c_timing_stress_split_1)
+    if (GV(STRESS_SPLIT_1))
         CONFIG_APPEND(p, ",split_1");
-    if (g.c_timing_stress_split_2)
+    if (GV(STRESS_SPLIT_2))
         CONFIG_APPEND(p, ",split_2");
-    if (g.c_timing_stress_split_3)
+    if (GV(STRESS_SPLIT_3))
         CONFIG_APPEND(p, ",split_3");
-    if (g.c_timing_stress_split_4)
+    if (GV(STRESS_SPLIT_4))
         CONFIG_APPEND(p, ",split_4");
-    if (g.c_timing_stress_split_5)
+    if (GV(STRESS_SPLIT_5))
         CONFIG_APPEND(p, ",split_5");
-    if (g.c_timing_stress_split_6)
+    if (GV(STRESS_SPLIT_6))
         CONFIG_APPEND(p, ",split_6");
-    if (g.c_timing_stress_split_7)
+    if (GV(STRESS_SPLIT_7))
         CONFIG_APPEND(p, ",split_7");
     CONFIG_APPEND(p, "]");
 }
