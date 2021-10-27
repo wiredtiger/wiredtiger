@@ -73,7 +73,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
             self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
 
         # Close the connection resource and clean up the contents of the stdout file, flushing out the
-        # verbose output that occured during the execution of this context.
+        # verbose output that occurred during the execution of this context.
         conn.close()
         self.cleanStdout()
 
