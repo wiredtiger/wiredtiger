@@ -104,4 +104,5 @@ __wt_verbose_debug
 __wt_verbose_error
 __wt_verbose_info
 __wt_verbose_level
+__wt_verbose_level_multi
 __wt_verbose_warning
