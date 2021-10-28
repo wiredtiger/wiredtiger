@@ -379,7 +379,7 @@ __rec_col_fix_get_bitmap_size(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     primary_size = r->aux_start_offset - WT_COL_FIX_AUXHEADER_SIZE;
 
     /* Subtract off the main page header. */
-    return primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session));
+    return ((uint32_t)(primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session))));
 }
 #endif
 
@@ -625,7 +625,7 @@ __wt_rec_col_fix(
          * case.
          */
         if (bitmapsize < __bitstr_size((size_t)page->entries * btree->bitcnt))
-            bitmapsize = __bitstr_size((size_t)page->entries * btree->bitcnt);
+            bitmapsize = (uint32_t)__bitstr_size((size_t)page->entries * btree->bitcnt);
     }
 
     WT_RET(__wt_rec_split_init(session, r, page, curstartrecno, bitmapsize, auxspace));
@@ -634,7 +634,7 @@ __wt_rec_col_fix(
     entry = 0;
 
     if (salvage != NULL) {
-        uint32_t i;
+        uint64_t i;
 
         /* If salvage wants us to insert entries, do that. */
         if (salvage->missing > 0) {
@@ -713,7 +713,8 @@ __wt_rec_col_fix(
             /* If it's from a previous run, it might become empty; if so, skip it. */
             if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                 WT_ERR(__wt_rec_col_fix_addtw(session, r,
-                  origstartrecno + page->pg_fix_tws[tw].recno_offset - curstartrecno, &unpack.tw));
+                  (uint32_t)(origstartrecno + page->pg_fix_tws[tw].recno_offset - curstartrecno),
+                  &unpack.tw));
             tw++;
         }
 
@@ -792,7 +793,8 @@ __wt_rec_col_fix(
 
         /* Write the time window. */
         if (!WT_TIME_WINDOW_IS_EMPTY(&upd_select.tw))
-            WT_ERR(__wt_rec_col_fix_addtw(session, r, recno - curstartrecno, &upd_select.tw));
+            WT_ERR(__wt_rec_col_fix_addtw(
+              session, r, (uint32_t)(recno - curstartrecno), &upd_select.tw));
 
         /* If there was an entry in the time windows index for this key, skip over it. */
         if (tw < numtws && origstartrecno + page->pg_fix_tws[tw].recno_offset == recno)
@@ -815,7 +817,8 @@ __wt_rec_col_fix(
 
         /* If it's from a previous run, it might become empty; if so, skip it. */
         if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
-            WT_ERR(__wt_rec_col_fix_addtw(session, r, recno - curstartrecno, &unpack.tw));
+            WT_ERR(
+              __wt_rec_col_fix_addtw(session, r, (uint32_t)(recno - curstartrecno), &unpack.tw));
         tw++;
     }
 
