@@ -894,8 +894,8 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
     bool txn_has_ts;
 
     /*
-     * If we are in recovery, we are done as all the updates replayed in recovery does not have any
-     * timestamp.
+     * Do not check for timestamp usage in recovery as it is possible that timestamps may be out of
+     * order due to WiredTiger log replay in recovery doesn't use any timestamps.
      */
     if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
         return (0);
