@@ -466,6 +466,7 @@ __wt_compact(WT_SESSION_IMPL *session, bool ovfl_rewrite)
             /* Rewrite the page: mark the page and tree dirty. */
             WT_ERR(__wt_page_modify_init(session, ref->page));
             __wt_page_modify_set(session, ref->page);
+            ref->page->modify->compact_rewrite_ovfl = true;
 
             session->compact_state = WT_COMPACT_SUCCESS;
         }
