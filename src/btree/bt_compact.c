@@ -9,6 +9,81 @@
 #include "wt_internal.h"
 
 /*
+ * __compact_rewrite --
+ *     Return if a modified page needs to be re-written.
+ */
+static int
+__compact_rewrite(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+{
+    WT_ADDR_COPY addr;
+    WT_BM *bm;
+    WT_MULTI *multi;
+    WT_PAGE_MODIFY *mod;
+    uint32_t i;
+
+    *skipp = true; /* Default skip. */
+
+    bm = S2BT(session)->bm;
+
+    /* If the page is clean, test the original addresses. */
+    if (__wt_page_evict_clean(ref->page))
+        return (__wt_ref_addr_copy(session, ref, &addr) ?
+            bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp) :
+            0);
+
+    /*
+     * If the page is a replacement, test the replacement addresses. Ignore empty pages, they get
+     * merged into the parent.
+     */
+    mod = ref->page->modify;
+    if (mod->rec_result == WT_PM_REC_REPLACE)
+        return (
+          bm->compact_page_skip(bm, session, mod->mod_replace.addr, mod->mod_replace.size, skipp));
+
+    if (mod->rec_result == WT_PM_REC_MULTIBLOCK)
+        for (multi = mod->mod_multi, i = 0; i < mod->mod_multi_entries; ++multi, ++i) {
+            if (multi->addr.addr == NULL)
+                continue;
+            WT_RET(bm->compact_page_skip(bm, session, multi->addr.addr, multi->addr.size, skipp));
+            if (!*skipp)
+                break;
+        }
+
+    return (0);
+}
+
+/*
+ * __compact_rewrite_lock --
+ *     Return if a page needs to be re-written.
+ */
+static int
+__compact_rewrite_lock(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
+{
+    WT_BTREE *btree;
+    WT_DECL_RET;
+
+    btree = S2BT(session);
+
+    /*
+     * Reviewing in-memory pages requires looking at page reconciliation results, because we care
+     * about where the page is stored now, not where the page was stored when we first read it into
+     * the cache. We need to ensure we don't race with page reconciliation as it's writing the page
+     * modify information. There are two ways we call reconciliation: checkpoints and eviction. We
+     * are holding a hazard pointer that blocks eviction, but there's nothing blocking a checkpoint.
+     * Get the tree's flush lock which blocks threads writing pages for checkpoints. If checkpoint
+     * is holding the lock, quit working this file, we'll visit it again in our next pass.
+     */
+    WT_RET(__wt_spin_trylock(session, &btree->flush_lock));
+
+    ret = __compact_rewrite(session, ref, skipp);
+
+    /* Unblock threads writing leaf pages. */
+    __wt_spin_unlock(session, &btree->flush_lock);
+
+    return (ret);
+}
+
+/*
  * __compact_page_inmem_check_addrs --
  *     Return if a clean, in-memory page needs to be re-written.
  */
@@ -181,24 +256,11 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool *skipp)
     if (previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &copy)) {
         bm = S2BT(session)->bm;
         addr_size = copy.size;
-
-        /* Let reconciliation handle the page if it has overflow items. */
-        if (copy.type == WT_ADDR_LEAF) {
-            /* Check if the block is worth rewriting. */
-            bm->compact_page_skip(bm, session, copy.addr, copy.size, skipp);
-            if (!*skipp && ref->page != NULL) {
-                WT_RET(__wt_page_modify_init(session, ref->page));
-                __wt_page_modify_set(session, ref->page);
-                F_SET_ATOMIC(ref->page, WT_PAGE_COMPACTION_WRITE);
-                ref->page->modify->compact_rewrite_ovfl = true;
-            }
-        } else {
-            WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
-            if (!*skipp) {
-                copy.size = (uint8_t)addr_size;
-                WT_ERR(__compact_page_replace_addr(session, ref, &copy));
-                WT_STAT_DATA_INCR(session, btree_compact_pages_rewritten);
-            }
+        WT_ERR(bm->compact_page_rewrite(bm, session, copy.addr, &addr_size, skipp));
+        if (!*skipp) {
+            copy.size = (uint8_t)addr_size;
+            WT_ERR(__compact_page_replace_addr(session, ref, &copy));
+            WT_STAT_DATA_INCR(session, btree_compact_pages_rewritten);
         }
     }
 
@@ -307,7 +369,7 @@ __compact_walk_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, b
  *     Compact a file.
  */
 int
-__wt_compact(WT_SESSION_IMPL *session)
+__wt_compact(WT_SESSION_IMPL *session, bool ovfl_rewrite)
 {
     WT_BM *bm;
     WT_DECL_RET;
@@ -365,17 +427,104 @@ __wt_compact(WT_SESSION_IMPL *session)
          * already in memory, and if a page is read, set its generation to a low value so it is
          * evicted quickly.
          */
-        WT_ERR(__wt_tree_walk_custom_skip(
-          session, &ref, __compact_walk_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
-        if (ref == NULL)
-            break;
+        if (!ovfl_rewrite) {
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &ref, __compact_walk_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
+            if (ref == NULL)
+                break;
 
-        WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
-        WT_ERR(ret);
+            WT_WITH_PAGE_INDEX(session, ret = __compact_walk_internal(session, ref));
+            WT_ERR(ret);
+        } else {
+
+            WT_ERR(__wt_tree_walk_custom_skip(
+              session, &ref, __wt_compact_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
+            if (ref == NULL)
+                break;
+
+            /*
+             * Cheap checks that don't require locking.
+             *
+             * Ignore the root: it may not have a replacement address, and besides, if anything else
+             * gets written, so will it.
+             *
+             * Ignore dirty pages, checkpoint will likely write them. There are cases where
+             * checkpoint can skip dirty pages: to avoid that, we could alter the transactional
+             * information of the page, which is what checkpoint reviews to decide if a page can be
+             * skipped. Not doing that for now, the repeated checkpoints that compaction requires
+             * are more than likely to pick up all dirty pages at some point.
+             */
+            if (__wt_ref_is_root(ref))
+                continue;
+            if (__wt_page_is_modified(ref->page))
+                continue;
+
+            WT_ERR(__compact_rewrite_lock(session, ref, &skip));
+            if (skip)
+                continue;
+
+            /* Rewrite the page: mark the page and tree dirty. */
+            WT_ERR(__wt_page_modify_init(session, ref->page));
+            __wt_page_modify_set(session, ref->page);
+
+            session->compact_state = WT_COMPACT_SUCCESS;
+        }
     }
 
 err:
     WT_TRET(__wt_page_release(session, ref, 0));
 
     return (ret);
+}
+
+/*
+ * __wt_compact_page_skip --
+ *     Return if compaction requires we read this page.
+ */
+int
+__wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
+{
+    WT_ADDR_COPY addr;
+    WT_BM *bm;
+    uint8_t previous_state;
+    bool diskaddr;
+
+    WT_UNUSED(context);
+
+    *skipp = false; /* Default to reading */
+
+    /* Internal pages must be read to walk the tree. */
+    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
+        return (0);
+
+    /*
+     * Skip deleted pages, rewriting them doesn't seem useful; in a better world we'd write the
+     * parent to delete the page.
+     */
+    if (ref->state == WT_REF_DELETED) {
+        *skipp = true;
+        return (0);
+    }
+
+    /*
+     * If the page is in-memory, we want to look at it (it may have been modified and written, and
+     * the current location is the interesting one in terms of compaction, not the original).
+     */
+    if (ref->state != WT_REF_DISK)
+        return (0);
+
+    /*
+     * Lock the WT_REF and if it's still on-disk, get a copy of the address. This is safe because
+     * it's an on-disk page and we're holding the WT_REF locked, so nobody can read the page giving
+     * either checkpoint or eviction a chance to modify the address.
+     */
+    WT_REF_LOCK(session, ref, &previous_state);
+    diskaddr = previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &addr);
+    WT_REF_UNLOCK(ref, previous_state);
+    if (!diskaddr)
+        return (0);
+
+    /* Ask the block-manager if it's useful to rewrite the page. */
+    bm = S2BT(session)->bm;
+    return (bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp));
 }

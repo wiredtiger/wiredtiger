@@ -154,10 +154,11 @@ class test_compact03(wttest.WiredTigerTestCase):
         # 7 & 8. Call compact. We expect that the overflow values at the end of the file are not
         #        rewritten and therefore the file size will mostly remain the same. Give a leeway
         #        of 10%.
-        self.session.compact(self.uri)
+        self.session.compact(self.uri, "ovfl_rewrite=true")
         sizeAfterCompact = self.getSize()
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
-        self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        #self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        self.assertLess(sizeAfterCompact, (sizeWithOverflow // 100) * 95)
 
         # Verify that we did indeed rewrote some pages but that didn't help with the file size.
         statDict = self.getCompactProgressStats()

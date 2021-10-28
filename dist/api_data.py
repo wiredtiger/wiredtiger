@@ -1322,6 +1322,9 @@ methods = {
         actual amount of time spent in compact may exceed the configured
         value. A value of zero disables the timeout''',
         type='int'),
+    Config('ovfl_rewrite', 'false', r'''
+        rewrite overflow items as part of compact''',
+        type='boolean'),
 ]),
 
 'WT_SESSION.create' : Method(file_config + lsm_config + tiered_config +

@@ -258,7 +258,8 @@ __compact_worker(WT_SESSION_IMPL *session)
                 continue;
 
             session->compact_state = WT_COMPACT_RUNNING;
-            WT_WITH_DHANDLE(session, session->op_handle[i], ret = __wt_compact(session));
+            WT_WITH_DHANDLE(session, session->op_handle[i],
+              ret = __wt_compact(session, session->compact->ovfl_rewrite));
             WT_ERR_ERROR_OK(ret, EBUSY, true);
             /*
              * If successful and we did work, schedule another pass. If successful and we did no
@@ -376,6 +377,10 @@ __wt_session_compact(WT_SESSION *wt_session, const char *uri, const char *config
     WT_ERR(__wt_config_gets(session, cfg, "timeout", &cval));
     session->compact->max_time = (uint64_t)cval.val;
     __wt_epoch(session, &session->compact->begin);
+
+    /* Compaction try to rewrite overflow items. */
+    WT_ERR(__wt_config_gets(session, cfg, "ovfl_rewrite", &cval));
+    session->compact->ovfl_rewrite = cval.val > 0 ? true : false;
 
     /*
      * Find the types of data sources being compacted. This could involve opening indexes for a
