@@ -253,8 +253,12 @@ class search_near_01 : public test_harness::test {
                  * search with a prefix such as "z", we will not early exit the search near call
                  * because the rest of the keys will also start with "z" and match the prefix. The
                  * statistic will stay the same if we do not early exit search near.
+                 *
+                 * However, we still need to keep the assertion as >= rather than a strictly equals
+                 * as the test is multithreaded and other threads may increment the statistic if
+                 * they are searching with a different prefix that will early exit.
                  */
-                if (srch_key[0] == 'z') {
+                if (srch_key == "z" || srch_key == "zz" || srch_key == "zzz") {
                     testutil_assert(prefix_stat >= prev_prefix_stat);
                 } else {
                     testutil_assert(prefix_stat > prev_prefix_stat);

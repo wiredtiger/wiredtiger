@@ -121,8 +121,8 @@ class test_search_near01(wttest.WiredTigerTestCase):
         self.assertGreaterEqual(prefix_skip_count - skip_count, 26)
         skip_count = prefix_skip_count
 
-        # Here we should have hit the prefix fast path code twice, specifically when we hit keys
-        # that are after the prefixes we are searching for.
+        # Here we should have hit the prefix fast path code twice, as we have called prefix
+        # search near twice, both of which should have early exited when going forwards.
         self.assertEqual(self.get_stat(stat.conn.cursor_search_near_prefix_fast_paths), 2)
 
         cursor2.close()
@@ -193,7 +193,7 @@ class test_search_near01(wttest.WiredTigerTestCase):
         cursor2.search_near()
 
         skip_count = self.get_stat(stat.conn.cursor_next_skip_lt_100)
-        # This should be equal to roughly key_count as we're going to traverse most of the
+        # This should be slightly greater than key_count as we're going to traverse most of the
         # range forwards.
         self.assertGreater(skip_count, key_count)
 
