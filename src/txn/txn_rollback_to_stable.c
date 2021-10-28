@@ -206,7 +206,7 @@ __rollback_has_stable_update(WT_UPDATE *upd)
 {
     while (upd != NULL && (upd->type == WT_UPDATE_INVALID || upd->txnid == WT_TXN_ABORTED))
         upd = upd->next;
-    return upd != NULL;
+    return (upd != NULL);
 }
 
 /*
