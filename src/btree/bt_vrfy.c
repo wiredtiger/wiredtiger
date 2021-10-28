@@ -966,6 +966,7 @@ __verify_page_content_fix(
         WT_RET(__wt_vpack_uint(&p, 0, ref->ref_recno + recno_offset));
         vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
         if (tw < numtws && page->pg_fix_tws[tw].recno_offset == recno_offset) {
+            cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
             start_ts = unpack.tw.start_ts;
             tw++;
