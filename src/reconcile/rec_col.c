@@ -639,7 +639,7 @@ __wt_rec_col_fix(
         /* If salvage wants us to insert entries, do that. */
         if (salvage->missing > 0) {
             memset(r->first_free, 0, __bitstr_size((size_t)salvage->missing * btree->bitcnt));
-            entry += salvage->missing;
+            entry += (uint32_t)salvage->missing;
             salvage->missing = 0;
         }
 

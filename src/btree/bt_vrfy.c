@@ -915,7 +915,7 @@ __verify_page_content_fix(
     WT_CELL_UNPACK_KV unpack;
     WT_DECL_RET;
     WT_PAGE *page;
-    const WT_PAGE_HEADER *dsk;
+    uint64_t start_ts;
     uint32_t cell_num, numtws, recno_offset, tw;
     uint8_t *p;
 
@@ -925,7 +925,7 @@ __verify_page_content_fix(
      * If a tree is empty (just created), it won't have a disk image; if there is no disk image,
      * we're done.
      */
-    if ((dsk = page->dsk) == NULL) {
+    if (page->dsk == NULL) {
         WT_ASSERT(session, page->entries == 0);
         return (0);
     }
@@ -936,7 +936,7 @@ __verify_page_content_fix(
     /* Walk the time windows, if there are any. */
     numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
     for (tw = 0; tw < numtws; tw++) {
-        /* The cell number for the value is 2x the entry number (tw) plus 1. */
+        /* The printable cell number for the value is 2x the entry number (tw) plus 1. */
         cell_num = tw * 2 + 1;
 
         cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
@@ -961,11 +961,17 @@ __verify_page_content_fix(
      * does not support FLCS timestamps and history will have no history store entries, such pages
      * can also be written by newer builds; so we should always validate the history entries.
      */
-    for (recno_offset = 0; recno_offset < page->entries; recno_offset++) {
+    for (recno_offset = 0, tw = 0; recno_offset < page->entries; recno_offset++) {
         p = vs->tmp1->mem;
         WT_RET(__wt_vpack_uint(&p, 0, ref->ref_recno + recno_offset));
         vs->tmp1->size = WT_PTRDIFF(p, vs->tmp1->mem);
-        WT_RET(__verify_key_hs(session, vs->tmp1, unpack.tw.start_ts, vs));
+        if (tw < numtws && page->pg_fix_tws[tw].recno_offset == recno_offset) {
+            __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
+            start_ts = unpack.tw.start_ts;
+            tw++;
+        } else
+            start_ts = WT_TS_NONE;
+        WT_RET(__verify_key_hs(session, vs->tmp1, start_ts, vs));
     }
 
     /* The caller checks that the address cell pointing to us is no-overflow, so we needn't. */
