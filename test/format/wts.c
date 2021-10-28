@@ -213,6 +213,16 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (GV(RUNS_IN_MEMORY) != 0)
         CONFIG_APPEND(p, ",in_memory=1");
 
+    /* Block cache configuration. */
+    CONFIG_APPEND(p,
+      ",block_cache=(enabled=%s,type=\"dram\""
+      ",cache_on_checkpoint=%s"
+      ",cache_on_writes=%s"
+      ",size=%" PRIu32 "MB)",
+      GV(BLOCK_CACHE) == 0 ? "false" : "true",
+      GV(BLOCK_CACHE_CACHE_ON_CHECKPOINT) == 0 ? "false" : "true",
+      GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
+
     /* LSM configuration. */
     if (g.lsm_config)
         CONFIG_APPEND(p, ",lsm_manager=(worker_thread_max=%" PRIu32 "),", GV(LSM_WORKER_THREADS));
@@ -220,7 +230,7 @@ create_database(const char *home, WT_CONNECTION **connp)
     if (g.lsm_config || GV(CACHE) < 20)
         CONFIG_APPEND(p, ",eviction_dirty_trigger=95");
 
-    /* Eviction worker configuration. */
+    /* Eviction configuration. */
     if (GV(CACHE_EVICT_MAX) != 0)
         CONFIG_APPEND(p, ",eviction=(threads_max=%" PRIu32 ")", GV(CACHE_EVICT_MAX));
 

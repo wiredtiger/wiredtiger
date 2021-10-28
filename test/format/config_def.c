@@ -18,6 +18,18 @@ CONFIG configuration_list[] = {
   {"backup.incr_granularity", "incremental backup block granularity (KB)",
     0x0, 4, 16384, 16384, V_GLOBAL_BACKUP_INCR_GRANULARITY},
 
+  {"block_cache", "enable the block cache",
+    C_BOOL, 10, 0, 0, V_GLOBAL_BLOCK_CACHE},
+
+  {"block_cache.cache_on_checkpoint", "block cache: cache checkpoint writes",
+    C_BOOL, 30, 0, 0, V_GLOBAL_BLOCK_CACHE_CACHE_ON_CHECKPOINT},
+
+  {"block_cache.cache_on_writes", "block cache: populate the cache on writes",
+    C_BOOL, 60, 0, 0, V_GLOBAL_BLOCK_CACHE_CACHE_ON_WRITES},
+
+  {"block_cache.size", "block cache size (MB)",
+    0x0, 1, 100, 100 * 1024, V_GLOBAL_BLOCK_CACHE_SIZE},
+
   {"btree.bitcnt", "fixed-length column-store object size (number of bits)",
     C_TABLE | C_TYPE_FIX, 1, 8, 8, V_TABLE_BTREE_BITCNT},
 
