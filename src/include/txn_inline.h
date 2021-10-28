@@ -389,6 +389,8 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
             WT_RET_MSG(
               session, ENOTSUP, "Transactions with ignore_prepare=true cannot perform updates");
+        __wt_verbose_debug(
+          session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Write in read-only txn");
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
     }
 
@@ -1317,6 +1319,7 @@ __wt_txn_modify_check(
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     bool ignore_prepare_set, rollback, tw_found;
+    char ts_string[WT_TS_INT_STRING_SIZE];
 
     rollback = tw_found = false;
     txn = session->txn;
@@ -1337,6 +1340,9 @@ __wt_txn_modify_check(
     F_CLR(txn, WT_TXN_IGNORE_PREPARE);
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
+            __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+              "Conflict with update at timestamp: %s",
+              __wt_timestamp_to_string(upd->start_ts, ts_string));
             rollback = true;
             break;
         }
@@ -1352,10 +1358,19 @@ __wt_txn_modify_check(
     if (!rollback && upd == NULL) {
         __wt_read_cell_time_window(cbt, &tw, &tw_found);
         if (tw_found) {
-            if (WT_TIME_WINDOW_HAS_STOP(&tw))
+            if (WT_TIME_WINDOW_HAS_STOP(&tw)) {
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
-            else
+                if (rollback)
+                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                      "Conflict with update at stop timestamp: %s",
+                      __wt_timestamp_to_string(tw.stop_ts, ts_string));
+            } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
+                if (rollback)
+                    __wt_verbose_debug(session, WT_VERB_TRANSACTION,
+                      "Conflict with update at start timestamp: %s",
+                      __wt_timestamp_to_string(tw.start_ts, ts_string));
+            }
         }
     }
 

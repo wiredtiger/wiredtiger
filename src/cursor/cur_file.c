@@ -415,6 +415,7 @@ __curfile_remove(WT_CURSOR *cursor)
     if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
         WT_IGNORE_RET(__wt_msg(
           session, "WT_ROLLBACK: rolling back cursor remove as initial position was lost"));
+        __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", "__curfile_remove position");
         WT_ERR(WT_ROLLBACK);
     }
 
