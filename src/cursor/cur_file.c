@@ -390,6 +390,7 @@ __curfile_remove(WT_CURSOR *cursor)
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
     uint64_t time_start, time_stop;
+    const char *reason;
     bool positioned;
 
     /*
@@ -413,9 +414,9 @@ __curfile_remove(WT_CURSOR *cursor)
 
     /* If we've lost an initial position, we must fail. */
     if (positioned && !F_ISSET(cursor, WT_CURSTD_KEY_INT)) {
-        WT_IGNORE_RET(__wt_msg(
-          session, "WT_ROLLBACK: rolling back cursor remove as initial position was lost"));
-        __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", "__curfile_remove position");
+        reason = "initial position was lost";
+        WT_IGNORE_RET(__wt_msg(session, "WT_ROLLBACK: rolling back cursor remove as %s", reason));
+        __wt_verbose_debug(session, WT_VERB_TRANSACTION, "Rollback reason: %s", reason);
         WT_ERR(WT_ROLLBACK);
     }
 

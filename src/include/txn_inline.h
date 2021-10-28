@@ -1318,8 +1318,8 @@ __wt_txn_modify_check(
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
-    bool ignore_prepare_set, rollback, tw_found;
     char ts_string[WT_TS_INT_STRING_SIZE];
+    bool ignore_prepare_set, rollback, tw_found;
 
     rollback = tw_found = false;
     txn = session->txn;
