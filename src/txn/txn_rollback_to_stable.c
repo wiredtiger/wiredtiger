@@ -970,7 +970,7 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     if (inshead != NULL) {
         WT_SKIP_FOREACH (ins, inshead) {
             /* Process all the keys before this update entry. */
-            ins_recno_offset = WT_INSERT_RECNO(ins) - ref->ref_recno;
+            ins_recno_offset = (uint32_t)(WT_INSERT_RECNO(ins) - ref->ref_recno);
             while (tw < numtws &&
               (recno_offset = page->pg_fix_tws[tw].recno_offset) < ins_recno_offset) {
 

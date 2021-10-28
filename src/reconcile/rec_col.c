@@ -603,7 +603,7 @@ __wt_rec_col_fix(
          */
         rawbitmapsize = WT_ALIGN(
           WT_COL_FIX_ENTRIES_TO_BYTES(btree, salvage->take + salvage->missing), btree->allocsize);
-        if (rawbitmapsize + auxspace > UINT32_MAX)
+        if (rawbitmapsize + auxspace > UINT32_MAX || salvage->take + salvage->missing > UINT32_MAX)
             WT_RET_PANIC(session, WT_PANIC,
               "%s page too large (%" PRIu64 "); cannot split it during salvage",
               __wt_page_type_string(page->type), rawbitmapsize + auxspace);
@@ -970,13 +970,15 @@ err:
  */
 void
 __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t entries,
-  uint32_t auxentries, uint8_t *image, uint32_t size)
+  uint32_t auxentries, uint8_t *image, size_t size)
 {
     WT_BTREE *btree;
     uint32_t auxdataoffset, auxheaderoffset, bitmapsize, waste;
 
     btree = S2BT(session);
     (void)size; /* only used in DIAGNOSTIC */
+
+    WT_ASSERT(session, size <= UINT32_MAX);
 
     /*
      * Compute some positions.

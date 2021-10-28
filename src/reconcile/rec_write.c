@@ -994,7 +994,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
     if (page->type == WT_PAGE_COL_FIX) {
-        r->aux_start_offset = primary_size + WT_COL_FIX_AUXHEADER_SIZE;
+        r->aux_start_offset = (uint32_t)(primary_size + WT_COL_FIX_AUXHEADER_SIZE);
         r->aux_entries = 0;
         r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
     }
