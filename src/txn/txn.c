@@ -893,6 +893,13 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
     char ts_string[2][WT_TS_INT_STRING_SIZE];
     bool txn_has_ts;
 
+    /*
+     * If we are in recovery, we are done as all the updates replayed in recovery does not have any
+     * timestamp.
+     */
+    if (F_ISSET(S2C(session), WT_CONN_RECOVERING))
+        return (0);
+
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
 
