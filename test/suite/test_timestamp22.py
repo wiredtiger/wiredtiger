@@ -190,10 +190,10 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         prepare_config = 'prepare_timestamp=' + self.timestamp_str(prepare_ts)
         begin_config = '' if read_ts < 0 else 'read_timestamp=' + self.timestamp_str(read_ts)
 
-        # We might do timestamp_transaction calls either before/after inserting
-        # values, or both.
-        do_tstxn1 = (self.rand.rand32() % 10 == 0)
-        do_tstxn2 = (self.rand.rand32() % 10 == 0)
+        # We can set timestamp_transactions before and after inserting values, or only before inserting.
+        # Attempting to set a timestamp after a non-timestamped update will fail
+        do_tstxn1 = (self.rand.rand32() % 1 == 0)
+        do_tstxn2 = do_tstxn1 and (self.rand.rand32() % 2 == 0)
 
         # Keep track of the commit timestamp that we'll set through the transaction.
         # If it decreases, it will trigger an error.  At the final commit_transaction
@@ -210,6 +210,13 @@ class test_timestamp22(wttest.WiredTigerTestCase):
         if do_tstxn2:
             (ok_tstxn2, tstxn2_config, running_commit_ts) = \
                 timestamp_txn_config(commit_ts, running_commit_ts)
+            
+            # If timestamp transaction 1 does not successfully set commit_timestamp 
+            # to a non-zero value then timestamp_transaction2 will always fail
+            if 'commit_timestamp' not in tstxn1_config or \
+                tstxn1_config == ',commit_timestamp=0' or not ok_tstxn1:
+                ok_tstxn2 = False
+
             if first_commit_ts < 0:
                 first_commit_ts = running_commit_ts
 

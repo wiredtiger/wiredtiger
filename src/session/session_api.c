@@ -1747,8 +1747,10 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
 {
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
+    WT_TXN *txn;
 
     session = (WT_SESSION_IMPL *)wt_session;
+    txn = session->txn;
 #ifdef HAVE_DIAGNOSTIC
     SESSION_API_CALL_PREPARE_ALLOWED(session, timestamp_transaction, config, cfg);
 #else
@@ -1756,7 +1758,22 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
     cfg[1] = config;
 #endif
 
-    ret = __wt_txn_set_timestamp(session, cfg);
+    /*
+     * To prevent a transaction from containing both timestamped and non-timestamped updates a
+     * timestamp cannot be set once the transaction contains non-timestamped updates. Prepared
+     * transactions are an exception to this rule as we can guarantee that no new updates will be
+     * added after a timestamp_transaction.
+     */
+    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
+      !F_ISSET(txn, WT_TXN_PREPARE)) {
+        WT_ERR_MSG(session, EINVAL,
+          "Cannot set a timestamp for transaction %" PRIu64
+          " as it already contains updates with no timestamp",
+          txn->id);
+    } else {
+        ret = __wt_txn_set_timestamp(session, cfg);
+    }
+
 err:
     API_END_RET(session, ret);
 }

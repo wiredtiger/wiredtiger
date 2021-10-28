@@ -136,8 +136,7 @@ class test_prepare01(wttest.WiredTigerTestCase):
 
         self.check(cursor, committed, self.nentries)
 
-        self.session.timestamp_transaction("prepare_timestamp=2a")
-        self.session.prepare_transaction()
+        self.session.prepare_transaction("prepare_timestamp=2a")
         self.session.timestamp_transaction("commit_timestamp=3a")
         self.session.timestamp_transaction("durable_timestamp=3a")
         self.session.commit_transaction()

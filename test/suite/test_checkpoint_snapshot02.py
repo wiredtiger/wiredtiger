@@ -144,6 +144,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session1.begin_transaction()
         cursor1 = session1.open_cursor(self.uri)
 
+        session1.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
         for i in range(self.nrows+1, (self.nrows*2)+1):
             cursor1.set_key(ds.key(i))
             cursor1.set_value(valuea)
@@ -200,6 +201,7 @@ class test_checkpoint_snapshot02(wttest.WiredTigerTestCase):
         session2 = self.conn.open_session()
         session2.begin_transaction()
         cursor2 = session2.open_cursor(self.uri)
+        session2.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
 
         for i in range((self.nrows+1), (self.nrows*2)+1):
             cursor2.set_key(ds.key(i))

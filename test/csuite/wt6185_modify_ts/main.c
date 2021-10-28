@@ -226,8 +226,7 @@ modify(WT_SESSION *session, WT_CURSOR *c)
         trace("returned {%s}", v);
 
         testutil_check(__wt_snprintf(tmp, sizeof(tmp), "commit_timestamp=%" PRIx64, ts + 1));
-        testutil_check(session->timestamp_transaction(session, tmp));
-        testutil_check(session->commit_transaction(session, NULL));
+        testutil_check(session->commit_transaction(session, tmp));
 
         list[lnext].ts = ts + 1; /* Reread at commit timestamp */
         ++lnext;

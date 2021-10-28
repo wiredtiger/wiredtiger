@@ -181,6 +181,7 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         uri = 'file:' + base
         msg_ooo='/out of order/'
         msg_usage='/used inconsistently/'
+        msg_partially_timestamped='/already contains updates with no timestamp/'
 
         # Create the table with the key consistency checking turned on.
         # That checking will verify any individual key is always or never
@@ -359,32 +360,18 @@ class test_assert04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertEquals(c[key_nots], 'value_nots1')
         c.close()
 
-        # Confirm it is okay to set the timestamp in the middle or end of the
-        # transaction. That should set the timestamp for the whole thing.
+        # Confirm timestamps cannot be set once an un-timestamped update has been made.
+        # Setting the timestamp at the end of a transaction should be done via 
+        # commit_transaction, not timestamp_transaction.
         c = self.session.open_cursor(uri)
         self.session.begin_transaction()
-        c[key_ts5] = 'value_notsyet'
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(20))
-        c[key_ts5] = 'value20'
-        self.session.commit_transaction()
-        c.close()
+        c[key_ts5] = 'value_nots2'
 
-        c = self.session.open_cursor(uri)
-        self.assertEquals(c[key_ts5], 'value20')
-        c.close()
+        self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+            lambda: self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20)),
+            msg_partially_timestamped)
 
-        c = self.session.open_cursor(uri)
-        self.session.begin_transaction()
-        c[key_ts6] = 'value_notsyet'
-        c[key_ts6] = 'value21_after'
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(21))
-        self.session.commit_transaction()
-        c.close()
-
-        c = self.session.open_cursor(uri)
-        self.assertEquals(c[key_ts6], 'value21_after')
+        self.session.rollback_transaction()
         c.close()
 
         # Confirm it is okay to set the timestamp on the commit call.

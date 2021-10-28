@@ -262,8 +262,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
         # We have a running transaction with a lower commit_timestamp than we've
         # seen before. So all_durable should return (lowest commit timestamp - 1).
         session1.begin_transaction()
-        cur1[2] = 2
         session1.timestamp_transaction('commit_timestamp=2')
+        cur1[2] = 2
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'), '1')
         session1.commit_transaction()
@@ -313,8 +313,8 @@ class test_timestamp14(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Now test a scenario with multiple commit timestamps for a single txn.
         session1.begin_transaction()
-        cur1[5] = 5
         session1.timestamp_transaction('commit_timestamp=6')
+        cur1[5] = 5
         self.assertTimestampsEqual(
             self.conn.query_timestamp('get=all_durable'), '5')
 

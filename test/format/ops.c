@@ -509,16 +509,20 @@ commit_transaction(TINFO *tinfo, bool prepared)
         lock_writelock(session, &g.ts_lock);
 
         ts = __wt_atomic_addv64(&g.timestamp, 1);
-        testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
-        testutil_check(session->timestamp_transaction(session, buf));
 
         if (prepared) {
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
+            testutil_check(session->timestamp_transaction(session, buf));
             testutil_check(__wt_snprintf(buf, sizeof(buf), "durable_timestamp=%" PRIx64, ts));
             testutil_check(session->timestamp_transaction(session, buf));
+            testutil_check(session->commit_transaction(session, NULL));
+        } else {
+            testutil_check(__wt_snprintf(buf, sizeof(buf), "commit_timestamp=%" PRIx64, ts));
+            testutil_check(session->commit_transaction(session, buf));
         }
 
         lock_writeunlock(session, &g.ts_lock);
-        testutil_check(session->commit_transaction(session, NULL));
+
         if (prepared)
             lock_readunlock(session, &g.prepare_commit_lock);
     } else

@@ -61,8 +61,7 @@ class test_prepare11(wttest.WiredTigerTestCase):
         c[self.key1] = 'yyyy'
         self.session.prepare_transaction('prepare_timestamp=10')
         if self.commit:
-            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
-            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(30))
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20) + 
+                ',durable_timestamp=' + self.timestamp_str(30))
         else:
             self.session.rollback_transaction()

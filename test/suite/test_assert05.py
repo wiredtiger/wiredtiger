@@ -98,11 +98,9 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
             self.session.prepare_transaction(
                 'prepare_timestamp=' + self.timestamp_str(self.count))
 
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(self.count))
         # All settings other than always should commit successfully
         if (use_ts != 'always' and use_ts != 'never'):
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(self.count))
         else:
             '''
             Commented out for now: the system panics if we fail after preparing a transaction.
