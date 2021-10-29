@@ -1469,14 +1469,14 @@ config_single(TABLE *table, const char *s, bool explicit)
         range = RANGE_WEIGHTED;
     }
 
+    /*
+     * Get the value and check the range; zero is optionally an out-of-band "don't set this
+     * variable" value.
+     */
     v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
-    /* Zero may be an out-of-band "don't set this variable" value. */
-    if (v1 == 0 && F_ISSET(cp, C_ZERO_NOTSET))
-        return;
-    if (v1 < cp->min || v1 > cp->maxset) {
+    if (!(v1 == 0 && F_ISSET(cp, C_ZERO_NOTSET)) && (v1 < cp->min || v1 > cp->maxset))
         testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
           progname, s, cp->min, cp->maxset);
-    }
 
     if (range != RANGE_NONE) {
         v2 = config_value(s, vp2, '\0');
