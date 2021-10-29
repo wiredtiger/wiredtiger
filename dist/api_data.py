@@ -1780,9 +1780,9 @@ methods = {
         set the commit timestamp for the current transaction.  The supplied
         value must not be older than the first commit timestamp set for the
         current transaction.  The value must also not be older than the
-        current oldest and stable timestamps. If a transaction already contains 
-        updates with no timestamp then commit_timestamp cannot be set for 
-        non-prepared transactions. See @ref transaction_timestamps'''),
+        current oldest and stable timestamps. timestamp_transaction cannot 
+        be called on a transaction that contains non-timestamped commits. 
+        See @ref transaction_timestamps'''),
     Config('durable_timestamp', '', r'''
         set the durable timestamp for the current transaction.  The supplied
         value must not be older than the commit timestamp set for the
