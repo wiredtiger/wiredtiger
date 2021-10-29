@@ -907,30 +907,45 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      * see them after they've been moved due to their transaction id.
      *
      * For example, if we're inserting an update at timestamp 3 with value ddd:
-     * btree key ts counter value
-     * 2     foo 5  0       aaa
-     * 2     foo 6  0       bbb
-     * 2     foo 7  0       ccc
+     * btree key ts counter value stop_ts
+     * 2     foo 5  0       aaa     6
+     * 2     foo 6  0       bbb     7
+     * 2     foo 7  0       ccc     8
      *
      * We want to end up with this:
-     * btree key ts counter value
-     * 2     foo 3  0       aaa
-     * 2     foo 3  1       bbb
-     * 2     foo 3  2       ccc
-     * 2     foo 3  3       ddd
+     * btree key ts counter value stop_ts
+     * 2     foo 3  0       aaa    3
+     * 2     foo 3  1       bbb    3
+     * 2     foo 3  2       ccc    3
+     * 2     foo 3  3       ddd    3
      *
      * Another example, if we're inserting an update at timestamp 0 with value ddd:
-     * btree key ts counter value
-     * 2     foo 5  0       aaa
-     * 2     foo 6  0       bbb
-     * 2     foo 7  0       ccc
+     * btree key ts counter value stop_ts
+     * 2     foo 5  0       aaa    6
+     * 2     foo 6  0       bbb    7
+     * 2     foo 7  0       ccc    8
      *
      * We want to end up with this:
-     * btree key ts counter value
-     * 2     foo 0  0       aaa
-     * 2     foo 0  1       bbb
-     * 2     foo 0  2       ccc
-     * 2     foo 0  3       ddd
+     * btree key ts counter value stop_ts
+     * 2     foo 0  0       aaa    0
+     * 2     foo 0  1       bbb    0
+     * 2     foo 0  2       ccc    0
+     * 2     foo 0  3       ddd    0
+     *
+     * Another example, if we're inserting an update at timestamp 3 with value ddd
+     * that is an out of order with a stop timestamp of 6:
+     * btree key ts counter value stop_ts
+     * 2     foo 1  0       aaa     6
+     * 2     foo 6  0       bbb     7
+     * 2     foo 7  0       ccc     8
+     *
+     * We want to end up with this:
+     * btree key ts counter value stop_ts
+     * 2     foo 1  0       aaa    6
+     * 2     foo 1  1       aaa    3
+     * 2     foo 3  2       bbb    3
+     * 2     foo 3  3       ccc    3
+     * 2     foo 3  4       ddd    3
      */
     for (; ret == 0; ret = hs_cursor->next(hs_cursor)) {
         /* We shouldn't have crossed the btree and user key search space. */
