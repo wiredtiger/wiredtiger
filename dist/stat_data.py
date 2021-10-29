@@ -657,7 +657,6 @@ dsrc_stats = [
     BtreeStat('btree_column_variable', 'column-store variable-size leaf pages', 'no_scale,tree_walk'),
     BtreeStat('btree_compact_pages_reviewed', 'btree compact pages reviewed', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_skipped', 'btree compact pages skipped', 'no_clear,no_scale'),
-    BtreeStat('btree_compact_pages_write_selected', 'btree compact pages selected to be rewritten', 'no_clear,no_scale'),
     BtreeStat('btree_compact_pages_rewritten', 'pages rewritten by compaction'),
     BtreeStat('btree_compact_skipped', 'btree skipped by compaction as process would not reduce size'),
     BtreeStat('btree_entries', 'number of key/value pairs', 'no_scale,tree_walk'),

@@ -28,7 +28,6 @@ static const char *const __stats_dsrc_desc[] = {
   "btree: btree checkpoint generation",
   "btree: btree clean tree checkpoint expiration time",
   "btree: btree compact pages reviewed",
-  "btree: btree compact pages selected to be rewritten",
   "btree: btree compact pages skipped",
   "btree: btree skipped by compaction as process would not reduce size",
   "btree: column-store fixed-size leaf pages",
@@ -311,7 +310,6 @@ __wt_stat_dsrc_clear_single(WT_DSRC_STATS *stats)
     /* not clearing btree_checkpoint_generation */
     /* not clearing btree_clean_checkpoint_timer */
     /* not clearing btree_compact_pages_reviewed */
-    /* not clearing btree_compact_pages_write_selected */
     /* not clearing btree_compact_pages_skipped */
     stats->btree_compact_skipped = 0;
     stats->btree_column_fix = 0;
@@ -563,7 +561,6 @@ __wt_stat_dsrc_aggregate_single(WT_DSRC_STATS *from, WT_DSRC_STATS *to)
     to->btree_checkpoint_generation += from->btree_checkpoint_generation;
     to->btree_clean_checkpoint_timer += from->btree_clean_checkpoint_timer;
     to->btree_compact_pages_reviewed += from->btree_compact_pages_reviewed;
-    to->btree_compact_pages_write_selected += from->btree_compact_pages_write_selected;
     to->btree_compact_pages_skipped += from->btree_compact_pages_skipped;
     to->btree_compact_skipped += from->btree_compact_skipped;
     to->btree_column_fix += from->btree_column_fix;
@@ -820,8 +817,6 @@ __wt_stat_dsrc_aggregate(WT_DSRC_STATS **from, WT_DSRC_STATS *to)
     to->btree_checkpoint_generation += WT_STAT_READ(from, btree_checkpoint_generation);
     to->btree_clean_checkpoint_timer += WT_STAT_READ(from, btree_clean_checkpoint_timer);
     to->btree_compact_pages_reviewed += WT_STAT_READ(from, btree_compact_pages_reviewed);
-    to->btree_compact_pages_write_selected +=
-      WT_STAT_READ(from, btree_compact_pages_write_selected);
     to->btree_compact_pages_skipped += WT_STAT_READ(from, btree_compact_pages_skipped);
     to->btree_compact_skipped += WT_STAT_READ(from, btree_compact_skipped);
     to->btree_column_fix += WT_STAT_READ(from, btree_column_fix);
