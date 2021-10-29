@@ -65,9 +65,8 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         # oldest timestamp is valid with roundup_timestamps settings.
         self.session.begin_transaction('roundup_timestamps=(prepared=true)')
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
-        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(15))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(35))
-        self.session.commit_transaction()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15) + 
+            ',durable_timestamp=' + self.timestamp_str(35))
 
         '''
         Commented out for now: the system panics if we fail after preparing a transaction.

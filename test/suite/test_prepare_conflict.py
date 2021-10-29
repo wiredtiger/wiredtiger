@@ -75,9 +75,8 @@ class test_prepare_conflict(wttest.WiredTigerTestCase):
 
         # Prepare and commit the transaction.
         self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10))
-        self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
-        self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(20))
-        self.session.commit_transaction()
+        self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20) + 
+            ',durable_timestamp=' + self.timestamp_str(20))
 
         # WT-6325 reports WT_PREPARE_CONFLICT while iterating the cursor.
         # Walk the table, the bug will cause a prepared conflict return.

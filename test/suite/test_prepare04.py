@@ -118,9 +118,8 @@ class test_prepare04(wttest.WiredTigerTestCase, suite_subprocess):
         self.assertRaisesException(wiredtiger.WiredTigerError, lambda:c_other.update(), conflictmsg)
         s_other.rollback_transaction()
 
-        self.session.timestamp_transaction('commit_timestamp=' + timestamp_str(300))
-        self.session.timestamp_transaction('durable_timestamp=' + timestamp_str(300))
-        self.session.commit_transaction()
+        self.session.commit_transaction('commit_timestamp=' + timestamp_str(300) + 
+            ',durable_timestamp=' + timestamp_str(300))
 
 if __name__ == '__main__':
     wttest.run()

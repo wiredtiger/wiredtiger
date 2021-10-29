@@ -51,11 +51,8 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
             cursor[i] = b'a' * 100
         self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(150))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(200))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + self.timestamp_str(250))
-        self.session.commit_transaction()
+        timestamps = 'commit_timestamp=' + self.timestamp_str(200) + ',durable_timestamp=' + self.timestamp_str(250)
+        self.session.commit_transaction(timestamps)
         cursor.close()
 
         self.conn.rollback_to_stable()
@@ -68,11 +65,8 @@ class test_debug_mode05(wttest.WiredTigerTestCase):
         self.session.begin_transaction()
         self.session.prepare_transaction(
             'prepare_timestamp=' + self.timestamp_str(300))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(350))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + self.timestamp_str(400))
-        self.session.commit_transaction()
+        timestamps = 'commit_timestamp=' + self.timestamp_str(350) + ',durable_timestamp=' + self.timestamp_str(400)
+        self.session.commit_transaction(timestamps)
 
         # The aforementioned bug resulted in a failure in rollback to stable.
         # This is because we failed to clear out a txn id from our global state

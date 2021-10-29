@@ -93,9 +93,8 @@ class test_prepare16(wttest.WiredTigerTestCase):
             evict_cursor.reset()
 
         if self.commit:
-            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(20))
-            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(30))
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(20) + 
+                ',durable_timestamp=' + self.timestamp_str(30))
         else:
             self.session.rollback_transaction()
 

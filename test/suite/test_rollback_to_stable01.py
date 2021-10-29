@@ -75,9 +75,8 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     session.commit_transaction()
                 elif prepare:
                     session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-                    session.commit_transaction()
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts) + 
+                        ',durable_timestamp=' + self.timestamp_str(commit_ts+1))
                 else:
                     session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
             cursor.close()
@@ -102,9 +101,8 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                 session.commit_transaction()
             elif prepare:
                 session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-                session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-                session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-                session.commit_transaction()
+                session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts) + 
+                    ',durable_timestamp=' + self.timestamp_str(commit_ts+1))
             else:
                 session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
             cursor.close()
@@ -127,9 +125,8 @@ class test_rollback_to_stable_base(wttest.WiredTigerTestCase):
                     session.commit_transaction()
                 elif prepare:
                     session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-                    session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-                    session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-                    session.commit_transaction()
+                    session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts) + 
+                        ',durable_timestamp=' + self.timestamp_str(commit_ts+1))
                 else:
                     session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
             cursor.close()

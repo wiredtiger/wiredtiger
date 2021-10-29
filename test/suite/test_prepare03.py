@@ -94,9 +94,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=2a")
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.insert(), preparemsg)
-            self.session.timestamp_transaction("commit_timestamp=2b")
-            self.session.timestamp_transaction("durable_timestamp=2b")
-            self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=2b, durable_timestamp=2b")
             cursor.insert()
 
         # Check next, get_key, get_value operations.
@@ -113,9 +111,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
                 lambda:cursor.get_key(), preparemsg)
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.get_value(), preparemsg)
-            self.session.timestamp_transaction("commit_timestamp=2b")
-            self.session.timestamp_transaction("durable_timestamp=2b")
-            self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=2b, durable_timestamp=2b")
             nextret = cursor.next()
             if nextret != 0:
                 break
@@ -139,9 +135,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
             self.session.prepare_transaction("prepare_timestamp=2a")
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
                 lambda:cursor.prev(), preparemsg)
-            self.session.timestamp_transaction("commit_timestamp=2b")
-            self.session.timestamp_transaction("durable_timestamp=2b")
-            self.session.commit_transaction()
+            self.session.commit_transaction("commit_timestamp=2b, durable_timestamp=2b")
             prevret = cursor.prev()
             if prevret != 0:
                 break
@@ -175,9 +169,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
             lambda:cursor.reserve(), preparemsg)
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.reconfigure(), preparemsg)
-        self.session.timestamp_transaction("commit_timestamp=2b")
-        self.session.timestamp_transaction("durable_timestamp=2b")
-        self.session.commit_transaction()
+        self.session.commit_transaction("commit_timestamp=2b, durable_timestamp=2b")
         cursor.search()
         cursor.set_value(self.genvalue(self.nentries + self.nentries//2))
         cursor.update()
@@ -189,9 +181,7 @@ class test_prepare03(wttest.WiredTigerTestCase):
         self.session.prepare_transaction("prepare_timestamp=2a")
         self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
             lambda:cursor.search_near(), preparemsg)
-        self.session.timestamp_transaction("commit_timestamp=2b")
-        self.session.timestamp_transaction("durable_timestamp=2b")
-        self.session.commit_transaction()
+        self.session.commit_transaction("commit_timestamp=2b, durable_timestamp=2b")
         # There is a bug with search_near operation when no key is set.
         # This fix is being tracked in WT-3918.
         if self.uri == 'lsm':

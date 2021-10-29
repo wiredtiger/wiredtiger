@@ -107,9 +107,8 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         if self.commit:
-            s.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
-            s.timestamp_transaction('durable_timestamp=' + self.timestamp_str(60))
-            s.commit_transaction()
+            s.commit_transaction('commit_timestamp=' + self.timestamp_str(50) + 
+                ',durable_timestamp=' + self.timestamp_str(60))
         else:
             s.rollback_transaction()
 
@@ -175,9 +174,8 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         if self.commit:
-            s.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
-            s.timestamp_transaction('durable_timestamp=' + self.timestamp_str(60))
-            s.commit_transaction()
+            s.commit_transaction('commit_timestamp=' + self.timestamp_str(50) + 
+                ',durable_timestamp=' + self.timestamp_str(60))
         else:
             s.rollback_transaction()
 
@@ -258,9 +256,8 @@ class test_prepare15(wttest.WiredTigerTestCase):
         self.session.commit_transaction()
 
         if self.commit:
-            s.timestamp_transaction('commit_timestamp=' + self.timestamp_str(30))
-            s.timestamp_transaction('durable_timestamp=' + self.timestamp_str(40))
-            s.commit_transaction()
+            s.commit_transaction('commit_timestamp=' + self.timestamp_str(30) + 
+                ',durable_timestamp=' + self.timestamp_str(40))
         else:
             s.rollback_transaction()
 

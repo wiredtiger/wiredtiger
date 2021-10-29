@@ -66,22 +66,18 @@ class test_assert05(wttest.WiredTigerTestCase, suite_subprocess):
         # Commit with a timestamp
         self.session.begin_transaction()
         c[key] = val
-        self.session.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(self.count))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(self.count))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + self.timestamp_str(self.count))
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(self.count))
+        timestamps = 'commit_timestamp=' + self.timestamp_str(self.count) + ',durable_timestamp=' + self.timestamp_str(self.count)
         # All settings other than never should commit successfully
         if (use_ts != 'never'):
-            self.session.commit_transaction()
+            self.session.commit_transaction(timestamps)
         else:
             '''
             Commented out for now: the system panics if we fail after preparing a transaction.
 
             msg = "/timestamp set on this transaction/"
             self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
-                lambda:self.assertEquals(self.session.commit_transaction(),
+                lambda:self.assertEquals(self.session.commit_transaction(timestamps),
                 0), msg)
             '''
             self.session.rollback_transaction()

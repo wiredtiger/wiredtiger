@@ -1764,8 +1764,7 @@ __session_timestamp_transaction(WT_SESSION *wt_session, const char *config)
      * transactions are an exception to this rule as we can guarantee that no new updates will be
      * added after a timestamp_transaction.
      */
-    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
-      !F_ISSET(txn, WT_TXN_PREPARE)) {
+    if (txn->mod_count != 0 && !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT)) {
         WT_ERR_MSG(session, EINVAL,
           "Cannot set a timestamp for transaction %" PRIu64
           " as it already contains updates with no timestamp",

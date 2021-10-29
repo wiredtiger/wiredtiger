@@ -86,9 +86,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
             self.assertEquals(cursor.next(), 0)
 
         session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(150))
-        session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(200))
-        session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(220))
-        session.commit_transaction()
+        timestamps = 'commit_timestamp=' + self.timestamp_str(200) + ',durable_timestamp=' + self.timestamp_str(220)
+        session.commit_transaction(timestamps)
 
         # Check the values read are correct with different timestamps.
         # Read the initial dataset.
@@ -134,9 +133,8 @@ class test_durable_rollback_to_stable(wttest.WiredTigerTestCase, suite_subproces
 
         # Commit timestamp is earlier to stable timestamp but durable timestamp
         # is later than stable timestamp. Hence second update value is not durable.
-        session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(240))
-        session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(300))
-        session.commit_transaction()
+        timestamps = 'commit_timestamp=' + self.timestamp_str(240) + ',durable_timestamp=' + self.timestamp_str(300)
+        session.commit_transaction(timestamps)
 
         # Checkpoint so that first update value will be visible and durable,
         # but second update value will be only visible but not durable.

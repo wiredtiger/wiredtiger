@@ -97,9 +97,8 @@ class test_prepare13(wttest.WiredTigerTestCase):
             s.rollback_transaction()
 
         finally:
-            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(50))
-            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(50))
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(50) + 
+                ',durable_timestamp=' + self.timestamp_str(50))
 
         s.close()
 

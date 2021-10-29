@@ -42,13 +42,10 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
     ]
     scenarios = make_scenarios(key_format_values)
 
-    def apply_timestamps(self, timestamp):
-        self.session.prepare_transaction(
-            'prepare_timestamp=' + self.timestamp_str(timestamp))
-        self.session.timestamp_transaction(
-            'commit_timestamp=' + self.timestamp_str(timestamp))
-        self.session.timestamp_transaction(
-            'durable_timestamp=' + self.timestamp_str(timestamp))
+    def apply_timestamps_and_commit(self, timestamp):
+        self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(timestamp))
+        timestamps = 'commit_timestamp=' + self.timestamp_str(timestamp) + ',durable_timestamp=' + self.timestamp_str(timestamp)
+        self.session.commit_transaction(timestamps)
 
     def test_timestamp_alter(self):
         base = 'assert07'
@@ -61,24 +58,21 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c = self.session.open_cursor(uri)
         self.session.begin_transaction('isolation=snapshot')
         c[key_ts1] = 'value1'
-        self.apply_timestamps(1)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(1)
 
         # Reserved at the start of the chain, with one update.
         self.session.begin_transaction('isolation=snapshot')
         c.set_key(key_ts1)
         c.reserve()
         c[key_ts1] = 'value2'
-        self.apply_timestamps(2)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(2)
 
         # Reserved at the end of the chain, with one update.
         self.session.begin_transaction('isolation=snapshot')
         c[key_ts1] = 'value3'
         c.set_key(key_ts1)
         c.reserve()
-        self.apply_timestamps(3)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(3)
 
         # Reserved at the start of the chain, with multiple.
         self.session.begin_transaction('isolation=snapshot')
@@ -86,8 +80,7 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c.reserve()
         c[key_ts1] = 'value4'
         c[key_ts1] = 'value5'
-        self.apply_timestamps(4)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(4)
 
         # Reserved at the end of the chain, with multiple updates.
         self.session.begin_transaction('isolation=snapshot')
@@ -95,8 +88,7 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c[key_ts1] = 'value7'
         c.set_key(key_ts1)
         c.reserve()
-        self.apply_timestamps(5)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(5)
 
         # Reserved between two updates.
         self.session.begin_transaction('isolation=snapshot')
@@ -104,8 +96,7 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c.set_key(key_ts1)
         c.reserve()
         c[key_ts1] = 'value9'
-        self.apply_timestamps(6)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(6)
 
         # Reserved update with multiple extra updates.
         self.session.begin_transaction('isolation=snapshot')
@@ -115,8 +106,7 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c[key_ts1] = 'value11'
         c[key_ts1] = 'value12'
         c[key_ts1] = 'value13'
-        self.apply_timestamps(7)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(7)
 
         # Reserved updates with multiple extra updates.
         self.session.begin_transaction('isolation=snapshot')
@@ -128,8 +118,7 @@ class test_assert07(wttest.WiredTigerTestCase, suite_subprocess):
         c.set_key(key_ts1)
         c.reserve()
         c[key_ts1] = 'value17'
-        self.apply_timestamps(8)
-        self.session.commit_transaction()
+        self.apply_timestamps_and_commit(8)
 
 if __name__ == '__main__':
     wttest.run()

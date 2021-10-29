@@ -26,6 +26,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
+import wttest
 import fnmatch, os, shutil, time
 from helper import simulate_crash_restart
 from test_rollback_to_stable01 import test_rollback_to_stable_base
@@ -89,9 +90,8 @@ class test_rollback_to_stable12(test_rollback_to_stable_base):
         cursor[ds.key(1)] = value_b
         if self.prepare:
             self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(commit_ts-1))
-            self.session.timestamp_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
-            self.session.timestamp_transaction('durable_timestamp=' + self.timestamp_str(commit_ts+1))
-            self.session.commit_transaction()
+            self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts) + 
+                ',durable_timestamp=' + self.timestamp_str(commit_ts+1))
         else:
             self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(commit_ts))
         cursor.close()

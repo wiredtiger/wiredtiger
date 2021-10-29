@@ -118,9 +118,7 @@ class test_prepare01(wttest.WiredTigerTestCase):
             if i > 0 and i % (self.nentries // 37) == 0:
                 self.check(cursor, committed, i)
                 self.session.prepare_transaction("prepare_timestamp=2a")
-                self.session.timestamp_transaction("commit_timestamp=3a")
-                self.session.timestamp_transaction("durable_timestamp=3a")
-                self.session.commit_transaction()
+                self.session.commit_transaction("commit_timestamp=3a, durable_timestamp=3a")
                 committed = i
                 self.session.begin_transaction()
 
@@ -137,9 +135,7 @@ class test_prepare01(wttest.WiredTigerTestCase):
         self.check(cursor, committed, self.nentries)
 
         self.session.prepare_transaction("prepare_timestamp=2a")
-        self.session.timestamp_transaction("commit_timestamp=3a")
-        self.session.timestamp_transaction("durable_timestamp=3a")
-        self.session.commit_transaction()
+        self.session.commit_transaction("commit_timestamp=3a, durable_timestamp=3a")
         self.check(cursor, self.nentries, self.nentries)
 
 if __name__ == '__main__':
