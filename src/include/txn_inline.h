@@ -66,42 +66,6 @@ __wt_txn_err_set(WT_SESSION_IMPL *session, int ret)
 }
 
 /*
- * __wt_txn_timestamp_flags --
- *     Set transaction related timestamp flags.
- */
-static inline void
-__wt_txn_timestamp_flags(WT_SESSION_IMPL *session)
-{
-    WT_BTREE *btree;
-    WT_DATA_HANDLE *dhandle;
-
-    dhandle = session->dhandle;
-    if (dhandle == NULL)
-        return;
-    btree = S2BT(session);
-    if (btree == NULL)
-        return;
-
-    if (!FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_ASSERT_TS_WRITE))
-        return;
-
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ALWAYS))
-        F_SET(session->txn, WT_TXN_TS_WRITE_ALWAYS);
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT))
-        F_SET(session->txn, WT_TXN_TS_WRITE_KEY_CONSISTENT);
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_MIXED_MODE))
-        F_SET(session->txn, WT_TXN_TS_WRITE_MIXED_MODE);
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_NEVER))
-        F_SET(session->txn, WT_TXN_TS_WRITE_NEVER);
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_TS_ORDERED))
-        F_SET(session->txn, WT_TXN_TS_WRITE_ORDERED);
-
-    /* Remember if any type of verbose tracking is encountered by the transaction. */
-    if (FLD_ISSET(dhandle->ts_flags, WT_DHANDLE_VERB_TS_WRITE))
-        F_SET(session->txn, WT_TXN_VERB_TS_WRITE);
-}
-
-/*
  * __wt_txn_op_set_recno --
  *     Set the latest transaction operation with the given recno.
  */

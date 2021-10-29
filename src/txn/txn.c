@@ -891,32 +891,41 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
     wt_timestamp_t op_ts, prev_op_durable_ts;
     uint32_t ts_flags;
     char ts_string[2][WT_TS_INT_STRING_SIZE];
-    bool txn_has_ts;
+    bool txn_has_ts, write_ts_assert_enabled, verbose_messaging_enabled;
 
     txn = session->txn;
     txn_has_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT | WT_TXN_HAS_TS_DURABLE);
+    write_ts_assert_enabled = FLD_ISSET(ts_flags, WT_DHANDLE_ASSERT_TS_WRITE);
+    verbose_messaging_enabled = FLD_ISSET(ts_flags, WT_DHANDLE_VERB_TS_WRITE);
 
 #define WT_COMMIT_TS_VERB_PREFIX "Commit timestamp unexpected usage: "
-
-    /* If this transaction did not touch any table configured for verbose logging, we're done. */
-    if (!F_ISSET(txn, WT_TXN_VERB_TS_WRITE))
-        return (0);
 
     op_ts = upd->start_ts != WT_TS_NONE ? upd->start_ts : txn->commit_timestamp;
     ts_flags = op->btree->dhandle->ts_flags;
 
-    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts)
-        WT_RET(__wt_msg(session,
-          WT_COMMIT_TS_VERB_PREFIX
-          "commit timestamp not used on table configured to require timestamps"));
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ALWAYS) && !txn_has_ts) {
+        if (verbose_messaging_enabled) {
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "commit timestamp not used on table configured to require timestamps"));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
+    }
 
-    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_NEVER) && txn_has_ts)
-        WT_RET(__wt_msg(session,
-          WT_COMMIT_TS_VERB_PREFIX
-          "commit timestamp %s used on table configured to not use timestamps",
-          __wt_timestamp_to_string(op_ts, ts_string[0])));
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_NEVER) && txn_has_ts) {
+        if (verbose_messaging_enabled) {
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "commit timestamp %s used on table configured to not use timestamps",
+              __wt_timestamp_to_string(op_ts, ts_string[0])));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
+    }
 
-#ifdef HAVE_DIAGNOSTIC
     prev_op_durable_ts = upd->prev_durable_ts;
 
     /*
@@ -925,11 +934,16 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_KEY_CONSISTENT) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
-        WT_RET(__wt_msg(session,
-          WT_COMMIT_TS_VERB_PREFIX
-          "no timestamp provided for an update to a "
-          "table configured to always use timestamps once they are first used"));
-        WT_ASSERT(session, false);
+        if (verbose_messaging_enabled) {
+
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "no timestamp provided for an update to a "
+              "table configured to always use timestamps once they are first used"));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
     }
 
     /*
@@ -937,14 +951,18 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      * ordering.
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && txn_has_ts && prev_op_durable_ts > op_ts) {
-        WT_RET(__wt_msg(session,
-          WT_COMMIT_TS_VERB_PREFIX
-          "committing a transaction that updates a "
-          "value with an older timestamp (%s) than is associated with the previous "
-          "update (%s) on a table configured for strict ordering",
-          __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-        WT_ASSERT(session, false);
+        if (verbose_messaging_enabled) {
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "committing a transaction that updates a "
+              "value with an older timestamp (%s) than is associated with the previous "
+              "update (%s) on a table configured for strict ordering",
+              __wt_timestamp_to_string(op_ts, ts_string[0]),
+              __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
     }
 
     /*
@@ -954,30 +972,40 @@ __txn_commit_timestamps_usage_check(WT_SESSION_IMPL *session, WT_TXN_OP *op, WT_
      */
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_ORDERED) && prev_op_durable_ts != WT_TS_NONE &&
       !txn_has_ts) {
-        WT_RET(
-          __wt_msg(session,
-            WT_COMMIT_TS_VERB_PREFIX "committing a transaction that updates a value without "
-                                     "a timestamp while the previous update (%s) is timestamped "
-                                     "on a table configured for strict ordering",
-            __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-        WT_ASSERT(session, false);
+        if (verbose_messaging_enabled) {
+
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "committing a transaction that updates a value without "
+              "a timestamp while the previous update (%s) is timestamped "
+              "on a table configured for strict ordering",
+              __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
     }
 
     if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_MIXED_MODE) && F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) &&
       op_ts != WT_TS_NONE && prev_op_durable_ts > op_ts) {
-        WT_RET(__wt_msg(session,
-          WT_COMMIT_TS_VERB_PREFIX
-          "committing a transaction that updates a "
-          "value with an older timestamp (%s) than is associated with the previous "
-          "update (%s) on a table configured for mixed mode ordering",
-          __wt_timestamp_to_string(op_ts, ts_string[0]),
-          __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
-        WT_ASSERT(session, false);
+        if (verbose_messaging_enabled) {
+            WT_RET(__wt_msg(session,
+              WT_COMMIT_TS_VERB_PREFIX
+              "committing a transaction that updates a "
+              "value with an older timestamp (%s) than is associated with the previous "
+              "update (%s) on a table configured for mixed mode ordering",
+              __wt_timestamp_to_string(op_ts, ts_string[0]),
+              __wt_timestamp_to_string(prev_op_durable_ts, ts_string[1])));
+        }
+        if (write_ts_assert_enabled) {
+            WT_ASSERT(session, false);
+        }
     }
-#else
-    WT_UNUSED(prev_op_durable_ts);
-#endif
-
+    if (FLD_ISSET(ts_flags, WT_DHANDLE_TS_WRITE_KEY_CONSISTENT)) {
+        /*
+         * TODO: Add key consistency checking here.
+         */
+    }
     return (0);
 }
 
@@ -1425,156 +1453,6 @@ err:
 }
 
 /*
- * __txn_commit_timestamps_assert --
- *     Validate that timestamps provided to commit are legal.
- */
-static inline int
-__txn_commit_timestamps_assert(WT_SESSION_IMPL *session)
-{
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_TXN *txn;
-    WT_TXN_OP *op;
-    WT_UPDATE *upd;
-#ifdef HAVE_DIAGNOSTIC
-    wt_timestamp_t op_ts;
-#endif
-    wt_timestamp_t prev_op_durable_ts, prev_op_ts;
-    u_int i;
-    bool op_zero_ts, upd_zero_ts, used_ts;
-
-    txn = session->txn;
-    cursor = NULL;
-
-    used_ts = F_ISSET(txn, WT_TXN_HAS_TS_COMMIT) || F_ISSET(txn, WT_TXN_HAS_TS_DURABLE);
-    /*
-     * Debugging checks on timestamps, if user requested them. We additionally don't expect recovery
-     * to be using timestamps when applying commits. If recovery is running, skip this assert to
-     * avoid failing the recovery process.
-     */
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_ALWAYS) && !used_ts && txn->mod_count != 0 &&
-      !F_ISSET(S2C(session), WT_CONN_RECOVERING))
-        WT_RET_MSG(session, EINVAL, "commit_timestamp required and none set on this transaction");
-    if (F_ISSET(txn, WT_TXN_TS_WRITE_NEVER) && used_ts && txn->mod_count != 0)
-        WT_RET_MSG(
-          session, EINVAL, "no commit_timestamp expected and timestamp set on this transaction");
-
-    if (txn->commit_timestamp > txn->durable_timestamp)
-        WT_RET_MSG(
-          session, EINVAL, "transaction with commit timestamp greater than durable timestamp");
-
-    /*
-     * If we're not doing any key consistency checking, we're done.
-     */
-    if (!F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT))
-        return (0);
-
-    /*
-     * Error on any valid update structures for the same key that are at a later timestamp or use
-     * timestamps inconsistently.
-     */
-    for (i = 0, op = txn->mod; i < txn->mod_count; i++, op++) {
-        switch (op->type) {
-        case WT_TXN_OP_BASIC_COL:
-        case WT_TXN_OP_INMEM_COL:
-        case WT_TXN_OP_BASIC_ROW:
-        case WT_TXN_OP_INMEM_ROW:
-            break;
-        case WT_TXN_OP_NONE:
-        case WT_TXN_OP_REF_DELETE:
-        case WT_TXN_OP_TRUNCATE_COL:
-        case WT_TXN_OP_TRUNCATE_ROW:
-            continue;
-        }
-
-        /* Search for prepared updates. */
-        if (F_ISSET(txn, WT_TXN_PREPARE))
-            WT_ERR(__txn_search_prepared_op(session, op, &cursor, &upd));
-        else
-            upd = op->u.op_upd;
-
-#ifdef HAVE_DIAGNOSTIC
-        op_ts = upd->start_ts;
-#endif
-        /*
-         * Skip over any aborted update structures, internally created update structures or ones
-         * from our own transaction.
-         */
-        while (upd != NULL &&
-          (upd->txnid == WT_TXN_ABORTED || upd->txnid == WT_TXN_NONE || upd->txnid == txn->id))
-            upd = upd->next;
-
-        /*
-         * If we didn't track timestamps during update creation, and there are no more updates on
-         * the chain we won't check any further here. It's not worth reading updates from the disk
-         * to do this diagnostic checking.
-         */
-        if (upd == NULL)
-            continue;
-
-        /*
-         * Check the timestamp on this update with the first valid update in the chain. They're in
-         * most recent order.
-         */
-        prev_op_ts = upd->start_ts;
-        prev_op_durable_ts = upd->durable_ts;
-
-        /*
-         * Check for consistent per-key timestamp usage. If timestamps are or are not used
-         * originally then they should be used the same way always. For this transaction, timestamps
-         * are in use anytime the commit timestamp is set. Check timestamps are used in order.
-         *
-         * We may see an update restored from the data store or the history store with 0 timestamp
-         * if that update is behind the oldest timestamp when the page is reconciled. If the update
-         * is restored from the history store, it is either appended by the prepared rollback or
-         * rollback to stable. If the update is restored from the data store, it is either
-         * instantiated along with the prepared stop when the page is read into memory or appended
-         * by a failed eviction which attempted to write a prepared update to the data store.
-         */
-        op_zero_ts = !F_ISSET(txn, WT_TXN_HAS_TS_COMMIT);
-        upd_zero_ts = prev_op_durable_ts == WT_TS_NONE;
-        if (op_zero_ts != upd_zero_ts &&
-          !F_ISSET(upd, WT_UPDATE_RESTORED_FROM_HS | WT_UPDATE_RESTORED_FROM_DS)) {
-            WT_ERR(__wt_verbose_dump_update(session, upd));
-            WT_ERR(__wt_verbose_dump_txn_one(session, session, EINVAL,
-              "per-key timestamps used inconsistently, dumping relevant information"));
-        }
-        /*
-         * If we aren't using timestamps for this transaction then we are done checking. Don't check
-         * the timestamp because the one in the transaction is not cleared.
-         */
-        if (op_zero_ts)
-            continue;
-
-#ifdef HAVE_DIAGNOSTIC
-        /*
-         * Only if the update structure doesn't have a timestamp then use the one in the transaction
-         * structure.
-         */
-        if (op_ts == WT_TS_NONE)
-            op_ts = txn->commit_timestamp;
-#endif
-        /*
-         * Check based on the durable timestamp, but first ensure that it's a stronger check than
-         * comparing commit timestamps would be.
-         */
-        WT_ASSERT(session, txn->durable_timestamp >= op_ts && prev_op_durable_ts >= prev_op_ts);
-        if (F_ISSET(txn, WT_TXN_TS_WRITE_KEY_CONSISTENT) &&
-          txn->durable_timestamp < prev_op_durable_ts)
-            WT_ERR_MSG(session, EINVAL, "out of order commit timestamps");
-    }
-
-#ifndef HAVE_DIAGNOSTIC
-    WT_UNUSED(prev_op_ts);
-#endif
-
-err:
-    if (cursor != NULL)
-        WT_TRET(cursor->close(cursor));
-    return (ret);
-}
-
-/*
  * __txn_mod_compare --
  *     Qsort comparison routine for transaction modify list.
  */
@@ -1680,8 +1558,6 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
      */
     if (prepare)
         __wt_qsort(txn->mod, txn->mod_count, sizeof(WT_TXN_OP), __txn_mod_compare);
-
-    WT_ERR(__txn_commit_timestamps_assert(session));
 
     /*
      * The default sync setting is inherited from the connection, but can be overridden by an

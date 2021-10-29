@@ -2361,7 +2361,6 @@ static inline void __wt_txn_op_set_recno(WT_SESSION_IMPL *session, uint64_t recn
 static inline void __wt_txn_op_set_timestamp(WT_SESSION_IMPL *session, WT_TXN_OP *op);
 static inline void __wt_txn_pinned_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t *pinned_tsp);
 static inline void __wt_txn_read_last(WT_SESSION_IMPL *session);
-static inline void __wt_txn_timestamp_flags(WT_SESSION_IMPL *session);
 static inline void __wt_txn_unmodify(WT_SESSION_IMPL *session);
 static inline void __wt_upd_value_assign(WT_UPDATE_VALUE *upd_value, WT_UPDATE *upd);
 static inline void __wt_upd_value_clear(WT_UPDATE_VALUE *upd_value);
