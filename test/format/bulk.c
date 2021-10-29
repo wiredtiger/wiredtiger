@@ -93,8 +93,6 @@ wts_load(TABLE *table, void *arg)
 
     conn = g.wts_conn;
 
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-
     testutil_check(__wt_snprintf(track_buf, sizeof(track_buf), "table %u bulk load", table->id));
     trace_msg("=============== %s bulk load start", table->uri);
 
@@ -106,13 +104,8 @@ wts_load(TABLE *table, void *arg)
     if (TV(BTREE_REVERSE))
         is_bulk = false;
 
-    /*
-     * open_cursor can return EBUSY if concurrent with a metadata operation, retry in that case.
-     */
-    while ((ret = session->open_cursor(
-              session, table->uri, NULL, is_bulk ? "bulk,append" : NULL, &cursor)) == EBUSY)
-        __wt_yield();
-    testutil_check(ret);
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    wiredtiger_open_cursor(session, table->uri, is_bulk ? "bulk,append" : NULL, &cursor);
 
     /* Set up the key/value buffers. */
     key_gen_init(&key);
@@ -212,11 +205,8 @@ wts_load(TABLE *table, void *arg)
         config_print(false);
     }
 
-    testutil_check(cursor->close(cursor));
-
-    trace_msg("=============== %s bulk load stop", table->uri);
-
     testutil_check(session->close(session, NULL));
+    trace_msg("=============== %s bulk load stop", table->uri);
 
     key_gen_teardown(&key);
     val_gen_teardown(&value);
