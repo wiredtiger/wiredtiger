@@ -130,7 +130,7 @@ target_compile_options(
     wiredtiger
     PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
-# Don't treat include directories from the interfaces consumed on an imported targets as system
+# Don't treat include interface directories consumed on an imported target as system
 # directories.
 set_target_properties(wiredtiger PROPERTIES NO_SYSTEM_FROM_IMPORTED TRUE)
 
