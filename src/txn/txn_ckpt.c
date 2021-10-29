@@ -288,8 +288,8 @@ __wt_checkpoint_get_handles(WT_SESSION_IMPL *session, const char *cfg[])
              * from here.
              */
             reason = "checkpoint raced with transaction operating on dhandle";
-            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "Rollback reason: %s", reason);
-            WT_IGNORE_RET(__wt_msg(session, "WT_ROLLBACK: %s", reason));
+            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", reason);
+            WT_IGNORE_RET(__wt_msg(session, "%s", reason));
             WT_TRET(__wt_metadata_cursor_release(session, &meta_cursor));
             return (0);
         }
