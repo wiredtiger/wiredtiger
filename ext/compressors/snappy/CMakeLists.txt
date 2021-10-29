@@ -68,8 +68,6 @@ if(HAVE_BUILTIN_EXTENSION_SNAPPY OR ENABLE_SNAPPY)
 endif()
 
 if(ENABLE_SNAPPY)
-    # HAVE_LIBSNAPPY contains the full pathname to the lib, which is
-    # what the cmake docs recommend using.
     target_link_libraries(wiredtiger_snappy wt::snappy)
     install(TARGETS wiredtiger_snappy
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
