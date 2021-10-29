@@ -334,7 +334,7 @@ restart_read:
  *     Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool *prefix_key_out_of_bounds, bool restart,
+__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *prefix_key_out_of_bounds,
   size_t *skippedp, WT_ITEM *prefix)
 {
     WT_CELL_UNPACK_KV kpack;
@@ -348,7 +348,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool *prefix_key_out_of_bo
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    *prefix_key_out_of_bounds;
+    *prefix_key_out_of_bounds = false;
     prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
@@ -754,7 +754,7 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_next(cbt, newpage, &prefix_key_out_of_bounds, restart, &skipped, prefix);
+                ret = __cursor_row_next(cbt, newpage, restart, &prefix_key_out_of_bounds, &skipped, prefix);
                 total_skipped += skipped;
                 /*
                  * If we are doing a search near with prefix key configured, we need to check if we
