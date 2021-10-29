@@ -334,7 +334,7 @@ restart_read:
  *     Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool *prefix_key_oob, bool restart,
+__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool *prefix_key_out_of_bounds, bool restart,
   size_t *skippedp, WT_ITEM *prefix)
 {
     WT_CELL_UNPACK_KV kpack;
@@ -348,6 +348,7 @@ __cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool *prefix_key_oob, bool
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
+    *prefix_key_out_of_bounds;
     prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
@@ -401,7 +402,7 @@ restart_read_insert:
              * are visiting is after our prefix.
              */
             if (prefix_search && __wt_prefix_match(prefix, key) < 0) {
-                *prefix_key_oob = true;
+                *prefix_key_out_of_bounds = true;
                 WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
                 return (WT_NOTFOUND);
             }
@@ -447,7 +448,7 @@ restart_read_page:
          * visiting is after our prefix.
          */
         if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) < 0) {
-            *prefix_key_oob = true;
+            *prefix_key_out_of_bounds = true;
             WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
             return (WT_NOTFOUND);
         }
@@ -692,10 +693,10 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
     WT_SESSION_IMPL *session;
     size_t total_skipped, skipped;
     uint32_t flags;
-    bool newpage, prefix_key_oob, restart;
+    bool newpage, prefix_key_out_of_bounds, restart;
 
     cursor = &cbt->iface;
-    prefix_key_oob = false;
+    prefix_key_out_of_bounds = false;
     session = CUR2S(cbt);
     total_skipped = 0;
 
@@ -753,14 +754,14 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_next(cbt, newpage, &prefix_key_oob, restart, &skipped, prefix);
+                ret = __cursor_row_next(cbt, newpage, &prefix_key_out_of_bounds, restart, &skipped, prefix);
                 total_skipped += skipped;
                 /*
                  * If we are doing a search near with prefix key configured, we need to check if we
                  * have exited the cursor row next function due to a prefix key mismatch. If so, we
                  * can immediately return WT_NOTFOUND and we do not have to walk onto the next page.
                  */
-                if (ret == WT_NOTFOUND && prefix_key_oob)
+                if (ret == WT_NOTFOUND && prefix_key_out_of_bounds)
                     return (WT_NOTFOUND);
                 break;
             default:
