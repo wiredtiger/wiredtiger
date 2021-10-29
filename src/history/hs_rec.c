@@ -941,7 +941,6 @@ __hs_delete_reinsert_from_pos(WT_SESSION_IMPL *session, WT_CURSOR *hs_cursor, ui
      *
      * We want to end up with this:
      * btree key ts counter value stop_ts
-     * 2     foo 1  0       aaa    6
      * 2     foo 1  1       aaa    3
      * 2     foo 3  2       bbb    3
      * 2     foo 3  3       ccc    3
