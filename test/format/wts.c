@@ -214,14 +214,14 @@ create_database(const char *home, WT_CONNECTION **connp)
         CONFIG_APPEND(p, ",in_memory=1");
 
     /* Block cache configuration. */
-    CONFIG_APPEND(p,
-      ",block_cache=(enabled=%s,type=\"dram\""
-      ",cache_on_checkpoint=%s"
-      ",cache_on_writes=%s"
-      ",size=%" PRIu32 "MB)",
-      GV(BLOCK_CACHE) == 0 ? "false" : "true",
-      GV(BLOCK_CACHE_CACHE_ON_CHECKPOINT) == 0 ? "false" : "true",
-      GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
+    if (GV(BLOCK_CACHE) != 0)
+        CONFIG_APPEND(p,
+          ",block_cache=(enabled=true,type=\"dram\""
+          ",cache_on_checkpoint=%s"
+          ",cache_on_writes=%s"
+          ",size=%" PRIu32 "MB)",
+          GV(BLOCK_CACHE_CACHE_ON_CHECKPOINT) == 0 ? "false" : "true",
+          GV(BLOCK_CACHE_CACHE_ON_WRITES) == 0 ? "false" : "true", GV(BLOCK_CACHE_SIZE));
 
     /* LSM configuration. */
     if (g.lsm_config)
