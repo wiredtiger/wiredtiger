@@ -1314,12 +1314,14 @@ static inline int
 __wt_txn_modify_check(
   WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, WT_UPDATE *upd, wt_timestamp_t *prev_tsp)
 {
+    WT_DECL_ITEM(buf);
     WT_DECL_RET;
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
+    uint32_t snap_count;
 
     rollback = tw_found = false;
     txn = session->txn;
@@ -1377,6 +1379,20 @@ __wt_txn_modify_check(
     if (rollback) {
         WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
         ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
+
+        /* Dump information about the txn snapshot. */
+        if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG)) {
+            if (txn->snapshot_count > 0) {
+                WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+                WT_ERR(__wt_buf_fmt(session, buf, WT_SYSTEM_CKPT_SNAPSHOT "=["));
+                for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
+                    WT_ERR(__wt_buf_catfmt(
+                      session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], ","));
+                WT_ERR(
+                  __wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], "]"));
+                __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
+            }
+        }
     }
 
     /*
@@ -1395,8 +1411,12 @@ __wt_txn_modify_check(
         } else if (tw_found)
             *prev_tsp = WT_TIME_WINDOW_HAS_STOP(&tw) ? tw.durable_stop_ts : tw.durable_start_ts;
     }
+
     if (ignore_prepare_set)
         F_SET(txn, WT_TXN_IGNORE_PREPARE);
+
+err:
+    __wt_scr_free(session, &buf);
     return (ret);
 }
 
