@@ -62,7 +62,7 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
         )
     target_compile_options(
         wiredtiger_lz4
-        PRIVATE ${COMPILER_DIAGNOSTIC_FLAGS}
+        PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
     )
 
     set_property(TARGET wiredtiger_lz4 PROPERTY POSITION_INDEPENDENT_CODE ON)
