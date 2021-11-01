@@ -389,8 +389,6 @@ __wt_txn_modify(WT_SESSION_IMPL *session, WT_UPDATE *upd)
         if (F_ISSET(txn, WT_TXN_IGNORE_PREPARE))
             WT_RET_MSG(
               session, ENOTSUP, "Transactions with ignore_prepare=true cannot perform updates");
-        __wt_verbose_debug(
-          session, WT_VERB_TRANSACTION, "Rollback reason: %s", "Write in read-only txn");
         WT_RET_MSG(session, WT_ROLLBACK, "Attempt to update in a read-only transaction");
     }
 
