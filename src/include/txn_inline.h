@@ -1377,9 +1377,6 @@ __wt_txn_modify_check(
     }
 
     if (rollback) {
-        WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
-        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
-
         /* Dump information about the txn snapshot. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG)) {
             if (txn->snapshot_count > 0) {
@@ -1393,6 +1390,9 @@ __wt_txn_modify_check(
                 __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
             }
         }
+
+        WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
+        ret = __wt_txn_rollback_required(session, "conflict between concurrent operations");
     }
 
     /*
