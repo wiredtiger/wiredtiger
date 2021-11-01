@@ -1379,9 +1379,12 @@ __wt_txn_modify_check(
     if (rollback) {
         /* Dump information about the txn snapshot. */
         if (WT_VERBOSE_LEVEL_ISSET(session, WT_VERB_TRANSACTION, WT_VERBOSE_DEBUG)) {
+            WT_ERR(__wt_scr_alloc(session, 1024, &buf));
+            WT_ERR(__wt_buf_fmt(session, buf,
+              "snapshot_min=%" PRIu64 ", snapshot_max=%" PRIu64 ", snapshot_count=%" PRIu32,
+              txn->snap_min, txn->snap_max, txn->snapshot_count));
             if (txn->snapshot_count > 0) {
-                WT_ERR(__wt_scr_alloc(session, 1024, &buf));
-                WT_ERR(__wt_buf_fmt(session, buf, WT_SYSTEM_CKPT_SNAPSHOT "=["));
+                WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
                 for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
                     WT_ERR(__wt_buf_catfmt(
                       session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], ","));
