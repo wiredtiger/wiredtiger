@@ -640,14 +640,22 @@ config_compression(TABLE *table, const char *conf_name)
     char confbuf[128];
     const char *cstr;
 
-    /* Return if already specified. */
-    if (config_explicit(table, conf_name))
-        return;
-
     /* Ignore logging compression if we're not doing logging. */
     if (strcmp(conf_name, "logging.compression") == 0 && GV(LOGGING) == 0) {
         config_single(NULL, "logging.compression=none", false);
         return;
+    }
+
+    /* Return if already specified and it's a current compression engine. */
+    if (config_explicit(table, conf_name)) {
+        cstr = "none";
+        if (strcmp(conf_name, "logging.compression") == 0)
+            cstr = GVS(LOGGING_COMPRESSION);
+        if (strcmp(conf_name, "btree.compression") == 0)
+            cstr = TVS(BTREE_COMPRESSION);
+        if (cstr == NULL || memcmp(cstr, "bzip", strlen("bzip")) != 0)
+            return;
+        WARN("%s: bzip compression no longer supported", conf_name);
     }
 
     /*
