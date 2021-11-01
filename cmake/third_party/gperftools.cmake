@@ -1,6 +1,3 @@
-#!/usr/bin/python
-# -*- coding: utf-8 -*-
-
 #
 # Public Domain 2014-present MongoDB, Inc.
 # Public Domain 2008-2014 WiredTiger, Inc.
@@ -27,36 +24,27 @@
 # OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE,
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
+#
 
-class WTPerfConfig:
-    def __init__(self,
-                 wtperf_path: str,
-                 home_dir: str,
-                 test: str,
-                 arg_file: str = None,
-                 environment: str = None,
-                 run_max: int = 1,
-                 verbose: bool = False,
-                 git_root: str = None,
-                 json_info: dict = {}):
-        self.wtperf_path: str = wtperf_path
-        self.home_dir: str = home_dir
-        self.test: str = test
-        self.arg_file = arg_file
-        self.environment: str = environment
-        self.run_max: int = run_max
-        self.verbose: bool = verbose
-        self.git_root: str = git_root
-        self.json_info: dict = json_info
+if(NOT HAVE_LIBTCMALLOC)
+    # We don't need to construct a tcmalloc library target.
+    return()
+endif()
 
-    def to_value_dict(self):
-        as_dict = {'wt_perf_path': self.wtperf_path,
-                   'test': self.test,
-                   'arg_file': self.arg_file,
-                   'home_dir': self.home_dir,
-                   'environment': self.environment,
-                   'run_max': self.run_max,
-                   'verbose': self.verbose,
-                   'git_root': self.git_root,
-                   'json_info': self.json_info}
-        return as_dict
+if(TARGET wt::tcmalloc)
+    # Avoid redefining the imported library.
+    return()
+endif()
+
+# Construct an imported tcmalloc target the project can use. We use the double colons (::) as
+# a convention to tell CMake that the target name is associated with an IMPORTED target (which
+# allows CMake to issue a diagnostic message if the library wasn't found).
+add_library(wt::tcmalloc SHARED IMPORTED GLOBAL)
+set_target_properties(wt::tcmalloc PROPERTIES
+    IMPORTED_LOCATION ${HAVE_LIBTCMALLOC}
+)
+if(HAVE_LIBTCMALLOC_INCLUDES)
+    set_target_properties(wt::tcmalloc PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES ${HAVE_LIBTCMALLOC_INCLUDES}
+    )
+endif()
