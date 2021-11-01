@@ -1389,8 +1389,8 @@ __wt_txn_modify_check(
                     WT_ERR(
                       __wt_buf_catfmt(session, buf, "%" PRIu64 ",", txn->snapshot[snap_count]));
                 WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "]", txn->snapshot[snap_count]));
-                __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
             }
+            __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
         }
 
         WT_STAT_CONN_DATA_INCR(session, txn_update_conflict);
