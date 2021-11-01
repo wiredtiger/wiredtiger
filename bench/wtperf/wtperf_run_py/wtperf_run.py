@@ -267,7 +267,7 @@ def main():
         if config.arg_file:
             for content in arg_file_contents:
                 if args.verbose:
-                    print("Argument: {},  Operation: {}".format(content["argument"], content["operation"]))
+                    print("Argument: {},  Operation: {}".format(content["argument"], content["operations"]))
                 run_test_wrapper(config=config, operations=content["operations"], argument=content["argument"])
         else:
             run_test_wrapper(config=config)
