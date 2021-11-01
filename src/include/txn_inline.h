@@ -1319,9 +1319,9 @@ __wt_txn_modify_check(
     WT_TIME_WINDOW tw;
     WT_TXN *txn;
     WT_TXN_GLOBAL *txn_global;
+    uint32_t snap_count;
     char ts_string[WT_TS_INT_STRING_SIZE];
     bool ignore_prepare_set, rollback, tw_found;
-    uint32_t snap_count;
 
     rollback = tw_found = false;
     txn = session->txn;
