@@ -212,8 +212,11 @@ main(int argc, char *argv[])
         }
     argv += __wt_optind;
 
-    if (!quiet_flag && !syntax_check)
+    /* format.sh looks for this line in the log file, push it out quickly. */
+    if (!syntax_check) {
         printf("%s: process %" PRIdMAX " running\n", progname, (intmax_t)getpid());
+        fflush(stdout);
+    }
 
     __wt_random_init_seed(NULL, &g.rnd); /* Initialize the RNG. */
 
