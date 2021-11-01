@@ -1343,7 +1343,7 @@ __wt_txn_modify_check(
     for (; upd != NULL && !__wt_txn_upd_visible(session, upd); upd = upd->next) {
         if (upd->txnid != WT_TXN_ABORTED) {
             __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-              "Conflict with update at timestamp: %s",
+              "Conflict with update with txn id %" PRIu64 " at timestamp: %s", upd->txnid,
               __wt_timestamp_to_string(upd->start_ts, ts_string));
             rollback = true;
             break;
@@ -1364,13 +1364,13 @@ __wt_txn_modify_check(
                 rollback = !__wt_txn_tw_stop_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-                      "Conflict with update at stop timestamp: %s",
+                      "Conflict with update %" PRIu64 " at stop timestamp: %s", tw.stop_txn,
                       __wt_timestamp_to_string(tw.stop_ts, ts_string));
             } else {
                 rollback = !__wt_txn_tw_start_visible(session, &tw);
                 if (rollback)
                     __wt_verbose_debug(session, WT_VERB_TRANSACTION,
-                      "Conflict with update at start timestamp: %s",
+                      "Conflict with update %" PRIu64 " at start timestamp: %s", tw.start_txn,
                       __wt_timestamp_to_string(tw.start_ts, ts_string));
             }
         }
