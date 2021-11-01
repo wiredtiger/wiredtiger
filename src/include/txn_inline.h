@@ -1386,10 +1386,9 @@ __wt_txn_modify_check(
             if (txn->snapshot_count > 0) {
                 WT_ERR(__wt_buf_catfmt(session, buf, ", snapshots=["));
                 for (snap_count = 0; snap_count < txn->snapshot_count - 1; ++snap_count)
-                    WT_ERR(__wt_buf_catfmt(
-                      session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], ","));
-                WT_ERR(
-                  __wt_buf_catfmt(session, buf, "%" PRIu64 "%s", txn->snapshot[snap_count], "]"));
+                    WT_ERR(
+                      __wt_buf_catfmt(session, buf, "%" PRIu64 ",", txn->snapshot[snap_count]));
+                WT_ERR(__wt_buf_catfmt(session, buf, "%" PRIu64 "]", txn->snapshot[snap_count]));
                 __wt_verbose_debug(session, WT_VERB_TRANSACTION, "%s", (const char *)buf->data);
             }
         }
