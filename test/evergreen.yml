@@ -605,8 +605,8 @@ functions:
           ${pip3_binary} install psutil pygit2
           JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
-          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out.json
-          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out.json
+          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out.json ${wtarg}
+          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out.json ${wtarg}
 
     - command: shell.exec
       params:
@@ -619,7 +619,7 @@ functions:
           source venv/bin/activate
           ${pip3_binary} install pymongo[srv]
           git clone git@github.com:wiredtiger/automation-scripts.git
-          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -c ${perf-test-name} -f test_stats/atlas_out.json -b ${branch_name}
+          ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -f test_stats/atlas_out.json -b ${branch_name}
 
     - command: perf.send
       params:
@@ -3104,6 +3104,7 @@ tasks:
         vars:
           perf-test-name: update-btree
           maxruns: 1
+          wtarg: "-a ../runners/update-btree.json"
 
   - name: perf-test-update-large-record-btree
     tags: ["btree-perf"]
