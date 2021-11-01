@@ -384,7 +384,7 @@ functions:
         set -o errexit
         set -o verbose
         for i in $(seq ${times|1}); do
-          ./t -1 -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
+          ./t -c ${config|../../../test/format/CONFIG.stress} ${extra_args|} || ( [ -f RUNDIR/CONFIG ] && cat RUNDIR/CONFIG ) 2>&1
         done
   "format test script":
     command: shell.exec
@@ -3307,7 +3307,7 @@ buildvariants:
 - name: ubuntu2004-perf-tests
   display_name: Ubuntu 20.04 Performance tests
   run_on:
-    - ubuntu2004-test
+    - ubuntu2004-large
   expansions:
     test_env_vars: LD_LIBRARY_PATH=$(pwd) WT_BUILDDIR=$(pwd)
     posix_configure_flags: -DCMAKE_TOOLCHAIN_FILE=../cmake/toolchains/mongodbtoolchain_v3_gcc.cmake -DCMAKE_C_FLAGS="-ggdb" -DHAVE_DIAGNOSTIC=1 -DENABLE_ZLIB=1  -DENABLE_SNAPPY=1 -DENABLE_STRICT=1 -DCMAKE_INSTALL_PREFIX=$(pwd)/LOCAL_INSTALL
