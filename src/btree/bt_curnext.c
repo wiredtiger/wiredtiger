@@ -334,8 +334,8 @@ restart_read:
  *     Move to the next row-store item.
  */
 static inline int
-__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, bool *prefix_key_out_of_bounds,
-  size_t *skippedp, WT_ITEM *prefix)
+__cursor_row_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp,
+  WT_ITEM *prefix, bool *prefix_key_out_of_bounds)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
@@ -754,15 +754,18 @@ __wt_btcur_next_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_next(cbt, newpage, restart, &prefix_key_out_of_bounds, &skipped, prefix);
+                ret = __cursor_row_next(
+                  cbt, newpage, restart, &skipped, prefix, &prefix_key_out_of_bounds);
                 total_skipped += skipped;
                 /*
                  * If we are doing a search near with prefix key configured, we need to check if we
                  * have exited the cursor row next function due to a prefix key mismatch. If so, we
                  * can immediately return WT_NOTFOUND and we do not have to walk onto the next page.
                  */
-                if (ret == WT_NOTFOUND && prefix_key_out_of_bounds)
+                if (prefix_key_out_of_bounds) {
+                    WT_ASSERT(session, ret == WT_NOTFOUND);
                     return (WT_NOTFOUND);
+                }
                 break;
             default:
                 WT_ERR(__wt_illegal_value(session, page->type));
