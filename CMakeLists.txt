@@ -20,7 +20,6 @@ project(WiredTiger C CXX ASM)
 # Import our available build types prior to initialing the
 # project.
 include(cmake/configs/modes.cmake)
-
 include(cmake/helpers.cmake)
 
 # If the user doesn't manually specify the target ARCH and OS (i.e not cross-compiling)
@@ -49,6 +48,14 @@ include(cmake/configs/${WT_ARCH}/${WT_OS}/config.cmake)
 include(cmake/configs/auto.cmake)
 # Load WiredTiger related configuration options.
 include(cmake/configs/base.cmake)
+
+# Import our third party library definitions.
+include(cmake/third_party/gperftools.cmake)
+include(cmake/third_party/lz4.cmake)
+include(cmake/third_party/zstd.cmake)
+include(cmake/third_party/snappy.cmake)
+include(cmake/third_party/zlib.cmake)
+include(cmake/third_party/sodium.cmake)
 
 if(ENABLE_STRICT)
     if("${CMAKE_C_COMPILER_ID}" STREQUAL "GNU")
@@ -123,6 +130,9 @@ target_compile_options(
     wiredtiger
     PRIVATE ${COMPILER_DIAGNOSTIC_C_FLAGS}
 )
+# Don't treat include interface directories consumed on an imported target as system
+# directories.
+set_target_properties(wiredtiger PROPERTIES NO_SYSTEM_FROM_IMPORTED TRUE)
 
 if(ENABLE_STATIC AND NOT ENABLE_PYTHON)
     # Avoid compiling with fPIC for static builds, this can often lead to
@@ -137,41 +147,50 @@ endif()
 
 # Ensure we link any available library dependencies to our wiredtiger target.
 if(HAVE_LIBPTHREAD)
-    target_link_libraries(wiredtiger "pthread")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBPTHREAD})
+    if(HAVE_LIBPTHREAD_INCLUDES)
+        target_include_directories(wiredtiger PUBLIC ${HAVE_LIBPTHREAD_INCLUDES})
+    endif()
 endif()
 
 if(HAVE_LIBRT)
-    target_link_libraries(wiredtiger "rt")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBRT})
+    if(HAVE_LIBRT_INCLUDES)
+        target_include_directories(wiredtiger PUBLIC ${HAVE_LIBRT_INCLUDES})
+    endif()
 endif()
 
 if(HAVE_LIBDL)
-    target_link_libraries(wiredtiger "dl")
+    target_link_libraries(wiredtiger PUBLIC ${HAVE_LIBDL})
+    if(HAVE_LIBDL_INCLUDES)
+        target_include_directories(wiredtiger PUBLIC ${HAVE_LIBDL_INCLUDES})
+    endif()
 endif()
 
-if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-    target_link_libraries(wiredtiger ${HAVE_LIBTCMALLOC})
+if(ENABLE_TCMALLOC)
+    target_link_libraries(wiredtiger PRIVATE wt::tcmalloc)
 endif()
 
 # We want to capture any transitive dependencies associated with the builtin library
 # target and ensure we are explicitly linking the 3rd party libraries.
 if(HAVE_BUILTIN_EXTENSION_LZ4)
-    target_link_libraries(wiredtiger ${HAVE_LIBLZ4})
+    target_link_libraries(wiredtiger PRIVATE wt::lz4)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SNAPPY)
-    target_link_libraries(wiredtiger ${HAVE_LIBSNAPPY})
+    target_link_libraries(wiredtiger PRIVATE wt::snappy)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_SODIUM)
-    target_link_libraries(wiredtiger ${HAVE_LIBSODIUM})
+    target_link_libraries(wiredtiger PRIVATE wt::sodium)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZLIB)
-    target_link_libraries(wiredtiger ${HAVE_LIBZ})
+    target_link_libraries(wiredtiger PRIVATE wt::zlib)
 endif()
 
 if(HAVE_BUILTIN_EXTENSION_ZSTD)
-    target_link_libraries(wiredtiger ${HAVE_LIBZSTD})
+    target_link_libraries(wiredtiger PRIVATE wt::zstd)
 endif()
 
 # Build the wt utility.
