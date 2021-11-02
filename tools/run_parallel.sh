@@ -53,11 +53,12 @@ for i in $(seq $num_iter); do
   # Wait for the commands to all complete
   for((t=1; t<=num_parallel; t++)); do
     wait ${process_ids[$t]}
-    err=$?
-    if [[ $err -ne 0 ]]
-    then
-      echo "iteration $i of parallel command $t failed with $err error code"
-      exit $err
-    fi
+    # FIXME-WT-8253 Temporarily disable checking if child process fail.
+    # err=$?
+    # if [[ $err -ne 0 ]]
+    # then
+    #   echo "iteration $i of parallel command $t failed with $err error code"
+    #   exit $err
+    # fi
   done
 done
