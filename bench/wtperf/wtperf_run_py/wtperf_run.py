@@ -154,7 +154,7 @@ def run_test(config: WTPerfConfig, test_run: int, operation: str, argument:str):
         argument=argument,
         test=config.test,
         home=test_home)
-    subprocess.run(command_line)
+    subprocess.run(command_line, check=True)
 
 
 def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operation: str=None):
