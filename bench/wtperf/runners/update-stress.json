@@ -1,6 +1,6 @@
 [
   {
     "argument": null,
-    "operation": "update"
+    "operations": [ "update" ]
   }
 ]
