@@ -141,7 +141,7 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     return as_dict
 
 
-def run_test_wrapper(config: WTPerfConfig, operations: list = None, argument: str = None):
+def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, argument: str = None):
     for test_run in range(config.run_max):
         print("Starting test  {}".format(test_run))
         run_test(config=config, test_run=test_run, operations=operations, argument=argument)
