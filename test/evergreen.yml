@@ -3139,6 +3139,81 @@ tasks:
           perf-test-name: modify-force-update-large-record-btree
           maxruns: 3
 
+    ###############################
+    # Performance Tests for stress #
+    ###############################
+
+  - name: perf-test-parallel-pop-stress
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: parallel-pop-stress
+        maxruns: 1
+
+  - name: perf-test-update-grow-stress
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: update-grow-stress
+        maxruns: 1
+        wtarg: "-a ../runners/update-stress.json"
+
+  - name: perf-test-update-shrink-stress
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: update-shrink-stress
+        maxruns: 1
+        wtarg: "-a ../runners/update-stress.json"
+
+  - name: perf-test-update-delta-mix1
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: update-delta-mix1
+        maxruns: 1
+        wtarg: "-a ../runners/update-stress.json"
+
+  - name: perf-test-update-delta-mix2
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: update-delta-mix2
+        maxruns: 1
+        wtarg: "-a ../runners/update-stress.json"
+
+  - name: perf-test-update-delta-mix3
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+    - func: "fetch artifacts"
+    - func: "generic-perf-test"
+      vars:
+        perf-test-name: update-delta-mix3
+        maxruns: 1
+        wtarg: "-a ../runners/update-stress.json"
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -3419,6 +3494,7 @@ buildvariants:
     - name: compile
     - name: ".btree-perf"
     - name: ".lsm-perf"
+    - name: ".stress-perf"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -3426,6 +3502,9 @@ buildvariants:
     - name: Wiredtiger-perf-lsm-jobs
       execution_tasks:
       - ".lsm-perf"
+    - name: Wiredtiger-perf-stress-jobs
+      execution_tasks:
+      - ".stress-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
