@@ -171,11 +171,13 @@ endif()
 
 # Define an alias target for the WiredTiger library. This being a general target other
 # executables can use to link against. Preference the static library build if available
-# otherwise fallback to the shared library.
+# otherwise fallback to the shared library. We also namespace (::) the target to
+# tell CMake that the target name is associated with an ALIAS target, allowing CMake
+# to issue a diagnostic message if the target isn't found on subsequent linking commands.
 if (ENABLE_STATIC)
-    add_library(wiredtiger ALIAS wiredtiger_static)
+    add_library(wt::wiredtiger ALIAS wiredtiger_static)
 else()
-    add_library(wiredtiger ALIAS wiredtiger_shared)
+    add_library(wt::wiredtiger ALIAS wiredtiger_shared)
 endif()
 
 # Build the wt utility.

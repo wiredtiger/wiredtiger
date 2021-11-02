@@ -56,7 +56,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_SOURCE_DIR}/test/utility
 )
-target_link_libraries(fuzz_util wiredtiger test_util)
+target_link_libraries(fuzz_util wt::wiredtiger test_util)
 target_link_libraries(fuzz_util "-fsanitize=fuzzer")
 target_compile_options(
     fuzz_util
