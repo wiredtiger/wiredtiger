@@ -1396,8 +1396,9 @@ config_single(TABLE *table, const char *s, bool explicit)
     char *endptr;
 
     /*
-     * Check for corrupted input. Format has a syntax checking mode, and this simplifies the work we
-     * flag any and all unexpected characters here.
+     * Check for corrupted input. Format has a syntax checking mode and this simplifies that work by
+     * checking for any unexpected characters. It's complicated by wiredtiger.config, as that
+     * configuration option includes JSON characters.
      */
     for (t = (const u_char *)s; *t != '\0'; ++t)
         if (!__wt_isalnum(*t) && !__wt_isspace(*t) && strchr("()-.:=[]_,", *t) == NULL)
