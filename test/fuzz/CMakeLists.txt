@@ -44,6 +44,17 @@ if(NOT libclangfuzzer)
     return()
 endif()
 
+# We require either a PIC-enabled or shared library build to build
+# our dynamic fuzz_util library. Avoid building the fuzz test if not available.
+set(wiredtiger_target)
+if(ENABLE_STATIC AND WITH_PIC)
+    set(wiredtiger_target wiredtiger_static)
+elseif(ENABLE_SHARED)
+    set(wiredtiger_target wiredtiger_shared)
+else()
+    return()
+endif()
+
 set(fuzz_c_flags "${COMPILER_DIAGNOSTIC_C_FLAGS};-fsanitize=fuzzer-no-link")
 
 # Compile the fuzz util library.
@@ -56,7 +67,7 @@ target_include_directories(
         ${CMAKE_SOURCE_DIR}/src/include
         ${CMAKE_SOURCE_DIR}/test/utility
 )
-target_link_libraries(fuzz_util wt::wiredtiger test_util)
+target_link_libraries(fuzz_util ${wiredtiger_target} test_util)
 target_link_libraries(fuzz_util "-fsanitize=fuzzer")
 target_compile_options(
     fuzz_util
