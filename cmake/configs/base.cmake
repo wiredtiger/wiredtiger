@@ -67,6 +67,13 @@ config_bool(
 )
 
 config_bool(
+    WITH_PIC
+    "Generate position-independent code. Note PIC will always \
+    be used on shared targets, irrespective of the value of this configuration."
+    DEFAULT OFF
+)
+
+config_bool(
     ENABLE_STRICT
     "Compile with strict compiler warnings enabled"
     DEFAULT OFF
