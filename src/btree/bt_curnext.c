@@ -55,6 +55,7 @@ __cursor_fix_append_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     if (cbt->recno < WT_INSERT_RECNO(cbt->ins)) {
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
+        cbt->iface.value.size = 1;
     } else {
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
@@ -62,10 +63,10 @@ restart_read:
           cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
+            cbt->iface.value.size = 1;
         } else
             __wt_value_return(cbt, cbt->upd_value);
     }
-    cbt->iface.value.size = 1;
     return (0);
 }
 
@@ -88,7 +89,9 @@ __cursor_fix_next(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     /* Initialize for each new page. */
     if (newpage) {
-        /* Be paranoid and set the slot out of bounds when moving to a new page. */
+        /*
+         * Be paranoid and set the slot out of bounds when moving to a new page.
+         */
         cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_fix_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
@@ -119,18 +122,16 @@ restart_read:
     if (cbt->upd_value->type == WT_UPDATE_INVALID)
         /* Nope. Read the on-disk value and/or history. */
         WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
-    if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+    if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
         /*
-         * Getting here means that there was no update, the on-disk value isn't visible, and there
-         * isn't anything in history either. This means this chunk of the tree didn't exist yet for
-         * us (given our read timestamp), so we can either return NOTFOUND or produce a zero value
-         * depending on the desired end-of-tree semantics.
+         * Deleted values read as 0.
+         *
+         * Getting an invalid update back means that there was no update, the on-disk value isn't
+         * visible, and there isn't anything in history either. This means this chunk of the tree
+         * didn't exist yet for us (given our read timestamp), so we can either return NOTFOUND or
+         * produce a zero value depending on the desired end-of-tree semantics. For now, we produce
+         * zero so as not to change the preexisting end-of-tree behavior.
          */
-        cbt->v = 0;
-        cbt->iface.value.data = &cbt->v;
-        cbt->iface.value.size = 1;
-    } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
-        /* Deleted values read as 0. */
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
         cbt->iface.value.size = 1;

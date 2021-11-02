@@ -624,11 +624,9 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 cell_num++;
             }
             WT_CELL_FOREACH_END;
-            WT_ASSERT(session, cell_num % 2 == 0);
             if (cell_num == 0) {
                 /* If we saw no time windows, aggregate in a stable one. */
-                WT_TIME_WINDOW_INIT(&unpack.tw);
-                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &unpack.tw);
+                WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
             }
             __wt_verbose(session, WT_VERB_SALVAGE,
               "%s records %" PRIu64 "-%" PRIu64 " and %" PRIu32 " time windows",

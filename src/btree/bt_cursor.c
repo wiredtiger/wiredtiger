@@ -240,12 +240,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     }
 
     /*
-     * Clean out any stale value here. Calling a transaction read helper automatically clears this
-     * but we have some code paths that don't do this (fixed length column store is one example).
-     */
-    __wt_upd_value_clear(cbt->upd_value);
-
-    /*
      * If we don't have an insert object, or in the case of column-store, there's an insert object
      * but no update was visible to us and the key on the page is the same as the insert object's
      * key, and the slot as set by the search function is valid, we can use the original page

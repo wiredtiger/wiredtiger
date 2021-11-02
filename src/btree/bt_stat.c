@@ -136,9 +136,7 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
     WT_CELL *cell;
     WT_CELL_UNPACK_KV unpack;
     WT_INSERT *ins;
-    uint32_t tw, numtws, stat_entries, stat_tws;
-
-    stat_tws = 0;
+    uint32_t numtws, stat_entries, stat_tws, tw;
 
     WT_STAT_INCR(session, stats, btree_column_fix);
 
@@ -148,6 +146,7 @@ __stat_page_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, WT_DSRC_STATS **sta
      * reconciliation; this is complicated at best and also subject to change as the system runs.
      * There's accordingly no need to look at the update list.
      */
+    stat_tws = 0;
     numtws = WT_COL_FIX_TWS_SET(page) ? page->pg_fix_numtws : 0;
     for (tw = 0; tw < numtws; tw++) {
         /* Unpack in case the time window becomes empty. */

@@ -1363,13 +1363,6 @@ __split_multi_inmem(WT_SESSION_IMPL *session, WT_PAGE *orig, WT_MULTI *multi, WT
     bool prepare;
 
     /*
-     * In 04/2016, we removed column-store record numbers from the WT_PAGE structure, leading to
-     * hard-to-debug problems because we corrupt the page if we search it using the wrong initial
-     * record number. For now, assert the record number is set.
-     */
-    WT_ASSERT(session, orig->type != WT_PAGE_COL_VAR || ref->ref_recno != 0);
-
-    /*
      * This code re-creates an in-memory page from a disk image, and adds references to any
      * unresolved update chains to the new page. We get here either because an update could not be
      * written when evicting a page, or eviction chose to keep a page in memory.

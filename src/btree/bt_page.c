@@ -274,9 +274,8 @@ __wt_page_inmem_prepare(WT_SESSION_IMPL *session, WT_REF *ref)
         for (tw = 0; tw < numtws; tw++) {
             cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
             __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-            if (!unpack.tw.prepare) {
+            if (!unpack.tw.prepare)
                 continue;
-            }
             recno = ref->ref_recno + page->pg_fix_tws[tw].recno_offset;
 
             /* Get the value. The update will copy it, so we don't need to allocate here. */
@@ -465,7 +464,7 @@ __wt_col_fix_read_auxheader(
   WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
-    uint32_t bitmapsize, auxheaderoffset;
+    uint32_t auxheaderoffset, bitmapsize, entries, waste;
     const uint8_t *raw, *end;
 
     btree = S2BT(session);
@@ -499,32 +498,29 @@ __wt_col_fix_read_auxheader(
      */
     auxhdr->version = raw[0];
     raw++;
-    {
-        uint32_t entries, waste;
 
-        if (raw + sizeof(entries) > end)
-            return (EINVAL);
-        memcpy(&entries, raw, sizeof(entries));
-        raw += sizeof(entries);
-        if (raw + sizeof(waste) > end)
-            return (EINVAL);
-        memcpy(&waste, raw, sizeof(waste));
-        raw += sizeof(waste);
+    if (raw + sizeof(entries) > end)
+        return (EINVAL);
+    memcpy(&entries, raw, sizeof(entries));
+    raw += sizeof(entries);
+    if (raw + sizeof(waste) > end)
+        return (EINVAL);
+    memcpy(&waste, raw, sizeof(waste));
+    raw += sizeof(waste);
 
 #ifdef WORDS_BIGENDIAN
-        entries = __wt_bswap32(entries);
-        waste = __wt_bswap32(waste);
+    entries = __wt_bswap32(entries);
+    waste = __wt_bswap32(waste);
 #endif
 
-        if (raw + waste > end)
-            return (EINVAL);
+    if (raw + waste > end)
+        return (EINVAL);
 
-        auxhdr->entries = entries;
-        raw += waste;
-    }
+    auxhdr->entries = entries;
+    raw += waste;
 
     /* Report back where the first entry starts. */
-    auxhdr->offset = (uint32_t)WT_PTRDIFF(raw, (uint8_t *)dsk);
+    auxhdr->offset = WT_PTRDIFF32(raw, (uint8_t *)dsk);
     return (0);
 }
 
@@ -583,7 +579,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
                 recno_offset = (uint32_t)tmp;
             } else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw)) {
                 /* Only index entries that are not already obsolete. */
-                page->pg_fix_tws[entry_num].recno_offset = (uint32_t)recno_offset;
+                page->pg_fix_tws[entry_num].recno_offset = recno_offset;
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
                 if (unpack.tw.prepare)
                     prepare = true;
@@ -610,15 +606,16 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
          * If we skipped "quite a few" entries (threshold is arbitrary), mark the page dirty so it
          * gets rewritten without them.
          */
-        if (skipped >= auxhdr.entries / 4 && skipped >= dsk->u.entries / 100 && skipped > 4) {
+        if (!F_ISSET(btree, WT_BTREE_READONLY) && skipped >= auxhdr.entries / 4 &&
+          skipped >= dsk->u.entries / 100 && skipped > 4) {
             WT_RET(__wt_page_modify_init(session, page));
             __wt_page_modify_set(session, page);
         }
 
         break;
     default:
-        WT_IGNORE_RET(
-          __wt_panic(session, EINVAL, "unknown FLCS page version %" PRIu32, auxhdr.version));
+        WT_RET(__wt_panic(session, EINVAL, "unknown %s page version %" PRIu32,
+          __wt_page_type_string(page->type), auxhdr.version));
     }
 
     /* Report back whether we found a prepared value. */

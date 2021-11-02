@@ -134,7 +134,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw, bool *tw_fo
             return;
         __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
-    default: /* WT_PAGE_COL_FIX */
+    case WT_PAGE_COL_FIX:
         __wt_col_fix_fetch_time_window(session, cbt->ref, cbt->recno, tw, tw_foundp);
         return;
     }
@@ -240,10 +240,8 @@ void
 __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
 {
     WT_CURSOR *cursor;
-    WT_SESSION_IMPL *session;
 
     cursor = &cbt->iface;
-    session = CUR2S(cbt);
 
     F_CLR(cursor, WT_CURSTD_VALUE_EXT);
     /*
@@ -253,7 +251,7 @@ __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
      *
      * We are here to return a value to the caller. Make sure we don't skip the buf.
      */
-    WT_ASSERT(session, upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
+    WT_ASSERT(CUR2S(cbt), upd_value->type == WT_UPDATE_STANDARD && !upd_value->skip_buf);
     cursor->value.data = upd_value->buf.data;
     cursor->value.size = upd_value->buf.size;
 
