@@ -1407,8 +1407,8 @@ struct __wt_insert_head {
  * latter values are limited by the page size, so need only be 32 bits. One hopes we'll never need
  * 2^32 versions.
  *
- * This struct is the in-memory representation. The on-disk structure uses a 1-byte version (it
- * always must begin with a nonzero byte) so is 9 bytes long.
+ * This struct is the in-memory representation. The number of entries is the number of time windows
+ * (there are twice as many cells) and the offset is from the beginning of the page.
  *
  * This structure is only used when handling on-disk pages; once the page is read in, one should
  * instead use the time window index in the page structure, which is a different type found above.
@@ -1419,8 +1419,27 @@ struct __wt_col_fix_auxiliary_header {
     uint32_t offset;
 };
 
-/* The on-disk size. */
-#define WT_COL_FIX_AUXHEADER_SIZE 9
+/*
+ * The on-disk auxiliary header uses a 1-byte version (the header must always begin with a nonzero
+ * byte) and packed integers for the entry count and offset. To make the size of the offset entry
+ * predictable (rather than dependent on the total page size) and also as small as possible, we
+ * store the distance from the auxiliary data. To avoid complications computing the offset, we
+ * include the offset's own storage space in the offset, and to make things simpler all around, we
+ * include the whole auxiliary header in the offset; that is, the position of the auxiliary data is
+ * computed as the position of the start of the auxiliary header plus the decoded stored offset.
+ *
+ * Both the entry count and the offset are limited to 32 bits because pages may not exceed 4G, so
+ * their maximum encoded lengths are 5 each, so the maximum size of the on-disk header is 11 bytes.
+ * It can be as small as 3 bytes, though.
+ *
+ * We reserve 7 bytes for the header on a full page (not 11) because on a full page the encoded
+ * offset is the reservation size, and 7 encodes in one byte. This is enough for all smaller pages:
+ * obviously if there's at least 4 extra bytes in the bitmap space any header will fit (4 + 7 = 11)
+ * and if there's less the encoded offset is less than 11, which still encodes to one byte.
+ */
+
+#define WT_COL_FIX_AUXHEADER_RESERVATION 7
+#define WT_COL_FIX_AUXHEADER_SIZE_MAX 11
 
 /* Values for ->version. Version 0 never appears in an on-disk header. */
 #define WT_COL_FIX_VERSION_NIL 0 /* Original page format with no timestamp data */

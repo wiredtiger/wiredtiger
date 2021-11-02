@@ -360,9 +360,10 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
      *     - 0: value
      *
      * For now, allocate enough space to hold a maximal cell pair for each possible time window.
-     * This is perhaps too pessimistic.
+     * This is perhaps too pessimistic. Also include the reservation for header space, since the
+     * downstream code counts that in the auxiliary space.
      */
-    return count * 63;
+    return count * 63 + WT_COL_FIX_AUXHEADER_RESERVATION;
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -376,7 +377,7 @@ __rec_col_fix_get_bitmap_size(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     size_t primary_size;
 
     /* Figure the size of the primary part of the page by subtracting off the header. */
-    primary_size = r->aux_start_offset - WT_COL_FIX_AUXHEADER_SIZE;
+    primary_size = r->aux_start_offset - WT_COL_FIX_AUXHEADER_RESERVATION;
 
     /* Subtract off the main page header. */
     return ((uint32_t)(primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session))));
@@ -973,7 +974,8 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
   uint32_t auxentries, uint8_t *image, size_t size)
 {
     WT_BTREE *btree;
-    uint32_t auxdataoffset, auxheaderoffset, bitmapsize, waste;
+    uint32_t auxdataoffset, auxheaderoffset, bitmapsize, offset;
+    uint8_t *endp, *p;
 
     btree = S2BT(session);
     (void)size; /* only used in DIAGNOSTIC */
@@ -1024,17 +1026,17 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
     /* Figure how much primary data we have. */
     bitmapsize = __bitstr_size(entries * btree->bitcnt);
 
-    /* The auxiliary header goes after the bitmap. */
+    /* The auxiliary header goes after the bitmap, which goes after the page header. */
     auxheaderoffset = WT_PAGE_HEADER_BYTE_SIZE(btree) + bitmapsize;
 
-    /* The auxiliary data goes where we have been writing it. */
+    /* The auxiliary data goes wherever we have been writing it. */
     auxdataoffset = r->aux_start_offset;
 
     /* This should be at or after the place it goes on a normal-sized page. */
-    WT_ASSERT(session, auxdataoffset >= btree->maxleafpage + WT_COL_FIX_AUXHEADER_SIZE);
+    WT_ASSERT(session, auxdataoffset >= btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION);
 
-    /* The wasted space is the space from the end of the auxiliary header to the auxiliary data. */
-    waste = auxdataoffset - (auxheaderoffset + WT_COL_FIX_AUXHEADER_SIZE);
+    /* This should also have left sufficient room for the header. */
+    WT_ASSERT(session, auxdataoffset >= auxheaderoffset + WT_COL_FIX_AUXHEADER_RESERVATION);
 
     /*
      * If there is no auxiliary data, we will have already shortened the image size to discard the
@@ -1047,22 +1049,28 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
         return;
     }
 
-    /* Byte-swap the multi-byte values. */
-#ifdef WORDS_BIGENDIAN
-    auxentries = __wt_bswap32(auxentries);
-    waste = __wt_bswap32(waste);
-#endif
+    /* The offset we're going to write is the distance from the header start to the data. */
+    offset = auxdataoffset - auxheaderoffset;
 
-    /* The auxiliary header is a 1-byte version and two 4-byte words. */
-    WT_ASSERT(session, WT_COL_FIX_AUXHEADER_SIZE == 1 + sizeof(auxentries) + sizeof(waste));
+    /*
+     * Encoding the offset should fit -- either it is less than what encodes to 1 byte or greater
+     * than or equal to the maximum header size. This works out to asserting that the latter is less
+     * than the maximum 1-byte-encoded integer. That in turn is a static condition.
+     *
+     * This in turn guarantees that the pack calls cannot fail.
+     */
+    WT_STATIC_ASSERT(WT_COL_FIX_AUXHEADER_SIZE_MAX < POS_1BYTE_MAX);
 
     /* Should not be overwriting anything. */
     WT_ASSERT(session, image[auxheaderoffset] == 0);
 
-    /* Use memcpy for the words because the destination might not be aligned. */
-    image[auxheaderoffset] = WT_COL_FIX_VERSION_TS;
-    memcpy(&image[auxheaderoffset + 1], &auxentries, sizeof(auxentries));
-    memcpy(&image[auxheaderoffset + 1 + sizeof(auxentries)], &waste, sizeof(waste));
+    p = image + auxheaderoffset;
+    endp = image + auxdataoffset;
+
+    *(p++) = WT_COL_FIX_VERSION_TS;
+    WT_IGNORE_RET(__wt_vpack_uint(&p, WT_PTRDIFF32(endp, p), auxentries));
+    WT_IGNORE_RET(__wt_vpack_uint(&p, WT_PTRDIFF32(endp, p), offset));
+    WT_ASSERT(session, p <= endp);
 }
 
 /*

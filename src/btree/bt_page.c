@@ -464,7 +464,8 @@ __wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
-    uint32_t auxheaderoffset, bitmapsize, entries, waste;
+    uint64_t dataoffset, entries;
+    uint32_t auxheaderoffset, bitmapsize;
     const uint8_t *raw, *end;
 
     btree = S2BT(session);
@@ -493,44 +494,28 @@ __wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
     end = (uint8_t *)dsk + dsk->mem_size;
 
     /*
-     * The on-disk header is a 1-byte version, a uint32 with the number of entries, and a uint32
-     * that says how many waste bytes there are between the header and the entries.
+     * The on-disk header is a 1-byte version, a packed integer with the number of entries, and a
+     * second packed integer that gives the offset from the header start to the data.
      */
 
-    if (in_verify) {
-        if (raw + 1 + sizeof(entries) + sizeof(waste) > end)
-            return (EINVAL);
-    } else
-        WT_ASSERT(session, raw + 1 + sizeof(entries) + sizeof(waste) <= end);
-
-    auxhdr->version = raw[0];
-    raw++;
-    memcpy(&entries, raw, sizeof(entries));
-    raw += sizeof(entries);
-    memcpy(&waste, raw, sizeof(waste));
-    raw += sizeof(waste);
+    auxhdr->version = *(raw++);
+    WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &entries));
+    WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &dataoffset));
 
     /* When not in verify, getting an unknown page version is fatal. */
     if (!in_verify && auxhdr->version != WT_COL_FIX_VERSION_TS)
         WT_RET(__wt_panic(session, EINVAL, "unknown %s page version %" PRIu32,
           __wt_page_type_string(WT_PAGE_COL_FIX), auxhdr->version));
 
-#ifdef WORDS_BIGENDIAN
-    entries = __wt_bswap32(entries);
-    waste = __wt_bswap32(waste);
-#endif
-
     if (in_verify) {
-        if (raw + waste > end)
+        if (auxheaderoffset + dataoffset > dsk->mem_size)
             return (EINVAL);
     } else
-        WT_ASSERT(session, raw + waste <= end);
+        WT_ASSERT(session, auxheaderoffset + dataoffset <= dsk->mem_size);
 
-    auxhdr->entries = entries;
-    raw += waste;
-
-    /* Report back where the first entry starts. */
-    auxhdr->offset = WT_PTRDIFF32(raw, (uint8_t *)dsk);
+    /* The returned offset is from the start of the page. */
+    auxhdr->entries = (uint32_t)entries;
+    auxhdr->offset = auxheaderoffset + (uint32_t)dataoffset;
 
     return (0);
 }

@@ -957,7 +957,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
     if (page->type == WT_PAGE_COL_FIX) {
         r->split_size = r->salvage != NULL ? 0 : btree->maxleafpage;
         r->space_avail = primary_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
-        r->aux_space_avail = auxiliary_size - WT_COL_FIX_AUXHEADER_SIZE;
+        r->aux_space_avail = auxiliary_size - WT_COL_FIX_AUXHEADER_RESERVATION;
     } else if (r->salvage != NULL) {
         r->split_size = 0;
         r->space_avail = r->page_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
@@ -994,7 +994,7 @@ __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, ui
     r->first_free = WT_PAGE_HEADER_BYTE(btree, r->cur_ptr->image.mem);
 
     if (page->type == WT_PAGE_COL_FIX) {
-        r->aux_start_offset = (uint32_t)(primary_size + WT_COL_FIX_AUXHEADER_SIZE);
+        r->aux_start_offset = (uint32_t)(primary_size + WT_COL_FIX_AUXHEADER_RESERVATION);
         r->aux_entries = 0;
         r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
     }
@@ -1284,7 +1284,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
          * aren't in salvage so always use the maximum leaf page size; that will produce the fixed
          * size pages we want.
          */
-        r->aux_start_offset = btree->maxleafpage + WT_COL_FIX_AUXHEADER_SIZE;
+        r->aux_start_offset = btree->maxleafpage + WT_COL_FIX_AUXHEADER_RESERVATION;
         r->aux_entries = 0;
         r->aux_first_free = (uint8_t *)r->cur_ptr->image.mem + r->aux_start_offset;
     }
@@ -1295,7 +1295,7 @@ __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool 
      */
     r->space_avail = r->split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
     if (r->page->type == WT_PAGE_COL_FIX) {
-        r->aux_space_avail = r->page_size - btree->maxleafpage - WT_COL_FIX_AUXHEADER_SIZE;
+        r->aux_space_avail = r->page_size - btree->maxleafpage - WT_COL_FIX_AUXHEADER_RESERVATION;
     } else
         r->min_space_avail = r->min_split_size - WT_PAGE_HEADER_BYTE_SIZE(btree);
 
