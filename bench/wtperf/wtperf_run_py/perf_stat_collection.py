@@ -29,6 +29,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import re
+from typing import List
+
 from perf_stat import PerfStat
 
 
@@ -47,7 +49,7 @@ class PerfStatCollection:
     def add_stat(self, perf_stat: PerfStat):
         self.perf_stats[perf_stat.short_label] = perf_stat
 
-    def find_stats(self, test_stat_path: str, operations: list):
+    def find_stats(self, test_stat_path: str, operations: List[str]):
         for stat in self.perf_stats.values():
             if not operations or stat.short_label in operations:
                 value = find_stat(test_stat_path=test_stat_path,

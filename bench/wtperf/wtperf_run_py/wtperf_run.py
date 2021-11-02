@@ -38,6 +38,7 @@ import platform
 import psutil
 from pygit2 import discover_repository, Repository
 from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
+from typing import List
 
 from wtperf_config import WTPerfConfig
 from perf_stat import PerfStat
@@ -48,7 +49,7 @@ from perf_stat_collection import PerfStatCollection
 test_stats_file = 'test.stat'
 
 
-def create_test_home_path(home: str, test_run: int, operations: list = None):
+def create_test_home_path(home: str, test_run: int, operations: List[str] = None):
     home_path = "{}_{}".format(home, test_run)
     if operations:
         # Use the first operation name as part of the home path
@@ -147,7 +148,7 @@ def run_test_wrapper(config: WTPerfConfig, operations: list = None, argument: st
         print("Completed test {}".format(test_run))
 
 
-def run_test(config: WTPerfConfig, test_run: int, operations: list = None, argument: str = None):
+def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, argument: str = None):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
@@ -158,7 +159,7 @@ def run_test(config: WTPerfConfig, test_run: int, operations: list = None, argum
     subprocess.run(command_line)
 
 
-def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: list = None):
+def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
     for test_run in range(config.run_max):
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
         test_stats_path = create_test_stat_path(test_home)
