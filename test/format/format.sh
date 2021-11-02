@@ -101,11 +101,10 @@ while :; do
 		config="$2"
 		shift ; shift ;;
 	-D)
-		[[ "$2" == /* ]] || {
-		    echo "$name: -D argument must be an absolute path"
-		    exit 1
-		}
-		directory_list=($2/CONFIG.*)
+		# Format changes directories, get absolute paths to the CONFIG files.
+		dir="$2"
+		[[ "$dir" == /* ]] || dir="$PWD/$dir"
+		directory_list=($dir/CONFIG.*)
 		directory_total=${#directory_list[@]}
 		[[ -f "${directory_list[0]}" ]] || {
 		    echo "$name: no CONFIG files found in $2"
@@ -190,12 +189,12 @@ home=$(cd $home > /dev/null || exit 1 && echo $PWD)
 # From the Bash FAQ, shuffle an array.
 shuffle() {
     local i tmp size max rand
- 
+
     size=${#directory_list[*]}
     for ((i=size-1; i>0; i--)); do
        # RANDOM % (i+1) is biased because of the limited range of $RANDOM
        # Compensate by using a range which is a multiple of the rand modulus.
- 
+
        max=$(( 32768 / (i+1) * (i+1) ))
        while (( (rand=RANDOM) >= max )); do :; done
        rand=$(( rand % (i+1) ))
