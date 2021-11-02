@@ -739,7 +739,7 @@ config_directio(void)
      * Direct I/O may not work with backups, doing copies through the buffer cache after configuring
      * direct I/O in Linux won't work. If direct I/O is configured, turn off backups.
      */
-    DIO_CHECK("disk.backup", BACKUP);
+    DIO_CHECK("backup", BACKUP);
 
     /* Direct I/O may not work with imports for the same reason as for backups. */
     DIO_CHECK("import", IMPORT);
