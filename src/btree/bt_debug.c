@@ -708,11 +708,8 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
     btree = S2BT(ds->session);
 
-    /*
-     * Use the verify version of the header code; this will fail if the page is badly corrupted
-     * rather than chugging ahead, but it lets us print instead of crashing on unknown versions.
-     */
-    WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, true /*verify*/, &auxhdr));
+    WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
+
     switch (auxhdr.version) {
     case WT_COL_FIX_VERSION_NIL:
         WT_RET(ds->f(ds, "page version 0, no auxiliary data\n"));
@@ -731,7 +728,10 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
         WT_RET(ds->f(ds, "}\n"));
     }
 
-    if (auxhdr.version == WT_COL_FIX_VERSION_TS) {
+    if (auxhdr.offset > dsk->mem_size)
+        /* Print something useful instead of crashing or failing. */
+        WT_RET(ds->f(ds, "page is corrupt: offset to time windows is past end of page"));
+    else if (auxhdr.version == WT_COL_FIX_VERSION_TS) {
         WT_CELL_FOREACH_FIX (ds->session, dsk, &auxhdr, unpack)
             WT_RET(__debug_cell_kv(ds, NULL, dsk->type, NULL, &unpack));
         WT_CELL_FOREACH_END;

@@ -456,12 +456,16 @@ err:
 /*
  * __wt_col_fix_read_auxheader --
  *     Read the auxiliary header following the bitmap data, if any. This code is used by verify and
- *     needs to be accordingly careful when in_verify is set. It is also used by mainline reads so
- *     it must also not crash or print, except when in_verify is not set and crashing is acceptable.
+ *     needs to be accordingly careful. It is also used by mainline reads so it must also not crash
+ *     or print on behalf of verify, and it should not waste time on checks that inmem doesn't need.
+ *     Currently this means it does do bounds checks on the header itself (they are embedded in the
+ *     integer unpacking) but not on the returned offset, and we don't check the version number.
+ *     Careful callers (verify, perhaps debug) should check this. Fast callers (inmem) probably
+ *     needn't bother. Salvage is protected by verify and doesn't need to check any of it.
  */
 int
-__wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, bool in_verify,
-  WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
+__wt_col_fix_read_auxheader(
+  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
     uint64_t dataoffset, entries;
@@ -502,17 +506,6 @@ __wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
     WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &entries));
     WT_RET(__wt_vunpack_uint(&raw, WT_PTRDIFF32(end, raw), &dataoffset));
 
-    /* When not in verify, getting an unknown page version is fatal. */
-    if (!in_verify && auxhdr->version != WT_COL_FIX_VERSION_TS)
-        WT_RET(__wt_panic(session, EINVAL, "unknown %s page version %" PRIu32,
-          __wt_page_type_string(WT_PAGE_COL_FIX), auxhdr->version));
-
-    if (in_verify) {
-        if (auxheaderoffset + dataoffset > dsk->mem_size)
-            return (EINVAL);
-    } else
-        WT_ASSERT(session, auxheaderoffset + dataoffset <= dsk->mem_size);
-
     /* The returned offset is from the start of the page. */
     auxhdr->entries = (uint32_t)entries;
     auxhdr->offset = auxheaderoffset + (uint32_t)dataoffset;
@@ -544,7 +537,8 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
 
-    WT_RET(__wt_col_fix_read_auxheader(session, dsk, false /*not verify*/, &auxhdr));
+    WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+    WT_ASSERT(session, auxhdr.offset <= dsk->mem_size);
 
     switch (auxhdr.version) {
     case WT_COL_FIX_VERSION_NIL:

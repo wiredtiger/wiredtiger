@@ -603,7 +603,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * Read the auxiliary header. Because pages that fail verify are tossed before salvage, we
          * shouldn't fail.
          */
-        WT_RET(__wt_col_fix_read_auxheader(session, dsk, false /*not verify*/, &auxhdr));
+        WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
             /* Nothing to do besides update the time aggregate with a stable timestamp. */

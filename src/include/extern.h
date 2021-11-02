@@ -392,8 +392,7 @@ extern int __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
 extern int __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
-  bool in_verify, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  WT_COL_FIX_AUXILIARY_HEADER *auxhdr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value,
   WT_UPDATE *upd_arg, u_int modify_type, bool exclusive
 #ifdef HAVE_DIAGNOSTIC
