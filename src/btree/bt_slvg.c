@@ -603,7 +603,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
          * Read the auxiliary header. Because pages that fail verify are tossed before salvage, we
          * shouldn't fail.
          */
-        WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+        WT_RET(__wt_col_fix_read_auxheader(session, dsk, false /*not verify*/, &auxhdr));
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
             /* Nothing to do besides update the time aggregate with a stable timestamp. */
@@ -632,17 +632,6 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
               "%s records %" PRIu64 "-%" PRIu64 " and %" PRIu32 " time windows",
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
               trk->col_start, trk->col_stop, cell_num / 2);
-            break;
-        default:
-            /*
-             * Not reached: verify will reject pages with unknown versions, and pages that fail
-             * verify get tossed before they get here. Print something anyway just in case that
-             * premise breaks down by accident sometime.
-             */
-            __wt_verbose(session, WT_VERB_SALVAGE,
-              "%s records %" PRIu64 "-%" PRIu64 ", unknown page format version %" PRIu32,
-              __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
-              trk->col_start, trk->col_stop, auxhdr.version);
             break;
         }
         break;

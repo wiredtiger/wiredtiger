@@ -723,7 +723,7 @@ __verify_dsk_col_fix(
         WT_RET_VRFY(session, "data on page at %s extends past the end of the page", tag);
 
     /* Unpack the auxiliary header. This function is expected to be paranoid enough to use here. */
-    ret = __wt_col_fix_read_auxheader(session, dsk, &auxhdr);
+    ret = __wt_col_fix_read_auxheader(session, dsk, true /*verify*/, &auxhdr);
     if (ret != 0)
         WT_RET_VRFY_RETVAL(session, ret, "auxiliary header on page %s invalid", tag);
 

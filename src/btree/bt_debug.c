@@ -708,7 +708,11 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
 
     btree = S2BT(ds->session);
 
-    WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, &auxhdr));
+    /*
+     * Use the verify version of the header code; this will fail if the page is badly corrupted
+     * rather than chugging ahead, but it lets us print instead of crashing on unknown versions.
+     */
+    WT_RET(__wt_col_fix_read_auxheader(ds->session, dsk, true /*verify*/, &auxhdr));
     switch (auxhdr.version) {
     case WT_COL_FIX_VERSION_NIL:
         WT_RET(ds->f(ds, "page version 0, no auxiliary data\n"));

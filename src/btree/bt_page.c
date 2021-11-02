@@ -456,12 +456,12 @@ err:
 /*
  * __wt_col_fix_read_auxheader --
  *     Read the auxiliary header following the bitmap data, if any. This code is used by verify and
- *     needs to be accordingly careful. It is also used by mainline reads so it must also not crash
- *     or print.
+ *     needs to be accordingly careful when in_verify is set. It is also used by mainline reads so
+ *     it must also not crash or print, except when in_verify is not set and crashing is acceptable.
  */
 int
-__wt_col_fix_read_auxheader(
-  WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
+__wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, bool in_verify,
+  WT_COL_FIX_AUXILIARY_HEADER *auxhdr)
 {
     WT_BTREE *btree;
     uint32_t auxheaderoffset, bitmapsize, entries, waste;
@@ -496,31 +496,42 @@ __wt_col_fix_read_auxheader(
      * The on-disk header is a 1-byte version, a uint32 with the number of entries, and a uint32
      * that says how many waste bytes there are between the header and the entries.
      */
+
+    if (in_verify) {
+        if (raw + 1 + sizeof(entries) + sizeof(waste) > end)
+            return (EINVAL);
+    } else
+        WT_ASSERT(session, raw + 1 + sizeof(entries) + sizeof(waste) <= end);
+
     auxhdr->version = raw[0];
     raw++;
-
-    if (raw + sizeof(entries) > end)
-        return (EINVAL);
     memcpy(&entries, raw, sizeof(entries));
     raw += sizeof(entries);
-    if (raw + sizeof(waste) > end)
-        return (EINVAL);
     memcpy(&waste, raw, sizeof(waste));
     raw += sizeof(waste);
+
+    /* When not in verify, getting an unknown page version is fatal. */
+    if (!in_verify && auxhdr->version != WT_COL_FIX_VERSION_TS)
+        WT_RET(__wt_panic(session, EINVAL, "unknown %s page version %" PRIu32,
+          __wt_page_type_string(WT_PAGE_COL_FIX), auxhdr->version));
 
 #ifdef WORDS_BIGENDIAN
     entries = __wt_bswap32(entries);
     waste = __wt_bswap32(waste);
 #endif
 
-    if (raw + waste > end)
-        return (EINVAL);
+    if (in_verify) {
+        if (raw + waste > end)
+            return (EINVAL);
+    } else
+        WT_ASSERT(session, raw + waste <= end);
 
     auxhdr->entries = entries;
     raw += waste;
 
     /* Report back where the first entry starts. */
     auxhdr->offset = WT_PTRDIFF32(raw, (uint8_t *)dsk);
+
     return (0);
 }
 
@@ -548,7 +559,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
     page->pg_fix_bitf = WT_PAGE_HEADER_BYTE(btree, dsk);
 
-    WT_RET(__wt_col_fix_read_auxheader(session, dsk, &auxhdr));
+    WT_RET(__wt_col_fix_read_auxheader(session, dsk, false /*not verify*/, &auxhdr));
 
     switch (auxhdr.version) {
     case WT_COL_FIX_VERSION_NIL:
@@ -613,9 +624,6 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
         }
 
         break;
-    default:
-        WT_RET(__wt_panic(session, EINVAL, "unknown %s page version %" PRIu32,
-          __wt_page_type_string(page->type), auxhdr.version));
     }
 
     /* Report back whether we found a prepared value. */
