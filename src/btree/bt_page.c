@@ -569,13 +569,9 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
     case WT_COL_FIX_VERSION_TS:
         /* The page should be VERSION_NIL if there are no timestamp entries. */
         WT_ASSERT(session, auxhdr.entries > 0);
-        size = sizeof(WT_COL_FIX_TW) + auxhdr.entries * sizeof(WT_COL_FIX_TW_ENTRY);
-        WT_RET(__wt_calloc(session, 1, size, &pv));
-        *sizep += size;
-        page->u.col_fix.fix_tw = pv;
-        page->pg_fix_numtws = auxhdr.entries;
 
         recno_offset = 0;
+        skipped = 0;
 
         /* Walk the entries to build the index. */
         entry_num = 0;
@@ -590,28 +586,30 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
                 recno_offset = (uint32_t)tmp;
             } else if (!WT_TIME_WINDOW_IS_EMPTY(&unpack.tw)) {
                 /* Only index entries that are not already obsolete. */
+
+                if (entry_num == 0) {
+                    size = sizeof(WT_COL_FIX_TW) +
+                      (auxhdr.entries - skipped) * sizeof(WT_COL_FIX_TW_ENTRY);
+                    WT_RET(__wt_calloc(session, 1, size, &pv));
+                    *sizep += size;
+                    page->u.col_fix.fix_tw = pv;
+                }
                 page->pg_fix_tws[entry_num].recno_offset = recno_offset;
                 page->pg_fix_tws[entry_num].cell_offset = WT_PAGE_DISK_OFFSET(page, unpack.cell);
                 if (unpack.tw.prepare)
                     prepare = true;
                 entry_num++;
-            }
+            } else
+                skipped++;
         }
         WT_CELL_FOREACH_END;
 
-        /* Update the actual number of time windows. */
-        page->pg_fix_numtws = entry_num;
-        skipped = auxhdr.entries - entry_num;
-
         /*
-         * If we skipped _all_ the time windows, discard the index array. Otherwise, assume
-         * reallocating it isn't worthwhile.
+         * Set the number of time windows. If there weren't any, the variable doesn't exist. Also,
+         * while we could now reallocate the array to the exact count, assume it's not worthwhile.
          */
-        if (skipped == auxhdr.entries) {
-            page->u.col_fix.fix_tw = NULL;
-            __wt_free(session, pv);
-            *sizep -= size;
-        }
+        if (entry_num > 0)
+            page->pg_fix_numtws = entry_num;
 
         /*
          * If we skipped "quite a few" entries (threshold is arbitrary), mark the page dirty so it
