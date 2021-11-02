@@ -59,6 +59,7 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
             ${CMAKE_SOURCE_DIR}/src/include
             ${CMAKE_BINARY_DIR}/include
             ${CMAKE_BINARY_DIR}/config
+            ${HAVE_LIBLZ4_INCLUDES}
         )
     target_compile_options(
         wiredtiger_lz4
@@ -69,9 +70,7 @@ if(HAVE_BUILTIN_EXTENSION_LZ4 OR ENABLE_LZ4)
 endif()
 
 if(ENABLE_LZ4)
-    # HAVE_LIBLZ4 contains the full pathname to the lib, which is
-    # what the cmake docs recommend using.
-    target_link_libraries(wiredtiger_lz4 ${HAVE_LIBLZ4})
+    target_link_libraries(wiredtiger_lz4 wt::lz4)
     install(TARGETS wiredtiger_lz4
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
