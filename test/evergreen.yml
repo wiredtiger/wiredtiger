@@ -3457,7 +3457,7 @@ buildvariants:
       - ".lsm-perf"
     - name: Wiredtiger-perf-checkpoint-jobs
       execution_tasks:
-        - ".perf-checkpoint"
+      - ".perf-checkpoint"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
