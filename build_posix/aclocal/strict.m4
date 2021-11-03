@@ -102,6 +102,10 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w_c="$w_c -Wpointer-sign"
 	w_c="$w_c -Wstrict-prototypes"
 
+	# The unsafe-loop-optimizations warning may have been enabled previously. Make sure it is
+	# disabled for c++ files as range based for loops trigger this warning.
+	w_cxx="$w_cxx -Wno-error=unsafe-loop-optimizations"
+
 	wt_c_strict_warnings="$w_c"
 	wt_cxx_strict_warnings="$w_cxx"
 ])
