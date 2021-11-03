@@ -3355,6 +3355,66 @@ tasks:
           perf-test-name: many-table-stress-backup
           maxruns: 1
 
+    ##################################
+    # Performance Tests for eviction #
+    ##################################
+
+  - name: perf-test-evict-btree 
+    tags: ["evict-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-btree
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-btree
+
+  - name: perf-test-evict-btree-1 
+    tags: ["evict-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-btree-1
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-btree-1
+
+  - name: perf-test-evict-lsm 
+    tags: ["evict-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-lsm
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-lsm
+      
+  - name: perf-test-evict-lsm-1 
+    tags: ["evict-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-lsm-1
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-lsm-1
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -3637,6 +3697,7 @@ buildvariants:
     - name: ".lsm-perf"
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
+    - name: ".evict-perf"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -3650,6 +3711,9 @@ buildvariants:
     - name: Wiredtiger-perf-checkpoint-jobs
       execution_tasks:
       - ".checkpoint-perf"
+    - name: Wiredtiger-perf-evict-jobs
+      execution_tasks:
+      - ".evict-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
