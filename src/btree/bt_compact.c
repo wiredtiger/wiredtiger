@@ -189,7 +189,7 @@ __compact_page(WT_SESSION_IMPL *session, WT_REF *ref, bool ovfl_rewrite, bool *s
                 WT_ERR(__compact_page_replace_addr(session, ref, &copy));
                 WT_STAT_DATA_INCR(session, btree_compact_pages_rewritten);
             }
-        } else if (copy.type == WT_ADDR_LEAF_NO) {
+        } else {
             WT_REF_UNLOCK(ref, previous_state);
             WT_ERR(__wt_page_in_func(session, ref, 0
 #ifdef HAVE_DIAGNOSTIC
