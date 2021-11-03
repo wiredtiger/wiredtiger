@@ -39,8 +39,11 @@ echo "  num_iter:        $num_iter"
 outf=./outfile.txt
 
 for i in $(seq $num_iter); do
-  echo "Starting iteration $i" >> $outf
-  echo "Starting iteration $i"
+  echo "==== Starting iteration $i ====" >> $outf
+  echo "==== Starting iteration $i ===="
+
+  echo "Disk usage and free space for the current drive:"
+  df -h .
 
   process_ids=()
   # start the commands in parallel
