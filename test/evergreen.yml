@@ -3226,6 +3226,34 @@ tasks:
     # Performance Tests for stress #
     ###############################
 
+  - name: perf-test-overflow-10k
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: overflow-10k
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: overflow-10k
+
+  - name: perf-test-overflow-130k
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: overflow-130k
+          maxruns: 1
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: overflow-130k
+
   - name: perf-test-parallel-pop-stress
     tags: ["stress-perf"]
     depends_on:
