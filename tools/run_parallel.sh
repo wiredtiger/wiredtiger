@@ -48,8 +48,8 @@ for i in $(seq $num_iter); do
   process_ids=()
   # start the commands in parallel
   for((t=1; t<=num_parallel; t++)); do
-    echo "Starting parallel command $t (of $num_parallel) in iteration $i (of $num_iter)" >> nohup.out.$t
-    eval nohup $command >> nohup.out.$t 2>&1 &
+    echo "Starting parallel command $t (of $num_parallel) in iteration $i (of $num_iter)" >> $outf
+    eval nohup $command > nohup.out.$t 2>&1 &
     process_ids[$t]=$!
   done
 
