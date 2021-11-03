@@ -466,6 +466,8 @@ lsm_meta = file_config + lsm_config + [
 tiered_meta = file_meta + tiered_config + [
     Config('last', '0', r'''
         the last allocated object ID'''),
+    Config('oldest', '1', r'''
+        the oldest allocated object ID'''),
     Config('tiers', '', r'''
         list of data sources to combine into a tiered storage structure''', type='list'),
 ]
@@ -510,6 +512,49 @@ table_meta = format_meta + table_only_config
 
 # Connection runtime config, shared by conn.reconfigure and wiredtiger_open
 connection_runtime_config = [
+    Config('block_cache', '', r'''
+        block cache configuration options''',
+        type='category', subconfig=[
+        Config('cache_on_checkpoint', 'true', r'''
+            cache blocks written by a checkpoint''',
+            type='boolean'),
+        Config('cache_on_writes', 'true', r'''
+            cache blocks as they are written (other than checkpoint blocks)''',
+            type='boolean'),
+        Config('enabled', 'false', r'''
+            enable block cache''',
+            type='boolean'),
+        Config('blkcache_eviction_aggression', '1800', r'''
+            seconds an unused block remains in the cache before it is evicted''',
+            min='1', max='7200'),
+        Config('full_target', '95', r'''
+            the fraction of the block cache that must be full before eviction
+            will remove unused blocks''',
+            min='30', max='100'),
+        Config('size', '0', r'''
+            maximum memory to allocate for the block cache''',
+            min='0', max='10TB'),
+        Config('hashsize', '0', r'''
+            number of buckets in the hashtable that keeps track of blocks''',
+            min='512', max='256K'),
+        Config('max_percent_overhead', '10', r'''
+            maximum tolerated overhead expressed as the number of blocks added
+            and removed as percent of blocks looked up; cache population
+            and eviction will be suppressed if the overhead exceeds the
+            supplied threshold''',
+            min='1', max='500'),
+        Config('nvram_path', '', r'''
+            the absolute path to the file system mounted on the NVRAM device'''),
+        Config('percent_file_in_dram', '50', r'''
+            bypass cache for a file if the set percentage of the file fits in system DRAM
+            (as specified by block_cache.system_ram)''',
+            min='0', max='100'),
+        Config('system_ram', '0', r'''
+            the bytes of system DRAM available for caching filesystem blocks''',
+            min='0', max='1024GB'),
+        Config('type', '', r'''
+            cache location: DRAM or NVRAM'''),
+        ]),
     Config('cache_size', '100MB', r'''
         maximum heap memory to allocate for the cache. A database should
         configure either \c cache_size or \c shared_cache but not both''',
@@ -821,6 +866,7 @@ connection_runtime_config = [
             'api',
             'backup',
             'block',
+            'block_cache',
             'checkpoint',
             'checkpoint_cleanup',
             'checkpoint_progress',
@@ -832,9 +878,9 @@ connection_runtime_config = [
             'evictserver',
             'fileops',
             'handleops',
-            'log',
             'history_store',
             'history_store_activity',
+            'log',
             'lsm',
             'lsm_manager',
             'metadata',
