@@ -6403,61 +6403,61 @@ extern int wiredtiger_extension_terminate(WT_CONNECTION *connection);
 #define	WT_STAT_DSRC_BTREE_CLEAN_CHECKPOINT_TIMER	2023
 /*! btree: btree compact pages reviewed */
 #define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED	2024
+/*! btree: btree compact pages rewritten */
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN	2025
 /*! btree: btree compact pages skipped */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED	2025
+#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED	2026
 /*! btree: btree skipped by compaction as process would not reduce size */
-#define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2026
+#define	WT_STAT_DSRC_BTREE_COMPACT_SKIPPED		2027
 /*!
  * btree: column-store fixed-size leaf pages, only reported if tree_walk
  * or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_FIX			2027
+#define	WT_STAT_DSRC_BTREE_COLUMN_FIX			2028
 /*!
  * btree: column-store internal pages, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_INTERNAL		2028
+#define	WT_STAT_DSRC_BTREE_COLUMN_INTERNAL		2029
 /*!
  * btree: column-store variable-size RLE encoded values, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_RLE			2029
+#define	WT_STAT_DSRC_BTREE_COLUMN_RLE			2030
 /*!
  * btree: column-store variable-size deleted values, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_DELETED		2030
+#define	WT_STAT_DSRC_BTREE_COLUMN_DELETED		2031
 /*!
  * btree: column-store variable-size leaf pages, only reported if
  * tree_walk or all statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_COLUMN_VARIABLE		2031
+#define	WT_STAT_DSRC_BTREE_COLUMN_VARIABLE		2032
 /*! btree: fixed-record size */
-#define	WT_STAT_DSRC_BTREE_FIXED_LEN			2032
+#define	WT_STAT_DSRC_BTREE_FIXED_LEN			2033
 /*! btree: maximum internal page key size */
-#define	WT_STAT_DSRC_BTREE_MAXINTLKEY			2033
+#define	WT_STAT_DSRC_BTREE_MAXINTLKEY			2034
 /*! btree: maximum internal page size */
-#define	WT_STAT_DSRC_BTREE_MAXINTLPAGE			2034
+#define	WT_STAT_DSRC_BTREE_MAXINTLPAGE			2035
 /*! btree: maximum leaf page key size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFKEY			2035
+#define	WT_STAT_DSRC_BTREE_MAXLEAFKEY			2036
 /*! btree: maximum leaf page size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFPAGE			2036
+#define	WT_STAT_DSRC_BTREE_MAXLEAFPAGE			2037
 /*! btree: maximum leaf page value size */
-#define	WT_STAT_DSRC_BTREE_MAXLEAFVALUE			2037
+#define	WT_STAT_DSRC_BTREE_MAXLEAFVALUE			2038
 /*! btree: maximum tree depth */
-#define	WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH		2038
+#define	WT_STAT_DSRC_BTREE_MAXIMUM_DEPTH		2039
 /*!
  * btree: number of key/value pairs, only reported if tree_walk or all
  * statistics are enabled
  */
-#define	WT_STAT_DSRC_BTREE_ENTRIES			2039
+#define	WT_STAT_DSRC_BTREE_ENTRIES			2040
 /*!
  * btree: overflow pages, only reported if tree_walk or all statistics
  * are enabled
  */
-#define	WT_STAT_DSRC_BTREE_OVERFLOW			2040
-/*! btree: pages rewritten by compaction */
-#define	WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN	2041
+#define	WT_STAT_DSRC_BTREE_OVERFLOW			2041
 /*!
  * btree: row-store empty values, only reported if tree_walk or all
  * statistics are enabled
