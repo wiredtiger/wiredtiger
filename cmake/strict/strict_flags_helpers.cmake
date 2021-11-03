@@ -63,7 +63,6 @@ function(get_gnu_base_flags flags)
     if(${cmake_compiler_version} VERSION_EQUAL 4.7)
         list(APPEND gnu_flags "-Wno-c11-extensions")
     endif()
-
     if(${cmake_compiler_version} VERSION_GREATER_EQUAL 5)
         list(APPEND gnu_flags "-Wformat-signedness")
         list(APPEND gnu_flags "-Wunused-macros")
