@@ -2862,7 +2862,7 @@ tasks:
     commands:
       - command: timeout.update
         params:
-          exec_timeout_secs: 2500
+          exec_timeout_secs: 3600
       - func: "get project"
       - func: "compile wiredtiger with builtins"
       - func: "format test script"
