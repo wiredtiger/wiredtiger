@@ -157,14 +157,23 @@ class test_compact03(wttest.WiredTigerTestCase):
         self.session.compact(self.uri, "ovfl_rewrite=true")
         sizeAfterCompact = self.getSize()
         self.pr('After deleting values and compactions ' + str(sizeAfterCompact // mb) + 'MB')
-        #self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
-        self.assertLess(sizeAfterCompact, (sizeWithOverflow // 100) * 95)
+
+        # Read overflow values.
+        c = self.session.open_cursor(self.uri, None)
+        for i in range(self.nOverflowRecords):
+            c.set_key(i)
+            val = c[i + self.nrecords]
+            self.assertEqual(val, self.overflowValue)
+        c.close()
 
         # Verify that we did indeed rewrote some pages but that didn't help with the file size.
         statDict = self.getCompactProgressStats()
         self.assertGreater(statDict["pages_reviewed"],0)
         self.assertGreater(statDict["pages_selected"],0)
         self.assertGreater(statDict["pages_rewritten"],0)
+
+        #self.assertGreater(sizeAfterCompact, (sizeWithOverflow // 10) * 9)
+        self.assertLess(sizeAfterCompact, (sizeWithOverflow // 100) * 95)
 
         # 9. Insert some normal values and expect that file size won't increase as free extents
         #    in the middle of the file will be used to write new data.

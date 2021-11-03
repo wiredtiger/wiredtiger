@@ -8,7 +8,6 @@
 
 #include "wt_internal.h"
 
-
 /*
  * __compact_page_inmem_check_addrs --
  *     Return if a clean, in-memory page needs to be re-written.
@@ -366,7 +365,7 @@ __wt_compact(WT_SESSION_IMPL *session, bool ovfl_rewrite)
          * evicted quickly.
          */
         WT_ERR(__wt_tree_walk_custom_skip(
-            session, &ref, __compact_walk_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
+          session, &ref, __compact_walk_page_skip, NULL, WT_READ_NO_GEN | WT_READ_WONT_NEED));
         if (ref == NULL)
             break;
 
@@ -378,56 +377,4 @@ err:
     WT_TRET(__wt_page_release(session, ref, 0));
 
     return (ret);
-}
-
-/*
- * __wt_compact_page_skip --
- *     Return if compaction requires we read this page.
- */
-int
-__wt_compact_page_skip(WT_SESSION_IMPL *session, WT_REF *ref, void *context, bool *skipp)
-{
-    WT_ADDR_COPY addr;
-    WT_BM *bm;
-    uint8_t previous_state;
-    bool diskaddr;
-
-    WT_UNUSED(context);
-
-    *skipp = false; /* Default to reading */
-
-    /* Internal pages must be read to walk the tree. */
-    if (F_ISSET(ref, WT_REF_FLAG_INTERNAL))
-        return (0);
-
-    /*
-     * Skip deleted pages, rewriting them doesn't seem useful; in a better world we'd write the
-     * parent to delete the page.
-     */
-    if (ref->state == WT_REF_DELETED) {
-        *skipp = true;
-        return (0);
-    }
-
-    /*
-     * If the page is in-memory, we want to look at it (it may have been modified and written, and
-     * the current location is the interesting one in terms of compaction, not the original).
-     */
-    if (ref->state != WT_REF_DISK)
-        return (0);
-
-    /*
-     * Lock the WT_REF and if it's still on-disk, get a copy of the address. This is safe because
-     * it's an on-disk page and we're holding the WT_REF locked, so nobody can read the page giving
-     * either checkpoint or eviction a chance to modify the address.
-     */
-    WT_REF_LOCK(session, ref, &previous_state);
-    diskaddr = previous_state == WT_REF_DISK && __wt_ref_addr_copy(session, ref, &addr);
-    WT_REF_UNLOCK(ref, previous_state);
-    if (!diskaddr)
-        return (0);
-
-    /* Ask the block-manager if it's useful to rewrite the page. */
-    bm = S2BT(session)->bm;
-    return (bm->compact_page_skip(bm, session, addr.addr, addr.size, skipp));
 }
