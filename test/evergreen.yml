@@ -595,7 +595,7 @@ functions:
     # Parameterised using the 'perf-test-name' and 'maxruns' variables
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/bench/wtperf/wtperf_run_py"
+        working_dir: "wiredtiger/cmake_build/bench/wtperf"
         shell: bash
         script: |
           set -o errexit
@@ -605,13 +605,13 @@ functions:
           ${pip3_binary} install psutil pygit2
           JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
-          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out.json ${wtarg}
-          ${test_env_vars|} ${python_binary} wtperf_run.py -p ../../../cmake_build/bench/wtperf/wtperf -t ../runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out.json ${wtarg}
+          ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -p ./wtperf -t ../../../bench/wtperf/runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out.json ${wtarg}
+          ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -p ./wtperf -t ../../../bench/wtperf/runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out.json ${wtarg}
 
   "upload-perf-test-stats":
     - command: shell.exec
       params:
-        working_dir: "wiredtiger/bench/wtperf/wtperf_run_py"
+        working_dir: "wiredtiger/cmake_build/bench/wtperf"
         shell: bash
         silent: true
         script: |
@@ -624,7 +624,7 @@ functions:
 
     - command: perf.send
       params:
-        file: ./wiredtiger/bench/wtperf/wtperf_run_py/test_stats/evergreen_out.json
+        file: ./wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out.json
 
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'perf-test-name' variable
@@ -632,7 +632,7 @@ functions:
       params:
         aws_secret: ${aws_secret}
         aws_key: ${aws_key}
-        local_files_include_filter: wiredtiger/bench/wtperf/wtperf_run_py/test_stats/*
+        local_files_include_filter: wiredtiger/cmake_build/bench/wtperf/test_stats/*
         bucket: build_external
         permissions: public-read
         content_type: text/html
@@ -3141,7 +3141,7 @@ tasks:
         vars:
           perf-test-name: update-btree
           maxruns: 1
-          wtarg: "-a ../runners/update-btree.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-btree.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree
@@ -3202,7 +3202,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree
           maxruns: 1
-          wtarg: "-a ../runners/update-checkpoint.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree
@@ -3217,7 +3217,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm
           maxruns: 1
-          wtarg: "-a ../runners/update-checkpoint.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm
@@ -3250,7 +3250,7 @@ tasks:
         vars:
           perf-test-name: update-grow-stress
           maxruns: 1
-          wtarg: "-a ../runners/update-stress.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-grow-stress
@@ -3265,7 +3265,7 @@ tasks:
         vars:
           perf-test-name: update-shrink-stress
           maxruns: 1
-          wtarg: "-a ../runners/update-stress.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-shrink-stress
@@ -3280,7 +3280,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix1
           maxruns: 1
-          wtarg: "-a ../runners/update-stress.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix1
@@ -3295,7 +3295,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix2
           maxruns: 1
-          wtarg: "-a ../runners/update-stress.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix2
@@ -3310,7 +3310,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix3
           maxruns: 1
-          wtarg: "-a ../runners/update-stress.json"
+          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix3
