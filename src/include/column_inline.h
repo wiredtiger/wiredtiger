@@ -328,11 +328,11 @@ __col_var_search(WT_REF *ref, uint64_t recno, uint64_t *start_recnop)
 }
 
 /*
- * __wt_col_fix_fetch_time_window --
+ * __wt_col_fix_get_time_window --
  *     Look for a time window on a fixed-length column page.
  */
 static inline void
-__wt_col_fix_fetch_time_window(
+__wt_col_fix_get_time_window(
   WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw, bool *tw_foundp)
 {
     WT_CELL *cell;

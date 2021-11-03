@@ -55,8 +55,8 @@ static int __verify_dsk_row_leaf(
     for ((cell) = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), (i) = (dsk)->u.entries; (i) > 0; \
          (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
-#define WT_CELL_FOREACH_FIX_VRFY(session, dsk, sec, cell, unpack, i)                       \
-    for ((cell) = (WT_CELL *)((uint8_t *)(dsk) + (sec)->offset), (i) = (sec)->entries * 2; \
+#define WT_CELL_FOREACH_FIX_VRFY(session, dsk, aux, cell, unpack, i)                       \
+    for ((cell) = (WT_CELL *)((uint8_t *)(dsk) + (aux)->offset), (i) = (aux)->entries * 2; \
          (i) > 0; (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
 /*
@@ -737,24 +737,25 @@ __verify_dsk_col_fix(
     case WT_COL_FIX_VERSION_TS:
         break;
     default:
-        WT_RET_VRFY(
-          session, "FLCS page at %s has unknown page version %" PRIu32, tag, dsk->version);
+        WT_RET_VRFY(session, "%s page at %s has unknown page version %" PRIu32,
+          __wt_page_type_string(dsk->type), tag, dsk->version);
     }
 
     /* Validate the offset in the auxiliary header. */
     if (auxhdr.offset > dsk->mem_size)
-        WT_RET_VRFY(session, "FLCS page at %s has cell offset %" PRIu32 " off the end at %" PRIu32,
-          tag, auxhdr.offset, dsk->mem_size);
-    else if (auxhdr.offset == dsk->mem_size && auxhdr.entries > 0)
+        WT_RET_VRFY(session, "%s page at %s has cell offset %" PRIu32 " off the end at %" PRIu32,
+          __wt_page_type_string(dsk->type), tag, auxhdr.offset, dsk->mem_size);
+    if (auxhdr.offset == dsk->mem_size && auxhdr.entries > 0)
         WT_RET_VRFY(session,
-          "FLCS page at %s has cell offset %" PRIu32 " at the end with %" PRIu32 " entries", tag,
-          auxhdr.offset, auxhdr.entries);
+          "%s page at %s has cell offset %" PRIu32 " at the end with %" PRIu32 " entries",
+          __wt_page_type_string(dsk->type), tag, auxhdr.offset, auxhdr.entries);
 
     /* Check the number of entries in the auxiliary header. (Note dsk->u.entries is uint32_t.) */
     if (auxhdr.entries > dsk->u.entries)
         WT_RET_VRFY(session,
-          "FLCS page at %s has %" PRIu32 " k/v entries but there are only %" PRIu32 " keys", tag,
-          auxhdr.entries, dsk->u.entries);
+          "%s page at %s has %" PRIu32
+          " auxiliary (time window) entries but there are only %" PRIu32 " keys",
+          __wt_page_type_string(dsk->type), tag, auxhdr.entries, dsk->u.entries);
 
     cell_num = 0;
     WT_CELL_FOREACH_FIX_VRFY (session, dsk, &auxhdr, cell, unpack, i) {
@@ -772,29 +773,31 @@ __verify_dsk_col_fix(
         if ((cell_num - 1) % 2 == 0) {
             if (unpack->type != WT_CELL_KEY)
                 WT_RET_VRFY(session,
-                  "in FLCS page at %s, cell %" PRIu32 " should be a WT_CELL_KEY but is %s", tag,
-                  cell_num - 1, __wt_cell_type_string(unpack->type));
+                  "in %s page at %s, cell %" PRIu32 " should be a WT_CELL_KEY but is %s",
+                  __wt_page_type_string(dsk->type), tag, cell_num - 1,
+                  __wt_cell_type_string(unpack->type));
             /* Unpack the key and make sure it's in range. It's a recno offset. */
             p = unpack->data;
             /* Note that unpack->size does not reach past the end of the page. */
             ret = __wt_vunpack_uint(&p, unpack->size, &recno_offset);
             if (ret != 0)
                 WT_RET_VRFY_RETVAL(session, ret,
-                  "in FLCS page at %s, the key in cell %" PRIu32 " failed to unpack", tag,
-                  cell_num - 1);
+                  "in %s page at %s, the key in cell %" PRIu32 " failed to unpack",
+                  __wt_page_type_string(dsk->type), tag, cell_num - 1);
             if (recno_offset >= dsk->u.entries)
                 WT_RET_VRFY_RETVAL(session, ret,
-                  "in FLCS page at %s, out of range recno offset %" PRIu64 " in cell %" PRIu32, tag,
-                  recno_offset, cell_num - 1);
+                  "in %s page at %s, out of range recno offset %" PRIu64 " in cell %" PRIu32,
+                  __wt_page_type_string(dsk->type), tag, recno_offset, cell_num - 1);
         } else {
             if (unpack->type != WT_CELL_VALUE)
                 WT_RET_VRFY(session,
-                  "in FLCS page at %s, cell %" PRIu32 " should be a WT_CELL_VALUE but is %s", tag,
-                  cell_num - 1, __wt_cell_type_string(unpack->type));
+                  "in %s page at %s, cell %" PRIu32 " should be a WT_CELL_VALUE but is %s",
+                  __wt_page_type_string(dsk->type), tag, cell_num - 1,
+                  __wt_cell_type_string(unpack->type));
             if (unpack->size != 0)
                 WT_RET_VRFY(session,
-                  "in FLCS page at %s, cell %" PRIu32 " should be empty but has size %" PRIu32, tag,
-                  cell_num - 1, unpack->size);
+                  "in %s page at %s, cell %" PRIu32 " should be empty but has size %" PRIu32,
+                  __wt_page_type_string(dsk->type), tag, cell_num - 1, unpack->size);
 
             /*
              * Empty validity windows should not result in on-disk cells. Note that because we used
@@ -802,9 +805,8 @@ __verify_dsk_col_fix(
              * won't get spurious failures from that situation.
              */
             if (WT_TIME_WINDOW_IS_EMPTY(&unpack->tw))
-                WT_RET_VRFY(session,
-                  "in FLCS page at %s, cell %" PRIu32 " has an empty time window", tag,
-                  cell_num - 1);
+                WT_RET_VRFY(session, "in %s page at %s, cell %" PRIu32 " has an empty time window",
+                  __wt_page_type_string(dsk->type), tag, cell_num - 1);
 
             /* Check the validity window. */
             WT_RET(__verify_dsk_value_validity(session, unpack, cell_num, addr, tag));
@@ -813,8 +815,8 @@ __verify_dsk_col_fix(
 
     if (cell_num != 2 * auxhdr.entries) {
         WT_RET_VRFY(session,
-          "in FLCS page at %s, the header said to expect %" PRIu32 " cells but only saw %" PRIu32,
-          tag, 2 * auxhdr.entries, cell_num);
+          "in %s page at %s, the header said to expect %" PRIu32 " cells but only saw %" PRIu32,
+          __wt_page_type_string(dsk->type), tag, 2 * auxhdr.entries, cell_num);
     }
 
     WT_RET(__verify_dsk_memsize(session, tag, dsk, cell));

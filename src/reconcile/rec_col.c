@@ -363,7 +363,7 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
      * This is perhaps too pessimistic. Also include the reservation for header space, since the
      * downstream code counts that in the auxiliary space.
      */
-    return count * 63 + WT_COL_FIX_AUXHEADER_RESERVATION;
+    return (count * 63 + WT_COL_FIX_AUXHEADER_RESERVATION);
 }
 
 #ifdef HAVE_DIAGNOSTIC
@@ -374,13 +374,13 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
 static uint32_t
 __rec_col_fix_get_bitmap_size(WT_SESSION_IMPL *session, WT_RECONCILE *r)
 {
-    size_t primary_size;
+    uint32_t primary_size;
 
     /* Figure the size of the primary part of the page by subtracting off the header. */
     primary_size = r->aux_start_offset - WT_COL_FIX_AUXHEADER_RESERVATION;
 
     /* Subtract off the main page header. */
-    return ((uint32_t)(primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session))));
+    return (primary_size - WT_PAGE_HEADER_BYTE_SIZE(S2BT(session)));
 }
 #endif
 
@@ -604,6 +604,10 @@ __wt_rec_col_fix(
          */
         rawbitmapsize = WT_ALIGN(
           WT_COL_FIX_ENTRIES_TO_BYTES(btree, salvage->take + salvage->missing), btree->allocsize);
+
+        /* Salvage is the backup plan: don't let this fail. */
+        auxspace *= 2;
+
         if (rawbitmapsize + auxspace > UINT32_MAX || salvage->take + salvage->missing > UINT32_MAX)
             WT_RET_PANIC(session, WT_PANIC,
               "%s page too large (%" PRIu64 "); cannot split it during salvage",

@@ -2312,7 +2312,7 @@ static inline void __wt_cell_unpack_addr(WT_SESSION_IMPL *session, const WT_PAGE
   WT_CELL *cell, WT_CELL_UNPACK_ADDR *unpack_addr);
 static inline void __wt_cell_unpack_kv(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
   WT_CELL *cell, WT_CELL_UNPACK_KV *unpack_value);
-static inline void __wt_col_fix_fetch_time_window(
+static inline void __wt_col_fix_get_time_window(
   WT_SESSION_IMPL *session, WT_REF *ref, uint64_t recno, WT_TIME_WINDOW *tw, bool *tw_foundp);
 static inline void __wt_cond_wait(
   WT_SESSION_IMPL *session, WT_CONDVAR *cond, uint64_t usecs, bool (*run_func)(WT_SESSION_IMPL *));

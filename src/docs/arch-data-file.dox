@@ -53,8 +53,9 @@ to another page (see overflow pages).
 
 Fixed-length column store pages contain a block of bitmap data after
 the page header; after this there may be an auxiliary header followed
-by zero or more cells that are used to structure any auxiliary data
-associated with the values in the bitmap.
+by zero or more cells that are used to hold any auxiliary data
+(currently, time validity windows) associated with the values in the
+bitmap.
 
 The exact encoding of cells is rather complex, and beyond what can be
 described here. The encoding strikes a balance between data that can be

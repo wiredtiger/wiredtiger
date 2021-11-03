@@ -487,7 +487,7 @@ __verify_tree(
         break;
     }
 
-    /* Check page content, additionally updating the variable-length column-store record count. */
+    /* Check page content, additionally updating the column-store record count. */
     switch (page->type) {
     case WT_PAGE_COL_FIX:
         WT_RET(__verify_page_content_fix(session, ref, addr_unpack, vs));
@@ -941,8 +941,20 @@ __verify_page_content_fix(
 
         cell = WT_COL_FIX_TW_CELL(page, &page->pg_fix_tws[tw]);
         __wt_cell_unpack_kv(session, page->dsk, cell, &unpack);
-        /* If this fails it means the index was built wrong. */
-        WT_ASSERT(session, unpack.type == WT_CELL_VALUE);
+
+        /* We are only supposed to see the values (not the keys) and only plain values belong. */
+        if (unpack.type != WT_CELL_VALUE)
+            WT_RET_MSG(session, EINVAL,
+              "cell %" PRIu32 " for key %" PRIu64 " on page at %s has wrong type %s", cell_num,
+              ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
+              __verify_addr_string(session, ref, vs->tmp1), __wt_cell_type_string(unpack.type));
+
+        /* The value cell should contain only a time window. */
+        if (unpack.size != 0)
+            WT_RET_MSG(session, EINVAL,
+              "cell %" PRIu32 " for key %" PRIu64 " on page at %s has nonempty value", cell_num,
+              ref->ref_recno + page->pg_fix_tws[tw].recno_offset,
+              __verify_addr_string(session, ref, vs->tmp1));
 
         if ((ret = __wt_time_value_validate(session, &unpack.tw, &parent->ta, false)) != 0)
             WT_RET_MSG(session, ret,
@@ -956,10 +968,10 @@ __verify_page_content_fix(
     }
 
     /*
-     * Verify key-associated history-store entries, optionally dump historical time windows and
-     * values in debug mode. Note that while a WT_COL_FIX_VERSION_NIL page written by a build that
-     * does not support FLCS timestamps and history will have no history store entries, such pages
-     * can also be written by newer builds; so we should always validate the history entries.
+     * Verify key-associated history-store entries. Note that while a WT_COL_FIX_VERSION_NIL page
+     * written by a build that does not support FLCS timestamps and history will have no history
+     * store entries, such pages can also be written by newer builds; so we should always validate
+     * the history entries.
      */
     for (recno_offset = 0, tw = 0; recno_offset < page->entries; recno_offset++) {
         p = vs->tmp1->mem;
@@ -1054,10 +1066,7 @@ __verify_page_content_leaf(
             break;
         }
 
-        /*
-         * Verify key-associated history-store entries, optionally dump historical time windows and
-         * values in debug mode.
-         */
+        /* Verify key-associated history-store entries. */
         if (page->type == WT_PAGE_ROW_LEAF) {
             if (unpack.type != WT_CELL_VALUE && unpack.type != WT_CELL_VALUE_COPY &&
               unpack.type != WT_CELL_VALUE_OVFL && unpack.type != WT_CELL_VALUE_SHORT)

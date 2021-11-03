@@ -135,7 +135,7 @@ __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw, bool *tw_fo
         __read_col_time_window(session, page, WT_COL_PTR(page, &page->pg_var[cbt->slot]), tw);
         break;
     case WT_PAGE_COL_FIX:
-        __wt_col_fix_fetch_time_window(session, cbt->ref, cbt->recno, tw, tw_foundp);
+        __wt_col_fix_get_time_window(session, cbt->ref, cbt->recno, tw, tw_foundp);
         return;
     }
     *tw_foundp = true;
@@ -197,7 +197,7 @@ __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf, WT_TIME_W
      * WT_PAGE_COL_FIX: Take the value from the original page.
      */
     if (tw != NULL) {
-        __wt_col_fix_fetch_time_window(session, ref, cbt->recno, tw, &found);
+        __wt_col_fix_get_time_window(session, ref, cbt->recno, tw, &found);
         if (!found)
             WT_TIME_WINDOW_INIT(tw);
     }

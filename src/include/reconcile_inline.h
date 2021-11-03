@@ -292,9 +292,10 @@ static inline void
 __wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count, WT_REC_KV *kv)
 {
     size_t len;
-    uint8_t *p, *t;
+    uint8_t *p;
+    const uint8_t *t;
 
-    /* The auxiliary image has an arbitrary fixed size; make sure we didn't run out of space. */
+    /* Make sure we didn't run out of space. */
     WT_ASSERT(session, kv->len <= r->aux_space_avail);
 
     /*
@@ -304,12 +305,13 @@ __wt_rec_auximage_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count
      *
      * WT_CELLs are typically small, 1 or 2 bytes -- don't call memcpy, do the copy in-line.
      */
-    for (p = r->aux_first_free, t = (uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
+    for (p = r->aux_first_free, t = (const uint8_t *)&kv->cell, len = kv->cell_len; len > 0; --len)
         *p++ = *t++;
 
-    /* The data can be quite large -- call memcpy. */
+    /* Here the data is also small, when not entirely empty. */
     if (kv->buf.size != 0)
-        memcpy(p, kv->buf.data, kv->buf.size);
+        for (t = (const uint8_t *)kv->buf.data, len = kv->buf.size; len > 0; --len)
+            *p++ = *t++;
 
     WT_ASSERT(session, kv->len == kv->cell_len + kv->buf.size);
     __wt_rec_auxincr(session, r, count, kv->len);

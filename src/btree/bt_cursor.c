@@ -257,6 +257,9 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
         /*
          * Check for an update ondisk or in the history store. For column store, an insert object
          * can have the same key as an on-page or history store object.
+         *
+         * Note: do not replace tombstones with zero here; it skips cases in other code below that
+         * expect to handle it themselves, and then doesn't work.
          */
         WT_RET(__wt_txn_read(session, cbt, key, recno, cbt->ins ? cbt->ins->upd : NULL));
         if (cbt->upd_value->type != WT_UPDATE_INVALID) {
