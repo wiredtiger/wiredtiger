@@ -309,6 +309,8 @@ main(int argc, char *argv[])
     tables_apply(val_init, NULL);
     if (!g.reopen)
         TIMED_MAJOR_OP(tables_apply(wts_load, NULL));
+    if (!g.reopen)
+        goto done;
     TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
     if (GV(OPS_VERIFY) == 0)
         TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
@@ -346,6 +348,7 @@ main(int argc, char *argv[])
 
     trace_teardown();
 
+done:
     /* Overwrite the progress line with a completion line. */
     if (!GV(QUIET))
         printf("\r%78s\r", " ");
