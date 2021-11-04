@@ -52,6 +52,8 @@ if(ENABLE_STATIC AND WITH_PIC)
 elseif(ENABLE_SHARED)
     set(wiredtiger_target wiredtiger_shared)
 else()
+    message(STATUS "Skipping fuzz test compilation: Requires either a shared library (ENABLE_SHARED)"
+                    "or a PIC-enabled (WITH_PIC) build of wiredtiger")
     return()
 endif()
 
