@@ -555,6 +555,8 @@ struct __wt_connection_impl {
     /* Verbose settings for our various categories. */
     WT_VERBOSE_LEVEL verbose[WT_VERB_NUM_CATEGORIES];
 
+    bool event_handler_json; /* Output event handler messages in JSON format */
+
 /*
  * Variable with flags for which subsystems the diagnostic stress timing delays have been requested.
  */
