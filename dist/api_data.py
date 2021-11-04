@@ -466,6 +466,8 @@ lsm_meta = file_config + lsm_config + [
 tiered_meta = file_meta + tiered_config + [
     Config('last', '0', r'''
         the last allocated object ID'''),
+    Config('oldest', '1', r'''
+        the oldest allocated object ID'''),
     Config('tiers', '', r'''
         list of data sources to combine into a tiered storage structure''', type='list'),
 ]
@@ -1726,11 +1728,10 @@ methods = {
             applicable only for prepared transactions. Indicates if the prepare
             timestamp and the commit timestamp of this transaction can be
             rounded up. If the prepare timestamp is less than the oldest
-            timestamp, the prepare timestamp will be rounded to the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
             timestamp. If the commit timestamp is less than the prepare
             timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp. Allows setting the prepared timestamp smaller than or equal
-            to the latest active read timestamp''', type='boolean'),
+            timestamp''', type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the
             read timestamp will be rounded up to the oldest timestamp''',
