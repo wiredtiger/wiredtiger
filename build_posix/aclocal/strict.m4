@@ -26,7 +26,7 @@ AC_DEFUN([AM_GCC_WARNINGS], [
 	w="$w -Wwrite-strings"
 
 	# Non-fatal informational warnings.
-	# The unsafe-loop-optimizations warning is only turn enabled for specific gcc versions.
+	# The unsafe-loop-optimizations warning is only enabled for specific gcc versions.
 	# Regardless, don't fail when it's configured.
 	w="$w -Wno-error=unsafe-loop-optimizations"
 

@@ -58,6 +58,8 @@ function(get_gnu_base_flags flags)
     list(APPEND gnu_flags "-Wwrite-strings")
 
     # Non-fatal informational warnings.
+    # The unsafe-loop-optimizations warning is only enabled for specific gcc versions.
+    # Regardless, don't fail when it's configured.
     list(APPEND gnu_flags "-Wno-error=unsafe-loop-optimizations")
 
     if(${cmake_compiler_version} VERSION_EQUAL 4.7)
