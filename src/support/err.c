@@ -162,45 +162,21 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
     } while (0)
 
 /*
- * __eventv --
- *     Report a message to an event handler.
+ * __eventv_gen_flat_str --
+ *     Generate a flat style string.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, int line,
-  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv_gen_flat_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int error,
+  const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
     WT_DECL_RET;
-    WT_EVENT_HANDLER *handler;
-    WT_SESSION *wt_session;
     size_t len, remain;
     char *p, tid[128];
     const char *err, *prefix;
 
-    /*
-     * We're using a stack buffer because we want error messages no matter
-     * what, and allocating a WT_ITEM, or the memory it needs, might fail.
-     *
-     * !!!
-     * SECURITY:
-     * Buffer placed at the end of the stack in case snprintf overflows.
-     */
-    char s[4 * 1024];
-    p = s;
-    remain = sizeof(s);
-
-    /*
-     * !!!
-     * This function MUST handle a NULL WT_SESSION_IMPL handle.
-     *
-     * Without a session, we don't have event handlers or prefixes for the
-     * error message.  Write the error to stderr and call it a day.  (It's
-     * almost impossible for that to happen given how early we allocate the
-     * first session, but if the allocation of the first session fails, for
-     * example, we can end up here without a session.)
-     */
-    if (session == NULL)
-        goto err;
+    p = buffer;
+    remain = *buffer_len;
 
     /*
      * We have several prefixes for the error message: a timestamp and the process and thread ids,
@@ -238,9 +214,56 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
          */
         err = __wt_strerror(session, error, NULL, 0);
         len = strlen(err);
-        if (WT_PTRDIFF(p, s) < len || strcmp(p - len, err) != 0)
+        if (WT_PTRDIFF(p, buffer) < len || strcmp(p - len, err) != 0)
             WT_ERROR_APPEND(p, remain, ": %s", err);
     }
+
+    /* Update the remaining buffer length. */
+    *buffer_len = remain;
+
+err:
+    return (ret);
+}
+
+/*
+ * __eventv --
+ *     Report a message to an event handler.
+ */
+static int
+__eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, int line,
+  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+{
+    WT_DECL_RET;
+    WT_EVENT_HANDLER *handler;
+    WT_SESSION *wt_session;
+    size_t remain;
+
+    /*
+     * We're using a stack buffer because we want error messages no matter
+     * what, and allocating a WT_ITEM, or the memory it needs, might fail.
+     *
+     * !!!
+     * SECURITY:
+     * Buffer placed at the end of the stack in case snprintf overflows.
+     */
+    char s[4 * 1024];
+    remain = sizeof(s);
+
+    /*
+     * !!!
+     * This function MUST handle a NULL WT_SESSION_IMPL handle.
+     *
+     * Without a session, we don't have event handlers or prefixes for the
+     * error message.  Write the error to stderr and call it a day.  (It's
+     * almost impossible for that to happen given how early we allocate the
+     * first session, but if the allocation of the first session fails, for
+     * example, we can end up here without a session.)
+     */
+    if (session == NULL)
+        goto err;
+
+    /* Format the message. */
+    WT_ERR(__eventv_gen_flat_str(session, s, &remain, error, func, line, fmt, ap));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
