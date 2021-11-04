@@ -31,15 +31,16 @@
 import re
 from typing import List
 
-from perf_stat import PerfStat
+from perf_stat import AggregationFunc, PerfStat
 
 
 def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
+    matches = []
     for line in open(test_stat_path):
-        match = re.match(pattern, line)
+        match = re.search(pattern, line)
         if match:
-            return float(line.split()[position_of_value])
-    return 0
+            matches.append(float(line.split()[position_of_value]))
+    return matches
 
 
 class PerfStatCollection:
@@ -49,21 +50,29 @@ class PerfStatCollection:
     def add_stat(self, perf_stat: PerfStat):
         self.perf_stats[perf_stat.short_label] = perf_stat
 
-    def find_stats(self, test_stat_path: str, operations: List[str]):
+    def find_stats(self, test_stat_path: str, operations: List[str], run_max: int):
         for stat in self.perf_stats.values():
             if not operations or stat.short_label in operations:
-                value = find_stat(test_stat_path=test_stat_path,
-                                  pattern=stat.pattern,
-                                  position_of_value=stat.input_offset)
-                stat.add_value(value=value)
+                values = find_stat(test_stat_path=test_stat_path,
+                                   pattern=stat.pattern,
+                                   position_of_value=stat.input_offset)
+                stat.add_values(values=values)
 
     def to_value_list(self, brief: bool):
         as_list = []
         for stat in self.perf_stats.values():
             if not stat.are_values_all_zero():
+                
+                if stat.aggregation_function == AggregationFunc.CoreAverage:
+                    val = stat.get_core_average()
+                elif stat.aggregation_function == AggregationFunc.AvgMax:
+                    val = stat.get_avg_max() 
+                elif stat.aggregation_function == AggregationFunc.AvgMin:
+                    val = stat.get_avg_min() 
+
                 as_dict = {
                     'name': stat.output_label,
-                    'value': stat.get_core_average()
+                    'value': val
                 }
                 if not brief:
                     as_dict['values'] = stat.values

@@ -41,7 +41,7 @@ from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
 from typing import List
 
 from wtperf_config import WTPerfConfig
-from perf_stat import PerfStat
+from perf_stat import AggregationFunc, PerfStat
 from perf_stat_collection import PerfStatCollection
 
 # the 'test.stat' file is where wt-perf.c writes out it's statistics
@@ -59,14 +59,6 @@ def create_test_home_path(home: str, test_run: int, operations: List[str] = None
 
 def create_test_stat_path(test_home_path: str):
     return os.path.join(test_home_path, test_stats_file)
-
-
-def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
-    for line in open(test_stat_path):
-        match = re.match(pattern, line)
-        if match:
-            return line.split()[position_of_value]
-    return 0
 
 
 def get_git_info(git_working_tree_dir):
@@ -166,7 +158,7 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operat
         test_stats_path = create_test_stat_path(test_home)
         if config.verbose:
             print('Reading test stats file: {}'.format(test_stats_path))
-        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations)
+        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations, run_max=config.run_max)
 
 
 def setup_perf_stats():
@@ -197,6 +189,16 @@ def setup_perf_stats():
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
                                  output_label='Update count'))
+    perf_stats.add_stat(PerfStat(short_label="max_update_throughput",
+                                 pattern=r'updates,',
+                                 input_offset=8,
+                                 output_label='Max update throughput',
+                                 aggregation_function=AggregationFunc.AvgMax))
+    perf_stats.add_stat(PerfStat(short_label="min_update_throughput",
+                                 pattern=r'updates,',
+                                 input_offset=8,
+                                 output_label='Min update throughput',
+                                 aggregation_function=AggregationFunc.AvgMin))
     return perf_stats
 
 
