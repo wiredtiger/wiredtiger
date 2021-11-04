@@ -149,7 +149,11 @@ def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, 
         arguments=arguments,
         test=config.test,
         home=test_home)
-    subprocess.run(command_line, check=True)
+    try:
+        subprocess.run(command_line, check=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
+    except subprocess.CalledProcessError as cpe:
+        print("Error: {}".format(cpe.output))
+        exit(1)
 
 
 def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
