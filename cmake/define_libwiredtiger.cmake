@@ -25,7 +25,7 @@ macro(define_wiredtiger_library target type)
         ${ARGN}
     )
     if (NOT "${DEFINE_WT_UNPARSED_ARGUMENTS}" STREQUAL "")
-        message(FATAL_ERROR "Unknown arguments to define_wiredtiger_library: ${DEFINE_WT_ARGUMENTS_UNPARSED_ARGUMENTS}")
+        message(FATAL_ERROR "Unknown arguments to define_wiredtiger_library: ${DEFINE_WT_UNPARSED_ARGUMENTS}")
     endif()
     if ("${DEFINE_WT_SOURCES}" STREQUAL "")
         message(FATAL_ERROR "No sources given to define_wiredtiger_library")
