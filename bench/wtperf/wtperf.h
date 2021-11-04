@@ -53,7 +53,6 @@ typedef struct __truncate_queue_entry TRUNCATE_QUEUE_ENTRY;
 #define ZSTD_PATH "zstd/.libs/libwiredtiger_zstd.so"
 #endif
 
-
 #define EXT_PFX ",extensions=("
 #define EXT_SFX ")"
 #define EXTPATH "../../ext/compressors/" /* Extensions path */
