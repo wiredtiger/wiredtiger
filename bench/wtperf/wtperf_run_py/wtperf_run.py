@@ -96,7 +96,7 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, argument: str):
+def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, arguments: List[str]):
     command_line = []
     if env is not None:
         command_line.append(env)
@@ -104,8 +104,8 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, a
     if test is not None:
         command_line.append('-O')
         command_line.append(test)
-    if argument is not None:
-        command_line.append(argument)
+    if arguments is not None:
+        command_line.extend(arguments)
     if home is not None:
         command_line.append('-h')
         command_line.append(home)
@@ -142,19 +142,19 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     return as_dict
 
 
-def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, argument: str = None):
+def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, arguments: List[str] = None):
     for test_run in range(config.run_max):
         print("Starting test  {}".format(test_run))
-        run_test(config=config, test_run=test_run, operations=operations, argument=argument)
+        run_test(config=config, test_run=test_run, operations=operations, arguments=arguments)
         print("Completed test {}".format(test_run))
 
 
-def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, argument: str = None):
+def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, arguments: List[str] = None):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
         env=config.environment,
-        argument=argument,
+        arguments=arguments,
         test=config.test,
         home=test_home)
     subprocess.run(command_line, check=True)
@@ -269,8 +269,8 @@ def main():
         if config.arg_file:
             for content in arg_file_contents:
                 if args.verbose:
-                    print("Argument: {},  Operation: {}".format(content["argument"], content["operations"]))
-                run_test_wrapper(config=config, operations=content["operations"], argument=content["argument"])
+                    print("Argument: {},  Operation: {}".format(content["arguments"], content["operations"]))
+                run_test_wrapper(config=config, operations=content["operations"], arguments=content["arguments"])
         else:
             run_test_wrapper(config=config)
 
