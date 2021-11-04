@@ -836,6 +836,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.alter"))
         return;
+    if (config_explicit(NULL, "ops.hs_cursor"))
+        return;
     if (config_explicit(NULL, "ops.salvage"))
         return;
     if (config_explicit(NULL, "ops.verify"))
@@ -865,6 +867,8 @@ config_in_memory_reset(void)
         config_off(NULL, "logging");
     if (!config_explicit(NULL, "ops.alter"))
         config_off(NULL, "ops.alter");
+    if (!config_explicit(NULL, "ops.hs_cursor"))
+        config_off(NULL, "ops.hs_cursor");
     if (!config_explicit(NULL, "ops.salvage"))
         config_off(NULL, "ops.salvage");
     if (!config_explicit(NULL, "ops.verify"))
