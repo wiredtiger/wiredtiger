@@ -208,6 +208,7 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
 
     p = buffer;
     p_msg = msg_str;
+    unpacked_json_str = NULL;
 
     remain = *buffer_len;
     remain_msg = sizeof(msg_str);
