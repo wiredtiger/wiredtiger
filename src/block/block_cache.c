@@ -341,8 +341,8 @@ __wt_blkcache_get_or_check(
      * If more than the configured fraction of all file objects is likely to fit in the OS buffer
      * cache, don't use this cache.
      */
-    if (__blkcache_estimate_filesize(session) <
-      (blkcache->system_ram * 100) / blkcache->percent_file_in_os_cache) {
+    if ((__blkcache_estimate_filesize(session) * blkcache->percent_file_in_os_cache) / 100 <
+      blkcache->system_ram) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_get);
         return (WT_BLKCACHE_BYPASS);
     }
@@ -426,8 +426,8 @@ __wt_blkcache_put(WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32
      * If more than the configured fraction of the file is likely to fit into the OS buffer cache,
      * don't use this cache.
      */
-    if (__blkcache_estimate_filesize(session) <
-      (blkcache->system_ram * 100) / blkcache->percent_file_in_os_cache) {
+    if ((__blkcache_estimate_filesize(session) * blkcache->percent_file_in_os_cache) / 100 <
+      blkcache->system_ram) {
         WT_STAT_CONN_INCR(session, block_cache_bypass_put);
         return (WT_BLKCACHE_BYPASS);
     }
