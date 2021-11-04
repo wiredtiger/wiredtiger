@@ -166,7 +166,8 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
  *     Unpack a string into JSON escaped format. Can be called with null destination for sizing.
  */
 static size_t
-__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len)
+  WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     size_t len, n, nchars;
     u_char *q;
