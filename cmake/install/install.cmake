@@ -10,7 +10,7 @@ include(GNUInstallDirs)
 
 # Library installs
 
-# Define the public headers for wiredtiger library to be used when installing the target.
+# Define the wiredtiger public headers we want to export when running the install target.
 install(
     FILES ${CMAKE_BINARY_DIR}/include/wiredtiger.h ${CMAKE_SOURCE_DIR}/src/include/wiredtiger_ext.h
     DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
