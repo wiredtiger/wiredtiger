@@ -57,6 +57,14 @@ class test_hs18(wttest.WiredTigerTestCase):
         sessions[i].begin_transaction()
         self.check_value(cursors[i], values[i])
 
+    def evict_key(self, uri):
+        # Evict the update using a debug cursor
+        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
+        evict_cursor.set_key(self.create_key(1))
+        self.assertEqual(evict_cursor.search(), 0)
+        evict_cursor.reset()
+        evict_cursor.close()
+
     def test_base_scenario(self):
         uri = 'table:test_base_scenario'
         format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
@@ -99,11 +107,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Insert a bunch of contents to fill the cache
-        for i in range(2000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -118,11 +124,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Check our value is still correct.
         self.check_value(cursor2, value0)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 11000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -171,11 +175,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Check our value is still correct.
         self.check_value(cursor3, value1)
 
-        # Insert a bunch of contents to fill the cache
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -191,11 +193,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         self.check_value(cursor2, value1)
         self.check_value(cursor3, value1)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value1)
@@ -245,11 +245,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value2
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(2, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -259,11 +257,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = value4
         self.session.commit_transaction()
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10000, 11000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value3
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Check our value is still correct.
         self.check_value(cursor2, value0)
@@ -286,11 +282,6 @@ class test_hs18(wttest.WiredTigerTestCase):
                 values.append(i + 48)
             else:
                 values.append(str(i) * 10)
-
-        if self.value_format == '8t':
-            value_junk = 126 # tilde
-        else:
-            value_junk = 'aaaaa' * 100
 
         # Insert an update at timestamp 3
         self.session.begin_transaction()
@@ -316,11 +307,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 2.
         self.start_txn(sessions, cursors, values, 2)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -335,11 +324,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = values[4]
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(15))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 3):
@@ -366,11 +353,6 @@ class test_hs18(wttest.WiredTigerTestCase):
             else:
                 values.append(str(i) * 10)
 
-        if self.value_format == '8t':
-            value_junk = 126 # tilde
-        else:
-            value_junk = 'aaaaa' * 100
-
         # Insert an update at timestamp 3
         self.session.begin_transaction()
         cursor[self.create_key(1)] = values[0]
@@ -395,11 +377,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 2.
         self.start_txn(sessions, cursors, values, 2)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(1000, 10000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Commit an update without a timestamp on our original key
         self.session.begin_transaction()
@@ -433,11 +413,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         # Start a transaction that will see update 6.
         self.start_txn(sessions, cursors, values, 6)
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = value_junk
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 6):
@@ -459,11 +437,9 @@ class test_hs18(wttest.WiredTigerTestCase):
         cursor[self.create_key(1)] = values[8]
         self.session.commit_transaction('commit_timestamp=' + self.timestamp_str(5))
 
-        # Insert a bunch of other contents to trigger eviction
-        for i in range(10001, 20000):
-            self.session.begin_transaction()
-            cursor[self.create_key(i)] = values[3]
-            self.session.commit_transaction()
+        # Evict the update using a debug cursor
+        cursor.reset()
+        self.evict_key(uri)
 
         # Validate all values are visible and correct.
         for i in range(0, 7):
@@ -529,11 +505,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Evict the update using a debug cursor
         cursor.reset()
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(self.create_key(1))
-        self.assertEqual(evict_cursor.search(), 0)
-        evict_cursor.reset()
-        evict_cursor.close()
+        self.evict_key(uri)
 
         # Commit a modify without a timestamp on our original key
         self.session.begin_transaction()
@@ -557,11 +529,7 @@ class test_hs18(wttest.WiredTigerTestCase):
 
         # Evict the update using a debug cursor
         cursor.reset()
-        evict_cursor = self.session.open_cursor(uri, None, "debug=(release_evict)")
-        evict_cursor.set_key(self.create_key(1))
-        self.assertEqual(evict_cursor.search(), 0)
-        evict_cursor.reset()
-        evict_cursor.close()
+        self.evict_key(uri)
 
         # Check our values are still correct.
         for i in range(0, 5):
