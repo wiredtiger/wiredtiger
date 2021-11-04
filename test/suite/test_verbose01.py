@@ -31,11 +31,19 @@ from suite_subprocess import suite_subprocess
 from contextlib import contextmanager
 import wiredtiger, wttest
 import re
+from wtscenario import make_scenarios
 
 # Shared base class used by verbose tests.
 class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     # The maximum number of lines we will read from stdout in any given context.
-    nlines = 30000
+    nlines = 50000
+
+    format = [
+        ('json', dict(is_json=True)),
+        ('flat', dict(is_json=False)),
+    ]
+
+    scenarios = make_scenarios(format)
 
     def create_verbose_configuration(self, categories):
         if len(categories) == 0:
@@ -49,6 +57,9 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         self.cleanStdout()
         # Create a new connection with the given verbose categories.
         verbose_config = self.create_verbose_configuration(categories)
+        # Enable JSON output if required.
+        if self.is_json:
+            verbose_config += ",event_handler_json=true"
         conn = self.wiredtiger_open(self.home, verbose_config)
         # Yield the connection resource to the execution context, allowing it to perform any necessary
         # operations on the connection (for generating the expected verbose output).
