@@ -345,9 +345,6 @@ __wt_col_fix_estimate_auxiliary_space(WT_PAGE *page)
     if (WT_COL_FIX_TWS_SET(page))
         count += page->pg_fix_numtws;
 
-    /* Add 1 as a precaution, because concurrent updates or inserts can happen. */
-    count++;
-
     /*
      * Each time window record is two cells and might take up as much as 63 bytes:
      *     - 1: key cell descriptor byte

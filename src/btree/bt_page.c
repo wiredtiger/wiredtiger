@@ -470,7 +470,7 @@ __wt_col_fix_read_auxheader(
     WT_BTREE *btree;
     uint64_t dataoffset, entries;
     uint32_t auxheaderoffset, bitmapsize;
-    const uint8_t *raw, *end;
+    const uint8_t *end, *raw;
 
     btree = S2BT(session);
 
