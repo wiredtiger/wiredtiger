@@ -165,20 +165,20 @@ __wt_event_handler_set(WT_SESSION_IMPL *session, WT_EVENT_HANDLER *handler)
  * __eventv_unpack_json_str --
  *     Unpack a string into JSON escaped format. Can be called with null destination for sizing.
  */
-static void
-__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len, size_t *nchars)
+static size_t
+__eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_len)
   WT_GCC_FUNC_ATTRIBUTE((cold))
 {
-    size_t len, n;
+    size_t len, n, nchars;
     u_char *q;
-    const char *p;
+    char *p;
 
-    *nchars = 0;
+    nchars = 0;
     q = dest;
 
     for (p = src, len = src_len; len > 0; p++, --len) {
         n = __wt_json_unpack_char((u_char)*p, q, dest_len, false);
-        *nchars += n;
+        nchars += n;
         if (q != NULL) {
             dest_len -= n;
             q += n;
@@ -187,6 +187,8 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
 
     if (q != NULL)
         *q = '\0';
+
+    return (nchars);
 }
 
 /*
@@ -242,10 +244,10 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
 
     /* Escape any characters that are special for JSON. */
     msg_len = sizeof(msg_str) - remain_msg;
-    __eventv_unpack_json_str(NULL, 0, msg_str, msg_len, &unpacked_msg_len);
+    unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
     WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
-    __eventv_unpack_json_str(
-      unpacked_json_str, unpacked_msg_len, msg_str, msg_len, &unpacked_msg_len);
+    unpacked_msg_len =
+      __eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len);
 
     WT_ERROR_APPEND(p, remain, "\"msg\":\"");
     if (func != NULL)
