@@ -171,7 +171,7 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
 {
     size_t len, n, nchars;
     u_char *q;
-    char *p;
+    const char *p;
 
     nchars = 0;
     q = dest;
@@ -246,8 +246,7 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
     msg_len = sizeof(msg_str) - remain_msg;
     unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
     WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
-    unpacked_msg_len =
-      __eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len);
+    WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
 
     WT_ERROR_APPEND(p, remain, "\"msg\":\"");
     if (func != NULL)
