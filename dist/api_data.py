@@ -659,6 +659,9 @@ connection_runtime_config = [
         ]),
     Config('error_prefix', '', r'''
         prefix string for error messages'''),
+    Config('event_handler_json', 'false', r'''
+        if true, encode event handler messages in JSON format.''',
+        type='boolean'),
     Config('eviction', '', r'''
         eviction configuration options''',
         type='category', subconfig=[

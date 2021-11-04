@@ -2120,6 +2120,8 @@ struct __wt_connection {
 	 * evictions through forcing update restore eviction., a boolean flag; default \c false.}
 	 * @config{ ),,}
 	 * @config{error_prefix, prefix string for error messages., a string; default empty.}
+	 * @config{event_handler_json, if true\, encode event handler messages in JSON format., a
+	 * boolean flag; default \c false.}
 	 * @config{eviction = (, eviction configuration options., a set of related configuration
 	 * options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of
@@ -2859,6 +2861,8 @@ struct __wt_connection {
  * must also be provided to any "wt" commands used with this database., a string; default empty.}
  * @config{ ),,}
  * @config{error_prefix, prefix string for error messages., a string; default empty.}
+ * @config{event_handler_json, if true\, encode event handler messages in JSON format., a boolean
+ * flag; default \c false.}
  * @config{eviction = (, eviction configuration options., a set of related configuration options
  * defined below.}
  * @config{&nbsp;&nbsp;&nbsp;&nbsp;threads_max, maximum number of threads WiredTiger
