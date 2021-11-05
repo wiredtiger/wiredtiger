@@ -43,11 +43,11 @@ class test_verbose02(test_verbose_base):
         # settings throughout this test.
         self.close_conn()
 
-        # Test passing a single verbose category, 'api' along with the verbosity level 1. Ensuring
-        # the only verbose output generated is related to the 'api' category.
+        # Test passing a single verbose category, 'api' along with the verbosity level
+        # WT_VERBOSE_DEBUG (1). Ensuring the only verbose output generated is related to the 'api'
+        # category.
         with self.expect_verbose(['api:1'], ['WT_VERB_API']) as conn:
-            # Perform a set of simple API operations (table creations and cursor operations) to
-            # generate verbose API messages.
+            # Perform a set of simple API operations to generate verbose API messages.
             uri = 'table:test_verbose01_api'
             session = conn.open_session()
             session.create(uri, self.collection_cfg)
@@ -56,8 +56,8 @@ class test_verbose02(test_verbose_base):
             c.close()
             session.close()
 
-        # There is no WT_VERB_API messages used with the WT_VERBOSE_INFO level for now, hence we
-        # don't expect any output.
+        # At this time, there is no verbose messages with the category WT_VERB_API and the verbosity
+        # level WT_VERBOSE_INFO (0), hence we don't expect any output.
         with self.expect_verbose(['api:0'], ['WT_VERB_API'], False) as conn:
             uri = 'table:test_verbose01_api'
             session = conn.open_session()
@@ -68,8 +68,8 @@ class test_verbose02(test_verbose_base):
             session.close()
 
         # Test passing another single verbose category, 'compact' with different verbosity levels.
-        # Since the category WT_VERB_COMPACT is used with verbose message of verbosity level
-        # WT_VERBOSE_INFO and WT_VERBOSE_DEBUG, we can test them both.
+        # Since there are verbose message with the category WT_VERB_COMPACT and the verbosity levels
+        #  WT_VERBOSE_INFO (0) and WT_VERBOSE_DEBUG (1), we can test them both.
         cfgs = ['compact:0', 'compact:1']
         for cfg in cfgs:
             with self.expect_verbose([cfg], ['WT_VERB_COMPACT']) as conn:
@@ -92,9 +92,9 @@ class test_verbose02(test_verbose_base):
         cfgs = ['api:1,version', 'api,version:1', 'api:1,version:1']
         for cfg in cfgs:
             with self.expect_verbose([cfg], ['WT_VERB_API', 'WT_VERB_VERSION']) as conn:
-                # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
-                # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
-                # category.
+                # Perform a set of simple API operations (table creations and cursor operations) to
+                # generate verbose API messages. Beyond opening the connection resource, we
+                # shouldn't need to do anything special for the version category.
                 uri = 'table:test_verbose01_multiple'
                 session = conn.open_session()
                 session.create(uri, self.collection_cfg)
@@ -102,7 +102,7 @@ class test_verbose02(test_verbose_base):
                 c['multiple'] = 'multiple'
                 c.close()
 
-    # Test use cases passing invalid verbose levels, ensuring the appropriate error message is
+    # Test use cases passing invalid verbosity levels, ensuring the appropriate error message is
     # raised.
     def test_verbose_level_invalid(self):
         self.close_conn()
@@ -110,7 +110,7 @@ class test_verbose02(test_verbose_base):
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                 lambda:self.wiredtiger_open(self.home, 'verbose=[api:-1]'),
                 '/Failed to parse verbose option \'api\'/')
-        # Any value greater than WT_VERBOSE_DEBUG is invalid.
+        # Any value greater than WT_VERBOSE_DEBUG (1) is invalid.
         self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
                 lambda:self.wiredtiger_open(self.home, 'verbose=[api:2]'),
                 '/Failed to parse verbose option \'api\'/')
