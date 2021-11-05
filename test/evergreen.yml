@@ -3808,8 +3808,8 @@ buildvariants:
       --enable-zlib
   tasks:
     - name: compile
-    - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-base-test-stress
+    - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-search-near-stress
 
 - name: package

@@ -18,13 +18,13 @@ workload_generator=
     ),
     insert_config=
     (
-        key_size=5,
+        key_size=50,
         op_rate=10ms,
         thread_count=10
     ),
     read_config=
     (
-        key_size=5,
+        key_size=50,
         op_rate=10ms,
         thread_count=10
     )
