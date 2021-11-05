@@ -8,8 +8,8 @@
 
 # define_wiredtiger_library(target type)
 # A helper that defines a wiredtiger library target. This defining a set of common targets and properties we
-# want to associated to any given 'libwiredtiger' target. Having this as a macro allows us to de-duplicate common
-# definitions if want to create multiple versions of libwiredtiger i.e. static and shared builds. Note: this
+# want to be associated to any given 'libwiredtiger' target. Having this as a macro allows us to de-duplicate common
+# definitions when creating multiple versions of libwiredtiger i.e. static and shared builds. Note: this
 # macro assumes you only call it once per libwiredtiger flavour (e.g. only one 'static' definition), use carefully.
 #   target - Name of the libwiredtiger target.
 #   type - Library type of wiredtiger target e.g. STATIC, SHARED or MODULE.
