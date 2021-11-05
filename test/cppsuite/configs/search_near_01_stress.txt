@@ -13,10 +13,14 @@ workload_generator=
     (
         collection_count=3,
         key_count_per_collection=100,
-        key_size=50,
+        key_size=5,
     ),
     read_config=
     (
+        # The key size parameter is used to generate the prefix 
+        # used in search_near. Use a smaller size to increase
+        # the chance to match an existing key.
+        key_size=3,
         op_rate=10ms,
         thread_count=10
     )
