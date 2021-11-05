@@ -776,7 +776,10 @@ struct __wt_session {
 	 * @snippet ex_all.c Close a session
 	 *
 	 * @param session the session handle
-	 * @configempty{WT_SESSION.close, see dist/api_data.py}
+	 * @configstart{WT_SESSION.close, see dist/api_data.py}
+	 * @config{release_evict_all, configure the session to evict all the objects it currently
+	 * points to., a boolean flag; default \c false.}
+	 * @configend
 	 * @errors
 	 */
 	int __F(close)(WT_HANDLE_CLOSED(WT_SESSION) *session,

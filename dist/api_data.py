@@ -1360,7 +1360,12 @@ methods = {
         type='boolean', undoc=True),
 ]),
 
-'WT_SESSION.close' : Method([]),
+'WT_SESSION.close' : Method([
+    Config('release_evict_all', 'false', r'''
+        configure the session to evict all the objects it currently points
+        to.''',
+        type='boolean')
+]),
 
 'WT_SESSION.compact' : Method([
     Config('timeout', '1200', r'''

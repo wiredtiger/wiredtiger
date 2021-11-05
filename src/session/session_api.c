@@ -263,10 +263,22 @@ __session_close_cached_cursors(WT_SESSION_IMPL *session)
 static int
 __session_close(WT_SESSION *wt_session, const char *config)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
     session = (WT_SESSION_IMPL *)wt_session;
+
+    /*
+     * If the session.close is configured to evict all the objects, set the flag.
+     */
+    if ((ret = __wt_config_getones(session, config, "release_evict_all", &cval)) == 0) {
+        if (cval.val) {
+            F_SET(session, WT_SESSION_CLOSE_RELEASE_EVICT_ALL);
+        } else
+            F_CLR(session, WT_SESSION_CLOSE_RELEASE_EVICT_ALL);
+    } else
+        WT_RET_NOTFOUND_OK(ret);
 
     SESSION_API_CALL_PREPARE_ALLOWED(session, close, config, cfg);
     WT_UNUSED(cfg);
@@ -287,6 +299,8 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
 {
     WT_CONNECTION_IMPL *conn;
     WT_DECL_RET;
+    WT_PAGE *page;
+    WT_REF *next_walk;
 
     conn = S2C(session);
 
@@ -302,6 +316,24 @@ __wt_session_close_internal(WT_SESSION_IMPL *session)
      */
     if (conn->txn_global.txn_shared_list != NULL)
         __wt_txn_release_snapshot(session);
+
+    /*
+     * If the release evict all flag is set, we want to evict the object currently pointed to if it
+     * is still referenced.
+     */
+    next_walk = NULL;
+    if (F_ISSET(session, WT_SESSION_CLOSE_RELEASE_EVICT_ALL) && session->dhandle != NULL &&
+      WT_DHANDLE_BTREE(session->dhandle)) {
+        /* Walk the object, evicting it page by page. We only need to evict the leaf pages. */
+        while (__wt_tree_walk(
+                 session, &next_walk, WT_READ_CACHE | WT_READ_NO_EVICT | WT_READ_NO_WAIT) == 0 &&
+          next_walk != NULL) {
+            page = next_walk->page;
+            if (page->type == WT_PAGE_ROW_INT || page->type == WT_PAGE_COL_INT)
+                continue;
+            WT_IGNORE_RET(__wt_page_release_evict(session, next_walk, 0));
+        }
+    }
 
     /*
      * Close all open cursors. We don't need to explicitly close the session's pointer to the
