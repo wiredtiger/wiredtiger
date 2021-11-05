@@ -38,6 +38,7 @@ import re
 # of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style
 # uses of the interface are still supported.
 class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
+    collection_cfg = 'key_format=S,value_format=S'
     # The maximum number of lines we will read from stdout in any given context.
     nlines = 30000
 
@@ -90,7 +91,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
             # messages.
             uri = 'table:test_verbose01_api'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['api'] = 'api'
             c.close()
@@ -104,7 +105,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
             # generate verbose messages.
             uri = 'table:test_verbose01_compact'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             session.compact(uri)
             session.close()
 
@@ -119,7 +120,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
             # category.
             uri = 'table:test_verbose01_multiple'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['multiple'] = 'multiple'
             c.close()
@@ -133,7 +134,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
             # are generated.
             uri = 'table:test_verbose01_none'
             session = conn.open_session()
-            session.create(uri, 'key_format=S,value_format=S')
+            session.create(uri, self.collection_cfg)
             c = session.open_cursor(uri)
             c['none'] = 'none'
             c.close()
