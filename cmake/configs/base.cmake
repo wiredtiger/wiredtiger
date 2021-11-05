@@ -38,7 +38,7 @@ config_bool(
 
 config_string(
     WT_BUFFER_ALIGNMENT_DEFAULT
-    "WiredTiger buffer boundary aligment"
+    "WiredTiger buffer boundary alignment"
     DEFAULT 0
 )
 
