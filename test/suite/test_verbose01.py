@@ -48,7 +48,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         return 'verbose=[' + ','.join(categories) + ']'
 
     @contextmanager
-    def expect_verbose(self, categories, patterns):
+    def expect_verbose(self, categories, patterns, expect_output = True):
         # Clean the stdout resource before yielding the context to the execution block. We only want to
         # capture the verbose output of the using context (ignoring any previous output up to this point).
         self.cleanStdout()
@@ -64,9 +64,12 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         # to ensure we've only generated verbose messages for the expected categories.
         verbose_messages = output.splitlines()
 
-        # If no categories were passed, we aren't expecting any output.
-        if len(categories) == 0:
+        # Check if we are expecting any output. We should not expect anything if no categories were
+        # passed.
+        if len(categories) == 0 or not expect_output:
             self.assertEqual(len(verbose_messages), 0)
+        else:
+            self.assertGreater(len(verbose_messages), 0)
 
         # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
         verb_pattern = re.compile('|'.join(patterns))
@@ -85,7 +88,7 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         self.close_conn()
 
         # Test passing a single verbose category, 'api'. Ensuring the only verbose output generated
-        # is related to the 'api' category. The verbosity level WT_VERBOSE_INFO will be tested
+        # is related to the 'api' category. The verbosity level WT_VERBOSE_INFO is tested
         # separately.
         cfgs = ['api', 'api:1']
         for cfg in cfgs:
@@ -99,6 +102,17 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
                 c['api'] = 'api'
                 c.close()
                 session.close()
+
+        # There is no WT_VERB_API messages used with the WT_VERBOSE_INFO level, hence we don't
+        # expect any output.
+        with self.expect_verbose(['api:0'], ['WT_VERB_API'], False) as conn:
+            uri = 'table:test_verbose01_api'
+            session = conn.open_session()
+            session.create(uri, self.collection_cfg)
+            c = session.open_cursor(uri)
+            c['api'] = 'api'
+            c.close()
+            session.close()
 
         # Test passing another single verbose category, 'compact'. Ensuring the only verbose output generated is related to
         # the 'compact' category.
