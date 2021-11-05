@@ -84,46 +84,53 @@ class test_verbose01(wttest.WiredTigerTestCase, suite_subprocess):
         # this test.
         self.close_conn()
 
-        # Test passing a single verbose category, 'api'. Ensuring the only verbose output generated is related to
-        # the 'api' category.
-        with self.expect_verbose(['api'], ['WT_VERB_API']) as conn:
-            # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
-            # messages.
-            uri = 'table:test_verbose01_api'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['api'] = 'api'
-            c.close()
-            session.close()
+        # Test passing a single verbose category, 'api'. Ensuring the only verbose output generated
+        # is related to the 'api' category. The verbosity level WT_VERBOSE_INFO will be tested
+        # separately.
+        cfgs = ['api', 'api:1']
+        for cfg in cfgs:
+            with self.expect_verbose([cfg], ['WT_VERB_API']) as conn:
+                # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
+                # messages.
+                uri = 'table:test_verbose01_api'
+                session = conn.open_session()
+                session.create(uri, self.collection_cfg)
+                c = session.open_cursor(uri)
+                c['api'] = 'api'
+                c.close()
+                session.close()
 
         # Test passing another single verbose category, 'compact'. Ensuring the only verbose output generated is related to
         # the 'compact' category.
-        with self.expect_verbose(['compact'], ['WT_VERB_COMPACT']) as conn:
-            # Create a simple table to invoke compaction on. We aren't doing anything interesting with the table
-            # such that the data source will be compacted. Rather we want to simply invoke a compaction pass to
-            # generate verbose messages.
-            uri = 'table:test_verbose01_compact'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            session.compact(uri)
-            session.close()
+        cfgs = ['compact', 'compact:0', 'compact:1']
+        for cfg in cfgs:
+            with self.expect_verbose([cfg], ['WT_VERB_COMPACT']) as conn:
+                # Create a simple table to invoke compaction on. We aren't doing anything interesting with the table
+                # such that the data source will be compacted. Rather we want to simply invoke a compaction pass to
+                # generate verbose messages.
+                uri = 'table:test_verbose01_compact'
+                session = conn.open_session()
+                session.create(uri, self.collection_cfg)
+                session.compact(uri)
+                session.close()
 
     # Test use cases passing multiple verbose categories, ensuring we only produce verbose output for specified categories.
     def test_verbose_multiple(self):
         self.close_conn()
         # Test passing multiple verbose categories, being 'api' & 'version'. Ensuring the only verbose output generated
         # is related to those two categories.
-        with self.expect_verbose(['api','version'], ['WT_VERB_API', 'WT_VERB_VERSION']) as conn:
-            # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
-            # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
-            # category.
-            uri = 'table:test_verbose01_multiple'
-            session = conn.open_session()
-            session.create(uri, self.collection_cfg)
-            c = session.open_cursor(uri)
-            c['multiple'] = 'multiple'
-            c.close()
+        cfgs = ['api,version', 'api:1,version', 'api,version:1', 'api:1,version:1']
+        for cfg in cfgs:
+            with self.expect_verbose([cfg], ['WT_VERB_API', 'WT_VERB_VERSION']) as conn:
+                # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
+                # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
+                # category.
+                uri = 'table:test_verbose01_multiple'
+                session = conn.open_session()
+                session.create(uri, self.collection_cfg)
+                c = session.open_cursor(uri)
+                c['multiple'] = 'multiple'
+                c.close()
 
     # Test use cases passing no verbose categories, ensuring we don't produce unexpected verbose output.
     def test_verbose_none(self):
