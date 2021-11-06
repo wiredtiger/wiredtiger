@@ -152,18 +152,5 @@ class test_verbose01(test_verbose_base):
                 lambda:self.wiredtiger_open(self.home, 'verbose=[test_verbose_invalid]'),
                 '/\'test_verbose_invalid\' not a permitted choice for key \'verbose\'/')
 
-    # Test use cases passing invalid verbose levels, ensuring the appropriate error message is
-    # raised.
-    def test_verbose_level_invalid(self):
-        self.close_conn()
-        # Any negative value is invalid.
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-                lambda:self.wiredtiger_open(self.home, 'verbose=[api:-1]'),
-                '/Failed to parse verbose option \'api\'/')
-        # Any value greater than WT_VERBOSE_DEBUG is invalid.
-        self.assertRaisesHavingMessage(wiredtiger.WiredTigerError,
-                lambda:self.wiredtiger_open(self.home, 'verbose=[api:2]'),
-                '/Failed to parse verbose option \'api\'/')
-
 if __name__ == '__main__':
     wttest.run()
