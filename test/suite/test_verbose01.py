@@ -77,6 +77,7 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
         verb_pattern = re.compile('|'.join(patterns))
+        # To avoid truncated messages, slice out the last message string in the
         for line in verbose_messages[:-1]:
             self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
 
