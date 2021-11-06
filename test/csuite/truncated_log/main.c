@@ -218,8 +218,7 @@ fill_db(void)
     }
     if (fclose(fp) != 0)
         testutil_die(errno, "fclose");
-    exit(0);
-    /* NOTREACHED */
+    _exit(EXIT_SUCCESS);
 }
 
 extern int __wt_optind;
@@ -267,7 +266,7 @@ main(int argc, char *argv[])
 
     if (pid == 0) { /* child */
         fill_db();
-        _exit(EXIT_SUCCESS);
+        /* NOTREACHED */
     }
 
     /* parent */
