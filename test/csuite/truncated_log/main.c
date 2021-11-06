@@ -263,12 +263,11 @@ main(int argc, char *argv[])
     /*
      * Fork a child to do its work. Wait for it to exit.
      */
-    if ((pid = fork()) < 0)
-        testutil_die(errno, "fork");
+    testutil_assert((pid = fork()) >= 0);
 
     if (pid == 0) { /* child */
         fill_db();
-        return (EXIT_SUCCESS);
+        _exit(EXIT_SUCCESS);
     }
 
     /* parent */

@@ -1211,12 +1211,11 @@ main(int argc, char *argv[])
             memset(&sa, 0, sizeof(sa));
             sa.sa_handler = handler;
             testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-            if ((pid = fork()) < 0)
-                testutil_die(errno, "fork");
+            testutil_assert((pid = fork()) >= 0);
         }
         if (pid == 0) { /* child, or populate_only */
             fill_db(nth, datasize, method, flags);
-            return (EXIT_SUCCESS);
+            _exit(EXIT_SUCCESS);
         }
 
         /* parent */
