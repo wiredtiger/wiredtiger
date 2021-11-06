@@ -346,7 +346,7 @@ fill_db(uint32_t nth)
      */
     free(thr);
     free(td);
-    exit(EXIT_SUCCESS);
+    _exit(EXIT_SUCCESS);
 }
 
 extern int __wt_optind;
@@ -698,7 +698,7 @@ main(int argc, char *argv[])
 
         if (pid == 0) { /* child */
             fill_db(nth);
-            _exit(EXIT_SUCCESS);
+            /* NOTREACHED */
         }
 
         /* parent */
