@@ -647,8 +647,9 @@ variables:
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
-# race-condition-stress-sanitizer-test. The smoke and recovery tests run in a loop,
-# with the number of runs adjusted to provide aproximately six hours of testing.
+# race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
+# the number of runs adjusted to provide aproximately six hours of testing.  There
+# is just one much shorter run of the smoke tests
 #########################################################################################
 
   - &format-stress-test
@@ -673,7 +674,7 @@ variables:
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
 
   - &format-stress-smoke-test
-    exec_timeout_secs: 25200
+    exec_timeout_secs: 3600
     commands:
       - func: "get project"
       - func: "compile wiredtiger with builtins"
@@ -682,7 +683,7 @@ variables:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
 
   - &format-stress-sanitizer-smoke-test
-    exec_timeout_secs: 25200
+    exec_timeout_secs: 3600
     commands:
       - func: "get project"
       - func: "compile wiredtiger address sanitizer"
@@ -4047,7 +4048,6 @@ buildvariants:
   - name: unit-test
   - name: format-wtperf-test
   - name: ".stress-test-ppc-1"
-  - name: ".stress-test-ppc-2"
 
 - name: ubuntu1804-ppc-cmake
   display_name: "* Ubuntu 18.04 PPC CMake"
