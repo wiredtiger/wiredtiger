@@ -61,10 +61,10 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
 
         # Check if we are expecting any output. We should not expect anything if no categories were
         # passed.
-        if len(categories) == 0 or not expect_output:
-            self.assertEqual(len(verbose_messages), 0)
-        else:
+        if expect_output:
             self.assertGreater(len(verbose_messages), 0)
+        else:
+            self.assertEqual(len(verbose_messages), 0)
 
         # Test the contents of each verbose message, ensuring it satisfies the expected pattern.
         verb_pattern = re.compile('|'.join(patterns))
@@ -134,7 +134,7 @@ class test_verbose01(test_verbose_base):
     def test_verbose_none(self):
         self.close_conn()
         # Testing passing an empty set of categories. Ensuring no verbose output is generated.
-        with self.expect_verbose([], []) as conn:
+        with self.expect_verbose([], [], False) as conn:
             # Perform a set of simple API operations (table creations and cursor operations). Ensuring no verbose messages
             # are generated.
             uri = 'table:test_verbose01_none'
