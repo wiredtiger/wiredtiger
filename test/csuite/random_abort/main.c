@@ -694,7 +694,7 @@ main(int argc, char *argv[])
         memset(&sa, 0, sizeof(sa));
         sa.sa_handler = handler;
         testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-        testutil_assert((pid = fork()) >= 0);
+        testutil_checksys((pid = fork()) < 0);
 
         if (pid == 0) { /* child */
             fill_db(nth);
@@ -738,10 +738,8 @@ main(int argc, char *argv[])
          * here.
          */
         printf("Kill child\n");
-        if (kill(pid, SIGKILL) != 0)
-            testutil_die(errno, "kill");
-        if (waitpid(pid, &status, 0) == -1)
-            testutil_die(errno, "waitpid");
+        testutil_checksys(kill(pid, SIGKILL) != 0);
+        testutil_checksys(waitpid(pid, &status, 0) == -1);
     }
     /*
      * !!! If we wanted to take a copy of the directory before recovery,

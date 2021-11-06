@@ -454,13 +454,13 @@ run_process(TEST_OPTS *opts, const char *prog, char *argv[], int *statusp)
             printf("%s ", *arg);
         printf("\n");
     }
-    testutil_assert((pid = fork()) >= 0);
+    testutil_checksys((pid = fork()) < 0);
     if (pid == 0) {
         (void)execv(prog, argv);
         _exit(EXIT_FAILURE);
     }
 
-    testutil_assert(waitpid(pid, statusp, 0) != -1);
+    testutil_checksys(waitpid(pid, statusp, 0) == -1);
 }
 
 /*

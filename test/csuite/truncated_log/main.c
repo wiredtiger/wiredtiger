@@ -262,7 +262,7 @@ main(int argc, char *argv[])
     /*
      * Fork a child to do its work. Wait for it to exit.
      */
-    testutil_assert((pid = fork()) >= 0);
+    testutil_checksys((pid = fork()) < 0);
 
     if (pid == 0) { /* child */
         fill_db();
@@ -271,8 +271,7 @@ main(int argc, char *argv[])
 
     /* parent */
     /* Wait for child to kill itself. */
-    if (waitpid(pid, &status, 0) == -1)
-        testutil_die(errno, "waitpid");
+    testutil_checksys(waitpid(pid, &status, 0) == -1);
 
     /*
      * !!! If we wanted to take a copy of the directory before recovery,

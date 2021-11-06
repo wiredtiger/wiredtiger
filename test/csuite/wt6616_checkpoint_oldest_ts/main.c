@@ -312,7 +312,7 @@ main(int argc, char *argv[])
     memset(&sa, 0, sizeof(sa));
     sa.sa_handler = handler;
     testutil_checksys(sigaction(SIGCHLD, &sa, NULL));
-    testutil_assert((pid = fork()) >= 0);
+    testutil_checksys((pid = fork()) < 0);
 
     if (pid == 0) { /* child */
         run_workload();
