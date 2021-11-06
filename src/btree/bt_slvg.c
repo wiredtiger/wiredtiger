@@ -616,7 +616,7 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
         case WT_COL_FIX_VERSION_TS:
             /* Visit the time windows. */
             cell_num = 0;
-            WT_CELL_FOREACH_FIX (session, dsk, &auxhdr, unpack) {
+            WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
                 if (cell_num % 2 == 1) {
                     if (WT_TIME_WINDOW_IS_EMPTY(&unpack.tw))
                         continue;

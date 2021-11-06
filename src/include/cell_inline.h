@@ -1189,7 +1189,7 @@ __wt_page_cell_data_ref(WT_SESSION_IMPL *session, WT_PAGE *page, void *unpack_ar
              __cell += (unpack).__len, --__i) {                                                 \
             __wt_cell_unpack_kv(session, dsk, (WT_CELL *)__cell, &(unpack));
 
-#define WT_CELL_FOREACH_FIX(session, dsk, aux, unpack)                                     \
+#define WT_CELL_FOREACH_FIX_TIMESTAMPS(session, dsk, aux, unpack)                          \
     do {                                                                                   \
         uint32_t __i;                                                                      \
         uint8_t *__cell;                                                                   \

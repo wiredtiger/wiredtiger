@@ -732,7 +732,7 @@ __debug_dsk_col_fix(WT_DBG *ds, const WT_PAGE_HEADER *dsk)
         /* Print something useful instead of crashing or failing. */
         WT_RET(ds->f(ds, "page is corrupt: offset to time windows is past end of page"));
     else if (auxhdr.version == WT_COL_FIX_VERSION_TS) {
-        WT_CELL_FOREACH_FIX (ds->session, dsk, &auxhdr, unpack)
+        WT_CELL_FOREACH_FIX_TIMESTAMPS (ds->session, dsk, &auxhdr, unpack)
             WT_RET(__debug_cell_kv(ds, NULL, dsk->type, NULL, &unpack));
         WT_CELL_FOREACH_END;
     }

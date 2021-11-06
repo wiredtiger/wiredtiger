@@ -554,7 +554,7 @@ __inmem_col_fix(WT_SESSION_IMPL *session, WT_PAGE *page, bool *preparedp, size_t
 
         /* Walk the entries to build the index. */
         entry_num = 0;
-        WT_CELL_FOREACH_FIX (session, dsk, &auxhdr, unpack) {
+        WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
             if (unpack.type == WT_CELL_KEY) {
                 p8 = unpack.data;
                 /* The array is attached to the page, so we don't need to free it on error here. */

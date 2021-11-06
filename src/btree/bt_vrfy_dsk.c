@@ -55,7 +55,7 @@ static int __verify_dsk_row_leaf(
     for ((cell) = WT_PAGE_HEADER_BYTE(S2BT(session), dsk), (i) = (dsk)->u.entries; (i) > 0; \
          (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
-#define WT_CELL_FOREACH_FIX_VRFY(session, dsk, aux, cell, unpack, i)                       \
+#define WT_CELL_FOREACH_FIX_TIMESTAMPS_VRFY(session, dsk, aux, cell, unpack, i)            \
     for ((cell) = (WT_CELL *)((uint8_t *)(dsk) + (aux)->offset), (i) = (aux)->entries * 2; \
          (i) > 0; (cell) = (WT_CELL *)((uint8_t *)(cell) + (unpack)->__len), --(i))
 
@@ -758,7 +758,7 @@ __verify_dsk_col_fix(
           __wt_page_type_string(dsk->type), tag, auxhdr.entries, dsk->u.entries);
 
     cell_num = 0;
-    WT_CELL_FOREACH_FIX_VRFY (session, dsk, &auxhdr, cell, unpack, i) {
+    WT_CELL_FOREACH_FIX_TIMESTAMPS_VRFY (session, dsk, &auxhdr, cell, unpack, i) {
         ++cell_num;
 
         /* Carefully unpack the cell. */
