@@ -622,7 +622,7 @@ fill_db(uint32_t nth, uint32_t datasize, const char *method, uint32_t flags)
      */
     free(thr);
     free(td);
-    exit(EXIT_SUCCESS);
+    _exit(EXIT_SUCCESS);
 }
 
 /*
@@ -1215,7 +1215,7 @@ main(int argc, char *argv[])
         }
         if (pid == 0) { /* child, or populate_only */
             fill_db(nth, datasize, method, flags);
-            _exit(EXIT_SUCCESS);
+            /* NOTREACHED */
         }
 
         /* parent */
