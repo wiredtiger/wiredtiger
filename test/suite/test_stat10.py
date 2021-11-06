@@ -113,15 +113,6 @@ class test_stat10(wttest.WiredTigerTestCase):
         evict_cursor.close()
         self.session.rollback_transaction()
 
-    # Look for a given stat.
-    def getstat(self, statcursor, stat):
-        statcursor.reset()
-        for id, desc, valstr, val in statcursor:
-            self.prout("*** {}, {}, {}, {}".format(id, desc, valstr, val))
-            if desc == stat:
-                return val
-        self.assertTrue(False, "Did not find stat {}".format(stat))
-
     def test_tree_stats(self):
         format = "key_format={},value_format={}".format(self.key_format, self.value_format)
         self.session.create(self.uri, format)

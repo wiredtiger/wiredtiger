@@ -47,15 +47,8 @@ class test_prepare_cursor02(wttest.WiredTigerTestCase):
 
     scenarios = make_scenarios(types, keyfmt)
 
-    def skip(self):
-        return self.keyfmt == 'r' and \
-            (self.ds.is_lsm() or self.uri == 'lsm')
-
     # Test cursor navigate (next/prev) with prepared transactions.
     def test_cursor_navigate_prepare_transaction(self):
-        if self.skip():
-            self.assertEqual(0, 1)
-            return
 
         # Build an object.
         uri = self.uri + ':test_prepare_cursor02'

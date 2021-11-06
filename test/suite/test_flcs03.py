@@ -35,9 +35,10 @@ from wtscenario import make_scenarios
 # Test various cases associated with the location of the end of the table.
 #
 # FUTURE: it would be nice to pin the page to prevent reconciliation in various
-# places, to make sure that we're testing on in-memory update records when we
-# intend to be. (Testing on an in-memory database does not have that effect,
-# but does have others that are worth checking in on.)
+# places, to make sure that we're testing on in-memory update records when we intend
+# to be. (We do test on an in-memory database, but that isn't sufficient by itself;
+# pages are still reconciled and that can eliminate the update configuration we're
+# trying to test.
 class test_flcs03(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 

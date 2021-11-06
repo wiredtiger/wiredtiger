@@ -46,7 +46,7 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
     session_config = 'isolation=snapshot, '
 
     format_values = [
-        ('column-fx', dict(key_format='r', value_format='8t')),
+        ('column-fix', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='i')),
         ('integer_row', dict(key_format='i', value_format='i')),
     ]

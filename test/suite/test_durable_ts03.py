@@ -95,8 +95,6 @@ class test_durable_ts03(wttest.WiredTigerTestCase):
         self.assertEquals(cursor.reset(), 0)
         session.begin_transaction('read_timestamp=' + self.timestamp_str(150))
         for key, value in cursor:
-            if value != valueA:
-                self.prout("Oops: {}".format(key))
             self.assertEqual(value, valueA)
         session.commit_transaction()
 

@@ -156,7 +156,6 @@ class test_salvage(wttest.WiredTigerTestCase, suite_subprocess):
         i = -1
         correct = 0
         for gotkey, gotval in cursor:
-            #self.prout("got {} -> {}".format(gotkey, gotval))
             i += 1
             wantkey = self.nextkey(wantkey, i)
             if gotkey != wantkey:
