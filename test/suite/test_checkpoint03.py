@@ -45,13 +45,13 @@ class test_checkpoint03(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablename
     session_config = 'isolation=snapshot, '
 
-    key_format_values = [
+    format_values = [
         ('column-fx', dict(key_format='r', value_format='8t')),
         ('column', dict(key_format='r', value_format='i')),
         ('integer_row', dict(key_format='i', value_format='i')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def get_stat(self, stat):
         stat_cursor = self.session.open_cursor('statistics:')

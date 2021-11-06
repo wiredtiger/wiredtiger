@@ -38,7 +38,7 @@ from wtscenario import make_scenarios
 class test_rollback_to_stable17(wttest.WiredTigerTestCase):
     session_config = 'isolation=snapshot'
 
-    key_format_values = [
+    format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
         ('integer_row', dict(key_format='i', value_format='S')),
@@ -49,7 +49,7 @@ class test_rollback_to_stable17(wttest.WiredTigerTestCase):
         ('inmem', dict(in_memory=True))
     ]
 
-    scenarios = make_scenarios(key_format_values, in_memory_values)
+    scenarios = make_scenarios(format_values, in_memory_values)
 
     def conn_config(self):
         config = 'cache_size=200MB,statistics=(all)'

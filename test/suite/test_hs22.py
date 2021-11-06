@@ -36,13 +36,13 @@ class test_hs22(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
-    key_format_values = [
+    format_values = [
         ('column', dict(key_format='r', key1=1, key2=2, value_format='S')),
         ('column-fix', dict(key_format='r', key1=1, key2=2, value_format='8t')),
         ('string-row', dict(key_format='S', key1=str(0), key2=str(1), value_format='S')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def test_onpage_out_of_order_timestamp_update(self):
         uri = 'table:test_hs22'

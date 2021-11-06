@@ -46,12 +46,12 @@ class test_txn14(wttest.WiredTigerTestCase, suite_subprocess):
         ('write', dict(sync='off')),
         ('sync', dict(sync='on')),
     ]
-    key_format_values = [
+    format_values = [
         ('integer-row', dict(key_format='i', value_format='i')),
         ('column', dict(key_format='r', value_format='i')),
         ('column-fix', dict(key_format='r', value_format='8t')),
     ]
-    scenarios = make_scenarios(sync_list, key_format_values)
+    scenarios = make_scenarios(sync_list, format_values)
 
     def mkvalue(self, i):
         if self.value_format == '8t':

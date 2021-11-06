@@ -41,12 +41,12 @@ class test_txn26(wttest.WiredTigerTestCase):
     conn_config = 'cache_size=50MB'
     session_config = 'isolation=snapshot'
 
-    key_format_values = [
+    format_values = [
         ('string-row', dict(key_format='S', value_format='S', key=str(0))),
         ('column', dict(key_format='r', value_format='S', key=16)),
         ('column-fix', dict(key_format='r', value_format='8t', key=16)),
     ]
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def test_commit_larger_than_active_timestamp(self):
         if not wiredtiger.diagnostic_build():

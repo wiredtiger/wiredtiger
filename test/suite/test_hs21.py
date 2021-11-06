@@ -47,13 +47,13 @@ class test_hs21(wttest.WiredTigerTestCase):
     numfiles = 10
     nrows = 1000
 
-    key_format_values = [
+    format_values = [
         ('column', dict(key_format='r', key1=1, key2=2, value_format='S')),
         ('column-fix', dict(key_format='r', key1=1, key2=2, value_format='8t')),
         ('string-row', dict(key_format='S', key1=str(0), key2=str(1), value_format='S')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def large_updates(self, uri, value, ds, nrows, commit_ts):
         # Update a large number of records, we'll hang if the history store table isn't working.

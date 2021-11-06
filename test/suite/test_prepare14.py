@@ -43,13 +43,13 @@ class test_prepare14(wttest.WiredTigerTestCase):
         ('inmem', dict(in_memory=True))
     ]
 
-    key_format_values = [
+    format_values = [
         ('column', dict(key_format='r', value_format='S')),
         ('column_fix', dict(key_format='r', value_format='8t')),
         ('integer_row', dict(key_format='i', value_format='S')),
     ]
 
-    scenarios = make_scenarios(in_memory_values, key_format_values)
+    scenarios = make_scenarios(in_memory_values, format_values)
 
     def conn_config(self):
         config = 'cache_size=50MB'
