@@ -874,8 +874,10 @@ __rec_split_chunk_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_CHUNK *
  */
 int
 __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page, uint64_t recno,
-  uint64_t primary_size, uint64_t auxiliary_size)
+  uint64_t primary_size, uint32_t auxiliary_size)
 {
+    /* FUTURE: primary_size should probably also be 32 bits. */
+
     WT_BM *bm;
     WT_BTREE *btree;
     WT_REC_CHUNK *chunk;
@@ -1161,7 +1163,7 @@ __wt_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
     WT_BTREE *btree;
     size_t aux_first_free, corrected_page_size, first_free, inuse;
 
-    aux_first_free = 0; /* for gcc */
+    aux_first_free = 0; /* gcc -Werror=maybe-uninitialized, with -O3 */
     btree = S2BT(session);
     bm = btree->bm;
 
@@ -1477,9 +1479,9 @@ __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
     /* Set the number of entries and size for the just finished chunk. */
     r->cur_ptr->entries = r->entries;
     if (r->page->type == WT_PAGE_COL_FIX && (r->cur_ptr->auxentries = r->aux_entries) != 0)
-        r->cur_ptr->image.size = WT_PTRDIFF32(r->aux_first_free, r->cur_ptr->image.mem);
+        r->cur_ptr->image.size = WT_PTRDIFF(r->aux_first_free, r->cur_ptr->image.mem);
     else
-        r->cur_ptr->image.size = WT_PTRDIFF32(r->first_free, r->cur_ptr->image.mem);
+        r->cur_ptr->image.size = WT_PTRDIFF(r->first_free, r->cur_ptr->image.mem);
 
     /*
      *  Potentially reconsider a previous chunk.

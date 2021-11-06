@@ -459,7 +459,7 @@ __wt_rec_col_fix(
     WT_PAGE *page;
     WT_UPDATE *upd;
     WT_UPDATE_SELECT upd_select;
-    uint64_t curstartrecno, rawbitmapsize, origstartrecno, recno;
+    uint64_t curstartrecno, i, rawbitmapsize, origstartrecno, recno;
     uint32_t auxspace, bitmapsize, entry, maxrecs, nrecs, numtws, tw;
     uint8_t hs_recno_key_buf[WT_INTPACK64_MAXSIZE], *p, val;
     bool hs_clear;
@@ -552,12 +552,12 @@ __wt_rec_col_fix(
         /* We shouldn't both have missing records to insert and records to skip. */
         WT_ASSERT(session, salvage->missing == 0 || salvage->skip == 0);
 
-        if (page->dsk != NULL)
-            /* We shouldn't have been asked for more than was already on the page. */
-            WT_ASSERT(session, salvage->skip + salvage->take <= page->dsk->u.entries);
-        else
-            /* Allow us to be called to generate a fresh page of missing items. */
-            WT_ASSERT(session, salvage->missing > 0 && salvage->skip + salvage->take == 0);
+        /* If there's a page, we shouldn't have been asked for more than was already on the page. */
+        WT_ASSERT(
+          session, page->dsk == NULL || salvage->skip + salvage->take <= page->dsk->u.entries);
+        /* Allow us to be called without a disk page, to generate a fresh page of missing items. */
+        WT_ASSERT(session,
+          page->dsk != NULL || (salvage->missing > 0 && salvage->skip + salvage->take == 0));
 
         /*
          * The upstream code changed the page start "for" us; assert things are as expected. That
@@ -636,8 +636,6 @@ __wt_rec_col_fix(
     entry = 0;
 
     if (salvage != NULL) {
-        uint64_t i;
-
         /* If salvage wants us to insert entries, do that. */
         if (salvage->missing > 0) {
             memset(r->first_free, 0, __bitstr_size((size_t)salvage->missing * btree->bitcnt));
@@ -979,7 +977,7 @@ __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r, uint
     uint8_t *endp, *p;
 
     btree = S2BT(session);
-    (void)size; /* only used in DIAGNOSTIC */
+    WT_UNUSED(size); /* only used in DIAGNOSTIC */
 
     WT_ASSERT(session, size <= UINT32_MAX);
 

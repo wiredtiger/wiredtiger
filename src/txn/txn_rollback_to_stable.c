@@ -683,9 +683,9 @@ __rollback_abort_ondisk_kv(WT_SESSION_IMPL *session, WT_REF *ref, WT_ROW *rip, u
         else {
             /*
              * In-memory database don't have a history store to provide a stable update, so remove
-             * the key. Note that because for an in-memory database we should have saved old values
-             * in the update chain, we should only get here for a key/value that never existed at
-             * all as of the rollback timestamp; so deleting it is the correct response.
+             * the key. Note that an in-memory database will have saved old values in the update
+             * chain, so we should only get here for a key/value that never existed at all as of the
+             * rollback timestamp; thus, deleting it is the correct response.
              */
             WT_RET(__wt_upd_alloc_tombstone(session, &upd, NULL));
             WT_STAT_CONN_DATA_INCR(session, txn_rts_keys_removed);
@@ -946,8 +946,8 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
     /*
      * Review the changes to the original on-page data items. Note that while this can report back
      * to us whether it saw a stable update, that information doesn't do us any good -- unlike in
-     * VLCS where the uniformity of cells lets us reason about timestamps of all of them based on
-     * the timestamp of an update to any of them, in FLCS everything is just thrown together, so
+     * VLCS where the uniformity of cells lets us reason about the timestamps of all of them based
+     * on the timestamp of an update to any of them, in FLCS everything is just thrown together, so
      * we'll need to iterate over all the keys anyway.
      */
     if ((inshead = WT_COL_UPDATE_SINGLE(page)) != NULL)
@@ -979,10 +979,9 @@ __rollback_abort_col_fix(WT_SESSION_IMPL *session, WT_REF *ref, wt_timestamp_t r
                 tw++;
             }
             /* If this key has a stable update, skip over it. */
-            if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset) {
-                if (ins->upd != NULL && __rollback_has_stable_update(ins->upd))
-                    tw++;
-            }
+            if (tw < numtws && page->pg_fix_tws[tw].recno_offset == ins_recno_offset &&
+              ins->upd != NULL && __rollback_has_stable_update(ins->upd))
+                tw++;
         }
     }
     /* Process the rest of the keys with time windows. */
