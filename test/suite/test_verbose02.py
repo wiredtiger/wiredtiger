@@ -69,7 +69,7 @@ class test_verbose02(test_verbose_base):
 
         # Test passing another single verbose category, 'compact' with different verbosity levels.
         # Since there are verbose message with the category WT_VERB_COMPACT and the verbosity levels
-        #  WT_VERBOSE_INFO (0) and WT_VERBOSE_DEBUG (1), we can test them both.
+        # WT_VERBOSE_INFO (0) and WT_VERBOSE_DEBUG (1), we can test them both.
         cfgs = ['compact:0', 'compact:1']
         for cfg in cfgs:
             with self.expect_verbose([cfg], ['WT_VERB_COMPACT']) as conn:
