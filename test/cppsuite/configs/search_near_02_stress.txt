@@ -26,7 +26,7 @@ workload_generator=
     (
         # The key size parameter is used to generate the prefix 
         # used in search_near. Use a smaller size to increase
-        # the chance to match an existing key.
+        # the chances to match an existing key.
         key_size=3,
         op_rate=10ms,
         thread_count=10
