@@ -59,8 +59,7 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         # to ensure we've only generated verbose messages for the expected categories.
         verbose_messages = output.splitlines()
 
-        # Check if we are expecting any output. We should not expect anything if no categories were
-        # passed.
+        # Check if we are expecting any output.
         if expect_output:
             self.assertGreater(len(verbose_messages), 0)
         else:
