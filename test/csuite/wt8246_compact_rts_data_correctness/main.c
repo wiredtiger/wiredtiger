@@ -49,10 +49,10 @@ static char data_str[1024] = "";
 static const char working_dir_row[] = "WT_TEST.compact-stress-row";
 static const char working_dir_col[] = "WT_TEST.compact-stress-col";
 static const char compact_file_fmt[] = "%s/compact_started";
-static char value_a[] = "aa";
-static char value_b[] = "bb";
-static char value_c[] = "cc";
-static char value_d[] = "dd";
+static char value_a[] = "AA";
+static char value_b[] = "BB";
+static char value_c[] = "CC";
+static char value_d[] = "DD";
 
 /* Structures definition. */
 struct thread_data {
