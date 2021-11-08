@@ -28,19 +28,10 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re, os
+import os
 from typing import List
 
 from perf_stat import PerfStat
-
-
-def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
-    matches = []
-    for line in open(test_stat_path):
-        match = re.search(pattern, line)
-        if match:
-            matches.append(float(line.split()[position_of_value]))
-    return matches
 
 
 def create_test_stat_path(test_home_path: str, test_stats_file: str):
@@ -58,9 +49,7 @@ class PerfStatCollection:
         for stat in self.perf_stats.values():
             if not operations or stat.short_label in operations:
                 test_stat_path = create_test_stat_path(test_home, stat.stat_file)
-                values = find_stat(test_stat_path=test_stat_path,
-                                   pattern=stat.pattern,
-                                   position_of_value=stat.input_offset)
+                values = stat.find_stat(test_stat_path=test_stat_path)
                 stat.add_values(values=values)
 
     def to_value_list(self, brief: bool):

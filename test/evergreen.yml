@@ -3393,6 +3393,18 @@ tasks:
           perf-test-name: many-table-stress-backup
           maxruns: 1
 
+  - name: perf-test-evict-fairness
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-fairness
+          maxruns: 1
+          wtarg: "-a ../../../bench/wtperf/runners/evict-fairness.json"
+
     ##################################
     # Performance Tests for eviction #
     ##################################

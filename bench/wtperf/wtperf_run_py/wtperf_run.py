@@ -40,7 +40,7 @@ from pygit2 import GIT_SORT_NONE
 from typing import List
 
 from wtperf_config import WTPerfConfig
-from perf_stat import PerfStat, PerfStatMax, PerfStatMin
+from perf_stat import PerfStat, PerfStatCount, PerfStatMax, PerfStatMin
 from perf_stat_collection import PerfStatCollection
 
 
@@ -189,6 +189,10 @@ def setup_perf_stats():
                                     pattern=r'updates,',
                                     input_offset=8,
                                     output_label='Min update throughput'))
+    perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
+                                      stat_file='WiredTigerStat*',
+                                      pattern='[0-9].wt cache: pages seen by eviction',
+                                      output_label='Pages seen by eviction',))
     return perf_stats
 
 
