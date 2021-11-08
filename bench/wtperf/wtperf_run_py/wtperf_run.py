@@ -40,7 +40,7 @@ from pygit2 import GIT_SORT_NONE
 from typing import List
 
 from wtperf_config import WTPerfConfig
-from perf_stat import AggregationFunc, PerfStat
+from perf_stat import PerfStat, PerfStatMax, PerfStatMin
 from perf_stat_collection import PerfStatCollection
 
 # the 'test.stat' file is where wt-perf.c writes out it's statistics
@@ -192,16 +192,14 @@ def setup_perf_stats():
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
                                  output_label='Update count'))
-    perf_stats.add_stat(PerfStat(short_label="max_update_throughput",
+    perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
                                  pattern=r'updates,',
                                  input_offset=8,
-                                 output_label='Max update throughput',
-                                 aggregation_function=AggregationFunc.AvgMax))
-    perf_stats.add_stat(PerfStat(short_label="min_update_throughput",
+                                 output_label='Max update throughput'))
+    perf_stats.add_stat(PerfStatMin(short_label="min_update_throughput",
                                  pattern=r'updates,',
                                  input_offset=8,
-                                 output_label='Min update throughput',
-                                 aggregation_function=AggregationFunc.AvgMin))
+                                 output_label='Min update throughput'))
     return perf_stats
 
 

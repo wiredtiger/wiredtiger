@@ -28,13 +28,6 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-from enum import Enum
-
-class AggregationFunc(Enum):
-    CoreAverage = 1
-    AvgMin = 2
-    AvgMax = 3
-
 class PerfStat:
     def __init__(self,
                  short_label: str,
@@ -42,15 +35,13 @@ class PerfStat:
                  input_offset: int,
                  output_label: str,
                  output_precision: int = 0,
-                 conversion_function=int,
-                 aggregation_function: AggregationFunc = AggregationFunc.CoreAverage):
+                 conversion_function=int):
         self.short_label: str = short_label
         self.pattern: str = pattern
         self.input_offset: int = input_offset
         self.output_label: str = output_label
         self.output_precision: int = output_precision
         self.conversion_function = conversion_function
-        self.aggregation_function = aggregation_function
         self.values = []
 
     def add_values(self, values: list):
@@ -58,30 +49,16 @@ class PerfStat:
             converted_value = self.conversion_function(val)
             self.values.append(converted_value)
 
-    def get_num_values(self):
-        return len(self.values)
-
     def average(self, vals):
         return self.conversion_function(sum(vals) / len(vals))
 
-    def get_skipminmax_average(self):
-        assert len(self.values) >= 3
-        drop_min_and_max = sorted(self.values)[1:-1]
-        return self.average(drop_min_and_max)
-
-    def get_core_average(self):
+    def get_value(self):
+        """Return the average of all gathered values"""
         if len(self.values) >= 3:
-            return self.get_skipminmax_average()
+            drop_min_and_max = sorted(self.values)[1:-1]
+            return self.average(drop_min_and_max)
         else:
             return self.average(self.values)
-
-    def get_avg_min(self):
-        min_3_vals = sorted(self.values)[:3]
-        return self.average(min_3_vals)
-
-    def get_avg_max(self):
-        max_3_vals = sorted(self.values)[-3:]
-        return self.average(max_3_vals)
 
     def are_values_all_zero(self):
         result = True
@@ -89,3 +66,16 @@ class PerfStat:
             if value != 0:
                 result = False
         return result
+
+
+class PerfStatMin(PerfStat):
+    def get_value(self):
+        """Return the averaged minimum of all gathered values"""
+        min_3_vals = sorted(self.values)[:3]
+        return self.average(min_3_vals)
+
+class PerfStatMax(PerfStat):
+    def get_value(self):
+        """Return the averaged maximum of all gathered values"""
+        max_3_vals = sorted(self.values)[-3:]
+        return self.average(max_3_vals)

@@ -31,7 +31,7 @@
 import re
 from typing import List
 
-from perf_stat import AggregationFunc, PerfStat
+from perf_stat import PerfStat
 
 
 def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
@@ -62,17 +62,9 @@ class PerfStatCollection:
         as_list = []
         for stat in self.perf_stats.values():
             if not stat.are_values_all_zero():
-                
-                if stat.aggregation_function == AggregationFunc.CoreAverage:
-                    val = stat.get_core_average()
-                elif stat.aggregation_function == AggregationFunc.AvgMax:
-                    val = stat.get_avg_max() 
-                elif stat.aggregation_function == AggregationFunc.AvgMin:
-                    val = stat.get_avg_min() 
-
                 as_dict = {
                     'name': stat.output_label,
-                    'value': val
+                    'value': stat.get_value()
                 }
                 if not brief:
                     as_dict['values'] = stat.values
