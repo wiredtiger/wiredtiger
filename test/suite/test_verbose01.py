@@ -39,8 +39,8 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     nlines = 50000
 
     format = [
-        ('json', dict(is_json=True)),
         ('flat', dict(is_json=False)),
+        ('json', dict(is_json=True)),
     ]
 
     scenarios = make_scenarios(format)

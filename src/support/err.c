@@ -203,7 +203,7 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
     WT_DECL_RET;
     size_t msg_len, remain, remain_msg, unpacked_msg_len;
     u_char *unpacked_json_str;
-    char *p, *p_msg, tid[128], msg_str[2 * 1024];
+    char msg_str[2 * 1024], *p, *p_msg, tid[128];
     const char *err, *prefix;
 
     p = buffer;
