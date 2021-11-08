@@ -232,7 +232,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
         self.assertEqual(retain, self.retention)
-        time.sleep(3)
+        time.sleep(1)
         self.session.flush_tier(None)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
@@ -289,7 +289,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.session = self.conn.open_session()
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
-        time.sleep(3)
         self.session.flush_tier(None)
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
