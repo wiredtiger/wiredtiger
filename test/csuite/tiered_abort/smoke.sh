@@ -5,16 +5,6 @@ set -e
 # Return success from the script because the test itself does not yet work.
 # Do this in the script so that we can manually run the program on the command line.
 exit 0
-
-# The cmake build passes in the builddir with -b; it should be passed through.
-builddir_arg=
-while getopts ":b:" opt; do
-    case $opt in
-        b) builddir_arg="-b $OPTARG" ;;
-    esac
-done
-shift $(( OPTIND - 1 ))
-
 # Smoke-test tiered-abort as part of running "make check".
 
 if [ -n "$1" ]
@@ -28,7 +18,4 @@ else
     top_srcdir=${top_srcdir:-../..}
     test_bin=$top_builddir/test/csuite/test_tiered_abort
 fi
-$TEST_WRAPPER $test_bin $builddir_arg -t 10 -T 5
-$TEST_WRAPPER $test_bin $builddir_arg -m -t 10 -T 5
-$TEST_WRAPPER $test_bin $builddir_arg -C -t 10 -T 5
-$TEST_WRAPPER $test_bin $builddir_arg -C -m -t 10 -T 5
+$TEST_WRAPPER $test_bin -t 10 -T 5
