@@ -89,8 +89,12 @@ define_c_test(
     TARGET test_tiered_abort
     SOURCES tiered_abort/main.c
     DIR_NAME tiered_abort
+    # We need to manually specify the location of the local store library
+    # and build directory as this path is more dynamic compared to layout autoconf
+    # produces in build_posix.
+    FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""
     EXEC_SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/tiered_abort/smoke.sh
-    ARGUMENTS -b $<TARGET_FILE:test_tiered_abort>
+    ARGUMENTS -b ${CMAKE_BINARY_DIR} $<TARGET_FILE:test_tiered_abort>
     DEPENDS "WT_POSIX"
 )
 
