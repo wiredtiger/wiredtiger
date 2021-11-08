@@ -3151,7 +3151,7 @@ tasks:
         vars:
           perf-test-name: update-btree
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-btree.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree
@@ -3212,7 +3212,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree
@@ -3227,7 +3227,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm
