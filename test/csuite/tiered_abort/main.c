@@ -632,6 +632,7 @@ main(int argc, char *argv[])
      */
     testutil_check(testutil_parse_opts(argc, argv, opts));
     testutil_build_dir(opts, build_dir, 512);
+
     testutil_check(pthread_rwlock_init(&flush_lock, NULL));
     testutil_check(pthread_rwlock_init(&ts_lock, NULL));
 
