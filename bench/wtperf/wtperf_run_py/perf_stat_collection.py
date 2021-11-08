@@ -29,9 +29,8 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import os
-from typing import List
-
 from perf_stat import PerfStat
+from typing import List
 
 
 def create_test_stat_path(test_home_path: str, test_stats_file: str):
@@ -53,14 +52,9 @@ class PerfStatCollection:
                 stat.add_values(values=values)
 
     def to_value_list(self, brief: bool):
-        as_list = []
+        stats_list = []
         for stat in self.perf_stats.values():
             if not stat.are_values_all_zero():
-                as_dict = {
-                    'name': stat.output_label,
-                    'value': stat.get_value()
-                }
-                if not brief:
-                    as_dict['values'] = stat.values
-                as_list.append(as_dict)
-        return as_list
+                stat_list = stat.get_value_list(brief = brief)
+                stats_list.extend(stat_list)
+        return stats_list

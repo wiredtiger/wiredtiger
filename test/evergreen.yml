@@ -3405,6 +3405,21 @@ tasks:
           maxruns: 1
           wtarg: "-a ../../../bench/wtperf/runners/evict-fairness.json"
 
+  - name: perf-test-evict-btree-stress-multi
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-btree-stress-multi
+          maxruns: 1
+          wtarg: "-a ../../../bench/wtperf/runners/evict-btree-stress-multi.json"
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-btree-stress-multi
+
     ##################################
     # Performance Tests for eviction #
     ##################################

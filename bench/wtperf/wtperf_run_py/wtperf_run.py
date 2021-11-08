@@ -29,19 +29,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import json
 import os.path
-import subprocess
-import sys
 import platform
 import psutil
+import subprocess
+import sys
+import json
+from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMax, PerfStatMin
+from perf_stat_collection import PerfStatCollection
 from pygit2 import discover_repository, Repository
 from pygit2 import GIT_SORT_NONE
 from typing import List
-
 from wtperf_config import WTPerfConfig
-from perf_stat import PerfStat, PerfStatCount, PerfStatMax, PerfStatMin
-from perf_stat_collection import PerfStatCollection
 
 
 def create_test_home_path(home: str, test_run: int, operations: List[str] = None):
@@ -189,10 +188,17 @@ def setup_perf_stats():
                                     pattern=r'updates,',
                                     input_offset=8,
                                     output_label='Min update throughput'))
+    perf_stats.add_stat(PerfStatCount(short_label="warnings",
+                                      pattern='WARN',
+                                      output_label='Warnings'))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latencies",
+                                        stat_file='monitor.json',
+                                        output_label='Latency Max',
+                                        num_max = 5))
     perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
                                       stat_file='WiredTigerStat*',
                                       pattern='[0-9].wt cache: pages seen by eviction',
-                                      output_label='Pages seen by eviction',))
+                                      output_label='Pages seen by eviction'))
     return perf_stats
 
 
