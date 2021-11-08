@@ -193,13 +193,13 @@ def setup_perf_stats():
                                  input_offset=1,
                                  output_label='Update count'))
     perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
-                                 pattern=r'updates,',
-                                 input_offset=8,
-                                 output_label='Max update throughput'))
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Max update throughput'))
     perf_stats.add_stat(PerfStatMin(short_label="min_update_throughput",
-                                 pattern=r'updates,',
-                                 input_offset=8,
-                                 output_label='Min update throughput'))
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Min update throughput'))
     return perf_stats
 
 
