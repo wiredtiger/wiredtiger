@@ -236,7 +236,7 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
     if (error != 0) {
         err = __wt_strerror(session, error, NULL, 0);
         WT_ERROR_APPEND(p, remain, "\"error_str\":\"%s\",", err);
-        WT_ERROR_APPEND(p, remain, "\"error_code\":\"%d\",", error);
+        WT_ERROR_APPEND(p, remain, "\"error_code\":%d,", error);
     }
 
     /* Format the content of the message into an intermediate buffer. */
