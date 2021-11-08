@@ -94,6 +94,7 @@ class search_near_03 : public test_harness::test {
 
         /* Must have unique collections for each thread. */
         testutil_assert(collection_count % tc->thread_count == 0);
+        testutil_assert(tc->key_size != 0);
         const uint64_t thread_offset = tc->id * collections_per_thread;
         for (uint64_t i = thread_offset;
              i < thread_offset + collections_per_thread && tc->running(); ++i) {
@@ -106,6 +107,7 @@ class search_near_03 : public test_harness::test {
         const uint64_t MAX_ROLLBACKS = 100;
         uint64_t counter = 0;
         uint32_t rollback_retries = 0;
+        int exact_prefix, ret;
 
         while (tc->running()) {
 
@@ -113,15 +115,48 @@ class search_near_03 : public test_harness::test {
             tc->transaction.begin();
 
             while (tc->transaction.active() && tc->running()) {
-
                 /* Generate a random key. */
                 key = random_generator::instance().generate_random_string(tc->key_size);
 
-                /* Insert a key value pair. */
-                if (tc->insert(cc.cursor, cc.coll.id, key)) {
+                /*
+                 * A unique index has the following insertion method:
+                 * 1. Insert the prefix.
+                 * 2. Remove the prefix.
+                 * 3. Search near for the prefix.
+                 * 4. Insert the full value (prefix, id).
+                 * All of these operations are wrapped in the same txn, this test attempts to test
+                 * scenarios that could arise from this insertion method.
+                 */
+                /* Insert the prefix. */
+                if (!tc->insert(cc.cursor, cc.coll.id, key)) {
+                    tc->transaction.rollback();
+                    ++rollback_retries;
+                }
+
+                /* Remove the prefix. */
+                if (!tc->remove(cc.cursor, cc.coll.id, key)) {
+                    tc->transaction.rollback();
+                    ++rollback_retries;
+                }
+
+                /* 
+                 * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND
+                 * error to be returned.
+                 */
+                cc.cursor->set_key(cc.cursor.get(), key.c_str());
+                ret = cc.cursor->search_near(cc.cursor.get(), &exact_prefix);
+                if (ret != WT_NOTFOUND) {
+                    tc->transaction.rollback();
+                    ++rollback_retries;
+                }
+
+                /*
+                 * Now insert the key with prefix and id. Since this step expects id to be unique, 
+                 * we will use thread id to guarantee uniqueness.
+                 */
+                if (tc->insert(cc.cursor, cc.coll.id, key + std::to_string(tc->id))) {
                     if (tc->transaction.can_commit()) {
-                        /* We are not checking the result of commit as it is not necessary. */
-                        if (tc->transaction.commit())
+                         if (tc->transaction.commit())
                             rollback_retries = 0;
                         else
                             ++rollback_retries;
@@ -131,13 +166,10 @@ class search_near_03 : public test_harness::test {
                     ++rollback_retries;
                 }
 
-
-                testutil_assert(rollback_retries < MAX_ROLLBACKS);
-
                 /* Sleep the duration defined by the configuration. */
                 tc->sleep();
             }
-
+            testutil_assert(rollback_retries < MAX_ROLLBACKS);
             /* Rollback any transaction that could not commit before the end of the test. */
             if (tc->transaction.active())
                 tc->transaction.rollback();

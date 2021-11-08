@@ -309,7 +309,7 @@ thread_context::remove(
             transaction.set_needs_rollback(true);
             return (false);
         } else
-            testutil_die(ret, "unhandled error while trying to insert a key");
+            testutil_die(ret, "unhandled error while trying to remove a key");
     }
     ret = tracking->save_operation(
       tracking_operation::DELETE_KEY, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
@@ -319,7 +319,7 @@ thread_context::remove(
             return (false);
         } else
             testutil_die(
-              ret, "unhandled error while trying to save an insert to the tracking table");
+              ret, "unhandled error while trying to save an remove to the tracking table");
     }
     transaction.add_op();
     return (true);
