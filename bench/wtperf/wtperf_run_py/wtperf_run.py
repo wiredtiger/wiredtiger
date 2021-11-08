@@ -161,7 +161,7 @@ def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operat
         test_stats_path = create_test_stat_path(test_home)
         if config.verbose:
             print('Reading test stats file: {}'.format(test_stats_path))
-        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations, run_max=config.run_max)
+        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations)
 
 
 def setup_perf_stats():
