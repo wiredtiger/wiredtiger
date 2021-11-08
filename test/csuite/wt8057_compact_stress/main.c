@@ -82,7 +82,7 @@ static WT_EVENT_HANDLER event_handler = {
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* Forward declarations. */
-static int run_test(bool, bool);
+static void run_test(bool, bool);
 static void workload_compact(const char *, const char *);
 static void populate(WT_SESSION *, uint64_t, uint64_t);
 static void remove_records(WT_SESSION *, const char *, uint64_t, uint64_t);
@@ -119,16 +119,16 @@ main(int argc, char *argv[])
     memset(opts, 0, sizeof(*opts));
     testutil_check(testutil_parse_opts(argc, argv, opts));
 
-    testutil_assert(run_test(false, opts->preserve) == EXIT_SUCCESS);
+    run_test(false, opts->preserve);
 
-    testutil_assert(run_test(true, opts->preserve) == EXIT_SUCCESS);
+    run_test(true, opts->preserve);
 
     testutil_cleanup(opts);
 
     return (EXIT_SUCCESS);
 }
 
-static int
+static void
 run_test(bool column_store, bool preserve)
 {
     WT_CONNECTION *conn;
@@ -161,7 +161,7 @@ run_test(bool column_store, bool preserve)
          * parent process.
          */
         printf("Child finished processing...\n");
-        return (EXIT_FAILURE);
+        _exit(EXIT_FAILURE);
     }
 
     /* parent */
@@ -170,7 +170,7 @@ run_test(bool column_store, bool preserve)
      * time we notice that child process has written a checkpoint. That allows the test to run
      * correctly on really slow machines.
      */
-    sprintf(ckpt_file, ckpt_file_fmt, home);
+    testutil_check(__wt_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home));
     while (stat(ckpt_file, &sb) != 0)
         testutil_sleep_wait(1, pid);
 
@@ -198,8 +198,6 @@ run_test(bool column_store, bool preserve)
 
     if (!preserve)
         testutil_clean_work_dir(home);
-
-    return (EXIT_SUCCESS);
 }
 
 static void
@@ -215,7 +213,7 @@ workload_compact(const char *home, const char *table_config)
     uint32_t i;
     uint64_t key_range_start;
 
-    uint64_t pages_reviewed, pages_rewritten, pages_selected;
+    uint64_t pages_reviewed, pages_rewritten, pages_skipped;
 
     first_ckpt = false;
 
@@ -243,7 +241,7 @@ workload_compact(const char *home, const char *table_config)
          * finished and can start its timer.
          */
         if (!first_ckpt) {
-            sprintf(ckpt_file, ckpt_file_fmt, home);
+            testutil_check(__wt_snprintf(ckpt_file, sizeof(ckpt_file), ckpt_file_fmt, home));
             testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
             testutil_checksys(fclose(fp) != 0);
             first_ckpt = true;
@@ -263,10 +261,10 @@ workload_compact(const char *home, const char *table_config)
         log_db_size(session, uri1);
 
         /* If we made progress with compact, verify that compact stats support that. */
-        get_compact_progress(session, uri1, &pages_reviewed, &pages_rewritten, &pages_selected);
+        get_compact_progress(session, uri1, &pages_reviewed, &pages_rewritten, &pages_skipped);
         printf(" - Pages reviewed: %" PRIu64 "\n", pages_reviewed);
-        printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_selected);
-        printf(" - Pages actually rewritten: %" PRIu64 "\n", pages_rewritten);
+        printf(" - Pages selected for being rewritten: %" PRIu64 "\n", pages_rewritten);
+        printf(" - Pages skipped: %" PRIu64 "\n", pages_skipped);
 
         /* Put the deleted records back. */
         populate(session, key_range_start, key_range_start + NUM_RECORDS / 3);
@@ -275,7 +273,6 @@ workload_compact(const char *home, const char *table_config)
     }
 
     /* Clean-up. */
-    testutil_check(session->close(session, NULL));
     testutil_check(conn->close(conn, NULL));
 }
 
@@ -392,7 +389,7 @@ get_file_stats(WT_SESSION *session, const char *uri, uint64_t *file_sz, uint64_t
     WT_CURSOR *cur_stat;
     char *descr, stat_uri[128], *str_val;
 
-    sprintf(stat_uri, "statistics:%s", uri);
+    testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     /* Get file size. */
@@ -425,22 +422,21 @@ log_db_size(WT_SESSION *session, const char *uri)
 
 static void
 get_compact_progress(WT_SESSION *session, const char *uri, uint64_t *pages_reviewed,
-  uint64_t *pages_selected, uint64_t *pages_rewritten)
+  uint64_t *pages_skipped, uint64_t *pages_rewritten)
 {
 
     WT_CURSOR *cur_stat;
-    char *descr, *str_val;
-    char stat_uri[128];
+    char *descr, *str_val, stat_uri[128];
 
-    sprintf(stat_uri, "statistics:%s", uri);
+    testutil_check(__wt_snprintf(stat_uri, sizeof(stat_uri), "statistics:%s", uri));
     testutil_check(session->open_cursor(session, stat_uri, NULL, "statistics=(all)", &cur_stat));
 
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REVIEWED);
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_reviewed));
-    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_WRITE_SELECTED);
+    cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_SKIPPED);
     testutil_check(cur_stat->search(cur_stat));
-    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_selected));
+    testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_skipped));
     cur_stat->set_key(cur_stat, WT_STAT_DSRC_BTREE_COMPACT_PAGES_REWRITTEN);
     testutil_check(cur_stat->search(cur_stat));
     testutil_check(cur_stat->get_value(cur_stat, &descr, &str_val, pages_rewritten));
