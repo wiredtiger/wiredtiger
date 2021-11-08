@@ -35,12 +35,14 @@ class PerfStat:
                  input_offset: int,
                  output_label: str,
                  output_precision: int = 0,
+                 stat_file: str = 'test.stat',
                  conversion_function=int):
         self.short_label: str = short_label
         self.pattern: str = pattern
         self.input_offset: int = input_offset
         self.output_label: str = output_label
         self.output_precision: int = output_precision
+        self.stat_file = stat_file
         self.conversion_function = conversion_function
         self.values = []
 

@@ -28,7 +28,7 @@
 # ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR
 # OTHER DEALINGS IN THE SOFTWARE.
 
-import re
+import re, os
 from typing import List
 
 from perf_stat import PerfStat
@@ -43,6 +43,10 @@ def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
     return matches
 
 
+def create_test_stat_path(test_home_path: str, test_stats_file: str):
+    return os.path.join(test_home_path, test_stats_file)
+
+
 class PerfStatCollection:
     def __init__(self):
         self.perf_stats = {}
@@ -50,9 +54,10 @@ class PerfStatCollection:
     def add_stat(self, perf_stat: PerfStat):
         self.perf_stats[perf_stat.short_label] = perf_stat
 
-    def find_stats(self, test_stat_path: str, operations: List[str]):
+    def find_stats(self, test_home: str, operations: List[str]):
         for stat in self.perf_stats.values():
             if not operations or stat.short_label in operations:
+                test_stat_path = create_test_stat_path(test_home, stat.stat_file)
                 values = find_stat(test_stat_path=test_stat_path,
                                    pattern=stat.pattern,
                                    position_of_value=stat.input_offset)
