@@ -648,8 +648,8 @@ variables:
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
 # race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
-# the number of runs adjusted to provide aproximately six hours of testing.  There
-# is just one much shorter run of the smoke tests
+# the number of runs adjusted to provide aproximately six hours of testing.  The
+# smoke tests are run just once.
 #########################################################################################
 
   - &format-stress-test
