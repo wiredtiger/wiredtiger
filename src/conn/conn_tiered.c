@@ -81,12 +81,15 @@ __flush_tier_wait(WT_SESSION_IMPL *session, const char **cfg)
 static int
 __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
 {
+    WT_CKPT ckpt;
+    WT_CONFIG_ITEM cval;
     WT_CURSOR *cursor;
     WT_DECL_RET;
+    uint64_t ckpt_time;
     const char *key, *value;
 
     WT_UNUSED(flags);
-    __wt_verbose(session, WT_VERB_TIERED, "%s", "FLUSH_TIER_ONCE: Called");
+    __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: Called flags %" PRIx32, flags);
 
     cursor = NULL;
     /*
@@ -108,14 +111,32 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
         cursor->get_value(cursor, &value);
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
-            __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s", key, value);
-            /* Is this instantiating every handle even if it is not opened or in use? */
+            __wt_verbose(
+              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s 0x%x", key, value, (int)flags);
+            if (!LF_ISSET(WT_FLUSH_TIER_FORCE)) {
+                /*
+                 * Check the table's last checkpoint time and only flush trees that have a
+                 * checkpoint more recent than the last flush time.
+                 */
+                WT_ERR(__wt_meta_checkpoint(session, key, NULL, &ckpt));
+                ckpt_time = ckpt.sec;
+                __wt_meta_checkpoint_free(session, &ckpt);
+                WT_ERR(__wt_config_getones(session, value, "flush_time", &cval));
+
+                /* If nothing has changed, there's nothing to do. */
+                if (ckpt_time == 0 || (uint64_t)cval.val > ckpt_time) {
+                    WT_STAT_CONN_INCR(session, flush_tier_skipped);
+                    continue;
+                }
+            }
+            /* Only instantiate the handle if we need to flush. */
             WT_ERR(__wt_session_get_dhandle(session, key, NULL, NULL, 0));
             /*
              * When we call wt_tiered_switch the session->dhandle points to the tiered: entry and
              * the arg is the config string that is currently in the metadata.
              */
             WT_ERR(__wt_tiered_switch(session, value));
+            WT_STAT_CONN_INCR(session, flush_tier_switched);
             WT_ERR(__wt_session_release_dhandle(session));
         }
     }
@@ -225,7 +246,7 @@ __tier_flush_meta(
     WT_ERR(__wt_metadata_remove(session, local_uri));
     WT_ERR(__wt_metadata_search(session, obj_uri, &obj_value));
     __wt_seconds(session, &now);
-    WT_ERR(__wt_buf_fmt(session, buf, "flush=%" PRIu64, now));
+    WT_ERR(__wt_buf_fmt(session, buf, "flush_time=%" PRIu64, now));
     cfg[0] = obj_value;
     cfg[1] = buf->mem;
     WT_ERR(__wt_config_collapse(session, cfg, &newconfig));

@@ -125,6 +125,8 @@ struct __wt_tiered {
 
     WT_BLOCK_FILE_OPENER opener;
 
+    uint64_t last_flush; /* Time of last flush */
+
     uint32_t current_id; /* Current object id number */
     uint32_t next_id;    /* Next object number */
     uint32_t oldest_id;  /* Oldest object id number */
