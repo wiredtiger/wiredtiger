@@ -112,7 +112,7 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
         /* For now just switch tiers which just does metadata manipulation. */
         if (WT_PREFIX_MATCH(key, "tiered:")) {
             __wt_verbose(
-              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s 0x%x", key, value, (int)flags);
+              session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: %s %s 0x%" PRIx32, key, value, flags);
             if (!LF_ISSET(WT_FLUSH_TIER_FORCE)) {
                 /*
                  * Check the table's last checkpoint time and only flush trees that have a
