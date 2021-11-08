@@ -220,6 +220,8 @@ def main():
     parser.add_argument('-g', '--git_root', help='path of the Git working directory')
     parser.add_argument('-i', '--json_info', help='additional test information in a json format string')
     parser.add_argument('-a', '--arg_file', help='additional wtperf arguments in a json format file')
+    parser.add_argument('-args', '--arguments', help='Additional arguments to pass into wtperf')
+    parser.add_argument('-ops', '--operations', help='List of operations to report metrics for')
     parser.add_argument('-v', '--verbose', action="store_true", help='be verbose')
     args = parser.parse_args()
 
@@ -232,6 +234,8 @@ def main():
         print("  Test path:                {}".format(args.test))
         print("  Home base:                {}".format(args.home))
         print("  Addition arguments(file): {}".format(args.arg_file))
+        print("  Arguments:                {}".format(args.arguments))
+        print("  Operations:               {}".format(args.operations))
         print("  Git root:                 {}".format(args.git_root))
         print("  Outfile:                  {}".format(args.outfile))
         print("  Runmax:                   {}".format(args.runmax))
@@ -247,13 +251,19 @@ def main():
         sys.exit('The path to the "home" directory is required')
     if args.arg_file and not os.path.isfile(args.arg_file):
         sys.exit("arg_file: {} not found!".format(args.arg_file))
+    if args.arg_file and (args.arguments or args.operations):
+        sys.exit("An arg_file (-a) should not be defined at the same time as -ops or -args")
 
     json_info = json.loads(args.json_info) if args.json_info else {}
+    arguments = json.loads(args.arguments) if args.arguments else []
+    operations = json.loads(args.operations) if args.operations else []
 
     config = WTPerfConfig(wtperf_path=args.wtperf,
                           home_dir=args.home,
                           test=args.test,
                           arg_file=args.arg_file,
+                          arguments=arguments,
+                          operations=operations,
                           environment=args.env,
                           run_max=args.runmax,
                           verbose=args.verbose,
@@ -276,7 +286,7 @@ def main():
                     print("Argument: {},  Operation: {}".format(content["arguments"], content["operations"]))
                 run_test_wrapper(config=config, operations=content["operations"], arguments=content["arguments"])
         else:
-            run_test_wrapper(config=config)
+            run_test_wrapper(config=config, arguments=arguments, operations=operations)
 
     if not args.verbose and not args.outfile:
         sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
@@ -287,7 +297,7 @@ def main():
         for content in arg_file_contents:
             process_results(config, perf_stats, operations=content["operations"])
     else:
-        process_results(config, perf_stats)
+        process_results(config, perf_stats, operations=operations)
 
     # Output result
     if args.brief_output:
