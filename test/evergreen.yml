@@ -3459,6 +3459,7 @@ tasks:
         vars:
           perf-test-name: log
           maxruns: 1
+          wtarg: "-a ../../../bench/wtperf/runners/log.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: log
