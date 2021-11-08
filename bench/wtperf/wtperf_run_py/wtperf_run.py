@@ -31,13 +31,12 @@
 import argparse
 import json
 import os.path
-import re
 import subprocess
 import sys
 import platform
 import psutil
 from pygit2 import discover_repository, Repository
-from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
+from pygit2 import GIT_SORT_NONE
 from typing import List
 
 from wtperf_config import WTPerfConfig
