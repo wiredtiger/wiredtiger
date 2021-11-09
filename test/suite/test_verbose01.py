@@ -29,9 +29,8 @@
 
 from suite_subprocess import suite_subprocess
 from contextlib import contextmanager
-import wiredtiger, wttest
-import re
 from wtscenario import make_scenarios
+import json, re, wiredtiger, wttest
 
 # Shared base class used by verbose tests.
 class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
@@ -79,6 +78,9 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         verb_pattern = re.compile('|'.join(patterns))
         # To avoid truncated messages, slice out the last message string in the
         for line in verbose_messages[:-1]:
+            # Check JSON validity
+            if self.is_json:
+                json.loads(line)
             self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
 
         # Close the connection resource and clean up the contents of the stdout file, flushing out the
