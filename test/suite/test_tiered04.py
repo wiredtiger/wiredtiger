@@ -161,7 +161,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # the internal thread to process the work units.
         self.session.flush_tier('force=true')
         flush += 1
-        time.sleep(1)
+        #time.sleep(1)
         self.pr("Check removal of ")
         self.pr(self.obj1file)
         self.assertFalse(os.path.exists(self.obj1file))
@@ -232,7 +232,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
         self.assertEqual(retain, self.retention)
-        time.sleep(1)
+        #time.sleep(1)
         self.session.flush_tier(None)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)

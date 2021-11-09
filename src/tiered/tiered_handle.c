@@ -301,10 +301,9 @@ __wt_tiered_set_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, WT_ITEM *b
 {
     uint32_t i;
 
-    __wt_seconds(session, &tiered->last_flush);
     WT_RET(__wt_buf_catfmt(session, buf,
-      ",flush_time=%" PRIu64 ",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(", tiered->last_flush,
-      tiered->current_id, tiered->oldest_id));
+      ",flush_time=%" PRIu64 ",last=%" PRIu32 ",oldest=%" PRIu32 ",tiers=(",
+      S2C(session)->flush_most_recent, tiered->current_id, tiered->oldest_id));
     for (i = 0; i < WT_TIERED_MAX_TIERS; ++i) {
         if (tiered->tiers[i].name == NULL) {
             __wt_verbose(session, WT_VERB_TIERED, "TIER_SET_META: names[%" PRIu32 "] NULL", i);
@@ -335,6 +334,10 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
+    /*
+     * Update the last flush time before setting the metadata string. We must do it here because
+     * __wt_tiered_set_metadata is called from the checkpoint path as well.
+     */
     WT_ERR(__wt_tiered_set_metadata(session, tiered, tmp));
 
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);

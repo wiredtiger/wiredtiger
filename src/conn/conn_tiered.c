@@ -83,14 +83,16 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
 {
     WT_CKPT ckpt;
     WT_CONFIG_ITEM cval;
+    WT_CONNECTION_IMPL *conn;
     WT_CURSOR *cursor;
     WT_DECL_RET;
-    uint64_t ckpt_time;
+    uint64_t ckpt_time, flush_time;
     const char *key, *value;
 
     WT_UNUSED(flags);
     __wt_verbose(session, WT_VERB_TIERED, "FLUSH_TIER_ONCE: Called flags %" PRIx32, flags);
 
+    conn = S2C(session);
     cursor = NULL;
     /*
      * For supporting splits and merge:
@@ -99,7 +101,23 @@ __flush_tier_once(WT_SESSION_IMPL *session, uint32_t flags)
      * - Do the work to create said objects.
      * - Move the objects.
      */
-    S2C(session)->flush_state = 0;
+    conn->flush_state = 0;
+
+    /*
+     * Update time value for most recent flush_tier, not letting it move backwards and making sure
+     * it is after the most recent checkpoint. We hold the checkpoint lock so we know no other
+     * thread can be doing a checkpoint at this time but our time can move backward with respect to
+     * the time set by a different thread that did a checkpoint.
+     */
+    WT_ASSERT(session, FLD_ISSET(session->lock_flags, WT_SESSION_LOCKED_CHECKPOINT));
+    for (;;) {
+        __wt_seconds(session, &flush_time);
+        if (flush_time > conn->ckpt_most_recent)
+            break;
+        /* Sleep a smaller amount to hope we can start work sooner. */
+        __wt_sleep(0, 250000);
+    }
+    conn->flush_most_recent = flush_time;
 
     /*
      * Walk the metadata cursor to find tiered tables to flush. This should be optimized to avoid
@@ -613,7 +631,8 @@ __tiered_mgr_server(void *arg)
         /*
          * Here is where we do work. Work we expect to do:
          */
-        WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, 0));
+        WT_WITH_CHECKPOINT_LOCK(
+          session, WT_WITH_SCHEMA_LOCK(session, ret = __flush_tier_once(session, 0)));
         WT_ERR(ret);
         if (ret == 0)
             WT_ERR(__flush_tier_wait(session, cfg));
