@@ -149,6 +149,8 @@ def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, 
 def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
     for test_run in range(config.run_max):
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
+        if config.verbose:
+            print('Reading stats from {} directory.'.format(test_home))
         perf_stats.find_stats(test_home=test_home, operations=operations)
 
 
