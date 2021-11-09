@@ -34,6 +34,8 @@ import re
 
 # Shared base class used by verbose tests.
 class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
+    # The maximum number of lines we will read from stdout in any given context.
+    nlines = 30000
 
     def create_verbose_configuration(self, categories):
         if len(categories) == 0:
@@ -52,8 +54,7 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         # operations on the connection (for generating the expected verbose output).
         yield conn
         # Read the contents of stdout to extract our verbose messages.
-        nlines = 30000
-        output = self.readStdout(nlines)
+        output = self.readStdout(self.nlines)
         # Split the output into their individual messages. We want validate the contents of each message
         # to ensure we've only generated verbose messages for the expected categories.
         verbose_messages = output.splitlines()
