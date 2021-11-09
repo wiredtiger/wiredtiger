@@ -27,13 +27,21 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 #
 
-import wiredtiger, wttest
 from test_verbose01 import test_verbose_base
+from wtscenario import make_scenarios
+import wiredtiger, wttest
 
 # test_verbose02.py
 # Verify basic uses of the verbose configuration API when categories and valid/invalid verbosity
 # levels are specified.
 class test_verbose02(test_verbose_base):
+
+    format = [
+        ('flat', dict(is_json=False)),
+        ('json', dict(is_json=True)),
+    ]
+    scenarios = make_scenarios(format)
+
     collection_cfg = 'key_format=S,value_format=S'
 
     # Test use cases passing single verbose categories, ensuring we only produce verbose output for

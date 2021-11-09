@@ -37,13 +37,6 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
     # The maximum number of lines we will read from stdout in any given context.
     nlines = 50000
 
-    format = [
-        ('flat', dict(is_json=False)),
-        ('json', dict(is_json=True)),
-    ]
-
-    scenarios = make_scenarios(format)
-
     def create_verbose_configuration(self, categories):
         if len(categories) == 0:
             return ''
@@ -94,7 +87,15 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
 # of the interface prior to the introduction of verbosity levels, ensuring 'legacy'-style
 # uses of the interface are still supported.
 class test_verbose01(test_verbose_base):
+
+    format = [
+        ('flat', dict(is_json=False)),
+        ('json', dict(is_json=True)),
+    ]
+    scenarios = make_scenarios(format)
+
     collection_cfg = 'key_format=S,value_format=S'
+
     # Test use cases passing single verbose categories, ensuring we only produce verbose output for the single category.
     def test_verbose_single(self):
         # Close the initial connection. We will be opening new connections with different verbosity settings throughout
