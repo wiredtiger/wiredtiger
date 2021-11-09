@@ -666,7 +666,7 @@ struct __wt_page {
 #define WT_PAGE_DISK_MAPPED 0x008u        /* Disk image in mapped memory */
 #define WT_PAGE_EVICT_LRU 0x010u          /* Page is on the LRU queue */
 #define WT_PAGE_EVICT_NO_PROGRESS 0x020u  /* Eviction doesn't count as progress */
-#define WT_PAGE_INTL_OVERFLOW_KEYS 0x040u /* Page has overflow keys */
+#define WT_PAGE_INTL_OVERFLOW_KEYS 0x040u /* Internal page has overflow keys (historic only) */
 #define WT_PAGE_SPLIT_INSERT 0x080u       /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x100u      /* Ignore updates on page discard */
                                           /* AUTOMATIC FLAG VALUE GENERATION STOP 9 */
