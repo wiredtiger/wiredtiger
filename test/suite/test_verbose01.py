@@ -43,14 +43,14 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         return 'verbose=[' + ','.join(categories) + ']'
 
     @contextmanager
-    def expect_verbose(self, categories, patterns, expect_output = True):
+    def expect_verbose(self, categories, patterns, expect_json, expect_output = True):
         # Clean the stdout resource before yielding the context to the execution block. We only want to
         # capture the verbose output of the using context (ignoring any previous output up to this point).
         self.cleanStdout()
         # Create a new connection with the given verbose categories.
         verbose_config = self.create_verbose_configuration(categories)
         # Enable JSON output if required.
-        if self.is_json:
+        if expect_json:
             verbose_config += ",event_handler_json=true"
         conn = self.wiredtiger_open(self.home, verbose_config)
         # Yield the connection resource to the execution context, allowing it to perform any necessary
@@ -72,8 +72,13 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         # To avoid truncated messages, slice out the last message string in the
         for line in verbose_messages[:-1]:
             # Check JSON validity
-            if self.is_json:
-                json.loads(line)
+            if expect_json:
+                try:
+                    json.loads(line)
+                except Exception as e:
+                    self.prout('Unable to parse JSON message: %s' % line)
+                    raise e
+
             self.assertTrue(verb_pattern.search(line) != None, 'Unexpected verbose message: ' + line)
 
         # Close the connection resource and clean up the contents of the stdout file, flushing out the
@@ -104,7 +109,7 @@ class test_verbose01(test_verbose_base):
 
         # Test passing a single verbose category, 'api'. Ensuring the only verbose output generated is related to
         # the 'api' category.
-        with self.expect_verbose(['api'], ['WT_VERB_API']) as conn:
+        with self.expect_verbose(['api'], ['WT_VERB_API'], self.is_json) as conn:
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages.
             uri = 'table:test_verbose01_api'
@@ -117,7 +122,7 @@ class test_verbose01(test_verbose_base):
 
         # Test passing another single verbose category, 'compact'. Ensuring the only verbose output generated is related to
         # the 'compact' category.
-        with self.expect_verbose(['compact'], ['WT_VERB_COMPACT']) as conn:
+        with self.expect_verbose(['compact'], ['WT_VERB_COMPACT'], self.is_json) as conn:
             # Create a simple table to invoke compaction on. We aren't doing anything interesting with the table
             # such that the data source will be compacted. Rather we want to simply invoke a compaction pass to
             # generate verbose messages.
@@ -132,7 +137,7 @@ class test_verbose01(test_verbose_base):
         self.close_conn()
         # Test passing multiple verbose categories, being 'api' & 'version'. Ensuring the only verbose output generated
         # is related to those two categories.
-        with self.expect_verbose(['api','version'], ['WT_VERB_API', 'WT_VERB_VERSION']) as conn:
+        with self.expect_verbose(['api','version'], ['WT_VERB_API', 'WT_VERB_VERSION'], self.is_json) as conn:
             # Perform a set of simple API operations (table creations and cursor operations) to generate verbose API
             # messages. Beyond opening the connection resource, we shouldn't need to do anything special for the version
             # category.
@@ -147,7 +152,7 @@ class test_verbose01(test_verbose_base):
     def test_verbose_none(self):
         self.close_conn()
         # Testing passing an empty set of categories. Ensuring no verbose output is generated.
-        with self.expect_verbose([], [], False) as conn:
+        with self.expect_verbose([], [], self.is_json, False) as conn:
             # Perform a set of simple API operations (table creations and cursor operations). Ensuring no verbose messages
             # are generated.
             uri = 'table:test_verbose01_none'
