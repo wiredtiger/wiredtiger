@@ -2353,6 +2353,11 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     txn_global = &conn->txn_global;
     txn_shared = WT_SESSION_TXN_SHARED(session);
 
+    if (session->cache_max_wait_us != 0)
+        cache_max_wait_us = session->cache_max_wait_us;
+    else
+        cache_max_wait_us = cache->cache_max_wait_us;
+
     /*
      * Before we enter the eviction generation, make sure this session has a cached history store
      * cursor, otherwise we can deadlock with a session wanting exclusive access to a handle: that
@@ -2374,11 +2379,6 @@ __wt_cache_eviction_worker(WT_SESSION_IMPL *session, bool busy, bool readonly, d
     app_thread = !F_ISSET(session, WT_SESSION_INTERNAL);
     if (app_thread)
         time_start = __wt_clock(session);
-
-    if (session->cache_max_wait_us != 0)
-        cache_max_wait_us = session->cache_max_wait_us;
-    else
-        cache_max_wait_us = cache->cache_max_wait_us;
 
     for (initial_progress = cache->eviction_progress;; ret = 0) {
         /*
