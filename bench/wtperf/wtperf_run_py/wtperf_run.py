@@ -29,24 +29,18 @@
 # OTHER DEALINGS IN THE SOFTWARE.
 
 import argparse
-import json
 import os.path
-import re
-import subprocess
-import sys
 import platform
 import psutil
-from pygit2 import discover_repository, Repository
-from pygit2 import GIT_SORT_TOPOLOGICAL, GIT_SORT_REVERSE, GIT_SORT_NONE
-from typing import List
-
-from wtperf_config import WTPerfConfig
-from perf_stat import PerfStat
+import subprocess
+import sys
+import json
+from perf_stat import PerfStat, PerfStatCount, PerfStatLatency, PerfStatMax, PerfStatMin
 from perf_stat_collection import PerfStatCollection
-
-# the 'test.stat' file is where wt-perf.c writes out it's statistics
-# (within the directory specified by the 'home' parameter)
-test_stats_file = 'test.stat'
+from pygit2 import discover_repository, Repository
+from pygit2 import GIT_SORT_NONE
+from typing import List
+from wtperf_config import WTPerfConfig
 
 
 def create_test_home_path(home: str, test_run: int, operations: List[str] = None):
@@ -55,18 +49,6 @@ def create_test_home_path(home: str, test_run: int, operations: List[str] = None
         # Use the first operation name as part of the home path
         home_path += "_{}".format(operations[0])
     return home_path
-
-
-def create_test_stat_path(test_home_path: str):
-    return os.path.join(test_home_path, test_stats_file)
-
-
-def find_stat(test_stat_path: str, pattern: str, position_of_value: int):
-    for line in open(test_stat_path):
-        match = re.match(pattern, line)
-        if match:
-            return line.split()[position_of_value]
-    return 0
 
 
 def get_git_info(git_working_tree_dir):
@@ -96,7 +78,7 @@ def get_git_info(git_working_tree_dir):
     return git_info
 
 
-def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, argument: str):
+def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, arguments: List[str]):
     command_line = []
     if env is not None:
         command_line.append(env)
@@ -104,8 +86,8 @@ def construct_wtperf_command_line(wtperf: str, env: str, test: str, home: str, a
     if test is not None:
         command_line.append('-O')
         command_line.append(test)
-    if argument is not None:
-        command_line.append(argument)
+    if arguments is not None:
+        command_line.extend(arguments)
     if home is not None:
         command_line.append('-h')
         command_line.append(home)
@@ -142,31 +124,34 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     return as_dict
 
 
-def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, argument: str = None):
+def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, arguments: List[str] = None):
     for test_run in range(config.run_max):
         print("Starting test  {}".format(test_run))
-        run_test(config=config, test_run=test_run, operations=operations, argument=argument)
+        run_test(config=config, test_run=test_run, operations=operations, arguments=arguments)
         print("Completed test {}".format(test_run))
 
 
-def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, argument: str = None):
+def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, arguments: List[str] = None):
     test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
         env=config.environment,
-        argument=argument,
+        arguments=arguments,
         test=config.test,
         home=test_home)
-    subprocess.run(command_line, check=True)
+    try:
+        subprocess.run(command_line, check=True, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, universal_newlines=True)
+    except subprocess.CalledProcessError as cpe:
+        print("Error: {}".format(cpe.output))
+        exit(1)
 
 
 def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
     for test_run in range(config.run_max):
         test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
-        test_stats_path = create_test_stat_path(test_home)
         if config.verbose:
-            print('Reading test stats file: {}'.format(test_stats_path))
-        perf_stats.find_stats(test_stat_path=test_stats_path, operations=operations)
+            print('Reading stats from {} directory.'.format(test_home))
+        perf_stats.find_stats(test_home=test_home, operations=operations)
 
 
 def setup_perf_stats():
@@ -197,6 +182,25 @@ def setup_perf_stats():
                                  pattern=r'Executed \d+ update operations',
                                  input_offset=1,
                                  output_label='Update count'))
+    perf_stats.add_stat(PerfStatMax(short_label="max_update_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Max update throughput'))
+    perf_stats.add_stat(PerfStatMin(short_label="min_update_throughput",
+                                    pattern=r'updates,',
+                                    input_offset=8,
+                                    output_label='Min update throughput'))
+    perf_stats.add_stat(PerfStatCount(short_label="warnings",
+                                      pattern='WARN',
+                                      output_label='Warnings'))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latencies",
+                                        stat_file='monitor.json',
+                                        output_label='Latency Max',
+                                        num_max = 5))
+    perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
+                                      stat_file='WiredTigerStat*',
+                                      pattern='[0-9].wt cache: pages seen by eviction',
+                                      output_label='Pages seen by eviction'))
     return perf_stats
 
 
@@ -269,8 +273,8 @@ def main():
         if config.arg_file:
             for content in arg_file_contents:
                 if args.verbose:
-                    print("Argument: {},  Operation: {}".format(content["argument"], content["operations"]))
-                run_test_wrapper(config=config, operations=content["operations"], argument=content["argument"])
+                    print("Argument: {},  Operation: {}".format(content["arguments"], content["operations"]))
+                run_test_wrapper(config=config, operations=content["operations"], arguments=content["arguments"])
         else:
             run_test_wrapper(config=config)
 
