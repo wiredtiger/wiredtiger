@@ -129,11 +129,10 @@ class PerfStatLatency(PerfStat):
 
     def find_stat(self, test_stat_path: str):
         values = []
-        if os.path.isfile(test_stat_path):
-            for line in open(test_stat_path):
-                as_dict = json.loads(line)
-                values.append(as_dict["wtperf"]["read"]["max latency"])
-                values.append(as_dict["wtperf"]["update"]["max latency"])
+        for line in open(test_stat_path):
+            as_dict = json.loads(line)
+            values.append(as_dict["wtperf"]["read"]["max latency"])
+            values.append(as_dict["wtperf"]["update"]["max latency"])
         return values
 
     def get_value(self, nth_max: int):
