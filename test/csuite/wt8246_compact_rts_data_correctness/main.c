@@ -54,14 +54,6 @@ static char value_b[] = "BB";
 static char value_c[] = "CC";
 static char value_d[] = "DD";
 
-/* Structures definition. */
-struct thread_data {
-    WT_CONNECTION *conn;
-    const char *uri;
-    uint32_t begin, end;
-    bool update;
-};
-
 static void sig_handler(int) WT_GCC_FUNC_DECL_ATTRIBUTE((noreturn));
 
 /* Forward declarations. */
@@ -111,9 +103,10 @@ main(int argc, char *argv[])
 static void
 run_compact(WT_SESSION *session, const char *uri)
 {
-    printf("Running compact...\n");
+    printf("Compact start...\n");
     /* Perform compact operation. */
     testutil_check(session->compact(session, uri, NULL));
+    printf("Compact end...\n");
 }
 
 static int
@@ -126,7 +119,7 @@ run_test(bool column_store, const char *uri)
     pid_t pid;
     uint64_t oldest_ts, stable_ts;
     int status;
-    char ckpt_file[2048];
+    char compact_file[2048];
     char home[1024];
     char ts_string[WT_TS_HEX_STRING_SIZE];
 
@@ -154,8 +147,14 @@ run_test(bool column_store, const char *uri)
         return (EXIT_FAILURE);
     }
 
-    sprintf(ckpt_file, compact_file_fmt, home);
-    while (stat(ckpt_file, &sb) != 0)
+    /* parent */
+    /*
+     * Sleep for the configured amount of time before killing the child. Start the timeout from the
+     * time we notice that child process has started compact. That allows the test to run correctly
+     * on really slow machines.
+     */
+    testutil_check(__wt_snprintf(compact_file, sizeof(compact_file), compact_file_fmt, home));
+    while (stat(compact_file, &sb) != 0)
         testutil_sleep_wait(1, pid);
 
     /* Sleep for a while. Let the child process do some operations on the tables. */
@@ -167,6 +166,8 @@ run_test(bool column_store, const char *uri)
     printf("Kill child\n");
     testutil_checksys(kill(pid, SIGKILL) != 0);
     testutil_checksys(waitpid(pid, &status, 0) == -1);
+
+    printf("Compact process interrupted and killed...\n");
 
     /* Copy the data to a separate folder for debugging purpose. */
     testutil_copy_data(home);
@@ -185,8 +186,10 @@ run_test(bool column_store, const char *uri)
     testutil_check(conn->query_timestamp(conn, ts_string, "get=oldest"));
     testutil_timestamp_parse(ts_string, &oldest_ts);
 
-    /* Verify data is visible and correct after compact operation was
-     * killed and RTS is performed in recovery.
+    /*
+     * Verify data is visible and correct after compact operation was killed and RTS is performed in
+     * recovery. Stable timestamp is used to check the visibility of data, stable timestamp is
+     * retrieved from the connection using query_timestamp.
      */
     check(session, uri, value_a, 20);
     check(session, uri, value_b, 30);
@@ -209,7 +212,7 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     FILE *fp;
     WT_CONNECTION *conn;
     WT_SESSION *session;
-    char ckpt_file[2048], tscfg[64];
+    char compact_file[2048], tscfg[64];
 
     testutil_check(wiredtiger_open(home, NULL, conn_config, &conn));
 
@@ -254,12 +257,13 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     /*
      * Create the compact_started file so that the parent process can start its timer.
      */
-    sprintf(ckpt_file, compact_file_fmt, home);
-    testutil_checksys((fp = fopen(ckpt_file, "w")) == NULL);
+    testutil_check(__wt_snprintf(compact_file, sizeof(compact_file), compact_file_fmt, home));
+    testutil_checksys((fp = fopen(compact_file, "w")) == NULL);
     testutil_checksys(fclose(fp) != 0);
 
     run_compact(session, uri);
 }
+
 static void
 check(WT_SESSION *session, const char *uri, char *value, int read_ts)
 {
@@ -286,7 +290,6 @@ check(WT_SESSION *session, const char *uri, char *value, int read_ts)
         val_2_size = strlen(str_val);
 
         testutil_assert(val_1_size == val_2_size);
-        // printf ("str_val : %s\n", str_val);
         testutil_assert(memcmp(value, str_val, val_1_size) == 0);
     }
 
@@ -307,13 +310,13 @@ large_updates(WT_SESSION *session, const char *uri, char *value, int commit_ts)
     __wt_random_init_seed((WT_SESSION_IMPL *)session, &rnd);
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
+    testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%d", commit_ts));
     for (i = 0; i < NUM_RECORDS; i++) {
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, i + 1);
         val = (uint64_t)__wt_random(&rnd);
         cursor->set_value(cursor, val, val, val, value);
         testutil_check(cursor->insert(cursor));
-        testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%d", commit_ts));
         testutil_check(session->commit_transaction(session, tscfg));
     }
 
@@ -361,12 +364,12 @@ remove_records(WT_SESSION *session, const char *uri, int commit_ts)
     printf("Removing records...\n");
     testutil_check(session->open_cursor(session, uri, NULL, NULL, &cursor));
 
+    testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%d", commit_ts));
     /* Remove 1/3 of the records from the middle of the key range. */
     for (i = NUM_RECORDS / 3; i < (NUM_RECORDS * 2) / 2; i++) {
         testutil_check(session->begin_transaction(session, NULL));
         cursor->set_key(cursor, i);
         testutil_check(cursor->remove(cursor));
-        testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "commit_timestamp=%d", commit_ts));
         testutil_check(session->commit_transaction(session, tscfg));
     }
 
