@@ -851,8 +851,8 @@ __wt_txn_set_timestamp(WT_SESSION_IMPL *session, const char *cfg[])
     WT_CONFIG cparser;
     WT_CONFIG_ITEM ckey, cval;
     WT_DECL_RET;
-    bool set_ts;
     wt_timestamp_t commit_ts, durable_ts, prepare_ts, read_ts;
+    bool set_ts;
 
     set_ts = false;
     commit_ts = durable_ts = prepare_ts = read_ts = 0;
