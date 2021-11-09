@@ -3178,7 +3178,7 @@ tasks:
         vars:
           perf-test-name: update-large-record-btree
           maxruns: 3
-          wtarg: -ops ['"load"']
+          wtarg: -ops ['"load", "update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-large-record-btree
@@ -3381,6 +3381,7 @@ tasks:
         vars:
           perf-test-name: multi-btree-zipfian-populate
           maxruns: 1
+          wtarg: -ops ['"read"']
       - func: "run-perf-test"
         vars:
           perf-test-name: multi-btree-zipfian-workload

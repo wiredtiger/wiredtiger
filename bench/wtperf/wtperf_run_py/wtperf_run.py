@@ -256,8 +256,8 @@ def main():
         sys.exit("A batch file (-bf) should not be defined at the same time as -ops or -args")
 
     json_info = json.loads(args.json_info) if args.json_info else {}
-    arguments = json.loads(args.arguments) if args.arguments else []
-    operations = json.loads(args.operations) if args.operations else []
+    arguments = json.loads(args.arguments) if args.arguments else None
+    operations = json.loads(args.operations) if args.operations else None
 
     config = WTPerfConfig(wtperf_path=args.wtperf,
                           home_dir=args.home,
