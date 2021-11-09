@@ -85,6 +85,8 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_scope>/WT_HOME>
 )
 
+# Currently the tiered abort test does not consisently pass, thus comment out the tiered abort test
+# from our csuite, until we gain more confidence in flush tier. For now, just compile the test.
 # define_c_test(
 #     TARGET test_tiered_abort
 #     SOURCES tiered_abort/main.c
@@ -97,6 +99,13 @@ define_c_test(
 #         "test_tiered_abort_5_thread;-b ${CMAKE_BINARY_DIR} -t 10 -T 5"
 #     DEPENDS "WT_POSIX"
 # )
+if (WT_POSIX)    
+    create_test_executable(test_tiered_abort    
+        SOURCES tiered_abort/main.c    
+        FLAGS "-DWT_STORAGE_LIB=\"ext/storage_sources/local_store/libwiredtiger_local_store.so\""    
+        BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/tiered_abort    
+    )                                                                                                                                                      
+endif() 
 
 define_c_test(
     TARGET test_timestamp_abort
