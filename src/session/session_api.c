@@ -2129,7 +2129,7 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
      * There is a session debug configuration which can be set to evict page as they are released
      * and no longer needed.
      */
-    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
+    if ((__wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
         if (cval.val) {
             F_SET(session, WT_SESSION_DEBUG_EVICT_RELEASE);
         } else {

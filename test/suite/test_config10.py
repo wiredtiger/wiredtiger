@@ -105,7 +105,7 @@ class test_config10(wttest.WiredTigerTestCase):
         self.assertEqual(cursor[3], value_a)
         self.assertEqual(cursor[4], value_b)
         s.rollback_transaction()
-        cursor.close()        
+        cursor.close()
 
 if __name__ == '__main__':
     wttest.run()

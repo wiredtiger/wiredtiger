@@ -1095,8 +1095,8 @@ session_config = [
         \c cache_cursors''',
         type='boolean'),
     Config('debug', '', r'''
-        configure debug specific behavior on a session. Generally only used 
-        for internal testing purposes.''', 
+        configure debug specific behavior on a session. Generally only used
+        for internal testing purposes.''',
         type='category', subconfig=[
         Config('release_evict_page', 'false', r'''
             Configure the session to evict the page when it is released and
