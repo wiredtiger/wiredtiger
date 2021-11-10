@@ -192,19 +192,20 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
 }
 
 /*
- * __eventv_gen_json_str --
- *     Generate a JSON style string.
+ * __eventv_gen_msg --
+ *     Generate a formatted message.
  */
 static int
-__eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int error,
+__eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int error,
   const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
     WT_DECL_RET;
-    size_t msg_len, remain, remain_msg, unpacked_msg_len;
+    size_t len, msg_len, remain, remain_msg, unpacked_msg_len;
     u_char *unpacked_json_str;
     char msg_str[2 * 1024], *p, *p_msg, tid[128];
     const char *err, *prefix;
+    bool is_json;
 
     p = buffer;
     p_msg = msg_str;
@@ -212,99 +213,72 @@ __eventv_gen_json_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
 
     remain = *buffer_len;
     remain_msg = sizeof(msg_str);
+    is_json = S2C(session)->event_handler_json;
 
-    /*
-     * We have several attributes for the event handler message: a timestamp and the process and
-     * thread ids, the database error prefix, the data-source's name, and the session's name. Write
-     * them as separates JSON attributes.
-     */
+    if (is_json)
+        WT_ERROR_APPEND(p, remain, "{");
+
+    /* Timestamp and thread id. */
     __wt_epoch(session, &ts);
     WT_ERR(__wt_thread_str(tid, sizeof(tid)));
-    WT_ERROR_APPEND(p, remain, "{");
-    WT_ERROR_APPEND(p, remain, "\"ts_sec\":%" PRIuMAX ",", (uintmax_t)ts.tv_sec);
-    WT_ERROR_APPEND(p, remain, "\"ts_usec\":%" PRIuMAX ",", (uintmax_t)ts.tv_nsec / WT_THOUSAND);
-    WT_ERROR_APPEND(p, remain, "\"thread\":\"%s\",", tid);
-
-    if ((prefix = S2C(session)->error_prefix) != NULL)
-        WT_ERROR_APPEND(p, remain, "\"session_err_prefix\":\"%s\",", prefix);
-    prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
-    if (prefix != NULL)
-        WT_ERROR_APPEND(p, remain, "\"session_dhandle_name\":\"%s\",", prefix);
-    if ((prefix = session->name) != NULL)
-        WT_ERROR_APPEND(p, remain, "\"session_name\":\"%s\",", prefix);
-
-    if (error != 0) {
-        err = __wt_strerror(session, error, NULL, 0);
-        WT_ERROR_APPEND(p, remain, "\"error_str\":\"%s\",", err);
-        WT_ERROR_APPEND(p, remain, "\"error_code\":%d,", error);
+    if (is_json) {
+        WT_ERROR_APPEND(p, remain, "\"ts_sec\":%" PRIuMAX ",", (uintmax_t)ts.tv_sec);
+        WT_ERROR_APPEND(
+          p, remain, "\"ts_usec\":%" PRIuMAX ",", (uintmax_t)ts.tv_nsec / WT_THOUSAND);
+        WT_ERROR_APPEND(p, remain, "\"thread\":\"%s\",", tid);
+    } else {
+        WT_ERR(__wt_thread_str(tid, sizeof(tid)));
+        WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
+          (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
     }
 
-    /* Format the content of the message into an intermediate buffer. */
-    WT_ERROR_APPEND_AP(p_msg, remain_msg, fmt, ap);
-
-    /* Escape any characters that are special for JSON. */
-    msg_len = sizeof(msg_str) - remain_msg;
-    unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
-    WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
-    WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
-
-    WT_ERROR_APPEND(p, remain, "\"msg\":\"");
-    if (func != NULL)
-        WT_ERROR_APPEND(p, remain, "%s:%d:", func, line);
-    WT_ERROR_APPEND(p, remain, "%s", unpacked_json_str);
-    WT_ERROR_APPEND(p, remain, "\"");
-
-    WT_ERROR_APPEND(p, remain, "}");
-
-    /* Update the remaining buffer length. */
-    *buffer_len = remain;
-
-err:
-    __wt_free(session, unpacked_json_str);
-    return (ret);
-}
-
-/*
- * __eventv_gen_flat_str --
- *     Generate a flat style string.
- */
-static int
-__eventv_gen_flat_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int error,
-  const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
-{
-    struct timespec ts;
-    WT_DECL_RET;
-    size_t len, remain;
-    char *p, tid[128];
-    const char *err, *prefix;
-
-    p = buffer;
-    remain = *buffer_len;
-
-    /*
-     * We have several prefixes for the error message: a timestamp and the process and thread ids,
-     * the database error prefix, the data-source's name, and the session's name. Write them as a
-     * comma-separate list, followed by a colon.
-     */
-    __wt_epoch(session, &ts);
-    WT_ERR(__wt_thread_str(tid, sizeof(tid)));
-    WT_ERROR_APPEND(p, remain, "[%" PRIuMAX ":%" PRIuMAX "][%s]", (uintmax_t)ts.tv_sec,
-      (uintmax_t)ts.tv_nsec / WT_THOUSAND, tid);
-
+    /* Error prefix. */
     if ((prefix = S2C(session)->error_prefix) != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_err_prefix\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+
+    /* Session dhandle name. */
     prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
     if (prefix != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_dhandle_name\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
+
+    /* Session name. */
     if ((prefix = session->name) != NULL)
-        WT_ERROR_APPEND(p, remain, ", %s", prefix);
-    WT_ERROR_APPEND(p, remain, ": ");
+        if (is_json)
+            WT_ERROR_APPEND(p, remain, "\"session_name\":\"%s\",", prefix);
+        else
+            WT_ERROR_APPEND(p, remain, ", %s", prefix);
 
-    if (func != NULL)
-        WT_ERROR_APPEND(p, remain, "%s, %d: ", func, line);
+    /* Message. */
+    if (is_json) {
+        /* Format the content of the message into an intermediate buffer. */
+        WT_ERROR_APPEND_AP(p_msg, remain_msg, fmt, ap);
 
-    WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+        /* Escape any characters that are special for JSON. */
+        msg_len = sizeof(msg_str) - remain_msg;
+        unpacked_msg_len = __eventv_unpack_json_str(NULL, 0, msg_str, msg_len);
+        WT_ERR(__wt_malloc(session, unpacked_msg_len + 1, &unpacked_json_str));
+        WT_UNUSED(__eventv_unpack_json_str(unpacked_json_str, unpacked_msg_len, msg_str, msg_len));
 
+        WT_ERROR_APPEND(p, remain, "\"msg\":\"");
+        if (func != NULL)
+            WT_ERROR_APPEND(p, remain, "%s:%d:", func, line);
+        WT_ERROR_APPEND(p, remain, "%s", unpacked_json_str);
+        WT_ERROR_APPEND(p, remain, "\"");
+    } else {
+        WT_ERROR_APPEND(p, remain, ": ");
+        if (func != NULL)
+            WT_ERROR_APPEND(p, remain, "%s, %d: ", func, line);
+        WT_ERROR_APPEND(p, remain, ": ");
+        WT_ERROR_APPEND_AP(p, remain, fmt, ap);
+    }
+
+    /* Error message. */
     if (error != 0) {
         /*
          * When the engine calls __wt_err on error, it often outputs an error message including the
@@ -316,15 +290,22 @@ __eventv_gen_flat_str(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len
          * end of the buffer.
          */
         err = __wt_strerror(session, error, NULL, 0);
-        len = strlen(err);
-        if (WT_PTRDIFF(p, buffer) < len || strcmp(p - len, err) != 0)
-            WT_ERROR_APPEND(p, remain, ": %s", err);
+        if (is_json) {
+            WT_ERROR_APPEND(p, remain, ",");
+            WT_ERROR_APPEND(p, remain, "\"error_str\":\"%s\",", err);
+            WT_ERROR_APPEND(p, remain, "\"error_code\":%d", error);
+        } else {
+            len = strlen(err);
+            if (WT_PTRDIFF(p, buffer) < len || strcmp(p - len, err) != 0)
+                WT_ERROR_APPEND(p, remain, ": %s", err);
+        }
     }
 
-    /* Update the remaining buffer length. */
-    *buffer_len = remain;
+    if (is_json)
+        WT_ERROR_APPEND(p, remain, "}");
 
 err:
+    __wt_free(session, unpacked_json_str);
     return (ret);
 }
 
@@ -339,7 +320,10 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
-    size_t remain;
+    size_t len, msg_len, remain, remain_msg, unpacked_msg_len;
+    u_char *unpacked_json_str;
+    char msg_str[2 * 1024], *p, *p_msg, tid[128];
+    const char *err, *prefix;
 
     /*
      * We're using a stack buffer because we want error messages no matter
@@ -351,6 +335,11 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
      */
     char s[4 * 1024];
     remain = sizeof(s);
+
+    p = s;
+    p_msg = msg_str;
+    remain_msg = sizeof(msg_str);
+    unpacked_json_str = NULL;
 
     /*
      * !!!
@@ -366,10 +355,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
         goto err;
 
     /* Format the message. */
-    if (S2C(session)->event_handler_json)
-        WT_ERR(__eventv_gen_json_str(session, s, &remain, error, func, line, fmt, ap));
-    else
-        WT_ERR(__eventv_gen_flat_str(session, s, &remain, error, func, line, fmt, ap));
+    WT_ERR(__eventv_gen_msg(session, s, &remain, error, func, line, fmt, ap));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
