@@ -72,8 +72,6 @@ class test_config10(wttest.WiredTigerTestCase):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         prev_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
-        print("prev cache")
-        print(prev_cache_usage)
         stat_cursor.close()
 
         s.checkpoint()
@@ -93,8 +91,6 @@ class test_config10(wttest.WiredTigerTestCase):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
-        print("current cache")
-        print(cache_usage)
         self.assertGreater(prev_cache_usage, cache_usage)
         stat_cursor.close()
 

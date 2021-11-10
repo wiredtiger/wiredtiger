@@ -417,8 +417,8 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
     }
 
     /*
-     * There is a session debug configuration which can be set to evict pages as they are
-     * released and no longer needed.
+     * There is a session debug configuration which can be set to evict pages as they are released
+     * and no longer needed.
      */
     if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
         if (cval.val) {
