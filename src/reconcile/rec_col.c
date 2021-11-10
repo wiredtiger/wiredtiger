@@ -65,6 +65,11 @@ __wt_bulk_insert_fix(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     ++cbulk->entry;
     ++r->recno;
 
+    /*
+     * Initialize the time aggregate that's going into the parent page. It's necessary to update an
+     * aggregate at least once if it's been initialized for merging, or it will fail validation.
+     * Also, it should reflect the fact that we've just loaded a batch of stable values.
+     */
     WT_TIME_WINDOW_INIT(&tw);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
     return (0);
@@ -102,6 +107,7 @@ __wt_bulk_insert_fix_bitmap(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk)
         r->recno += page_entries;
     }
 
+    /* Initialize the time aggregate that's going into the parent page. See note above. */
     WT_TIME_WINDOW_INIT(&tw);
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
     return (0);
@@ -145,6 +151,8 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
     if (btree->dictionary)
         WT_RET(__wt_rec_dict_replace(session, r, &tw, cbulk->rle, val));
     __wt_rec_image_copy(session, r, val);
+
+    /* Initialize the time aggregate that's going into the parent page. See note above. */
     WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &tw);
 
     /* Update the starting record number in case we split. */
@@ -948,7 +956,11 @@ __wt_rec_col_fix(
     /* Update the counters. */
     __wt_rec_incr(session, r, entry, __bitstr_size((size_t)entry * btree->bitcnt));
 
-    /* If there are entries we didn't write timestamps for, aggregate a stable timestamp. */
+    /*
+     * If there are entries we didn't write timestamps for, aggregate in a stable timestamp. Do this
+     * when there are no entries too, just in case that happens. Otherwise the aggregate, which was
+     * initialized for merging, will fail validation if nothing's been merged into it.
+     */
     if (r->aux_entries < r->entries || r->entries == 0) {
         WT_TIME_WINDOW_INIT(&unpack.tw);
         WT_TIME_AGGREGATE_UPDATE(session, &r->cur_ptr->ta, &unpack.tw);

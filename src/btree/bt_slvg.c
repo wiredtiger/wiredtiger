@@ -607,14 +607,27 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
 
         switch (auxhdr.version) {
         case WT_COL_FIX_VERSION_NIL:
-            /* Nothing to do besides update the time aggregate with a stable timestamp. */
+            /*
+             * Nothing to do besides update the time aggregate with a stable timestamp. This is
+             * necessary mechanically because a time aggregate initialized for merging will fail
+             * validation if not touched, and necessary conceptually because we have notionally
+             * iterated through all these values (which are all stable) and aggregated in their
+             * timestamps.
+             */
             WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
             __wt_verbose(session, WT_VERB_SALVAGE, "%s records %" PRIu64 "-%" PRIu64,
               __wt_addr_string(session, trk->trk_addr, trk->trk_addr_size, ss->tmp1),
               trk->col_start, trk->col_stop);
             break;
         case WT_COL_FIX_VERSION_TS:
-            /* Visit the time windows. */
+            /*
+             * Visit the time windows. Note: we're going to visit them all and produce the
+             * corresponding time aggregate, even though we might end up discarding some of the
+             * values later. The time aggregate will get updated to reflect that change when the
+             * page is reconciled after salvage, and in the meantime having the time aggregate be
+             * possibly wider than strictly necessary should not cause anything horribly wrong to
+             * happen.
+             */
             cell_num = 0;
             WT_CELL_FOREACH_FIX_TIMESTAMPS (session, dsk, &auxhdr, unpack) {
                 if (cell_num % 2 == 1) {
@@ -625,8 +638,8 @@ __slvg_trk_leaf(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk, uint8_t *ad
                 cell_num++;
             }
             WT_CELL_FOREACH_END;
-            if (cell_num == 0) {
-                /* If we saw no time windows, aggregate in a stable one. */
+            if (cell_num / 2 < dsk->u.entries || cell_num == 0) {
+                /* If we have keys with no time windows, or none, aggregate in a stable one. */
                 WT_TIME_AGGREGATE_UPDATE(session, &trk->trk_ta, &stable_tw);
             }
             __wt_verbose(session, WT_VERB_SALVAGE,
