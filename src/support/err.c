@@ -323,10 +323,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
     WT_SESSION *wt_session;
-    size_t len, msg_len, remain, remain_msg, unpacked_msg_len;
-    u_char *unpacked_json_str;
-    char msg_str[2 * 1024], *p, *p_msg, tid[128];
-    const char *err, *prefix;
+    size_t remain;
 
     /*
      * We're using a stack buffer because we want error messages no matter
@@ -338,11 +335,6 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
      */
     char s[4 * 1024];
     remain = sizeof(s);
-
-    p = s;
-    p_msg = msg_str;
-    remain_msg = sizeof(msg_str);
-    unpacked_json_str = NULL;
 
     /*
      * !!!
