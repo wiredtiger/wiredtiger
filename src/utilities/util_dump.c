@@ -178,8 +178,8 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
          */
         if (WT_STREQ(simpleuri, WT_HS_URI) && timestamp == NULL) {
             hs_dump_cursor = (WT_CURSOR_DUMP *)cursor;
-            /* Set the "ignore tombstone" flag on the underlying cursor. */
-            F_SET(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+            /* Set the "return tombstone" flag on the underlying cursor. */
+            F_SET(hs_dump_cursor->child, WT_CURSTD_RETURN_TOMBSTONE);
         }
         if (dump_config(session, simpleuri, cursor, pretty, hex, json) != 0)
             goto err;
@@ -190,7 +190,7 @@ util_dump(WT_SESSION *session, int argc, char *argv[])
             goto err;
 
         if (hs_dump_cursor != NULL)
-            F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+            F_CLR(hs_dump_cursor->child, WT_CURSTD_RETURN_TOMBSTONE);
         ret = cursor->close(cursor);
         cursor = NULL;
         hs_dump_cursor = NULL;
@@ -209,7 +209,7 @@ err:
 
     if (cursor != NULL) {
         if (hs_dump_cursor != NULL)
-            F_CLR(hs_dump_cursor->child, WT_CURSTD_IGNORE_TOMBSTONE);
+            F_CLR(hs_dump_cursor->child, WT_CURSTD_RETURN_TOMBSTONE);
         if ((ret = cursor->close(cursor)) != 0)
             ret = util_err(session, ret, NULL);
     }

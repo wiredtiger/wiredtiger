@@ -891,7 +891,7 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
          * the time window already has a stop time set then we must have seen a tombstone prior to
          * ours in the update list, and therefore don't need to do this again.
          */
-        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE) &&
+        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_RETURN_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -1019,7 +1019,7 @@ retry:
          * and when we are told to ignore non-globally visible tombstones.
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
-          !F_ISSET(&cbt->iface, WT_CURSTD_IGNORE_TOMBSTONE)) {
+          !F_ISSET(&cbt->iface, WT_CURSTD_RETURN_TOMBSTONE)) {
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;

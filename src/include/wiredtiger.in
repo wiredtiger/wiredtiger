@@ -723,7 +723,7 @@ struct __wt_cursor {
 #define	WT_CURSTD_DUMP_PRINT		0x0000800u
 #define	WT_CURSTD_HS_READ_ALL	0x0001000u
 #define	WT_CURSTD_HS_READ_COMMITTED	0x0002000u
-#define	WT_CURSTD_IGNORE_TOMBSTONE	0x0004000u
+#define	WT_CURSTD_RETURN_TOMBSTONE	0x0004000u
 #define	WT_CURSTD_JOINED		0x0008000u
 #define	WT_CURSTD_KEY_EXT		0x0010000u	/* Key points out of tree. */
 #define	WT_CURSTD_KEY_INT		0x0020000u	/* Key points into tree. */
