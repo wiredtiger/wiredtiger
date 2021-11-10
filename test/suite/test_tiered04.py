@@ -205,11 +205,6 @@ class test_tiered04(wttest.WiredTigerTestCase):
         self.check_metadata(self.tiereduri, intl_page)
         self.check_metadata(self.tiereduri, last)
         self.check_metadata(self.tiereduri, oldest)
-        #print("FILEURI")
-        #print(fileuri)
-        #print("DIR")
-        #x = fnmatch.filter(os.listdir(self.home), "*test_tiered04*")
-        #print(x)
         self.check_metadata(fileuri, intl_page)
         self.check_metadata(self.objuri, intl_page)
 
@@ -232,10 +227,13 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # Now test some connection statistics with operations.
         retain = self.get_stat(stat.conn.tiered_retention, None)
         self.assertEqual(retain, self.retention)
-        #time.sleep(1)
         self.session.flush_tier(None)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
+        # Make sure the last checkpoint and this flush tier are timed differently
+        # so that we can specifically check the statistics and code paths in the test.
+        # Sleep some to control the execution.
+        time.sleep(2)
         self.session.flush_tier('force=true')
         skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
@@ -258,22 +256,22 @@ class test_tiered04(wttest.WiredTigerTestCase):
         # call for now.
         #
         # There have been no data changes nor checkpoints since the last flush_tier with
-        # force, above. We need to sleep a second because if a checkpoint occurred in the
-        # same second the code flushes. The skip statistics should increase and the switched
+        # force, above. The skip statistics should increase and the switched
         # statistics should stay the same.
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
         self.session.flush_tier('timeout=10')
+        skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
+        switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
+        self.assertEqual(switch1, switch2)
+        self.assertGreater(skip2, skip1)
+
         self.session.flush_tier('lock_wait=false')
         self.session.flush_tier('sync=off')
         flush += 3
         self.pr("reconfigure get stat")
         calls = self.get_stat(stat.conn.flush_tier, None)
         self.assertEqual(calls, flush)
-        skip2 = self.get_stat(stat.conn.flush_tier_skipped, None)
-        switch2 = self.get_stat(stat.conn.flush_tier_switched, None)
-        self.assertEqual(switch1, switch2)
-        self.assertGreater(skip2, skip1)
 
         # Test that the checkpoint and flush times work across a connection restart.
         # Make modifications and then close the connection (which will checkpoint).
