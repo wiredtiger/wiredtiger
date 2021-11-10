@@ -35,7 +35,7 @@ __rec_col_fix_bulk_insert_split_check(WT_CURSOR_BULK *cbulk)
              */
             __wt_rec_incr(
               session, r, cbulk->entry, __bitstr_size((size_t)cbulk->entry * btree->bitcnt));
-            WT_RET(__wt_rec_split(session, r, 0, false));
+            WT_RET(__wt_rec_split(session, r, 0));
         }
         cbulk->entry = 0;
         cbulk->nrecs = WT_COL_FIX_BYTES_TO_ENTRIES(btree, r->space_avail);
@@ -145,7 +145,7 @@ __wt_bulk_insert_var(WT_SESSION_IMPL *session, WT_CURSOR_BULK *cbulk, bool delet
 
     /* Boundary: split or write the page. */
     if (WT_CROSSING_SPLIT_BND(r, val->len))
-        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
+        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
     /* Copy the value onto the page. */
     if (btree->dictionary)
@@ -189,7 +189,7 @@ __rec_col_merge(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page)
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
-            WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
+            WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
         /* Copy the value onto the page. */
         __wt_rec_image_copy(session, r, val);
@@ -310,7 +310,7 @@ __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
 
         /* Boundary: split or write the page. */
         if (__wt_rec_need_split(r, val->len))
-            WT_ERR(__wt_rec_split_crossing_bnd(session, r, val->len, false));
+            WT_ERR(__wt_rec_split_crossing_bnd(session, r, val->len));
 
         /* Copy the value (which is in val, val == r->v) onto the page. */
         __wt_rec_image_copy(session, r, val);
@@ -937,7 +937,7 @@ __wt_rec_col_fix(
             }
 
             /* Now split. */
-            WT_ERR(__wt_rec_split(session, r, 0, false));
+            WT_ERR(__wt_rec_split(session, r, 0));
 
             /* (Re)calculate the number of entries per page. */
             entry = 0;
@@ -1144,7 +1144,7 @@ __rec_col_var_helper(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_SALVAGE_COOKI
 
     /* Boundary: split or write the page. */
     if (__wt_rec_need_split(r, val->len))
-        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len, false));
+        WT_RET(__wt_rec_split_crossing_bnd(session, r, val->len));
 
     /* Copy the value onto the page. */
     if (!deleted && !overflow_type && btree->dictionary)
