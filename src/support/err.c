@@ -233,26 +233,29 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int
     }
 
     /* Error prefix. */
-    if ((prefix = S2C(session)->error_prefix) != NULL)
+    if ((prefix = S2C(session)->error_prefix) != NULL) {
         if (is_json)
             WT_ERROR_APPEND(p, remain, "\"session_err_prefix\":\"%s\",", prefix);
         else
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
 
     /* Session dhandle name. */
     prefix = session->dhandle == NULL ? NULL : session->dhandle->name;
-    if (prefix != NULL)
+    if (prefix != NULL) {
         if (is_json)
             WT_ERROR_APPEND(p, remain, "\"session_dhandle_name\":\"%s\",", prefix);
         else
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
 
     /* Session name. */
-    if ((prefix = session->name) != NULL)
+    if ((prefix = session->name) != NULL) {
         if (is_json)
             WT_ERROR_APPEND(p, remain, "\"session_name\":\"%s\",", prefix);
         else
             WT_ERROR_APPEND(p, remain, ", %s", prefix);
+    }
 
     /* Message. */
     if (is_json) {
