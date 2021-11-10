@@ -44,8 +44,8 @@ def flag_declare(name):
 
                 poweroftwo = (end != 0) and ((end & (end-1)) == 0)
                 if not poweroftwo and end != 12:
-                    print(name + ": line " + str(lcnt) + " " + str(end) + 
-                    " is not power of 2", file=sys.stderr)
+                    print(name + ": line " + str(lcnt) + ", the stop value " + str(end) +
+                    " is not a power of 2", file=sys.stderr)
                     sys.exit(1)
                 # Compare the number of flags defined and against the number
                 # of flags allowed
