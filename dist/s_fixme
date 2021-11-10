@@ -1,0 +1,24 @@
+#! /bin/bash
+
+# Check for branch name syntax and FIXME comments related to the ticket being worked on.
+
+# Retrieve the current branch name.
+branch_name=$(git rev-parse --abbrev-ref HEAD)
+
+# The branch has to match wt-<ticket_id>-description.
+regex="wt-[0-9]+-[a-zA-Z0-9-]+"
+if [[ ! $branch_name =~ $regex ]]; then
+    echo "The branch name \"$branch_name\" does not follow the expected format: wt-<ticket_id>-<description>."
+	exit 1
+fi
+
+# Get the first part that should be "wt-<ticket_id>".
+ticket_id=$(echo "$branch_name" | cut -d "-" -f-2)
+
+# Check for fixme comments related to the ticket left behind.
+if grep -inrw --exclude-dir=.git "fix.*$ticket_id" ../. > /dev/null 2>&1; then
+    echo "Please fix the FIXME comments related to $ticket_id."
+	exit 1
+fi
+
+exit 0
