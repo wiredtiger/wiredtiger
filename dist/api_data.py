@@ -1094,6 +1094,15 @@ session_config = [
         closed. This value is inherited from ::wiredtiger_open
         \c cache_cursors''',
         type='boolean'),
+    Config('debug', '', r'''
+        configure debug specific behavior on a session. Generally only used 
+        for internal testing purposes.''', 
+        type='category', subconfig=[
+        Config('release_evict_page', 'false', r'''
+            Configure the session to evict the page when it is released and
+            no longer needed.''',
+            type='boolean'),
+        ]),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size
         and are not blocked when the cache is full.  Note that use of this

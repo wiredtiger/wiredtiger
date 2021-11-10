@@ -2101,6 +2101,7 @@ int
 __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config,
   bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
+    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
@@ -2121,6 +2122,18 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
             WT_TRET(__wt_session_close_internal(session));
             return (ret);
+        }
+    }
+
+    /*
+     * There is a session debug configuration which can be set to evict page as they are released
+     * and no longer needed.
+     */
+    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
+        if (cval.val) {
+            F_SET(session, WT_SESSION_DEBUG_EVICT_RELEASE);
+        } else {
+            F_CLR(session, WT_SESSION_DEBUG_EVICT_RELEASE);
         }
     }
 

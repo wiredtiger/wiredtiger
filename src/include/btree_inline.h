@@ -1738,6 +1738,7 @@ static inline int
 __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
 {
     WT_BTREE *btree;
+    WT_DECL_RET;
     WT_PAGE *page;
     bool inmem_split;
 
@@ -1755,6 +1756,16 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
     if (F_ISSET(btree, WT_BTREE_IN_MEMORY))
         return (0);
+
+    /*
+     * If it is switched on, the session debug "release evict page configuration" will evict pages
+     * as they are released and become no longer required.
+     */
+
+    if (F_ISSET(session, WT_SESSION_DEBUG_EVICT_RELEASE)) {
+        WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
+        return (0);
+    }
 
     /*
      * Attempt to evict pages with the special "oldest" read generation. This is set for pages that
