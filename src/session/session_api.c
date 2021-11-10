@@ -2114,7 +2114,6 @@ int
 __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, const char *config,
   bool open_metadata, WT_SESSION_IMPL **sessionp)
 {
-    WT_CONFIG_ITEM cval;
     WT_DECL_RET;
     WT_SESSION_IMPL *session;
 
