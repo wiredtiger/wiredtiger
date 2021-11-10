@@ -415,6 +415,19 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
             WT_ERR(__session_close_cached_cursors(session));
         }
     }
+
+    /*
+     * There is a session debug configuration which can be set to evict pages as they are
+     * released and no longer needed.
+     */
+    if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
+        if (cval.val) {
+            F_SET(session, WT_SESSION_DEBUG_EVICT_RELEASE);
+        } else {
+            F_CLR(session, WT_SESSION_DEBUG_EVICT_RELEASE);
+        }
+    }
+
     WT_ERR_NOTFOUND_OK(ret, false);
 
 err:
@@ -2122,18 +2135,6 @@ __wt_open_session(WT_CONNECTION_IMPL *conn, WT_EVENT_HANDLER *event_handler, con
         if ((ret = __wt_metadata_cursor(session, NULL)) != 0) {
             WT_TRET(__wt_session_close_internal(session));
             return (ret);
-        }
-    }
-
-    /*
-     * There is a session debug configuration which can be set to evict page as they are released
-     * and no longer needed.
-     */
-    if ((__wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
-        if (cval.val) {
-            F_SET(session, WT_SESSION_DEBUG_EVICT_RELEASE);
-        } else {
-            F_CLR(session, WT_SESSION_DEBUG_EVICT_RELEASE);
         }
     }
 

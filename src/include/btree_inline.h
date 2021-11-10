@@ -1763,7 +1763,7 @@ __wt_page_release(WT_SESSION_IMPL *session, WT_REF *ref, uint32_t flags)
      */
 
     if (F_ISSET(session, WT_SESSION_DEBUG_EVICT_RELEASE)) {
-        WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, 0));
+        WT_TRET_BUSY_OK(__wt_page_release_evict(session, ref, flags));
         return (0);
     }
 

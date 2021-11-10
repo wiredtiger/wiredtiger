@@ -37,7 +37,8 @@ from wtscenario import make_scenarios
 from wtdataset import SimpleDataSet
 
 class test_config10(wttest.WiredTigerTestCase):
-    session_config = 'debug=(release_evict_page=true),isolation=snapshot'
+    conn_config = 'statistics=(fast)'
+    session_config = 'isolation=snapshot'
     key_format_values = [
         ('column', dict(key_format='r')),
         ('integer_row', dict(key_format='i')),
@@ -47,7 +48,7 @@ class test_config10(wttest.WiredTigerTestCase):
 
     def test_config10(self):
         uri = 'table:test_config10'
-        nrows = 1000
+        nrows = 10000
 
         ds = SimpleDataSet(
             self, uri, 0, key_format=self.key_format, value_format="S", config='log=(enabled=false)')
@@ -57,55 +58,45 @@ class test_config10(wttest.WiredTigerTestCase):
         self.conn.set_timestamp('oldest_timestamp=' + self.timestamp_str(10) +
             ',stable_timestamp=' + self.timestamp_str(10))
 
-        value_a = 'a' * 400
-        value_b = 'b' * 400
+        value = 'abcd' * 1000
 
         s = self.conn.open_session()
         cursor = s.open_cursor(uri)
 
-        # Insert some keys at timestamp 10.
-        s.begin_transaction()
-        cursor[1] = value_a
-        cursor[2] = value_a
-        cursor[3] = value_a
-        cursor[4] = value_b
-        s.commit_transaction('commit_timestamp=' + self.timestamp_str(10))
+        # Insert some values to fill up the cache, but not exceeding 80% of it.
+        # Then, do a checkpoint. Here, we don't expect eviction to trigger.
+        for i in range(1, nrows):
+            s.begin_transaction()
+            cursor[i] = value + str(i)
+            s.commit_transaction()
 
-        # Evict the page to force reconciliation.
-        s.begin_transaction()
-        v = cursor[1]
-        self.assertEqual(v, value_a)
-        s.rollback_transaction()
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        prev_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
+        print("prev cache")
+        print(prev_cache_usage)
+        stat_cursor.close()
+
+        s.checkpoint()
         cursor.close()
 
+        # Reconfigure the session to use the new debug configuration that evicts
+        # pages as released.
+        s.reconfigure("debug=(release_evict_page=true)")
         cursor = s.open_cursor(uri)
-        s.begin_transaction('read_timestamp=' + self.timestamp_str(10))
-        self.assertEqual(cursor[1], value_a)
-        s.rollback_transaction()
 
-        s.begin_transaction('read_timestamp=' + self.timestamp_str(20))
-        self.assertEqual(cursor[1], value_a)
-        s.rollback_transaction()
+        # We walk through and read all the content, but this time we expect pages
+        # to be evicted and a much lower cache usage.
+        for i in range(1, nrows):
+            s.begin_transaction()
+            self.assertEqual(cursor[i], value + str(i))
+            s.rollback_transaction()
 
-        # Update key 1 at timestamp 30.
-        cursor = s.open_cursor(uri)
-        s.begin_transaction()
-        cursor[1] = value_b
-        s.commit_transaction('commit_timestamp=' + self.timestamp_str(30))
-        cursor.close()
-
-        self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(40))
-        self.conn.rollback_to_stable()
-
-        # Read at timestamp 40.
-        cursor = s.open_cursor(uri)
-        s.begin_transaction('read_timestamp=' + self.timestamp_str(40))
-        self.assertEqual(cursor[1], value_b)
-        self.assertEqual(cursor[2], value_a)
-        self.assertEqual(cursor[3], value_a)
-        self.assertEqual(cursor[4], value_b)
-        s.rollback_transaction()
-        cursor.close()
+        stat_cursor = self.session.open_cursor('statistics:', None, None)
+        cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
+        print("current cache")
+        print(cache_usage)
+        self.assertGreater(prev_cache_usage, cache_usage)
+        stat_cursor.close()
 
 if __name__ == '__main__':
     wttest.run()
