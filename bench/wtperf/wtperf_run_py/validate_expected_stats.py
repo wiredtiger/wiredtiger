@@ -30,6 +30,7 @@
 
 import argparse
 import json
+import os
 
 
 def main():
@@ -37,16 +38,21 @@ def main():
     Validate the expected output from the last run of wtperf_run.py
     Take in a list of stats and their values as json and verify them against the contents of evergreen_out.json.
     Example usage:
-        ./validate_perf_stats.py '{"Pages seen by eviction": 200, "Insert count": 1153326}'
+        ./validate_perf_stats.py '{"Pages seen by eviction": 200, "Insert count": 1153326}' './evergreen_out.json'
     """
 
     parser = argparse.ArgumentParser()
     parser.add_argument('expected_stats', type=str, help='The expected stats and their values')
+    parser.add_argument('stat_file', type=str, help='The evergreen stat file produced by the perf test')
     args = parser.parse_args()
+
+    if os.path.basename(args.stat_file) != 'evergreen_out.json':
+        print("ERROR: argument 'stat_file' should be the path to an evergreen_out.json file")
+        exit(1)
 
     expected_stats = json.loads(args.expected_stats)
 
-    stat_file = json.load(open("./test_stats/evergreen_out.json", 'r'))
+    stat_file = json.load(open(args.stat_file, 'r'))
     test_output = {stat['name']: stat['value'] for stat in stat_file[0]["metrics"]}
 
     errors = []

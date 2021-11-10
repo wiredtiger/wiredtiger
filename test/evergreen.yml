@@ -631,7 +631,7 @@ functions:
           set -o errexit
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
-          ${python_binary} ../../../bench/wtperf/wtperf_run_py/validate_expected_stats.py '${expected-stats}'
+          ${python_binary} ../../../bench/wtperf/wtperf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
           
     - command: perf.send
       params:
@@ -3418,6 +3418,7 @@ tasks:
       - func: "validate-expected-stats"
         vars:
           expected-stats: '{"Pages seen by eviction": 200}'
+          stat_file: './test_stats/evergreen_out.json'
 
   - name: perf-test-evict-btree-stress-multi
     tags: ["stress-perf"]
