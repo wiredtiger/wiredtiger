@@ -648,8 +648,7 @@ variables:
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
 # race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
-# the number of runs adjusted to provide aproximately six hours of testing.  The
-# smoke tests are run just once.
+# the number of runs adjusted to provide aproximately six hours of testing.
 #########################################################################################
 
   - &format-stress-test
@@ -2508,7 +2507,6 @@ tasks:
           format_test_script_args: -t 10 rows=10000 ops=50000
 
   - name: format-smoke-test
-    exec_timeout_secs: 3600
     commands:
       - func: "get project"
       - func: "compile wiredtiger with builtins"
@@ -2517,7 +2515,6 @@ tasks:
           format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
 
   - name: format-asan-smoke-test
-    exec_timeout_secs: 3600
     commands:
       - func: "get project"
       - func: "compile wiredtiger address sanitizer"
