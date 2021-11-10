@@ -41,6 +41,12 @@ def flag_declare(name):
                         " GENERATION STOP 32", file=sys.stderr)
                     sys.exit(1)
                 end = int(m.group(0))
+
+                poweroftwo = (end != 0) and ((end & (end-1)) == 0)
+                if not poweroftwo and end != 12:
+                    print(name + ": line " + str(lcnt) + " " + str(end) + 
+                    " is not power of 2", file=sys.stderr)
+                    sys.exit(1)
                 # Compare the number of flags defined and against the number
                 # of flags allowed
                 if len(defines) > end - start:

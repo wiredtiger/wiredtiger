@@ -669,8 +669,8 @@ struct __wt_page {
 #define WT_PAGE_OVERFLOW_KEYS 0x040u     /* Page has overflow keys */
 #define WT_PAGE_SPLIT_INSERT 0x080u      /* A leaf page was split for append */
 #define WT_PAGE_UPDATE_IGNORE 0x100u     /* Ignore updates on page discard */
-                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 9 */
-    uint8_t flags_atomic;                /* Atomic flags, use F_*_ATOMIC */
+                                         /* AUTOMATIC FLAG VALUE GENERATION STOP 16 */
+    uint16_t flags_atomic;               /* Atomic flags, use F_*_ATOMIC */
 
     uint8_t unused[2]; /* Unused padding */
 
