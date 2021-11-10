@@ -284,9 +284,7 @@ class test_tiered04(wttest.WiredTigerTestCase):
         c.close()
         # Manually reopen the connection because the default function above tries to
         # make the bucket directories.
-        self.close_conn()
-        self.conn = self.wiredtiger_open('.', self.saved_conn)
-        self.session = self.conn.open_session()
+        self.reopen_conn(config = self.saved_conn)
         skip1 = self.get_stat(stat.conn.flush_tier_skipped, None)
         switch1 = self.get_stat(stat.conn.flush_tier_switched, None)
         self.session.flush_tier(None)

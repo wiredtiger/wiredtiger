@@ -334,10 +334,6 @@ __tiered_update_metadata(WT_SESSION_IMPL *session, WT_TIERED *tiered, const char
     newconfig = NULL;
     WT_RET(__wt_scr_alloc(session, 0, &tmp));
 
-    /*
-     * Update the last flush time before setting the metadata string. We must do it here because
-     * __wt_tiered_set_metadata is called from the checkpoint path as well.
-     */
     WT_ERR(__wt_tiered_set_metadata(session, tiered, tmp));
 
     cfg[0] = WT_CONFIG_BASE(session, tiered_meta);
