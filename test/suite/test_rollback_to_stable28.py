@@ -43,15 +43,13 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
     conn_config = 'log=(enabled=true),statistics=(all)'
     # Recovery connection config: The debug mode is only effective on high cache pressure as WiredTiger can potentially decide
     # to do an update restore evict on a page when the cache pressure requirements are not met.
-    # This means setting eviction target low and cache size high.
+    # This means setting eviction target low and cache size low.
     conn_recon = ',eviction_updates_trigger=10,eviction_dirty_trigger=5,eviction_dirty_target=1,' \
-            'cache_size=10MB,debug_mode=(update_restore_evict=true),log=(recover=on)'
+            'cache_size=1MB,debug_mode=(update_restore_evict=true),log=(recover=on)'
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        # Does not run reliably; does not always trigger update restore eviction and fails that
-        # assertion. Probably needs smaller pages, or more rows, or both.
-        #('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
+        ('column_fix', dict(key_format='r', value_format='8t', extraconfig=',leaf_page_max=4096')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
