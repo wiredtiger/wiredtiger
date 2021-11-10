@@ -20,7 +20,7 @@ that there are as many blocks as possible on the file's "available for reuse" li
 starts.  The compaction logic then starts examining the files that need to be compacted. Compacting
 the object is done 10% at a time, that is, compaction tries to move blocks from the last 10% of the
 file into the beginning of the file (the 10% is hard coded in the block manager).  The reason for
-this is because compactions walks the file in logical order, not block offset order, and compactions
+this is because compaction walks the file in logical order, not block offset order, and compaction
 of a file can fail if the block from the end of the file is not written first. Note that the block manager
 uses a first-fit block selection algorithm during compaction to maximize block movement. The process
 is repeated multiple times until block manager detects that there no blocks from the last 10% of the file
