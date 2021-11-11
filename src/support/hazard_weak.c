@@ -152,7 +152,7 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
 
     ++wha->nhazard;
 
-    WT_ASSERT(session, whp->ref == NULL && whp->count == 0);
+    WT_ASSERT(session, whp->ref == NULL);
 
     /*
      * We rely on a hazard pointer protecting the ref, so for weak hazard pointers this is much
@@ -160,7 +160,6 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
      */
     whp->ref = ref;
     whp->valid = true;
-    whp->count = 1;
 
     WT_ASSERT(session, whpp != NULL);
     *whpp = whp;

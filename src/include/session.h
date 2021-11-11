@@ -37,7 +37,6 @@ struct __wt_hazard {
 struct __wt_hazard_weak {
     WT_REF *ref; /* Page reference */
     bool valid;  /* Is the weak hazard pointer still valid? */
-    u_int count; /* For repeated acquisitions */
 };
 
 /*
