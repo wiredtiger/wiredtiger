@@ -31,6 +31,7 @@
 import argparse
 import json
 import os
+import re
 
 
 def main():
@@ -46,8 +47,9 @@ def main():
     parser.add_argument('stat_file', type=str, help='The evergreen stat file produced by the perf test')
     args = parser.parse_args()
 
-    if os.path.basename(args.stat_file) != 'evergreen_out.json':
-        print("ERROR: argument 'stat_file' should be the path to an evergreen_out.json file")
+    stat_file_regex = re.compile(r"evergreen_out\w*\.json")
+    if not re.match(stat_file_regex, os.path.basename(args.stat_file)):
+        print("ERROR: argument 'stat_file' should be the path to an evergreen_out*.json file")
         exit(1)
 
     expected_stats = json.loads(args.expected_stats)
