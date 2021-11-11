@@ -1783,7 +1783,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just confirm that each operation has a weak hazard pointer and clear it
                  * before proceeding.
                  */
-                if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) {
+                if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+                  !WT_IS_METADATA(op->btree->dhandle)) {
                     if (op->whp == NULL || op->whp->ref == NULL)
                         WT_ERR_PANIC(session, WT_PANIC,
                           "could not find the weak hazard pointer for a modify operation");
@@ -2161,7 +2162,8 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * For now just confirm that each operation has a weak hazard pointer and clear it
                  * before proceeding.
                  */
-                if (op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) {
+                if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+                  !WT_IS_METADATA(op->btree->dhandle)) {
                     if (op->whp == NULL || op->whp->ref == NULL)
                         WT_RET_PANIC(session, WT_PANIC,
                           "could not find the weak hazard pointer for a modify operation");
