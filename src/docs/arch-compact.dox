@@ -40,7 +40,9 @@ manager recognizes that rewriting the page will be beneficial, it rewrites the d
 block to a new disk location. The new disk address is placed into the parent internal page and
 the page is marked dirty. In this way the leaf page is rewritten without being brought into the
 cache. If the leaf page is already in cache, the leaf page is simply marked dirty and the subsequent
-checkpoint or eviction rewrites the page.
+checkpoint or eviction rewrites the page. When a leaf page is rewritten by compaction, the parent
+internal page is marked dirty so that the chain of internal pages from root to the leaf page is
+rewritten by the next checkpoint or eviction.
 
 After each 10% compaction, checkpoint is performed two more times. The second and third
 checkpoints are because the block manager checkpoints in two steps: blocks made available for reuse
