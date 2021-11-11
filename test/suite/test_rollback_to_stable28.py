@@ -49,8 +49,12 @@ class test_rollback_to_stable28(test_rollback_to_stable_base):
 
     format_values = [
         ('column', dict(key_format='r', value_format='S', extraconfig='')),
-        ('column_fix', dict(key_format='r', value_format='8t', 
-            extraconfig=',allocation_size=512,leaf_page_max=512')),
+        # Does not run reliably; does not always trigger update restore eviction and fails that
+        # assertion, even with small pages and more rows. Probably needs a lot more rows. For
+        # the moment we've concluded that the marginal benefit of running it on FLCS is small so
+        # just disabling the scenario seems to be the best way forward.
+        #('column_fix', dict(key_format='r', value_format='8t', 
+        #    extraconfig=',allocation_size=512,leaf_page_max=512')),
         ('integer_row', dict(key_format='i', value_format='S', extraconfig='')),
     ]
 
