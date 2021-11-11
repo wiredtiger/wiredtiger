@@ -1038,8 +1038,10 @@ ops(void *arg)
               TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT) + TV(OPS_PCT_MODIFY) + TV(OPS_PCT_WRITE))
                 op = UPDATE;
         }
-        if (op != READ && op != INSERT)
-            op = UPDATE; /* XXX KEITH */
+	if (op == TRUNCATE) /* XXX KEITH */
+	    op = UPDATE;
+	if (op == MODIFY) /* XXX KEITH */
+	    op = UPDATE;
 
         /*
          * Get the number of rows. Column-store extends the object, use that extended count if this
