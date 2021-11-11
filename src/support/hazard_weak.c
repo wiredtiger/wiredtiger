@@ -12,6 +12,14 @@
     for (wha = (s)->hazard_weak; wha != NULL; wha = wha->next) \
         for (whp = wha->hazard; whp < wha->hazard + wha->hazard_inuse; whp++)
 
+#define WT_HAZARD_WEAK_FORALL_BARRIER(s, wha, whp)               \
+    for (wha = (s)->hazard_weak; wha != NULL; wha = wha->next) { \
+        uint32_t __hazard_inuse;                                 \
+        WT_ORDERED_READ(__hazard_inuse, wha->hazard_inuse);      \
+        for (whp = wha->hazard; whp < wha->hazard + __hazard_inuse; whp++)
+
+#define WT_HAZARD_WEAK_FORALL_BARRIER_END }
+
 /*
  * __wt_hazard_weak_close --
  *     Verify that no weak hazard pointers are set.
@@ -164,4 +172,46 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
     WT_ASSERT(session, whpp != NULL);
     *whpp = whp;
     return (0);
+}
+
+/*
+ * __wt_hazard_weak_invalidate --
+ *     Invalidate any weak hazard pointers on a page that is locked for eviction.
+ */
+void
+__wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref)
+{
+    WT_CONNECTION_IMPL *conn;
+    WT_HAZARD_WEAK *whp;
+    WT_HAZARD_WEAK_ARRAY *wha;
+    WT_SESSION_IMPL *s;
+    uint32_t i, j, max, session_cnt, walk_cnt;
+
+    /* If a file can never be evicted, hazard pointers aren't required. */
+    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        return;
+
+    conn = S2C(session);
+
+    /*
+     * No lock is required because the session array is fixed size, but it may contain inactive
+     * entries. We must review any active session that might contain a hazard pointer, so insert a
+     * read barrier after reading the active session count. That way, no matter what sessions come
+     * or go, we'll check the slots for all of the sessions that could have been active when we
+     * started our check.
+     */
+    WT_ORDERED_READ(session_cnt, conn->session_cnt);
+    for (s = conn->sessions, i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+        if (!s->active)
+            continue;
+
+        WT_HAZARD_WEAK_FORALL_BARRIER(s, wha, whp)
+        {
+            ++walk_cnt;
+            if (whp->ref == ref)
+                whp->valid = false;
+        }
+        WT_HAZARD_WEAK_FORALL_BARRIER_END
+    }
+    WT_STAT_CONN_INCRV(session, cache_hazard_walks, walk_cnt);
 }
