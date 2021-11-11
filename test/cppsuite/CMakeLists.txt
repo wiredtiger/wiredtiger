@@ -76,6 +76,11 @@ create_test_executable(csuite_style_example_test
     CXX
 )
 
+if(ENABLE_TCMALLOC)
+    target_link_libraries(run wt::tcmalloc)
+    target_link_libraries(csuite_style_example_test wt::tcmalloc)
+endif()
+
 if(ENABLE_SNAPPY)
     # We use Snappy compression to avoid excessive disk spage usage.
     target_compile_options(run PRIVATE -DSNAPPY_PATH=\"$<TARGET_FILE:wiredtiger_snappy>\")
