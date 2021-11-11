@@ -32,7 +32,7 @@ import wttest
 # Ensure the application thread is not waiting forever for cache space if 
 # cache_max_wait_ms is set
 class test_eviction01(wttest.WiredTigerTestCase):
-    # Force a very small cache
+    # Force a very small cache.
     conn_config = 'cache_size=1MB'
 
     def test(self):
