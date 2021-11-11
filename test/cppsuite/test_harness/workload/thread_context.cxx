@@ -296,7 +296,7 @@ thread_context::remove(
 
     /*
      * When no timestamp is specified, get one to apply to the update. We still do this even if the
-     * timestamp manager is not enabled as it will return a value for the tracking table.
+    * timestamp manager is not enabled as it will return a value for the tracking table.
      */
     if (ts == 0)
         ts = tsm->get_next_ts();

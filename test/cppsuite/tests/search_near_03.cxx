@@ -33,10 +33,17 @@
 using namespace test_harness;
 
 /*
- * Class that defines operations that do nothing as an example. This shows how database operations
- * can be overriden and customized.
+ * In this test, we want to verify search_near with prefix enabled when performing unique index
+ * insertions. During the test duration:
+ *  - N threads will keep performing unique index insertions on existing keys in the table, in which
+ * we are expecting it to fail.
+ *  - M threads traverse all the keys in all the collections, to make sure that the number of
+ * collections do not change.
  */
 class search_near_03 : public test_harness::test {
+    std::vector<std::vector<std::string>> prefixes_map;
+    const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
+
     public:
     search_near_03(const test_harness::test_args &args) : test(args) {}
 
@@ -47,150 +54,233 @@ class search_near_03 : public test_harness::test {
         test::run();
     }
 
-    // static void perform_unique_index_insertions(test_harness::thread_context *tc, ) {
+    /*
+     * A unique index has the following insertion method:
+     * 1. Insert the prefix.
+     * 2. Remove the prefix.
+     * 3. Search near for the prefix.
+     * 4. Insert the full value (prefix, id).
+     * All of these operations are wrapped in the same txn, this test attempts to test
+     * scenarios that could arise from this insertion method.
+     */
+    static bool perform_unique_index_insertions(
+        thread_context *tc, scoped_cursor& cursor, collection& coll, std::string& prefix_key) {
+        const char *key_tmp;
+        int exact_prefix, ret;
 
-    // }
+        /* Insert the prefix. */
+        if (!tc->insert(cursor, coll.id, prefix_key))
+            return false;
+
+
+        /* Remove the prefix. */
+        if (!tc->remove(cursor, coll.id, prefix_key))
+            return false;
+
+        /*
+         * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND
+         * error to be returned. If the key is present, it means the (prefix, id) has been inserted
+         * already, double check that the prefix portion match.
+         */
+        testutil_check(cursor.get()->reconfigure(cursor.get(), "prefix_search=true"));
+        cursor->set_key(cursor.get(), prefix_key.c_str());
+        ret = cursor->search_near(cursor.get(), &exact_prefix);
+        testutil_assert(ret == 0 || ret == WT_NOTFOUND);
+        if (ret == 0) {
+            cursor->get_key(cursor.get(), &key_tmp);
+            testutil_assert(exact_prefix == 1);
+            testutil_assert(prefix_key == std::string(key_tmp).substr(0, prefix_key.size()));
+            return false;
+        }
+
+        /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
+        return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id));
+            
+    }
+
+    static void
+    populate_worker(thread_context *tc)
+    {
+        logger::log_msg(LOG_INFO, "Populate with thread id: " + std::to_string(tc->id));
+
+        std::string prefix_key;
+        const uint64_t MAX_ROLLBACKS = 100;
+        uint32_t rollback_retries = 0;
+
+        /*
+         * Each populate thread perform unique index insertions on each collection, with a randomly
+         * generated prefix and thread id.
+         */
+        collection &coll = tc->db.get_collection(tc->id);
+        scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+        for (uint64_t count = 0; count < tc->key_count; ++count) {
+            tc->transaction.begin();
+            /*
+            * Generate the prefix key, and append a random generated key string based
+            * on the key size configuration.
+            */
+            prefix_key = random_generator::instance().generate_random_string(tc->key_size);
+            // std::cout << prefix_key << std::endl;
+            if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
+                tc->transaction.commit(); 
+            } else {
+                tc->transaction.rollback();
+                ++rollback_retries;
+                --count;
+            }
+            testutil_assert(rollback_retries < MAX_ROLLBACKS);
+        }
+    }
+
+    std::string get_prefix_from_key(std::string const& s)
+    {
+        std::string::size_type pos = s.find(',');
+        if (pos != std::string::npos)
+            return s.substr(0, pos);
+        else
+            return s;
+    }
 
     void
-    populate(test_harness::database &database, test_harness::timestamp_manager *,
-      test_harness::configuration *config, test_harness::workload_tracking *) override final
+    populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
+      test_harness::configuration *config, test_harness::workload_tracking *tracking) override final
     {
-        /*
-         * The populate phase only creates empty collections. The number of collections is defined
-         * in the configuration.
-         */
-        int64_t collection_count = config->get_int(COLLECTION_COUNT);
+        uint64_t collection_count, key_count, key_size;
+        std::vector<thread_context *> workers;
+        thread_manager tm;
 
-        logger::log_msg(
-          LOG_INFO, "Populate: " + std::to_string(collection_count) + " creating collections.");
+        /* Validate our config. */
+        collection_count = config->get_int(COLLECTION_COUNT);
+        key_count = config->get_int(KEY_COUNT_PER_COLLECTION);
+        key_size = config->get_int(KEY_SIZE);
+        testutil_assert(collection_count > 0);
+        testutil_assert(key_count > 0);
+        testutil_assert(key_size > 0);
 
+        logger::log_msg(LOG_INFO,
+          "Populate configuration with " + std::to_string(collection_count) +
+            "collections, number of keys: " + std::to_string(key_count) +
+            ", key size: " + std::to_string(key_size));
+
+        /* Create n collections as per the configuration. */
         for (uint64_t i = 0; i < collection_count; ++i)
+            /*
+             * The database model will call into the API and create the collection, with its own
+             * session.
+             */
             database.add_collection();
 
+        /* Spawn a populate thread for each collection in the database. */
+        for (uint64_t i = 0; i < collection_count; ++i) {
+            thread_context *tc = new thread_context(i, thread_type::INSERT, config,
+              connection_manager::instance().create_session(), tsm, tracking, database);
+            workers.push_back(tc);
+            tm.add_thread(populate_worker, tc);
+        }
+
+        /* Wait for our populate threads to finish and then join them. */
+        logger::log_msg(LOG_INFO, "Populate: waiting for threads to complete.");
+        tm.join();
+
+        /* Cleanup our workers. */
+        for (auto &it : workers) {
+            delete it;
+            it = nullptr;
+        }
+
+        /*
+         * Construct a mapping of all the inserted prefixes to it's respective collection. We
+         * traverse through each collection using a cursor to collect the prefix and push it into a
+         * 2D vector.
+         */
+        scoped_session session = connection_manager::instance().create_session();
+        const char *key_tmp;
+        for (uint64_t i = 0; i < database.get_collection_count(); i++) {
+            collection &coll = database.get_collection(i);
+            scoped_cursor cursor = session.open_scoped_cursor(coll.name);
+            std::vector<std::string> prefixes;
+            while (true) {
+                auto ret = cursor->next(cursor.get());
+                if (ret != 0) {
+                    if (ret == WT_NOTFOUND) {
+                        break;
+                    } else
+                        testutil_die(ret, "Unexpected error returned from cursor->next()");
+                }
+                cursor->get_key(cursor.get(), &key_tmp);
+                prefixes.push_back(std::string(key_tmp));
+            }
+            prefixes_map.push_back(prefixes);
+        }
         logger::log_msg(LOG_INFO, "Populate: finished.");
     }
 
     void
     insert_operation(test_harness::thread_context *tc) override final
     {
-        /* Each insert operation will insert new keys in the collections. */
+        size_t random_index;
+        std::string prefix_key;
+        /* 
+         * Each insert operation will attempt to perform unique index insertions with an existing
+         * prefix on a collection.
+         */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-
-        /* Helper struct which stores a pointer to a collection and a cursor associated with it. */
-        struct collection_cursor {
-            collection_cursor(collection &coll, scoped_cursor &&cursor)
-                : coll(coll), cursor(std::move(cursor))
-            {
-            }
-            collection &coll;
-            scoped_cursor cursor;
-        };
-
-        /* Collection cursor vector. */
-        std::vector<collection_cursor> ccv;
-        int64_t collection_count = tc->db.get_collection_count();
-        int64_t collections_per_thread = collection_count / tc->thread_count;
-
-        /* Must have unique collections for each thread. */
-        testutil_assert(collection_count % tc->thread_count == 0);
-        testutil_assert(tc->key_size != 0);
-        const uint64_t thread_offset = tc->id * collections_per_thread;
-        for (uint64_t i = thread_offset;
-             i < thread_offset + collections_per_thread && tc->running(); ++i) {
-            collection &coll = tc->db.get_collection(i);
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
-            ccv.push_back({coll, std::move(cursor)});
-        }
-
-        std::string key;
-        const uint64_t MAX_ROLLBACKS = 100;
-        uint64_t counter = 0;
-        uint32_t rollback_retries = 0;
-        int exact_prefix, ret;
-
+        
         while (tc->running()) {
-
-            auto &cc = ccv[counter];
+            collection &coll = tc->db.get_random_collection();
+            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
             tc->transaction.begin();
+            /*
+             * Grab a random existing prefix and perform unique index insertion. We expect it to
+             * fail to insert, because it should already exist.
+             */
+            random_index = random_generator::instance().generate_integer(static_cast<size_t>(0), prefixes_map.at(0).size() - 1);
+            prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
+            logger::log_msg(LOG_INFO,
+              type_string(tc->type) +
+                " thread: Perform unique index insertions with existing prefix key" + prefix_key +
+                ".");
+            testutil_assert(perform_unique_index_insertions(tc, cursor, coll, prefix_key) == false);
+            tc->transaction.rollback();
+        }
+    }
 
-            while (tc->transaction.active() && tc->running()) {
-                /* Generate a random key. */
-                key = random_generator::instance().generate_random_string(tc->key_size);
-
-                /*
-                 * A unique index has the following insertion method:
-                 * 1. Insert the prefix.
-                 * 2. Remove the prefix.
-                 * 3. Search near for the prefix.
-                 * 4. Insert the full value (prefix, id).
-                 * All of these operations are wrapped in the same txn, this test attempts to test
-                 * scenarios that could arise from this insertion method.
-                 */
-                /* Insert the prefix. */
-                if (!tc->insert(cc.cursor, cc.coll.id, key)) {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
-                }
-
-                /* Remove the prefix. */
-                if (!tc->remove(cc.cursor, cc.coll.id, key)) {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
-                }
-
-                /* 
-                 * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND
-                 * error to be returned.
-                 */
-                cc.cursor->set_key(cc.cursor.get(), key.c_str());
-                ret = cc.cursor->search_near(cc.cursor.get(), &exact_prefix);
-                if (ret != WT_NOTFOUND) {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
-                }
-
-                /*
-                 * Now insert the key with prefix and id. Since this step expects id to be unique, 
-                 * we will use thread id to guarantee uniqueness.
-                 */
-                if (tc->insert(cc.cursor, cc.coll.id, key + std::to_string(tc->id))) {
-                    if (tc->transaction.can_commit()) {
-                         if (tc->transaction.commit())
-                            rollback_retries = 0;
-                        else
-                            ++rollback_retries;
+    void
+    read_operation(test_harness::thread_context *tc) override final
+    {
+        uint64_t key_count = 0;
+        logger::log_msg(
+            LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+        /*
+         * Each read thread will count the number of keys in each collection, and will double check
+         * if the size of the table hasn't changed.
+         */
+        tc->transaction.begin();
+        while (tc->running()) {
+            for (int i = 0; i < tc->db.get_collection_count(); i++) {
+                collection &coll = tc->db.get_collection(i);
+                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+                while (tc->running()) {
+                    auto ret = cursor->next(cursor.get());
+                    if (ret != 0) {
+                        if (ret == WT_NOTFOUND) {
+                            break;
+                        } else
+                            testutil_die(ret, "Unexpected error returned from cursor->next()");
                     }
-                } else {
-                    tc->transaction.rollback();
-                    ++rollback_retries;
+                    key_count++;
                 }
-
-                /* Sleep the duration defined by the configuration. */
                 tc->sleep();
             }
-            testutil_assert(rollback_retries < MAX_ROLLBACKS);
-            /* Rollback any transaction that could not commit before the end of the test. */
-            if (tc->transaction.active())
-                tc->transaction.rollback();
-
-            /* Reset our cursor to avoid pinning content. */
-            testutil_check(cc.cursor->reset(cc.cursor.get()));
-            if (++counter == ccv.size())
-                counter = 0;
-            testutil_assert(counter < collections_per_thread);
+            logger::log_msg(LOG_INFO,
+              type_string(tc->type) + " thread: calculated count: " + std::to_string(key_count) +
+                " expected size: " +
+                std::to_string(prefixes_map.size() * prefixes_map.at(0).size()));
+            testutil_assert(key_count == prefixes_map.size() * prefixes_map.at(0).size());
+            key_count = 0;
         }
-    }
-
-    void
-    read_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "read_operation: nothing done." << std::endl;
-    }
-
-    void
-    update_operation(test_harness::thread_context *) override final
-    {
-        std::cout << "update_operation: nothing done." << std::endl;
+        tc->transaction.rollback();
+            
     }
 };

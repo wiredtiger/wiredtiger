@@ -95,9 +95,6 @@ class workload_tracking : public component {
             error_message =
               "save_operation: invalid operation " + std::to_string(static_cast<int>(operation));
             testutil_die(EINVAL, error_message.c_str());
-        } else if (operation == tracking_operation::DELETE_KEY) {
-            op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
-            ret = op_track_cursor->remove(op_track_cursor.get());
         } else {
             op_track_cursor->set_key(op_track_cursor.get(), collection_id, key, ts);
             op_track_cursor->set_value(op_track_cursor.get(), static_cast<int>(operation), value);
