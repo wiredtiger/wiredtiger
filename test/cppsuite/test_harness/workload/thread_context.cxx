@@ -318,7 +318,7 @@ thread_context::remove(
             return (false);
         } else
             testutil_die(
-              ret, "unhandled error while trying to save an remove to the tracking table");
+              ret, "unhandled error while trying to save a remove to the tracking table");
     }
     transaction.add_op();
     return (true);
