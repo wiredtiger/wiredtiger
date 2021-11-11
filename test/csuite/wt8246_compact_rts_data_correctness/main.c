@@ -242,7 +242,7 @@ workload_compact(const char *home, const char *table_config, const char *uri)
     check(session, uri, value_c, 40);
     check(session, uri, value_d, 50);
 
-    /* Pin stable to timestamp 40. */
+    /* Pin stable to timestamp 30. */
     testutil_check(__wt_snprintf(tscfg, sizeof(tscfg), "stable_timestamp=%d", 30));
     testutil_check(conn->set_timestamp(conn, tscfg));
 
