@@ -206,27 +206,6 @@ path_setup(const char *home)
 }
 
 /*
- * fp_readv --
- *     Read and return a value from a file.
- */
-bool
-fp_readv(FILE *fp, char *name, uint32_t *vp)
-{
-    u_long ulv;
-    char *endptr, buf[64];
-
-    if (fgets(buf, sizeof(buf), fp) == NULL)
-        testutil_die(errno, "%s: read-value error", name);
-
-    errno = 0;
-    ulv = strtoul(buf, &endptr, 10);
-    testutil_assert(errno == 0 && endptr[0] == '\n');
-    testutil_assert(ulv <= UINT32_MAX);
-    *vp = (uint32_t)ulv;
-    return (false);
-}
-
-/*
  * fclose_and_clear --
  *     Close a file and clear the handle so we don't close twice.
  */
@@ -425,11 +404,32 @@ lock_init(WT_SESSION *session, RWLOCK *lock)
 void
 lock_destroy(WT_SESSION *session, RWLOCK *lock)
 {
-    testutil_assert(LOCK_INITIALIZED(lock));
-
-    if (lock->lock_type == LOCK_WT)
-        __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
-    else
+    switch (lock->lock_type) {
+    case LOCK_NONE:
+        break;
+    case LOCK_PTHREAD:
         testutil_check(pthread_rwlock_destroy(&lock->l.pthread));
-    lock->lock_type = LOCK_NONE;
+        break;
+    case LOCK_WT:
+        __wt_rwlock_destroy((WT_SESSION_IMPL *)session, &lock->l.wt);
+        break;
+    }
+}
+
+/*
+ * atou32 --
+ *     String to uint32_t helper function.
+ */
+uint32_t
+atou32(const char *tag, const char *s, int match)
+{
+    long v;
+    char *endptr;
+
+    errno = 0;
+    v = strtol(s, &endptr, 10);
+    if ((errno == ERANGE && (v == LONG_MAX || v == LONG_MIN)) || (errno != 0 && v == 0) ||
+      *endptr != match || v < 0 || v > UINT32_MAX)
+        testutil_die(EINVAL, "%s: %s: illegal numeric value or value out of range", progname, tag);
+    return ((uint32_t)v);
 }

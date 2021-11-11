@@ -141,14 +141,14 @@ wts_salvage(TABLE *table, void *arg)
     wts_open(g.home, &conn, &session, true);
     session->app_private = table->track_prefix;
     testutil_check(session->salvage(session, table->uri, "force=true"));
-    wts_verify(table, conn);
+    table_verify(table, conn);
     wts_close(&conn, &session);
 
     /* Corrupt the file randomly, salvage, then verify. */
     corrupt(table);
     wts_open(g.home, &conn, &session, false);
     testutil_check(session->salvage(session, table->uri, "force=true"));
-    wts_verify(table, conn);
+    table_verify(table, conn);
 
     wts_close(&conn, &session);
 }

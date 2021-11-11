@@ -154,7 +154,7 @@ main(int argc, char *argv[])
     u_int ops_seconds;
     int ch, reps;
     const char *config, *home;
-    bool quiet_flag;
+    bool quiet_flag, verify_only;
 
     custom_die = format_die; /* Local death handler. */
 
@@ -174,8 +174,8 @@ main(int argc, char *argv[])
 
     /* Set values from the command line. */
     home = NULL;
-    quiet_flag = syntax_check = false;
-    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrT:t")) != EOF)
+    quiet_flag = syntax_check = verify_only = false;
+    while ((ch = __wt_getopt(progname, argc, argv, "1BC:c:h:qRSrT:tv")) != EOF)
         switch (ch) {
         case '1':
             /* Ignored for backward compatibility. */
@@ -206,6 +206,9 @@ main(int argc, char *argv[])
             /* FALLTHROUGH */
         case 't': /* Trace  */
             g.trace = true;
+            break;
+        case 'v': /* Verify only */
+            verify_only = true;
             break;
         default:
             usage();
@@ -308,8 +311,10 @@ main(int argc, char *argv[])
     tables_apply(key_init, NULL);
     tables_apply(val_init, NULL);
     if (!g.reopen)
-        TIMED_MAJOR_OP(tables_apply(wts_load, NULL));
-    TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
+        TIMED_MAJOR_OP(wts_load());
+    TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
+    if (verify_only)
+        goto skip_operations;
     if (GV(OPS_VERIFY) == 0)
         TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
 
@@ -336,7 +341,7 @@ main(int argc, char *argv[])
      * Verify the objects. Verify closes the underlying handle and discards the statistics, read
      * them first.
      */
-    TIMED_MAJOR_OP(tables_apply(wts_verify, g.wts_conn));
+    TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
 
     track("shutting down", 0ULL);
     wts_close(&g.wts_conn, &g.wts_session);
@@ -344,6 +349,7 @@ main(int argc, char *argv[])
     /* Salvage testing. */
     TIMED_MAJOR_OP(tables_apply(wts_salvage, NULL));
 
+skip_operations:
     trace_teardown();
 
     /* Overwrite the progress line with a completion line. */

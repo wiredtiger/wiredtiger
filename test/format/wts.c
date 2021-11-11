@@ -525,33 +525,6 @@ wts_close(WT_CONNECTION **connp, WT_SESSION **sessionp)
     testutil_check(conn->close(conn, GV(WIREDTIGER_LEAK_MEMORY) ? "leak_memory" : NULL));
 }
 
-/*
- * wts_verify --
- *     Verify a table.
- */
-void
-wts_verify(TABLE *table, void *arg)
-{
-    WT_CONNECTION *conn;
-    WT_DECL_RET;
-    WT_SESSION *session;
-
-    conn = (WT_CONNECTION *)arg;
-
-    if (GV(OPS_VERIFY) == 0)
-        return;
-
-    /*
-     * Verify can return EBUSY if the handle isn't available. Don't yield and retry, in the case of
-     * LSM, the handle may not be available for a long time.
-     */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    session->app_private = table->track_prefix;
-    ret = session->verify(session, table->uri, "strict");
-    testutil_assert(ret == 0 || ret == EBUSY);
-    testutil_check(session->close(session, NULL));
-}
-
 struct stats_args {
     FILE *fp;
     WT_SESSION *session;

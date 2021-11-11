@@ -47,6 +47,7 @@ set(format_sources
     t.c
     trace.c
     util.c
+    verify.c
     wts.c
 )
 

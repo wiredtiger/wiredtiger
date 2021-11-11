@@ -169,7 +169,7 @@ snap_track(TINFO *tinfo, thread_op op)
     }
 
     if (op != REMOVE && op != TRUNCATE) {
-        ip = tinfo->value;
+        ip = op == INSERT || op == UPDATE ? tinfo->new_value : tinfo->value;
         if (snap->vmemsize < ip->size) {
             snap->vdata = drealloc(snap->vdata, ip->size);
             snap->vmemsize = ip->size;
@@ -233,6 +233,9 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     keyno = snap->keyno;
     key = tinfo->key;
     value = tinfo->value;
+
+    trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
+      trace_bytes(tinfo, snap->vdata, snap->vsize));
 
     /*
      * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
@@ -563,9 +566,6 @@ snap_repeat(TINFO *tinfo, SNAP_OPS *snap)
 
     session = tinfo->session;
 
-    trace_op(tinfo, "repeat %" PRIu64 " ts=%" PRIu64 " {%s}", snap->keyno, snap->ts,
-      trace_bytes(tinfo, snap->vdata, snap->vsize));
-
     /* Start a transaction with a read-timestamp and verify the record. */
     testutil_check(__wt_snprintf(buf, sizeof(buf), "read_timestamp=%" PRIx64, snap->ts));
 
@@ -691,6 +691,6 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
     } else
         g.rts_no_check = 0;
 
-    if (session == NULL)
+    if (session != NULL)
         testutil_check(session->close(session, NULL));
 }

@@ -38,8 +38,8 @@ static void config_checksum(TABLE *);
 static void config_compression(TABLE *, const char *);
 static void config_directio(void);
 static void config_encryption(void);
-static const char *config_file_type(u_int);
 static bool config_explicit(TABLE *, const char *);
+static const char *config_file_type(u_int);
 static bool config_fix(TABLE *);
 static void config_in_memory(void);
 static void config_in_memory_reset(void);
@@ -47,7 +47,9 @@ static void config_lsm_reset(TABLE *);
 static void config_map_backup_incr(const char *, u_int *);
 static void config_map_checkpoint(const char *, u_int *);
 static void config_map_file_type(const char *, u_int *);
+static void config_mirrors(void);
 static void config_off(TABLE *, const char *);
+static void config_off_all(const char *);
 static void config_pct(TABLE *);
 static void config_transaction(void);
 
@@ -301,9 +303,6 @@ config_table(TABLE *table, void *arg)
     config_compression(table, "btree.compression");
     config_pct(table);
 
-    /* The number of rows in the table can change, get a local copy of the starting value. */
-    table->rows_current = TV(RUNS_ROWS);
-
     /* Column-store tables require special row insert resolution. */
     if (table->type != ROW)
         g.column_store_config = true;
@@ -351,7 +350,8 @@ config_run(void)
     if (g.backward_compatible)
         config_backward_compatible();
 
-    config_cache(); /* Cache */
+    config_mirrors(); /* Mirrors */
+    config_cache();   /* Cache */
 
     /*
      * Run-length is configured by a number of operations and a timer.
@@ -842,6 +842,8 @@ config_in_memory(void)
         return;
     if (config_explicit(NULL, "ops.verify"))
         return;
+    if (config_explicit(NULL, "runs.mirror"))
+        return;
 
     if (!config_explicit(NULL, "runs.in_memory") && mmrand(NULL, 1, 20) == 1)
         config_single(NULL, "runs.in_memory=1", false);
@@ -933,6 +935,101 @@ config_lsm_reset(TABLE *table)
               EINVAL, "LSM (currently) incompatible with incremental backup configurations");
         config_single(NULL, "backup.incremental=log", false);
     }
+}
+
+/*
+ * config_mirrors --
+ *     Configure table mirroring.
+ */
+static void
+config_mirrors(void)
+{
+    u_int i, mirrors;
+    char buf[100];
+    bool explicit_mirror;
+
+    /* On reopen, check if mirroring is configured; the first mirrored table is the base table. */
+    if (g.reopen) {
+        for (i = 1; i <= ntables; ++i)
+            if (NTV(tables[i], RUNS_MIRROR)) {
+                tables[i]->mirror = true;
+                if (g.base_mirror == NULL)
+                    g.base_mirror = tables[i];
+            }
+        return;
+    }
+
+    /*
+     * Mirror configuration is potentially confusing: it's a per-table configuration (because it has
+     * to be set for subsequent runs so we can tell which tables are part of the mirror group), but
+     * it's configured on global basis, causing the random selection of a group of tables for the
+     * mirror group. If it's configured anywhere, it's configured everywhere; otherwise configure it
+     * 20% of the time. Once that's done, turn off all mirroring, it's turned back on for selected
+     * tables.
+     */
+    explicit_mirror = config_explicit(NULL, "runs.mirror");
+    if (!explicit_mirror && mmrand(NULL, 1, 10) < 3)
+        return;
+    config_off_all("runs.mirror");
+
+    /* In-memory runs don't mirror tables, there's no point. */
+    if (GV(RUNS_IN_MEMORY)) {
+        if (explicit_mirror)
+            testutil_die(EINVAL, "runs.mirror incompatible with in-memory configuration");
+        return;
+    }
+
+    /*
+     * We can't mirror if we don't have enough tables. A FLCS table can be a mirror, but it can't be
+     * the source of the bulk-load mirror records. Find the first table we can use as a base.
+     */
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->type != FIX)
+            break;
+    if (ntables < 2 || i > ntables) {
+        if (explicit_mirror)
+            WARN("%s", "table selection didn't support mirroring, turning off mirroring");
+        return;
+    }
+
+    /*
+     * We can't mirror if there are custom collators. The combinations are complicated, just turn
+     * reverse collation off.
+     */
+    for (i = 1; i <= ntables; ++i)
+        if (NTV(tables[i], BTREE_REVERSE) && config_explicit(tables[i], "btree.reverse")) {
+            WARN(
+              "%s", "mirroring incompatible with reverse collation, turning off reverse collation");
+            break;
+        }
+    config_off_all("btree.reverse");
+
+    /* Good to go: pick the first non-FLCS table as our base and turn on mirroring. */
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->type != FIX)
+            break;
+    tables[i]->mirror = true;
+    config_single(tables[i], "runs.mirror=1", false);
+    g.base_mirror = tables[i];
+
+    /* Pick some number of tables to mirror, then turn on mirroring the next (n-1) tables. */
+    for (mirrors = mmrand(NULL, 2, ntables) - 1, i = 1; i <= ntables; ++i)
+        if (tables[i] != g.base_mirror) {
+            tables[i]->mirror = true;
+            config_single(tables[i], "runs.mirror=1", false);
+            if (--mirrors == 0)
+                break;
+        }
+
+    /*
+     * Give each mirror the same number of rows (it's not necessary, we could treat end-of-table on
+     * a mirror as OK, but this lets us assert matching rows).
+     */
+    testutil_check(
+      __wt_snprintf(buf, sizeof(buf), "runs.rows=%" PRIu32, NTV(g.base_mirror, RUNS_ROWS)));
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->mirror && tables[i] != g.base_mirror)
+            config_single(tables[i], buf, false);
 }
 
 /*
@@ -1349,22 +1446,17 @@ config_off(TABLE *table, const char *s)
 }
 
 /*
- * config_value --
- *     String to long helper function.
+ * config_off_all --
+ *     Turn a configuration value off for all possible entries.
  */
-static uint32_t
-config_value(const char *config, const char *p, int match)
+static void
+config_off_all(const char *s)
 {
-    long v;
-    char *endptr;
+    u_int i;
 
-    errno = 0;
-    v = strtol(p, &endptr, 10);
-    if ((errno == ERANGE && (v == LONG_MAX || v == LONG_MIN)) || (errno != 0 && v == 0) ||
-      *endptr != match || v < 0 || v > UINT32_MAX)
-        testutil_die(
-          EINVAL, "%s: %s: illegal numeric value or value out of range", progname, config);
-    return ((uint32_t)v);
+    config_off(tables[0], s);
+    for (i = 1; i <= ntables; ++i)
+        config_off(tables[i], s);
 }
 
 /*
@@ -1508,7 +1600,7 @@ config_single(TABLE *table, const char *s, bool explicit)
         else if (strncmp(equalp, "on", strlen("on")) == 0)
             v1 = 1;
         else {
-            v1 = config_value(s, equalp, '\0');
+            v1 = atou32(s, equalp, '\0');
             if (v1 != 0 && v1 != 1)
                 testutil_die(EINVAL, "%s: %s: value of boolean not 0 or 1", progname, s);
         }
@@ -1537,7 +1629,7 @@ config_single(TABLE *table, const char *s, bool explicit)
      * Get the value and check the range; zero is optionally an out-of-band "don't set this
      * variable" value.
      */
-    v1 = config_value(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
+    v1 = atou32(s, vp1, range == RANGE_NONE ? '\0' : (range == RANGE_FIXED ? '-' : ':'));
     if (!(v1 == 0 && F_ISSET(cp, C_ZERO_NOTSET)) && (v1 < cp->min || v1 > cp->maxset)) {
         /*
          * Historically, btree.split_pct support ranges < 50; correct the value.
@@ -1556,7 +1648,7 @@ config_single(TABLE *table, const char *s, bool explicit)
     }
 
     if (range != RANGE_NONE) {
-        v2 = config_value(s, vp2, '\0');
+        v2 = atou32(s, vp2, '\0');
         if (v2 < cp->min || v2 > cp->maxset)
             testutil_die(EINVAL, "%s: %s: value outside min/max values of %" PRIu32 "-%" PRIu32,
               progname, s, cp->min, cp->maxset);
@@ -1709,9 +1801,9 @@ config_explicit(TABLE *table, const char *s)
     if (table != NULL)
         return (table->v[cp->off].set);
 
-    /* Otherwise, check if it's set in any table. */
-    if (ntables == 0)
-        return (tables[0]->v[cp->off].set);
+    /* Otherwise, check if it's set in the base values or in any table. */
+    if (tables[0]->v[cp->off].set)
+        return (true);
     for (i = 1; i < ntables; ++i)
         if (tables[i]->v[cp->off].set)
             return (true);

@@ -103,7 +103,11 @@ typedef struct {
     enum { LOCK_NONE = 0, LOCK_WT, LOCK_PTHREAD } lock_type;
 } RWLOCK;
 
-#define LOCK_INITIALIZED(lock) ((lock)->lock_type != LOCK_NONE)
+/*
+ * Default fixed-length column-store value when there's no available base mirror value, something
+ * with half the bits set.
+ */
+#define FIX_MIRROR_DNE 0x55
 
 #include "config.h"
 extern CONFIG configuration_list[];
@@ -121,13 +125,13 @@ typedef struct {
     table_type type;       /* table type */
     char track_prefix[32]; /* table track message prefix */
 
+    bool mirror; /* Table is in a mirrored group */
+
     uint32_t max_intl_page; /* page size configurations converted to bytes */
     uint32_t max_leaf_page;
     uint32_t max_mem_page;
 
     uint32_t rows_current; /* current row count */
-
-    uint64_t truncate_cnt; /* truncation operation counter */
 
     uint32_t key_rand_len[1031]; /* key: lengths */
     char *val_base;              /* value: base/original */
@@ -165,8 +169,11 @@ extern u_int ntables;
 #define GV(off) (tables[0]->v[V_GLOBAL_##off].v)
 #define GVS(off) \
     (tables[0]->v[V_GLOBAL_##off].vstr == NULL ? "off" : tables[0]->v[V_GLOBAL_##off].vstr)
-#define TV(off) (table->v[V_TABLE_##off].v)
-#define TVS(off) (table->v[V_TABLE_##off].vstr == NULL ? "off" : table->v[V_TABLE_##off].vstr)
+#define NTV(table, off) ((table)->v[V_TABLE_##off].v)
+#define NTVS(table, off) \
+    ((table)->v[V_TABLE_##off].vstr == NULL ? "off" : (table)->v[V_TABLE_##off].vstr)
+#define TV(off) NTV(table, off)
+#define TVS(off) NTVS(table, off)
 
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
@@ -196,6 +203,8 @@ typedef struct {
     WT_CONNECTION *trace_conn; /* optional tracing database */
     WT_SESSION *trace_session;
 
+    TABLE *base_mirror; /* First mirrored table */
+
     RWLOCK backup_lock; /* Backup running */
     uint64_t backup_id; /* Block incremental id */
 #define INCREMENTAL_BLOCK 1
@@ -210,6 +219,8 @@ typedef struct {
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */
+
+    uint64_t truncate_cnt; /* truncation operation counter */
 
     /*
      * Prepare will return an error if the prepare timestamp is less than any active read timestamp.
@@ -239,13 +250,15 @@ typedef struct {
     char runs_type[64];
 
     /*
-     * The minimum key size: A minimum key size of 11 is necessary, row-store keys have a leading
-     * 10-digit number and the 11 guarantees we never see a key we can't immediately convert to a
-     * numeric value without modification (there's a trailing non-digit character after every key).
+     * The minimum key size: A minimum key size of 13 is necessary, row-store keys have a leading
+     * 10-digit number, and in the case of a row-store insert, a '.' and a two-character suffix.r
+     * The 13 guarantees we never see a key we can't immediately convert to a numeric value without
+     * modification (there's a trailing non-digit character after every key) and ensures inserts
+     * never have a key that matches an original, bulk-loaded key.
      *
      * Range of common key prefix selection and the maximum table prefix length.
      */
-#define KEY_LEN_CONFIG_MIN 11
+#define KEY_LEN_CONFIG_MIN 13
 #define PREFIX_LEN_CONFIG_MIN 15
 #define PREFIX_LEN_CONFIG_MAX 80
     uint32_t prefix_len_max;
@@ -327,9 +340,11 @@ typedef struct {
 
     WT_SESSION *trace; /* WiredTiger operations tracing session */
 
-    uint64_t keyno;     /* key */
-    WT_ITEM *key, _key; /* key, value */
-    WT_ITEM *value, _value;
+    uint64_t keyno;                 /* key */
+    WT_ITEM *key, _key;             /* read key */
+    WT_ITEM *value, _value;         /* read value */
+    WT_ITEM *new_value, _new_value; /* insert or update value */
+    uint8_t bitv;                   /* insert or update value (FLCS) */
 
     uint64_t last; /* truncate range */
     WT_ITEM *lastkey, _lastkey;
@@ -348,8 +363,12 @@ typedef struct {
 #define snap_first s->snap_state_first
 #define snap_list s->snap_state_list
 
-    WT_ITEM vprint;     /* Temporary buffer for printable values */
+    int nentries; /* Modify operations */
+    WT_MODIFY entries[MAX_MODIFY_ENTRIES];
+
     WT_ITEM moda, modb; /* Temporary buffer for modify operations */
+
+    WT_ITEM vprint; /* Temporary buffer for printable values */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */
@@ -369,6 +388,7 @@ WT_THREAD_RET import(void *);
 WT_THREAD_RET random_kv(void *);
 WT_THREAD_RET timestamp(void *);
 
+uint32_t atou32(const char *, const char *, int);
 void config_clear(void);
 void config_compat(const char **);
 void config_error(void);
@@ -378,7 +398,6 @@ void config_run(void);
 void config_single(TABLE *, const char *, bool);
 void create_database(const char *home, WT_CONNECTION **connp);
 void fclose_and_clear(FILE **);
-bool fp_readv(FILE *, char *, uint32_t *);
 void key_gen_common(TABLE *, WT_ITEM *, uint64_t, const char *);
 void key_gen_init(WT_ITEM *);
 void key_gen_teardown(WT_ITEM *);
@@ -398,6 +417,7 @@ int snap_repeat_txn(TINFO *);
 void snap_repeat_update(TINFO *, bool);
 void snap_teardown(TINFO *);
 void snap_track(TINFO *, thread_op);
+void table_verify(TABLE *, void *);
 void timestamp_init(void);
 void timestamp_once(WT_SESSION *, bool, bool);
 void timestamp_teardown(WT_SESSION *);
@@ -411,18 +431,19 @@ void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
+void val_to_flcs(WT_ITEM *, uint8_t *);
 void wts_checkpoints(void);
 void wts_close(WT_CONNECTION **, WT_SESSION **);
 void wts_create_database(void);
 void wts_create_home(void);
 void wts_dump(const char *, bool);
-void wts_load(TABLE *, void *);
+void wts_load(void);
 void wts_open(const char *, WT_CONNECTION **, WT_SESSION **, bool);
 void wts_read_scan(TABLE *, void *);
 void wts_reopen(void);
 void wts_salvage(TABLE *, void *);
 void wts_stats(void);
-void wts_verify(TABLE *, void *);
+void wts_verify(WT_CONNECTION *, bool);
 
 /* Backward compatibility to older versions of the WiredTiger library. */
 #if !defined(CUR2S)

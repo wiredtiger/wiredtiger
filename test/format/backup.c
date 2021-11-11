@@ -72,7 +72,7 @@ check_copy(void)
     wts_open(path, &conn, &session, true);
 
     /* Verify the objects. */
-    tables_apply(wts_verify, conn);
+    wts_verify(conn, false);
 
     wts_close(&conn, &session);
 
