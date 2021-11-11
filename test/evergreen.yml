@@ -621,22 +621,9 @@ functions:
           ${pip3_binary} install pymongo[srv]
           git clone git@github.com:wiredtiger/automation-scripts.git
           ${python_binary} automation-scripts/evergreen/upload_stats_atlas.py -u ${atlas_wt_perf_test_user} -p ${atlas_wt_perf_pass} -f test_stats/atlas_out.json -b ${branch_name}
-
-  "validate-expected-stats":
-    - command: shell.exec
-      params:
-        working_dir: "wiredtiger/cmake_build/bench/wtperf"
-        shell: bash
-        script: |
-          set -o errexit
-          ${virtualenv_binary} -p ${python_binary} venv
-          source venv/bin/activate
-          ${python_binary} ../../../bench/wtperf/wtperf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
-          
     - command: perf.send
       params:
         file: ./wiredtiger/cmake_build/bench/wtperf/test_stats/evergreen_out.json
-
     # Push the json results to the 'Files' tab of the task in Evergreen
     # Parameterised using the 'perf-test-name' variable
     - command: s3.put
@@ -648,6 +635,17 @@ functions:
         permissions: public-read
         content_type: text/html
         remote_file: wiredtiger/${build_variant}/${revision}/perf-test-${perf-test-name}-${build_id}-${execution}/
+
+  "validate-expected-stats":
+    - command: shell.exec
+      params:
+        working_dir: "wiredtiger/cmake_build/bench/wtperf"
+        shell: bash
+        script: |
+          set -o errexit
+          ${virtualenv_binary} -p ${python_binary} venv
+          source venv/bin/activate
+          ${python_binary} ../../../bench/wtperf/wtperf_run_py/validate_expected_stats.py '${expected-stats}' '${stat_file}'
 
 #######################################
 #               Variables             #
