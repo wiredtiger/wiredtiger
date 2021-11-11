@@ -120,7 +120,6 @@ class search_near_03 : public test_harness::test {
             * on the key size configuration.
             */
             prefix_key = random_generator::instance().generate_random_string(tc->key_size);
-            // std::cout << prefix_key << std::endl;
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
                 tc->transaction.commit(); 
             } else {
@@ -239,7 +238,7 @@ class search_near_03 : public test_harness::test {
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
             logger::log_msg(LOG_INFO,
               type_string(tc->type) +
-                " thread: Perform unique index insertions with existing prefix key" + prefix_key +
+                " thread: Perform unique index insertions with existing prefix key " + prefix_key +
                 ".");
             testutil_assert(perform_unique_index_insertions(tc, cursor, coll, prefix_key) == false);
             tc->transaction.rollback();
@@ -273,11 +272,13 @@ class search_near_03 : public test_harness::test {
                 }
                 tc->sleep();
             }
-            logger::log_msg(LOG_INFO,
-              type_string(tc->type) + " thread: calculated count: " + std::to_string(key_count) +
-                " expected size: " +
-                std::to_string(prefixes_map.size() * prefixes_map.at(0).size()));
-            testutil_assert(key_count == prefixes_map.size() * prefixes_map.at(0).size());
+            if (tc->running()) {
+                logger::log_msg(LOG_INFO,
+                type_string(tc->type) + " thread: calculated count: " + std::to_string(key_count) +
+                    " expected size: " +
+                    std::to_string(prefixes_map.size() * prefixes_map.at(0).size()));
+                testutil_assert(key_count == prefixes_map.size() * prefixes_map.at(0).size());
+            }
             key_count = 0;
         }
         tc->transaction.rollback();
