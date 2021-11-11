@@ -1788,7 +1788,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                     if (op->whp == NULL || op->whp->ref == NULL)
                         WT_ERR_PANIC(session, WT_PANIC,
                           "could not find the weak hazard pointer for a modify operation");
-                    WT_ERR(__wt_hazard_weak_clear(session, op->whp));
+                    WT_ERR(__wt_hazard_weak_clear(session, op));
                 }
 
                 /*
@@ -2167,7 +2167,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                     if (op->whp == NULL || op->whp->ref == NULL)
                         WT_RET_PANIC(session, WT_PANIC,
                           "could not find the weak hazard pointer for a modify operation");
-                    WT_TRET(__wt_hazard_weak_clear(session, op->whp));
+                    WT_TRET(__wt_hazard_weak_clear(session, op));
                 }
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)

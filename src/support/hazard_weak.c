@@ -179,14 +179,16 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
  *     Clear a weak hazard pointer, given a filled slot.
  */
 int
-__wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp)
+__wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    WT_HAZARD_WEAK *whp;
     WT_HAZARD_WEAK_ARRAY *wha;
 
+    whp = op->whp;
     wha = session->hazard_weak;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
-    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+    if (F_ISSET(op->btree, WT_BTREE_IN_MEMORY))
         return (0);
 
     /*
@@ -209,6 +211,7 @@ __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp)
      * pointer to the page, preventing eviction from looking for this weak pointer.
      */
     whp->ref = NULL;
+    op->whp = NULL;
 
     /*
      * If this was the last weak hazard pointer in the session, reset the size so that checks can
