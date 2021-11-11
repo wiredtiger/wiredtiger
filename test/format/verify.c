@@ -62,25 +62,30 @@ table_verify(TABLE *table, void *arg)
  * table_mirror_row_next --
  *     Move to the next row-store original record.
  */
-static void
+static int
 table_mirror_row_next(TABLE *table, WT_CURSOR *cursor, WT_ITEM *key, uint64_t *keynop)
 {
+    WT_DECL_RET;
     const char *p;
 
     /* RS tables insert records in the table, skip to the next original key/value pair. */
     for (;;) {
-        testutil_assert(read_op(cursor, NEXT, NULL) == 0);
-        testutil_check(cursor->get_key(cursor, key));
+        if ((ret = read_op(cursor, NEXT, NULL)) == WT_NOTFOUND)
+            return (WT_NOTFOUND);
+        /* WT_ROLLBACK isn't illegal, but it would mean restarting the verify somehow. */
+        testutil_assert(ret == 0);
 
         /* The original keys are either short or have ".00" as a suffix. */
+        testutil_check(cursor->get_key(cursor, key));
         testutil_assert((p = strchr(key->data, '.')) != NULL);
-	testutil_assert(key->size - WT_PTRDIFF(p, key->data) >= 3);
+        testutil_assert(key->size - WT_PTRDIFF(p, key->data) >= 3);
         if (p[1] == '0' && p[2] == '0')
             break;
     }
 
     /* There may be a common key prefix, skip over it. */
     *keynop = atou32("mirror-verify", (char *)key->data + NTV(table, BTREE_PREFIX_LEN), '.');
+    return (0);
 }
 
 /*
@@ -95,9 +100,11 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     WT_SESSION *session;
     uint64_t base_keyno, table_keyno, rows;
     uint8_t bitv;
+    int base_ret, table_ret;
     char track_buf[128];
 
     base_keyno = table_keyno = 0; /* -Wconditional-uninitialized */
+    base_ret = table_ret = 0;
 
     testutil_check(
       __wt_snprintf(track_buf, sizeof(track_buf), "table %d mirror verify", table->id));
@@ -116,7 +123,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
             testutil_check(base_cursor->get_key(base_cursor, &base_keyno));
             break;
         case ROW:
-            table_mirror_row_next(base, base_cursor, &base_key, &base_keyno);
+            base_ret = table_mirror_row_next(base, base_cursor, &base_key, &base_keyno);
             break;
         }
 
@@ -140,17 +147,19 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
             testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
             break;
         case ROW:
-            table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
+            table_ret = table_mirror_row_next(table, table_cursor, &table_key, &table_keyno);
             break;
         }
 
         /*
-         * Assert mirrors are larger than or equal to the counter and have the same key number (the
-	 * keys themselves won't match). If the counter is smaller than the mirrors key, it means a
-	 * row was deleted, which is expected.
-	 */
+         * If both tables ran out of rows at the same time, that's find. Otherwise, assert mirrors
+         * are larger than or equal to the counter and have the same key number (the keys themselves
+         * won't match). If the counter is smaller than the mirrors key, it means a row was deleted,
+         * which is expected.
+         */
+        testutil_assert(base_ret == table_ret);
         testutil_assert(rows <= base_keyno && base_keyno == table_keyno);
-	rows = base_keyno;
+        rows = base_keyno;
 
         testutil_check(base_cursor->get_value(base_cursor, &base_value));
         testutil_check(table_cursor->get_value(table_cursor, &table_value));

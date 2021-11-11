@@ -1038,10 +1038,8 @@ ops(void *arg)
               TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT) + TV(OPS_PCT_MODIFY) + TV(OPS_PCT_WRITE))
                 op = UPDATE;
         }
-	if (op == TRUNCATE) /* XXX KEITH */
-	    op = UPDATE;
-	if (op == MODIFY) /* XXX KEITH */
-	    op = UPDATE;
+        if (op == MODIFY) /* XXX KEITH */
+            op = UPDATE;
 
         /*
          * Get the number of rows. Column-store extends the object, use that extended count if this
@@ -1580,12 +1578,9 @@ row_truncate(TINFO *tinfo)
     cursor = tinfo->cursor;
     session = cursor->session;
 
-    /*
-     * The code assumes we're never truncating the entire object, assert that fact.
-     */
+    /* The code assumes we're never truncating the entire object, assert that fact. */
     testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-    c2 = NULL;
     if (tinfo->keyno == 0) {
         key_gen(tinfo->table, tinfo->key, tinfo->last);
         cursor->set_key(cursor, tinfo->key);
@@ -1626,18 +1621,15 @@ col_truncate(TINFO *tinfo)
     cursor = tinfo->cursor;
     session = cursor->session;
 
-    /*
-     * The code assumes we're never truncating the entire object, assert that fact.
-     */
+    /* The code assumes we're never truncating the entire object, assert that fact. */
     testutil_assert(tinfo->keyno != 0 || tinfo->last != 0);
 
-    c2 = NULL;
     if (tinfo->keyno == 0) {
         cursor->set_key(cursor, tinfo->last);
-        ret = session->truncate(session, NULL, NULL, cursor, NULL);
+        WT_RET(session->truncate(session, NULL, NULL, cursor, NULL));
     } else if (tinfo->last == 0) {
         cursor->set_key(cursor, tinfo->keyno);
-        ret = session->truncate(session, NULL, cursor, NULL, NULL);
+        WT_RET(session->truncate(session, NULL, cursor, NULL, NULL));
     } else {
         cursor->set_key(cursor, tinfo->keyno);
 
@@ -1646,9 +1638,8 @@ col_truncate(TINFO *tinfo)
 
         ret = session->truncate(session, NULL, cursor, c2, NULL);
         testutil_check(c2->close(c2));
+        WT_RET(ret);
     }
-    if (ret != 0)
-        return (ret);
 
     trace_op(tinfo, "truncate %" PRIu64 "-%" PRIu64, tinfo->keyno, tinfo->last);
 
