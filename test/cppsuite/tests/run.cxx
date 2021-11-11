@@ -122,16 +122,16 @@ run_test(const std::string &test_name, const std::string &config, const std::str
         base_test(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "example_test")
         example_test(test_harness::test_args{config, test_name, wt_open_config}).run();
-    else if (test_name == "search_near_03")
-        search_near_03(test_harness::test_args{config, test_name, wt_open_config}).run();
-    else if (test_name == "search_near_02")
-        search_near_02(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "hs_cleanup")
         hs_cleanup(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "burst_inserts")
         burst_inserts(test_harness::test_args{config, test_name, wt_open_config}).run();
     else if (test_name == "search_near_01")
         search_near_01(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "search_near_02")
+        search_near_02(test_harness::test_args{config, test_name, wt_open_config}).run();
+    else if (test_name == "search_near_03")
+        search_near_03(test_harness::test_args{config, test_name, wt_open_config}).run();
     else {
         test_harness::logger::log_msg(LOG_ERROR, "Test not found: " + test_name);
         error_code = -1;

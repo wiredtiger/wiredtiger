@@ -294,7 +294,7 @@ thread_context::remove(
     testutil_assert(cursor.get() != nullptr);
 
     /*
-     * When no timestamp is specified, get one to apply to the update. We still do this even if the
+     * When no timestamp is specified, get one to apply for the remove. We still do this even if the
      * timestamp manager is not enabled as it will return a value for the tracking table.
      */
     if (ts == 0)

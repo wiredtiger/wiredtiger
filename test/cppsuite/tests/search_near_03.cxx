@@ -50,18 +50,18 @@ class search_near_03 : public test_harness::test {
     void
     run() override final
     {
-        /* You can remove the call to the base class to fully customized your test. */
         test::run();
     }
 
     /*
-     * A unique index has the following insertion method:
+     * Here's how we insert a unique index:
      * 1. Insert the prefix.
      * 2. Remove the prefix.
-     * 3. Search near for the prefix.
+     * 3. Search near for the prefix. In the case we find a record, we stop here as the full value
+     * is already present in the table. Otherwise if the record is not found, we can proceed to
+     * insert the full value.
      * 4. Insert the full value (prefix, id).
-     * All of these operations are wrapped in the same txn, this test attempts to test
-     * scenarios that could arise from this insertion method.
+     * All of these operations are wrapped in the same transaction.
      */
     static bool
     perform_unique_index_insertions(
@@ -131,10 +131,10 @@ class search_near_03 : public test_harness::test {
         }
     }
 
-    std::string
+    const std::string
     get_prefix_from_key(std::string const &s)
     {
-        std::string::size_type pos = s.find(',');
+        const std::string::size_type pos = s.find(',');
         if (pos != std::string::npos)
             return s.substr(0, pos);
         else
@@ -242,7 +242,7 @@ class search_near_03 : public test_harness::test {
               type_string(tc->type) +
                 " thread: Perform unique index insertions with existing prefix key " + prefix_key +
                 ".");
-            testutil_assert(perform_unique_index_insertions(tc, cursor, coll, prefix_key) == false);
+            testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
             tc->transaction.rollback();
         }
     }
