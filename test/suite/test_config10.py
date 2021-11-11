@@ -83,7 +83,7 @@ class test_config10(wttest.WiredTigerTestCase):
         cursor = s.open_cursor(uri)
 
         # We walk through and read all the content, but this time we expect pages
-        # to be evicted and a much lower cache usage.
+        # to be evicted, and a drastrically lower cache usage.
         for i in range(1, nrows):
             s.begin_transaction()
             self.assertEqual(cursor[i], value + str(i))
@@ -91,7 +91,7 @@ class test_config10(wttest.WiredTigerTestCase):
 
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
-        self.assertGreater(prev_cache_usage, cache_usage)
+        self.assertGreater(prev_cache_usage, cache_usage * 20)
         stat_cursor.close()
 
 if __name__ == '__main__':
