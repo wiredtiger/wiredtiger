@@ -175,6 +175,55 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
 }
 
 /*
+ * __wt_hazard_weak_clear --
+ *     Clear a weak hazard pointer, given a filled slot.
+ */
+int
+__wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_HAZARD_WEAK *whp)
+{
+    WT_HAZARD_WEAK_ARRAY *wha;
+
+    wha = session->hazard_weak;
+
+    /* If a file can never be evicted, hazard pointers aren't required. */
+    if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
+        return (0);
+
+    /*
+     * An empty weak hazard array or an empty slot reflects a serious error, we should always find
+     * the weak hazard pointer. Panic, because we messed up in and it could imply corruption.
+     */
+    if (wha == NULL || wha->nhazard == 0)
+        WT_RET_PANIC(session, EINVAL,
+          "session %p: While clearing weak hazard pointer found an "
+          " empty array.",
+          (void *)session);
+    if (whp->ref == NULL)
+        WT_RET_PANIC(session, EINVAL,
+          "session %p: While clearing weak hazard pointer not found "
+          "at slot: %p",
+          (void *)session, (void *)whp);
+
+    /*
+     * We don't publish the weak hazard pointer clear as we only clear while holding the hazard
+     * pointer to the page, preventing eviction from looking for this weak pointer.
+     */
+    whp->ref = NULL;
+
+    /*
+     * If this was the last weak hazard pointer in the session, reset the size so that checks can
+     * skip this session.
+     *
+     * A write-barrier() is necessary before the change to the in-use value, the number of active
+     * references can never be less than the number of in-use slots.
+     */
+    if (--wha->nhazard == 0)
+        WT_PUBLISH(wha->hazard_inuse, 0);
+
+    return (0);
+}
+
+/*
  * __wt_hazard_weak_invalidate --
  *     Invalidate any weak hazard pointers on a page that is locked for eviction.
  */
