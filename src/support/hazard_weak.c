@@ -112,15 +112,17 @@ __wt_hazard_weak_destroy(WT_SESSION_IMPL *session_safe, WT_SESSION_IMPL *s)
  *     Set a weak hazard pointer. A hazard pointer must be held on the ref.
  */
 int
-__wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whpp)
+__wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_TXN_OP *op)
 {
     WT_HAZARD_WEAK *whp;
     WT_HAZARD_WEAK_ARRAY *wha;
 
     WT_ASSERT(session, ref != NULL);
+    WT_ASSERT(session, op->whp == NULL);
 
-    if (whpp != NULL)
-        *whpp = NULL;
+    /* If a file can never be evicted, hazard pointers aren't required. */
+    if (F_ISSET(op->btree, WT_BTREE_IN_MEMORY))
+        return (0);
 
     /* If we have filled the current hazard pointer array, grow it. */
     for (wha = session->hazard_weak; wha != NULL && wha->nhazard >= wha->hazard_size;
@@ -169,14 +171,13 @@ __wt_hazard_weak_set(WT_SESSION_IMPL *session, WT_REF *ref, WT_HAZARD_WEAK **whp
     whp->ref = ref;
     whp->valid = true;
 
-    WT_ASSERT(session, whpp != NULL);
-    *whpp = whp;
+    op->whp = whp;
     return (0);
 }
 
 /*
  * __wt_hazard_weak_clear --
- *     Clear a weak hazard pointer, given a filled slot.
+ *     Clear a weak hazard pointer, given a modify operation.
  */
 int
 __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_TXN_OP *op)
@@ -195,16 +196,14 @@ __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_TXN_OP *op)
      * An empty weak hazard array or an empty slot reflects a serious error, we should always find
      * the weak hazard pointer. Panic, because we messed up in and it could imply corruption.
      */
+    if (whp == NULL || whp->ref == NULL)
+        WT_RET_PANIC(session, WT_PANIC,
+          "session %p: could not find the weak hazard pointer for a modify operation",
+          (void *)session);
+
     if (wha == NULL || wha->nhazard == 0)
         WT_RET_PANIC(session, EINVAL,
-          "session %p: While clearing weak hazard pointer found an "
-          " empty array.",
-          (void *)session);
-    if (whp->ref == NULL)
-        WT_RET_PANIC(session, EINVAL,
-          "session %p: While clearing weak hazard pointer not found "
-          "at slot: %p",
-          (void *)session, (void *)whp);
+          "session %p: While clearing weak hazard pointer found an empty array.", (void *)session);
 
     /*
      * We don't publish the weak hazard pointer clear as we only clear while holding the hazard

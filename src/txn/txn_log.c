@@ -162,6 +162,9 @@ __txn_oplist_printlog(
 void
 __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 {
+    /* The weak pointer should have already been freed. */
+    WT_ASSERT(session, op->whp == NULL);
+
     switch (op->type) {
     case WT_TXN_OP_NONE:
         /*
@@ -190,7 +193,6 @@ __wt_txn_op_free(WT_SESSION_IMPL *session, WT_TXN_OP *op)
 
     op->type = WT_TXN_OP_NONE;
     op->flags = 0;
-    WT_ASSERT(session, op->whp == NULL);
 }
 
 /*
@@ -293,7 +295,7 @@ __wt_txn_log_op(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt)
     if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW)) {
         if (!WT_IS_METADATA(op->btree->dhandle)) {
             WT_ASSERT(session, cbt != NULL);
-            WT_RET(__wt_hazard_weak_set(session, cbt->ref, &op->whp));
+            WT_RET(__wt_hazard_weak_set(session, cbt->ref, op));
         }
     }
 

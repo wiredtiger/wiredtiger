@@ -1784,12 +1784,8 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * before proceeding.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle)) {
-                    if (op->whp == NULL || op->whp->ref == NULL)
-                        WT_ERR_PANIC(session, WT_PANIC,
-                          "could not find the weak hazard pointer for a modify operation");
+                  !WT_IS_METADATA(op->btree->dhandle))
                     WT_ERR(__wt_hazard_weak_clear(session, op));
-                }
 
                 /*
                  * Don't reset the timestamp of the history store records with history store
@@ -2163,12 +2159,9 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * before proceeding.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle)) {
-                    if (op->whp == NULL || op->whp->ref == NULL)
-                        WT_RET_PANIC(session, WT_PANIC,
-                          "could not find the weak hazard pointer for a modify operation");
+                  !WT_IS_METADATA(op->btree->dhandle))
                     WT_TRET(__wt_hazard_weak_clear(session, op));
-                }
+
                 if (S2C(session)->cache->hs_fileid != 0 &&
                   op->btree->id == S2C(session)->cache->hs_fileid)
                     break;
