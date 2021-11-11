@@ -1,4 +1,5 @@
 /*! @arch_page arch-compact Compaction
+
 Compaction is a cooperative process between the @ref arch-btree "Btree layer" and
 the @ref arch-block "Block Manager" to reduce the on-disk footprint of WT tables. The compaction
 process is initiated by user application by calling \c WT_SESSION::compact method. Overall, the
@@ -52,4 +53,5 @@ track current progress. Some of the verbose logs for compaction can be activated
 \c "verbose=[compact,compact_progress]" configuration option for \c wiredtiger_open() method. Apart from
 verbose logs, WT also records statistics about compact progress that can be used to debug issues
 with compaction process.
+
 */
