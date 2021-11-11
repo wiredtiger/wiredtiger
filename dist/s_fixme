@@ -16,12 +16,6 @@ fi
 # Get what could be the ticket id.
 ticket_id=$(echo "$branch_name" | cut -d "-" -f-2)
 
-# Check if the suspected id only contain numbers.
-regex="^(wt|WT|wT|Wt)-[0-9]+$"
-if [[ ! $ticket_id =~ $regex ]]; then
-    exit 0
-fi
-
 # Check for fixme comments related to the ticket left behind.
 if grep -inr --exclude-dir=.git "fix.*$ticket_id" ../. > /dev/null 2>&1; then
     echo "Please fix the FIXME comments related to $ticket_id."
