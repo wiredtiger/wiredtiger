@@ -10,7 +10,7 @@
 
 /*
  * __meta_btree_apply --
- *     Apply a function to all files listed in the metadata, apart from the metadata file.
+ *     Apply blah a function to all files listed in the metadata, apart from the metadata file.
  */
 static inline int
 __meta_btree_apply(WT_SESSION_IMPL *session, WT_CURSOR *cursor,
