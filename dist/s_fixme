@@ -7,8 +7,8 @@
 # Retrieve the current branch name.
 branch_name=$(git rev-parse --abbrev-ref HEAD)
 
-# We expect the following syntax (case insensitive): wt-<digits>.
-regex="^(wt|WT|wT|Wt)-[0-9]+(-[a-zA-Z0-9-])?"
+# We expect the following syntax (case insensitive): wt-<digits>[-<alphanum>].
+regex="^(wt|WT|wT|Wt)-[0-9]+(-[a-zA-Z0-9-]+)?"
 if [[ ! $branch_name =~ $regex ]]; then
     exit 0
 fi
