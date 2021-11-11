@@ -70,11 +70,11 @@ class test_config10(wttest.WiredTigerTestCase):
             cursor[i] = value + str(i)
             s.commit_transaction()
 
+        s.checkpoint()
         stat_cursor = self.session.open_cursor('statistics:', None, None)
         prev_cache_usage = stat_cursor[stat.conn.cache_bytes_inuse][2]
         stat_cursor.close()
 
-        s.checkpoint()
         cursor.close()
 
         # Reconfigure the session to use the new debug configuration that evicts

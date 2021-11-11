@@ -422,9 +422,9 @@ __session_reconfigure(WT_SESSION *wt_session, const char *config)
      */
     if ((ret = __wt_config_getones(session, config, "debug.release_evict_page", &cval)) == 0) {
         if (cval.val) {
-            F_SET(session, WT_SESSION_DEBUG_EVICT_RELEASE);
+            F_SET(session, WT_SESSION_DEBUG_RELEASE_EVICT);
         } else {
-            F_CLR(session, WT_SESSION_DEBUG_EVICT_RELEASE);
+            F_CLR(session, WT_SESSION_DEBUG_RELEASE_EVICT);
         }
     }
 
