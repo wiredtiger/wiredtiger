@@ -154,8 +154,8 @@ main(int argc, char *argv[])
 {
     std::string cfg, config_filename, current_cfg, current_test_name, test_name, wt_open_config;
     int64_t error_code = 0;
-    const std::vector<std::string> all_tests = {"base_test", "burst_inserts",
-      "example_test", "hs_cleanup", "search_near_01", "search_near_02", "search_near_03"};
+    const std::vector<std::string> all_tests = {"base_test", "burst_inserts", "example_test",
+      "hs_cleanup", "search_near_01", "search_near_02", "search_near_03"};
 
     /* Set the program name for error messages. */
     (void)testutil_set_progname(argv);
