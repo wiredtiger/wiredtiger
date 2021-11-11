@@ -290,13 +290,12 @@ thread_context::remove(
   scoped_cursor &cursor, uint64_t collection_id, const std::string &key, wt_timestamp_t ts)
 {
     WT_DECL_RET;
-    std::string value;
     testutil_assert(tracking != nullptr);
     testutil_assert(cursor.get() != nullptr);
 
     /*
      * When no timestamp is specified, get one to apply to the update. We still do this even if the
-    * timestamp manager is not enabled as it will return a value for the tracking table.
+     * timestamp manager is not enabled as it will return a value for the tracking table.
      */
     if (ts == 0)
         ts = tsm->get_next_ts();
@@ -312,7 +311,7 @@ thread_context::remove(
             testutil_die(ret, "unhandled error while trying to remove a key");
     }
     ret = tracking->save_operation(
-      tracking_operation::DELETE_KEY, collection_id, key.c_str(), value.c_str(), ts, op_track_cursor);
+      tracking_operation::DELETE_KEY, collection_id, key.c_str(), "", ts, op_track_cursor);
     if (ret != 0) {
         if (ret == WT_ROLLBACK) {
             transaction.set_needs_rollback(true);

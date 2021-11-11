@@ -63,8 +63,10 @@ class search_near_03 : public test_harness::test {
      * All of these operations are wrapped in the same txn, this test attempts to test
      * scenarios that could arise from this insertion method.
      */
-    static bool perform_unique_index_insertions(
-        thread_context *tc, scoped_cursor& cursor, collection& coll, std::string& prefix_key) {
+    static bool
+    perform_unique_index_insertions(
+      thread_context *tc, scoped_cursor &cursor, collection &coll, std::string &prefix_key)
+    {
         const char *key_tmp;
         int exact_prefix, ret;
 
@@ -72,15 +74,14 @@ class search_near_03 : public test_harness::test {
         if (!tc->insert(cursor, coll.id, prefix_key))
             return false;
 
-
         /* Remove the prefix. */
         if (!tc->remove(cursor, coll.id, prefix_key))
             return false;
 
         /*
-         * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND
-         * error to be returned. If the key is present, it means the (prefix, id) has been inserted
-         * already, double check that the prefix portion match.
+         * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND error to be
+         * returned. If the key is present, it means the (prefix, id) has been inserted already,
+         * double check that the prefix portion match.
          */
         testutil_check(cursor.get()->reconfigure(cursor.get(), "prefix_search=true"));
         cursor->set_key(cursor.get(), prefix_key.c_str());
@@ -95,7 +96,6 @@ class search_near_03 : public test_harness::test {
 
         /* Now insert the key with prefix and id. Use thread id to guarantee uniqueness. */
         return tc->insert(cursor, coll.id, prefix_key + "," + std::to_string(tc->id));
-            
     }
 
     static void
@@ -116,12 +116,12 @@ class search_near_03 : public test_harness::test {
         for (uint64_t count = 0; count < tc->key_count; ++count) {
             tc->transaction.begin();
             /*
-            * Generate the prefix key, and append a random generated key string based
-            * on the key size configuration.
-            */
+             * Generate the prefix key, and append a random generated key string based on the key
+             * size configuration.
+             */
             prefix_key = random_generator::instance().generate_random_string(tc->key_size);
             if (perform_unique_index_insertions(tc, cursor, coll, prefix_key)) {
-                tc->transaction.commit(); 
+                tc->transaction.commit();
             } else {
                 tc->transaction.rollback();
                 ++rollback_retries;
@@ -131,7 +131,8 @@ class search_near_03 : public test_harness::test {
         }
     }
 
-    std::string get_prefix_from_key(std::string const& s)
+    std::string
+    get_prefix_from_key(std::string const &s)
     {
         std::string::size_type pos = s.find(',');
         if (pos != std::string::npos)
@@ -219,13 +220,13 @@ class search_near_03 : public test_harness::test {
     {
         size_t random_index;
         std::string prefix_key;
-        /* 
+        /*
          * Each insert operation will attempt to perform unique index insertions with an existing
          * prefix on a collection.
          */
         logger::log_msg(
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
-        
+
         while (tc->running()) {
             collection &coll = tc->db.get_random_collection();
             scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
@@ -234,7 +235,8 @@ class search_near_03 : public test_harness::test {
              * Grab a random existing prefix and perform unique index insertion. We expect it to
              * fail to insert, because it should already exist.
              */
-            random_index = random_generator::instance().generate_integer(static_cast<size_t>(0), prefixes_map.at(0).size() - 1);
+            random_index = random_generator::instance().generate_integer(
+              static_cast<size_t>(0), prefixes_map.at(0).size() - 1);
             prefix_key = get_prefix_from_key(prefixes_map.at(coll.id).at(random_index));
             logger::log_msg(LOG_INFO,
               type_string(tc->type) +
@@ -250,7 +252,7 @@ class search_near_03 : public test_harness::test {
     {
         uint64_t key_count = 0;
         logger::log_msg(
-            LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
+          LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
         /*
          * Each read thread will count the number of keys in each collection, and will double check
          * if the size of the table hasn't changed.
@@ -274,14 +276,13 @@ class search_near_03 : public test_harness::test {
             }
             if (tc->running()) {
                 logger::log_msg(LOG_INFO,
-                type_string(tc->type) + " thread: calculated count: " + std::to_string(key_count) +
-                    " expected size: " +
+                  type_string(tc->type) +
+                    " thread: calculated count: " + std::to_string(key_count) + " expected size: " +
                     std::to_string(prefixes_map.size() * prefixes_map.at(0).size()));
                 testutil_assert(key_count == prefixes_map.size() * prefixes_map.at(0).size());
             }
             key_count = 0;
         }
         tc->transaction.rollback();
-            
     }
 };

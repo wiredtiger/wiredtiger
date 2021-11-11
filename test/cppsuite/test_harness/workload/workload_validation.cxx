@@ -251,7 +251,8 @@ workload_validation::verify_key_value(scoped_session &session, const uint64_t co
     ret = cursor->search(cursor.get());
     testutil_assertfmt(ret == 0 || ret == WT_NOTFOUND,
       "Validation failed: Unexpected error returned %d while searching for a key. Key: %s, "
-      "Collection_id: %lu", ret, key.c_str(), collection_id);
+      "Collection_id: %lu",
+      ret, key.c_str(), collection_id);
     if (ret == WT_NOTFOUND && key_state.exists)
         testutil_die(LOG_ERROR,
           "Validation failed: Search failed to find key that should exist. Key: %s, "
@@ -265,7 +266,7 @@ workload_validation::verify_key_value(scoped_session &session, const uint64_t co
     }
 
     if (key_state.exists == false)
-      return;
+        return;
 
     testutil_check(cursor->get_value(cursor.get(), &retrieved_value));
     if (key_state.value != key_value_t(retrieved_value))
