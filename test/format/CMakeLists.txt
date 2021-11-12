@@ -46,6 +46,7 @@ set(format_sources
     snap.c
     t.c
     trace.c
+    ts.c
     util.c
     verify.c
     wts.c
