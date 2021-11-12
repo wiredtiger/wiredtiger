@@ -940,15 +940,15 @@ ops(void *arg)
     /* Set the first operation where we'll truncate a range. */
     truncate_op = mmrand(&tinfo->rnd, 100, 10000);
 
-    /* Initialize operation trace. */
+    /* Initialize per-thread operation trace. */
     trace_ops_init(tinfo);
 
-    for (intxn = false; !tinfo->quit; ++tinfo->ops) {
+    for (intxn = false; !tinfo->quit;) {
+        ++tinfo->ops;
+
         /* Periodically open up a new session and cursors. */
-        if (tinfo->ops > session_op || session == NULL) {
-            /*
-             * We can't swap sessions/cursors if in a transaction, resolve any running transaction.
-             */
+        if (tinfo->ops > session_op) {
+            /* Resolve any running transaction. */
             if (intxn) {
                 commit_transaction(tinfo, false);
                 intxn = false;
@@ -961,11 +961,7 @@ ops(void *arg)
             session_op += mmrand(&tinfo->rnd, 100, 5000);
         }
 
-        /*
-         * If not in a transaction, reset the session periodically to make sure that operation is
-         * tested. The test is not for equality, resets must be done outside of transactions so we
-         * aren't likely to get an exact match.
-         */
+        /* If not in a transaction, reset the session periodically so that operation is tested. */
         if (!intxn && tinfo->ops > reset_op) {
             testutil_check(session->reset(session));
 
@@ -1064,9 +1060,9 @@ ops(void *arg)
         tinfo->keyno = mmrand(&tinfo->rnd, 1, (u_int)max_rows);
 
         /*
-         * If insert or update, generate a value. If this is a mirrored update and the table is an
-         * FLCS object, use the base table (which must be ROW or VAR), to generate a value that's
-         * good for any table.
+         * If an insert or update, create a value. If this is a mirrored update and the table is an
+         * FLCS object, use the base table (which must be ROW or VAR), to create values usable for
+         * any table.
          */
         if (op == INSERT || op == UPDATE) {
             val_gen(table->mirror && table->type == FIX ? g.base_mirror : table, &tinfo->rnd,
@@ -1120,8 +1116,8 @@ ops(void *arg)
         /*
          * For modify we haven't created the new value when we queue up the operation, and we have
          * to modify a RS or VLCS table first so we have a value from which we can set any FLCS
-         * value we need. Do the operation on the base mirror table first, then the selected table,
-         * then any remaining tables.
+         * value we need. Do the operation on the base mirror table first and use the resulting
+         * value to set the FLCS value, then modify the selected table, then any remaining tables.
          */
         skip1 = skip2 = NULL;
         if (op == MODIFY && table->mirror) {
@@ -1152,17 +1148,14 @@ ops(void *arg)
         if (op == TRUNCATE)
             (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
 
-        /* If we have pending column-store inserts, try and drain them. */
+        /* Drain any pending column-store inserts. */
         if (g.column_store_config)
             tables_apply(col_insert_resolve, tinfo);
 
         if (ret == 0)
             goto rollback;
 
-        /*
-         * No post-operation work is needed outside of a transaction. If in a transaction, add more
-         * operations to the transaction half the time.
-         */
+        /* If in a transaction, add more operations to the transaction half the time. */
         if (!intxn || (rnd = mmrand(&tinfo->rnd, 1, 10)) > 5)
             continue;
 
@@ -1189,25 +1182,25 @@ ops(void *arg)
                 testutil_assert(ret == WT_ROLLBACK);
                 goto rollback;
             }
-
-            __wt_yield(); /* Encourage races */
             prepared = true;
         }
 
         /*
          * If we're in a transaction, commit 40% of the time and rollback 10% of the time (we
-         * continued to add operations to the transaction the remaining 50% of the time).
+         * already continued to add operations to the transaction the remaining half of the time).
          */
         switch (rnd) {
         case 1:
         case 2:
         case 3:
-        case 4: /* 40% */
+        case 4:           /* 40% */
+            __wt_yield(); /* Encourage races */
             commit_transaction(tinfo, prepared);
             snap_repeat_update(tinfo, true);
             break;
         case 5: /* 10% */
 rollback:
+            __wt_yield(); /* Encourage races */
             rollback_transaction(tinfo);
             snap_repeat_update(tinfo, false);
             break;
