@@ -1784,7 +1784,7 @@ __wt_txn_commit(WT_SESSION_IMPL *session, const char *cfg[])
                  * before proceeding.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle))
+                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
                     WT_ERR(__wt_hazard_weak_clear(session, op));
 
                 /*
@@ -2035,7 +2035,7 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
              * before proceeding.
              */
             if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-              !WT_IS_METADATA(op->btree->dhandle))
+              !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
                 WT_RET(__wt_hazard_weak_clear(session, op));
 
             ++prepared_updates;
@@ -2167,7 +2167,7 @@ __wt_txn_rollback(WT_SESSION_IMPL *session, const char *cfg[])
                  * before proceeding.
                  */
                 if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
-                  !WT_IS_METADATA(op->btree->dhandle))
+                  !WT_IS_METADATA(op->btree->dhandle) && upd->type != WT_UPDATE_RESERVE)
                     WT_TRET(__wt_hazard_weak_clear(session, op));
 
                 if (S2C(session)->cache->hs_fileid != 0 &&
