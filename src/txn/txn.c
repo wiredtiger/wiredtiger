@@ -2030,6 +2030,14 @@ __wt_txn_prepare(WT_SESSION_IMPL *session, const char *cfg[])
                 break;
             }
 
+            /*
+             * For now just confirm that each operation has a weak hazard pointer and clear it
+             * before proceeding.
+             */
+            if ((op->type == WT_TXN_OP_BASIC_ROW || op->type == WT_TXN_OP_INMEM_ROW) &&
+              !WT_IS_METADATA(op->btree->dhandle))
+                WT_RET(__wt_hazard_weak_clear(session, op));
+
             ++prepared_updates;
 
             /* Set prepare timestamp. */
