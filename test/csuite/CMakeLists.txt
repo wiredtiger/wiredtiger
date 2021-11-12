@@ -360,11 +360,3 @@ define_c_test(
     ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8057_compact_stress>/WT_HOME>
     DEPENDS "WT_POSIX"
 )
-
-define_c_test(
-    TARGET test_wt8246_compact_rts_data_correctness
-    SOURCES wt8246_compact_rts_data_correctness/main.c
-    DIR_NAME wt8246_compact_rts_data_correctness
-    ARGUMENTS -h $<SHELL_PATH:$<TARGET_FILE_DIR:test_wt8246_compact_rts_data_correctness>/WT_HOME>
-    DEPENDS "WT_POSIX"
-)
