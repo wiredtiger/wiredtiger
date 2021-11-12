@@ -36,6 +36,23 @@ read_op(WT_CURSOR *cursor, read_operation op, int *exactp)
     WT_DECL_RET;
     uint64_t start, now;
 
+    switch (op) {
+    case NEXT:
+        ret = cursor->next(cursor);
+        break;
+    case PREV:
+        ret = cursor->prev(cursor);
+        break;
+    case SEARCH:
+        ret = cursor->search(cursor);
+        break;
+    case SEARCH_NEAR:
+        ret = cursor->search_near(cursor, exactp);
+        break;
+    }
+    if (ret != WT_PREPARE_CONFLICT)
+        return (ret);
+
     /*
      * Read operations wait out prepare-conflicts. (As part of the snapshot isolation checks, we
      * repeat reads that succeeded before, they should be repeatable.)
