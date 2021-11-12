@@ -253,6 +253,7 @@ class search_near_03 : public test_harness::test {
                 " thread: Perform unique index insertions with existing prefix key " + prefix_key +
                 ".");
             testutil_assert(!perform_unique_index_insertions(tc, cursor, coll, prefix_key));
+            testutil_check(cursor->reset(cursor.get()));
             tc->transaction.rollback();
         }
     }
