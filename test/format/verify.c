@@ -200,9 +200,20 @@ wts_verify(WT_CONNECTION *conn, bool mirror_check)
     /* Individual object verification. */
     tables_apply(table_verify, conn);
 
-    /* Optionally compare any mirrored objects. */
-    if (mirror_check && g.base_mirror != NULL)
-        for (i = 1; i <= ntables; ++i)
-            if (tables[i]->mirror && tables[i] != g.base_mirror)
-                table_verify_mirror(conn, g.base_mirror, tables[i]);
+    /*
+     * Optionally compare any mirrored objects. If this is a reopen, check and see if salvage was
+     * tested on the database. In that case, we can't do mirror verification because salvage will
+     * have modified some rows leading to failure.
+     */
+    if (!mirror_check || g.base_mirror == NULL)
+        return;
+
+    if (g.reopen && GV(OPS_SALVAGE)) {
+        WARN("%s", "skipping mirror verify on reopen because salvage testing was done");
+        return;
+    }
+
+    for (i = 1; i <= ntables; ++i)
+        if (tables[i]->mirror && tables[i] != g.base_mirror)
+            table_verify_mirror(conn, g.base_mirror, tables[i]);
 }
