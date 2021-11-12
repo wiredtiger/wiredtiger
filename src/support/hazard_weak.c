@@ -81,7 +81,6 @@ hazard_weak_grow(WT_SESSION_IMPL *session)
       session, sizeof(WT_HAZARD_WEAK_ARRAY) + 2 * size * sizeof(WT_HAZARD_WEAK), 1, &wha));
     wha->next = session->hazard_weak;
     wha->hazard_size = (uint32_t)(size * 2);
-    WT_PUBLISH(session->hazard_weak, wha);
 
     /*
      * Swap the new hazard pointer array into place after initialization is complete (initialization
@@ -185,42 +184,52 @@ __wt_hazard_weak_clear(WT_SESSION_IMPL *session, WT_TXN_OP *op)
     WT_HAZARD_WEAK *whp;
     WT_HAZARD_WEAK_ARRAY *wha;
 
-    whp = op->whp;
-    wha = session->hazard_weak;
-
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(op->btree, WT_BTREE_IN_MEMORY))
         return (0);
 
+    whp = op->whp;
     /*
-     * An empty weak hazard array or an empty slot reflects a serious error, we should always find
-     * the weak hazard pointer. Panic, because we messed up in and it could imply corruption.
+     * An empty slot reflects a serious error, we should always find the weak hazard pointer. Panic,
+     * because we messed up in and it could imply corruption.
      */
     if (whp == NULL || whp->ref == NULL)
         WT_RET_PANIC(session, WT_PANIC,
           "session %p: could not find the weak hazard pointer for a modify operation",
           (void *)session);
 
-    if (wha == NULL || wha->nhazard == 0)
-        WT_RET_PANIC(session, EINVAL,
-          "session %p: While clearing weak hazard pointer found an empty array.", (void *)session);
-
     /*
      * We don't publish the weak hazard pointer clear as we only clear while holding the hazard
      * pointer to the page, preventing eviction from looking for this weak pointer.
      */
     whp->ref = NULL;
-    op->whp = NULL;
 
     /*
-     * If this was the last weak hazard pointer in the session, reset the size so that checks can
-     * skip this session.
-     *
-     * A write-barrier() is necessary before the change to the in-use value, the number of active
-     * references can never be less than the number of in-use slots.
+     * Find the array this hazard pointer belongs to, and do the accounting for using one less slot.
      */
-    if (--wha->nhazard == 0)
-        WT_PUBLISH(wha->hazard_inuse, 0);
+    for (wha = session->hazard_weak; wha != NULL; wha = wha->next) {
+        if (whp >= wha->hazard && whp < wha->hazard + wha->hazard_size) {
+            if (wha->nhazard == 0)
+                WT_RET_PANIC(session, EINVAL,
+                  "session %p: While clearing weak hazard pointer, the count of the pointers "
+                  "went negative for the relevant array.",
+                  (void *)session);
+            if (--wha->nhazard == 0)
+                WT_PUBLISH(wha->hazard_inuse, 0);
+            break;
+        }
+    }
+    /*
+     * We should always be able to find the array. Panic, because we messed up and it could imply
+     * corruption.
+     */
+    if (wha == NULL)
+        WT_RET_PANIC(session, EINVAL,
+          "session %p: While clearing weak hazard pointer could not find the array.",
+          (void *)session);
+
+    /* Clear the hazard stored in the modify operation. */
+    op->whp = NULL;
 
     return (0);
 }
