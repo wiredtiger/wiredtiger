@@ -409,29 +409,6 @@ format_die(void)
     /* Now about to close shared resources, give them a chance to empty. */
     __wt_sleep(2, 0);
     trace_teardown();
-
-#ifdef HAVE_DIAGNOSTIC
-    /*
-     * We have a mismatch, optionally dump WiredTiger datastore pages. In doing so, we are calling
-     * into the debug code directly which does not take locks, so it's possible we will simply drop
-     * core. Turn off core dumps, those core files aren't interesting.
-     *
-     * The most important information is the key/value mismatch information. Then try to dump out
-     * additional information. We dump the entire history store table including what is on disk,
-     * which can potentially be very large. If it becomes a problem, this can be modified to just
-     * dump out the page this key is on.
-     */
-    if (GV(RUNS_VERIFY_FAILURE_DUMP) && g.page_dump_cursor != NULL) {
-        set_core_off();
-
-        fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
-        testutil_check(__wt_debug_cursor_page(g.page_dump_cursor, g.home_pagedump));
-        fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
-#if WIREDTIGER_VERSION_MAJOR >= 10
-        testutil_check(__wt_debug_cursor_tree_hs(CUR2S(g.page_dump_cursor), g.home_hsdump));
-#endif
-    }
-#endif
 }
 
 /*

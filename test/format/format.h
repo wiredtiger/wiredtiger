@@ -245,8 +245,6 @@ typedef struct {
      */
     pthread_rwlock_t death_lock;
 
-    WT_CURSOR *page_dump_cursor; /* Snapshot isolation read failed, modifies failure handling. */
-
     /* Any runs.type configuration. */
     char runs_type[64];
 
@@ -407,7 +405,7 @@ void lock_init(WT_SESSION *, RWLOCK *);
 void operations(u_int, bool);
 void path_setup(const char *);
 void set_alarm(u_int);
-void set_core_off(void);
+void set_core(bool);
 void set_oldest_timestamp(void);
 void snap_init(TINFO *);
 void snap_op_init(TINFO *, uint64_t, bool);

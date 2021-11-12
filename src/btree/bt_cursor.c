@@ -596,6 +596,14 @@ __wt_btcur_search(WT_CURSOR_BTREE *cbt)
         WT_ERR(__wt_cursor_key_order_init(cbt));
 #endif
 
+    /*
+     * The format test program does repeatable reads testing, and wants to dump the cursor page on
+     * failure. It sets up a callback for that purpose, and we pay a cache miss per search to make
+     * that work.
+     */
+    if (session->format_private != NULL && (ret == 0 || ret == WT_NOTFOUND))
+        session->format_private(ret, session->format_private_arg);
+
 err:
     if (ret != 0) {
         WT_TRET(__cursor_reset(cbt));

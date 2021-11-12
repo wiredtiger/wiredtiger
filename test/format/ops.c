@@ -87,21 +87,6 @@ modify_build(TINFO *tinfo)
 }
 
 /*
- * set_core_off --
- *     Turn off core dumps.
- */
-void
-set_core_off(void)
-{
-#ifdef HAVE_SETRLIMIT
-    struct rlimit rlim;
-
-    rlim.rlim_cur = rlim.rlim_max = 0;
-    testutil_check(setrlimit(RLIMIT_CORE, &rlim));
-#endif
-}
-
-/*
  * random_failure --
  *     Fail the process.
  */
@@ -118,7 +103,7 @@ random_failure(void)
     fflush(stdout);
 
     /* Turn off core dumps. */
-    set_core_off();
+    set_core(true);
 
     /* Fail at a random moment. */
     *core = 0;
@@ -1152,7 +1137,7 @@ ops(void *arg)
         if (g.column_store_config)
             tables_apply(col_insert_resolve, tinfo);
 
-        if (ret == 0)
+        if (ret != 0)
             goto rollback;
 
         /* If in a transaction, add more operations to the transaction half the time. */

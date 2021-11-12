@@ -423,6 +423,33 @@ lock_destroy(WT_SESSION *session, RWLOCK *lock)
 }
 
 /*
+ * set_core --
+ *     Turn core dumps off/on.
+ */
+void
+set_core(bool off)
+{
+#ifdef HAVE_SETRLIMIT
+    static bool saved = false;
+    static struct rlimit saved_rlim;
+    struct rlimit rlim;
+
+    /*
+     * This could race if a lot of threads failed at the same time, but it's unlikely (and
+     * unimportant) enough that I'm not fixing it.
+     */
+    if (!saved) {
+        testutil_checksys(getrlimit(RLIMIT_CORE, &saved_rlim));
+        saved = true;
+    }
+    rlim = saved_rlim;
+    if (off)
+        rlim.rlim_cur = 0;
+    testutil_checksys(setrlimit(RLIMIT_CORE, &rlim));
+#endif
+}
+
+/*
  * atou32 --
  *     String to uint32_t helper function.
  */

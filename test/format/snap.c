@@ -212,76 +212,61 @@ print_item_data(TABLE *table, const char *tag, const uint8_t *data, size_t size)
     __wt_buf_free(NULL, &tmp);
 }
 
-/*
- * snap_verify --
- *     Repeat a read and verify the contents.
- */
-static int
-snap_verify(TINFO *tinfo, SNAP_OPS *snap)
-{
+typedef struct {
+    SNAP_OPS *snap;
     TABLE *table;
+    TINFO *tinfo;
     WT_CURSOR *cursor;
-    WT_DECL_RET;
+    WT_ITEM *key;
+    uint64_t keyno;
+} SEARCH_CALLBACK;
+
+/*
+ * snap_verify_callback --
+ *     Callback from inside the WiredTiger library.
+ */
+static void
+snap_verify_callback(int ret, void *arg)
+{
+    SEARCH_CALLBACK *callback;
+    SNAP_OPS *snap;
+    TABLE *table;
+    TINFO *tinfo;
+    WT_CURSOR *cursor;
     WT_ITEM *key, *value;
     uint64_t keyno;
     uint8_t bitfield;
 
-    testutil_assert(snap->op != TRUNCATE);
+    callback = arg;
+    snap = callback->snap;
+    table = callback->table;
+    tinfo = callback->tinfo;
+    cursor = callback->cursor;
+    key = callback->key;
+    keyno = callback->keyno;
 
-    table = tables[ntables == 0 ? 0 : snap->id];
-    cursor = table_cursor(tinfo, snap->id);
-    keyno = snap->keyno;
-    key = tinfo->key;
     value = tinfo->value;
 
-    trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", snap->keyno,
-      snap->ts, (int)snap->vsize, (char *)snap->vdata);
+    if (ret != 0 && ret != WT_NOTFOUND)
+        return;
 
-    /*
-     * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
-     * else generate the key from the key number.
-     */
-    if (snap->op == INSERT && table->type == ROW) {
-        key->data = snap->kdata;
-        key->size = snap->ksize;
-        cursor->set_key(cursor, key);
-    } else {
-        switch (table->type) {
-        case FIX:
-        case VAR:
-            cursor->set_key(cursor, keyno);
-            break;
-        case ROW:
-            key_gen(table, key, keyno);
-            cursor->set_key(cursor, key);
-            break;
-        }
-    }
-
-    switch (ret = read_op(cursor, SEARCH, NULL)) {
-    case 0:
+    /* Get the value. */
+    if (ret == 0) {
         if (table->type == FIX) {
             testutil_check(cursor->get_value(cursor, &bitfield));
             *(uint8_t *)(value->data) = bitfield;
             value->size = 1;
         } else
             testutil_check(cursor->get_value(cursor, value));
-        break;
-    case WT_NOTFOUND:
-        break;
-    default:
-        return (ret);
     }
 
     /* Check for simple matches. */
     if (ret == 0 && snap->op != REMOVE && value->size == snap->vsize) {
-        if (value->size == 0)
-            return (0);
-        if ((value->size > 0) && (memcmp(value->data, snap->vdata, value->size) == 0))
-            return (0);
+        if (value->size == 0 || memcmp(value->data, snap->vdata, value->size) == 0)
+            return;
     }
     if (ret == WT_NOTFOUND && snap->op == REMOVE)
-        return (0);
+        return;
 
     /*
      * In fixed length stores, zero values at the end of the key space are returned as not-found,
@@ -289,9 +274,9 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
      */
     if (table->type == FIX) {
         if (ret == WT_NOTFOUND && snap->vsize == 1 && *(uint8_t *)snap->vdata == 0)
-            return (0);
+            return;
         if (snap->op == REMOVE && value->size == 1 && *(uint8_t *)value->data == 0)
-            return (0);
+            return;
     }
 
     /*
@@ -335,12 +320,96 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
             print_item_data(table, "   found", value->data, value->size);
         break;
     }
+    fflush(stderr);
 
-    g.page_dump_cursor = cursor;
+#ifdef HAVE_DIAGNOSTIC
+    /*
+     * We have a mismatch, optionally dump WiredTiger datastore pages. In doing so, we are calling
+     * into the debug code directly which does not take locks, so it's possible we will simply drop
+     * core. Turn off core dumps, those core files aren't interesting.
+     *
+     * The page dump routines dump the contents of the history store file for keys on the page, but
+     * we also dump the entire history store table including what is on disk, which can potentially
+     * be very large. If it becomes a problem, this can be modified to just dump out the page this
+     * key is on.
+     */
+    set_core(true);
+
+    fprintf(stderr, "snapshot-isolation error: Dumping page to %s\n", g.home_pagedump);
+    testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
+#if WIREDTIGER_VERSION_MAJOR >= 10
+    fprintf(stderr, "snapshot-isolation error: Dumping HS to %s\n", g.home_hsdump);
+    testutil_check(__wt_debug_cursor_tree_hs(CUR2S(cursor), g.home_hsdump));
+#endif
+
+    /* Turn core dumps back on. */
+    set_core(false);
+#endif
     testutil_assert(0);
+}
 
-    /* NOTREACHED */
-    return (1);
+/*
+ * snap_verify --
+ *     Repeat a read and verify the contents.
+ */
+static int
+snap_verify(TINFO *tinfo, SNAP_OPS *snap)
+{
+    SEARCH_CALLBACK callback;
+    TABLE *table;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_ITEM *key;
+    uint64_t keyno;
+
+    testutil_assert(snap->op != TRUNCATE);
+
+    table = tables[ntables == 0 ? 0 : snap->id];
+    cursor = table_cursor(tinfo, snap->id);
+    keyno = snap->keyno;
+    key = tinfo->key;
+
+    trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", snap->keyno,
+      snap->ts, (int)snap->vsize, (char *)snap->vdata);
+
+    /*
+     * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
+     * else generate the key from the key number.
+     */
+    if (snap->op == INSERT && table->type == ROW) {
+        key->data = snap->kdata;
+        key->size = snap->ksize;
+        cursor->set_key(cursor, key);
+    } else {
+        switch (table->type) {
+        case FIX:
+        case VAR:
+            cursor->set_key(cursor, keyno);
+            break;
+        case ROW:
+            key_gen(table, key, keyno);
+            cursor->set_key(cursor, key);
+            break;
+        }
+    }
+
+    /*
+     * Hook into the WiredTiger library with a callback function. That allows us to dump information
+     * before any failing operation releases its underlying pages.
+     */
+    callback.snap = snap;
+    callback.table = table;
+    callback.tinfo = tinfo;
+    callback.cursor = cursor;
+    callback.key = key;
+    callback.keyno = keyno;
+    CUR2S(cursor)->format_private = snap_verify_callback;
+    CUR2S(cursor)->format_private_arg = &callback;
+    ret = read_op(cursor, SEARCH, NULL);
+    CUR2S(cursor)->format_private = NULL;
+
+    testutil_assert(ret == 0 || ret == WT_NOTFOUND || ret == WT_ROLLBACK);
+    return (ret == WT_NOTFOUND ? 0 : ret);
 }
 
 /*
