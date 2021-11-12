@@ -4,7 +4,7 @@
 # fails, it only warns the caller there are comments that are potentially worth checking.
 
 # Retrieve the current branch name.
-branch_name=$(git rev-parse --abbrev-ref HEAD)
+branch_name=$(git rev-parse --abbrev-ref HEAD 2>&1 || echo "BRANCH_NOT_FOUND")
 
 # We expect the following syntax (case insensitive): wt-<digits>[-<alphanum>].
 regex="^(wt|WT|wT|Wt)-[0-9]+(-[a-zA-Z0-9-]+)?"
