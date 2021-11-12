@@ -45,6 +45,7 @@ class search_near_01 : public test_harness::test {
     uint64_t srchkey_len = 0;
     const std::string ALPHABET{"abcdefghijklmnopqrstuvwxyz"};
     const uint64_t PREFIX_KEY_LEN = 3;
+    std::atomic<int64_t> search_near_calls;
 
     static void
     populate_worker(thread_context *tc, const std::string &ALPHABET, uint64_t PREFIX_KEY_LEN)
@@ -94,7 +95,9 @@ class search_near_01 : public test_harness::test {
     }
 
     public:
-    search_near_01(const test_harness::test_args &args) : test(args) {}
+    search_near_01(const test_harness::test_args &args) : test(args) {
+      search_near_calls = 0;
+    }
 
     void
     populate(test_harness::database &database, test_harness::timestamp_manager *tsm,
@@ -178,7 +181,8 @@ class search_near_01 : public test_harness::test {
         std::map<uint64_t, scoped_cursor> cursors;
         tc->stat_cursor = tc->session.open_scoped_cursor(STATISTICS_URI);
         std::string srch_key;
-        int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries;
+        int64_t entries_stat, prefix_stat, prev_entries_stat, prev_prefix_stat, expected_entries,
+          prev_search_near_calls;
         int cmpp;
 
         cmpp = 0;
@@ -223,7 +227,8 @@ class search_near_01 : public test_harness::test {
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &prev_entries_stat);
                 runtime_monitor::get_stat(tc->stat_cursor,
                   WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prev_prefix_stat);
-
+                prev_search_near_calls = search_near_calls;
+  
                 cursor->set_key(cursor.get(), srch_key.c_str());
                 testutil_assert(cursor->search_near(cursor.get(), &cmpp) == WT_NOTFOUND);
 
@@ -231,11 +236,15 @@ class search_near_01 : public test_harness::test {
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_NEXT_SKIP_LT_100, &entries_stat);
                 runtime_monitor::get_stat(
                   tc->stat_cursor, WT_STAT_CONN_CURSOR_SEARCH_NEAR_PREFIX_FAST_PATHS, &prefix_stat);
-                logger::log_msg(LOG_INFO,
-                  "Read thread {" + std::to_string(tc->id) +
-                    "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
-                    " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat));
-
+                ++search_near_calls;
+                if (search_near_calls - prev_search_near_calls > 10) {
+                  logger::log_msg(LOG_ERROR,
+                    "Read thread {" + std::to_string(tc->id) +
+                      "} skipped entries: " + std::to_string(entries_stat - prev_entries_stat) +
+                      " prefix fash path:  " + std::to_string(prefix_stat - prev_prefix_stat) +
+                      " search near calls: " +
+                      std::to_string(search_near_calls - prev_search_near_calls));
+                }
                 /*
                  * It is possible that WiredTiger increments the entries skipped stat irrelevant to
                  * prefix search near. This is dependent on how many read threads are present in the
@@ -244,7 +253,7 @@ class search_near_01 : public test_harness::test {
                  * can traverse and the prefix fast path is incremented.
                  */
                 testutil_assert(
-                  (expected_entries + (2 * tc->thread_count)) >= entries_stat - prev_entries_stat);
+                  ((search_near_calls - prev_search_near_calls) * expected_entries) >= entries_stat - prev_entries_stat);
                 /*
                  * There is an edge case where we may not early exit the prefix search near call
                  * because the specified prefix matches the rest of the entries in the tree.
