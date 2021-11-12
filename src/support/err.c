@@ -459,8 +459,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false,
-      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), error, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false, FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR),
+      error, func, line, fmt, ap));
     va_end(ap);
 
     /*
@@ -479,9 +479,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * I'm not confident of underlying support for a NULL.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(
-      __eventv(session, false, FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), WT_PANIC,
-        func, line, "the process must exit and restart", ap));
+    WT_IGNORE_RET(__eventv(session, false, FLD_ISSET(conn->json_output, WT_JSON_OUTPUT_ERROR),
+      WT_PANIC, func, line, "the process must exit and restart", ap));
     va_end(ap);
 
 #if defined(HAVE_DIAGNOSTIC)
