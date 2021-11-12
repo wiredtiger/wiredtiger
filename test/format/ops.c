@@ -683,6 +683,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
     tinfo->cursor = table_cursor(tinfo, table->id);
 
     /*
+     * Truncate has the key set to before/after rows in the table, skip pre-fetch and reserve for
+     * simplicity.
+     *
      * When the cursor is positioned in a row-store, inserts update existing records rather than
      * inserting new records. Inserted records are ignored during mirror checks (and updates to
      * those inserted records are ignored as well). The problem is if a row-store table updates an
@@ -692,7 +695,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
      * the cursor and lead us into an update.
      */
     positioned = false;
-    if (op != INSERT || !table->mirror) {
+    if (op != TRUNCATE && (op != INSERT || !table->mirror)) {
         /*
          * Inserts, removes and updates can be done following a cursor set-key, or based on a cursor
          * position taken from a previous search. If not already doing a read, position the cursor
@@ -758,8 +761,9 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
         ++tinfo->update;
         switch (table->type) {
         case FIX:
-            testutil_assert(table->type != FIX);
-            /* NOTREACHED */
+            /* FLCS does an update instead of a modify. */
+            ret = col_update(tinfo, positioned);
+            break;
         case ROW:
             ret = row_modify(tinfo, positioned);
             break;
@@ -889,7 +893,7 @@ static WT_THREAD_RET
 ops(void *arg)
 {
     TINFO *tinfo;
-    TABLE *table;
+    TABLE *skip1, *skip2, *table;
     WT_DECL_RET;
     WT_SESSION *session;
     iso_level_t iso_level;
@@ -1038,8 +1042,6 @@ ops(void *arg)
               TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT) + TV(OPS_PCT_MODIFY) + TV(OPS_PCT_WRITE))
                 op = UPDATE;
         }
-        if (op == MODIFY) /* XXX KEITH */
-            op = UPDATE;
 
         /*
          * Get the number of rows. Column-store extends the object, use that extended count if this
@@ -1105,14 +1107,33 @@ ops(void *arg)
             }
         }
 
-        /* Do the operation, and if the operation is on a mirror, repeat it on the other members. */
-        ret = table_op(tinfo, intxn, iso_level, op);
-        testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-        if (ret == WT_ROLLBACK)
-            goto rollback;
+        /*
+         * For modify we haven't created the new value when we queue up the operation, and we have
+         * to modify a RS or VLCS table first so we have a value from which we can set any FLCS
+         * value we need. Do the operation on the base mirror table first, then the selected table,
+         * then any remaining tables.
+         */
+        skip1 = skip2 = NULL;
+        if (op == MODIFY && table->mirror) {
+            tinfo->table = g.base_mirror;
+            ret = table_op(tinfo, intxn, iso_level, op);
+            testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+            if (ret == WT_ROLLBACK)
+                goto rollback;
+            val_to_flcs(tinfo->value, &tinfo->bitv);
+            skip1 = g.base_mirror;
+        }
+        if (table != skip1) {
+            tinfo->table = table;
+            ret = table_op(tinfo, intxn, iso_level, op);
+            testutil_assert(ret == 0 || ret == WT_ROLLBACK);
+            if (ret == WT_ROLLBACK)
+                goto rollback;
+            skip2 = table;
+        }
         if (table->mirror)
             for (i = 1; i <= ntables; ++i)
-                if (table != tables[i]) {
+                if (tables[i] != skip1 && tables[i] != skip2) {
                     tinfo->table = tables[i];
                     ret = table_op(tinfo, intxn, iso_level, op);
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
@@ -1501,7 +1522,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     bool modify_check;
 
     /* Periodically verify the WT_CURSOR.modify return. */
-    modify_check = positioned && mmrand(&tinfo->rnd, 1, 10) == 1;
+    modify_check = positioned && mmrand(&tinfo->rnd, 1, 20) == 1;
     if (modify_check) {
         testutil_check(cursor->get_value(cursor, &tinfo->moda));
         testutil_check(
@@ -1511,6 +1532,7 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     WT_RET(cursor->modify(cursor, tinfo->entries, tinfo->nentries));
 
     testutil_check(cursor->get_value(cursor, tinfo->value));
+
     if (modify_check) {
         testutil_modify_apply(&tinfo->moda, &tinfo->modb, tinfo->entries, tinfo->nentries);
         testutil_assert(tinfo->moda.size == tinfo->value->size &&

@@ -1047,7 +1047,6 @@ config_pct(TABLE *table)
     u_int i, max_order, max_slot, n, pct;
     bool slot_available;
 
-#define CONFIG_MODIFY_ENTRY 2
     list[0].name = "ops.pct.delete";
     list[0].vp = &TV(OPS_PCT_DELETE);
     list[0].order = 0;
@@ -1091,12 +1090,9 @@ config_pct(TABLE *table)
     }
 
     /* Cursor modify isn't possible for fixed-length column store. */
-    if (table->type == FIX) {
-        if (config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY) != 0)
-            testutil_die(EINVAL, "WT_CURSOR.modify not supported by fixed-length column store");
-        list[CONFIG_MODIFY_ENTRY].order = 0;
-        *list[CONFIG_MODIFY_ENTRY].vp = 0;
-    }
+    if (table->type == FIX && config_explicit(table, "ops.pct.modify") && TV(OPS_PCT_MODIFY) != 0)
+        WARN("%s",
+          "WT_CURSOR.modify not supported by fixed-length column store, switching to updates");
 
     /*
      * Walk the list, allocating random numbers of operations in a random order.

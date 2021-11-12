@@ -243,13 +243,6 @@ cd $(dirname $0) || exit 1
 	}
 }
 
-# Find the wt binary (required for abort/recovery testing).
-wt_binary="../../wt"
-[[ -x $wt_binary ]] || {
-	echo "$name: wt program \"$wt_binary\" not found"
-	exit 1
-}
-
 # We tested for the CONFIG file in the original directory, then in the WiredTiger source directory,
 # the last place to check is in the WiredTiger build directory. Fail if we don't find it.
 [[ $config_found -eq 0 ]] && {
@@ -437,30 +430,7 @@ resolve()
 			 echo "$name: original directory copied into $dir.RECOVER"
 			 echo) >> $log
 
-			# Verify the objects. In current format, it's a list of files named with a
-			# leading F or tables named with a leading T. Historically, it was a file
-			# or table named "wt".
-			verify_failed=0
-			for i in $(ls $dir | sed -e 's/.*\///'); do
-			    case $i in
-			    F*) uri="file:$i";;
-			    T*) uri="table:${i%.wt}";;
-			    wt) uri="file:wt";;
-			    wt.wt) uri="table:wt";;
-			    *) continue;;
-			    esac
-
-			    # Use the wt utility to recover & verify the object.
-			    echo "verify: $wt_binary -m -R -h $dir verify $uri" >> $log
-			    if  $($wt_binary -m -R -h $dir verify $uri >> $log 2>&1); then
-				continue
-			    fi
-
-			    verify_failed=1
-			    break
-			done
-
-			if [[ $verify_failed -eq 0 ]]; then
+			if $format_binary -Rqv -h $dir > $log 2>&1; then
 			    rm -rf $dir $dir.RECOVER $log
 			    success=$(($success + 1))
 			    verbose "$name: job in $dir successfully completed"
