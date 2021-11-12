@@ -603,7 +603,7 @@ functions:
           ${virtualenv_binary} -p ${python_binary} venv
           source venv/bin/activate
           ${pip3_binary} install psutil pygit2
-          JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'" } }'
+          JSON_TASK_INFO='{ "evergreen_task_info": { "is_patch": "'${is_patch}'", "task_id": "'${task_id}'", "distro_id": "'${distro_id}'" } }'
           echo "JSON_TASK_INFO: $JSON_TASK_INFO"
           ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -p ./wtperf -t ../../../bench/wtperf/runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -b -o test_stats/evergreen_out.json ${wtarg}
           ${test_env_vars|} ${python_binary} ../../../bench/wtperf/wtperf_run_py/wtperf_run.py -p ./wtperf -t ../../../bench/wtperf/runners/${perf-test-name}.wtperf -ho WT_TEST -m ${maxruns} -g "../.." -v -i "$JSON_TASK_INFO" -re -o test_stats/atlas_out.json ${wtarg}
@@ -647,8 +647,8 @@ variables:
 #########################################################################################
 # The following stress tests are configured to run for six hours via the "-t 360"
 # argument to format.sh: format-stress-test, format-stress-sanitizer-test, and
-# race-condition-stress-sanitizer-test. The smoke and recovery tests run in a loop,
-# with the number of runs adjusted to provide aproximately six hours of testing.
+# race-condition-stress-sanitizer-test. The recovery tests run in a loop, with
+# the number of runs adjusted to provide aproximately six hours of testing.
 #########################################################################################
 
   - &format-stress-test
@@ -671,29 +671,6 @@ variables:
           test_env_vars:
             ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
             ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-
-  - &format-stress-smoke-test
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger with builtins"
-      - func: "format test script"
-        vars:
-          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
-          times: 30
-
-  - &format-stress-sanitizer-smoke-test
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger address sanitizer"
-      - func: "format test script"
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
-            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
-          format_test_script_args: -S
-          times: 20
 
   - &race-condition-stress-sanitizer-test
     exec_timeout_secs: 25200
@@ -1091,6 +1068,21 @@ tasks:
             set -o verbose
 
             ${test_env_vars|} $(pwd)/run -t hs_cleanup -f configs/hs_cleanup_stress.txt -l 2
+  
+  - name: cppsuite-search-near-stress
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix/"
+          script: |
+            set -o errexit
+            set -o verbose
+
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_01 -f test/cppsuite/configs/search_near_01_stress.txt -l 2
+            ${test_env_vars|} $(pwd)/test/cppsuite/run -t search_near_02 -f test/cppsuite/configs/search_near_02_stress.txt -l 2
 
   # End of cppsuite test tasks.
   # Start of csuite test tasks
@@ -1687,6 +1679,20 @@ tasks:
             set -o errexit
             set -o verbose
             ${test_env_vars|} $(pwd)/test/csuite/test_wt8057_compact_stress 2>&1
+
+  - name: csuite-wt8246-compact-rts-data-correctness-test
+    tags: ["pull_request"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - command: shell.exec
+        params:
+          working_dir: "wiredtiger/build_posix"
+          script: |
+            set -o errexit
+            set -o verbose
+            ${test_env_vars|} $(pwd)/test/csuite/test_wt8246_compact_rts_data_correctness 2>&1
 
   # End of csuite test tasks
 
@@ -2375,6 +2381,9 @@ tasks:
             dir=../bench/wtperf/stress
             for file in `ls $dir`
             do
+              echo "===="
+              echo "==== Initiating wtperf test using $dir/$file ===="
+              echo "===="
               ./bench/wtperf/wtperf -O $dir/$file -o verbose=2
               cp -rf WT_TEST WT_TEST_$file
             done
@@ -2513,6 +2522,49 @@ tasks:
           smp_command: -j $(grep -c ^processor /proc/cpuinfo)
           # run for 10 minutes.
           format_test_script_args: -t 10 rows=10000 ops=50000
+
+  - name: format-smoke-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger with builtins"
+      - func: "format test script"
+        vars:
+          format_test_script_args: -e "SEGFAULT_SIGNALS=all" -b "catchsegv ./t" -S
+
+  - name: format-asan-smoke-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger address sanitizer"
+      - func: "format test script"
+        vars:
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
+            ASAN_SYMBOLIZER_PATH=/opt/mongodbtoolchain/v3/bin/llvm-symbolizer
+          format_test_script_args: -S
+
+  # Replace this test with format-asan-smoke-test after BUILD-10248 fix.
+  - name: format-asan-smoke-ppc-test
+    commands:
+      - func: "get project"
+      - func: "compile wiredtiger"
+        vars:
+          # CC is set to the system default "clang" binary here as a workaround. Change it back
+          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
+          configure_env_vars:
+            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
+            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
+            CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
+            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+            CXXFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
+            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
+          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
+      - func: "format test script"
+        # Run smoke tests, don't stop at failed tests, use default config
+        vars:
+          test_env_vars:
+            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
+            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
+          format_test_script_args: -S
 
   - name: format-wtperf-test
     commands:
@@ -2772,34 +2824,6 @@ tasks:
           # Run for 2 hours (2 * 60 = 120 minutes), don't stop at failed tests, use default config
           format_test_script_args: -t 120
 
-  # Replace this test with format-stress-sanitizer-smoke-test after BUILD-10248 fix.
-  - name: format-stress-sanitizer-smoke-ppc-test
-    tags: ["stress-test-ppc-1"]
-    # Set 7 hours timeout (60 * 60 * 7)
-    exec_timeout_secs: 25200
-    commands:
-      - func: "get project"
-      - func: "compile wiredtiger"
-        vars:
-          # CC is set to the system default "clang" binary here as a workaround. Change it back
-          # to mongodbtoolchain "clang" binary after BUILD-10248 fix.
-          configure_env_vars:
-            CCAS=/opt/mongodbtoolchain/v3/bin/gcc CC=/usr/bin/clang
-            CXX=/opt/mongodbtoolchain/v3/bin/clang++ PATH=/opt/mongodbtoolchain/v3/bin:$PATH
-            CFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-            CXXFLAGS="-ggdb -fPIC -fsanitize=address -fno-omit-frame-pointer
-            -I/opt/mongodbtoolchain/v3/lib/gcc/ppc64le-mongodb-linux/8.2.0/include"
-          posix_configure_flags: --enable-diagnostic --with-builtins=lz4,snappy,zlib
-      - func: "format test script"
-        # To emulate the original Jenkins job's test coverage, we are running the smoke test 16 times
-        # Run smoke tests, don't stop at failed tests, use default config
-        vars:
-          test_env_vars:
-            ASAN_OPTIONS="detect_leaks=1:abort_on_error=1:disable_coredump=0"
-            ASAN_SYMBOLIZER_PATH=/usr/lib/llvm-6.0/bin/llvm-symbolizer
-          format_test_script_args: -S
-          times: 16
 
   - <<: *format-stress-test
     name: format-stress-test-1
@@ -2825,18 +2849,6 @@ tasks:
   - <<: *format-stress-sanitizer-test
     name: format-stress-sanitizer-test-4
     tags: ["stress-test-4"]
-  - <<: *format-stress-smoke-test
-    name: format-stress-smoke-test-1
-    tags: ["stress-test-1", "stress-test-ppc-1", "stress-test-zseries-1"]
-  - <<: *format-stress-smoke-test
-    name: format-stress-smoke-test-2
-    tags: ["stress-test-2", "stress-test-ppc-2", "stress-test-zseries-2"]
-  - <<: *format-stress-sanitizer-smoke-test
-    name: format-stress-sanitizer-smoke-test-1
-    tags: ["stress-test-1"]
-  - <<: *format-stress-sanitizer-smoke-test
-    name: format-stress-sanitizer-smoke-test-2
-    tags: ["stress-test-2"]
   - <<: *race-condition-stress-sanitizer-test
     name: race-condition-stress-sanitizer-test-1
     tags: ["stress-test-1"]
@@ -2971,6 +2983,7 @@ tasks:
         vars:
           perf-test-name: small-lsm
           maxruns: 3
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: small-lsm
@@ -2985,6 +2998,7 @@ tasks:
         vars:
           perf-test-name: medium-lsm
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: medium-lsm
@@ -2999,6 +3013,7 @@ tasks:
         vars:
           perf-test-name: medium-lsm-compact
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: medium-lsm-compact
@@ -3013,6 +3028,7 @@ tasks:
         vars:
           perf-test-name: medium-multi-lsm
           maxruns: 1
+          wtarg: -ops ['"load", "read", "update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: medium-multi-lsm
@@ -3027,6 +3043,7 @@ tasks:
         vars:
           perf-test-name: parallel-pop-lsm
           maxruns: 1
+          wtarg: -ops ['"load"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: parallel-pop-lsm
@@ -3041,6 +3058,7 @@ tasks:
         vars:
           perf-test-name: update-lsm
           maxruns: 1
+          wtarg: -ops ['"load", "read", "update", "insert"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-lsm
@@ -3059,6 +3077,7 @@ tasks:
         vars:
           perf-test-name: small-btree
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: small-btree
@@ -3073,6 +3092,7 @@ tasks:
         vars:
           perf-test-name: small-btree-backup
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: small-btree-backup
@@ -3087,6 +3107,7 @@ tasks:
         vars:
           perf-test-name: medium-btree
           maxruns: 3
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: medium-btree
@@ -3101,6 +3122,7 @@ tasks:
         vars:
           perf-test-name: medium-btree-backup
           maxruns: 3
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: medium-btree-backup
@@ -3115,6 +3137,7 @@ tasks:
         vars:
           perf-test-name: parallel-pop-btree
           maxruns: 1
+          wtarg: -ops ['"load"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: parallel-pop-btree
@@ -3129,6 +3152,7 @@ tasks:
         vars:
           perf-test-name: update-only-btree
           maxruns: 3
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-only-btree
@@ -3143,7 +3167,7 @@ tasks:
         vars:
           perf-test-name: update-btree
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-btree.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-btree.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-btree
@@ -3158,6 +3182,7 @@ tasks:
         vars:
           perf-test-name: update-large-record-btree
           maxruns: 3
+          wtarg: -ops ['"load", "update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-large-record-btree
@@ -3172,6 +3197,7 @@ tasks:
         vars:
           perf-test-name: modify-large-record-btree
           maxruns: 3
+          wtarg: -ops ['"load", "modify"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: modify-large-record-btree
@@ -3186,6 +3212,7 @@ tasks:
         vars:
           perf-test-name: modify-force-update-large-record-btree
           maxruns: 3
+          wtarg: -ops ['"load", "modify"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: modify-force-update-large-record-btree
@@ -3204,7 +3231,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-btree
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-btree
@@ -3219,7 +3246,7 @@ tasks:
         vars:
           perf-test-name: update-checkpoint-lsm
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-checkpoint.json"
+          wtarg: "-bf ../../../bench/wtperf/runners/update-checkpoint.json"
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-checkpoint-lsm
@@ -3238,6 +3265,7 @@ tasks:
         vars:
           perf-test-name: overflow-10k
           maxruns: 1
+          wtarg: -ops ['"load", "read", "update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: overflow-10k
@@ -3252,6 +3280,7 @@ tasks:
         vars:
           perf-test-name: overflow-130k
           maxruns: 1
+          wtarg: -ops ['"load", "read", "update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: overflow-130k
@@ -3266,6 +3295,7 @@ tasks:
         vars:
           perf-test-name: parallel-pop-stress
           maxruns: 1
+          wtarg: -ops ['"load"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: parallel-pop-stress
@@ -3280,7 +3310,7 @@ tasks:
         vars:
           perf-test-name: update-grow-stress
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-grow-stress
@@ -3295,7 +3325,7 @@ tasks:
         vars:
           perf-test-name: update-shrink-stress
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-shrink-stress
@@ -3310,7 +3340,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix1
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix1
@@ -3325,7 +3355,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix2
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix2
@@ -3340,7 +3370,7 @@ tasks:
         vars:
           perf-test-name: update-delta-mix3
           maxruns: 1
-          wtarg: "-a ../../../bench/wtperf/runners/update-stress.json"
+          wtarg: -ops ['"update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: update-delta-mix3
@@ -3355,10 +3385,12 @@ tasks:
         vars:
           perf-test-name: multi-btree-zipfian-populate
           maxruns: 1
+          wtarg: -ops ['"read"']
       - func: "run-perf-test"
         vars:
           perf-test-name: multi-btree-zipfian-workload
           maxruns: 1
+          wtarg: -ops ['"read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: multi-btree-zipfian
@@ -3385,6 +3417,33 @@ tasks:
           perf-test-name: many-table-stress-backup
           maxruns: 1
 
+  - name: perf-test-evict-fairness
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-fairness
+          maxruns: 1
+          wtarg: -args ['"-C statistics_log=(wait=10000,on_close=true,json=false,sources=[file:])", "-o reopen_connection=false"'] -ops ['"eviction_page_seen"']
+
+  - name: perf-test-evict-btree-stress-multi
+    tags: ["stress-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: evict-btree-stress-multi
+          maxruns: 1
+          wtarg: -ops ['"warnings", "max_latencies"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: evict-btree-stress-multi
+
     ##################################
     # Performance Tests for eviction #
     ##################################
@@ -3399,6 +3458,7 @@ tasks:
         vars:
           perf-test-name: evict-btree
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-btree
@@ -3413,6 +3473,7 @@ tasks:
         vars:
           perf-test-name: evict-btree-1
           maxruns: 1
+          wtarg: -ops ['"read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-btree-1
@@ -3427,6 +3488,7 @@ tasks:
         vars:
           perf-test-name: evict-lsm
           maxruns: 1
+          wtarg: -ops ['"load", "read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-lsm
@@ -3441,9 +3503,104 @@ tasks:
         vars:
           perf-test-name: evict-lsm-1
           maxruns: 1
+          wtarg: -ops ['"read"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-lsm-1
+
+    ###########################################
+    # Performance Tests for log consolidation #
+    ###########################################
+
+  - name: perf-test-log
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -ops ['"update", "max_update_throughput", "min_update_throughput"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log
+
+  - name: perf-test-log-small-files
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -args ['"-C log=(enabled,file_max=1M)"'] -ops ['"update"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log-small-files
+
+  - name: perf-test-log-no-checkpoints
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -args ['"-C checkpoint=(wait=0)"'] -ops ['"update"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log-no-checkpoints
+
+  - name: perf-test-log-no-prealloc
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -args ['"-C log=(enabled,file_max=1M,prealloc=false)"'] -ops ['"update"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log-no-prealloc
+
+  - name: perf-test-log-zero-fill
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -args ['"-C log=(enabled,file_max=1M,zero_fill=true)"'] -ops ['"update"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log-zero-fill
+
+  - name: perf-test-log-many-threads
+    tags: ["log-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: log
+          maxruns: 1
+          wtarg: -args ['"-C log=(enabled,file_max=1M),session_max=256", "-o threads=((count=128,updates=1))"'] -ops ['"update"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: log-many-threads
 
 #######################################
 #            Buildvariants            #
@@ -3494,6 +3651,7 @@ buildvariants:
     - name: ftruncate-test
     - name: long-test
     - name: static-wt-build-test
+    - name: format-smoke-test
     - name: format-failure-configs-test
     - name: data-validation-stress-test-checkpoint
     - name: data-validation-stress-test-checkpoint-fp-hs-insert-s1
@@ -3567,6 +3725,7 @@ buildvariants:
   tasks:
     - name: ".pull_request !.windows_only !.pull_request_compilers !.python"
     - name: examples-c-test
+    - name: format-asan-smoke-test
 
 - name: ubuntu2004-msan
   display_name: "! Ubuntu 20.04 MSAN"
@@ -3728,6 +3887,7 @@ buildvariants:
     - name: ".stress-perf"
     - name: ".checkpoint-perf"
     - name: ".evict-perf"
+    - name: ".log-perf"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -3744,6 +3904,9 @@ buildvariants:
     - name: Wiredtiger-perf-evict-jobs
       execution_tasks:
       - ".evict-perf"
+    - name: Wiredtiger-perf-log-jobs
+      execution_tasks:
+      - ".log-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
@@ -3793,8 +3956,9 @@ buildvariants:
       --enable-zlib
   tasks:
     - name: compile
-    - name: cppsuite-hs-cleanup-stress
     - name: cppsuite-base-test-stress
+    - name: cppsuite-hs-cleanup-stress
+    - name: cppsuite-search-near-stress
 
 - name: package
   display_name: "~ Package"
@@ -4053,9 +4217,10 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: format-smoke-test
+  - name: format-asan-smoke-ppc-test
   - name: format-wtperf-test
   - name: ".stress-test-ppc-1"
-  - name: ".stress-test-ppc-2"
 
 - name: ubuntu1804-ppc-cmake
   display_name: "* Ubuntu 18.04 PPC CMake"
@@ -4111,6 +4276,7 @@ buildvariants:
   tasks:
   - name: compile
   - name: unit-test
+  - name: format-smoke-test
   - name: ".stress-test-zseries-1"
   - name: ".stress-test-zseries-2"
   - name: ".stress-test-zseries-3"
