@@ -79,11 +79,10 @@ class search_near_03 : public test_harness::test {
             return false;
 
         /*
-         * Search near the prefix. We expect that the key is deleted and a WT_NOTFOUND error to be
-         * returned. If the key is present, it means the (prefix, id) has been inserted already,
-         * double check that the prefix portion match.
+         * Prefix search near the prefix. We expect that the key is deleted and a WT_NOTFOUND error
+         * to be returned. If the key is present, it means the (prefix, id) has been inserted
+         * already, double check that the prefix portion match.
          */
-        testutil_check(cursor.get()->reconfigure(cursor.get(), "prefix_search=true"));
         cursor->set_key(cursor.get(), prefix_key.c_str());
         ret = cursor->search_near(cursor.get(), &exact_prefix);
         testutil_assert(ret == 0 || ret == WT_NOTFOUND);
