@@ -403,16 +403,3 @@ lock_readunlock(WT_SESSION *session, RWLOCK *lock)
         }                                                                                     \
     } while (0)
 #define trace_op(tinfo, fmt, ...) trace_uri_op(tinfo, (tinfo)->table->uri, fmt, __VA_ARGS__)
-
-/*
- * trace_bytes --
- *     Return a byte string formatted for display.
- */
-static inline const char *
-trace_bytes(TINFO *tinfo, const uint8_t *data, size_t size)
-{
-    testutil_check(
-      __wt_raw_to_esc_hex((WT_SESSION_IMPL *)tinfo->session, data, size, &tinfo->vprint));
-    return (tinfo->vprint.mem);
-}
-#define trace_item(tinfo, buf) trace_bytes(tinfo, (buf)->data, (buf)->size)

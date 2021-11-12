@@ -89,6 +89,7 @@
 
 #define FORMAT_OPERATION_REPS 3 /* 3 thread operations sets */
 
+#define FORMAT_PAD_BYTE '*'  /* modify pad byte */
 #define MAX_MODIFY_ENTRIES 5 /* maximum change vectors */
 
 /*
@@ -368,8 +369,6 @@ typedef struct {
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
 
     WT_ITEM moda, modb; /* Temporary buffer for modify operations */
-
-    WT_ITEM vprint; /* Temporary buffer for printable values */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */

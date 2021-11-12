@@ -202,7 +202,6 @@ tinfo_teardown(void)
         free(tinfo->cursors);
         free(tinfo->col_insert);
 
-        __wt_buf_free(NULL, &tinfo->vprint);
         __wt_buf_free(NULL, &tinfo->moda);
         __wt_buf_free(NULL, &tinfo->modb);
 
@@ -253,6 +252,9 @@ operations(u_int ops_seconds, bool lastrun)
     bool running;
 
     conn = g.wts_conn;
+
+    /* Make the modify pad character printable to simplify debugging and logging. */
+    __wt_process.modify_pad_byte = FORMAT_PAD_BYTE;
 
     session = NULL; /* -Wconditional-uninitialized */
     memset(&alter_tid, 0, sizeof(alter_tid));
@@ -1352,7 +1354,8 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
             if (tinfo == NULL && g.trace_all)
                 trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
             if (tinfo != NULL)
-                trace_op(tinfo, "read %" PRIu64 " {%s}", keyno, trace_item(tinfo, value));
+                trace_op(
+                  tinfo, "read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
             break;
         }
 
@@ -1459,11 +1462,12 @@ order_error_row:
             trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%s}", which, keyno, (int)key.size,
-              (char *)key.data, trace_item(tinfo, &value));
+            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
+              (char *)key.data, (int)value.size, (char *)value.data);
             break;
         case VAR:
-            trace_op(tinfo, "%s %" PRIu64 " {%s}", which, keyno, trace_item(tinfo, &value));
+            trace_op(
+              tinfo, "%s %" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
             break;
         }
 
@@ -1541,7 +1545,8 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
     testutil_check(cursor->get_value(cursor, tinfo->value));
 
     if (modify_check) {
-        testutil_modify_apply(&tinfo->moda, &tinfo->modb, tinfo->entries, tinfo->nentries);
+        testutil_modify_apply(
+          &tinfo->moda, &tinfo->modb, tinfo->entries, tinfo->nentries, FORMAT_PAD_BYTE);
         testutil_assert(tinfo->moda.size == tinfo->value->size &&
           memcmp(tinfo->moda.data, tinfo->value->data, tinfo->moda.size) == 0);
     }
@@ -1566,8 +1571,8 @@ row_modify(TINFO *tinfo, bool positioned)
 
     WT_RET(modify(tinfo, cursor, positioned));
 
-    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%s}", tinfo->keyno, (int)tinfo->key->size,
-      (char *)tinfo->key->data, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "modify %" PRIu64 " {%.*s}, {%.*s}", tinfo->keyno, (int)tinfo->key->size,
+      (char *)tinfo->key->data, (int)tinfo->value->size, (char *)tinfo->value->data);
 
     return (0);
 }
@@ -1588,7 +1593,8 @@ col_modify(TINFO *tinfo, bool positioned)
 
     WT_RET(modify(tinfo, cursor, positioned));
 
-    trace_op(tinfo, "modify %" PRIu64 ", {%s}", tinfo->keyno, trace_item(tinfo, tinfo->value));
+    trace_op(tinfo, "modify %" PRIu64 ", {%.*s}", tinfo->keyno, (int)tinfo->value->size,
+      (char *)tinfo->value->data);
 
     return (0);
 }
