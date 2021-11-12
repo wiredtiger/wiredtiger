@@ -322,6 +322,7 @@ typedef struct {
     uint64_t commit; /* operation counts */
     uint64_t insert;
     uint64_t prepare;
+    uint64_t modify;
     uint64_t remove;
     uint64_t rollback;
     uint64_t search;

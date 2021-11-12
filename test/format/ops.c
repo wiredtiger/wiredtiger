@@ -169,6 +169,7 @@ tinfo_init(void)
         tinfo->ops = 0;
         tinfo->commit = 0;
         tinfo->insert = 0;
+        tinfo->modify = 0;
         tinfo->prepare = 0;
         tinfo->remove = 0;
         tinfo->rollback = 0;
@@ -325,8 +326,10 @@ operations(u_int ops_seconds, bool lastrun)
         memset(&total, 0, sizeof(total));
         for (i = 0, running = false; i < GV(RUNS_THREADS); ++i) {
             tinfo = tinfo_list[i];
+            total.ops += tinfo->ops;
             total.commit += tinfo->commit;
             total.insert += tinfo->insert;
+            total.modify += tinfo->modify;
             total.prepare += tinfo->prepare;
             total.remove += tinfo->remove;
             total.rollback += tinfo->rollback;
@@ -404,6 +407,9 @@ operations(u_int ops_seconds, bool lastrun)
     g.workers_finished = false;
 
     trace_msg("%s", "=============== thread ops stop");
+
+    /* Sanity check the truncation gate. */
+    testutil_assert(g.truncate_cnt == 0);
 
     /*
      * The system should be quiescent at this point, call rollback to stable. Generally, we expect
@@ -745,7 +751,10 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             break;
         case FIX:
         case VAR:
-            /* We can only append so many new records, check for the limit. */
+            /*
+             * We can only append so many new records, check for the limit, and if we reach it, skip
+             * the operation until some records drain.
+             */
             cip = &tinfo->col_insert[table->id - 1];
             if (cip->insert_list_cnt < WT_ELEMENTS(cip->insert_list))
                 ret = col_insert(tinfo);
@@ -758,7 +767,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
             WRITE_OP_FAILED(false);
         break;
     case MODIFY:
-        ++tinfo->update;
+        ++tinfo->modify;
         switch (table->type) {
         case FIX:
             /* FLCS does an update instead of a modify. */
@@ -846,7 +855,7 @@ table_op(TINFO *tinfo, bool intxn, iso_level_t iso_level, thread_op op)
      * If the cursor is positioned, do a small number of next/prev cursor operations in a random
      * direction.
      */
-    if (tinfo == NULL && positioned) { /* XXX KEITH */
+    if (positioned) {
         next = mmrand(&tinfo->rnd, 0, 1) == 1;
         j = mmrand(&tinfo->rnd, 1, 100);
         for (i = 0; i < j; ++i) {
@@ -1018,23 +1027,22 @@ ops(void *arg)
         op = READ;
         if (iso_level == ISOLATION_IMPLICIT || iso_level == ISOLATION_SNAPSHOT) {
             i = mmrand(&tinfo->rnd, 1, 100);
-            if (TV(OPS_TRUNCATE) && i < TV(OPS_PCT_DELETE) && tinfo->ops > truncate_op) {
-                op = TRUNCATE;
-
-                /*
-                 * Limit test runs to a maximum of 2 truncation operations at a time, more than that
-                 * can lead to serious thrashing.
-                 */
-                if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2) {
-                    (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
-                    op = UPDATE;
-                }
-
-                /* Pick the next truncate operation. */
-                truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
-            } else if (i < TV(OPS_PCT_DELETE))
+            if (i < TV(OPS_PCT_DELETE)) {
                 op = REMOVE;
-            else if (i < TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT))
+                if (TV(OPS_TRUNCATE) && tinfo->ops > truncate_op) {
+                    /*
+                     * Limit test runs to a maximum of 2 truncation operations at a time, more than
+                     * that can lead to serious thrashing.
+                     */
+                    if (__wt_atomic_addv64(&g.truncate_cnt, 1) > 2)
+                        (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
+                    else
+                        op = TRUNCATE;
+
+                    /* Pick the next truncate operation. */
+                    truncate_op += mmrand(&tinfo->rnd, 20000, 100000);
+                }
+            } else if (i < TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT))
                 op = INSERT;
             else if (intxn && i < TV(OPS_PCT_DELETE) + TV(OPS_PCT_INSERT) + TV(OPS_PCT_MODIFY))
                 op = MODIFY;
@@ -1118,27 +1126,23 @@ ops(void *arg)
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            if (ret == WT_ROLLBACK)
-                goto rollback;
             val_to_flcs(tinfo->value, &tinfo->bitv);
             skip1 = g.base_mirror;
         }
-        if (table != skip1) {
+        if (ret == 0 && table != skip1) {
             tinfo->table = table;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            if (ret == WT_ROLLBACK)
-                goto rollback;
             skip2 = table;
         }
-        if (table->mirror)
+        if (ret == 0 && table->mirror)
             for (i = 1; i <= ntables; ++i)
                 if (tables[i] != skip1 && tables[i] != skip2) {
                     tinfo->table = tables[i];
                     ret = table_op(tinfo, intxn, iso_level, op);
                     testutil_assert(ret == 0 || ret == WT_ROLLBACK);
                     if (ret == WT_ROLLBACK)
-                        goto rollback;
+                        break;
                 }
         table = tinfo->table = NULL;
 
@@ -1146,9 +1150,12 @@ ops(void *arg)
         if (op == TRUNCATE)
             (void)__wt_atomic_subv64(&g.truncate_cnt, 1);
 
-        /* If we have pending inserts, try and update the total rows. */
+        /* If we have pending column-store inserts, try and drain them. */
         if (g.column_store_config)
             tables_apply(col_insert_resolve, tinfo);
+
+        if (ret == 0)
+            goto rollback;
 
         /*
          * No post-operation work is needed outside of a transaction. If in a transaction, add more
@@ -1785,10 +1792,10 @@ col_insert_resolve(TABLE *table, void *arg)
      * can't update a record before it's been inserted, and so we can't leave gaps when the count of
      * records in the table is incremented.
      *
-     * The solution is a per-thread array which contains an unsorted list of inserted records. If
-     * there are pending inserts, we review the table after every operation, trying to update the
-     * total rows. This is wasteful, but we want to give other threads immediate access to the row,
-     * ideally they'll collide with our insert before we resolve.
+     * The solution is a per-table array which contains an unsorted list of inserted records. If
+     * there are pending inserts, review the table and try to update the total rows. This is
+     * wasteful, but we want to give other threads immediate access to the row, ideally they'll
+     * collide with our insert before we resolve.
      *
      * Process the existing records and advance the last row count until we can't go further.
      */

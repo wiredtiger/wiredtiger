@@ -152,14 +152,19 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
         }
 
         /*
-         * If both tables ran out of rows at the same time, that's find. Otherwise, assert mirrors
-         * are larger than or equal to the counter and have the same key number (the keys themselves
-         * won't match). If the counter is smaller than the mirrors key, it means a row was deleted,
-         * which is expected.
+         * Tables can run out of keys at different times as RS inserts between table rows and
+         * VLCS/FLCS insert after the initial table rows. There's not much to say about the
+         * relationships between them (especially as we skip rows that are removed, so our last
+         * successful check may have been before the end of the original rows).
          */
-        testutil_assert(base_ret == table_ret);
-        if (base_ret == WT_NOTFOUND)
+        if (base_ret == WT_NOTFOUND || table_ret == WT_NOTFOUND)
             break;
+
+        /*
+         * Otherwise, assert mirrors are larger than or equal to the counter and have the same key
+         * number (the keys themselves won't match). If the counter is smaller than the mirrors key,
+         * it means a row was deleted, which is expected.
+         */
         testutil_assert(rows <= base_keyno && base_keyno == table_keyno);
         rows = base_keyno;
 

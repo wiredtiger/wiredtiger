@@ -130,12 +130,18 @@ track_ops(TINFO *tinfo)
       "%s, "
       "U %" PRIu64
       "%s, "
-      "R %" PRIu64 "%s%s",
+      "R %" PRIu64
+      "%s, "
+      "M %" PRIu64
+      "%s, "
+      "T %" PRIu64 "%s%s",
       tinfo->search > M(9) ? tinfo->search / M(1) : tinfo->search, tinfo->search > M(9) ? "M" : "",
       tinfo->insert > M(9) ? tinfo->insert / M(1) : tinfo->insert, tinfo->insert > M(9) ? "M" : "",
       tinfo->update > M(9) ? tinfo->update / M(1) : tinfo->update, tinfo->update > M(9) ? "M" : "",
       tinfo->remove > M(9) ? tinfo->remove / M(1) : tinfo->remove, tinfo->remove > M(9) ? "M" : "",
-      ts_msg));
+      tinfo->modify > M(9) ? tinfo->modify / M(1) : tinfo->modify, tinfo->modify > M(9) ? "M" : "",
+      tinfo->truncate > M(9) ? tinfo->truncate / M(1) : tinfo->truncate,
+      tinfo->truncate > M(9) ? "M" : "", ts_msg));
 
     track_write(msg, len);
 }
