@@ -1163,9 +1163,11 @@ config_transaction(void)
             config_single(NULL, "transaction.timestamps=on", false);
     }
     if (GV(TRANSACTION_TIMESTAMPS)) {
-        if (!config_explicit(NULL, "transaction.implicit"))
+        if (GV(OPS_PREPARE))
+            config_off(NULL, "ops.prepare");
+        if (GV(TRANSACTION_IMPLICIT) && !config_explicit(NULL, "transaction.implicit"))
             config_off(NULL, "transaction.implicit");
-        if (!config_explicit(NULL, "ops.salvage"))
+        if (GV(OPS_SALVAGE) && !config_explicit(NULL, "ops.salvage"))
             config_off(NULL, "ops.salvage");
     }
     if (GV(LOGGING))
