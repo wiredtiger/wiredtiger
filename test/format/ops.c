@@ -1365,91 +1365,51 @@ nextprev(TINFO *tinfo, bool next)
     WT_ITEM key, value;
     uint64_t keyno;
     uint8_t bitfield;
-    int cmp;
     const char *which;
-    bool incrementing;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
+
+    if ((ret = read_op(cursor, next ? NEXT : PREV, NULL)) != 0)
+        return (ret);
+
     keyno = 0;
-    which = next ? "next" : "prev";
-
-    switch (ret = read_op(cursor, next ? NEXT : PREV, NULL)) {
-    case 0:
-        switch (table->type) {
-        case FIX:
-            if ((ret = cursor->get_key(cursor, &keyno)) == 0 &&
-              (ret = cursor->get_value(cursor, &bitfield)) == 0) {
-                value.data = &bitfield;
-                value.size = 1;
-            }
-            break;
-        case ROW:
-            if ((ret = cursor->get_key(cursor, &key)) == 0)
-                ret = cursor->get_value(cursor, &value);
-            break;
-        case VAR:
-            if ((ret = cursor->get_key(cursor, &keyno)) == 0)
-                ret = cursor->get_value(cursor, &value);
-            break;
-        }
-        if (ret != 0)
-            testutil_die(ret, "nextprev: get_key/get_value");
-
-        /*
-         * Check that keys are never returned out-of-order by comparing the returned key with the
-         * previously returned key, and assert the order is correct.
-         */
-        switch (table->type) {
-        case FIX:
-        case VAR:
-            if ((next && tinfo->keyno > keyno) || (!next && tinfo->keyno < keyno))
-                testutil_die(
-                  0, "%s returned %" PRIu64 " then %" PRIu64, which, tinfo->keyno, keyno);
-            tinfo->keyno = keyno;
-            break;
-        case ROW:
-            incrementing = (next && !TV(BTREE_REVERSE)) || (!next && TV(BTREE_REVERSE));
-            cmp = memcmp(tinfo->key->data, key.data, WT_MIN(tinfo->key->size, key.size));
-            if (incrementing) {
-                if (cmp > 0 || (cmp == 0 && tinfo->key->size < key.size))
-                    goto order_error_row;
-            } else if (cmp < 0 || (cmp == 0 && tinfo->key->size > key.size))
-                goto order_error_row;
-            if (0) {
-order_error_row:
-#ifdef HAVE_DIAGNOSTIC
-                testutil_check(__wt_debug_cursor_page(cursor, g.home_pagedump));
-#endif
-                testutil_die(0, "%s returned {%.*s} then {%.*s}", which, (int)tinfo->key->size,
-                  (char *)tinfo->key->data, (int)key.size, (char *)key.data);
-            }
-
-            testutil_check(__wt_buf_set(CUR2S(cursor), tinfo->key, key.data, key.size));
-            break;
+    switch (table->type) {
+    case FIX:
+        if ((ret = cursor->get_key(cursor, &keyno)) == 0 &&
+          (ret = cursor->get_value(cursor, &bitfield)) == 0) {
+            value.data = &bitfield;
+            value.size = 1;
         }
         break;
-    case WT_NOTFOUND:
-    default:
-        return (ret);
+    case ROW:
+        if ((ret = cursor->get_key(cursor, &key)) == 0)
+            ret = cursor->get_value(cursor, &value);
+        break;
+    case VAR:
+        if ((ret = cursor->get_key(cursor, &keyno)) == 0)
+            ret = cursor->get_value(cursor, &value);
+        break;
     }
+    testutil_assertfmt(ret == 0, "%s", "nextprev: get_key/get_value");
 
-    if (g.trace_all)
+    if (g.trace_all) {
+        which = next ? "next" : "prev";
         switch (table->type) {
         case FIX:
             trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
             break;
         case ROW:
-            trace_op(tinfo, "%s %" PRIu64 " {%.*s}, {%.*s}", which, keyno, (int)key.size,
-              (char *)key.data, (int)value.size, (char *)value.data);
+            trace_op(tinfo, "%s {%.*s}, {%.*s}", which, (int)key.size, (char *)key.data,
+              (int)value.size, (char *)value.data);
             break;
         case VAR:
             trace_op(
               tinfo, "%s %" PRIu64 " {%.*s}", which, keyno, (int)value.size, (char *)value.data);
             break;
         }
-
-    return (ret);
+    }
+    return (0);
 }
 
 /*
