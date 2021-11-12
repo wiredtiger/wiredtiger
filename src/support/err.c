@@ -196,8 +196,8 @@ __eventv_unpack_json_str(u_char *dest, size_t dest_len, char *src, size_t src_le
  *     Generate a formatted message.
  */
 static int
-__eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int error,
-  const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, bool is_json,
+  int error, const char *func, int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     struct timespec ts;
     WT_DECL_RET;
@@ -205,7 +205,6 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int
     u_char *unpacked_json_str;
     char msg_str[2 * 1024], *p, *p_msg, tid[128];
     const char *err, *prefix;
-    bool is_json;
 
     p = buffer;
     p_msg = msg_str;
@@ -213,7 +212,6 @@ __eventv_gen_msg(WT_SESSION_IMPL *session, char *buffer, size_t *buffer_len, int
 
     remain = *buffer_len;
     remain_msg = sizeof(msg_str);
-    is_json = S2C(session)->event_handler_json;
 
     if (is_json)
         WT_ERROR_APPEND(p, remain, "{");
@@ -317,8 +315,8 @@ err:
  *     Report a message to an event handler.
  */
 static int
-__eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, int line,
-  const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
+__eventv(WT_SESSION_IMPL *session, bool msg_event, bool is_json, int error, const char *func,
+  int line, const char *fmt, va_list ap) WT_GCC_FUNC_ATTRIBUTE((cold))
 {
     WT_DECL_RET;
     WT_EVENT_HANDLER *handler;
@@ -350,7 +348,7 @@ __eventv(WT_SESSION_IMPL *session, bool msg_event, int error, const char *func, 
         goto err;
 
     /* Format the message. */
-    WT_ERR(__eventv_gen_msg(session, s, &remain, error, func, line, fmt, ap));
+    WT_ERR(__eventv_gen_msg(session, s, &remain, is_json, error, func, line, fmt, ap));
 
     /*
      * If a handler fails, return the error status: if we're in the process of handling an error,
@@ -416,7 +414,8 @@ __wt_err_func(WT_SESSION_IMPL *session, int error, const char *func, int line, c
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, error, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false,
+      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), error, func, line, fmt, ap));
     va_end(ap);
 }
 
@@ -436,7 +435,8 @@ __wt_errx_func(WT_SESSION_IMPL *session, const char *func, int line, const char 
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, 0, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false,
+      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), 0, func, line, fmt, ap));
     va_end(ap);
 }
 
@@ -459,7 +459,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      * return.
      */
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, false, error, func, line, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, false,
+      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), error, func, line, fmt, ap));
     va_end(ap);
 
     /*
@@ -479,7 +480,8 @@ __wt_panic_func(WT_SESSION_IMPL *session, int error, const char *func, int line,
      */
     va_start(ap, fmt);
     WT_IGNORE_RET(
-      __eventv(session, false, WT_PANIC, func, line, "the process must exit and restart", ap));
+      __eventv(session, false, FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), WT_PANIC,
+        func, line, "the process must exit and restart", ap));
     va_end(ap);
 
 #if defined(HAVE_DIAGNOSTIC)
@@ -541,7 +543,8 @@ __wt_ext_err_printf(WT_EXTENSION_API *wt_api, WT_SESSION *wt_session, const char
         session = ((WT_CONNECTION_IMPL *)wt_api->conn)->default_session;
 
     va_start(ap, fmt);
-    ret = __eventv(session, false, 0, NULL, 0, fmt, ap);
+    ret = __eventv(session, false, FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_ERROR), 0,
+      NULL, 0, fmt, ap);
     va_end(ap);
     return (ret);
 }
@@ -582,7 +585,8 @@ __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
     va_list ap;
 
     va_start(ap, fmt);
-    WT_IGNORE_RET(__eventv(session, true, 0, NULL, 0, fmt, ap));
+    WT_IGNORE_RET(__eventv(session, true,
+      FLD_ISSET(S2C(session)->json_output, WT_JSON_OUTPUT_MESSAGE), 0, NULL, 0, fmt, ap));
     va_end(ap);
 }
 
