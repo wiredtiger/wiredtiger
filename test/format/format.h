@@ -215,8 +215,6 @@ typedef struct {
 
     WT_RAND_STATE rnd; /* Global RNG state */
 
-    u_int rts_no_check; /* track unsuccessful RTS checking */
-
     uint64_t timestamp;        /* Counter for timestamps */
     uint64_t oldest_timestamp; /* Last timestamp used for oldest */
     uint64_t stable_timestamp; /* Last timestamp used for stable */

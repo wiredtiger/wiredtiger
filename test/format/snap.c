@@ -748,17 +748,10 @@ snap_repeat_rollback(TINFO **tinfo_array, size_t tinfo_count)
         tinfo->session = push_session;
     }
 
-    /* Show the final result and check that we're accomplishing some checking. */
+    /* Show the final result. */
     testutil_check(
       __wt_snprintf(buf, sizeof(buf), "rollback_to_stable: %" PRIu32 " ops repeated", count));
     track(buf, 0ULL);
-    if (count == 0) {
-#define WARN_RTS_NO_CHECK 5
-        if (++g.rts_no_check >= WARN_RTS_NO_CHECK)
-            fprintf(
-              stderr, "Warning: %u consecutive runs with no rollback_to_stable checking\n", count);
-    } else
-        g.rts_no_check = 0;
 
     if (session != NULL)
         testutil_check(session->close(session, NULL));
