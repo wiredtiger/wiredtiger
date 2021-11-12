@@ -972,7 +972,7 @@ ops(void *arg)
          *
          * If not in a transaction and not in a timestamp world, start a transaction some percentage
          * of the time, otherwise it's an implicit transaction. (Mirror operations require explicit
-         * transaction.)
+         * transactions.)
          */
         if (!intxn && g.transaction_timestamps_config) {
             iso_level = ISOLATION_SNAPSHOT;
@@ -1137,18 +1137,22 @@ ops(void *arg)
         if (g.column_store_config)
             tables_apply(col_insert_resolve, tinfo);
 
-        if (ret != 0)
+        /* On failure, rollback any running transaction. */
+        if (intxn && ret != 0)
             goto rollback;
 
-        /* If in a transaction, add more operations to the transaction half the time. */
+        /*
+         * If not in a transaction, we're done with this operation. If in a transaction, add more
+         * operations to the transaction half the time.
+         */
         if (!intxn || (rnd = mmrand(&tinfo->rnd, 1, 10)) > 5)
             continue;
 
         /*
-         * Ending a transaction. If an explicit transaction was configured for snapshot isolation,
-         * repeat the operations and confirm the results are unchanged.
+         * Ending a transaction. If configured for snapshot isolation, redo the reads and confirm
+         * the values are unchanged.
          */
-        if (intxn && iso_level == ISOLATION_SNAPSHOT) {
+        if (iso_level == ISOLATION_SNAPSHOT) {
             __wt_yield(); /* Encourage races */
 
             ret = snap_repeat_txn(tinfo);
