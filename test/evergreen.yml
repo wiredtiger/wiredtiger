@@ -3438,7 +3438,7 @@ tasks:
         vars:
           perf-test-name: evict-btree-stress-multi
           maxruns: 1
-          wtarg: -ops ['"warnings", "max_latencies"']
+          wtarg: -ops ['"warnings", "top5_latencies_read_update"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: evict-btree-stress-multi
@@ -3615,7 +3615,7 @@ tasks:
         vars:
           perf-test-name: 500m-btree-populate
           maxruns: 1
-          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"load", "warnings"']
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"load", "warnings", "max_latency_insert"']
       - func: "upload-perf-test-stats"
         vars:
           perf-test-name: 500m-btree-populate

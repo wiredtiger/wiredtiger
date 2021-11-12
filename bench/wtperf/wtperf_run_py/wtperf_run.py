@@ -193,15 +193,21 @@ def setup_perf_stats():
                                     output_label='Min update throughput'))
     perf_stats.add_stat(PerfStatCount(short_label="warnings",
                                       pattern='WARN',
-                                      output_label='Warnings'))
-    perf_stats.add_stat(PerfStatLatency(short_label="max_latencies",
+                                      output_label='Latency warnings'))
+    perf_stats.add_stat(PerfStatLatency(short_label="top5_latencies_read_update",
                                         stat_file='monitor.json',
-                                        output_label='Latency Max',
+                                        output_label='Latency(read, update) Max',
+                                        ops = ['read', 'update'],
                                         num_max = 5))
     perf_stats.add_stat(PerfStatCount(short_label="eviction_page_seen",
                                       stat_file='WiredTigerStat*',
                                       pattern='[0-9].wt cache: pages seen by eviction',
                                       output_label='Pages seen by eviction'))
+    perf_stats.add_stat(PerfStatLatency(short_label="max_latency_insert",
+                                        stat_file='monitor.json',
+                                        output_label='Latency(insert) Max',
+                                        ops = ['insert'],
+                                        num_max = 1))
     return perf_stats
 
 
