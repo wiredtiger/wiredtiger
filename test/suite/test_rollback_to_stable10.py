@@ -207,6 +207,7 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         ds_2.populate()
 
         if self.value_format == '8t':
+            nrows *= 2
             value_a = 97
             value_b = 98
             value_c = 99
@@ -252,6 +253,15 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         else:
             self.conn.set_timestamp('stable_timestamp=' + self.timestamp_str(50))
 
+        # Do an explicit checkpoint first, before starting the background checkpointer.
+        # Otherwise (depending on timing and load) because there's a lot to write for the
+        # first checkpoint there's a tendency for the background checkpointer to only
+        # manage to do the one checkpoint; and sometimes (especially on FLCS) it ends up
+        # not containing any of the concurrent updates, and then the test fails because
+        # RTS correctly notices it has no work to do and doesn't visit any of the pages
+        # or update anything in the history store.
+        self.session.checkpoint()
+
         # Here's the update operations we'll perform, encapsulated so we can easily retry
         # it if we get a rollback. Rollbacks may occur when checkpoint is running.
         def prepare_range_updates(session, cursor, ds, value, nrows, prepare_config):
@@ -270,8 +280,8 @@ class test_rollback_to_stable10(test_rollback_to_stable_base):
         try:
             self.pr("start checkpoint")
             ckpt.start()
-            # Sleep for sometime so that checkpoint starts.
-            time.sleep(2)
+            # Sleep for some time so that checkpoint starts.
+            time.sleep(5)
 
             # Perform several updates in parallel with checkpoint.
             session_p1 = self.conn.open_session()
