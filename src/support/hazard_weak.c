@@ -245,7 +245,7 @@ __wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref)
     WT_HAZARD_WEAK *whp;
     WT_HAZARD_WEAK_ARRAY *wha;
     WT_SESSION_IMPL *s;
-    uint32_t i, j, max, session_cnt, walk_cnt;
+    uint32_t i, session_cnt, walk_cnt;
 
     /* If a file can never be evicted, hazard pointers aren't required. */
     if (F_ISSET(S2BT(session), WT_BTREE_IN_MEMORY))
@@ -261,7 +261,7 @@ __wt_hazard_weak_invalidate(WT_SESSION_IMPL *session, WT_REF *ref)
      * started our check.
      */
     WT_ORDERED_READ(session_cnt, conn->session_cnt);
-    for (s = conn->sessions, i = j = max = walk_cnt = 0; i < session_cnt; ++s, ++i) {
+    for (s = conn->sessions, i = walk_cnt = 0; i < session_cnt; ++s, ++i) {
         if (!s->active)
             continue;
 
