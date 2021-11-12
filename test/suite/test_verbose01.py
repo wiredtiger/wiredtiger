@@ -51,7 +51,7 @@ class test_verbose_base(wttest.WiredTigerTestCase, suite_subprocess):
         verbose_config = self.create_verbose_configuration(categories)
         # Enable JSON output if required.
         if expect_json:
-            verbose_config += ",event_handler_json=true"
+            verbose_config += ",json_output=[message]"
         conn = self.wiredtiger_open(self.home, verbose_config)
         # Yield the connection resource to the execution context, allowing it to perform any necessary
         # operations on the connection (for generating the expected verbose output).
