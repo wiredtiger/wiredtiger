@@ -218,8 +218,10 @@ class search_near_03 : public test_harness::test {
     void
     insert_operation(test_harness::thread_context *tc) override final
     {
-        size_t random_index;
+        std::map<uint64_t, scoped_cursor> cursors;
         std::string prefix_key;
+        size_t random_index;
+
         /*
          * Each insert operation will attempt to perform unique index insertions with an existing
          * prefix on a collection.
@@ -228,8 +230,16 @@ class search_near_03 : public test_harness::test {
           LOG_INFO, type_string(tc->type) + " thread {" + std::to_string(tc->id) + "} commencing.");
 
         while (tc->running()) {
+            /* Get a collection and find a cached cursor. */
             collection &coll = tc->db.get_random_collection();
-            scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+            if (cursors.find(coll.id) == cursors.end()) {
+                scoped_cursor cursor = tc->session.open_scoped_cursor(coll.name);
+                cursor->reconfigure(cursor.get(), "prefix_search=true");
+                cursors.emplace(coll.id, std::move(cursor));
+            }
+            
+            /* Do a second lookup now that we know it exists. */
+            auto &cursor = cursors[coll.id];
             tc->transaction.begin();
             /*
              * Grab a random existing prefix and perform unique index insertion. We expect it to
