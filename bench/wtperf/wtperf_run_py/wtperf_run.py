@@ -43,11 +43,8 @@ from typing import List
 from wtperf_config import WTPerfConfig
 
 
-def create_test_home_path(home: str, test_run: int, operations: List[str] = None):
-    home_path = "{}_{}".format(home, test_run)
-    if operations:
-        # Use the first operation name as part of the home path
-        home_path += "_{}".format(operations[0])
+def create_test_home_path(home: str, test_run: int, index:int):
+    home_path = "{}_{}_{}".format(home, test_run, index)
     return home_path
 
 
@@ -124,15 +121,17 @@ def detailed_perf_stats(config: WTPerfConfig, perf_stats: PerfStatCollection):
     return as_dict
 
 
-def run_test_wrapper(config: WTPerfConfig, operations: List[str] = None, arguments: List[str] = None):
+def run_test_wrapper(config: WTPerfConfig, index: int = 0, arguments: List[str] = None):
     for test_run in range(config.run_max):
         print("Starting test  {}".format(test_run))
-        run_test(config=config, test_run=test_run, operations=operations, arguments=arguments)
+        run_test(config=config, test_run=test_run, index=index, arguments=arguments)
         print("Completed test {}".format(test_run))
 
 
-def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, arguments: List[str] = None):
-    test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
+def run_test(config: WTPerfConfig, test_run: int, index: int = 0, arguments: List[str] = None):
+    test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
+    if config.verbose:
+        print("Home directory created: {}".format(test_home))
     command_line = construct_wtperf_command_line(
         wtperf=config.wtperf_path,
         env=config.environment,
@@ -147,9 +146,9 @@ def run_test(config: WTPerfConfig, test_run: int, operations: List[str] = None, 
         exit(1)
 
 
-def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None):
+def process_results(config: WTPerfConfig, perf_stats: PerfStatCollection, operations: List[str] = None, index: int = 0):
     for test_run in range(config.run_max):
-        test_home = create_test_home_path(home=config.home_dir, test_run=test_run, operations=operations)
+        test_home = create_test_home_path(home=config.home_dir, test_run=test_run, index=index)
         if config.verbose:
             print('Reading stats from {} directory.'.format(test_home))
         perf_stats.find_stats(test_home=test_home, operations=operations)
@@ -291,9 +290,9 @@ def main():
             for content in batch_file_contents:
                 if args.verbose:
                     print("Argument: {},  Operation: {}".format(content["arguments"], content["operations"]))
-                run_test_wrapper(config=config, operations=content["operations"], arguments=content["arguments"])
+                run_test_wrapper(config=config, index=batch_file_contents.index(content), arguments=content["arguments"])
         else:
-            run_test_wrapper(config=config, arguments=arguments, operations=operations)
+            run_test_wrapper(config=config, arguments=arguments)
 
     if not args.verbose and not args.outfile:
         sys.exit("Enable verbosity (or provide a file path) to dump the stats. "
@@ -302,7 +301,7 @@ def main():
     # Process result
     if config.batch_file:
         for content in batch_file_contents:
-            process_results(config, perf_stats, operations=content["operations"])
+            process_results(config, perf_stats, operations=content["operations"], index=batch_file_contents.index(content))
     else:
         process_results(config, perf_stats, operations=operations)
 
