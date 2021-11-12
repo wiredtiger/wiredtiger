@@ -237,7 +237,7 @@ class search_near_03 : public test_harness::test {
                 cursor->reconfigure(cursor.get(), "prefix_search=true");
                 cursors.emplace(coll.id, std::move(cursor));
             }
-            
+
             /* Do a second lookup now that we know it exists. */
             auto &cursor = cursors[coll.id];
             tc->transaction.begin();
