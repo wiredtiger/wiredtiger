@@ -158,8 +158,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
          * which is expected.
          */
         testutil_assert(base_ret == table_ret);
-	if (base_ret == WT_NOTFOUND)
-	    break;
+        if (base_ret == WT_NOTFOUND)
+            break;
         testutil_assert(rows <= base_keyno && base_keyno == table_keyno);
         rows = base_keyno;
 
