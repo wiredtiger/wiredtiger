@@ -3601,6 +3601,25 @@ tasks:
         vars:
           perf-test-name: log-many-threads
 
+    ###########################################
+    #        Performance Long Tests           #
+    ###########################################
+
+  - name: perf-test-500m-btree-populate
+    tags: ["long-perf"]
+    depends_on:
+      - name: compile
+    commands:
+      - func: "fetch artifacts"
+      - func: "run-perf-test"
+        vars:
+          perf-test-name: 500m-btree-populate
+          maxruns: 1
+          wtarg: -args ['"-C create,statistics=(fast),statistics_log=(json,wait=1,sources=[file:])"'] -ops ['"load", "warnings"']
+      - func: "upload-perf-test-stats"
+        vars:
+          perf-test-name: 500m-btree-populate
+
 #######################################
 #            Buildvariants            #
 #######################################
@@ -3887,6 +3906,7 @@ buildvariants:
     - name: ".checkpoint-perf"
     - name: ".evict-perf"
     - name: ".log-perf"
+    - name: ".long-perf"
   display_tasks:
     - name: Wiredtiger-perf-btree-jobs
       execution_tasks:
@@ -3906,6 +3926,9 @@ buildvariants:
     - name: Wiredtiger-perf-log-jobs
       execution_tasks:
       - ".log-perf"
+    - name: Wiredtiger-perf-long-jobs
+      execution_tasks:
+      - ".long-perf"
 
 - name: large-scale-tests
   display_name: "Large scale tests"
