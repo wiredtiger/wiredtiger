@@ -799,6 +799,10 @@ struct __wt_session {
 	 * keep it available to be reused for later calls to WT_SESSION::open_cursor.  Cached
 	 * cursors may be eventually closed.  This value is inherited from ::wiredtiger_open \c
 	 * cache_cursors., a boolean flag; default \c true.}
+	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
+	 * wait for space to be available in cache before giving up.  Default value will be the
+	 * global setting of the connection config., an integer greater than or equal to 0; default
+	 * \c 0.}
 	 * @config{debug = (, configure debug specific behavior on a session.  Generally only used
 	 * for internal testing purposes., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict_page, Configure the session to evict the
@@ -2380,6 +2384,10 @@ struct __wt_connection {
 	 * keep it available to be reused for later calls to WT_SESSION::open_cursor.  Cached
 	 * cursors may be eventually closed.  This value is inherited from ::wiredtiger_open \c
 	 * cache_cursors., a boolean flag; default \c true.}
+	 * @config{cache_max_wait_ms, the maximum number of milliseconds an application thread will
+	 * wait for space to be available in cache before giving up.  Default value will be the
+	 * global setting of the connection config., an integer greater than or equal to 0; default
+	 * \c 0.}
 	 * @config{debug = (, configure debug specific behavior on a session.  Generally only used
 	 * for internal testing purposes., a set of related configuration options defined below.}
 	 * @config{&nbsp;&nbsp;&nbsp;&nbsp;release_evict_page, Configure the session to evict the
