@@ -1,7 +1,7 @@
 #! /bin/bash
 
-# Find "fix" and "todo" comments related to the ticket potentially indicated by the branch name.
-# The script only fails if the branch name follows a specific syntax and those comments are found.
+# Find comments related to the ticket potentially indicated by the branch name. The script never
+# fails, it only warns the caller there are comments that are potentially worth checking.
 
 # Retrieve the current branch name.
 branch_name=$(git rev-parse --abbrev-ref HEAD)
@@ -16,13 +16,9 @@ fi
 ticket_id=$(echo "$branch_name" | cut -d "-" -f-2)
 
 # Check for comments related to the ticket.
-if grep -inr --exclude-dir=.git "fix.*$ticket_id" ../. > /dev/null 2>&1; then
-    echo "Please fix the comments related to $ticket_id."
-    exit 1
-fi
-if grep -inr --exclude-dir=.git "todo.*$ticket_id" ../. > /dev/null 2>&1; then
-    echo "Please fix the todo comments related to $ticket_id."
-    exit 1
+if grep -inr --exclude-dir=.git "$ticket_id" ../. > /dev/null 2>&1; then
+    echo "There are comments mentioning $ticket_id, please check them:"
+    grep -inr -A 1 -B 1 --exclude-dir=.git "$ticket_id" ../.
 fi
 
 exit 0
