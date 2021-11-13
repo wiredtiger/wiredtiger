@@ -107,7 +107,7 @@ class test_hs24(wttest.WiredTigerTestCase):
             ret2 = cursor2.search()
 
             # In FLCS, deleted values read back as 0. Adjust accordingly.
-            if self.value_format == '8t' and False:
+            if self.value_format == '8t':
                 if ret == 0 and cursor.get_value() == 0:
                     ret = wiredtiger.WT_NOTFOUND
                 if ret2 == 0 and cursor2.get_value() == 0:
