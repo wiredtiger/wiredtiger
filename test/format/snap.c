@@ -69,8 +69,8 @@ snap_teardown(TINFO *tinfo)
     for (snap_index = 0; snap_index < WT_ELEMENTS(tinfo->snap_states); snap_index++)
         if ((snaplist = tinfo->snap_states[snap_index].snap_state_list) != NULL) {
             for (i = 0; i < SNAP_LIST_SIZE; ++i) {
-                free(snaplist[i].kdata);
-                free(snaplist[i].vdata);
+                __wt_buf_free(NULL, &snaplist[i].key);
+                __wt_buf_free(NULL, &snaplist[i].value);
             }
             free(snaplist);
         }
@@ -156,20 +156,13 @@ snap_track(TINFO *tinfo, thread_op op)
     snap->repeatable = false;
     snap->last = 0;
     snap->bitv = FIX_VALUE_WRONG;
-    snap->ksize = snap->vsize = 0;
+    snap->key.data = snap->value.data = NULL;
+    snap->key.size = snap->value.size = 0;
 
     switch (op) {
     case INSERT:
-        if (tinfo->table->type == ROW) {
-            ip = tinfo->key;
-            if (snap->kmemsize < ip->size) {
-                snap->kdata = drealloc(snap->kdata, ip->size);
-                snap->kmemsize = ip->size;
-            }
-            snap->ksize = ip->size;
-            if (ip->size > 0)
-                memcpy(snap->kdata, ip->data, ip->size);
-        }
+        if (tinfo->table->type == ROW)
+            testutil_check(__wt_buf_set(NULL, &snap->key, tinfo->key->data, tinfo->key->size));
         /* FALLTHROUGH */
     case MODIFY:
     case READ:
@@ -178,13 +171,7 @@ snap_track(TINFO *tinfo, thread_op op)
             snap->bitv = tinfo->bitv;
         else {
             ip = op == INSERT || op == UPDATE ? tinfo->new_value : tinfo->value;
-            if (snap->vmemsize < ip->size) {
-                snap->vdata = drealloc(snap->vdata, ip->size);
-                snap->vmemsize = ip->size;
-            }
-            if (ip->size > 0)
-                memcpy(snap->vdata, ip->data, ip->size);
-            snap->vsize = ip->size;
+            testutil_check(__wt_buf_set(NULL, &snap->value, ip->data, ip->size));
         }
         break;
     case REMOVE:
@@ -232,6 +219,10 @@ snap_verify_callback(int ret, void *arg)
     uint64_t keyno;
     uint8_t bitv;
 
+    /* We only handle success and not-found. */
+    if (ret != 0 && ret != WT_NOTFOUND)
+        return;
+
     callback = arg;
     snap = callback->snap;
     table = callback->table;
@@ -243,22 +234,21 @@ snap_verify_callback(int ret, void *arg)
     value = tinfo->value;
     bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
 
-    if (ret != 0 && ret != WT_NOTFOUND)
-        return;
-
-    /* Get the value. */
+    /* Get the value and check for matches. */
     if (ret == 0) {
-        if (table->type == FIX)
+        if (table->type == FIX) {
             testutil_check(cursor->get_value(cursor, &bitv));
-        else
+            if (snap->op != REMOVE && bitv == snap->bitv)
+                return;
+        } else {
             testutil_check(cursor->get_value(cursor, value));
+            if (snap->op != REMOVE && value->size == snap->value.size &&
+              (value->size == 0 || memcmp(value->data, snap->value.data, snap->value.size) == 0))
+                return;
+        }
     }
 
-    /* Check for simple matches. */
-    if (ret == 0 && snap->op != REMOVE && value->size == snap->vsize) {
-        if (value->size == 0 || memcmp(value->data, snap->vdata, value->size) == 0)
-            return;
-    }
+    /* Check for missing records matching delete operations. */
     if (ret == WT_NOTFOUND && snap->op == REMOVE)
         return;
 
@@ -295,7 +285,7 @@ snap_verify_callback(int ret, void *arg)
         if (snap->op == REMOVE)
             fprintf(stderr, "expected {deleted}\n");
         else
-            fprintf(stderr, "expected {%.*s}\n", (int)snap->vsize, (char *)snap->vdata);
+            fprintf(stderr, "expected {%.*s}\n", (int)snap->value.size, (char *)snap->value.data);
         if (ret == WT_NOTFOUND)
             fprintf(stderr, "   found {deleted}\n");
         else
@@ -307,7 +297,7 @@ snap_verify_callback(int ret, void *arg)
         if (snap->op == REMOVE)
             fprintf(stderr, "expected {deleted}\n");
         else
-            fprintf(stderr, "expected {%.*s}\n", (int)snap->vsize, (char *)snap->vdata);
+            fprintf(stderr, "expected {%.*s}\n", (int)snap->value.size, (char *)snap->value.data);
         if (ret == WT_NOTFOUND)
             fprintf(stderr, "   found {deleted}\n");
         else
@@ -368,15 +358,15 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
             trace_uri_op(
               tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {deleted}", keyno, snap->ts);
         else if (snap->op == INSERT && table->type == ROW)
-            trace_uri_op(tinfo, table->uri, "repeat {%.*s} ts=%" PRIu64 " {%.*s}", keyno,
-              (int)snap->ksize, (char *)snap->kdata, snap->ts, (int)snap->vsize,
-              (char *)snap->vdata);
+            trace_uri_op(tinfo, table->uri, "repeat {%.*s} ts=%" PRIu64 " {%.*s}",
+              (int)snap->key.size, (char *)snap->key.data, snap->ts, (int)snap->value.size,
+              (char *)snap->value.data);
         else if (table->type == FIX)
             trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {0x%02" PRIx8 "}",
-              keyno, snap->ts, (int)snap->vsize, snap->bitv);
+              keyno, snap->ts, snap->bitv);
         else
             trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", keyno,
-              snap->ts, (int)snap->vsize, (char *)snap->vdata);
+              snap->ts, (int)snap->value.size, (char *)snap->value.data);
     }
 
     /*
@@ -391,8 +381,8 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     case ROW:
         key = tinfo->key;
         if (snap->op == INSERT) {
-            key->data = snap->kdata;
-            key->size = snap->ksize;
+            key->data = snap->key.data;
+            key->size = snap->key.size;
         } else
             key_gen(table, key, keyno);
         cursor->set_key(cursor, key);

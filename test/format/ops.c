@@ -1490,7 +1490,8 @@ modify(TINFO *tinfo, WT_CURSOR *cursor, bool positioned)
         testutil_modify_apply(
           &tinfo->moda, &tinfo->modb, tinfo->entries, tinfo->nentries, FORMAT_PAD_BYTE);
         testutil_assert(tinfo->moda.size == tinfo->value->size &&
-          memcmp(tinfo->moda.data, tinfo->value->data, tinfo->moda.size) == 0);
+          (tinfo->moda.size == 0 ||
+            memcmp(tinfo->moda.data, tinfo->value->data, tinfo->moda.size) == 0));
     }
     return (0);
 }

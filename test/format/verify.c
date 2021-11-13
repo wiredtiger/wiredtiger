@@ -103,8 +103,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     int base_ret, table_ret;
     char track_buf[128];
 
-    base_keyno = table_keyno = 0; /* -Wconditional-uninitialized */
-    table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
+    base_keyno = table_keyno = 0;             /* -Wconditional-uninitialized */
+    base_bitv = table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
 
     testutil_check(
@@ -163,20 +163,23 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
 
         /*
          * Otherwise, assert mirrors are larger than or equal to the counter and have the same key
-         * number (the keys themselves won't match). If the counter is smaller than the mirrors key,
-         * it means a row was deleted, which is expected.
+         * number (the keys themselves won't match). If the counter is smaller than the keys, that
+         * means rows were deleted, which is expected.
          */
         testutil_assert(rows <= base_keyno && base_keyno == table_keyno);
         rows = base_keyno;
 
         testutil_check(base_cursor->get_value(base_cursor, &base_value));
-        testutil_check(table_cursor->get_value(table_cursor, &table_value));
         if (table->type == FIX) {
             val_to_flcs(table, &base_value, &base_bitv);
+            testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
             testutil_assert(base_bitv == table_bitv);
-        } else
+        } else {
+            testutil_check(table_cursor->get_value(table_cursor, &table_value));
             testutil_assert(base_value.size == table_value.size &&
-              memcmp(base_value.data, table_value.data, base_value.size) == 0);
+              (base_value.size == 0 ||
+                memcmp(base_value.data, table_value.data, base_value.size) == 0));
+        }
 
         /* Report on progress. */
         if ((rows < 5000 && rows % 10 == 0) || rows % 5000 == 0)

@@ -282,11 +282,12 @@ typedef enum { INSERT = 1, MODIFY, READ, REMOVE, TRUNCATE, UPDATE } thread_op;
 /* Worker read operations. */
 typedef enum { NEXT, PREV, SEARCH, SEARCH_NEAR } read_operation;
 
+/* Operation snapshot. */
 typedef struct {
     thread_op op;  /* Operation */
     uint64_t opid; /* Operation ID */
 
-    uint32_t id;    /* Table ID */
+    u_int id;       /* Table ID */
     uint64_t keyno; /* Row number */
 
     uint64_t ts;     /* Read/commit timestamp */
@@ -294,14 +295,9 @@ typedef struct {
 
     uint64_t last; /* Inclusive end of a truncate range */
 
-    void *kdata; /* If an insert, the generated key */
-    size_t ksize;
-    size_t kmemsize;
-
-    void *vdata; /* If not a delete or truncate, the value */
-    size_t vsize;
-    size_t vmemsize;
-    uint8_t bitv; /* FLCS */
+    WT_ITEM key;   /* Generated key for row-store inserts */
+    WT_ITEM value; /* If not a delete or truncate, the value. */
+    uint8_t bitv;  /* FLCS */
 } SNAP_OPS;
 
 typedef struct {
@@ -368,8 +364,7 @@ typedef struct {
 
     int nentries; /* Modify operations */
     WT_MODIFY entries[MAX_MODIFY_ENTRIES];
-
-    WT_ITEM moda, modb; /* Temporary buffer for modify operations */
+    WT_ITEM moda, modb; /* Temporary buffers for modify checks */
 
 #define TINFO_RUNNING 1  /* Running */
 #define TINFO_COMPLETE 2 /* Finished */

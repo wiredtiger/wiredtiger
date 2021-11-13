@@ -306,8 +306,8 @@ val_to_flcs(TABLE *table, WT_ITEM *value, uint8_t *bitvp)
     /* Use the first random byte of the key being cautious around the length of the value. */
     bitv = FIX_MIRROR_DNE;
     max_check = (uint32_t)WT_MIN(PREFIX_LEN_CONFIG_MIN + 10, value->size);
-    for (p = value->data, i = 0; i < max_check; ++i)
-        if (*p == '/' && i < max_check - 1) {
+    for (p = value->data, i = 0; i < max_check; ++p, ++i)
+        if (p[0] == '/' && i < max_check - 1) {
             bitv = (uint8_t)p[1];
             break;
         }
@@ -409,5 +409,8 @@ val_gen(TABLE *table, WT_RAND_STATE *rnd, WT_ITEM *value, uint8_t *bitvp, uint64
         memcpy(p, table->val_base, value->size);
         u64_to_string_zf(keyno, p, 11);
         p[10] = '/';
+
+        /* Randomize the first character, we use it for FLCS values. */
+        p[11] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"[mmrand(rnd, 0, 51)];
     }
 }
