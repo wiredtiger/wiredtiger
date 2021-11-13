@@ -1317,31 +1317,31 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
             value->size = 1;
         }
         break;
-    default:
-        return (ret);
     }
+    if (ret != 0)
+        return (ret);
 
     /* Log the operation */
-    if (ret == 0)
-        switch (table->type) {
-        case FIX:
-            if (tinfo == NULL && g.trace_all)
-                trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
-            if (tinfo != NULL)
-                trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
+    if (!g.trace_all)
+        return (0);
+    switch (table->type) {
+    case FIX:
+        if (tinfo == NULL)
+            trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
+        else
+            trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
 
-            break;
-        case ROW:
-        case VAR:
-            if (tinfo == NULL && g.trace_all)
-                trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
-            if (tinfo != NULL)
-                trace_op(
-                  tinfo, "read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
-            break;
-        }
-
-    return (ret);
+        break;
+    case ROW:
+    case VAR:
+        if (tinfo == NULL)
+            trace_msg("read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
+        else
+            trace_op(
+              tinfo, "read %" PRIu64 " {%.*s}", keyno, (int)value->size, (char *)value->data);
+        break;
+    }
+    return (0);
 }
 
 /*
