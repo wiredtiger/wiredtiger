@@ -369,8 +369,9 @@ snap_verify(TINFO *tinfo, SNAP_OPS *snap)
     keyno = snap->keyno;
     key = tinfo->key;
 
-    trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", snap->keyno,
-      snap->ts, (int)snap->vsize, (char *)snap->vdata);
+    if (g.trace_all)
+        trace_uri_op(tinfo, table->uri, "repeat %" PRIu64 " ts=%" PRIu64 " {%.*s}", snap->keyno,
+          snap->ts, (int)snap->vsize, (char *)snap->vdata);
 
     /*
      * Retrieve the key/value pair by key. Row-store inserts have a unique generated key we saved,
