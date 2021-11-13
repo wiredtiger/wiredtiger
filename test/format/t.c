@@ -419,22 +419,21 @@ static void
 usage(void)
 {
     fprintf(stderr,
-      "usage: %s [-1BqRtv] [-C wiredtiger-config]\n    "
+      "usage: %s [-BqRtv] [-C wiredtiger-config]\n    "
       "[-c config-file] [-h home] [-T trace-options] [name=value ...]\n",
       progname);
     fprintf(stderr, "%s",
-      "\t-1 run once then quit\n"
       "\t-B maintain 3.3 release log and configuration option compatibility\n"
-      "\t-C specify wiredtiger_open configuration arguments\n"
+      "\t-C additional wiredtiger_open configuration arguments\n"
       "\t-c read test program configuration from a file (default 'CONFIG')\n"
-      "\t-h home directory (default 'RUNDIR')\n"
-      "\t-q run quietly\n"
-      "\t-R run on an existing database\n"
+      "\t-h run directory (default 'RUNDIR')\n"
+      "\t-q quiet\n"
+      "\t-R reopen an existing database\n"
       "\t-T all\t\t"
-      "trace reads and bulk loads\n"
+      "also trace reads and bulk loads\n"
       "\t-T local\t"
       "store trace operations in the test database (default 'OPS.TRACE')\n"
-      "\t-t trace write operations\n"
+      "\t-t trace writes in the WiredTiger log\n"
       "\t-v verify database and exit\n");
 
     config_error();
