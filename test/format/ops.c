@@ -38,7 +38,6 @@ static int col_update(TINFO *, bool);
 static int nextprev(TINFO *, bool);
 static WT_THREAD_RET ops(void *);
 static int read_row(TINFO *);
-static int read_row_worker(TINFO *, TABLE *, WT_CURSOR *, uint64_t, WT_ITEM *, WT_ITEM *, bool);
 static int row_insert(TINFO *, bool);
 static int row_modify(TINFO *, bool);
 static int row_remove(TINFO *, bool);
@@ -1050,9 +1049,13 @@ ops(void *arg)
          * any table.
          */
         if (op == INSERT || op == UPDATE) {
-            val_gen(table->mirror && table->type == FIX ? g.base_mirror : table, &tinfo->rnd,
-              tinfo->new_value, tinfo->keyno);
-            val_to_flcs(tinfo->new_value, &tinfo->bitv);
+            if (table->mirror && table->type == FIX) {
+                val_gen(g.base_mirror, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
+                val_to_flcs(g.base_mirror, tinfo->new_value, &tinfo->bitv);
+            } else {
+                val_gen(table, &tinfo->rnd, tinfo->new_value, &tinfo->bitv, tinfo->keyno);
+                val_to_flcs(table, tinfo->new_value, &tinfo->bitv);
+            }
         }
 
         /* If modify, build a modify change vector. */
@@ -1109,7 +1112,7 @@ ops(void *arg)
             tinfo->table = g.base_mirror;
             ret = table_op(tinfo, intxn, iso_level, op);
             testutil_assert(ret == 0 || ret == WT_ROLLBACK);
-            val_to_flcs(tinfo->value, &tinfo->bitv);
+            val_to_flcs(g.base_mirror, tinfo->value, &tinfo->bitv);
             skip1 = g.base_mirror;
         }
         if (ret == 0 && table != skip1) {
@@ -1208,72 +1211,18 @@ rollback:
 }
 
 /*
- * wts_read_scan --
- *     Read and verify a subset of the elements in a file.
- */
-void
-wts_read_scan(TABLE *table, void *arg)
-{
-    WT_CONNECTION *conn;
-    WT_CURSOR *cursor;
-    WT_DECL_RET;
-    WT_ITEM key, value;
-    WT_SESSION *session;
-    uint64_t keyno;
-    uint32_t max_rows;
-
-    conn = (WT_CONNECTION *)arg;
-
-    /*
-     * We're not configuring transactions or read timestamps, if there's a diagnostic check, skip
-     * the scan.
-     */
-    if (GV(ASSERT_READ_TIMESTAMP))
-        return;
-
-    /* Set up the default key/value buffers. */
-    key_gen_init(&key);
-    val_gen_init(&value);
-
-    /* Open a session and cursor pair. */
-    testutil_check(conn->open_session(conn, NULL, NULL, &session));
-    wiredtiger_open_cursor(session, table->uri, NULL, &cursor);
-
-    /* Check a random subset of the records using the key. */
-    WT_ORDERED_READ(max_rows, table->rows_current);
-    for (keyno = 0; keyno < max_rows;) {
-        keyno += mmrand(NULL, 1, 1000);
-        if (keyno > max_rows)
-            keyno = max_rows;
-
-        switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, false)) {
-        case 0:
-        case WT_NOTFOUND:
-        case WT_ROLLBACK:
-        case WT_CACHE_FULL:
-        case WT_PREPARE_CONFLICT:
-            break;
-        default:
-            testutil_die(ret, "wts_read_scan: read row %" PRIu64, keyno);
-        }
-    }
-
-    testutil_check(session->close(session, NULL));
-
-    key_gen_teardown(&key);
-    val_gen_teardown(&value);
-}
-
-/*
  * read_row_worker --
  *     Read and verify a single element in a row- or column-store file.
  */
 static int
 read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, WT_ITEM *key,
-  WT_ITEM *value, bool sn)
+  WT_ITEM *value, uint8_t *bitvp, bool sn)
 {
-    uint8_t bitfield;
     int exact, ret;
+
+    *bitvp = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
+    value->data = NULL;
+    value->size = 0;
 
     if (table == NULL)
         table = tinfo->table;
@@ -1298,24 +1247,19 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
         ret = read_op(cursor, SEARCH, NULL);
     switch (ret) {
     case 0:
-        if (table->type == FIX) {
-            testutil_check(cursor->get_value(cursor, &bitfield));
-            *(uint8_t *)(value->data) = bitfield;
-            value->size = 1;
-        } else
+        if (table->type == FIX)
+            testutil_check(cursor->get_value(cursor, bitvp));
+        else
             testutil_check(cursor->get_value(cursor, value));
         break;
     case WT_NOTFOUND:
         /*
-         * In fixed length stores, zero values at the end of the key space are returned as
-         * not-found. Treat this the same as a zero value in the key space, to match BDB's behavior.
+         * Zero values at the end of the key space in fixed length stores are returned as not-found.
          * The WiredTiger cursor has lost its position though, so we return not-found, the cursor
          * movement can't continue.
          */
-        if (table->type == FIX) {
-            *(uint8_t *)(value->data) = 0;
-            value->size = 1;
-        }
+        if (table->type == FIX)
+            *bitvp = 0;
         break;
     }
     if (ret != 0)
@@ -1327,9 +1271,9 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
     switch (table->type) {
     case FIX:
         if (tinfo == NULL)
-            trace_msg("read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
+            trace_msg("read %" PRIu64 " {0x%02" PRIx8 "}", keyno, *bitvp);
         else
-            trace_op(tinfo, "read %" PRIu64 " {0x%02x}", keyno, ((char *)value->data)[0]);
+            trace_op(tinfo, "read %" PRIu64 " {0x%02" PRIx8 "}", keyno, *bitvp);
 
         break;
     case ROW:
@@ -1345,6 +1289,65 @@ read_row_worker(TINFO *tinfo, TABLE *table, WT_CURSOR *cursor, uint64_t keyno, W
 }
 
 /*
+ * wts_read_scan --
+ *     Read and verify a subset of the elements in a file.
+ */
+void
+wts_read_scan(TABLE *table, void *arg)
+{
+    WT_CONNECTION *conn;
+    WT_CURSOR *cursor;
+    WT_DECL_RET;
+    WT_ITEM key, value;
+    WT_SESSION *session;
+    uint64_t keyno;
+    uint32_t max_rows;
+    uint8_t bitv;
+
+    conn = (WT_CONNECTION *)arg;
+
+    /*
+     * We're not configuring transactions or read timestamps: if there's a diagnostic check that all
+     * operations are timestamped transactions, skip the scan.
+     */
+    if (GV(ASSERT_READ_TIMESTAMP))
+        return;
+
+    /* Set up the default key/value buffers. */
+    key_gen_init(&key);
+    val_gen_init(&value);
+
+    /* Open a session and cursor pair. */
+    testutil_check(conn->open_session(conn, NULL, NULL, &session));
+    wiredtiger_open_cursor(session, table->uri, NULL, &cursor);
+
+    /* Scan the first 50 rows for tiny, debugging runs, then scan a random subset of records. */
+    WT_ORDERED_READ(max_rows, table->rows_current);
+    for (keyno = 0; keyno < max_rows;) {
+        if (++keyno > 50)
+            keyno += mmrand(NULL, 1, 1000);
+        if (keyno > max_rows)
+            keyno = max_rows;
+
+        switch (ret = read_row_worker(NULL, table, cursor, keyno, &key, &value, &bitv, false)) {
+        case 0:
+        case WT_NOTFOUND:
+        case WT_ROLLBACK:
+        case WT_CACHE_FULL:
+        case WT_PREPARE_CONFLICT:
+            break;
+        default:
+            testutil_die(ret, "%s: read row %" PRIu64, __func__, keyno);
+        }
+    }
+
+    testutil_check(session->close(session, NULL));
+
+    key_gen_teardown(&key);
+    val_gen_teardown(&value);
+}
+
+/*
  * read_row --
  *     Read and verify a single element in a row- or column-store file.
  */
@@ -1353,7 +1356,7 @@ read_row(TINFO *tinfo)
 {
     /* 25% of the time we call search-near. */
     return (read_row_worker(tinfo, NULL, tinfo->cursor, tinfo->keyno, tinfo->key, tinfo->value,
-      mmrand(&tinfo->rnd, 0, 3) == 1));
+      &tinfo->bitv, mmrand(&tinfo->rnd, 0, 3) == 1));
 }
 
 /*
@@ -1368,40 +1371,37 @@ nextprev(TINFO *tinfo, bool next)
     WT_DECL_RET;
     WT_ITEM key, value;
     uint64_t keyno;
-    uint8_t bitfield;
+    uint8_t bitv;
     const char *which;
 
     table = tinfo->table;
     cursor = tinfo->cursor;
+    keyno = 0;
+    bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
 
     if ((ret = read_op(cursor, next ? NEXT : PREV, NULL)) != 0)
         return (ret);
 
-    keyno = 0;
     switch (table->type) {
     case FIX:
-        if ((ret = cursor->get_key(cursor, &keyno)) == 0 &&
-          (ret = cursor->get_value(cursor, &bitfield)) == 0) {
-            value.data = &bitfield;
-            value.size = 1;
-        }
+        testutil_check(cursor->get_key(cursor, &keyno));
+        testutil_check(cursor->get_value(cursor, &bitv));
         break;
     case ROW:
-        if ((ret = cursor->get_key(cursor, &key)) == 0)
-            ret = cursor->get_value(cursor, &value);
+        testutil_check(cursor->get_key(cursor, &key));
+        testutil_check(cursor->get_value(cursor, &value));
         break;
     case VAR:
-        if ((ret = cursor->get_key(cursor, &keyno)) == 0)
-            ret = cursor->get_value(cursor, &value);
+        testutil_check(cursor->get_key(cursor, &keyno));
+        testutil_check(cursor->get_value(cursor, &value));
         break;
     }
-    testutil_assertfmt(ret == 0, "%s", "nextprev: get_key/get_value");
 
     if (g.trace_all) {
         which = next ? "next" : "prev";
         switch (table->type) {
         case FIX:
-            trace_op(tinfo, "%s %" PRIu64 " {0x%02x}", which, keyno, ((char *)value.data)[0]);
+            trace_op(tinfo, "%s %" PRIu64 " {0x%02" PRIx8 "}", which, keyno, bitv);
             break;
         case ROW:
             trace_op(tinfo, "%s {%.*s}, {%.*s}", which, (int)key.size, (char *)key.data,

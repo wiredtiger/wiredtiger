@@ -121,10 +121,11 @@ table_load(TABLE *base, TABLE *table)
         if (table->type == ROW)
             key_gen(table, &key, keyno);
         if (base == NULL)
-            val_gen(table, NULL, &value, keyno);
+            val_gen(table, NULL, &value, &bitv, keyno);
         else {
             testutil_assert(read_op(base_cursor, NEXT, NULL) == 0);
             testutil_check(base_cursor->get_value(base_cursor, &value));
+            val_to_flcs(table, &value, &bitv);
         }
 
         /* Insert the key/value pair into the new table. */
@@ -132,10 +133,9 @@ table_load(TABLE *base, TABLE *table)
         case FIX:
             if (!is_bulk)
                 cursor->set_key(cursor, keyno);
-            val_to_flcs(&value, &bitv);
             cursor->set_value(cursor, bitv);
             if (g.trace_all)
-                trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, ((uint8_t *)value.data)[0]);
+                trace_msg("bulk %" PRIu32 " {0x%02" PRIx8 "}", keyno, bitv);
             break;
         case VAR:
             if (!is_bulk)

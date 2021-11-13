@@ -315,8 +315,7 @@ main(int argc, char *argv[])
     TIMED_MAJOR_OP(wts_verify(g.wts_conn, true));
     if (verify_only)
         goto skip_operations;
-    if (GV(OPS_VERIFY) == 0)
-        TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
+    TIMED_MAJOR_OP(tables_apply(wts_read_scan, g.wts_conn));
 
     /* Optionally start checkpoints. */
     wts_checkpoints();

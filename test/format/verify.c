@@ -99,11 +99,12 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     WT_ITEM base_key, base_value, table_key, table_value;
     WT_SESSION *session;
     uint64_t base_keyno, table_keyno, rows;
-    uint8_t bitv;
+    uint8_t base_bitv, table_bitv;
     int base_ret, table_ret;
     char track_buf[128];
 
     base_keyno = table_keyno = 0; /* -Wconditional-uninitialized */
+    table_bitv = FIX_VALUE_WRONG; /* -Wconditional-uninitialized */
     base_ret = table_ret = 0;
 
     testutil_check(
@@ -138,8 +139,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
                 testutil_check(table_cursor->get_key(table_cursor, &table_keyno));
                 if (table_keyno >= base_keyno)
                     break;
-                testutil_check(table_cursor->get_value(table_cursor, &table_value));
-                testutil_assert(*(uint8_t *)table_value.data == 0);
+                testutil_check(table_cursor->get_value(table_cursor, &table_bitv));
+                testutil_assert(table_bitv == 0);
             }
             break;
         case VAR:
@@ -171,8 +172,8 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
         testutil_check(base_cursor->get_value(base_cursor, &base_value));
         testutil_check(table_cursor->get_value(table_cursor, &table_value));
         if (table->type == FIX) {
-            val_to_flcs(&base_value, &bitv);
-            testutil_assert(*(uint8_t *)table_value.data == bitv);
+            val_to_flcs(table, &base_value, &base_bitv);
+            testutil_assert(base_bitv == table_bitv);
         } else
             testutil_assert(base_value.size == table_value.size &&
               memcmp(base_value.data, table_value.data, base_value.size) == 0);

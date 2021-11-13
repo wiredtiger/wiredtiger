@@ -110,6 +110,10 @@ typedef struct {
  */
 #define FIX_MIRROR_DNE 0x55
 
+/* There's no out-of-band value for FLCS, use 0xff as the least likely to match any existing value.
+ */
+#define FIX_VALUE_WRONG 0xff
+
 #include "config.h"
 extern CONFIG configuration_list[];
 
@@ -294,9 +298,10 @@ typedef struct {
     size_t ksize;
     size_t kmemsize;
 
-    void *vdata; /* If not a delete, the value */
+    void *vdata; /* If not a delete or truncate, the value */
     size_t vsize;
     size_t vmemsize;
+    uint8_t bitv; /* FLCS */
 } SNAP_OPS;
 
 typedef struct {
@@ -423,11 +428,11 @@ void trace_ops_init(TINFO *);
 void trace_teardown(void);
 void track(const char *, uint64_t);
 void track_ops(TINFO *);
-void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint64_t);
+void val_gen(TABLE *, WT_RAND_STATE *, WT_ITEM *, uint8_t *, uint64_t);
 void val_gen_init(WT_ITEM *);
 void val_gen_teardown(WT_ITEM *);
 void val_init(TABLE *, void *);
-void val_to_flcs(WT_ITEM *, uint8_t *);
+void val_to_flcs(TABLE *, WT_ITEM *, uint8_t *);
 void wts_checkpoints(void);
 void wts_close(WT_CONNECTION **, WT_SESSION **);
 void wts_create_database(void);
