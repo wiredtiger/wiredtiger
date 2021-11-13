@@ -54,7 +54,7 @@ table_verify(TABLE *table, void *arg)
         testutil_assert(ret == EBUSY);
     }
     if (ret == EBUSY)
-        WARN("table.%d skipped verify because of EBUSY", table->id);
+        WARN("table.%u skipped verify because of EBUSY", table->id);
     testutil_check(session->close(session, NULL));
 }
 
@@ -107,7 +107,7 @@ table_verify_mirror(WT_CONNECTION *conn, TABLE *base, TABLE *table)
     base_ret = table_ret = 0;
 
     testutil_check(
-      __wt_snprintf(track_buf, sizeof(track_buf), "table %d mirror verify", table->id));
+      __wt_snprintf(track_buf, sizeof(track_buf), "table %u mirror verify", table->id));
 
     testutil_check(conn->open_session(conn, NULL, NULL, &session));
     wiredtiger_open_cursor(session, base->uri, NULL, &base_cursor);

@@ -214,7 +214,7 @@ table_load(TABLE *base, TABLE *table)
      */
     if (keyno != rows_current + 1) {
         testutil_assertfmt(
-          base == NULL, "table %d: unable to load matching rows into a mirrored table", table->id);
+          base == NULL, "table %u: unable to load matching rows into a mirrored table", table->id);
 
         rows_current = g.transaction_timestamps_config ? committed_keyno : (keyno - 1);
         testutil_assert(rows_current > 0);
