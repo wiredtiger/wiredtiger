@@ -88,7 +88,7 @@ trace_init(void)
         conn = g.wts_conn;
 
         /* Keep the last N log files. */
-        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retention=10)"));
+        testutil_check(conn->reconfigure(conn, "debug_mode=(log_retention=25)"));
     } else {
         len = strlen(g.home) * 2 + strlen(TRACE_INIT_CMD) + 10;
         p = dmalloc(len);
@@ -100,7 +100,7 @@ trace_init(void)
         len = strlen(g.home) * strlen(TRACE_DIR) + 10;
         p = dmalloc(len);
         testutil_check(__wt_snprintf(p, len, "%s/%s", g.home, TRACE_DIR));
-        config = "create,log=(enabled,archive),debug_mode=(log_retention=10)";
+        config = "create,log=(enabled,archive),debug_mode=(log_retention=25)";
         testutil_checkfmt(wiredtiger_open(p, NULL, config, &conn), "%s: %s", p, config);
         free(p);
     }
