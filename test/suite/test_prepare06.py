@@ -39,15 +39,17 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
     uri = 'table:' + tablename
     session_config = 'isolation=snapshot'
 
-    key_format_values = [
-        ('column', dict(key_format='r')),
-        ('integer_row', dict(key_format='i')),
+    format_values = [
+        ('column', dict(key_format='r', value_format='i')),
+        ('column_fix', dict(key_format='r', value_format='8t')),
+        ('integer_row', dict(key_format='i', value_format='i')),
     ]
 
-    scenarios = make_scenarios(key_format_values)
+    scenarios = make_scenarios(format_values)
 
     def test_timestamp_api(self):
-        self.session.create(self.uri, 'key_format={},value_format=i'.format(self.key_format))
+        format = 'key_format={},value_format={}'.format(self.key_format, self.value_format)
+        self.session.create(self.uri, format)
         c = self.session.open_cursor(self.uri)
 
         # It is illegal to set the prepare timestamp older than the oldest
@@ -90,18 +92,24 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         s_reader = self.conn.open_session()
         s_reader.begin_transaction('read_timestamp=' + self.timestamp_str(40))
 
-        # It is legal to set the prepare timestamp earlier than an active
-        # read timestamp with roundup_timestamps settings. This is only
+        # It is illegal to set the prepare timestamp as earlier than an active
+        # read timestamp even with roundup_timestamps settings.  This is only
         # checked in diagnostic builds.
         if wiredtiger.diagnostic_build():
             self.session.begin_transaction('roundup_timestamps=(prepared=true)')
-            self.assertEqual(self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(10)), 0)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.prepare_transaction(
+                'prepare_timestamp=' + self.timestamp_str(10)),
+                "/must be greater than the latest active read timestamp/")
             self.session.rollback_transaction()
 
-            # It is legal to set the prepare timestamp the same as an active read
-            # timestamp with roundup_timestamps settings.
+            # It is illegal to set the prepare timestamp the same as an active read
+            # timestamp even with roundup_timestamps settings.
             self.session.begin_transaction('roundup_timestamps=(prepared=true)')
-            self.assertEqual(self.session.prepare_transaction('prepare_timestamp=' + self.timestamp_str(40)), 0)
+            self.assertRaisesWithMessage(wiredtiger.WiredTigerError,
+                lambda: self.session.prepare_transaction(
+                'prepare_timestamp=' + self.timestamp_str(40)),
+                "/must be greater than the latest active read timestamp/")
             self.session.rollback_transaction()
 
         '''
@@ -137,8 +145,6 @@ class test_prepare06(wttest.WiredTigerTestCase, suite_subprocess):
         '''
 
         s_reader.commit_transaction()
-
-        self.ignoreStdoutPatternIfExists("Skip checking prepare timestamp")
 
 if __name__ == '__main__':
     wttest.run()

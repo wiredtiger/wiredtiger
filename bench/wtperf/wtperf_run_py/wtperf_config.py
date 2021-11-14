@@ -33,14 +33,22 @@ class WTPerfConfig:
                  wtperf_path: str,
                  home_dir: str,
                  test: str,
+                 batch_file: str = None,
+                 arguments=None,
+                 operations=None,
                  environment: str = None,
                  run_max: int = 1,
                  verbose: bool = False,
                  git_root: str = None,
-                 json_info: dict = {}):
+                 json_info=None):
+        if json_info is None:
+            json_info = {}
         self.wtperf_path: str = wtperf_path
         self.home_dir: str = home_dir
         self.test: str = test
+        self.batch_file = batch_file
+        self.arguments = arguments
+        self.operations = operations
         self.environment: str = environment
         self.run_max: int = run_max
         self.verbose: bool = verbose
@@ -50,6 +58,9 @@ class WTPerfConfig:
     def to_value_dict(self):
         as_dict = {'wt_perf_path': self.wtperf_path,
                    'test': self.test,
+                   'batch_file': self.batch_file,
+                   'arguments': self.arguments,
+                   'operations': self.operations,
                    'home_dir': self.home_dir,
                    'environment': self.environment,
                    'run_max': self.run_max,

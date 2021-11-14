@@ -198,18 +198,18 @@ __cursor_fix_append_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     if (cbt->ins == NULL || cbt->recno > WT_INSERT_RECNO(cbt->ins)) {
         cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
+        cbt->iface.value.size = 1;
     } else {
 restart_read:
         WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
-        if (cbt->upd_value->type == WT_UPDATE_INVALID) {
+        if (cbt->upd_value->type == WT_UPDATE_INVALID ||
+          cbt->upd_value->type == WT_UPDATE_TOMBSTONE) {
             cbt->v = 0;
             cbt->iface.value.data = &cbt->v;
-        } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-            cbt->iface.value.data = cbt->upd_value->buf.data;
-        else
-            WT_RET(__wt_value_return(cbt, cbt->upd_value));
+            cbt->iface.value.size = 1;
+        } else
+            __wt_value_return(cbt, cbt->upd_value);
     }
-    cbt->iface.value.size = 1;
     return (0);
 }
 
@@ -220,13 +220,11 @@ restart_read:
 static inline int
 __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 {
-    WT_BTREE *btree;
     WT_PAGE *page;
     WT_SESSION_IMPL *session;
 
     session = CUR2S(cbt);
     page = cbt->ref->page;
-    btree = S2BT(session);
 
     /* If restarting after a prepare conflict, jump to the right spot. */
     if (restart)
@@ -234,6 +232,10 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
 
     /* Initialize for each new page. */
     if (newpage) {
+        /*
+         * Be paranoid and set the slot out of bounds when moving to a new page.
+         */
+        cbt->slot = UINT32_MAX;
         cbt->last_standard_recno = __col_fix_last_recno(cbt->ref);
         if (cbt->last_standard_recno == 0)
             return (WT_NOTFOUND);
@@ -247,6 +249,10 @@ __cursor_fix_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart)
     __cursor_set_recno(cbt, cbt->recno - 1);
 
 new_page:
+restart_read:
+    /* We only have one slot. */
+    cbt->slot = 0;
+
     /* Check any insert list for a matching record. */
     cbt->ins_head = WT_COL_UPDATE_SINGLE(page);
     cbt->ins = __col_insert_search(cbt->ins_head, cbt->ins_stack, cbt->next_stack, cbt->recno);
@@ -256,22 +262,29 @@ new_page:
     if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
         return (0);
 
-    /*
-     * FIXME-WT-6127: Now we only do transaction read if we have an update chain and it doesn't work
-     * in durable history. Review this when we have a plan for fixed-length column store.
-     */
     __wt_upd_value_clear(cbt->upd_value);
     if (cbt->ins != NULL)
-restart_read:
-        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins->upd));
-    if (cbt->upd_value->type == WT_UPDATE_INVALID) {
-        cbt->v = __bit_getv_recno(cbt->ref, cbt->recno, btree->bitcnt);
+        /* Check the update list. */
+        WT_RET(__wt_txn_read_upd_list(session, cbt, cbt->ins->upd));
+    if (cbt->upd_value->type == WT_UPDATE_INVALID)
+        /* Nope. Read the on-disk value and/or history. */
+        WT_RET(__wt_txn_read(session, cbt, NULL, cbt->recno, cbt->ins ? cbt->ins->upd : NULL));
+    if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE || cbt->upd_value->type == WT_UPDATE_INVALID) {
+        /*
+         * Deleted values read as 0.
+         *
+         * Getting an invalid update back means that there was no update, the on-disk value isn't
+         * visible, and there isn't anything in history either. This means this chunk of the tree
+         * didn't exist yet for us (given our read timestamp), so we can either return NOTFOUND or
+         * produce a zero value depending on the desired end-of-tree semantics. For now, we produce
+         * zero so as not to change the preexisting end-of-tree behavior.
+         */
+        cbt->v = 0;
         cbt->iface.value.data = &cbt->v;
-    } else if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
-        cbt->iface.value.data = cbt->upd_value->buf.data;
-    else
-        WT_RET(__wt_value_return(cbt, cbt->upd_value));
-    cbt->iface.value.size = 1;
+        cbt->iface.value.size = 1;
+    } else
+        __wt_value_return(cbt, cbt->upd_value);
+
     return (0);
 }
 
@@ -320,7 +333,8 @@ restart_read:
             ++*skippedp;
             continue;
         }
-        return (__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        return (0);
     }
     /* NOTREACHED */
 }
@@ -397,7 +411,8 @@ restart_read:
                 ++*skippedp;
                 continue;
             }
-            return (__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
+            return (0);
         }
 
         /*
@@ -458,7 +473,7 @@ restart_read:
             ++*skippedp;
             continue;
         }
-        WT_RET(__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
 
         /*
          * It is only safe to cache the value for other keys in the same RLE cell if it is globally
@@ -489,12 +504,10 @@ restart_read:
 
 /*
  * __cursor_row_prev --
- *     Move to the previous row-store item. Taking an optional prefix item for a special case of
- *     search near.
+ *     Move to the previous row-store item.
  */
 static inline int
-__cursor_row_prev(
-  WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp, WT_ITEM *prefix)
+__cursor_row_prev(WT_CURSOR_BTREE *cbt, bool newpage, bool restart, size_t *skippedp)
 {
     WT_CELL_UNPACK_KV kpack;
     WT_INSERT *ins;
@@ -502,12 +515,10 @@ __cursor_row_prev(
     WT_PAGE *page;
     WT_ROW *rip;
     WT_SESSION_IMPL *session;
-    bool prefix_search;
 
     key = &cbt->iface.key;
     page = cbt->ref->page;
     session = CUR2S(cbt);
-    prefix_search = prefix != NULL && F_ISSET(&cbt->iface, WT_CURSTD_PREFIX_SEARCH);
     *skippedp = 0;
 
     /* If restarting after a prepare conflict, jump to the right spot. */
@@ -565,14 +576,6 @@ restart_read_insert:
             if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
                 return (0);
 
-            /*
-             * If the cursor has prefix search configured we can early exit here if the key we are
-             * visiting is before our prefix.
-             */
-            if (prefix_search && __wt_prefix_match(prefix, key) > 0) {
-                WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
-                return (WT_NOTFOUND);
-            }
             WT_RET(__wt_txn_read_upd_list(session, cbt, ins->upd));
             if (cbt->upd_value->type == WT_UPDATE_INVALID) {
                 ++*skippedp;
@@ -585,7 +588,8 @@ restart_read_insert:
                 ++*skippedp;
                 continue;
             }
-            return (__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
+            return (0);
         }
 
         /* Check for the beginning of the page. */
@@ -616,14 +620,6 @@ restart_read_page:
         if (F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY))
             return (0);
 
-        /*
-         * If the cursor has prefix search configured we can early exit here if the key we are
-         * visiting is before our prefix.
-         */
-        if (prefix_search && __wt_prefix_match(prefix, &cbt->iface.key) > 0) {
-            WT_STAT_CONN_DATA_INCR(session, cursor_search_near_prefix_fast_paths);
-            return (WT_NOTFOUND);
-        }
         WT_RET(
           __wt_txn_read(session, cbt, &cbt->iface.key, WT_RECNO_OOB, WT_ROW_UPDATE(page, rip)));
         if (cbt->upd_value->type == WT_UPDATE_INVALID) {
@@ -637,17 +633,18 @@ restart_read_page:
             ++*skippedp;
             continue;
         }
-        return (__wt_value_return(cbt, cbt->upd_value));
+        __wt_value_return(cbt, cbt->upd_value);
+        return (0);
     }
     /* NOTREACHED */
 }
 
 /*
- * __wt_btcur_prev_prefix --
+ * __wt_btcur_prev --
  *     Move to the previous record in the tree.
  */
 int
-__wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
+__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
 {
     WT_CURSOR *cursor;
     WT_DECL_RET;
@@ -728,7 +725,7 @@ __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
                 total_skipped += skipped;
                 break;
             case WT_PAGE_ROW_LEAF:
-                ret = __cursor_row_prev(cbt, newpage, restart, &skipped, prefix);
+                ret = __cursor_row_prev(cbt, newpage, restart, &skipped);
                 total_skipped += skipped;
                 /*
                  * We can directly return WT_NOTFOUND here as the caller will reset the cursor for
@@ -821,14 +818,4 @@ err:
     }
     F_CLR(cbt, WT_CBT_ITERATE_RETRY_NEXT);
     return (ret);
-}
-
-/*
- * __wt_btcur_prev --
- *     Move to the previous record in the tree.
- */
-int
-__wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
-{
-    return (__wt_btcur_prev_prefix(cbt, NULL, truncating));
 }

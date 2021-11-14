@@ -240,12 +240,6 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     }
 
     /*
-     * Clean out any stale value here. Calling a transaction read helper automatically clears this
-     * but we have some code paths that don't do this (fixed length column store is one example).
-     */
-    __wt_upd_value_clear(cbt->upd_value);
-
-    /*
      * If we don't have an insert object, or in the case of column-store, there's an insert object
      * but no update was visible to us and the key on the page is the same as the insert object's
      * key, and the slot as set by the search function is valid, we can use the original page
@@ -254,17 +248,25 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
     switch (btree->type) {
     case BTREE_COL_FIX:
         /*
-         * If search returned an insert object, there may or may not be a matching on-page object,
-         * we have to check. Fixed-length column-store pages don't have slots, but map one-to-one to
-         * keys, check for retrieval past the end of the page.
+         * If search returned an insert, we might be past the end of page in the append list, so
+         * there's no on-disk value.
          */
         if (cbt->recno >= cbt->ref->ref_recno + page->entries)
             return (0);
 
-        *valid = true;
         /*
-         * An update would have appeared as an "insert" object; no further checks to do.
+         * Check for an update ondisk or in the history store. For column store, an insert object
+         * can have the same key as an on-page or history store object.
+         *
+         * Note: do not replace tombstones with zero here; it skips cases in other code below that
+         * expect to handle it themselves, and then doesn't work.
          */
+        WT_RET(__wt_txn_read(session, cbt, key, recno, cbt->ins ? cbt->ins->upd : NULL));
+        if (cbt->upd_value->type != WT_UPDATE_INVALID) {
+            if (cbt->upd_value->type == WT_UPDATE_TOMBSTONE)
+                return (0);
+            *valid = true;
+        }
         break;
     case BTREE_COL_VAR:
         /* The search function doesn't check for empty pages. */
@@ -278,7 +280,8 @@ __wt_cursor_valid(WT_CURSOR_BTREE *cbt, WT_ITEM *key, uint64_t recno, bool *vali
 
         /*
          * Column-store updates are stored as "insert" objects. If search returned an insert object
-         * we can't return, the returned on-page object must be checked for a match.
+         * we can't return, the returned on-page object must be checked for a match. The flag tells
+         * us whether the insert was actually an append to allow skipping the on-disk check.
          */
         if (cbt->ins != NULL && !F_ISSET(cbt, WT_CBT_VAR_ONPAGE_MATCH))
             return (0);
@@ -711,7 +714,7 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
           __wt_prefix_match(&state.key, &cursor->key) != 0)
             __cursor_state_restore(cursor, &state);
         else {
-            WT_ERR(__wt_value_return(cbt, cbt->upd_value));
+            __wt_value_return(cbt, cbt->upd_value);
             goto done;
         }
     }
@@ -741,9 +744,21 @@ __wt_btcur_search_near(WT_CURSOR_BTREE *cbt, int *exactp)
         }
 
         /*
+         * It is not necessary to go backwards when search_near is used with a prefix, as cursor row
+         * search places us on the first key of the prefix range. All the entries before the key we
+         * were placed on will not match the prefix.
+         *
+         * For example, if we search with the prefix "b", the cursor will be positioned at the first
+         * key starting with "b". All the entries before this one will start with "a", hence not
+         * matching the prefix.
+         */
+        if (F_ISSET(cursor, WT_CURSTD_PREFIX_SEARCH))
+            goto done;
+
+        /*
          * We walked to the end of the tree without finding a match. Walk backwards instead.
          */
-        while ((ret = __wt_btcur_prev_prefix(cbt, &state.key, false)) != WT_NOTFOUND) {
+        while ((ret = __wt_btcur_prev(cbt, false)) != WT_NOTFOUND) {
             WT_ERR(ret);
             if (btree->type == BTREE_ROW)
                 WT_ERR(__wt_compare(session, btree->collator, &cursor->key, &state.key, &exact));
@@ -825,6 +840,7 @@ __wt_btcur_insert(WT_CURSOR_BTREE *cbt)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false) &&
       F_ISSET(cursor, WT_CURSTD_OVERWRITE) && !append_key) {
@@ -956,8 +972,6 @@ __curfile_update_check(WT_CURSOR_BTREE *cbt)
     else if (btree->type == BTREE_ROW && page->modify != NULL &&
       page->modify->mod_row_update != NULL)
         upd = page->modify->mod_row_update[cbt->slot];
-    else if (btree->type != BTREE_COL_VAR)
-        return (0);
 
     return (__wt_txn_modify_check(session, cbt, upd, NULL));
 }
@@ -1056,6 +1070,7 @@ __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: again, it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));
@@ -1233,6 +1248,7 @@ __btcur_update(WT_CURSOR_BTREE *cbt, WT_ITEM *value, u_int modify_type)
      *
      * Fixed-length column store can never use a positioned cursor to update because the cursor may
      * not be positioned to the correct record in the case of implicit records in the append list.
+     * FUTURE: it appears that this is no longer true...
      */
     if (btree->type != BTREE_COL_FIX && __cursor_page_pinned(cbt, false)) {
         WT_ERR(__wt_txn_autocommit_check(session));

@@ -100,13 +100,9 @@ function(create_test_executable target)
     endif()
 
     # Link the base set of libraries for a wiredtiger C/CXX test.
-    target_link_libraries(${target} wiredtiger test_util)
+    target_link_libraries(${target} wt::wiredtiger test_util)
     if(NOT "${CREATE_TEST_LIBS}" STREQUAL "")
         target_link_libraries(${target} ${CREATE_TEST_LIBS})
-    endif()
-
-    if(ENABLE_TCMALLOC AND HAVE_LIBTCMALLOC)
-        target_link_libraries(${target} ${HAVE_LIBTCMALLOC})
     endif()
 
     # If compiling for windows, additionally link in the shim library.

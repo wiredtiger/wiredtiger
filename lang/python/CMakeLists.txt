@@ -21,6 +21,23 @@ endif()
 find_package(SWIG 3.0 COMPONENTS python REQUIRED)
 include(${SWIG_USE_FILE})
 
+# Determine which wiredtiger target we should use to link against the
+# Python API. For linking purposes, we need to ensure the wiredtiger
+# library was compiled as position independent code (fPIC). This being achieved
+# either using the 'WITH_PIC' configuration option or building a shared library
+# version of WiredTiger ('ENABLE_SHARED'). Default to whichever option is available
+# (with a preference for a PIC static build), otherwise throw an error if neither
+# build is available.
+set(wiredtiger_target)
+if(ENABLE_STATIC AND WITH_PIC)
+    set(wiredtiger_target wiredtiger_static)
+elseif(ENABLE_SHARED)
+    set(wiredtiger_target wiredtiger_shared)
+else()
+    message(FATAL_ERROR "Unable to build the Python API. Requires either a shared \
+        library (ENABLE_SHARED) or a PIC-enabled (WITH_PIC) build of wiredtiger.")
+endif()
+
 set(python_libs)
 set(python_version)
 
@@ -141,7 +158,7 @@ target_compile_options(${swig_wt_target}
     PRIVATE ${swig_c_flags}
 )
 
-swig_link_libraries(_wiredtiger wiredtiger ${python_libs})
+swig_link_libraries(_wiredtiger ${wiredtiger_target} ${python_libs})
 
 # Setup our output 'wiredtiger' directory to hold the python module sources.
 file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/wiredtiger

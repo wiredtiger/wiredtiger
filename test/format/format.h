@@ -159,12 +159,14 @@ extern u_int ntables;
  * Global and table-specific macros to retrieve configuration information. All of the tables contain
  * all of the possible configuration entries, but the first table slot contains all of the global
  * configuration information. The offset names a prefixed with "V_GLOBAL" and "V_TABLE" to reduce
- * the chance of a coding error retrieving the wrong configuration item.
+ * the chance of a coding error retrieving the wrong configuration item. If returning string values,
+ * convert NULL, where a configuration has never been set, to "off" for consistency.
  */
 #define GV(off) (tables[0]->v[V_GLOBAL_##off].v)
-#define GVS(off) (tables[0]->v[V_GLOBAL_##off].vstr)
+#define GVS(off) \
+    (tables[0]->v[V_GLOBAL_##off].vstr == NULL ? "off" : tables[0]->v[V_GLOBAL_##off].vstr)
 #define TV(off) (table->v[V_TABLE_##off].v)
-#define TVS(off) (table->v[V_TABLE_##off].vstr)
+#define TVS(off) (table->v[V_TABLE_##off].vstr == NULL ? "off" : table->v[V_TABLE_##off].vstr)
 
 #define DATASOURCE(table, ds) (strcmp((table)->v[V_TABLE_RUNS_SOURCE].vstr, ds) == 0)
 
@@ -426,5 +428,7 @@ void wts_verify(TABLE *, void *);
 #if !defined(CUR2S)
 #define CUR2S(c) ((WT_SESSION_IMPL *)((WT_CURSOR *)c)->session)
 #endif
+
+#define WARN(fmt, ...) fprintf(stderr, "%s: WARNING: " fmt "\n", progname, __VA_ARGS__);
 
 #include "format.i"

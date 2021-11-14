@@ -37,6 +37,8 @@ extern bool __wt_modify_idempotent(const void *modify)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_page_evict_urgent(WT_SESSION_IMPL *session, WT_REF *ref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern bool __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_rwlock_islocked(WT_SESSION_IMPL *session, WT_RWLOCK *l)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern bool __wt_txn_active(WT_SESSION_IMPL *session, uint64_t txnid)
@@ -284,8 +286,6 @@ extern int __wt_btcur_next_random(WT_CURSOR_BTREE *cbt)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_btcur_prev_prefix(WT_CURSOR_BTREE *cbt, WT_ITEM *prefix, bool truncating)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_range_truncate(WT_CURSOR_BTREE *start, WT_CURSOR_BTREE *stop)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_btcur_remove(WT_CURSOR_BTREE *cbt, bool positioned)
@@ -393,6 +393,8 @@ extern int __wt_clsm_open_bulk(WT_CURSOR_LSM *clsm, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_clsm_request_switch(WT_CURSOR_LSM *clsm)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_col_fix_read_auxheader(WT_SESSION_IMPL *session, const WT_PAGE_HEADER *dsk,
+  WT_COL_FIX_AUXILIARY_HEADER *auxhdr) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_col_modify(WT_CURSOR_BTREE *cbt, uint64_t recno, const WT_ITEM *value,
   WT_UPDATE *upd_arg, u_int modify_type, bool exclusive
 #ifdef HAVE_DIAGNOSTIC
@@ -763,7 +765,6 @@ extern int __wt_filename(WT_SESSION_IMPL *session, const char *name, char **path
 extern int __wt_filename_construct(WT_SESSION_IMPL *session, const char *path,
   const char *file_prefix, uintmax_t id_1, uint32_t id_2, WT_ITEM *buf)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_floatcmp(float f1, float f2) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_flush_tier(WT_SESSION_IMPL *session, const char *config)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_fopen(WT_SESSION_IMPL *session, const char *name, uint32_t open_flags,
@@ -1228,9 +1229,7 @@ extern int __wt_rec_cell_build_ovfl(WT_SESSION_IMPL *session, WT_RECONCILE *r, W
   uint8_t type, WT_TIME_WINDOW *tw, uint64_t rle) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_child_modify(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *ref,
   bool *hazardp, WT_CHILD_STATE *statep) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_col_fix_slvg(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
+extern int __wt_rec_col_fix(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
   WT_SALVAGE_COOKIE *salvage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_col_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1244,14 +1243,17 @@ extern int __wt_rec_row_int(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_row_leaf(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REF *pageref,
   WT_SALVAGE_COOKIE *salvage) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len, bool forced)
+extern int __wt_rec_split(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len,
-  bool forced) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_split_crossing_bnd(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t next_len)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_split_finish(WT_SESSION_IMPL *session, WT_RECONCILE *r)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+extern int __wt_rec_split_grow(WT_SESSION_IMPL *session, WT_RECONCILE *r, size_t add_len)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_split_init(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_PAGE *page,
-  uint64_t recno, uint64_t max) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
+  uint64_t recno, uint64_t primary_size, uint32_t auxiliary_size)
+  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_rec_upd_select(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_INSERT *ins,
   WT_ROW *rip, WT_CELL_UNPACK_KV *vpack, WT_UPDATE_SELECT *upd_select)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
@@ -1624,8 +1626,6 @@ extern int __wt_update_vector_push(WT_UPDATE_VECTOR *updates, WT_UPDATE *upd)
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_upgrade(WT_SESSION_IMPL *session, const char *cfg[])
   WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
-extern int __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value)
-  WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_value_return_buf(WT_CURSOR_BTREE *cbt, WT_REF *ref, WT_ITEM *buf,
   WT_TIME_WINDOW *tw) WT_GCC_FUNC_DECL_ATTRIBUTE((warn_unused_result));
 extern int __wt_verbose_config(WT_SESSION_IMPL *session, const char *cfg[])
@@ -1697,6 +1697,8 @@ extern void __wt_blkcache_remove(
   WT_SESSION_IMPL *session, wt_off_t offset, size_t size, uint32_t checksum);
 extern void __wt_block_cache_destroy(WT_SESSION_IMPL *session);
 extern void __wt_block_ckpt_destroy(WT_SESSION_IMPL *session, WT_BLOCK_CKPT *ci);
+extern void __wt_block_compact_get_progress_stats(WT_SESSION_IMPL *session, WT_BM *bm,
+  uint64_t *pages_reviewedp, uint64_t *pages_skippedp, uint64_t *pages_rewrittenp);
 extern void __wt_block_compact_progress(
   WT_SESSION_IMPL *session, WT_BLOCK *block, u_int *msg_countp);
 extern void __wt_block_configure_first_fit(WT_BLOCK *block, bool on);
@@ -1825,11 +1827,12 @@ extern void __wt_random_init(WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
 extern void __wt_random_init_seed(WT_SESSION_IMPL *session, WT_RAND_STATE volatile *rnd_state)
   WT_GCC_FUNC_DECL_ATTRIBUTE((visibility("default")));
-extern void __wt_read_cell_time_window(WT_CURSOR_BTREE *cbt, WT_TIME_WINDOW *tw, bool *tw_foundp);
 extern void __wt_read_row_time_window(
   WT_SESSION_IMPL *session, WT_PAGE *page, WT_ROW *rip, WT_TIME_WINDOW *tw);
 extern void __wt_readlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
 extern void __wt_readunlock(WT_SESSION_IMPL *session, WT_RWLOCK *l);
+extern void __wt_rec_col_fix_write_auxheader(WT_SESSION_IMPL *session, WT_RECONCILE *r,
+  uint32_t entries, uint32_t auxentries, uint8_t *image, size_t size);
 extern void __wt_rec_dictionary_free(WT_SESSION_IMPL *session, WT_RECONCILE *r);
 extern void __wt_rec_dictionary_reset(WT_RECONCILE *r);
 extern void __wt_ref_addr_free(WT_SESSION_IMPL *session, WT_REF *ref);
@@ -1891,6 +1894,7 @@ extern void __wt_update_vector_free(WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_init(WT_SESSION_IMPL *session, WT_UPDATE_VECTOR *updates);
 extern void __wt_update_vector_peek(WT_UPDATE_VECTOR *updates, WT_UPDATE **updp);
 extern void __wt_update_vector_pop(WT_UPDATE_VECTOR *updates, WT_UPDATE **updp);
+extern void __wt_value_return(WT_CURSOR_BTREE *cbt, WT_UPDATE_VALUE *upd_value);
 extern void __wt_verbose_timestamp(WT_SESSION_IMPL *session, wt_timestamp_t ts, const char *msg);
 extern void __wt_verbose_worker(WT_SESSION_IMPL *session, const char *fmt, ...)
   WT_GCC_FUNC_DECL_ATTRIBUTE((format(printf, 2, 3))) WT_GCC_FUNC_DECL_ATTRIBUTE((cold));
@@ -2322,7 +2326,10 @@ static inline void __wt_page_evict_soon(WT_SESSION_IMPL *session, WT_REF *ref);
 static inline void __wt_page_modify_clear(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
 static inline void __wt_page_only_modify_set(WT_SESSION_IMPL *session, WT_PAGE *page);
-static inline void __wt_rec_addr_ts_init(WT_RECONCILE *r, WT_TIME_AGGREGATE *ta);
+static inline void __wt_rec_auximage_copy(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t count, WT_REC_KV *kv);
+static inline void __wt_rec_auxincr(
+  WT_SESSION_IMPL *session, WT_RECONCILE *r, uint32_t v, size_t size);
 static inline void __wt_rec_cell_build_addr(WT_SESSION_IMPL *session, WT_RECONCILE *r,
   WT_ADDR *addr, WT_CELL_UNPACK_ADDR *vpack, bool proxy_cell, uint64_t recno);
 static inline void __wt_rec_image_copy(WT_SESSION_IMPL *session, WT_RECONCILE *r, WT_REC_KV *kv);

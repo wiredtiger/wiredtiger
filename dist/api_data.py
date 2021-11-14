@@ -49,10 +49,10 @@ common_runtime_config = [
         enable enhanced checking. ''',
         type='category', subconfig= [
         Config('commit_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility.''',
+            This option is no longer supported, retained for backward compatibility''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('durable_timestamp', 'none', r'''
-            This option is no longer supported, retained for backward compatibility.''',
+            This option is no longer supported, retained for backward compatibility''',
             choices=['always', 'key_consistent', 'never', 'none']),
         Config('write_timestamp', 'off', r'''
             verify that commit timestamps are used per the configured
@@ -339,7 +339,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         the file format''',
         choices=['btree']),
     Config('huffman_key', 'none', r'''
-        This option is no longer supported, retained for backward compatibility.'''),
+        This option is no longer supported, retained for backward compatibility'''),
     Config('huffman_value', 'none', r'''
         configure Huffman encoding for values.  Permitted values are
         \c "none", \c "english", \c "utf8<file>" or \c "utf16<file>".
@@ -363,17 +363,13 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         block compression is done''',
         min='512B', max='512MB'),
     Config('internal_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility.''',
+        This option is no longer supported, retained for backward compatibility''',
         min=0),
     Config('internal_key_max', '0', r'''
-        the largest key stored in an internal node, in bytes.  If set, keys
-        larger than the specified size are stored as overflow items (which
-        may require additional I/O to access).  The default and the maximum
-        allowed value are both one-tenth the size of a newly split internal
-        page''',
+        This option is no longer supported, retained for backward compatibility''',
         min='0'),
     Config('key_gap', '10', r'''
-        This option is no longer supported, retained for backward compatibility.''',
+        This option is no longer supported, retained for backward compatibility''',
         min='0'),
     Config('leaf_key_max', '0', r'''
         the largest key stored in a leaf node, in bytes.  If set, keys
@@ -398,7 +394,7 @@ file_config = format_meta + file_runtime_config + tiered_config + [
         a newly split leaf page''',
         min='0'),
     Config('leaf_item_max', '0', r'''
-        This option is no longer supported, retained for backward compatibility.''',
+        This option is no longer supported, retained for backward compatibility''',
         min=0),
     Config('memory_page_image_max', '0', r'''
         the maximum in-memory page image represented by a single storage block.
@@ -466,6 +462,8 @@ lsm_meta = file_config + lsm_config + [
 tiered_meta = file_meta + tiered_config + [
     Config('last', '0', r'''
         the last allocated object ID'''),
+    Config('oldest', '1', r'''
+        the oldest allocated object ID'''),
     Config('tiers', '', r'''
         list of data sources to combine into a tiered storage structure''', type='list'),
 ]
@@ -1092,6 +1090,21 @@ session_config = [
         closed. This value is inherited from ::wiredtiger_open
         \c cache_cursors''',
         type='boolean'),
+    Config('debug', '', r'''
+        configure debug specific behavior on a session. Generally only used
+        for internal testing purposes.''',
+        type='category', subconfig=[
+        Config('release_evict_page', 'false', r'''
+            Configure the session to evict the page when it is released and
+            no longer needed.''',
+            type='boolean'),
+        ]),
+    Config('cache_max_wait_ms', '0', r'''
+        the maximum number of milliseconds an application thread will wait
+        for space to be available in cache before giving up.
+        Default value will be the global setting of the 
+        connection config''',
+        min=0),
     Config('ignore_cache_size', 'false', r'''
         when set, operations performed by this session ignore the cache size
         and are not blocked when the cache is full.  Note that use of this
@@ -1726,11 +1739,10 @@ methods = {
             applicable only for prepared transactions. Indicates if the prepare
             timestamp and the commit timestamp of this transaction can be
             rounded up. If the prepare timestamp is less than the oldest
-            timestamp, the prepare timestamp will be rounded to the oldest
+            timestamp, the prepare timestamp  will be rounded to the oldest
             timestamp. If the commit timestamp is less than the prepare
             timestamp, the commit timestamp will be rounded up to the prepare
-            timestamp. Allows setting the prepared timestamp smaller than or equal
-            to the latest active read timestamp''', type='boolean'),
+            timestamp''', type='boolean'),
         Config('read', 'false', r'''
             if the read timestamp is less than the oldest timestamp, the
             read timestamp will be rounded up to the oldest timestamp''',

@@ -498,7 +498,6 @@ struct __wt_connection_stats {
     int64_t cache_eviction_pages_seen;
     int64_t cache_eviction_pages_already_queued;
     int64_t cache_eviction_fail;
-    int64_t cache_eviction_fail_parent_has_overflow_items;
     int64_t cache_eviction_fail_active_children_on_an_internal_page;
     int64_t cache_eviction_fail_in_reconciliation;
     int64_t cache_eviction_fail_checkpoint_out_of_order_ts;
@@ -696,7 +695,6 @@ struct __wt_connection_stats {
     int64_t rec_time_window_bytes_ts;
     int64_t rec_time_window_bytes_txn;
     int64_t rec_page_delete_fast;
-    int64_t rec_overflow_key_internal;
     int64_t rec_overflow_key_leaf;
     int64_t rec_maximum_seconds;
     int64_t rec_pages;
@@ -882,16 +880,16 @@ struct __wt_dsrc_stats {
     int64_t btree_checkpoint_generation;
     int64_t btree_clean_checkpoint_timer;
     int64_t btree_compact_pages_reviewed;
-    int64_t btree_compact_pages_write_selected;
+    int64_t btree_compact_pages_rewritten;
     int64_t btree_compact_pages_skipped;
     int64_t btree_compact_skipped;
     int64_t btree_column_fix;
+    int64_t btree_column_tws;
     int64_t btree_column_internal;
     int64_t btree_column_rle;
     int64_t btree_column_deleted;
     int64_t btree_column_variable;
     int64_t btree_fixed_len;
-    int64_t btree_maxintlkey;
     int64_t btree_maxintlpage;
     int64_t btree_maxleafkey;
     int64_t btree_maxleafpage;
@@ -899,7 +897,6 @@ struct __wt_dsrc_stats {
     int64_t btree_maximum_depth;
     int64_t btree_entries;
     int64_t btree_overflow;
-    int64_t btree_compact_pages_rewritten;
     int64_t btree_row_empty_values;
     int64_t btree_row_internal;
     int64_t btree_row_leaf;
@@ -1041,7 +1038,6 @@ struct __wt_dsrc_stats {
     int64_t rec_page_delete_fast;
     int64_t rec_suffix_compression;
     int64_t rec_multiblock_internal;
-    int64_t rec_overflow_key_internal;
     int64_t rec_prefix_compression;
     int64_t rec_multiblock_leaf;
     int64_t rec_overflow_key_leaf;
