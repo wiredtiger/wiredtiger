@@ -753,7 +753,7 @@ __wt_btcur_prev(WT_CURSOR_BTREE *cbt, bool truncating)
          */
         if (!F_ISSET(&cbt->iface, WT_CURSTD_KEY_ONLY) &&
           session->txn->isolation == WT_ISO_SNAPSHOT &&
-          !F_ISSET(&cbt->iface, WT_CURSTD_RETURN_TOMBSTONE))
+          !F_ISSET(&cbt->iface, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE))
             WT_ERR(
               __wt_tree_walk_custom_skip(session, &cbt->ref, __wt_btcur_skip_page, NULL, flags));
         else

@@ -30,8 +30,8 @@ __curhs_file_cursor_open(WT_SESSION_IMPL *session, WT_CURSOR **cursorp)
       session, ret = __wt_open_cursor(session, WT_HS_URI, NULL, open_cursor_cfg, &cursor));
     WT_RET(ret);
 
-    /* History store cursors should always ignore tombstones. */
-    F_SET(cursor, WT_CURSTD_RETURN_TOMBSTONE);
+    /* History store cursors should always return values even when they have visible tombstones. */
+    F_SET(cursor, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE);
 
     *cursorp = cursor;
     return (0);

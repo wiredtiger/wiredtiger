@@ -885,13 +885,14 @@ __wt_txn_read_upd_list_internal(WT_SESSION_IMPL *session, WT_CURSOR_BTREE *cbt, 
 
         WT_ORDERED_READ(prepare_state, upd->prepare_state);
         /*
-         * If the cursor is configured to ignore tombstones, copy the timestamps from the tombstones
-         * to the stop time window of the update value being returned to the caller. Caller can
+         * If the cursor is configured to also return values with visible tombstones, 
+         * copy the timestamps from the tombstones to the stop time window 
+         * of the update value being returned to the caller. Caller can
          * process the stop time window to decide if there was a tombstone on the update chain. If
          * the time window already has a stop time set then we must have seen a tombstone prior to
          * ours in the update list, and therefore don't need to do this again.
          */
-        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_RETURN_TOMBSTONE) &&
+        if (type == WT_UPDATE_TOMBSTONE && F_ISSET(&cbt->iface, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE) &&
           !WT_TIME_WINDOW_HAS_STOP(&cbt->upd_value->tw)) {
             cbt->upd_value->tw.durable_stop_ts = upd->durable_ts;
             cbt->upd_value->tw.stop_ts = upd->start_ts;
@@ -1019,7 +1020,7 @@ retry:
          * and when we are told to ignore non-globally visible tombstones.
          */
         if (!have_stop_tw && __wt_txn_tw_stop_visible(session, &tw) &&
-          !F_ISSET(&cbt->iface, WT_CURSTD_RETURN_TOMBSTONE)) {
+          !F_ISSET(&cbt->iface, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE)) {
             cbt->upd_value->buf.data = NULL;
             cbt->upd_value->buf.size = 0;
             cbt->upd_value->tw.durable_stop_ts = tw.durable_stop_ts;

@@ -40,7 +40,7 @@ __hs_verify_id(
      * store. Though this is not required currently as we are directly searching btree cursors,
      * leave it here in case we switch to standard cursors.
      */
-    F_SET(&ds_cbt->iface, WT_CURSTD_RETURN_TOMBSTONE);
+    F_SET(&ds_cbt->iface, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE);
 
     /*
      * The caller is responsible for positioning the history store cursor at the first record to
@@ -89,7 +89,7 @@ __hs_verify_id(
     }
     WT_ERR_NOTFOUND_OK(ret, true);
 err:
-    F_CLR(&ds_cbt->iface, WT_CURSTD_RETURN_TOMBSTONE);
+    F_CLR(&ds_cbt->iface, WT_CURSTD_ALSO_RETURN_VAL_WITH_TOMBSTONE);
     WT_ASSERT(session, key.mem == NULL && key.memsize == 0);
     __wt_scr_free(session, &prev_key);
     return (ret);
